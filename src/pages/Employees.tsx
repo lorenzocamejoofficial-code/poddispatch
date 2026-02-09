@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
@@ -98,7 +98,7 @@ export default function Employees() {
               <Button><Plus className="mr-1.5 h-4 w-4" /> Add Employee</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
-              <DialogHeader><DialogTitle>Create Employee Account</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>Create Employee Account</DialogTitle><DialogDescription>Add a new employee to the system with their credentials and role.</DialogDescription></DialogHeader>
               <div className="grid gap-3 py-2">
                 <div><Label>Full Name *</Label><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></div>
                 <div><Label>Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
