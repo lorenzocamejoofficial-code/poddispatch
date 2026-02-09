@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Search, Pencil } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -102,6 +102,7 @@ export default function Patients() {
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle>{editing ? "Edit Patient" : "Add Patient"}</DialogTitle>
+                <DialogDescription>Enter patient details including contact info, addresses, and scheduling.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-3 py-2">
                 <div className="grid grid-cols-2 gap-3">

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Truck } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
@@ -93,7 +93,7 @@ export default function TrucksCrews() {
                 <Button size="sm"><Plus className="mr-1.5 h-3.5 w-3.5" /> Add Truck</Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-sm">
-                <DialogHeader><DialogTitle>Add Truck</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>Add Truck</DialogTitle><DialogDescription>Add a new truck to your fleet.</DialogDescription></DialogHeader>
                 <div className="space-y-3 py-2">
                   <div><Label>Truck Name/Number</Label><Input value={truckName} onChange={(e) => setTruckName(e.target.value)} placeholder="e.g. Truck 1" /></div>
                   <Button onClick={addTruck} className="w-full">Add Truck</Button>
@@ -121,7 +121,7 @@ export default function TrucksCrews() {
                 <Button size="sm"><Plus className="mr-1.5 h-3.5 w-3.5" /> Assign Crew</Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
-                <DialogHeader><DialogTitle>Assign Crew to Truck</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>Assign Crew to Truck</DialogTitle><DialogDescription>Select a truck and assign two crew members for the day.</DialogDescription></DialogHeader>
                 <div className="space-y-3 py-2">
                   <div>
                     <Label>Date</Label>

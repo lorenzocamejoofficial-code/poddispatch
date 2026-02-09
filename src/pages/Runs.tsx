@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/dispatch/StatusBadge";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -112,7 +112,7 @@ export default function Runs() {
               <Button><Plus className="mr-1.5 h-4 w-4" /> New Run</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
-              <DialogHeader><DialogTitle>Create Run</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>Create Run</DialogTitle><DialogDescription>Schedule a new patient transport run.</DialogDescription></DialogHeader>
               <div className="grid gap-3 py-2">
                 <div>
                   <Label>Date</Label>
