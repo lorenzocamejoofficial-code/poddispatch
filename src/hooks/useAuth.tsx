@@ -23,26 +23,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchRole = (userId: string) => {
-    setTimeout(async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (data) setRole(data.role as AppRole);
-    }, 0);
-  };
-
-  const fetchProfile = (userId: string) => {
-    setTimeout(async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (data) setProfileId(data.id);
-    }, 0);
+  const loadUserData = async (userId: string) => {
+    const [{ data: roleData }, { data: profileData }] = await Promise.all([
+      supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
+      supabase.from("profiles").select("id").eq("user_id", userId).maybeSingle(),
+    ]);
+    if (roleData) setRole(roleData.role as AppRole);
+    if (profileData) setProfileId(profileData.id);
   };
 
   useEffect(() => {
@@ -51,13 +38,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          fetchRole(session.user.id);
-          fetchProfile(session.user.id);
+          // Defer to avoid Supabase auth deadlock
+          setTimeout(() => {
+            loadUserData(session.user.id).finally(() => setLoading(false));
+          }, 0);
         } else {
           setRole(null);
           setProfileId(null);
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
@@ -65,10 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchRole(session.user.id);
-        fetchProfile(session.user.id);
+        loadUserData(session.user.id).finally(() => setLoading(false));
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
