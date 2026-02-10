@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { path: "/", label: "Dispatch Board", icon: LayoutDashboard },
-  { path: "/runs", label: "Runs", icon: ClipboardList },
+  { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList },
   { path: "/patients", label: "Patients", icon: Users },
   { path: "/employees", label: "Employees", icon: UserPlus },
   { path: "/trucks", label: "Trucks & Crews", icon: Truck },

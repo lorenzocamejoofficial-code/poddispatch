@@ -62,17 +62,35 @@ export type Database = {
       company_settings: {
         Row: {
           company_name: string
+          dialysis_b_leg_buffer_minutes: number
+          discharge_buffer_minutes: number
+          facility_delay_minutes: number
+          grace_window_minutes: number
           id: string
+          load_time_minutes: number
+          unload_time_minutes: number
           updated_at: string
         }
         Insert: {
           company_name?: string
+          dialysis_b_leg_buffer_minutes?: number
+          discharge_buffer_minutes?: number
+          facility_delay_minutes?: number
+          grace_window_minutes?: number
           id?: string
+          load_time_minutes?: number
+          unload_time_minutes?: number
           updated_at?: string
         }
         Update: {
           company_name?: string
+          dialysis_b_leg_buffer_minutes?: number
+          discharge_buffer_minutes?: number
+          facility_delay_minutes?: number
+          grace_window_minutes?: number
           id?: string
+          load_time_minutes?: number
+          unload_time_minutes?: number
           updated_at?: string
         }
         Relationships: []
@@ -167,6 +185,7 @@ export type Database = {
           pickup_address: string | null
           run_duration_minutes: number | null
           schedule_days: Database["public"]["Enums"]["schedule_days"] | null
+          status: Database["public"]["Enums"]["patient_status"]
           updated_at: string
           weight_lbs: number | null
         }
@@ -183,6 +202,7 @@ export type Database = {
           pickup_address?: string | null
           run_duration_minutes?: number | null
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
+          status?: Database["public"]["Enums"]["patient_status"]
           updated_at?: string
           weight_lbs?: number | null
         }
@@ -199,6 +219,7 @@ export type Database = {
           pickup_address?: string | null
           run_duration_minutes?: number | null
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
+          status?: Database["public"]["Enums"]["patient_status"]
           updated_at?: string
           weight_lbs?: number | null
         }
@@ -230,6 +251,33 @@ export type Database = {
           id?: string
           sex?: Database["public"]["Enums"]["sex_type"]
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
           user_id?: string
         }
         Relationships: []
@@ -301,6 +349,89 @@ export type Database = {
           },
         ]
       }
+      schedule_previews: {
+        Row: {
+          id: string
+          message: string
+          preview_date: string
+          sent_at: string
+          sent_by: string
+          target_user_id: string
+        }
+        Insert: {
+          id?: string
+          message: string
+          preview_date: string
+          sent_at?: string
+          sent_by: string
+          target_user_id: string
+        }
+        Update: {
+          id?: string
+          message?: string
+          preview_date?: string
+          sent_at?: string
+          sent_by?: string
+          target_user_id?: string
+        }
+        Relationships: []
+      }
+      scheduling_legs: {
+        Row: {
+          chair_time: string | null
+          created_at: string
+          destination_location: string
+          estimated_duration_minutes: number | null
+          id: string
+          leg_type: Database["public"]["Enums"]["leg_type"]
+          notes: string | null
+          patient_id: string
+          pickup_location: string
+          pickup_time: string | null
+          run_date: string
+          trip_type: Database["public"]["Enums"]["trip_type"]
+          updated_at: string
+        }
+        Insert: {
+          chair_time?: string | null
+          created_at?: string
+          destination_location: string
+          estimated_duration_minutes?: number | null
+          id?: string
+          leg_type: Database["public"]["Enums"]["leg_type"]
+          notes?: string | null
+          patient_id: string
+          pickup_location: string
+          pickup_time?: string | null
+          run_date?: string
+          trip_type?: Database["public"]["Enums"]["trip_type"]
+          updated_at?: string
+        }
+        Update: {
+          chair_time?: string | null
+          created_at?: string
+          destination_location?: string
+          estimated_duration_minutes?: number | null
+          id?: string
+          leg_type?: Database["public"]["Enums"]["leg_type"]
+          notes?: string | null
+          patient_id?: string
+          pickup_location?: string
+          pickup_time?: string | null
+          run_date?: string
+          trip_type?: Database["public"]["Enums"]["trip_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduling_legs_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       status_updates: {
         Row: {
           created_at: string
@@ -335,6 +466,51 @@ export type Database = {
             columns: ["run_id"]
             isOneToOne: false
             referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      truck_run_slots: {
+        Row: {
+          created_at: string
+          id: string
+          leg_id: string
+          run_date: string
+          slot_order: number
+          status: Database["public"]["Enums"]["run_status"]
+          truck_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          leg_id: string
+          run_date?: string
+          slot_order?: number
+          status?: Database["public"]["Enums"]["run_status"]
+          truck_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          leg_id?: string
+          run_date?: string
+          slot_order?: number
+          status?: Database["public"]["Enums"]["run_status"]
+          truck_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "truck_run_slots_leg_id_fkey"
+            columns: ["leg_id"]
+            isOneToOne: false
+            referencedRelation: "scheduling_legs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "truck_run_slots_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
             referencedColumns: ["id"]
           },
         ]
@@ -395,6 +571,13 @@ export type Database = {
     Enums: {
       app_role: "admin" | "crew"
       cert_level: "EMT-B" | "EMT-A" | "EMT-P" | "AEMT" | "Other"
+      leg_type: "A" | "B"
+      patient_status:
+        | "active"
+        | "in_hospital"
+        | "out_of_hospital"
+        | "vacation"
+        | "paused"
       run_status:
         | "pending"
         | "en_route"
@@ -404,7 +587,12 @@ export type Database = {
         | "completed"
       schedule_days: "MWF" | "TTS"
       sex_type: "M" | "F"
-      trip_type: "dialysis" | "discharge" | "outpatient"
+      trip_type:
+        | "dialysis"
+        | "discharge"
+        | "outpatient"
+        | "hospital"
+        | "private_pay"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -534,6 +722,14 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "crew"],
       cert_level: ["EMT-B", "EMT-A", "EMT-P", "AEMT", "Other"],
+      leg_type: ["A", "B"],
+      patient_status: [
+        "active",
+        "in_hospital",
+        "out_of_hospital",
+        "vacation",
+        "paused",
+      ],
       run_status: [
         "pending",
         "en_route",
@@ -544,7 +740,13 @@ export const Constants = {
       ],
       schedule_days: ["MWF", "TTS"],
       sex_type: ["M", "F"],
-      trip_type: ["dialysis", "discharge", "outpatient"],
+      trip_type: [
+        "dialysis",
+        "discharge",
+        "outpatient",
+        "hospital",
+        "private_pay",
+      ],
     },
   },
 } as const

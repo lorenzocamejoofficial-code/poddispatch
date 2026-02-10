@@ -1,5 +1,5 @@
 import { StatusBadge, StatusDot } from "./StatusBadge";
-import { Truck, Users } from "lucide-react";
+import { Truck, Users, Zap } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
@@ -11,6 +11,7 @@ interface RunInfo {
   status: RunStatus;
   trip_type: string;
   is_current: boolean;
+  patient_weight?: number | null;
 }
 
 interface TruckCardProps {
@@ -21,6 +22,7 @@ interface TruckCardProps {
 }
 
 export function TruckCard({ truckName, crewNames, runs, overallStatus }: TruckCardProps) {
+  const hasHeavy = runs.some((r) => (r.patient_weight ?? 0) > 200);
   return (
     <div className="rounded-lg border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
@@ -30,6 +32,11 @@ export function TruckCard({ truckName, crewNames, runs, overallStatus }: TruckCa
             <Truck className="h-4 w-4 text-muted-foreground" />
             <span className="font-semibold text-card-foreground">{truckName}</span>
           </div>
+          {hasHeavy && (
+            <span className="text-[hsl(var(--status-yellow))]" title="Electric stretcher required">
+              <Zap className="h-4 w-4" />
+            </span>
+          )}
         </div>
       </div>
 
