@@ -56,7 +56,7 @@ export default function DispatchBoard() {
     // Fetch today's runs
     const { data: runRows } = await supabase
       .from("runs")
-      .select("*, patient:patients!runs_patient_id_fkey(first_name, last_name)")
+      .select("*, patient:patients!runs_patient_id_fkey(first_name, last_name, weight_lbs)")
       .eq("run_date", today)
       .order("sort_order");
 
@@ -88,6 +88,7 @@ export default function DispatchBoard() {
             status: r.status,
             trip_type: r.trip_type,
             is_current: false,
+            patient_weight: r.patient?.weight_lbs ?? null,
           };
         });
 

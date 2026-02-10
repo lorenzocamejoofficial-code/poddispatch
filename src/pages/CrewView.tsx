@@ -201,9 +201,14 @@ export default function CrewView() {
           )}
 
           {selectedRun.weight_lbs && (
-            <div className="flex items-center gap-2 rounded-lg border bg-card p-3 text-sm">
+            <div className={`flex items-center gap-2 rounded-lg border p-3 text-sm ${
+              selectedRun.weight_lbs > 200 ? "border-[hsl(var(--status-yellow))]/30 bg-[hsl(var(--status-yellow-bg))]" : "bg-card"
+            }`}>
               <Weight className="h-4 w-4 text-muted-foreground" />
               <span className="text-card-foreground">{selectedRun.weight_lbs} lbs</span>
+              {selectedRun.weight_lbs > 200 && (
+                <span className="ml-auto text-xs font-semibold text-[hsl(var(--status-yellow))]">⚡ Electric stretcher required</span>
+              )}
             </div>
           )}
 

@@ -11,6 +11,7 @@ import Patients from "./pages/Patients";
 import Employees from "./pages/Employees";
 import TrucksCrews from "./pages/TrucksCrews";
 import Runs from "./pages/Runs";
+import Scheduling from "./pages/Scheduling";
 import AdminSettings from "./pages/AdminSettings";
 import NotFound from "./pages/NotFound";
 
@@ -50,7 +51,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<DispatchBoard />} />
-      <Route path="/runs" element={<Runs />} />
+      <Route path="/scheduling" element={<Scheduling />} />
+      <Route path="/runs" element={<Runs />} /> {/* legacy */}
       <Route path="/patients" element={<Patients />} />
       <Route path="/employees" element={<Employees />} />
       <Route path="/trucks" element={<TrucksCrews />} />
