@@ -1,25 +1,9 @@
-import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Truck, Plus, Trash2, Zap, Clock, ArrowRight, AlertTriangle } from "lucide-react";
+import { Truck, Plus, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
-
-interface LegDisplay {
-  id: string;
-  patient_name: string;
-  patient_weight: number | null;
-  patient_status: string;
-  leg_type: string;
-  pickup_time: string | null;
-  pickup_location: string;
-  destination_location: string;
-  trip_type: string;
-  estimated_duration_minutes: number | null;
-  assigned_truck_id: string | null;
-}
-
-interface TruckOption { id: string; name: string; }
+import { useSchedulingStore, type LegDisplay, type TruckOption } from "@/hooks/useSchedulingStore";
 
 interface TruckBuilderProps {
   trucks: TruckOption[];
@@ -29,7 +13,7 @@ interface TruckBuilderProps {
 }
 
 export function TruckBuilder({ trucks, legs, selectedDate, onRefresh }: TruckBuilderProps) {
-  const [addingLeg, setAddingLeg] = useState<{ truckId: string; legId: string } | null>(null);
+  const { addingLeg, setAddingLeg } = useSchedulingStore();
 
   const truckLegs = (truckId: string) =>
     legs
@@ -76,14 +60,12 @@ export function TruckBuilder({ trucks, legs, selectedDate, onRefresh }: TruckBui
     onRefresh();
   };
 
-  // Calculate simple slack time
   const calcSlackMinutes = (truckId: string): number => {
     const tLegs = truckLegs(truckId);
     if (tLegs.length === 0) return 999;
     const totalDuration = tLegs.reduce((sum, l) => sum + (l.estimated_duration_minutes ?? 30), 0);
-    // Rough: assume 10hr working day (600 min) minus total service+travel
     const workingMinutes = 600;
-    return Math.max(0, workingMinutes - totalDuration * 2); // *2 for load/unload/travel rough estimate
+    return Math.max(0, workingMinutes - totalDuration * 2);
   };
 
   const slackColor = (slack: number) => {
@@ -112,7 +94,6 @@ export function TruckBuilder({ trucks, legs, selectedDate, onRefresh }: TruckBui
 
           return (
             <div key={truck.id} className="rounded-lg border bg-card p-4">
-              {/* Truck header */}
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Truck className="h-4 w-4 text-muted-foreground" />
@@ -132,9 +113,8 @@ export function TruckBuilder({ trucks, legs, selectedDate, onRefresh }: TruckBui
                 {tLegs.length}/10 slots used
               </div>
 
-              {/* Assigned legs */}
               <div className="space-y-1.5 mb-3">
-                {tLegs.map((leg, idx) => {
+                {tLegs.map((leg) => {
                   const isHeavy = (leg.patient_weight ?? 0) > 200;
                   return (
                     <div key={leg.id} className="flex items-center justify-between rounded-md border px-2 py-1.5 text-xs">
@@ -157,7 +137,6 @@ export function TruckBuilder({ trucks, legs, selectedDate, onRefresh }: TruckBui
                 )}
               </div>
 
-              {/* Add leg */}
               {tLegs.length < 10 && unassigned.length > 0 && (
                 addingLeg?.truckId === truck.id ? (
                   <div className="flex gap-2">
