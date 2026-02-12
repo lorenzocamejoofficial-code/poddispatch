@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { SchedulingProvider } from "@/hooks/useSchedulingStore";
 import Login from "./pages/Login";
 import DispatchBoard from "./pages/DispatchBoard";
 import CrewView from "./pages/CrewView";
@@ -49,17 +50,19 @@ function AppRoutes() {
 
   // Admin role
   return (
-    <Routes>
-      <Route path="/" element={<DispatchBoard />} />
-      <Route path="/scheduling" element={<Scheduling />} />
-      <Route path="/runs" element={<Runs />} /> {/* legacy */}
-      <Route path="/patients" element={<Patients />} />
-      <Route path="/employees" element={<Employees />} />
-      <Route path="/trucks" element={<TrucksCrews />} />
-      <Route path="/settings" element={<AdminSettings />} />
-      <Route path="/login" element={<Navigate to="/" replace />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <SchedulingProvider>
+      <Routes>
+        <Route path="/" element={<DispatchBoard />} />
+        <Route path="/scheduling" element={<Scheduling />} />
+        <Route path="/runs" element={<Runs />} /> {/* legacy */}
+        <Route path="/patients" element={<Patients />} />
+        <Route path="/employees" element={<Employees />} />
+        <Route path="/trucks" element={<TrucksCrews />} />
+        <Route path="/settings" element={<AdminSettings />} />
+        <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </SchedulingProvider>
   );
 }
 
