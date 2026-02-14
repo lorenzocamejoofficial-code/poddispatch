@@ -1,18 +1,19 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Truck, Plus, Trash2, Zap } from "lucide-react";
+import { Truck, Plus, Trash2, Zap, Users } from "lucide-react";
 import { toast } from "sonner";
-import { useSchedulingStore, type LegDisplay, type TruckOption } from "@/hooks/useSchedulingStore";
+import { useSchedulingStore, type LegDisplay, type TruckOption, type CrewDisplay } from "@/hooks/useSchedulingStore";
 
 interface TruckBuilderProps {
   trucks: TruckOption[];
   legs: LegDisplay[];
+  crews: CrewDisplay[];
   selectedDate: string;
   onRefresh: () => void;
 }
 
-export function TruckBuilder({ trucks, legs, selectedDate, onRefresh }: TruckBuilderProps) {
+export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh }: TruckBuilderProps) {
   const { addingLeg, setAddingLeg } = useSchedulingStore();
 
   const truckLegs = (truckId: string) =>
@@ -25,6 +26,9 @@ export function TruckBuilder({ trucks, legs, selectedDate, onRefresh }: TruckBui
       });
 
   const unassigned = legs.filter((l) => !l.assigned_truck_id);
+
+  const crewForTruck = (truckId: string): CrewDisplay | undefined =>
+    crews.find((c) => c.truck_id === truckId);
 
   const assignLeg = async (truckId: string, legId: string) => {
     const currentSlots = truckLegs(truckId);
@@ -91,10 +95,11 @@ export function TruckBuilder({ trucks, legs, selectedDate, onRefresh }: TruckBui
           const tLegs = truckLegs(truck.id);
           const slack = calcSlackMinutes(truck.id);
           const hasHeavy = tLegs.some((l) => (l.patient_weight ?? 0) > 200);
+          const crew = crewForTruck(truck.id);
 
           return (
             <div key={truck.id} className="rounded-lg border bg-card p-4">
-              <div className="mb-3 flex items-center justify-between">
+              <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Truck className="h-4 w-4 text-muted-foreground" />
                   <span className="font-semibold text-card-foreground">{truck.name}</span>
@@ -107,6 +112,16 @@ export function TruckBuilder({ trucks, legs, selectedDate, onRefresh }: TruckBui
                 <span className={`text-xs font-medium ${slackColor(slack)}`}>
                   {slackLabel(slack)}
                 </span>
+              </div>
+
+              {/* Crew info */}
+              <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Users className="h-3 w-3" />
+                {crew ? (
+                  <span>{crew.member1_name ?? "—"} & {crew.member2_name ?? "—"}</span>
+                ) : (
+                  <span className="italic">No crew assigned</span>
+                )}
               </div>
 
               <div className="mb-2 text-xs text-muted-foreground">

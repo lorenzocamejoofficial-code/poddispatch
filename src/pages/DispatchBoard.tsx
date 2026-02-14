@@ -11,6 +11,7 @@ interface TruckData {
   id: string;
   name: string;
   crewNames: string[];
+  scheduledLegsCount: number;
   runs: {
     id: string;
     patient_name: string;
@@ -53,12 +54,18 @@ export default function DispatchBoard() {
       .select("*, member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
       .eq("active_date", today);
 
-    // Fetch today's runs
+    // Fetch today's runs (legacy)
     const { data: runRows } = await supabase
       .from("runs")
       .select("*, patient:patients!runs_patient_id_fkey(first_name, last_name, weight_lbs)")
       .eq("run_date", today)
       .order("sort_order");
+
+    // Fetch today's scheduling legs via truck_run_slots
+    const { data: slotRows } = await supabase
+      .from("truck_run_slots")
+      .select("truck_id, leg_id")
+      .eq("run_date", today);
 
     // Fetch active alerts
     const { data: alertRows } = await supabase
@@ -96,10 +103,13 @@ export default function DispatchBoard() {
       const currentIdx = truckRuns.findIndex((r) => r.status !== "completed");
       if (currentIdx >= 0) truckRuns[currentIdx].is_current = true;
 
+      const scheduledLegsCount = (slotRows ?? []).filter((s) => s.truck_id === t.id).length;
+
       return {
         id: t.id,
         name: t.name,
         crewNames,
+        scheduledLegsCount,
         runs: truckRuns,
         overallStatus: computeOverallStatus(truckRuns),
       };
@@ -164,7 +174,7 @@ export default function DispatchBoard() {
             ) : (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {trucks.map((t) => (
-                  <TruckCard key={t.id} truckName={t.name} crewNames={t.crewNames} runs={t.runs} overallStatus={t.overallStatus} />
+                  <TruckCard key={t.id} truckName={t.name} crewNames={t.crewNames} scheduledLegsCount={t.scheduledLegsCount} runs={t.runs} overallStatus={t.overallStatus} />
                 ))}
               </div>
             )}

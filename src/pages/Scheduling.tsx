@@ -6,20 +6,23 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Zap, AlertTriangle, Trash2, ArrowRight, Clock } from "lucide-react";
+import { Plus, Zap, AlertTriangle, Trash2, ArrowRight, Clock, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
 import { useSchedulingStore, type LegDisplay } from "@/hooks/useSchedulingStore";
+import { useState } from "react";
 
 export default function Scheduling() {
   const {
     selectedDate, setSelectedDate,
-    legs, patients, trucks,
+    legs, patients, trucks, crews,
     legForm, setLegForm, resetLegForm,
     pendingLegType, setPendingLegType,
     dialogOpen, setDialogOpen,
-    refresh,
+    refresh, autoGenerateLegs,
   } = useSchedulingStore();
+
+  const [generating, setGenerating] = useState(false);
 
   const openCreateDialog = (type: "A" | "B") => {
     setPendingLegType(type);
@@ -67,6 +70,20 @@ export default function Scheduling() {
     refresh();
   };
 
+  const handleAutoGenerate = async () => {
+    setGenerating(true);
+    try {
+      const count = await autoGenerateLegs();
+      if (count === 0) {
+        toast.info("No new legs to generate. Either no patients match this day's schedule, or legs already exist.");
+      } else {
+        toast.success(`Generated A & B legs for ${count} patient${count > 1 ? "s" : ""}`);
+      }
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const unassignedLegs = legs.filter(l => !l.assigned_truck_id);
 
   return (
@@ -76,11 +93,14 @@ export default function Scheduling() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-auto" />
           <div className="flex gap-2">
+            <Button variant="outline" onClick={handleAutoGenerate} disabled={generating}>
+              <Wand2 className="mr-1.5 h-4 w-4" /> {generating ? "Generating..." : "Auto-Fill from Templates"}
+            </Button>
             <Button variant="outline" onClick={() => openCreateDialog("A")}>
-              <Plus className="mr-1.5 h-4 w-4" /> Create A Leg
+              <Plus className="mr-1.5 h-4 w-4" /> A Leg
             </Button>
             <Button variant="outline" onClick={() => openCreateDialog("B")}>
-              <Plus className="mr-1.5 h-4 w-4" /> Create B Leg
+              <Plus className="mr-1.5 h-4 w-4" /> B Leg
             </Button>
           </div>
         </div>
@@ -103,6 +123,7 @@ export default function Scheduling() {
         <TruckBuilder
           trucks={trucks}
           legs={legs}
+          crews={crews}
           selectedDate={selectedDate}
           onRefresh={refresh}
         />
@@ -117,7 +138,17 @@ export default function Scheduling() {
             <div className="grid gap-3 py-2">
               <div>
                 <Label>Patient *</Label>
-                <Select value={legForm.patient_id} onValueChange={(v) => setLegForm(f => ({ ...f, patient_id: v }))}>
+                <Select value={legForm.patient_id} onValueChange={(v) => {
+                  const p = patients.find(pt => pt.id === v);
+                  setLegForm(f => ({
+                    ...f,
+                    patient_id: v,
+                  pickup_location: f.pickup_location || (pendingLegType === "A" ? (p?.pickup_address ?? "") : (p?.dropoff_facility ?? "")),
+                    destination_location: f.destination_location || (pendingLegType === "A" ? (p?.dropoff_facility ?? "") : (p?.pickup_address ?? "")),
+                    chair_time: f.chair_time || (p?.chair_time ?? ""),
+                    estimated_duration_minutes: f.estimated_duration_minutes || (p?.run_duration_minutes?.toString() ?? ""),
+                  }));
+                }}>
                   <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
                   <SelectContent>
                     {patients.map((p) => (

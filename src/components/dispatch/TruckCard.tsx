@@ -17,11 +17,12 @@ interface RunInfo {
 interface TruckCardProps {
   truckName: string;
   crewNames: string[];
+  scheduledLegsCount?: number;
   runs: RunInfo[];
   overallStatus: "green" | "yellow" | "red";
 }
 
-export function TruckCard({ truckName, crewNames, runs, overallStatus }: TruckCardProps) {
+export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, overallStatus }: TruckCardProps) {
   const hasHeavy = runs.some((r) => (r.patient_weight ?? 0) > 200);
   return (
     <div className="rounded-lg border bg-card p-4 shadow-sm">
@@ -45,7 +46,11 @@ export function TruckCard({ truckName, crewNames, runs, overallStatus }: TruckCa
         <span>{crewNames.length > 0 ? crewNames.join(" & ") : "No crew assigned"}</span>
       </div>
 
-      {runs.length === 0 ? (
+      {scheduledLegsCount > 0 && (
+        <p className="mb-2 text-xs text-muted-foreground">{scheduledLegsCount} scheduled leg{scheduledLegsCount !== 1 ? "s" : ""}</p>
+      )}
+
+      {runs.length === 0 && scheduledLegsCount === 0 ? (
         <p className="text-sm text-muted-foreground italic">No runs scheduled</p>
       ) : (
         <div className="space-y-2">
