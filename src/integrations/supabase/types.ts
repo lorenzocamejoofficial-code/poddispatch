@@ -95,6 +95,47 @@ export type Database = {
         }
         Relationships: []
       }
+      crew_share_tokens: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string
+          id: string
+          token: string
+          truck_id: string
+          valid_from: string
+          valid_until: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by: string
+          id?: string
+          token?: string
+          truck_id: string
+          valid_from?: string
+          valid_until?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string
+          id?: string
+          token?: string
+          truck_id?: string
+          valid_from?: string
+          valid_until?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crew_share_tokens_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crews: {
         Row: {
           active_date: string

@@ -19,8 +19,27 @@ export interface LegDisplay {
   assigned_truck_id: string | null;
 }
 
-export interface PatientOption { id: string; name: string; weight: number | null; status: string; }
+export interface PatientOption {
+  id: string;
+  name: string;
+  weight: number | null;
+  status: string;
+  pickup_address: string | null;
+  dropoff_facility: string | null;
+  chair_time: string | null;
+  run_duration_minutes: number | null;
+  schedule_days: string | null;
+  notes: string | null;
+}
+
 export interface TruckOption { id: string; name: string; }
+
+export interface CrewDisplay {
+  id: string;
+  truck_id: string;
+  member1_name: string | null;
+  member2_name: string | null;
+}
 
 export interface LegFormState {
   patient_id: string;
@@ -40,18 +59,35 @@ const emptyForm: LegFormState = {
   notes: "",
 };
 
+/* ── Helper: check if a weekday matches schedule_days ── */
+function matchesScheduleDay(date: string, scheduleDays: string | null): boolean {
+  if (!scheduleDays) return false;
+  const d = new Date(date + "T12:00:00"); // noon to avoid TZ issues
+  const dayOfWeek = d.getDay(); // 0=Sun, 1=Mon, ...
+  if (scheduleDays === "MWF") return [1, 3, 5].includes(dayOfWeek);
+  if (scheduleDays === "TTS") return [2, 4, 6].includes(dayOfWeek);
+  return false;
+}
+
+/* ── Helper: subtract minutes from a time string ── */
+function subtractMinutes(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m - minutes;
+  const adjTotal = total < 0 ? total + 1440 : total;
+  return `${String(Math.floor(adjTotal / 60)).padStart(2, "0")}:${String(adjTotal % 60).padStart(2, "0")}`;
+}
+
 /* ── Context shape ── */
 interface SchedulingStore {
-  /* Persisted across tab navigation */
   selectedDate: string;
   setSelectedDate: (d: string) => void;
 
   legs: LegDisplay[];
   patients: PatientOption[];
   trucks: TruckOption[];
+  crews: CrewDisplay[];
   loading: boolean;
 
-  /* Form state kept alive across navigation */
   legForm: LegFormState;
   setLegForm: (f: LegFormState | ((prev: LegFormState) => LegFormState)) => void;
   resetLegForm: () => void;
@@ -60,12 +96,12 @@ interface SchedulingStore {
   dialogOpen: boolean;
   setDialogOpen: (o: boolean) => void;
 
-  /* Truck builder transient state */
   addingLeg: { truckId: string; legId: string } | null;
   setAddingLeg: (v: { truckId: string; legId: string } | null) => void;
 
-  /* Data operations */
   refresh: () => void;
+  refreshTrucks: () => void;
+  autoGenerateLegs: () => Promise<number>;
 }
 
 const SchedulingContext = createContext<SchedulingStore | undefined>(undefined);
@@ -75,6 +111,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   const [legs, setLegs] = useState<LegDisplay[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [trucks, setTrucks] = useState<TruckOption[]>([]);
+  const [crews, setCrews] = useState<CrewDisplay[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [legForm, setLegForm] = useState<LegFormState>(emptyForm);
@@ -121,32 +158,129 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
 
   const fetchOptions = useCallback(async () => {
     const [{ data: p }, { data: t }] = await Promise.all([
-      supabase.from("patients").select("id, first_name, last_name, weight_lbs, status").order("last_name"),
-      supabase.from("trucks").select("id, name").eq("active", true),
+      supabase.from("patients").select("id, first_name, last_name, weight_lbs, status, pickup_address, dropoff_facility, chair_time, run_duration_minutes, schedule_days, notes").order("last_name"),
+      supabase.from("trucks").select("id, name").eq("active", true).order("name"),
     ]);
-    setPatients((p ?? []).map((x: any) => ({ id: x.id, name: `${x.first_name} ${x.last_name}`, weight: x.weight_lbs, status: x.status })));
+    setPatients((p ?? []).map((x: any) => ({
+      id: x.id,
+      name: `${x.first_name} ${x.last_name}`,
+      weight: x.weight_lbs,
+      status: x.status,
+      pickup_address: x.pickup_address,
+      dropoff_facility: x.dropoff_facility,
+      chair_time: x.chair_time,
+      run_duration_minutes: x.run_duration_minutes,
+      schedule_days: x.schedule_days,
+      notes: x.notes,
+    })));
     setTrucks((t ?? []).map((x: any) => ({ id: x.id, name: x.name })));
   }, []);
 
+  const fetchCrews = useCallback(async () => {
+    const { data } = await supabase
+      .from("crews")
+      .select("id, truck_id, member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
+      .eq("active_date", selectedDate);
+    setCrews((data ?? []).map((c: any) => ({
+      id: c.id,
+      truck_id: c.truck_id,
+      member1_name: c.member1?.full_name ?? null,
+      member2_name: c.member2?.full_name ?? null,
+    })));
+  }, [selectedDate]);
+
   const refresh = useCallback(() => {
     fetchLegs();
-  }, [fetchLegs]);
+    fetchCrews();
+  }, [fetchLegs, fetchCrews]);
+
+  const refreshTrucks = useCallback(() => {
+    fetchOptions();
+  }, [fetchOptions]);
+
+  const autoGenerateLegs = useCallback(async (): Promise<number> => {
+    // Get active patients whose schedule matches selectedDate
+    const eligible = patients.filter(
+      (p) => p.status === "active" && matchesScheduleDay(selectedDate, p.schedule_days) && p.pickup_address && p.dropoff_facility
+    );
+
+    if (eligible.length === 0) return 0;
+
+    // Check which patients already have legs for this date
+    const { data: existingLegs } = await supabase
+      .from("scheduling_legs")
+      .select("patient_id")
+      .eq("run_date", selectedDate);
+
+    const existingPatientIds = new Set((existingLegs ?? []).map((l) => l.patient_id));
+
+    const newLegs: any[] = [];
+    for (const p of eligible) {
+      if (existingPatientIds.has(p.id)) continue;
+
+      const duration = p.run_duration_minutes ?? 30;
+      const chairTime = p.chair_time ?? null;
+      const pickupTime = chairTime ? subtractMinutes(chairTime, duration) : null;
+
+      // A leg: home -> facility
+      newLegs.push({
+        patient_id: p.id,
+        leg_type: "A",
+        pickup_time: pickupTime,
+        chair_time: chairTime,
+        pickup_location: p.pickup_address!,
+        destination_location: p.dropoff_facility!,
+        trip_type: "dialysis",
+        estimated_duration_minutes: duration,
+        notes: p.notes || null,
+        run_date: selectedDate,
+      });
+
+      // B leg: facility -> home (pickup after treatment, default 3.5h after chair time)
+      const treatmentMinutes = 210; // 3.5 hours default
+      const bPickupTime = chairTime ? subtractMinutes(chairTime, -treatmentMinutes) : null;
+
+      newLegs.push({
+        patient_id: p.id,
+        leg_type: "B",
+        pickup_time: bPickupTime,
+        chair_time: null,
+        pickup_location: p.dropoff_facility!,
+        destination_location: p.pickup_address!,
+        trip_type: "dialysis",
+        estimated_duration_minutes: duration,
+        notes: p.notes || null,
+        run_date: selectedDate,
+      });
+    }
+
+    if (newLegs.length === 0) return 0;
+
+    const { error } = await supabase.from("scheduling_legs").insert(newLegs as any);
+    if (error) {
+      console.error("Auto-generate error:", error);
+      return 0;
+    }
+
+    await fetchLegs();
+    return newLegs.length / 2; // return patient count
+  }, [patients, selectedDate, fetchLegs]);
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchLegs(), fetchOptions()]).finally(() => setLoading(false));
-  }, [selectedDate, fetchLegs, fetchOptions]);
+    Promise.all([fetchLegs(), fetchOptions(), fetchCrews()]).finally(() => setLoading(false));
+  }, [selectedDate, fetchLegs, fetchOptions, fetchCrews]);
 
   return (
     <SchedulingContext.Provider
       value={{
         selectedDate, setSelectedDate,
-        legs, patients, trucks, loading,
+        legs, patients, trucks, crews, loading,
         legForm, setLegForm, resetLegForm,
         pendingLegType, setPendingLegType,
         dialogOpen, setDialogOpen,
         addingLeg, setAddingLeg,
-        refresh,
+        refresh, refreshTrucks, autoGenerateLegs,
       }}
     >
       {children}

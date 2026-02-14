@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   X,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { path: "/", label: "Dispatch Board", icon: LayoutDashboard },
   { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList },
+  { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send },
   { path: "/patients", label: "Patients", icon: Users },
   { path: "/employees", label: "Employees", icon: UserPlus },
   { path: "/trucks", label: "Trucks & Crews", icon: Truck },
