@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Truck, Users, Clock, ArrowRight, Zap, MapPin, RefreshCw } from "lucide-react";
+import { Truck, Users, Clock, ArrowRight, Zap, MapPin, RefreshCw, CheckCircle2, Navigation, UserCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface LegRow {
   id: string;
@@ -15,6 +16,8 @@ interface LegRow {
   estimated_duration_minutes: number | null;
   notes: string | null;
   patient_weight: number | null;
+  slot_id: string | null;
+  slot_status: string;
 }
 
 interface SheetData {
@@ -25,17 +28,35 @@ interface SheetData {
   legs: LegRow[];
 }
 
+const STATUS_FLOW = ["pending", "en_route", "arrived", "with_patient", "transporting", "completed"] as const;
+const STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  en_route: "En Route",
+  arrived: "On Scene",
+  with_patient: "With Patient",
+  transporting: "Transporting",
+  completed: "Complete",
+};
+const STATUS_ICONS: Record<string, any> = {
+  pending: Clock,
+  en_route: Navigation,
+  arrived: MapPin,
+  with_patient: UserCheck,
+  transporting: Loader2,
+  completed: CheckCircle2,
+};
+
 export default function DailyRunSheet() {
   const { token } = useParams<{ token: string }>();
   const [data, setData] = useState<SheetData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [updatingSlot, setUpdatingSlot] = useState<string | null>(null);
 
-  const fetchSheet = async () => {
+  const fetchSheet = useCallback(async () => {
     if (!token) { setError("No token provided"); setLoading(false); return; }
 
-    // Look up the share token
     const { data: tokenRow, error: tokenErr } = await supabase
       .from("crew_share_tokens")
       .select("truck_id, valid_from, valid_until")
@@ -52,28 +73,15 @@ export default function DailyRunSheet() {
     const today = new Date().toISOString().split("T")[0];
     const scheduleDate = today >= tokenRow.valid_from && today <= tokenRow.valid_until ? today : tokenRow.valid_from;
 
-    // Fetch truck name
-    const { data: truck } = await supabase
-      .from("trucks")
-      .select("name")
-      .eq("id", tokenRow.truck_id)
-      .single();
-
-    // Fetch crew for this date
-    const { data: crew } = await supabase
-      .from("crews")
-      .select("member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
-      .eq("truck_id", tokenRow.truck_id)
-      .eq("active_date", scheduleDate)
-      .maybeSingle();
-
-    // Fetch legs assigned to this truck for this date
-    const { data: slots } = await supabase
-      .from("truck_run_slots")
-      .select("leg_id, slot_order")
-      .eq("truck_id", tokenRow.truck_id)
-      .eq("run_date", scheduleDate)
-      .order("slot_order");
+    const [{ data: truck }, { data: crew }, { data: slots }] = await Promise.all([
+      supabase.from("trucks").select("name").eq("id", tokenRow.truck_id).single(),
+      supabase.from("crews")
+        .select("member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
+        .eq("truck_id", tokenRow.truck_id).eq("active_date", scheduleDate).maybeSingle(),
+      supabase.from("truck_run_slots")
+        .select("id, leg_id, slot_order, status")
+        .eq("truck_id", tokenRow.truck_id).eq("run_date", scheduleDate).order("slot_order"),
+    ]);
 
     const legIds = (slots ?? []).map((s) => s.leg_id);
 
@@ -84,22 +92,30 @@ export default function DailyRunSheet() {
         .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, notes)")
         .in("id", legIds);
 
-      // Sort by slot_order
-      const orderMap = new Map((slots ?? []).map((s) => [s.leg_id, s.slot_order]));
+      const orderMap = new Map((slots ?? []).map((s) => [s.leg_id, { order: s.slot_order, slotId: s.id, status: s.status }]));
       legs = (legData ?? [])
-        .map((l: any) => ({
-          id: l.id,
-          leg_type: l.leg_type,
-          patient_name: l.patient ? `${l.patient.first_name} ${l.patient.last_name}` : "Unknown",
-          pickup_time: l.pickup_time,
-          chair_time: l.chair_time,
-          pickup_location: l.pickup_location,
-          destination_location: l.destination_location,
-          estimated_duration_minutes: l.estimated_duration_minutes,
-          notes: l.patient?.notes ?? l.notes ?? null,
-          patient_weight: l.patient?.weight_lbs ?? null,
-        }))
-        .sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+        .map((l: any) => {
+          const slotInfo = orderMap.get(l.id);
+          return {
+            id: l.id,
+            leg_type: l.leg_type,
+            patient_name: l.patient ? `${l.patient.first_name} ${l.patient.last_name}` : "Unknown",
+            pickup_time: l.pickup_time,
+            chair_time: l.chair_time,
+            pickup_location: l.pickup_location,
+            destination_location: l.destination_location,
+            estimated_duration_minutes: l.estimated_duration_minutes,
+            notes: l.patient?.notes ?? l.notes ?? null,
+            patient_weight: l.patient?.weight_lbs ?? null,
+            slot_id: slotInfo?.slotId ?? null,
+            slot_status: slotInfo?.status ?? "pending",
+          };
+        })
+        .sort((a, b) => {
+          const aOrder = orderMap.get(a.id)?.order ?? 0;
+          const bOrder = orderMap.get(b.id)?.order ?? 0;
+          return aOrder - bOrder;
+        });
     }
 
     setData({
@@ -110,14 +126,43 @@ export default function DailyRunSheet() {
       legs,
     });
     setLoading(false);
-  };
+  }, [token]);
 
-  useEffect(() => { fetchSheet(); }, [token]);
+  useEffect(() => { fetchSheet(); }, [fetchSheet]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchSheet();
     setRefreshing(false);
+  };
+
+  const advanceStatus = async (leg: LegRow) => {
+    if (!leg.slot_id) return;
+    const currentIdx = STATUS_FLOW.indexOf(leg.slot_status as any);
+    if (currentIdx >= STATUS_FLOW.length - 1) return;
+    const nextStatus = STATUS_FLOW[currentIdx + 1];
+
+    setUpdatingSlot(leg.slot_id);
+    const { error } = await supabase
+      .from("truck_run_slots")
+      .update({ status: nextStatus } as any)
+      .eq("id", leg.slot_id);
+
+    if (error) {
+      toast.error("Failed to update status");
+    } else {
+      // Update local state immediately
+      setData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          legs: prev.legs.map((l) =>
+            l.slot_id === leg.slot_id ? { ...l, slot_status: nextStatus } : l
+          ),
+        };
+      });
+    }
+    setUpdatingSlot(null);
   };
 
   const openInMaps = (address: string) => {
@@ -145,7 +190,6 @@ export default function DailyRunSheet() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b bg-card p-4">
         <div className="flex items-center justify-between">
           <div>
@@ -167,15 +211,19 @@ export default function DailyRunSheet() {
         </div>
       </header>
 
-      {/* Legs */}
       <div className="p-4 space-y-3">
         {data.legs.length === 0 ? (
           <p className="py-10 text-center text-muted-foreground">No runs assigned for this date.</p>
         ) : (
           data.legs.map((leg, idx) => {
             const isHeavy = (leg.patient_weight ?? 0) > 200;
+            const isCompleted = leg.slot_status === "completed";
+            const StatusIcon = STATUS_ICONS[leg.slot_status] ?? Clock;
+            const currentIdx = STATUS_FLOW.indexOf(leg.slot_status as any);
+            const nextStatus = currentIdx < STATUS_FLOW.length - 1 ? STATUS_FLOW[currentIdx + 1] : null;
+
             return (
-              <div key={leg.id} className="rounded-lg border bg-card p-4">
+              <div key={leg.id} className={`rounded-lg border bg-card p-4 ${isCompleted ? "opacity-60" : ""}`}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-muted-foreground">#{idx + 1}</span>
@@ -185,6 +233,14 @@ export default function DailyRunSheet() {
                     <span className="font-semibold text-card-foreground">{leg.patient_name}</span>
                     {isHeavy && <Zap className="h-3.5 w-3.5 text-[hsl(var(--status-yellow))]" />}
                   </div>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                    isCompleted ? "bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))]" :
+                    leg.slot_status === "pending" ? "bg-[hsl(var(--status-pending-bg))] text-[hsl(var(--status-pending))]" :
+                    "bg-primary/10 text-primary"
+                  }`}>
+                    <StatusIcon className="h-3 w-3" />
+                    {STATUS_LABELS[leg.slot_status] ?? leg.slot_status}
+                  </span>
                 </div>
 
                 <div className="space-y-1.5 text-sm">
@@ -215,6 +271,19 @@ export default function DailyRunSheet() {
                     <p className="text-xs text-muted-foreground italic">{leg.notes}</p>
                   )}
                 </div>
+
+                {/* Status advance button */}
+                {nextStatus && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 w-full"
+                    disabled={updatingSlot === leg.slot_id}
+                    onClick={() => advanceStatus(leg)}
+                  >
+                    {updatingSlot === leg.slot_id ? "Updating..." : `Mark ${STATUS_LABELS[nextStatus]}`}
+                  </Button>
+                )}
               </div>
             );
           })

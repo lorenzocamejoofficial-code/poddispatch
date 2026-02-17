@@ -268,28 +268,34 @@ export type Database = {
       }
       profiles: {
         Row: {
+          active: boolean
           cert_level: Database["public"]["Enums"]["cert_level"]
           created_at: string
           full_name: string
           id: string
+          phone_number: string | null
           sex: Database["public"]["Enums"]["sex_type"]
           updated_at: string
           user_id: string
         }
         Insert: {
+          active?: boolean
           cert_level?: Database["public"]["Enums"]["cert_level"]
           created_at?: string
           full_name: string
           id?: string
+          phone_number?: string | null
           sex?: Database["public"]["Enums"]["sex_type"]
           updated_at?: string
           user_id: string
         }
         Update: {
+          active?: boolean
           cert_level?: Database["public"]["Enums"]["cert_level"]
           created_at?: string
           full_name?: string
           id?: string
+          phone_number?: string | null
           sex?: Database["public"]["Enums"]["sex_type"]
           updated_at?: string
           user_id?: string

@@ -38,7 +38,7 @@ export default function TrucksCrews() {
   const fetchAll = async () => {
     const [{ data: t }, { data: p }, { data: c }] = await Promise.all([
       supabase.from("trucks").select("*").order("name"),
-      supabase.from("profiles").select("id, full_name").order("full_name"),
+      supabase.from("profiles").select("id, full_name").eq("active", true).order("full_name"),
       supabase.from("crews").select("*, truck:trucks!crews_truck_id_fkey(name), member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)").order("active_date", { ascending: false }),
     ]);
     setTrucks(t ?? []);
