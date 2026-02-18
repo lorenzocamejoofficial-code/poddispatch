@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { TruckCard } from "@/components/dispatch/TruckCard";
 import { AlertsPanel } from "@/components/dispatch/AlertsPanel";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import type { Database } from "@/integrations/supabase/types";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
@@ -38,36 +39,30 @@ function computeOverallStatus(runs: { status: RunStatus }[]): "green" | "yellow"
 }
 
 export default function DispatchBoard() {
+  const { selectedDate } = useSchedulingStore();
   const [trucks, setTrucks] = useState<TruckData[]>([]);
   const [alerts, setAlerts] = useState<AlertData[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const today = new Date().toISOString().split("T")[0];
-
   const fetchData = async () => {
-    // Fetch trucks
     const { data: truckRows } = await supabase.from("trucks").select("*").eq("active", true);
 
-    // Fetch today's crews
     const { data: crewRows } = await supabase
       .from("crews")
       .select("*, member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
-      .eq("active_date", today);
+      .eq("active_date", selectedDate);
 
-    // Fetch today's runs (legacy)
     const { data: runRows } = await supabase
       .from("runs")
       .select("*, patient:patients!runs_patient_id_fkey(first_name, last_name, weight_lbs)")
-      .eq("run_date", today)
+      .eq("run_date", selectedDate)
       .order("sort_order");
 
-    // Fetch today's scheduling legs via truck_run_slots
     const { data: slotRows } = await supabase
       .from("truck_run_slots")
       .select("truck_id, leg_id")
-      .eq("run_date", today);
+      .eq("run_date", selectedDate);
 
-    // Fetch active alerts
     const { data: alertRows } = await supabase
       .from("alerts")
       .select("*")
@@ -99,7 +94,6 @@ export default function DispatchBoard() {
           };
         });
 
-      // Mark first non-completed run as current
       const currentIdx = truckRuns.findIndex((r) => r.status !== "completed");
       if (currentIdx >= 0) truckRuns[currentIdx].is_current = true;
 
@@ -128,9 +122,9 @@ export default function DispatchBoard() {
   };
 
   useEffect(() => {
+    setLoading(true);
     fetchData();
 
-    // Subscribe to real-time run updates
     const channel = supabase
       .channel("dispatch-board")
       .on("postgres_changes", { event: "*", schema: "public", table: "runs" }, () => fetchData())
@@ -139,12 +133,16 @@ export default function DispatchBoard() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [selectedDate]);
 
   const dismissAlert = async (id: string) => {
     await supabase.from("alerts").update({ dismissed: true }).eq("id", id);
     setAlerts((prev) => prev.filter((a) => a.id !== id));
   };
+
+  const dateLabel = new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric", year: "numeric",
+  });
 
   return (
     <AdminLayout>
@@ -154,6 +152,11 @@ export default function DispatchBoard() {
         </div>
       ) : (
         <div className="space-y-6">
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Dispatch Board</p>
+            <h2 className="text-lg font-bold text-foreground">{dateLabel}</h2>
+          </div>
+
           {/* Alerts */}
           <section>
             <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -165,7 +168,7 @@ export default function DispatchBoard() {
           {/* Trucks */}
           <section>
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Today's Trucks
+              Trucks
             </h3>
             {trucks.length === 0 ? (
               <p className="text-sm text-muted-foreground">
