@@ -8,6 +8,7 @@ const WARNING_BEFORE_MS = 2 * 60 * 1000;       // warn 2 min before expiry
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"] as const;
 
 type AppRole = "admin" | "crew";
+type AppRoleExtended = AppRole | "dispatcher";
 
 interface AuthContextType {
   user: User | null;
