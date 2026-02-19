@@ -301,6 +301,15 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setLoading(true);
     Promise.all([fetchLegs(), fetchOptions(), fetchCrews()]).finally(() => setLoading(false));
+
+    // Realtime: re-fetch crews whenever crew assignments change
+    const channel = supabase
+      .channel("scheduling-crews")
+      .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => fetchCrews())
+      .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => fetchCrews())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [selectedDate, fetchLegs, fetchOptions, fetchCrews]);
 
   return (

@@ -165,6 +165,16 @@ export default function CrewScheduleAdmin() {
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
   useEffect(() => { fetchDownTrucks(); }, [fetchDownTrucks]);
 
+  // Realtime: keep crew/availability data fresh across all tabs
+  useEffect(() => {
+    const channel = supabase
+      .channel("crew-schedule-admin-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => fetchEmployees())
+      .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => fetchDownTrucks())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchEmployees, fetchDownTrucks]);
+
   const generateToken = async () => {
     if (!selectedTruck) { toast.error("Select a truck"); return; }
 
