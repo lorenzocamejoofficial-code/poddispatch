@@ -308,6 +308,25 @@ export default function TrucksCrews() {
     toast.success("Truck renamed"); fetchAll(); refreshTrucks();
   };
 
+  const [deleteTruckId, setDeleteTruckId] = useState<string | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState(false);
+
+  const confirmDeleteTruck = (id: string) => {
+    setDeleteTruckId(id);
+    setDeleteDialog(true);
+  };
+
+  const deleteTruck = async () => {
+    if (!deleteTruckId) return;
+    const { error } = await supabase.from("trucks").delete().eq("id", deleteTruckId);
+    if (error) { toast.error("Failed to delete truck"); return; }
+    toast.success("Truck deleted");
+    setDeleteDialog(false);
+    setDeleteTruckId(null);
+    fetchAll();
+    refreshTrucks();
+  };
+
   // Crew CRUD
   const assignCrew = async (truckId: string, date: string, m1: string, m2: string) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
@@ -453,6 +472,9 @@ export default function TrucksCrews() {
                     <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); }}>
                       <Pencil className="h-3 w-3" />
                     </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => confirmDeleteTruck(t.id)}>
+                      <Trash2 className="h-3 w-3 text-destructive" />
+                    </Button>
                   </>
                 )}
               </div>
@@ -594,6 +616,24 @@ export default function TrucksCrews() {
               </div>
               <Button onClick={copyWeekForward} disabled={copying} className="w-full">
                 <Copy className="mr-1.5 h-4 w-4" /> {copying ? "Copying..." : "Copy Assignments"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Truck Confirmation Dialog */}
+        <Dialog open={deleteDialog} onOpenChange={setDeleteDialog}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Delete Truck</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete <strong>{trucks.find(t => t.id === deleteTruckId)?.name}</strong>? This action cannot be undone and will remove the truck from all scheduling data.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setDeleteDialog(false)}>Cancel</Button>
+              <Button variant="destructive" className="flex-1" onClick={deleteTruck}>
+                <Trash2 className="mr-1.5 h-4 w-4" /> Delete Truck
               </Button>
             </div>
           </DialogContent>
