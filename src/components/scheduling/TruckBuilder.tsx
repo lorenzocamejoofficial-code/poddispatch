@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Truck, Plus, Trash2, Zap, Users, GripVertical } from "lucide-react";
+import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { useSchedulingStore, type LegDisplay, type TruckOption, type CrewDisplay } from "@/hooks/useSchedulingStore";
 import {
@@ -25,9 +25,10 @@ import { CSS } from "@dnd-kit/utilities";
 interface SortableLegItemProps {
   leg: LegDisplay;
   onRemove: () => void;
+  onEditException: () => void;
 }
 
-function SortableLegItem({ leg, onRemove }: SortableLegItemProps) {
+function SortableLegItem({ leg, onRemove, onEditException }: SortableLegItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: leg.id });
 
   const style = {
@@ -42,7 +43,7 @@ function SortableLegItem({ leg, onRemove }: SortableLegItemProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center justify-between rounded-md border px-2 py-1.5 text-xs bg-card"
+      className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs bg-card ${leg.has_exception ? "border-primary/40" : ""}`}
     >
       <div className="flex items-center gap-1.5 min-w-0 flex-1">
         <button
@@ -57,12 +58,18 @@ function SortableLegItem({ leg, onRemove }: SortableLegItemProps) {
           leg.leg_type === "A" ? "bg-primary/10 text-primary" : "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]"
         }`}>{leg.leg_type}</span>
         <span className="truncate font-medium text-card-foreground">{leg.patient_name}</span>
-        {isHeavy && <Zap className="h-3 w-3 text-[hsl(var(--status-yellow))] shrink-0" />}
+        {isHeavy && <Zap className="h-3 w-3 text-[hsl(var(--status-yellow))] shrink-0" aria-label="Electric stretcher required" />}
+        {leg.has_exception && <GitBranch className="h-3 w-3 text-primary shrink-0" aria-label="Exception override active" />}
         {leg.pickup_time && <span className="text-muted-foreground shrink-0">{leg.pickup_time}</span>}
       </div>
-      <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={onRemove}>
-        <Trash2 className="h-2.5 w-2.5" />
-      </Button>
+      <div className="flex items-center gap-0.5 shrink-0">
+        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEditException} title="Edit this run only">
+          <Pencil className="h-2.5 w-2.5" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onRemove}>
+          <Trash2 className="h-2.5 w-2.5" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -73,9 +80,10 @@ interface TruckBuilderProps {
   crews: CrewDisplay[];
   selectedDate: string;
   onRefresh: () => void;
+  onEditException: (leg: LegDisplay) => void;
 }
 
-export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh }: TruckBuilderProps) {
+export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException }: TruckBuilderProps) {
   const { addingLeg, setAddingLeg } = useSchedulingStore();
 
   const sensors = useSensors(
@@ -141,7 +149,6 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh }: T
 
     const reordered = arrayMove(tLegs, oldIndex, newIndex);
 
-    // Persist new slot_order for each leg in this truck
     await Promise.all(
       reordered.map((leg, idx) =>
         supabase
@@ -229,7 +236,12 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh }: T
                 >
                   <SortableContext items={tLegs.map((l) => l.id)} strategy={verticalListSortingStrategy}>
                     {tLegs.map((leg) => (
-                      <SortableLegItem key={leg.id} leg={leg} onRemove={() => removeLeg(leg.id)} />
+                      <SortableLegItem
+                        key={leg.id}
+                        leg={leg}
+                        onRemove={() => removeLeg(leg.id)}
+                        onEditException={() => onEditException(leg)}
+                      />
                     ))}
                   </SortableContext>
                 </DndContext>
@@ -256,7 +268,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh }: T
                   </div>
                 ) : (
                   <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setAddingLeg({ truckId: truck.id, legId: "" })}>
-                    <Plus className="mr-1 h-3 w-3" /> Add Leg
+                    <Plus className="mr-1 h-3 w-3" /> Add Leg from Run Pool
                   </Button>
                 )
               )}

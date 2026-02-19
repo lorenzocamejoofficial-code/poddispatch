@@ -17,6 +17,12 @@ export interface LegDisplay {
   estimated_duration_minutes: number | null;
   notes: string | null;
   assigned_truck_id: string | null;
+  // exception override fields
+  exception_pickup_time?: string | null;
+  exception_pickup_location?: string | null;
+  exception_destination_location?: string | null;
+  exception_notes?: string | null;
+  has_exception?: boolean;
 }
 
 export interface PatientOption {
@@ -30,6 +36,9 @@ export interface PatientOption {
   run_duration_minutes: number | null;
   schedule_days: string | null;
   notes: string | null;
+  transport_type: string;
+  recurrence_start_date: string | null;
+  recurrence_end_date: string | null;
 }
 
 export interface TruckOption { id: string; name: string; }
@@ -60,10 +69,10 @@ const emptyForm: LegFormState = {
 };
 
 /* ── Helper: check if a weekday matches schedule_days ── */
-function matchesScheduleDay(date: string, scheduleDays: string | null): boolean {
+export function matchesScheduleDay(date: string, scheduleDays: string | null): boolean {
   if (!scheduleDays) return false;
-  const d = new Date(date + "T12:00:00"); // noon to avoid TZ issues
-  const dayOfWeek = d.getDay(); // 0=Sun, 1=Mon, ...
+  const d = new Date(date + "T12:00:00");
+  const dayOfWeek = d.getDay();
   if (scheduleDays === "MWF") return [1, 3, 5].includes(dayOfWeek);
   if (scheduleDays === "TTS") return [2, 4, 6].includes(dayOfWeek);
   return false;
@@ -122,7 +131,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   const resetLegForm = useCallback(() => setLegForm(emptyForm), []);
 
   const fetchLegs = useCallback(async () => {
-    const [{ data }, { data: slots }] = await Promise.all([
+    const [{ data }, { data: slots }, { data: exceptions }] = await Promise.all([
       supabase
         .from("scheduling_legs")
         .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, status)")
@@ -132,33 +141,46 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         .from("truck_run_slots")
         .select("leg_id, truck_id")
         .eq("run_date", selectedDate),
+      supabase
+        .from("leg_exceptions")
+        .select("*")
+        .eq("run_date", selectedDate),
     ]);
 
     const slotMap = new Map((slots ?? []).map((s) => [s.leg_id, s.truck_id]));
+    const exceptionMap = new Map((exceptions ?? []).map((e: any) => [e.scheduling_leg_id, e]));
 
     setLegs(
-      (data ?? []).map((l: any) => ({
-        id: l.id,
-        patient_name: l.patient ? `${l.patient.first_name} ${l.patient.last_name}` : "Unknown",
-        patient_id: l.patient_id,
-        patient_weight: l.patient?.weight_lbs ?? null,
-        patient_status: l.patient?.status ?? "active",
-        leg_type: l.leg_type,
-        pickup_time: l.pickup_time,
-        chair_time: l.chair_time,
-        pickup_location: l.pickup_location,
-        destination_location: l.destination_location,
-        trip_type: l.trip_type,
-        estimated_duration_minutes: l.estimated_duration_minutes,
-        notes: l.notes,
-        assigned_truck_id: slotMap.get(l.id) ?? null,
-      }))
+      (data ?? []).map((l: any) => {
+        const exc = exceptionMap.get(l.id);
+        return {
+          id: l.id,
+          patient_name: l.patient ? `${l.patient.first_name} ${l.patient.last_name}` : "Unknown",
+          patient_id: l.patient_id,
+          patient_weight: l.patient?.weight_lbs ?? null,
+          patient_status: l.patient?.status ?? "active",
+          leg_type: l.leg_type,
+          pickup_time: exc?.pickup_time ?? l.pickup_time,
+          chair_time: l.chair_time,
+          pickup_location: exc?.pickup_location ?? l.pickup_location,
+          destination_location: exc?.destination_location ?? l.destination_location,
+          trip_type: l.trip_type,
+          estimated_duration_minutes: l.estimated_duration_minutes,
+          notes: exc?.notes !== undefined ? exc.notes : l.notes,
+          assigned_truck_id: slotMap.get(l.id) ?? null,
+          exception_pickup_time: exc?.pickup_time ?? null,
+          exception_pickup_location: exc?.pickup_location ?? null,
+          exception_destination_location: exc?.destination_location ?? null,
+          exception_notes: exc?.notes ?? null,
+          has_exception: !!exc,
+        };
+      })
     );
   }, [selectedDate]);
 
   const fetchOptions = useCallback(async () => {
     const [{ data: p }, { data: t }] = await Promise.all([
-      supabase.from("patients").select("id, first_name, last_name, weight_lbs, status, pickup_address, dropoff_facility, chair_time, run_duration_minutes, schedule_days, notes").order("last_name"),
+      supabase.from("patients").select("id, first_name, last_name, weight_lbs, status, pickup_address, dropoff_facility, chair_time, run_duration_minutes, schedule_days, notes, transport_type, recurrence_start_date, recurrence_end_date").order("last_name"),
       supabase.from("trucks").select("id, name").eq("active", true).order("name"),
     ]);
     setPatients((p ?? []).map((x: any) => ({
@@ -172,6 +194,9 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
       run_duration_minutes: x.run_duration_minutes,
       schedule_days: x.schedule_days,
       notes: x.notes,
+      transport_type: x.transport_type ?? "dialysis",
+      recurrence_start_date: x.recurrence_start_date,
+      recurrence_end_date: x.recurrence_end_date,
     })));
     setTrucks((t ?? []).map((x: any) => ({ id: x.id, name: x.name })));
   }, []);
@@ -199,10 +224,17 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   }, [fetchOptions]);
 
   const autoGenerateLegs = useCallback(async (): Promise<number> => {
-    // Get active patients whose schedule matches selectedDate
-    const eligible = patients.filter(
-      (p) => p.status === "active" && matchesScheduleDay(selectedDate, p.schedule_days) && p.pickup_address && p.dropoff_facility
-    );
+    // Get active patients with recurring transport whose schedule matches selectedDate
+    const eligible = patients.filter((p) => {
+      if (p.status !== "active") return false;
+      if (p.transport_type === "adhoc") return false;
+      if (!matchesScheduleDay(selectedDate, p.schedule_days)) return false;
+      if (!p.pickup_address || !p.dropoff_facility) return false;
+      // Check recurrence window
+      if (p.recurrence_start_date && selectedDate < p.recurrence_start_date) return false;
+      if (p.recurrence_end_date && selectedDate > p.recurrence_end_date) return false;
+      return true;
+    });
 
     if (eligible.length === 0) return 0;
 
@@ -236,8 +268,8 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         run_date: selectedDate,
       });
 
-      // B leg: facility -> home (pickup after treatment, default 3.5h after chair time)
-      const treatmentMinutes = 210; // 3.5 hours default
+      // B leg: facility -> home (default 3.5h after chair time)
+      const treatmentMinutes = 210;
       const bPickupTime = chairTime ? subtractMinutes(chairTime, -treatmentMinutes) : null;
 
       newLegs.push({
@@ -263,7 +295,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     }
 
     await fetchLegs();
-    return newLegs.length / 2; // return patient count
+    return newLegs.length / 2;
   }, [patients, selectedDate, fetchLegs]);
 
   useEffect(() => {
