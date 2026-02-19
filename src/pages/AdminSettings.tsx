@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { CheckCircle2, ClipboardList } from "lucide-react";
 
 export default function AdminSettings() {
   const [settingsId, setSettingsId] = useState("");
@@ -48,6 +50,29 @@ export default function AdminSettings() {
     toast.success("Settings saved");
     setSaving(false);
   };
+
+  const CHECKLIST = [
+    { id: "A1", label: "Create at least one Truck (Trucks & Crews page → Add Truck)" },
+    { id: "A2", label: "Create at least two Employees marked Active with phone numbers (Employees page → Add Employee)" },
+    { id: "A3", label: "Assign crew members to a Truck for the test date (Trucks & Crews → assign crew)" },
+    { id: "A4", label: "Create at least 3 patient runs on the test date and assign to a truck (Scheduling page)" },
+    { id: "A5", label: "Generate a Crew Run Sheet share link for that truck/date and confirm it appears in Active Share Links (Crew Schedule Delivery)" },
+    { id: "A6", label: "Open the run sheet link on a phone WITHOUT login and confirm truck/date/runs display correctly" },
+    { id: "A7", label: "Crew updates a run status on the link — confirm it reflects in the Dispatch Board" },
+  ];
+  const [checked, setChecked] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("testChecklist") ?? "[]")); }
+    catch { return new Set(); }
+  });
+  const toggleCheck = (id: string) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      localStorage.setItem("testChecklist", JSON.stringify([...next]));
+      return next;
+    });
+  };
+  const allDone = CHECKLIST.every((c) => checked.has(c.id));
 
   return (
     <AdminLayout>
@@ -142,6 +167,53 @@ export default function AdminSettings() {
         <Button onClick={save} disabled={saving} className="w-full">
           {saving ? "Saving..." : "Save Settings"}
         </Button>
+
+        {/* ── TEST READINESS CHECKLIST ── */}
+        <section className="space-y-3 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 p-4">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold text-foreground">Staging Test Readiness Checklist</h3>
+            {allDone && (
+              <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-[hsl(var(--status-green))]">
+                <CheckCircle2 className="h-3.5 w-3.5" /> All steps complete
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Check each step once verified. Progress is saved locally in this browser.
+          </p>
+          <div className="space-y-2.5">
+            {CHECKLIST.map((item) => (
+              <label
+                key={item.id}
+                className="flex items-start gap-3 cursor-pointer group"
+              >
+                <Checkbox
+                  checked={checked.has(item.id)}
+                  onCheckedChange={() => toggleCheck(item.id)}
+                  className="mt-0.5 shrink-0"
+                />
+                <span className={`text-xs leading-relaxed ${checked.has(item.id) ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                  <strong className="text-primary mr-1">{item.id}.</strong>
+                  {item.label}
+                </span>
+              </label>
+            ))}
+          </div>
+          {!allDone && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs"
+              onClick={() => {
+                setChecked(new Set());
+                localStorage.removeItem("testChecklist");
+              }}
+            >
+              Reset all
+            </Button>
+          )}
+        </section>
       </div>
     </AdminLayout>
   );

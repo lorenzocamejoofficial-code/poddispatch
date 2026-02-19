@@ -4,14 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Copy, RefreshCw, Link2, Trash2, Truck, Users, Send, MessageSquare } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Copy, RefreshCw, Link2, Trash2, Truck, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 interface ShareToken {
   id: string;
@@ -27,13 +28,61 @@ interface ActiveEmployee {
   id: string;
   full_name: string;
   phone_number: string | null;
-  truck_id: string | null; // assigned truck for selectedDate
+  truck_id: string | null;
   truck_name: string | null;
 }
 
 interface SendTarget {
   employee: ActiveEmployee;
   link?: string;
+  message?: string;
+}
+
+type MessageTemplate = "daily" | "update";
+
+function buildRunSheetUrl(token: string): string {
+  // Use the published URL if available, otherwise preview
+  const base = window.location.origin;
+  return `${base}/crew/${token}`;
+}
+
+function isPreviewUrl(url: string): boolean {
+  return url.includes("lovable.app") || url.includes("lovableproject.com");
+}
+
+function buildMessage(
+  template: MessageTemplate,
+  companyName: string,
+  truckName: string,
+  date: string,
+  link: string
+): string {
+  const formattedDate = (() => {
+    try {
+      const [y, m, d] = date.split("-").map(Number);
+      return format(new Date(y, m - 1, d), "EEEE, MMMM d");
+    } catch { return date; }
+  })();
+
+  if (template === "daily") {
+    return `${companyName} — Daily Run Sheet
+Truck: ${truckName}
+Date: ${formattedDate}
+
+Open this link to view your runs and update statuses:
+${link}
+
+Keep this link open throughout your shift. Refresh to see dispatcher updates.`;
+  }
+
+  return `${companyName} — Schedule Update
+Truck: ${truckName}
+Date: ${formattedDate}
+
+Your run sheet has been updated by dispatch. Open the link below to view the latest:
+${link}
+
+Refresh the page if you already have it open.`;
 }
 
 export default function CrewScheduleAdmin() {
@@ -42,14 +91,20 @@ export default function CrewScheduleAdmin() {
   const [tokens, setTokens] = useState<ShareToken[]>([]);
   const [selectedTruck, setSelectedTruck] = useState("");
   const [employees, setEmployees] = useState<ActiveEmployee[]>([]);
+  const [companyName, setCompanyName] = useState("Dispatch");
 
   // Send panel state
   const [sendMode, setSendMode] = useState<"individual" | "collective">("individual");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
-  const [message, setMessage] = useState("");
+  const [messageTemplate, setMessageTemplate] = useState<MessageTemplate>("daily");
   const [readyModal, setReadyModal] = useState<SendTarget[]>([]);
-  const [modalMode, setModalMode] = useState<"link" | "message">("link");
+
+  useEffect(() => {
+    supabase.from("company_settings").select("company_name").limit(1).maybeSingle().then(({ data }) => {
+      if (data?.company_name) setCompanyName(data.company_name);
+    });
+  }, []);
 
   const fetchTokens = useCallback(async () => {
     const { data } = await supabase
@@ -70,7 +125,6 @@ export default function CrewScheduleAdmin() {
   }, []);
 
   const fetchEmployees = useCallback(async () => {
-    // Get active employees with their crew assignments for selectedDate
     const [{ data: profiles }, { data: crews }] = await Promise.all([
       supabase.from("profiles").select("id, full_name, phone_number").eq("active", true).order("full_name"),
       supabase.from("crews")
@@ -99,6 +153,14 @@ export default function CrewScheduleAdmin() {
 
   const generateToken = async () => {
     if (!selectedTruck) { toast.error("Select a truck"); return; }
+
+    // Check if a token already exists for this truck+date
+    const existing = tokens.find((t) => t.truck_id === selectedTruck && t.valid_from === selectedDate);
+    if (existing) {
+      toast.info("A share link already exists for this truck and date. Copy it from Active Share Links.");
+      return;
+    }
+
     const validFrom = selectedDate;
     const until = new Date(selectedDate + "T12:00:00");
     until.setDate(until.getDate() + 1);
@@ -124,19 +186,17 @@ export default function CrewScheduleAdmin() {
   };
 
   const copyLink = (token: string) => {
-    const url = `${window.location.origin}/crew/${token}`;
+    const url = buildRunSheetUrl(token);
     navigator.clipboard.writeText(url);
     toast.success("Link copied to clipboard");
   };
 
-  // Build link for a truck token
   const getLinkForTruck = (truckId: string): string | undefined => {
     const t = tokens.find((tk) => tk.truck_id === truckId && tk.valid_from === selectedDate);
     if (!t) return undefined;
-    return `${window.location.origin}/crew/${t.token}`;
+    return buildRunSheetUrl(t.token);
   };
 
-  // Get targets for send action
   const getTargets = (): ActiveEmployee[] => {
     if (sendMode === "individual") {
       const e = employees.find((e) => e.id === selectedEmployeeId);
@@ -149,20 +209,17 @@ export default function CrewScheduleAdmin() {
     const targets = getTargets();
     if (!targets.length) { toast.error("Select at least one crew member"); return; }
 
-    const sendTargets: SendTarget[] = targets.map((e) => ({
-      employee: e,
-      link: e.truck_id ? getLinkForTruck(e.truck_id) : undefined,
-    }));
-    setModalMode("link");
+    const truckToken = tokens.find((tk) => tk.valid_from === selectedDate);
+    const sendTargets: SendTarget[] = targets.map((e) => {
+      const link = e.truck_id ? getLinkForTruck(e.truck_id) : undefined;
+      const truckTokenForEmployee = tokens.find((tk) => tk.truck_id === e.truck_id && tk.valid_from === selectedDate);
+      const truckNameForEmployee = e.truck_name ?? truckToken?.truck_name ?? "Unknown";
+      const msg = link
+        ? buildMessage(messageTemplate, companyName, truckNameForEmployee, selectedDate, link)
+        : undefined;
+      return { employee: e, link, message: msg };
+    });
     setReadyModal(sendTargets);
-  };
-
-  const handleSendMessage = () => {
-    const targets = getTargets();
-    if (!targets.length) { toast.error("Select at least one crew member"); return; }
-    if (!message.trim()) { toast.error("Enter a message"); return; }
-    setModalMode("message");
-    setReadyModal(targets.map((e) => ({ employee: e })));
   };
 
   const toggleCollective = (id: string) => {
@@ -173,26 +230,35 @@ export default function CrewScheduleAdmin() {
     });
   };
 
-  const copyAllLinks = () => {
+  const copyAllMessages = () => {
     const lines = readyModal.map((t) => {
-      const phone = t.employee.phone_number ?? "(no phone)";
-      if (modalMode === "link") {
-        return `${t.employee.full_name} | ${phone} | ${t.link ?? "(no link—generate one first)"}`;
-      }
-      return `${t.employee.full_name} | ${phone} | ${message}`;
-    }).join("\n");
+      return `--- ${t.employee.full_name} | ${t.employee.phone_number ?? "(no phone)"} ---\n${t.message ?? "(no link — generate one first)"}`;
+    }).join("\n\n");
     navigator.clipboard.writeText(lines);
-    toast.success("Copied to clipboard");
+    toast.success("All messages copied to clipboard");
   };
+
+  const previewLink = buildRunSheetUrl("PREVIEW");
+  const showDomainNotice = isPreviewUrl(previewLink);
 
   return (
     <AdminLayout>
       <div className="space-y-8">
 
+        {/* Domain Notice */}
+        {showDomainNotice && (
+          <div className="flex items-start gap-2 rounded-lg border border-[hsl(var(--status-yellow-bg))] bg-[hsl(var(--status-yellow-bg))]/30 p-3">
+            <AlertCircle className="h-4 w-4 text-[hsl(var(--status-yellow))] shrink-0 mt-0.5" />
+            <p className="text-xs text-foreground">
+              <strong>Preview mode:</strong> Generated links use this preview URL. After publishing the app, links will use your permanent domain.
+            </p>
+          </div>
+        )}
+
         {/* ── SEND PANEL ── */}
         <section className="rounded-lg border bg-card p-4 space-y-4">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Send to Crew
+            Send Run Sheet to Crew
           </h3>
 
           {/* Mode toggle */}
@@ -209,7 +275,7 @@ export default function CrewScheduleAdmin() {
               variant={sendMode === "collective" ? "default" : "outline"}
               onClick={() => { setSendMode("collective"); setSelectedEmployeeId(""); }}
             >
-              Collective (Multi-select)
+              Collective
             </Button>
           </div>
 
@@ -263,26 +329,23 @@ export default function CrewScheduleAdmin() {
             </div>
           )}
 
-          {/* Message box */}
-          <div>
-            <Label className="mb-1 block text-xs">Message (optional for link send, required for message send)</Label>
-            <Textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Type a message to send…"
-              rows={3}
-            />
+          {/* Message template picker */}
+          <div className="max-w-xs">
+            <Label className="mb-1 block text-xs">Message Template</Label>
+            <Select value={messageTemplate} onValueChange={(v) => setMessageTemplate(v as MessageTemplate)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily Run Sheet (default)</SelectItem>
+                <SelectItem value="update">Schedule Update (revised)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Action buttons */}
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={handleSendLink} variant="default">
-              <Link2 className="mr-1.5 h-4 w-4" /> Send Run Sheet Link
-            </Button>
-            <Button onClick={handleSendMessage} variant="outline">
-              <MessageSquare className="mr-1.5 h-4 w-4" /> Send Message
-            </Button>
-          </div>
+          <Button onClick={handleSendLink} variant="default">
+            <Link2 className="mr-1.5 h-4 w-4" /> Prepare Run Sheet Message
+          </Button>
         </section>
 
         {/* ── GENERATE SHARE LINKS ── */}
@@ -290,6 +353,9 @@ export default function CrewScheduleAdmin() {
           <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Generate Crew Share Link
           </h3>
+          <p className="mb-3 text-xs text-muted-foreground">
+            One stable link per truck per day. The same link works throughout the shift — crews can refresh it to see updates.
+          </p>
           <div className="flex gap-3 items-end">
             <div className="flex-1 max-w-xs">
               <Select value={selectedTruck} onValueChange={setSelectedTruck}>
@@ -321,74 +387,79 @@ export default function CrewScheduleAdmin() {
             {tokens.length === 0 && (
               <p className="text-sm text-muted-foreground">No active share links.</p>
             )}
-            {tokens.map((t) => (
-              <div key={t.id} className="flex items-center justify-between rounded-lg border bg-card p-3">
-                <div className="flex items-center gap-3">
-                  <Truck className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <span className="font-medium text-card-foreground">{t.truck_name}</span>
-                    <p className="text-xs text-muted-foreground">{t.valid_from} → {t.valid_until}</p>
+            {tokens.map((t) => {
+              const isToday = t.valid_from === selectedDate;
+              return (
+                <div key={t.id} className="flex items-center justify-between rounded-lg border bg-card p-3 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Truck className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-card-foreground">{t.truck_name}</span>
+                        {isToday && (
+                          <Badge variant="secondary" className="text-[10px] py-0">Today</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t.valid_from} → {t.valid_until}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button variant="outline" size="sm" onClick={() => copyLink(t.token)}>
+                      <Copy className="mr-1 h-3 w-3" /> Copy Link
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => revokeToken(t.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => copyLink(t.token)}>
-                    <Copy className="mr-1 h-3 w-3" /> Copy Link
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => revokeToken(t.id)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       </div>
 
-      {/* ── READY TO PASTE MODAL ── */}
+      {/* ── READY TO SEND MODAL ── */}
       <Dialog open={readyModal.length > 0} onOpenChange={(o) => { if (!o) setReadyModal([]); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {modalMode === "link" ? "Run Sheet Links — Ready to Paste" : "Message — Ready to Send"}
-            </DialogTitle>
+            <DialogTitle>Run Sheet Messages — Ready to Send</DialogTitle>
             <DialogDescription>
-              Copy and paste to each recipient's phone number via SMS or your preferred messaging app.
+              Copy each message and send via SMS or your preferred app.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2 max-h-96 overflow-y-auto">
-            {readyModal.map(({ employee, link }) => (
-              <div key={employee.id} className="rounded-md border bg-background p-3 space-y-1">
+          <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto">
+            {readyModal.map(({ employee, link, message }) => (
+              <div key={employee.id} className="rounded-md border bg-background p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-foreground">{employee.full_name}</p>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{employee.full_name}</p>
+                    <p className="text-xs text-muted-foreground">📞 {employee.phone_number ?? "No phone on file"}</p>
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-7 text-xs"
                     onClick={() => {
-                      const text = modalMode === "link"
-                        ? (link ?? "(no link—generate one first)")
-                        : message;
-                      navigator.clipboard.writeText(text);
+                      navigator.clipboard.writeText(message ?? "(no link—generate one first)");
                       toast.success("Copied");
                     }}
                   >
                     <Copy className="mr-1 h-3 w-3" /> Copy
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  📞 {employee.phone_number ?? <span className="italic">No phone on file</span>}
-                </p>
-                {modalMode === "link" ? (
-                  <p className="text-xs text-primary break-all">
-                    {link ?? <span className="text-destructive italic">No active link for this truck/date — generate one above first.</span>}
-                  </p>
+                {message ? (
+                  <pre className="text-xs text-foreground bg-muted rounded p-2 whitespace-pre-wrap font-sans leading-relaxed">
+                    {message}
+                  </pre>
                 ) : (
-                  <p className="text-xs text-foreground break-words">{message}</p>
+                  <p className="text-xs text-destructive italic">
+                    No active link for this truck/date — generate one above first.
+                  </p>
                 )}
               </div>
             ))}
           </div>
-          <Button variant="outline" className="w-full" onClick={copyAllLinks}>
+          <Button variant="outline" className="w-full" onClick={copyAllMessages}>
             <Copy className="mr-2 h-4 w-4" /> Copy All to Clipboard
           </Button>
         </DialogContent>
