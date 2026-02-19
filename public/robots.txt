@@ -1,14 +1,4 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
+# This application handles protected health information (PHI).
+# All pages require authentication. Crawling is strictly prohibited.
 User-agent: *
-Allow: /
+Disallow: /
