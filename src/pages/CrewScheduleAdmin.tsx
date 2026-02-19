@@ -22,6 +22,7 @@ interface ShareToken {
   valid_from: string;
   valid_until: string;
   active: boolean;
+  created_at: string;
 }
 
 interface ActiveEmployee {
@@ -99,7 +100,8 @@ export default function CrewScheduleAdmin() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
   const [messageTemplate, setMessageTemplate] = useState<MessageTemplate>("daily");
-  const [readyModal, setReadyModal] = useState<SendTarget[]>([]);
+  // Store employee targets only; messages are derived live from `tokens` so they never go stale
+  const [modalTargets, setModalTargets] = useState<ActiveEmployee[]>([]);
 
   useEffect(() => {
     supabase.from("company_settings").select("company_name").limit(1).maybeSingle().then(({ data }) => {
@@ -122,6 +124,7 @@ export default function CrewScheduleAdmin() {
       valid_from: t.valid_from,
       valid_until: t.valid_until,
       active: t.active,
+      created_at: t.created_at,
     })));
   }, []);
 
@@ -202,11 +205,19 @@ export default function CrewScheduleAdmin() {
     toast.success("Link copied to clipboard");
   };
 
-  const getLinkForTruck = (truckId: string): string | undefined => {
-    const t = tokens.find((tk) => tk.truck_id === truckId && tk.valid_from === selectedDate);
-    if (!t) return undefined;
-    return buildRunSheetUrl(t.token);
+  // Range-aware lookup: targetDate must fall within [valid_from, valid_until] inclusive.
+  // If multiple matches, prefer most recently created.
+  const getLinkForTruck = (truckId: string, targetDate: string = selectedDate): string | undefined => {
+    const matching = tokens
+      .filter((tk) => tk.truck_id === truckId && targetDate >= tk.valid_from && targetDate <= tk.valid_until)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    if (!matching.length) return undefined;
+    return buildRunSheetUrl(matching[0].token);
   };
+
+  // True if any token exists for this truck regardless of date (used for better error messaging)
+  const truckHasAnyLink = (truckId: string): boolean =>
+    tokens.some((tk) => tk.truck_id === truckId);
 
   const getTargets = (): ActiveEmployee[] => {
     if (sendMode === "individual") {
@@ -219,19 +230,18 @@ export default function CrewScheduleAdmin() {
   const handleSendLink = () => {
     const targets = getTargets();
     if (!targets.length) { toast.error("Select at least one crew member"); return; }
-
-    const truckToken = tokens.find((tk) => tk.valid_from === selectedDate);
-    const sendTargets: SendTarget[] = targets.map((e) => {
-      const link = e.truck_id ? getLinkForTruck(e.truck_id) : undefined;
-      const truckTokenForEmployee = tokens.find((tk) => tk.truck_id === e.truck_id && tk.valid_from === selectedDate);
-      const truckNameForEmployee = e.truck_name ?? truckToken?.truck_name ?? "Unknown";
-      const msg = link
-        ? buildMessage(messageTemplate, companyName, truckNameForEmployee, selectedDate, link)
-        : undefined;
-      return { employee: e, link, message: msg };
-    });
-    setReadyModal(sendTargets);
+    setModalTargets(targets);
   };
+
+  // Derive modal entries live from modalTargets + current tokens (never stale)
+  const readyModal: SendTarget[] = modalTargets.map((e) => {
+    const link = e.truck_id ? getLinkForTruck(e.truck_id) : undefined;
+    const truckName = e.truck_name ?? "Unknown";
+    const msg = link
+      ? buildMessage(messageTemplate, companyName, truckName, selectedDate, link)
+      : undefined;
+    return { employee: e, link, message: msg };
+  });
 
   const toggleCollective = (id: string) => {
     setSelectedEmployeeIds((prev) => {
@@ -430,45 +440,57 @@ export default function CrewScheduleAdmin() {
       </div>
 
       {/* ── READY TO SEND MODAL ── */}
-      <Dialog open={readyModal.length > 0} onOpenChange={(o) => { if (!o) setReadyModal([]); }}>
+      <Dialog open={readyModal.length > 0} onOpenChange={(o) => { if (!o) setModalTargets([]); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Run Sheet Messages — Ready to Send</DialogTitle>
             <DialogDescription>
-              Copy each message and send via SMS or your preferred app.
+              Sending for: <strong>{(() => { try { const [y,m,d] = selectedDate.split("-").map(Number); return format(new Date(y,m-1,d),"EEEE, MMMM d"); } catch { return selectedDate; } })()}</strong>. Copy each message and send via SMS.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto">
-            {readyModal.map(({ employee, link, message }) => (
-              <div key={employee.id} className="rounded-md border bg-background p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{employee.full_name}</p>
-                    <p className="text-xs text-muted-foreground">📞 {employee.phone_number ?? "No phone on file"}</p>
+            {readyModal.map(({ employee, link, message }) => {
+              const hasLinkForTruck = employee.truck_id ? truckHasAnyLink(employee.truck_id) : false;
+              return (
+                <div key={employee.id} className="rounded-md border bg-background p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{employee.full_name}</p>
+                      <p className="text-xs text-muted-foreground">📞 {employee.phone_number ?? "No phone on file"}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={!message}
+                      onClick={() => {
+                        navigator.clipboard.writeText(message ?? "");
+                        toast.success("Copied");
+                      }}
+                    >
+                      <Copy className="mr-1 h-3 w-3" /> Copy
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => {
-                      navigator.clipboard.writeText(message ?? "(no link—generate one first)");
-                      toast.success("Copied");
-                    }}
-                  >
-                    <Copy className="mr-1 h-3 w-3" /> Copy
-                  </Button>
+                  {message ? (
+                    <pre className="text-xs text-foreground bg-muted rounded p-2 whitespace-pre-wrap font-sans leading-relaxed">
+                      {message}
+                    </pre>
+                  ) : !employee.truck_id ? (
+                    <p className="text-xs text-muted-foreground italic">
+                      No truck assigned to this crew member for the selected date.
+                    </p>
+                  ) : hasLinkForTruck ? (
+                    <p className="text-xs italic text-[hsl(var(--status-yellow))]">
+                      A link exists for this truck, but not for the selected date ({selectedDate}). Generate a link for this date above.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-destructive italic">
+                      No active link for this truck/date — generate one above first.
+                    </p>
+                  )}
                 </div>
-                {message ? (
-                  <pre className="text-xs text-foreground bg-muted rounded p-2 whitespace-pre-wrap font-sans leading-relaxed">
-                    {message}
-                  </pre>
-                ) : (
-                  <p className="text-xs text-destructive italic">
-                    No active link for this truck/date — generate one above first.
-                  </p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
           <Button variant="outline" className="w-full" onClick={copyAllMessages}>
             <Copy className="mr-2 h-4 w-4" /> Copy All to Clipboard
