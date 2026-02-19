@@ -89,7 +89,18 @@ export default function Scheduling() {
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const [copyTargetWeek, setCopyTargetWeek] = useState("");
   const [copying, setCopying] = useState(false);
-  
+
+  // Active share tokens for "Link active" indicators on truck cards
+  const [activeShareTokens, setActiveShareTokens] = useState<{ truck_id: string; valid_from: string; valid_until: string }[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("crew_share_tokens")
+      .select("truck_id, valid_from, valid_until")
+      .eq("active", true)
+      .then(({ data }) => setActiveShareTokens((data ?? []) as any[]));
+  }, [selectedDate]);
+
 
   // Drag state
   const [activeDragLeg, setActiveDragLeg] = useState<LegDisplay | null>(null);
@@ -581,6 +592,7 @@ export default function Scheduling() {
               onRefresh={refresh}
               onEditException={openExceptionEdit}
               onDownCountChange={setDownTruckCount}
+              activeTokens={activeShareTokens}
             />
 
             {/* ── TEMPLATE CONTROLS (bottom of truck builder area) ── */}

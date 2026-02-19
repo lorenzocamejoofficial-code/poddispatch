@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle, Clock } from "lucide-react";
+import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle, Clock, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSchedulingStore, type LegDisplay, type TruckOption, type CrewDisplay } from "@/hooks/useSchedulingStore";
 import {
@@ -101,6 +101,12 @@ function TruckDropZone({ truckId, isEmpty }: { truckId: string; isEmpty: boolean
   );
 }
 
+interface ActiveShareToken {
+  truck_id: string;
+  valid_from: string;
+  valid_until: string;
+}
+
 interface TruckBuilderProps {
   trucks: TruckOption[];
   legs: LegDisplay[];
@@ -109,11 +115,15 @@ interface TruckBuilderProps {
   onRefresh: () => void;
   onEditException: (leg: LegDisplay) => void;
   onDownCountChange?: (count: number) => void;
+  activeTokens?: ActiveShareToken[];
 }
 
-export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException, onDownCountChange }: TruckBuilderProps) {
+export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException, onDownCountChange, activeTokens = [] }: TruckBuilderProps) {
   const { addingLeg, setAddingLeg } = useSchedulingStore();
   const [availability, setAvailability] = useState<AvailabilityRecord[]>([]);
+
+  const hasActiveLinkForDate = (truckId: string): boolean =>
+    activeTokens.some(t => t.truck_id === truckId && selectedDate >= t.valid_from && selectedDate <= t.valid_until);
 
   // Load truck availability for the selected date
   useEffect(() => {
@@ -231,6 +241,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
           const hasRunsWhileDown = isDown && tLegs.length > 0;
           const first = firstPickup(tLegs);
           const last = lastPickup(tLegs);
+          const hasLink = hasActiveLinkForDate(truck.id);
 
           return (
             <TruckCard
@@ -244,6 +255,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
               hasHeavy={hasHeavy}
               first={first}
               last={last}
+              hasActiveLink={hasLink}
               utilizationColor={utilizationColor}
               unassigned={unassigned}
               addingLeg={addingLeg}
@@ -273,6 +285,7 @@ interface TruckCardProps {
   hasHeavy: boolean;
   first: string | null;
   last: string | null;
+  hasActiveLink: boolean;
   utilizationColor: (count: number) => string;
   unassigned: LegDisplay[];
   addingLeg: { truckId: string; legId: string } | null;
@@ -284,7 +297,7 @@ interface TruckCardProps {
 
 function TruckCard({
   truck, tLegs, crew, downRecord, isDown, hasRunsWhileDown, hasHeavy,
-  first, last, utilizationColor, unassigned, addingLeg, setAddingLeg,
+  first, last, hasActiveLink, utilizationColor, unassigned, addingLeg, setAddingLeg,
   onAssignLeg, onRemoveLeg, onEditException,
 }: TruckCardProps) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({
@@ -314,11 +327,18 @@ function TruckCard({
             </span>
           )}
         </div>
-        {!isDown && (
-          <span className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${utilizationColor(tLegs.length)}`}>
-            {tLegs.length} runs
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {hasActiveLink && (
+            <span title="Crew share link active for this date" className="flex items-center gap-0.5 text-[hsl(var(--status-green))]">
+              <Link2 className="h-3 w-3" />
+            </span>
+          )}
+          {!isDown && (
+            <span className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${utilizationColor(tLegs.length)}`}>
+              {tLegs.length} runs
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Down warning */}
