@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,12 +9,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Plus, Zap, AlertTriangle, Trash2, ArrowRight, Clock,
+  Plus, Zap, AlertTriangle, ArrowRight,
   Wand2, ChevronLeft, ChevronRight, CalendarDays, ArrowLeft,
-  Pencil, GitBranch, GripVertical,
+  GitBranch, GripVertical,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
+import { RunPool } from "@/components/scheduling/RunPool";
 import { useSchedulingStore, type LegDisplay } from "@/hooks/useSchedulingStore";
 import {
   DndContext,
@@ -28,8 +29,6 @@ import {
   type DragStartEvent,
   type CollisionDetection,
   DragOverlay,
-  useDraggable,
-  useDroppable,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
 
@@ -88,7 +87,7 @@ export default function Scheduling() {
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const [copyTargetWeek, setCopyTargetWeek] = useState("");
   const [copying, setCopying] = useState(false);
-  const [runPoolSearch, setRunPoolSearch] = useState("");
+  
 
   // Drag state
   const [activeDragLeg, setActiveDragLeg] = useState<LegDisplay | null>(null);
@@ -288,9 +287,6 @@ export default function Scheduling() {
   })();
 
   const unassignedLegs = legs.filter(l => !l.assigned_truck_id);
-  const filteredUnassigned = runPoolSearch
-    ? unassignedLegs.filter(l => l.patient_name.toLowerCase().includes(runPoolSearch.toLowerCase()))
-    : unassignedLegs;
 
   // ── DnD sensors ──
   const sensors = useSensors(
@@ -562,44 +558,12 @@ export default function Scheduling() {
               </div>
             </section>
 
-            {/* ── RUN POOL (droppable to unassign) ── */}
-            <PoolDropZone unassigned={unassignedLegs}>
-              <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                    Unassigned Run Pool
-                  </h3>
-                  <Badge variant="secondary" className="text-xs">
-                    {unassignedLegs.length} unassigned
-                  </Badge>
-                </div>
-                <Input
-                  placeholder="Search by patient name..."
-                  value={runPoolSearch}
-                  onChange={(e) => setRunPoolSearch(e.target.value)}
-                  className="h-8 max-w-[220px] text-xs"
-                />
-              </div>
-
-              {filteredUnassigned.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic py-2">
-                  {unassignedLegs.length === 0
-                    ? "All runs assigned — drag from trucks here to unassign, or use Auto-Fill to generate today's runs."
-                    : "No legs match search."}
-                </p>
-              ) : (
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {filteredUnassigned.map((leg) => (
-                    <DraggablePoolCard
-                      key={leg.id}
-                      leg={leg}
-                      onDelete={() => deleteLeg(leg.id)}
-                      onEditException={() => openExceptionEdit(leg)}
-                    />
-                  ))}
-                </div>
-              )}
-            </PoolDropZone>
+            {/* ── RUN POOL (scalable, collapsible, grouped) ── */}
+            <RunPool
+              unassigned={unassignedLegs}
+              onDelete={deleteLeg}
+              onEditException={openExceptionEdit}
+            />
 
             {/* ── TRUCK BUILDER ── */}
             <TruckBuilder
@@ -769,99 +733,6 @@ export default function Scheduling() {
         </Dialog>
       </div>
     </AdminLayout>
-  );
-}
-
-/* ── Pool droppable wrapper (drag assigned run here to unassign) ── */
-function PoolDropZone({ children, unassigned }: { children: React.ReactNode; unassigned: LegDisplay[] }) {
-  const { setNodeRef, isOver } = useDroppable({ id: "pool-droppable", data: { type: "pool" } });
-  return (
-    <section
-      ref={setNodeRef}
-      className={`rounded-lg border bg-card p-4 transition-all duration-150 ${
-        isOver
-          ? "border-primary/60 bg-primary/5 ring-2 ring-primary/30"
-          : "border-border"
-      }`}
-    >
-      {isOver && (
-        <div className="mb-3 rounded-md border-2 border-dashed border-primary/60 bg-primary/10 px-3 py-3 text-center text-xs text-primary font-semibold">
-          ↩ Drop here to return to pool
-        </div>
-      )}
-      {children}
-    </section>
-  );
-}
-
-/* ── Draggable pool card ── */
-function DraggablePoolCard({
-  leg, onDelete, onEditException,
-}: {
-  leg: LegDisplay;
-  onDelete: () => void;
-  onEditException: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: leg.id,
-    data: { type: "pool-leg", leg },
-  });
-
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-    opacity: isDragging ? 0.4 : 1,
-  } : undefined;
-
-  const isHeavy = (leg.patient_weight ?? 0) > 200;
-  const isInactive = leg.patient_status !== "active";
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`rounded-lg border bg-card p-3 text-sm transition-shadow ${isInactive ? "opacity-60 border-dashed" : ""} ${leg.has_exception ? "border-primary/50" : ""} ${isDragging ? "shadow-xl ring-1 ring-primary/40" : "hover:border-primary/30 hover:shadow-sm"}`}
-    >
-      <div className="flex items-center justify-between mb-1">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          {/* Drag handle */}
-          <button
-            {...attributes}
-            {...listeners}
-            className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none shrink-0"
-            tabIndex={-1}
-            title="Drag to assign to a truck"
-          >
-            <GripVertical className="h-3.5 w-3.5" />
-          </button>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0 ${
-            leg.leg_type === "A" ? "bg-primary/10 text-primary" : "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]"
-          }`}>
-            {leg.leg_type}-LEG
-          </span>
-          <span className="font-medium text-card-foreground truncate">{leg.patient_name}</span>
-          {isHeavy && <Zap className="h-3.5 w-3.5 text-[hsl(var(--status-yellow))] shrink-0" aria-label="Electric stretcher required" />}
-          {leg.has_exception && <GitBranch className="h-3 w-3 text-primary shrink-0" aria-label="Has exception override for this date" />}
-        </div>
-        <div className="flex items-center gap-0.5 shrink-0">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onEditException} title="Edit this run only">
-            <Pencil className="h-3 w-3" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onDelete}>
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-        {leg.pickup_time && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{leg.pickup_time}</span>}
-        <span className="truncate">{leg.pickup_location}</span>
-        <ArrowRight className="h-3 w-3 shrink-0" />
-        <span className="truncate">{leg.destination_location}</span>
-        {leg.notes && <span className="text-[hsl(var(--status-yellow))]" title={leg.notes}>📝</span>}
-      </div>
-      {isHeavy && <p className="mt-1 text-[10px] font-semibold text-[hsl(var(--status-yellow))]">⚡ Electric stretcher required</p>}
-      {isInactive && <p className="mt-1 text-[10px] font-semibold text-[hsl(var(--status-red))]">⚠ Patient is {leg.patient_status.replace("_", " ")}</p>}
-      {leg.has_exception && <p className="mt-1 text-[10px] font-medium text-primary">✦ Exception override active for this date</p>}
-    </div>
   );
 }
 
