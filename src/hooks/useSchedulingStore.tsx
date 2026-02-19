@@ -241,49 +241,67 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     // Check which patients already have legs for this date
     const { data: existingLegs } = await supabase
       .from("scheduling_legs")
-      .select("patient_id")
+      .select("patient_id, leg_type")
       .eq("run_date", selectedDate);
 
-    const existingPatientIds = new Set((existingLegs ?? []).map((l) => l.patient_id));
+    // Track existing legs per patient to avoid duplicates per leg type
+    const existingMap = new Map<string, Set<string>>();
+    for (const l of existingLegs ?? []) {
+      if (!existingMap.has(l.patient_id)) existingMap.set(l.patient_id, new Set());
+      existingMap.get(l.patient_id)!.add(l.leg_type);
+    }
 
     const newLegs: any[] = [];
-    for (const p of eligible) {
-      if (existingPatientIds.has(p.id)) continue;
+    let patientsAdded = 0;
 
+    for (const p of eligible) {
+      const existingLegTypes = existingMap.get(p.id) ?? new Set();
+      const isDialysis = p.transport_type === "dialysis";
+      const tripType = isDialysis ? "dialysis" : "outpatient";
       const duration = p.run_duration_minutes ?? 30;
       const chairTime = p.chair_time ?? null;
-      const pickupTime = chairTime ? subtractMinutes(chairTime, duration) : null;
 
-      // A leg: home -> facility
-      newLegs.push({
-        patient_id: p.id,
-        leg_type: "A",
-        pickup_time: pickupTime,
-        chair_time: chairTime,
-        pickup_location: p.pickup_address!,
-        destination_location: p.dropoff_facility!,
-        trip_type: "dialysis",
-        estimated_duration_minutes: duration,
-        notes: p.notes || null,
-        run_date: selectedDate,
-      });
+      let addedAny = false;
 
-      // B leg: facility -> home (default 3.5h after chair time)
-      const treatmentMinutes = 210;
-      const bPickupTime = chairTime ? subtractMinutes(chairTime, -treatmentMinutes) : null;
+      // A leg: home → facility (always generated for dialysis & outpatient)
+      if (!existingLegTypes.has("A")) {
+        const pickupTime = chairTime ? subtractMinutes(chairTime, duration) : null;
+        newLegs.push({
+          patient_id: p.id,
+          leg_type: "A",
+          pickup_time: pickupTime,
+          chair_time: chairTime,
+          pickup_location: p.pickup_address!,
+          destination_location: p.dropoff_facility!,
+          trip_type: tripType,
+          estimated_duration_minutes: duration,
+          notes: p.notes || null,
+          run_date: selectedDate,
+        });
+        addedAny = true;
+      }
 
-      newLegs.push({
-        patient_id: p.id,
-        leg_type: "B",
-        pickup_time: bPickupTime,
-        chair_time: null,
-        pickup_location: p.dropoff_facility!,
-        destination_location: p.pickup_address!,
-        trip_type: "dialysis",
-        estimated_duration_minutes: duration,
-        notes: p.notes || null,
-        run_date: selectedDate,
-      });
+      // B leg: facility → home — dialysis always gets one; outpatient only if explicitly needed
+      if (isDialysis && !existingLegTypes.has("B")) {
+        // Default return pickup = chair time + 3.5h (210 min) treatment
+        const treatmentMinutes = 210;
+        const bPickupTime = chairTime ? subtractMinutes(chairTime, -treatmentMinutes) : null;
+        newLegs.push({
+          patient_id: p.id,
+          leg_type: "B",
+          pickup_time: bPickupTime,
+          chair_time: null,
+          pickup_location: p.dropoff_facility!,
+          destination_location: p.pickup_address!,
+          trip_type: "dialysis",
+          estimated_duration_minutes: duration,
+          notes: p.notes || null,
+          run_date: selectedDate,
+        });
+        addedAny = true;
+      }
+
+      if (addedAny) patientsAdded++;
     }
 
     if (newLegs.length === 0) return 0;
@@ -295,7 +313,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     }
 
     await fetchLegs();
-    return newLegs.length / 2;
+    return patientsAdded;
   }, [patients, selectedDate, fetchLegs]);
 
   useEffect(() => {
