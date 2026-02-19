@@ -77,7 +77,20 @@ export default function Runs() {
     })));
   };
 
-  useEffect(() => { fetchRuns(); fetchOptions(); }, [selectedDate]);
+  useEffect(() => {
+    fetchRuns();
+    fetchOptions();
+
+    // Realtime: keep runs list fresh when scheduling or run data changes
+    const channel = supabase
+      .channel("runs-page-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "runs" }, () => fetchRuns())
+      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => fetchRuns())
+      .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => fetchOptions())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedDate]);
 
   const handleCreate = async () => {
     if (!form.patient_id) { toast.error("Select a patient"); return; }
