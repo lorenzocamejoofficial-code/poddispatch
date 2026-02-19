@@ -1,18 +1,22 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
-import { Copy, RefreshCw, Link2, Trash2, Truck, AlertCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Copy, RefreshCw, Link2, Trash2, Truck, AlertCircle, CalendarIcon, Search, X, ChevronDown, ChevronUp, Users } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface ShareToken {
   id: string;
@@ -31,6 +35,7 @@ interface ActiveEmployee {
   phone_number: string | null;
   truck_id: string | null;
   truck_name: string | null;
+  role: "admin" | "crew" | null;
 }
 
 interface SendTarget {
@@ -42,7 +47,6 @@ interface SendTarget {
 type MessageTemplate = "daily" | "update";
 
 function buildRunSheetUrl(token: string): string {
-  // Use the published URL if available, otherwise preview
   const base = window.location.origin;
   return `${base}/crew/${token}`;
 }
@@ -86,22 +90,182 @@ ${link}
 Refresh the page if you already have it open.`;
 }
 
+// ─── Multi-select recipient picker ───────────────────────────────────────────
+interface RecipientPickerProps {
+  employees: ActiveEmployee[];
+  selectedIds: Set<string>;
+  onChange: (ids: Set<string>) => void;
+}
+
+function RecipientPicker({ employees, selectedIds, onChange }: RecipientPickerProps) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(true);
+
+  const withPhone = employees.filter(e => e.phone_number);
+  const noPhone = employees.filter(e => !e.phone_number);
+
+  const filtered = withPhone.filter(e =>
+    e.full_name.toLowerCase().includes(search.toLowerCase()) ||
+    (e.truck_name ?? "").toLowerCase().includes(search.toLowerCase())
+  );
+
+  const allVisibleSelected = filtered.length > 0 && filtered.every(e => selectedIds.has(e.id));
+
+  const toggleAll = () => {
+    const next = new Set(selectedIds);
+    if (allVisibleSelected) {
+      filtered.forEach(e => next.delete(e.id));
+    } else {
+      filtered.forEach(e => next.add(e.id));
+    }
+    onChange(next);
+  };
+
+  const toggle = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    onChange(next);
+  };
+
+  const removeChip = (id: string) => {
+    const next = new Set(selectedIds);
+    next.delete(id);
+    onChange(next);
+  };
+
+  const selected = employees.filter(e => selectedIds.has(e.id));
+
+  return (
+    <div className="space-y-2">
+      {/* Selected chips */}
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map(e => (
+            <span
+              key={e.id}
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium"
+            >
+              {e.full_name}
+              <button onClick={() => removeChip(e.id)} className="hover:text-destructive transition-colors">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+          <span className="inline-flex items-center text-xs text-muted-foreground pl-1">
+            Selected: {selected.length}
+          </span>
+        </div>
+      )}
+
+      {/* Collapsible picker */}
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger asChild>
+          <Button variant="outline" size="sm" className="w-full justify-between">
+            <span className="flex items-center gap-2">
+              <Users className="h-3.5 w-3.5" />
+              {selected.length === 0 ? "Select recipients" : `${selected.length} selected — click to edit`}
+            </span>
+            {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="mt-2 rounded-md border bg-background">
+            {/* Search + select all */}
+            <div className="flex items-center gap-2 border-b px-3 py-2">
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <Input
+                placeholder="Search by name or truck…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="h-7 border-0 p-0 text-sm shadow-none focus-visible:ring-0"
+              />
+              {search && (
+                <button onClick={() => setSearch("")} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="px-3 py-2 border-b">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-muted-foreground">
+                <Checkbox
+                  checked={allVisibleSelected}
+                  onCheckedChange={toggleAll}
+                />
+                {allVisibleSelected ? "Deselect all" : `Select all${search ? " matching" : ""}`} ({filtered.length})
+              </label>
+            </div>
+            {/* Employee list */}
+            <div className="max-h-52 overflow-y-auto divide-y">
+              {filtered.length === 0 && (
+                <p className="px-3 py-3 text-xs text-muted-foreground">No results.</p>
+              )}
+              {filtered.map(e => (
+                <label
+                  key={e.id}
+                  className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-accent transition-colors"
+                >
+                  <Checkbox
+                    checked={selectedIds.has(e.id)}
+                    onCheckedChange={() => toggle(e.id)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate text-foreground">{e.full_name}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {e.truck_name && (
+                        <span className="text-xs text-muted-foreground">{e.truck_name}</span>
+                      )}
+                      {e.role && (
+                        <Badge variant="secondary" className="text-[9px] py-0 px-1.5 h-4">
+                          {e.role}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">{e.phone_number}</span>
+                </label>
+              ))}
+              {noPhone.length > 0 && !search && (
+                <div className="px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">No phone on file (excluded)</p>
+                  {noPhone.map(e => (
+                    <p key={e.id} className="text-xs text-muted-foreground/60 line-through py-0.5">{e.full_name}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function CrewScheduleAdmin() {
   const { user } = useAuth();
-  const { trucks, selectedDate } = useSchedulingStore();
+  const { trucks } = useSchedulingStore();
   const [tokens, setTokens] = useState<ShareToken[]>([]);
   const [selectedTruck, setSelectedTruck] = useState("");
   const [employees, setEmployees] = useState<ActiveEmployee[]>([]);
   const [companyName, setCompanyName] = useState("Dispatch");
   const [downTruckIds, setDownTruckIds] = useState<Set<string>>(new Set());
 
+  // ── Schedule date: independent from the scheduling-store selected date ──
+  const today = new Date().toISOString().split("T")[0];
+  const [scheduleDate, setScheduleDate] = useState<string>(today);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
   // Send panel state
   const [sendMode, setSendMode] = useState<"individual" | "collective">("individual");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
   const [messageTemplate, setMessageTemplate] = useState<MessageTemplate>("daily");
-  // Store employee targets only; messages are derived live from `tokens` so they never go stale
   const [modalTargets, setModalTargets] = useState<ActiveEmployee[]>([]);
+
+  // Individual picker search
+  const [indivSearch, setIndivSearch] = useState("");
+  const [indivOpen, setIndivOpen] = useState(false);
+  const indivRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     supabase.from("company_settings").select("company_name").limit(1).maybeSingle().then(({ data }) => {
@@ -129,11 +293,12 @@ export default function CrewScheduleAdmin() {
   }, []);
 
   const fetchEmployees = useCallback(async () => {
-    const [{ data: profiles }, { data: crews }] = await Promise.all([
+    const [{ data: profiles }, { data: crews }, { data: roles }] = await Promise.all([
       supabase.from("profiles").select("id, full_name, phone_number").eq("active", true).order("full_name"),
       supabase.from("crews")
         .select("member1_id, member2_id, truck_id, truck:trucks!crews_truck_id_fkey(name)")
-        .eq("active_date", selectedDate),
+        .eq("active_date", scheduleDate),
+      supabase.from("user_roles").select("user_id, role"),
     ]);
 
     const crewMap = new Map<string, { truck_id: string; truck_name: string }>();
@@ -143,29 +308,49 @@ export default function CrewScheduleAdmin() {
       if (c.member2_id) crewMap.set(c.member2_id, info);
     }
 
-    setEmployees((profiles ?? []).map((p: any) => ({
-      id: p.id,
-      full_name: p.full_name,
-      phone_number: p.phone_number,
-      truck_id: crewMap.get(p.id)?.truck_id ?? null,
-      truck_name: crewMap.get(p.id)?.truck_name ?? null,
-    })));
-  }, [selectedDate]);
+    // Build profile_id → role map via user_id
+    const userRoleMap = new Map<string, "admin" | "crew">();
+    for (const r of (roles ?? []) as any[]) {
+      userRoleMap.set(r.user_id, r.role);
+    }
+
+    // We need user_id from profiles to match roles — fetch it separately
+    const { data: fullProfiles } = await supabase
+      .from("profiles")
+      .select("id, user_id")
+      .eq("active", true);
+    const profileUserMap = new Map<string, string>();
+    for (const p of (fullProfiles ?? []) as any[]) {
+      profileUserMap.set(p.id, p.user_id);
+    }
+
+    setEmployees((profiles ?? []).map((p: any) => {
+      const userId = profileUserMap.get(p.id);
+      return {
+        id: p.id,
+        full_name: p.full_name,
+        phone_number: p.phone_number,
+        truck_id: crewMap.get(p.id)?.truck_id ?? null,
+        truck_name: crewMap.get(p.id)?.truck_name ?? null,
+        role: userId ? (userRoleMap.get(userId) ?? null) : null,
+      };
+    }));
+  }, [scheduleDate]);
 
   const fetchDownTrucks = useCallback(async () => {
     const { data } = await supabase
       .from("truck_availability")
       .select("truck_id")
-      .lte("start_date", selectedDate)
-      .gte("end_date", selectedDate);
+      .lte("start_date", scheduleDate)
+      .gte("end_date", scheduleDate);
     setDownTruckIds(new Set((data ?? []).map((r: any) => r.truck_id)));
-  }, [selectedDate]);
+  }, [scheduleDate]);
 
   useEffect(() => { fetchTokens(); }, [fetchTokens]);
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
   useEffect(() => { fetchDownTrucks(); }, [fetchDownTrucks]);
 
-  // Realtime: keep crew/availability data fresh across all tabs
+  // Realtime
   useEffect(() => {
     const channel = supabase
       .channel("crew-schedule-admin-sync")
@@ -175,23 +360,25 @@ export default function CrewScheduleAdmin() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchEmployees, fetchDownTrucks]);
 
-  const generateToken = async () => {
-    if (!selectedTruck) { toast.error("Select a truck"); return; }
+  const generateToken = async (truckId?: string) => {
+    const tid = truckId ?? selectedTruck;
+    if (!tid) { toast.error("Select a truck"); return; }
 
-    // Check if a token already exists for this truck+date
-    const existing = tokens.find((t) => t.truck_id === selectedTruck && t.valid_from === selectedDate);
+    const existing = tokens.find((t) =>
+      t.truck_id === tid && scheduleDate >= t.valid_from && scheduleDate <= t.valid_until
+    );
     if (existing) {
-      toast.info("A share link already exists for this truck and date. Copy it from Active Share Links.");
+      toast.info("A share link already exists for this truck and date.");
       return;
     }
 
-    const validFrom = selectedDate;
-    const until = new Date(selectedDate + "T12:00:00");
+    const validFrom = scheduleDate;
+    const until = new Date(scheduleDate + "T12:00:00");
     until.setDate(until.getDate() + 1);
     const validUntil = until.toISOString().split("T")[0];
 
     const { error } = await supabase.from("crew_share_tokens").insert({
-      truck_id: selectedTruck,
+      truck_id: tid,
       valid_from: validFrom,
       valid_until: validUntil,
       created_by: user?.id,
@@ -215,9 +402,8 @@ export default function CrewScheduleAdmin() {
     toast.success("Link copied to clipboard");
   };
 
-  // Range-aware lookup: targetDate must fall within [valid_from, valid_until] inclusive.
-  // If multiple matches, prefer most recently created.
-  const getLinkForTruck = (truckId: string, targetDate: string = selectedDate): string | undefined => {
+  // Range-aware lookup against scheduleDate
+  const getLinkForTruck = (truckId: string, targetDate: string = scheduleDate): string | undefined => {
     const matching = tokens
       .filter((tk) => tk.truck_id === truckId && targetDate >= tk.valid_from && targetDate <= tk.valid_until)
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -225,9 +411,22 @@ export default function CrewScheduleAdmin() {
     return buildRunSheetUrl(matching[0].token);
   };
 
-  // True if any token exists for this truck regardless of date (used for better error messaging)
   const truckHasAnyLink = (truckId: string): boolean =>
     tokens.some((tk) => tk.truck_id === truckId);
+
+  // Check if there are runs for selected truck on scheduleDate
+  const [runCountForDate, setRunCountForDate] = useState<number | null>(null);
+  useEffect(() => {
+    if (!selectedTruck) { setRunCountForDate(null); return; }
+    supabase
+      .from("truck_run_slots")
+      .select("id", { count: "exact", head: true })
+      .eq("truck_id", selectedTruck)
+      .eq("run_date", scheduleDate)
+      .then(({ count }) => setRunCountForDate(count ?? 0));
+  }, [selectedTruck, scheduleDate]);
+
+  const employeesWithPhone = employees.filter(e => e.phone_number);
 
   const getTargets = (): ActiveEmployee[] => {
     if (sendMode === "individual") {
@@ -243,23 +442,14 @@ export default function CrewScheduleAdmin() {
     setModalTargets(targets);
   };
 
-  // Derive modal entries live from modalTargets + current tokens (never stale)
   const readyModal: SendTarget[] = modalTargets.map((e) => {
     const link = e.truck_id ? getLinkForTruck(e.truck_id) : undefined;
     const truckName = e.truck_name ?? "Unknown";
     const msg = link
-      ? buildMessage(messageTemplate, companyName, truckName, selectedDate, link)
+      ? buildMessage(messageTemplate, companyName, truckName, scheduleDate, link)
       : undefined;
     return { employee: e, link, message: msg };
   });
-
-  const toggleCollective = (id: string) => {
-    setSelectedEmployeeIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
 
   const copyAllMessages = () => {
     const lines = readyModal.map((t) => {
@@ -271,6 +461,25 @@ export default function CrewScheduleAdmin() {
 
   const previewLink = buildRunSheetUrl("PREVIEW");
   const showDomainNotice = isPreviewUrl(previewLink);
+
+  const formattedScheduleDate = (() => {
+    try {
+      const [y, m, d] = scheduleDate.split("-").map(Number);
+      return format(new Date(y, m - 1, d), "EEE, MMM d, yyyy");
+    } catch { return scheduleDate; }
+  })();
+
+  // Individual picker filtered
+  const indivFiltered = employeesWithPhone.filter(e =>
+    e.full_name.toLowerCase().includes(indivSearch.toLowerCase()) ||
+    (e.truck_name ?? "").toLowerCase().includes(indivSearch.toLowerCase())
+  );
+  const selectedIndivEmployee = employees.find(e => e.id === selectedEmployeeId);
+
+  // Determine if selected truck has a link for scheduleDate
+  const selectedTruckHasLink = selectedTruck
+    ? !!getLinkForTruck(selectedTruck)
+    : false;
 
   return (
     <AdminLayout>
@@ -285,6 +494,48 @@ export default function CrewScheduleAdmin() {
             </p>
           </div>
         )}
+
+        {/* ── SCHEDULE DATE ── */}
+        <section className="rounded-lg border bg-card p-4 space-y-3">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Schedule Date
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            All link lookups, recipient assignments, and message templates use this date.
+          </p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="gap-2 min-w-[200px] justify-start">
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  {formattedScheduleDate}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={scheduleDate ? new Date(scheduleDate + "T12:00:00") : undefined}
+                  onSelect={(d) => {
+                    if (d) {
+                      setScheduleDate(d.toISOString().split("T")[0]);
+                      setCalendarOpen(false);
+                    }
+                  }}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+            {scheduleDate !== today && (
+              <Button variant="ghost" size="sm" onClick={() => setScheduleDate(today)}>
+                Back to today
+              </Button>
+            )}
+            {scheduleDate === today && (
+              <Badge variant="secondary" className="text-xs">Today</Badge>
+            )}
+          </div>
+        </section>
 
         {/* ── SEND PANEL ── */}
         <section className="rounded-lg border bg-card p-4 space-y-4">
@@ -310,57 +561,82 @@ export default function CrewScheduleAdmin() {
             </Button>
           </div>
 
-          {/* Recipient selector */}
+          {/* ── Individual picker ── */}
           {sendMode === "individual" ? (
-            <div className="max-w-xs">
-              <Label className="mb-1 block text-xs">Crew Member</Label>
-              <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select crew member" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      <span className="flex items-center gap-2">
-                        {e.full_name}
-                        {e.truck_name && (
-                          <span className="text-xs text-muted-foreground">({e.truck_name})</span>
-                        )}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Label className="text-xs">Select Crew Members</Label>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {employees.map((e) => (
-                  <label
-                    key={e.id}
-                    className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 cursor-pointer hover:border-primary/40 transition-colors"
-                  >
-                    <Checkbox
-                      checked={selectedEmployeeIds.has(e.id)}
-                      onCheckedChange={() => toggleCollective(e.id)}
-                    />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{e.full_name}</p>
-                      {e.truck_name && (
-                        <p className="text-xs text-muted-foreground">{e.truck_name}</p>
-                      )}
+            <div className="max-w-xs space-y-1">
+              <Label className="text-xs">Crew Member</Label>
+              <div className="relative" ref={indivRef}>
+                <div
+                  className="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm cursor-pointer"
+                  onClick={() => setIndivOpen(o => !o)}
+                >
+                  <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  {selectedIndivEmployee ? (
+                    <span className="flex-1 truncate">{selectedIndivEmployee.full_name}</span>
+                  ) : (
+                    <span className="flex-1 text-muted-foreground">Search by name…</span>
+                  )}
+                  {selectedIndivEmployee && (
+                    <button
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={e => { e.stopPropagation(); setSelectedEmployeeId(""); setIndivSearch(""); }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                {indivOpen && (
+                  <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
+                    <div className="flex items-center gap-2 border-b px-3 py-2">
+                      <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <input
+                        autoFocus
+                        className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                        placeholder="Search…"
+                        value={indivSearch}
+                        onChange={e => setIndivSearch(e.target.value)}
+                      />
                     </div>
-                  </label>
-                ))}
-                {employees.length === 0 && (
-                  <p className="text-sm text-muted-foreground col-span-full">No active employees found.</p>
+                    <div className="max-h-52 overflow-y-auto divide-y">
+                      {indivFiltered.length === 0 && (
+                        <p className="px-3 py-3 text-xs text-muted-foreground">No results.</p>
+                      )}
+                      {indivFiltered.map(e => (
+                        <button
+                          key={e.id}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-accent transition-colors"
+                          onClick={() => { setSelectedEmployeeId(e.id); setIndivOpen(false); setIndivSearch(""); }}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate text-foreground">{e.full_name}</p>
+                            {e.truck_name && (
+                              <p className="text-xs text-muted-foreground">{e.truck_name}</p>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground shrink-0">{e.phone_number}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
+              {/* Employees without phone */}
+              {employees.filter(e => !e.phone_number).length > 0 && (
+                <p className="text-[10px] text-muted-foreground">
+                  {employees.filter(e => !e.phone_number).length} employee(s) without phone excluded.
+                </p>
+              )}
             </div>
+          ) : (
+            /* ── Collective picker ── */
+            <RecipientPicker
+              employees={employees}
+              selectedIds={selectedEmployeeIds}
+              onChange={setSelectedEmployeeIds}
+            />
           )}
 
-          {/* Message template picker */}
+          {/* Message template */}
           <div className="max-w-xs">
             <Label className="mb-1 block text-xs">Message Template</Label>
             <Select value={messageTemplate} onValueChange={(v) => setMessageTemplate(v as MessageTemplate)}>
@@ -374,20 +650,40 @@ export default function CrewScheduleAdmin() {
             </Select>
           </div>
 
-          <Button onClick={handleSendLink} variant="default">
+          {/* Live message preview */}
+          {sendMode === "individual" && selectedIndivEmployee?.truck_id && (
+            <div className="max-w-lg space-y-1">
+              <Label className="text-xs text-muted-foreground">Message Preview</Label>
+              <pre className="text-xs bg-muted rounded-md p-3 whitespace-pre-wrap font-sans leading-relaxed text-foreground">
+                {(() => {
+                  const link = getLinkForTruck(selectedIndivEmployee.truck_id!);
+                  if (link) {
+                    return buildMessage(messageTemplate, companyName, selectedIndivEmployee.truck_name ?? "?", scheduleDate, link);
+                  }
+                  return `(No active link for ${selectedIndivEmployee.truck_name ?? "this truck"} on ${formattedScheduleDate}.\nGenerate a link in the "Generate Crew Share Link" section below.)`;
+                })()}
+              </pre>
+            </div>
+          )}
+
+          <Button
+            onClick={handleSendLink}
+            variant="default"
+            disabled={sendMode === "individual" ? !selectedEmployeeId : selectedEmployeeIds.size === 0}
+          >
             <Link2 className="mr-1.5 h-4 w-4" /> Prepare Run Sheet Message
           </Button>
         </section>
 
         {/* ── GENERATE SHARE LINKS ── */}
         <section>
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <h3 className="mb-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Generate Crew Share Link
           </h3>
           <p className="mb-3 text-xs text-muted-foreground">
-            One stable link per truck per day. The same link works throughout the shift — crews can refresh it to see updates.
+            Link for selected truck on <strong>{formattedScheduleDate}</strong>. Stays stable throughout the shift — crews refresh to see updates.
           </p>
-          <div className="flex gap-3 items-end">
+          <div className="flex gap-3 items-end flex-wrap">
             <div className="flex-1 max-w-xs">
               <Select value={selectedTruck} onValueChange={setSelectedTruck}>
                 <SelectTrigger><SelectValue placeholder="Select truck" /></SelectTrigger>
@@ -398,9 +694,39 @@ export default function CrewScheduleAdmin() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={generateToken}>
-              <Link2 className="mr-1.5 h-4 w-4" /> Generate Link
-            </Button>
+            {selectedTruck && (
+              <>
+                {selectedTruckHasLink ? (
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))] border-[hsl(var(--status-green))]/30">
+                      ✓ Link active for this date
+                    </Badge>
+                    <Button variant="outline" size="sm" onClick={() => {
+                      const tk = tokens.find(t => t.truck_id === selectedTruck && scheduleDate >= t.valid_from && scheduleDate <= t.valid_until);
+                      if (tk) copyLink(tk.token);
+                    }}>
+                      <Copy className="mr-1 h-3 w-3" /> Copy
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {runCountForDate === 0 && (
+                      <p className="text-xs text-[hsl(var(--status-yellow))]">
+                        ⚠ No runs scheduled for this truck on this date.
+                      </p>
+                    )}
+                    <Button onClick={() => generateToken()}>
+                      <Link2 className="mr-1.5 h-4 w-4" /> Generate Link for {formattedScheduleDate}
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+            {!selectedTruck && (
+              <Button onClick={() => generateToken()} disabled>
+                <Link2 className="mr-1.5 h-4 w-4" /> Generate Link
+              </Button>
+            )}
           </div>
         </section>
 
@@ -419,15 +745,27 @@ export default function CrewScheduleAdmin() {
               <p className="text-sm text-muted-foreground">No active share links.</p>
             )}
             {tokens.map((t) => {
-              const isToday = t.valid_from === selectedDate;
+              const isForSelectedDate = scheduleDate >= t.valid_from && scheduleDate <= t.valid_until;
+              const isToday = today >= t.valid_from && today <= t.valid_until;
               return (
-                <div key={t.id} className="flex items-center justify-between rounded-lg border bg-card p-3 gap-3">
+                <div
+                  key={t.id}
+                  className={cn(
+                    "flex items-center justify-between rounded-lg border bg-card p-3 gap-3",
+                    isForSelectedDate && "border-primary/30 bg-primary/5"
+                  )}
+                >
                   <div className="flex items-center gap-3 min-w-0">
                     <Truck className="h-4 w-4 text-muted-foreground shrink-0" />
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-card-foreground">{t.truck_name}</span>
-                        {isToday && (
+                        {isForSelectedDate && (
+                          <Badge className="text-[10px] py-0 bg-primary/10 text-primary border-primary/20">
+                            Selected date
+                          </Badge>
+                        )}
+                        {isToday && !isForSelectedDate && (
                           <Badge variant="secondary" className="text-[10px] py-0">Today</Badge>
                         )}
                       </div>
@@ -455,18 +793,28 @@ export default function CrewScheduleAdmin() {
           <DialogHeader>
             <DialogTitle>Run Sheet Messages — Ready to Send</DialogTitle>
             <DialogDescription>
-              Sending for: <strong>{(() => { try { const [y,m,d] = selectedDate.split("-").map(Number); return format(new Date(y,m-1,d),"EEEE, MMMM d"); } catch { return selectedDate; } })()}</strong>. Copy each message and send via SMS.
+              Sending for: <strong>{formattedScheduleDate}</strong>. Copy each message and send via SMS.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto">
             {readyModal.map(({ employee, link, message }) => {
               const hasLinkForTruck = employee.truck_id ? truckHasAnyLink(employee.truck_id) : false;
+              const linkExistsForDate = employee.truck_id ? !!getLinkForTruck(employee.truck_id) : false;
               return (
                 <div key={employee.id} className="rounded-md border bg-background p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-semibold text-foreground">{employee.full_name}</p>
                       <p className="text-xs text-muted-foreground">📞 {employee.phone_number ?? "No phone on file"}</p>
+                      {employee.truck_name && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Truck className="h-3 w-3" /> {employee.truck_name}
+                          {linkExistsForDate
+                            ? <span className="text-[hsl(var(--status-green))] font-medium ml-1">• link active</span>
+                            : <span className="text-destructive font-medium ml-1">• no link for date</span>
+                          }
+                        </p>
+                      )}
                     </div>
                     <Button
                       variant="ghost"
@@ -487,16 +835,42 @@ export default function CrewScheduleAdmin() {
                     </pre>
                   ) : !employee.truck_id ? (
                     <p className="text-xs text-muted-foreground italic">
-                      No truck assigned to this crew member for the selected date.
+                      No truck assigned to this crew member for {formattedScheduleDate}.
                     </p>
                   ) : hasLinkForTruck ? (
-                    <p className="text-xs italic text-[hsl(var(--status-yellow))]">
-                      A link exists for this truck, but not for the selected date ({selectedDate}). Generate a link for this date above.
-                    </p>
+                    <div className="space-y-1.5">
+                      <p className="text-xs italic text-[hsl(var(--status-yellow))]">
+                        A link exists for this truck, but not for {formattedScheduleDate}.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7"
+                        onClick={async () => {
+                          await generateToken(employee.truck_id!);
+                          setModalTargets(prev => [...prev]); // trigger re-render
+                        }}
+                      >
+                        <Link2 className="mr-1 h-3 w-3" /> Generate link for this date
+                      </Button>
+                    </div>
                   ) : (
-                    <p className="text-xs text-destructive italic">
-                      No active link for this truck/date — generate one above first.
-                    </p>
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-destructive italic">
+                        No active link for this truck on {formattedScheduleDate}.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7"
+                        onClick={async () => {
+                          await generateToken(employee.truck_id!);
+                          setModalTargets(prev => [...prev]);
+                        }}
+                      >
+                        <Link2 className="mr-1 h-3 w-3" /> Generate link for this date
+                      </Button>
+                    </div>
                   )}
                 </div>
               );
