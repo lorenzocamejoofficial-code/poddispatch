@@ -318,9 +318,28 @@ export default function TrucksCrews() {
 
   const deleteTruck = async () => {
     if (!deleteTruckId) return;
+
+    // Prune this truck's ID from any saved template mappings so templates stay clean.
+    // (Cascade on the FK handles truck_run_slots, crews, availability, share tokens automatically.)
+    const { data: templates } = await supabase
+      .from("truck_builder_templates" as any)
+      .select("id, mapping");
+    if (templates && templates.length > 0) {
+      await Promise.all(
+        (templates as any[])
+          .filter((t: any) => Array.isArray(t.mapping) && t.mapping.some((r: any) => r.truck_id === deleteTruckId))
+          .map((t: any) =>
+            supabase
+              .from("truck_builder_templates" as any)
+              .update({ mapping: t.mapping.filter((r: any) => r.truck_id !== deleteTruckId) })
+              .eq("id", t.id)
+          )
+      );
+    }
+
     const { error } = await supabase.from("trucks").delete().eq("id", deleteTruckId);
     if (error) { toast.error("Failed to delete truck"); return; }
-    toast.success("Truck deleted");
+    toast.success("Truck deleted — crew assignments, run slots, and availability records removed");
     setDeleteDialog(false);
     setDeleteTruckId(null);
     fetchAll();
@@ -626,8 +645,22 @@ export default function TrucksCrews() {
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
               <DialogTitle>Delete Truck</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to delete <strong>{trucks.find(t => t.id === deleteTruckId)?.name}</strong>? This action cannot be undone and will remove the truck from all scheduling data.
+              <DialogDescription asChild>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p>
+                    Are you sure you want to permanently delete{" "}
+                    <strong className="text-foreground">{trucks.find(t => t.id === deleteTruckId)?.name}</strong>?
+                  </p>
+                  <p>This will also remove:</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-xs">
+                    <li>All crew assignments for this truck</li>
+                    <li>All run slot assignments (scheduling)</li>
+                    <li>All maintenance / availability records</li>
+                    <li>All crew share links for this truck</li>
+                    <li>This truck from any saved default setup templates</li>
+                  </ul>
+                  <p className="text-destructive/80 text-xs font-medium">This action cannot be undone.</p>
+                </div>
               </DialogDescription>
             </DialogHeader>
             <div className="flex gap-2 pt-2">
