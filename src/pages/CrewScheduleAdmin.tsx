@@ -92,6 +92,7 @@ export default function CrewScheduleAdmin() {
   const [selectedTruck, setSelectedTruck] = useState("");
   const [employees, setEmployees] = useState<ActiveEmployee[]>([]);
   const [companyName, setCompanyName] = useState("Dispatch");
+  const [downTruckIds, setDownTruckIds] = useState<Set<string>>(new Set());
 
   // Send panel state
   const [sendMode, setSendMode] = useState<"individual" | "collective">("individual");
@@ -148,8 +149,18 @@ export default function CrewScheduleAdmin() {
     })));
   }, [selectedDate]);
 
+  const fetchDownTrucks = useCallback(async () => {
+    const { data } = await supabase
+      .from("truck_availability")
+      .select("truck_id")
+      .lte("start_date", selectedDate)
+      .gte("end_date", selectedDate);
+    setDownTruckIds(new Set((data ?? []).map((r: any) => r.truck_id)));
+  }, [selectedDate]);
+
   useEffect(() => { fetchTokens(); }, [fetchTokens]);
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
+  useEffect(() => { fetchDownTrucks(); }, [fetchDownTrucks]);
 
   const generateToken = async () => {
     if (!selectedTruck) { toast.error("Select a truck"); return; }
@@ -361,7 +372,7 @@ export default function CrewScheduleAdmin() {
               <Select value={selectedTruck} onValueChange={setSelectedTruck}>
                 <SelectTrigger><SelectValue placeholder="Select truck" /></SelectTrigger>
                 <SelectContent>
-                  {trucks.map((t) => (
+                  {trucks.filter((t) => !downTruckIds.has(t.id)).map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>
