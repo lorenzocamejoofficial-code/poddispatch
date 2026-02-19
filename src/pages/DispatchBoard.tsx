@@ -22,6 +22,8 @@ interface TruckData {
     is_current: boolean;
   }[];
   overallStatus: "green" | "yellow" | "red";
+  downStatus: "down_maintenance" | "down_out_of_service" | null;
+  downReason: string | null;
 }
 
 interface AlertData {
@@ -45,29 +47,23 @@ export default function DispatchBoard() {
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
-    const { data: truckRows } = await supabase.from("trucks").select("*").eq("active", true);
+    const [{ data: truckRows }, { data: crewRows }, { data: runRows }, { data: slotRows }, { data: alertRows }, { data: availRows }] = await Promise.all([
+      supabase.from("trucks").select("*").eq("active", true),
+      supabase.from("crews")
+        .select("*, member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
+        .eq("active_date", selectedDate),
+      supabase.from("runs")
+        .select("*, patient:patients!runs_patient_id_fkey(first_name, last_name, weight_lbs)")
+        .eq("run_date", selectedDate)
+        .order("sort_order"),
+      supabase.from("truck_run_slots").select("truck_id, leg_id").eq("run_date", selectedDate),
+      supabase.from("alerts").select("*").eq("dismissed", false).order("created_at", { ascending: false }),
+      supabase.from("truck_availability" as any).select("*").lte("start_date", selectedDate).gte("end_date", selectedDate),
+    ]);
 
-    const { data: crewRows } = await supabase
-      .from("crews")
-      .select("*, member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
-      .eq("active_date", selectedDate);
-
-    const { data: runRows } = await supabase
-      .from("runs")
-      .select("*, patient:patients!runs_patient_id_fkey(first_name, last_name, weight_lbs)")
-      .eq("run_date", selectedDate)
-      .order("sort_order");
-
-    const { data: slotRows } = await supabase
-      .from("truck_run_slots")
-      .select("truck_id, leg_id")
-      .eq("run_date", selectedDate);
-
-    const { data: alertRows } = await supabase
-      .from("alerts")
-      .select("*")
-      .eq("dismissed", false)
-      .order("created_at", { ascending: false });
+    const availMap = new Map<string, { status: string; reason: string | null }>(
+      ((availRows ?? []) as any[]).map((a: any) => [a.truck_id, { status: a.status, reason: a.reason ?? null }])
+    );
 
     const truckData: TruckData[] = (truckRows ?? []).map((t) => {
       const crew = crewRows?.find((c) => c.truck_id === t.id);
@@ -98,6 +94,7 @@ export default function DispatchBoard() {
       if (currentIdx >= 0) truckRuns[currentIdx].is_current = true;
 
       const scheduledLegsCount = (slotRows ?? []).filter((s) => s.truck_id === t.id).length;
+      const avail = availMap.get(t.id);
 
       return {
         id: t.id,
@@ -106,6 +103,8 @@ export default function DispatchBoard() {
         scheduledLegsCount,
         runs: truckRuns,
         overallStatus: computeOverallStatus(truckRuns),
+        downStatus: (avail?.status as "down_maintenance" | "down_out_of_service" | null) ?? null,
+        downReason: avail?.reason ?? null,
       };
     });
 
@@ -177,7 +176,7 @@ export default function DispatchBoard() {
             ) : (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {trucks.map((t) => (
-                  <TruckCard key={t.id} truckName={t.name} crewNames={t.crewNames} scheduledLegsCount={t.scheduledLegsCount} runs={t.runs} overallStatus={t.overallStatus} />
+                  <TruckCard key={t.id} truckName={t.name} crewNames={t.crewNames} scheduledLegsCount={t.scheduledLegsCount} runs={t.runs} overallStatus={t.overallStatus} downStatus={t.downStatus} downReason={t.downReason} />
                 ))}
               </div>
             )}

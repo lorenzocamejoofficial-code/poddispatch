@@ -1,5 +1,6 @@
 import { StatusBadge, StatusDot } from "./StatusBadge";
-import { Truck, Users, Zap } from "lucide-react";
+import { Truck, Users, Zap, WrenchIcon, AlertTriangle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import type { Database } from "@/integrations/supabase/types";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
@@ -20,26 +21,52 @@ interface TruckCardProps {
   scheduledLegsCount?: number;
   runs: RunInfo[];
   overallStatus: "green" | "yellow" | "red";
+  downStatus?: "down_maintenance" | "down_out_of_service" | null;
+  downReason?: string | null;
 }
 
-export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, overallStatus }: TruckCardProps) {
+export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, overallStatus, downStatus, downReason }: TruckCardProps) {
   const hasHeavy = runs.some((r) => (r.patient_weight ?? 0) > 200);
+  const isDown = !!downStatus;
+  const hasRunsWhileDown = isDown && runs.length > 0;
+
   return (
-    <div className="rounded-lg border bg-card p-4 shadow-sm">
+    <div className={`rounded-lg border bg-card p-4 shadow-sm ${isDown ? "border-destructive/40 bg-destructive/5" : ""}`}>
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <StatusDot status={overallStatus} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <StatusDot status={isDown ? "red" : overallStatus} />
           <div className="flex items-center gap-1.5">
-            <Truck className="h-4 w-4 text-muted-foreground" />
-            <span className="font-semibold text-card-foreground">{truckName}</span>
+            <Truck className={`h-4 w-4 ${isDown ? "text-destructive" : "text-muted-foreground"}`} />
+            <span className={`font-semibold ${isDown ? "text-destructive" : "text-card-foreground"}`}>{truckName}</span>
           </div>
-          {hasHeavy && (
+          {isDown && (
+            <Badge variant="destructive" className="text-[9px] px-1.5 py-0">
+              {downStatus === "down_maintenance" ? "MAINT" : "OUT OF SVC"}
+            </Badge>
+          )}
+          {hasHeavy && !isDown && (
             <span className="text-[hsl(var(--status-yellow))]" title="Electric stretcher required">
               <Zap className="h-4 w-4" />
             </span>
           )}
         </div>
       </div>
+
+      {/* Down warning banner */}
+      {isDown && (
+        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <div className="flex items-center gap-1.5 font-semibold">
+            <WrenchIcon className="h-3.5 w-3.5" />
+            Truck unavailable{downReason ? ` — ${downReason}` : ""}
+          </div>
+          {hasRunsWhileDown && (
+            <div className="mt-1 flex items-center gap-1 text-[hsl(var(--status-yellow))] font-medium">
+              <AlertTriangle className="h-3 w-3" />
+              {runs.length} run(s) still assigned — reassign to another truck.
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mb-3 flex items-center gap-1.5 text-sm text-muted-foreground">
         <Users className="h-3.5 w-3.5" />
@@ -51,7 +78,7 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
       )}
 
       {runs.length === 0 && scheduledLegsCount === 0 ? (
-        <p className="text-sm text-muted-foreground italic">No runs scheduled</p>
+        <p className="text-sm text-muted-foreground italic">{isDown ? "Truck is down — no runs" : "No runs scheduled"}</p>
       ) : (
         <div className="space-y-2">
           {runs.map((run) => (
