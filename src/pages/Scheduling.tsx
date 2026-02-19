@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
 import { RunPool } from "@/components/scheduling/RunPool";
+import { TemplateControls } from "@/components/scheduling/TemplateControls";
 import { useSchedulingStore, type LegDisplay } from "@/hooks/useSchedulingStore";
 import {
   DndContext,
@@ -574,6 +575,14 @@ export default function Scheduling() {
               onRefresh={refresh}
               onEditException={openExceptionEdit}
               onDownCountChange={setDownTruckCount}
+            />
+
+            {/* ── TEMPLATE CONTROLS (bottom of truck builder area) ── */}
+            <TemplateControls
+              selectedDate={selectedDate}
+              trucks={trucks}
+              legs={legs}
+              onRefresh={refresh}
             />
 
             {/* Drag overlay — compact ghost card shown while dragging */}

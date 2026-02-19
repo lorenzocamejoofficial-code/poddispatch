@@ -740,6 +740,36 @@ export type Database = {
           },
         ]
       }
+      truck_builder_templates: {
+        Row: {
+          company_id: string
+          created_at: string
+          day_type: string
+          id: string
+          mapping: Json
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          day_type: string
+          id?: string
+          mapping?: Json
+          name?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          day_type?: string
+          id?: string
+          mapping?: Json
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       truck_run_slots: {
         Row: {
           company_id: string | null
