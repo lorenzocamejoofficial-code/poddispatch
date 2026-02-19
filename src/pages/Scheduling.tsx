@@ -19,17 +19,30 @@ import { useSchedulingStore, type LegDisplay } from "@/hooks/useSchedulingStore"
 import {
   DndContext,
   closestCenter,
+  rectIntersection,
   PointerSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
+  type CollisionDetection,
   DragOverlay,
   useDraggable,
   useDroppable,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
+
+// Custom collision: always check pool-droppable first so dragging from a
+// truck back to the pool reliably registers even when sortable items are nearby
+const poolFirstCollision: CollisionDetection = (args) => {
+  const poolCollisions = rectIntersection({
+    ...args,
+    droppableContainers: args.droppableContainers.filter(c => c.id === "pool-droppable"),
+  });
+  if (poolCollisions.length > 0) return poolCollisions;
+  return closestCenter(args);
+};
 
 function getWeekDates(refDate: string): string[] {
   const d = new Date(refDate + "T12:00:00");
@@ -287,8 +300,11 @@ export default function Scheduling() {
 
   const handleDragStart = (event: DragStartEvent) => {
     const { data } = event.active;
+    // leg is attached for both pool-leg and assigned-leg drag types
     const leg = data.current?.leg as LegDisplay | undefined;
-    if (leg) setActiveDragLeg(leg);
+    // fallback: find by id (covers sortable items from TruckBuilder)
+    const resolved = leg ?? legs.find(l => l.id === event.active.id);
+    if (resolved) setActiveDragLeg(resolved);
   };
 
   // Master drag-end handler: covers pool→truck, truck→truck, truck→pool, reorder within truck
@@ -300,7 +316,9 @@ export default function Scheduling() {
     const sourceData = active.data.current as any;
     const targetData = over.data.current as any;
 
-    const activeLeg: LegDisplay | undefined = sourceData?.leg ?? legs.find(l => l.id === active.id);
+    // Resolve the active leg from drag data or from state by id
+    const activeLeg: LegDisplay | undefined =
+      sourceData?.leg ?? legs.find(l => l.id === active.id);
     if (!activeLeg) return;
 
     const activeId = active.id as string;
@@ -491,7 +509,7 @@ export default function Scheduling() {
           /* DAILY DRILL-DOWN VIEW */
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCenter}
+            collisionDetection={poolFirstCollision}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
@@ -755,11 +773,15 @@ function PoolDropZone({ children, unassigned }: { children: React.ReactNode; una
   return (
     <section
       ref={setNodeRef}
-      className={`rounded-lg border bg-card p-4 transition-colors ${isOver ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20" : ""}`}
+      className={`rounded-lg border bg-card p-4 transition-all duration-150 ${
+        isOver
+          ? "border-primary/60 bg-primary/5 ring-2 ring-primary/30"
+          : "border-border"
+      }`}
     >
       {isOver && (
-        <div className="mb-2 rounded-md border-2 border-dashed border-primary/50 bg-primary/5 px-3 py-2 text-center text-xs text-primary font-medium">
-          Drop here to unassign from truck
+        <div className="mb-3 rounded-md border-2 border-dashed border-primary/60 bg-primary/10 px-3 py-3 text-center text-xs text-primary font-semibold">
+          ↩ Drop here to return to pool
         </div>
       )}
       {children}
