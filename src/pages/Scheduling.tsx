@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
 import { RunPool } from "@/components/scheduling/RunPool";
 import { TemplateControls } from "@/components/scheduling/TemplateControls";
+import { UpcomingNonDialysisPanel } from "@/components/scheduling/UpcomingNonDialysisPanel";
 import { useSchedulingStore, type LegDisplay } from "@/hooks/useSchedulingStore";
 import {
   DndContext,
@@ -482,30 +483,35 @@ export default function Scheduling() {
 
         {/* WEEKLY VIEW */}
         {weekView ? (
-          <div className="grid grid-cols-7 gap-2">
-            {weekDates.map((date, idx) => {
-              const summary = weekSummaries.find((s) => s.date === date);
-              const isToday = date === today;
-              const isSelected = date === selectedDate;
-              return (
-                <button
-                  key={date}
-                  onClick={() => openDay(date)}
-                  className={`rounded-lg border p-3 text-left transition-colors hover:border-primary/50 ${
-                    isToday ? "border-primary bg-primary/5" : isSelected ? "border-primary/30" : "bg-card"
-                  }`}
-                >
-                  <div className="text-xs font-semibold uppercase text-muted-foreground">{DAY_LABELS[idx]}</div>
-                  <div className={`text-lg font-bold ${isToday ? "text-primary" : "text-card-foreground"}`}>{formatShortDate(date)}</div>
-                  {summary && (
-                    <div className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
-                      <div>{summary.legCount} leg{summary.legCount !== 1 ? "s" : ""}</div>
-                      <div>{summary.assignedCount}/{summary.truckCount} trucks active</div>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
+          <div className="space-y-4">
+            <div className="grid grid-cols-7 gap-2">
+              {weekDates.map((date, idx) => {
+                const summary = weekSummaries.find((s) => s.date === date);
+                const isToday = date === today;
+                const isSelected = date === selectedDate;
+                return (
+                  <button
+                    key={date}
+                    onClick={() => openDay(date)}
+                    className={`rounded-lg border p-3 text-left transition-colors hover:border-primary/50 ${
+                      isToday ? "border-primary bg-primary/5" : isSelected ? "border-primary/30" : "bg-card"
+                    }`}
+                  >
+                    <div className="text-xs font-semibold uppercase text-muted-foreground">{DAY_LABELS[idx]}</div>
+                    <div className={`text-lg font-bold ${isToday ? "text-primary" : "text-card-foreground"}`}>{formatShortDate(date)}</div>
+                    {summary && (
+                      <div className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
+                        <div>{summary.legCount} leg{summary.legCount !== 1 ? "s" : ""}</div>
+                        <div>{summary.assignedCount}/{summary.truckCount} trucks active</div>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* ── Upcoming Non-Dialysis Alerts Panel ── */}
+            <UpcomingNonDialysisPanel onGoToDay={openDay} />
           </div>
         ) : (
           /* DAILY DRILL-DOWN VIEW */
