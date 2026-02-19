@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
         ? today
         : tokenRow.valid_from;
 
-    const [{ data: truck }, { data: crew }, { data: slots }] = await Promise.all([
+    const [{ data: truck }, { data: crew }, { data: slots }, { data: companySettings }] = await Promise.all([
       supabaseAdmin.from("trucks").select("name").eq("id", tokenRow.truck_id).single(),
       supabaseAdmin
         .from("crews")
@@ -74,6 +74,7 @@ Deno.serve(async (req) => {
         .eq("truck_id", tokenRow.truck_id)
         .eq("run_date", scheduleDate)
         .order("slot_order"),
+      supabaseAdmin.from("company_settings").select("company_name").limit(1).maybeSingle(),
     ]);
 
     const legIds = (slots ?? []).map((s) => s.leg_id);
@@ -83,7 +84,7 @@ Deno.serve(async (req) => {
       const { data: legData } = await supabaseAdmin
         .from("scheduling_legs")
         .select(
-          "*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, notes)"
+          "*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, dob, phone, weight_lbs, notes)"
         )
         .in("id", legIds);
 
@@ -103,12 +104,15 @@ Deno.serve(async (req) => {
             patient_name: l.patient
               ? `${l.patient.first_name} ${l.patient.last_name}`
               : "Unknown",
+            patient_dob: l.patient?.dob ?? null,
+            patient_phone: l.patient?.phone ?? null,
+            patient_notes: l.patient?.notes ?? null,
             pickup_time: l.pickup_time,
             chair_time: l.chair_time,
             pickup_location: l.pickup_location,
             destination_location: l.destination_location,
             estimated_duration_minutes: l.estimated_duration_minutes,
-            notes: l.patient?.notes ?? l.notes ?? null,
+            notes: l.notes ?? null,
             patient_weight: l.patient?.weight_lbs ?? null,
             slot_id: slotInfo?.slotId ?? null,
             slot_status: slotInfo?.status ?? "pending",
@@ -123,6 +127,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
+        companyName: (companySettings as any)?.company_name ?? "",
         truckName: truck?.name ?? "Unknown Truck",
         date: scheduleDate,
         member1: (crew as any)?.member1?.full_name ?? null,
@@ -170,7 +175,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify the slot belongs to this token's truck (security check)
     const today = new Date().toISOString().split("T")[0];
     const scheduleDate =
       today >= tokenRow.valid_from && today <= tokenRow.valid_until
@@ -192,7 +196,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Enforce forward-only progression
     const currentIdx = STATUS_FLOW.indexOf(slot.status);
     const nextIdx = STATUS_FLOW.indexOf(next_status);
     if (nextIdx !== currentIdx + 1) {
