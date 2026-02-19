@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { HelpButton } from "@/components/help/HelpButton";
 
 const navItems = [
   { path: "/", label: "Dispatch Board", icon: LayoutDashboard },
@@ -126,9 +127,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <h2 className="text-lg font-semibold text-foreground">
+          <h2 className="text-lg font-semibold text-foreground flex-1">
             {navItems.find((i) => i.path === location.pathname)?.label ?? "PodDispatch"}
           </h2>
+          <HelpButton routeKey={location.pathname} />
         </header>
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>

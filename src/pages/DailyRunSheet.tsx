@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { HelpButton } from "@/components/help/HelpButton";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -230,9 +231,12 @@ export default function DailyRunSheet() {
             )}
           </div>
           <div className="flex flex-col items-end gap-1">
-            <Button variant="outline" size="icon" onClick={handleRefresh} disabled={refreshing} className="h-8 w-8">
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-            </Button>
+            <div className="flex items-center gap-1">
+              <HelpButton routeKey="/crew/:token" />
+              <Button variant="outline" size="icon" onClick={handleRefresh} disabled={refreshing} className="h-8 w-8">
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
             {lastUpdated && (
               <p className="text-[10px] text-muted-foreground text-right">
                 Updated {format(lastUpdated, "h:mm a")}
