@@ -7,21 +7,11 @@ import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, Wrenc
 import { toast } from "sonner";
 import { useSchedulingStore, type LegDisplay, type TruckOption, type CrewDisplay } from "@/hooks/useSchedulingStore";
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
   SortableContext,
-  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-  arrayMove,
 } from "@dnd-kit/sortable";
+import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 
 interface AvailabilityRecord {
@@ -40,12 +30,15 @@ interface SortableLegItemProps {
 }
 
 function SortableLegItem({ leg, onRemove, onEditException }: SortableLegItemProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: leg.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: leg.id,
+    data: { type: "assigned-leg", leg },
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.4 : 1,
   };
 
   const isHeavy = (leg.patient_weight ?? 0) > 200;
@@ -54,7 +47,7 @@ function SortableLegItem({ leg, onRemove, onEditException }: SortableLegItemProp
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs bg-card ${leg.has_exception ? "border-primary/40" : ""}`}
+      className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs bg-card ${leg.has_exception ? "border-primary/40" : ""} ${isDragging ? "shadow-lg ring-1 ring-primary/40" : ""}`}
     >
       <div className="flex items-center gap-1.5 min-w-0 flex-1">
         <button
@@ -85,6 +78,29 @@ function SortableLegItem({ leg, onRemove, onEditException }: SortableLegItemProp
   );
 }
 
+// Droppable zone for a truck — handles both pool→truck and truck→truck
+function TruckDropZone({ truckId, isEmpty }: { truckId: string; isEmpty: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `truck-drop-${truckId}`,
+    data: { type: "truck-zone", truckId },
+  });
+
+  if (!isEmpty) return null;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded-md border-2 border-dashed px-3 py-3 text-center text-xs transition-colors ${
+        isOver
+          ? "border-primary/60 bg-primary/5 text-primary"
+          : "border-muted-foreground/20 text-muted-foreground/50"
+      }`}
+    >
+      {isOver ? "Drop here to assign" : "Drop runs here"}
+    </div>
+  );
+}
+
 interface TruckBuilderProps {
   trucks: TruckOption[];
   legs: LegDisplay[];
@@ -99,11 +115,6 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   const { addingLeg, setAddingLeg } = useSchedulingStore();
   const [availability, setAvailability] = useState<AvailabilityRecord[]>([]);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
   // Load truck availability for the selected date
   useEffect(() => {
     const load = async () => {
@@ -114,7 +125,6 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
         .gte("end_date", selectedDate);
       const records = (data ?? []) as unknown as AvailabilityRecord[];
       setAvailability(records);
-      // Report down count up to parent for the snapshot bar
       onDownCountChange?.(records.length);
     };
     load();
@@ -144,11 +154,16 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       return;
     }
 
+    // Resolve company_id for RLS
+    const { data: profileData } = await supabase.from("profiles").select("company_id").limit(1).single();
+    const companyId = (profileData as any)?.company_id ?? null;
+
     const { error } = await supabase.from("truck_run_slots").insert({
       truck_id: truckId,
       leg_id: legId,
       run_date: selectedDate,
       slot_order: currentSlots.length,
+      company_id: companyId,
     } as any);
 
     if (error) {
@@ -171,30 +186,6 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     onRefresh();
   };
 
-  const handleDragEnd = async (event: DragEndEvent, truckId: string, tLegs: LegDisplay[]) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = tLegs.findIndex((l) => l.id === active.id);
-    const newIndex = tLegs.findIndex((l) => l.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const reordered = arrayMove(tLegs, oldIndex, newIndex);
-
-    await Promise.all(
-      reordered.map((leg, idx) =>
-        supabase
-          .from("truck_run_slots")
-          .update({ slot_order: idx } as any)
-          .eq("leg_id", leg.id)
-          .eq("run_date", selectedDate)
-          .eq("truck_id", truckId)
-      )
-    );
-
-    onRefresh();
-  };
-
   const calcSlackMinutes = (truckId: string): number => {
     const tLegs = truckLegs(truckId);
     if (tLegs.length === 0) return 999;
@@ -203,20 +194,6 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     return Math.max(0, workingMinutes - totalDuration * 2);
   };
 
-  const slackColor = (slack: number) => {
-    if (slack >= 60) return "text-[hsl(var(--status-green))]";
-    if (slack >= 20) return "text-[hsl(var(--status-yellow))]";
-    return "text-[hsl(var(--status-red))]";
-  };
-
-  const slackLabel = (slack: number) => {
-    if (slack >= 999) return "No runs";
-    if (slack >= 60) return `${slack}min slack`;
-    if (slack >= 20) return `${slack}min (tight)`;
-    return `${slack}min (at risk)`;
-  };
-
-  // Per-truck utilization: green=6–8, yellow=3–5, red=0–2 or >10
   const utilizationColor = (count: number) => {
     if (count >= 6 && count <= 8) return "bg-[hsl(var(--status-green))]/20 text-[hsl(var(--status-green))] border-[hsl(var(--status-green))]/30";
     if (count >= 3 && count <= 5) return "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] border-[hsl(var(--status-yellow))]/30";
@@ -243,137 +220,34 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {trucks.map((truck) => {
           const tLegs = truckLegs(truck.id);
-          const slack = calcSlackMinutes(truck.id);
           const hasHeavy = tLegs.some((l) => (l.patient_weight ?? 0) > 200);
           const crew = crewForTruck(truck.id);
           const downRecord = getTruckDown(truck.id);
           const isDown = !!downRecord;
           const hasRunsWhileDown = isDown && tLegs.length > 0;
-
           const first = firstPickup(tLegs);
           const last = lastPickup(tLegs);
 
           return (
-            <div
+            <TruckCard
               key={truck.id}
-              className={`rounded-lg border bg-card p-4 ${isDown ? "border-destructive/40 bg-destructive/5" : ""}`}
-            >
-              <div className="mb-2 flex items-center justify-between gap-1 flex-wrap">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Truck className={`h-4 w-4 shrink-0 ${isDown ? "text-destructive" : "text-muted-foreground"}`} />
-                  <span className={`font-semibold truncate ${isDown ? "text-destructive" : "text-card-foreground"}`}>{truck.name}</span>
-                  {isDown && (
-                    <Badge variant="destructive" className="text-[9px] px-1.5 py-0 shrink-0">
-                      {downRecord.status === "down_maintenance" ? "MAINT" : "OUT OF SVC"}
-                    </Badge>
-                  )}
-                  {hasHeavy && !isDown && (
-                    <span className="text-[hsl(var(--status-yellow))] shrink-0" title="Has heavy patient - electric stretcher needed">
-                      <Zap className="h-3.5 w-3.5" />
-                    </span>
-                  )}
-                </div>
-                {!isDown && (
-                  <div className="flex items-center gap-1 shrink-0">
-                    {/* Utilization badge */}
-                    <span className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${utilizationColor(tLegs.length)}`}>
-                      {tLegs.length} runs
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Down warning */}
-              {isDown && (
-                <div className="mb-2 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
-                  <div className="flex items-center gap-1 font-semibold">
-                    <WrenchIcon className="h-3 w-3" />
-                    Truck unavailable
-                    {downRecord.reason && ` — ${downRecord.reason}`}
-                  </div>
-                  {hasRunsWhileDown && (
-                    <div className="mt-1 flex items-center gap-1 text-[hsl(var(--status-yellow))] font-medium">
-                      <AlertTriangle className="h-3 w-3" />
-                      {tLegs.length} run(s) still assigned — reassign to another truck.
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Crew info */}
-              {!isDown && (
-                <div className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Users className="h-3 w-3 shrink-0" />
-                  {crew ? (
-                    <span className="truncate">{crew.member1_name ?? "—"} & {crew.member2_name ?? "—"}</span>
-                  ) : (
-                    <span className="italic text-[hsl(var(--status-yellow))]">⚠ No crew assigned</span>
-                  )}
-                </div>
-              )}
-
-              {/* First / last pickup time */}
-              {!isDown && tLegs.length > 0 && (
-                <div className="mb-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <Clock className="h-3 w-3 shrink-0" />
-                  <span>{first ?? "—"} → {last ?? "—"}</span>
-                </div>
-              )}
-
-
-
-
-              {/* Sortable legs — always show if runs exist (even on down truck to allow reassignment) */}
-              {tLegs.length > 0 && (
-                <div className="space-y-1.5 mb-3">
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={(e) => handleDragEnd(e, truck.id, tLegs)}
-                  >
-                    <SortableContext items={tLegs.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-                      {tLegs.map((leg) => (
-                        <SortableLegItem
-                          key={leg.id}
-                          leg={leg}
-                          onRemove={() => removeLeg(leg.id)}
-                          onEditException={() => onEditException(leg)}
-                        />
-                      ))}
-                    </SortableContext>
-                  </DndContext>
-                </div>
-              )}
-
-              {/* Only allow adding legs to available trucks */}
-              {!isDown && tLegs.length < 10 && unassigned.length > 0 && (
-                addingLeg?.truckId === truck.id ? (
-                  <div className="flex gap-2">
-                    <Select value={addingLeg.legId} onValueChange={(v) => setAddingLeg({ truckId: truck.id, legId: v })}>
-                      <SelectTrigger className="text-xs h-8"><SelectValue placeholder="Select leg" /></SelectTrigger>
-                      <SelectContent>
-                        {unassigned.map((l) => (
-                          <SelectItem key={l.id} value={l.id}>
-                            {l.leg_type}: {l.patient_name} {l.pickup_time ?? ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button size="sm" className="h-8" onClick={() => addingLeg.legId && assignLeg(truck.id, addingLeg.legId)}>Add</Button>
-                    <Button size="sm" variant="ghost" className="h-8" onClick={() => setAddingLeg(null)}>Cancel</Button>
-                  </div>
-                ) : (
-                  <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setAddingLeg({ truckId: truck.id, legId: "" })}>
-                    <Plus className="mr-1 h-3 w-3" /> Add Leg from Run Pool
-                  </Button>
-                )
-              )}
-
-              {/* Blocked message for down trucks with no runs */}
-              {isDown && tLegs.length === 0 && (
-                <p className="text-xs text-muted-foreground italic text-center py-2">Truck blocked — cannot assign runs while down</p>
-              )}
-            </div>
+              truck={truck}
+              tLegs={tLegs}
+              crew={crew}
+              downRecord={downRecord}
+              isDown={isDown}
+              hasRunsWhileDown={hasRunsWhileDown}
+              hasHeavy={hasHeavy}
+              first={first}
+              last={last}
+              utilizationColor={utilizationColor}
+              unassigned={unassigned}
+              addingLeg={addingLeg}
+              setAddingLeg={setAddingLeg}
+              onAssignLeg={assignLeg}
+              onRemoveLeg={removeLeg}
+              onEditException={onEditException}
+            />
           );
         })}
       </div>
@@ -381,5 +255,158 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
         <p className="text-sm text-muted-foreground">No trucks configured. Add trucks in the Trucks & Crews section.</p>
       )}
     </section>
+  );
+}
+
+// ── Individual truck card with its own droppable zone ──
+interface TruckCardProps {
+  truck: TruckOption;
+  tLegs: LegDisplay[];
+  crew: CrewDisplay | undefined;
+  downRecord: AvailabilityRecord | undefined;
+  isDown: boolean;
+  hasRunsWhileDown: boolean;
+  hasHeavy: boolean;
+  first: string | null;
+  last: string | null;
+  utilizationColor: (count: number) => string;
+  unassigned: LegDisplay[];
+  addingLeg: { truckId: string; legId: string } | null;
+  setAddingLeg: (v: { truckId: string; legId: string } | null) => void;
+  onAssignLeg: (truckId: string, legId: string) => void;
+  onRemoveLeg: (legId: string) => void;
+  onEditException: (leg: LegDisplay) => void;
+}
+
+function TruckCard({
+  truck, tLegs, crew, downRecord, isDown, hasRunsWhileDown, hasHeavy,
+  first, last, utilizationColor, unassigned, addingLeg, setAddingLeg,
+  onAssignLeg, onRemoveLeg, onEditException,
+}: TruckCardProps) {
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `truck-drop-${truck.id}`,
+    data: { type: "truck-zone", truckId: truck.id },
+  });
+
+  return (
+    <div
+      className={`rounded-lg border bg-card p-4 transition-colors ${
+        isDown ? "border-destructive/40 bg-destructive/5" : ""
+      } ${isOver && !isDown ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20" : ""}`}
+    >
+      {/* Header */}
+      <div className="mb-2 flex items-center justify-between gap-1 flex-wrap">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Truck className={`h-4 w-4 shrink-0 ${isDown ? "text-destructive" : "text-muted-foreground"}`} />
+          <span className={`font-semibold truncate ${isDown ? "text-destructive" : "text-card-foreground"}`}>{truck.name}</span>
+          {isDown && (
+            <Badge variant="destructive" className="text-[9px] px-1.5 py-0 shrink-0">
+              {downRecord!.status === "down_maintenance" ? "MAINT" : "OUT OF SVC"}
+            </Badge>
+          )}
+          {hasHeavy && !isDown && (
+            <span className="text-[hsl(var(--status-yellow))] shrink-0" title="Has heavy patient - electric stretcher needed">
+              <Zap className="h-3.5 w-3.5" />
+            </span>
+          )}
+        </div>
+        {!isDown && (
+          <span className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${utilizationColor(tLegs.length)}`}>
+            {tLegs.length} runs
+          </span>
+        )}
+      </div>
+
+      {/* Down warning */}
+      {isDown && (
+        <div className="mb-2 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+          <div className="flex items-center gap-1 font-semibold">
+            <WrenchIcon className="h-3 w-3" />
+            Truck unavailable
+            {downRecord!.reason && ` — ${downRecord!.reason}`}
+          </div>
+          {hasRunsWhileDown && (
+            <div className="mt-1 flex items-center gap-1 text-[hsl(var(--status-yellow))] font-medium">
+              <AlertTriangle className="h-3 w-3" />
+              {tLegs.length} run(s) still assigned — reassign to another truck.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Crew info */}
+      {!isDown && (
+        <div className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Users className="h-3 w-3 shrink-0" />
+          {crew ? (
+            <span className="truncate">{crew.member1_name ?? "—"} & {crew.member2_name ?? "—"}</span>
+          ) : (
+            <span className="italic text-[hsl(var(--status-yellow))]">⚠ No crew assigned</span>
+          )}
+        </div>
+      )}
+
+      {/* First / last pickup time */}
+      {!isDown && tLegs.length > 0 && (
+        <div className="mb-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <Clock className="h-3 w-3 shrink-0" />
+          <span>{first ?? "—"} → {last ?? "—"}</span>
+        </div>
+      )}
+
+      {/* Drop zone + sortable leg list */}
+      <div ref={setDropRef} className="mb-2 min-h-[2rem]">
+        {tLegs.length > 0 ? (
+          <div className={`space-y-1.5 rounded-md transition-colors ${isOver && !isDown ? "bg-primary/3" : ""}`}>
+            <SortableContext items={tLegs.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+              {tLegs.map((leg) => (
+                <SortableLegItem
+                  key={leg.id}
+                  leg={leg}
+                  onRemove={() => onRemoveLeg(leg.id)}
+                  onEditException={() => onEditException(leg)}
+                />
+              ))}
+            </SortableContext>
+            {isOver && !isDown && (
+              <div className="rounded-md border-2 border-dashed border-primary/40 px-2 py-1.5 text-center text-[10px] text-primary/70">
+                Drop to add here
+              </div>
+            )}
+          </div>
+        ) : (
+          <TruckDropZone truckId={truck.id} isEmpty />
+        )}
+      </div>
+
+      {/* Manual add leg selector */}
+      {!isDown && tLegs.length < 10 && unassigned.length > 0 && (
+        addingLeg?.truckId === truck.id ? (
+          <div className="flex gap-2">
+            <Select value={addingLeg.legId} onValueChange={(v) => setAddingLeg({ truckId: truck.id, legId: v })}>
+              <SelectTrigger className="text-xs h-8"><SelectValue placeholder="Select leg" /></SelectTrigger>
+              <SelectContent>
+                {unassigned.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.leg_type}: {l.patient_name} {l.pickup_time ?? ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" className="h-8" onClick={() => addingLeg.legId && onAssignLeg(truck.id, addingLeg.legId)}>Add</Button>
+            <Button size="sm" variant="ghost" className="h-8" onClick={() => setAddingLeg(null)}>Cancel</Button>
+          </div>
+        ) : (
+          <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setAddingLeg({ truckId: truck.id, legId: "" })}>
+            <Plus className="mr-1 h-3 w-3" /> Add Leg
+          </Button>
+        )
+      )}
+
+      {/* Blocked message for down trucks with no runs */}
+      {isDown && tLegs.length === 0 && (
+        <p className="text-xs text-muted-foreground italic text-center py-2">Truck blocked — cannot assign runs while down</p>
+      )}
+    </div>
   );
 }
