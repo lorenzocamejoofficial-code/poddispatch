@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useSchedulingStore, type LegDisplay, type TruckOption, type CrewDisplay } from "@/hooks/useSchedulingStore";
 import {
@@ -21,6 +23,15 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+
+interface AvailabilityRecord {
+  id: string;
+  truck_id: string;
+  status: "down_maintenance" | "down_out_of_service";
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+}
 
 interface SortableLegItemProps {
   leg: LegDisplay;
@@ -85,11 +96,28 @@ interface TruckBuilderProps {
 
 export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException }: TruckBuilderProps) {
   const { addingLeg, setAddingLeg } = useSchedulingStore();
+  const [availability, setAvailability] = useState<AvailabilityRecord[]>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  // Load truck availability for the selected date
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase
+        .from("truck_availability" as any)
+        .select("*")
+        .lte("start_date", selectedDate)
+        .gte("end_date", selectedDate);
+      setAvailability((data ?? []) as unknown as AvailabilityRecord[]);
+    };
+    load();
+  }, [selectedDate]);
+
+  const getTruckDown = (truckId: string): AvailabilityRecord | undefined =>
+    availability.find((a) => a.truck_id === truckId);
 
   const truckLegs = (truckId: string) =>
     legs
@@ -195,62 +223,96 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
           const slack = calcSlackMinutes(truck.id);
           const hasHeavy = tLegs.some((l) => (l.patient_weight ?? 0) > 200);
           const crew = crewForTruck(truck.id);
+          const downRecord = getTruckDown(truck.id);
+          const isDown = !!downRecord;
+          const hasRunsWhileDown = isDown && tLegs.length > 0;
 
           return (
-            <div key={truck.id} className="rounded-lg border bg-card p-4">
+            <div
+              key={truck.id}
+              className={`rounded-lg border bg-card p-4 ${isDown ? "border-destructive/40 bg-destructive/5" : ""}`}
+            >
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Truck className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-semibold text-card-foreground">{truck.name}</span>
-                  {hasHeavy && (
+                  <Truck className={`h-4 w-4 shrink-0 ${isDown ? "text-destructive" : "text-muted-foreground"}`} />
+                  <span className={`font-semibold ${isDown ? "text-destructive" : "text-card-foreground"}`}>{truck.name}</span>
+                  {isDown && (
+                    <Badge variant="destructive" className="text-[9px] px-1.5 py-0">
+                      {downRecord.status === "down_maintenance" ? "MAINT" : "OUT OF SVC"}
+                    </Badge>
+                  )}
+                  {hasHeavy && !isDown && (
                     <span className="text-[hsl(var(--status-yellow))]" title="Has heavy patient - electric stretcher needed">
                       <Zap className="h-4 w-4" />
                     </span>
                   )}
                 </div>
-                <span className={`text-xs font-medium ${slackColor(slack)}`}>
-                  {slackLabel(slack)}
-                </span>
+                {!isDown && (
+                  <span className={`text-xs font-medium ${slackColor(slack)}`}>
+                    {slackLabel(slack)}
+                  </span>
+                )}
               </div>
+
+              {/* Down warning */}
+              {isDown && (
+                <div className="mb-2 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+                  <div className="flex items-center gap-1 font-semibold">
+                    <WrenchIcon className="h-3 w-3" />
+                    Truck unavailable
+                    {downRecord.reason && ` — ${downRecord.reason}`}
+                  </div>
+                  {hasRunsWhileDown && (
+                    <div className="mt-1 flex items-center gap-1 text-[hsl(var(--status-yellow))] font-medium">
+                      <AlertTriangle className="h-3 w-3" />
+                      {tLegs.length} run(s) still assigned — reassign to another truck.
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Crew info */}
-              <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Users className="h-3 w-3" />
-                {crew ? (
-                  <span>{crew.member1_name ?? "—"} & {crew.member2_name ?? "—"}</span>
-                ) : (
-                  <span className="italic">No crew assigned</span>
-                )}
-              </div>
+              {!isDown && (
+                <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Users className="h-3 w-3" />
+                  {crew ? (
+                    <span>{crew.member1_name ?? "—"} & {crew.member2_name ?? "—"}</span>
+                  ) : (
+                    <span className="italic">No crew assigned</span>
+                  )}
+                </div>
+              )}
 
-              <div className="mb-2 text-xs text-muted-foreground">
-                {tLegs.length}/10 slots used
-              </div>
+              {!isDown && (
+                <div className="mb-2 text-xs text-muted-foreground">
+                  {tLegs.length}/10 slots used
+                </div>
+              )}
 
-              {/* Sortable legs */}
-              <div className="space-y-1.5 mb-3">
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={(e) => handleDragEnd(e, truck.id, tLegs)}
-                >
-                  <SortableContext items={tLegs.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-                    {tLegs.map((leg) => (
-                      <SortableLegItem
-                        key={leg.id}
-                        leg={leg}
-                        onRemove={() => removeLeg(leg.id)}
-                        onEditException={() => onEditException(leg)}
-                      />
-                    ))}
-                  </SortableContext>
-                </DndContext>
-                {tLegs.length === 0 && (
-                  <p className="text-xs text-muted-foreground italic py-2">No legs assigned</p>
-                )}
-              </div>
+              {/* Sortable legs — always show if runs exist (even on down truck to allow reassignment) */}
+              {tLegs.length > 0 && (
+                <div className="space-y-1.5 mb-3">
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(e) => handleDragEnd(e, truck.id, tLegs)}
+                  >
+                    <SortableContext items={tLegs.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+                      {tLegs.map((leg) => (
+                        <SortableLegItem
+                          key={leg.id}
+                          leg={leg}
+                          onRemove={() => removeLeg(leg.id)}
+                          onEditException={() => onEditException(leg)}
+                        />
+                      ))}
+                    </SortableContext>
+                  </DndContext>
+                </div>
+              )}
 
-              {tLegs.length < 10 && unassigned.length > 0 && (
+              {/* Only allow adding legs to available trucks */}
+              {!isDown && tLegs.length < 10 && unassigned.length > 0 && (
                 addingLeg?.truckId === truck.id ? (
                   <div className="flex gap-2">
                     <Select value={addingLeg.legId} onValueChange={(v) => setAddingLeg({ truckId: truck.id, legId: v })}>
@@ -271,6 +333,11 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
                     <Plus className="mr-1 h-3 w-3" /> Add Leg from Run Pool
                   </Button>
                 )
+              )}
+
+              {/* Blocked message for down trucks with no runs */}
+              {isDown && tLegs.length === 0 && (
+                <p className="text-xs text-muted-foreground italic text-center py-2">Truck blocked — cannot assign runs while down</p>
               )}
             </div>
           );
