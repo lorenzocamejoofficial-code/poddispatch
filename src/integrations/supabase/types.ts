@@ -265,6 +265,47 @@ export type Database = {
           },
         ]
       }
+      leg_exceptions: {
+        Row: {
+          created_at: string
+          destination_location: string | null
+          id: string
+          notes: string | null
+          pickup_location: string | null
+          pickup_time: string | null
+          run_date: string
+          scheduling_leg_id: string
+        }
+        Insert: {
+          created_at?: string
+          destination_location?: string | null
+          id?: string
+          notes?: string | null
+          pickup_location?: string | null
+          pickup_time?: string | null
+          run_date: string
+          scheduling_leg_id: string
+        }
+        Update: {
+          created_at?: string
+          destination_location?: string | null
+          id?: string
+          notes?: string | null
+          pickup_location?: string | null
+          pickup_time?: string | null
+          run_date?: string
+          scheduling_leg_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leg_exceptions_scheduling_leg_id_fkey"
+            columns: ["scheduling_leg_id"]
+            isOneToOne: false
+            referencedRelation: "scheduling_legs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           acknowledged: boolean
@@ -305,9 +346,12 @@ export type Database = {
           notes: string | null
           phone: string | null
           pickup_address: string | null
+          recurrence_end_date: string | null
+          recurrence_start_date: string | null
           run_duration_minutes: number | null
           schedule_days: Database["public"]["Enums"]["schedule_days"] | null
           status: Database["public"]["Enums"]["patient_status"]
+          transport_type: Database["public"]["Enums"]["transport_type"]
           updated_at: string
           weight_lbs: number | null
         }
@@ -323,9 +367,12 @@ export type Database = {
           notes?: string | null
           phone?: string | null
           pickup_address?: string | null
+          recurrence_end_date?: string | null
+          recurrence_start_date?: string | null
           run_duration_minutes?: number | null
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
           status?: Database["public"]["Enums"]["patient_status"]
+          transport_type?: Database["public"]["Enums"]["transport_type"]
           updated_at?: string
           weight_lbs?: number | null
         }
@@ -341,9 +388,12 @@ export type Database = {
           notes?: string | null
           phone?: string | null
           pickup_address?: string | null
+          recurrence_end_date?: string | null
+          recurrence_start_date?: string | null
           run_duration_minutes?: number | null
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
           status?: Database["public"]["Enums"]["patient_status"]
+          transport_type?: Database["public"]["Enums"]["transport_type"]
           updated_at?: string
           weight_lbs?: number | null
         }
@@ -791,6 +841,7 @@ export type Database = {
         | "completed"
       schedule_days: "MWF" | "TTS"
       sex_type: "M" | "F"
+      transport_type: "dialysis" | "outpatient" | "adhoc"
       trip_type:
         | "dialysis"
         | "discharge"
@@ -944,6 +995,7 @@ export const Constants = {
       ],
       schedule_days: ["MWF", "TTS"],
       sex_type: ["M", "F"],
+      transport_type: ["dialysis", "outpatient", "adhoc"],
       trip_type: [
         "dialysis",
         "discharge",
