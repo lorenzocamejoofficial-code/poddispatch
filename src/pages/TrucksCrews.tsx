@@ -312,11 +312,13 @@ export default function TrucksCrews() {
   const assignCrew = async (truckId: string, date: string, m1: string, m2: string) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
     const { error } = await supabase.from("crews").insert({
       truck_id: truckId,
       member1_id: m1Val,
       member2_id: m2Val,
       active_date: date,
+      company_id: companyId,
     });
     if (error) { toast.error("Failed to assign crew"); return; }
     toast.success("Crew assigned"); fetchAll();
@@ -350,12 +352,14 @@ export default function TrucksCrews() {
     if (downForm.end_date < downForm.start_date) {
       toast.error("End date must be on or after start date"); return;
     }
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
     const { error } = await supabase.from("truck_availability" as any).insert({
       truck_id: downTruckId,
       status: downForm.status,
       start_date: downForm.start_date,
       end_date: downForm.end_date,
       reason: downForm.reason || null,
+      company_id: companyId,
     });
     if (error) { toast.error("Failed to mark truck down"); return; }
     toast.success("Truck marked as down"); setDownDialog(false); fetchAll();
