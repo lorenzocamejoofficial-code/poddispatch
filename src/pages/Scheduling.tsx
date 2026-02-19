@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,25 @@ import { Badge } from "@/components/ui/badge";
 import {
   Plus, Zap, AlertTriangle, Trash2, ArrowRight, Clock,
   Wand2, ChevronLeft, ChevronRight, CalendarDays, ArrowLeft,
-  Pencil, GitBranch,
+  Pencil, GitBranch, GripVertical,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
 import { useSchedulingStore, type LegDisplay } from "@/hooks/useSchedulingStore";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+  DragOverlay,
+  useDraggable,
+  useDroppable,
+} from "@dnd-kit/core";
+import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
 
 function getWeekDates(refDate: string): string[] {
   const d = new Date(refDate + "T12:00:00");
@@ -62,6 +76,9 @@ export default function Scheduling() {
   const [copyTargetWeek, setCopyTargetWeek] = useState("");
   const [copying, setCopying] = useState(false);
   const [runPoolSearch, setRunPoolSearch] = useState("");
+
+  // Drag state
+  const [activeDragLeg, setActiveDragLeg] = useState<LegDisplay | null>(null);
 
   // Exception editing state
   const [exceptionDialogOpen, setExceptionDialogOpen] = useState(false);
@@ -127,6 +144,10 @@ export default function Scheduling() {
       toast.warning(`Warning: ${patient.name} is ${patient.status.replace("_", " ")}. Scheduling anyway.`);
     }
 
+    // Resolve company_id for RLS
+    const { data: profileData } = await supabase.from("profiles").select("company_id").limit(1).single();
+    const companyId = (profileData as any)?.company_id ?? null;
+
     const { error } = await supabase.from("scheduling_legs").insert({
       patient_id: legForm.patient_id,
       leg_type: pendingLegType!,
@@ -138,6 +159,7 @@ export default function Scheduling() {
       estimated_duration_minutes: legForm.estimated_duration_minutes ? parseInt(legForm.estimated_duration_minutes) : null,
       notes: legForm.notes || null,
       run_date: selectedDate,
+      company_id: companyId,
     } as any);
 
     if (error) { toast.error("Failed to create leg"); return; }
@@ -257,6 +279,117 @@ export default function Scheduling() {
     ? unassignedLegs.filter(l => l.patient_name.toLowerCase().includes(runPoolSearch.toLowerCase()))
     : unassignedLegs;
 
+  // ── DnD sensors ──
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const { data } = event.active;
+    const leg = data.current?.leg as LegDisplay | undefined;
+    if (leg) setActiveDragLeg(leg);
+  };
+
+  // Master drag-end handler: covers pool→truck, truck→truck, truck→pool, reorder within truck
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveDragLeg(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const sourceData = active.data.current as any;
+    const targetData = over.data.current as any;
+
+    const activeLeg: LegDisplay | undefined = sourceData?.leg ?? legs.find(l => l.id === active.id);
+    if (!activeLeg) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // ── Case 1: Drop on pool drop zone (unassign) ──
+    if (overId === "pool-droppable") {
+      if (!activeLeg.assigned_truck_id) return; // already unassigned
+      const { error } = await supabase
+        .from("truck_run_slots")
+        .delete()
+        .eq("leg_id", activeId)
+        .eq("run_date", selectedDate);
+      if (error) { toast.error("Assignment failed — try again"); return; }
+      toast.success("Run returned to pool");
+      refresh();
+      return;
+    }
+
+    // ── Case 2: Drop on a truck zone or within a truck (assign / move / reorder) ──
+    const targetTruckId: string | undefined =
+      targetData?.type === "truck-zone" ? targetData.truckId :
+      targetData?.type === "assigned-leg" ? targetData.leg?.assigned_truck_id :
+      // over.id might be a leg id (sortable drop)
+      legs.find(l => l.id === overId)?.assigned_truck_id;
+
+    if (!targetTruckId) return;
+
+    const currentTruckId = activeLeg.assigned_truck_id;
+
+    if (currentTruckId === targetTruckId) {
+      // ── Reorder within same truck ──
+      const tLegs = legs
+        .filter(l => l.assigned_truck_id === targetTruckId)
+        .sort((a, b) => (a.pickup_time ?? "").localeCompare(b.pickup_time ?? ""));
+      const oldIdx = tLegs.findIndex(l => l.id === activeId);
+      const newIdx = tLegs.findIndex(l => l.id === overId);
+      if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return;
+      const reordered = arrayMove(tLegs, oldIdx, newIdx);
+      await Promise.all(
+        reordered.map((leg, idx) =>
+          supabase.from("truck_run_slots")
+            .update({ slot_order: idx } as any)
+            .eq("leg_id", leg.id)
+            .eq("run_date", selectedDate)
+            .eq("truck_id", targetTruckId)
+        )
+      );
+      refresh();
+      return;
+    }
+
+    // ── Move to different truck (or assign from pool) ──
+    const targetLegs = legs.filter(l => l.assigned_truck_id === targetTruckId);
+    if (targetLegs.length >= 10) { toast.error("Truck is full (10 run slots max)"); return; }
+
+    if (currentTruckId) {
+      // Move between trucks: update existing slot
+      const { error } = await supabase
+        .from("truck_run_slots")
+        .update({ truck_id: targetTruckId, slot_order: targetLegs.length } as any)
+        .eq("leg_id", activeId)
+        .eq("run_date", selectedDate);
+      if (error) { toast.error("Assignment failed — try again"); return; }
+      toast.success(`Run moved to ${trucks.find(t => t.id === targetTruckId)?.name ?? "truck"}`);
+    } else {
+      // Assign from pool: insert new slot — include company_id for RLS
+      const { data: profileData } = await supabase.from("profiles").select("company_id").limit(1).single();
+      const companyId = (profileData as any)?.company_id ?? null;
+      const { error } = await supabase.from("truck_run_slots").insert({
+        truck_id: targetTruckId,
+        leg_id: activeId,
+        run_date: selectedDate,
+        slot_order: targetLegs.length,
+        company_id: companyId,
+      } as any);
+      if (error) {
+        if (error.code === "23505") {
+          toast.error("This leg is already assigned to a truck");
+        } else {
+          toast.error("Assignment failed — try again");
+        }
+        return;
+      }
+      toast.success(`Run assigned to ${trucks.find(t => t.id === targetTruckId)?.name ?? "truck"}`);
+    }
+    refresh();
+  };
+
   // ── Daily Ops Snapshot metrics ──
   const OVERLOAD_THRESHOLD = 8; // configurable
   const activeTrucks = trucks.filter(t => legs.some(l => l.assigned_truck_id === t.id));
@@ -356,7 +489,12 @@ export default function Scheduling() {
           </div>
         ) : (
           /* DAILY DRILL-DOWN VIEW */
-          <>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
             {/* ── DAILY OPS SNAPSHOT ── */}
             <section className="rounded-lg border bg-card p-3">
               <div className="mb-2 flex items-center gap-2">
@@ -401,12 +539,12 @@ export default function Scheduling() {
               </div>
             </section>
 
-            {/* ── RUN POOL ── */}
-            <section className="rounded-lg border bg-card p-4">
+            {/* ── RUN POOL (droppable to unassign) ── */}
+            <PoolDropZone unassigned={unassignedLegs}>
               <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                    Run Pool
+                    Unassigned Run Pool
                   </h3>
                   <Badge variant="secondary" className="text-xs">
                     {unassignedLegs.length} unassigned
@@ -423,13 +561,13 @@ export default function Scheduling() {
               {filteredUnassigned.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic py-2">
                   {unassignedLegs.length === 0
-                    ? "All legs are assigned to trucks — or use Auto-Fill to generate today's runs."
+                    ? "All runs assigned — drag from trucks here to unassign, or use Auto-Fill to generate today's runs."
                     : "No legs match search."}
                 </p>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredUnassigned.map((leg) => (
-                    <RunPoolCard
+                    <DraggablePoolCard
                       key={leg.id}
                       leg={leg}
                       onDelete={() => deleteLeg(leg.id)}
@@ -438,7 +576,7 @@ export default function Scheduling() {
                   ))}
                 </div>
               )}
-            </section>
+            </PoolDropZone>
 
             {/* ── TRUCK BUILDER ── */}
             <TruckBuilder
@@ -450,7 +588,28 @@ export default function Scheduling() {
               onEditException={openExceptionEdit}
               onDownCountChange={setDownTruckCount}
             />
-          </>
+
+            {/* Drag overlay — compact ghost card shown while dragging */}
+            <DragOverlay dropAnimation={null}>
+              {activeDragLeg && (
+                <div className="rounded-md border bg-card px-3 py-2 text-xs shadow-xl ring-1 ring-primary/40 pointer-events-none w-56">
+                  <div className="flex items-center gap-1.5">
+                    <GripVertical className="h-3 w-3 text-muted-foreground" />
+                    <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
+                      activeDragLeg.leg_type === "A" ? "bg-primary/10 text-primary" : "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]"
+                    }`}>{activeDragLeg.leg_type}</span>
+                    <span className="font-medium text-card-foreground truncate">{activeDragLeg.patient_name}</span>
+                    {activeDragLeg.pickup_time && <span className="text-muted-foreground shrink-0">{activeDragLeg.pickup_time}</span>}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <span className="truncate">{activeDragLeg.pickup_location}</span>
+                    <ArrowRight className="h-2.5 w-2.5 shrink-0" />
+                    <span className="truncate">{activeDragLeg.destination_location}</span>
+                  </div>
+                </div>
+              )}
+            </DragOverlay>
+          </DndContext>
         )}
 
         {/* Create Leg Dialog */}
@@ -590,31 +749,73 @@ export default function Scheduling() {
   );
 }
 
-/* ── Run Pool Card ── */
-function RunPoolCard({
+/* ── Pool droppable wrapper (drag assigned run here to unassign) ── */
+function PoolDropZone({ children, unassigned }: { children: React.ReactNode; unassigned: LegDisplay[] }) {
+  const { setNodeRef, isOver } = useDroppable({ id: "pool-droppable", data: { type: "pool" } });
+  return (
+    <section
+      ref={setNodeRef}
+      className={`rounded-lg border bg-card p-4 transition-colors ${isOver ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20" : ""}`}
+    >
+      {isOver && (
+        <div className="mb-2 rounded-md border-2 border-dashed border-primary/50 bg-primary/5 px-3 py-2 text-center text-xs text-primary font-medium">
+          Drop here to unassign from truck
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+/* ── Draggable pool card ── */
+function DraggablePoolCard({
   leg, onDelete, onEditException,
 }: {
   leg: LegDisplay;
   onDelete: () => void;
   onEditException: () => void;
 }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: leg.id,
+    data: { type: "pool-leg", leg },
+  });
+
+  const style = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+    opacity: isDragging ? 0.4 : 1,
+  } : undefined;
+
   const isHeavy = (leg.patient_weight ?? 0) > 200;
   const isInactive = leg.patient_status !== "active";
 
   return (
-    <div className={`rounded-lg border bg-card p-3 text-sm ${isInactive ? "opacity-60 border-dashed" : ""} ${leg.has_exception ? "border-primary/50" : ""}`}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-lg border bg-card p-3 text-sm transition-shadow ${isInactive ? "opacity-60 border-dashed" : ""} ${leg.has_exception ? "border-primary/50" : ""} ${isDragging ? "shadow-xl ring-1 ring-primary/40" : "hover:border-primary/30 hover:shadow-sm"}`}
+    >
       <div className="flex items-center justify-between mb-1">
-        <div className="flex items-center gap-2">
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {/* Drag handle */}
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none shrink-0"
+            tabIndex={-1}
+            title="Drag to assign to a truck"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0 ${
             leg.leg_type === "A" ? "bg-primary/10 text-primary" : "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]"
           }`}>
             {leg.leg_type}-LEG
           </span>
-          <span className="font-medium text-card-foreground">{leg.patient_name}</span>
-          {isHeavy && <Zap className="h-3.5 w-3.5 text-[hsl(var(--status-yellow))]" aria-label="Electric stretcher required" />}
-          {leg.has_exception && <GitBranch className="h-3 w-3 text-primary" aria-label="Has exception override for this date" />}
+          <span className="font-medium text-card-foreground truncate">{leg.patient_name}</span>
+          {isHeavy && <Zap className="h-3.5 w-3.5 text-[hsl(var(--status-yellow))] shrink-0" aria-label="Electric stretcher required" />}
+          {leg.has_exception && <GitBranch className="h-3 w-3 text-primary shrink-0" aria-label="Has exception override for this date" />}
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-0.5 shrink-0">
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onEditException} title="Edit this run only">
             <Pencil className="h-3 w-3" />
           </Button>
@@ -628,6 +829,7 @@ function RunPoolCard({
         <span className="truncate">{leg.pickup_location}</span>
         <ArrowRight className="h-3 w-3 shrink-0" />
         <span className="truncate">{leg.destination_location}</span>
+        {leg.notes && <span className="text-[hsl(var(--status-yellow))]" title={leg.notes}>📝</span>}
       </div>
       {isHeavy && <p className="mt-1 text-[10px] font-semibold text-[hsl(var(--status-yellow))]">⚡ Electric stretcher required</p>}
       {isInactive && <p className="mt-1 text-[10px] font-semibold text-[hsl(var(--status-red))]">⚠ Patient is {leg.patient_status.replace("_", " ")}</p>}
@@ -635,3 +837,4 @@ function RunPoolCard({
     </div>
   );
 }
+

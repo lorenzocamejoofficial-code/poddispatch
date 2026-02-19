@@ -224,13 +224,20 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   }, [fetchOptions]);
 
   const autoGenerateLegs = useCallback(async (): Promise<number> => {
+    // Resolve company_id for RLS
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("company_id")
+      .limit(1)
+      .single();
+    const companyId = (profileData as any)?.company_id ?? null;
+
     // Get active patients with recurring transport whose schedule matches selectedDate
     const eligible = patients.filter((p) => {
       if (p.status !== "active") return false;
       if (p.transport_type === "adhoc") return false;
       if (!matchesScheduleDay(selectedDate, p.schedule_days)) return false;
       if (!p.pickup_address || !p.dropoff_facility) return false;
-      // Check recurrence window
       if (p.recurrence_start_date && selectedDate < p.recurrence_start_date) return false;
       if (p.recurrence_end_date && selectedDate > p.recurrence_end_date) return false;
       return true;
@@ -238,13 +245,11 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
 
     if (eligible.length === 0) return 0;
 
-    // Check which patients already have legs for this date
     const { data: existingLegs } = await supabase
       .from("scheduling_legs")
       .select("patient_id, leg_type")
       .eq("run_date", selectedDate);
 
-    // Track existing legs per patient to avoid duplicates per leg type
     const existingMap = new Map<string, Set<string>>();
     for (const l of existingLegs ?? []) {
       if (!existingMap.has(l.patient_id)) existingMap.set(l.patient_id, new Set());
@@ -263,7 +268,6 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
 
       let addedAny = false;
 
-      // A leg: home → facility (always generated for dialysis & outpatient)
       if (!existingLegTypes.has("A")) {
         const pickupTime = chairTime ? subtractMinutes(chairTime, duration) : null;
         newLegs.push({
@@ -277,13 +281,12 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           estimated_duration_minutes: duration,
           notes: p.notes || null,
           run_date: selectedDate,
+          company_id: companyId,
         });
         addedAny = true;
       }
 
-      // B leg: facility → home — dialysis always gets one; outpatient only if explicitly needed
       if (isDialysis && !existingLegTypes.has("B")) {
-        // Default return pickup = chair time + 3.5h (210 min) treatment
         const treatmentMinutes = 210;
         const bPickupTime = chairTime ? subtractMinutes(chairTime, -treatmentMinutes) : null;
         newLegs.push({
@@ -297,6 +300,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           estimated_duration_minutes: duration,
           notes: p.notes || null,
           run_date: selectedDate,
+          company_id: companyId,
         });
         addedAny = true;
       }
