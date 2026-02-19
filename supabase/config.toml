@@ -1,1 +1,7 @@
 project_id = "slyxmgoonugqsnubdrqi"
+
+[functions.crew-run-sheet]
+verify_jwt = false
+
+[functions.create-user]
+verify_jwt = false
