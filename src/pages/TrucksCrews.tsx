@@ -292,7 +292,9 @@ export default function TrucksCrews() {
   // Truck CRUD
   const addTruck = async () => {
     if (!truckName.trim()) return;
-    await supabase.from("trucks").insert({ name: truckName.trim() });
+    const { data: companyData } = await supabase.rpc("get_my_company_id");
+    const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData });
+    if (error) { toast.error("Failed to add truck"); return; }
     setTruckName(""); setTruckDialog(false);
     toast.success("Truck added"); fetchAll(); refreshTrucks();
   };
