@@ -467,6 +467,7 @@ export default function Scheduling() {
                 <Label>Patient *</Label>
                 <Select value={legForm.patient_id} onValueChange={(v) => {
                   const p = patients.find(pt => pt.id === v);
+                  const inferredTripType = p?.transport_type === "outpatient" ? "outpatient" : "dialysis";
                   setLegForm(f => ({
                     ...f,
                     patient_id: v,
@@ -474,6 +475,7 @@ export default function Scheduling() {
                     destination_location: f.destination_location || (pendingLegType === "A" ? (p?.dropoff_facility ?? "") : (p?.pickup_address ?? "")),
                     chair_time: f.chair_time || (p?.chair_time ?? ""),
                     estimated_duration_minutes: f.estimated_duration_minutes || (p?.run_duration_minutes?.toString() ?? ""),
+                    trip_type: f.trip_type === "dialysis" ? inferredTripType : f.trip_type,
                   }));
                 }}>
                   <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
