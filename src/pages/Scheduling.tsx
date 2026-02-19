@@ -350,10 +350,15 @@ export default function Scheduling() {
     const currentTruckId = activeLeg.assigned_truck_id;
 
     if (currentTruckId === targetTruckId) {
-      // ── Reorder within same truck ──
+      // ── Reorder within same truck ── sort by slot_order (same as TruckBuilder display order)
       const tLegs = legs
         .filter(l => l.assigned_truck_id === targetTruckId)
-        .sort((a, b) => (a.pickup_time ?? "").localeCompare(b.pickup_time ?? ""));
+        .sort((a, b) => {
+          if (a.slot_order != null && b.slot_order != null) return a.slot_order - b.slot_order;
+          if (a.slot_order != null) return -1;
+          if (b.slot_order != null) return 1;
+          return (a.pickup_time ?? "").localeCompare(b.pickup_time ?? "");
+        });
       const oldIdx = tLegs.findIndex(l => l.id === activeId);
       const newIdx = tLegs.findIndex(l => l.id === overId);
       if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return;

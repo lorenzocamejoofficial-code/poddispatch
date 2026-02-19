@@ -17,6 +17,7 @@ export interface LegDisplay {
   estimated_duration_minutes: number | null;
   notes: string | null;
   assigned_truck_id: string | null;
+  slot_order: number | null;
   // exception override fields
   exception_pickup_time?: string | null;
   exception_pickup_location?: string | null;
@@ -139,7 +140,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         .order("pickup_time"),
       supabase
         .from("truck_run_slots")
-        .select("leg_id, truck_id")
+        .select("leg_id, truck_id, slot_order")
         .eq("run_date", selectedDate),
       supabase
         .from("leg_exceptions")
@@ -147,12 +148,13 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         .eq("run_date", selectedDate),
     ]);
 
-    const slotMap = new Map((slots ?? []).map((s) => [s.leg_id, s.truck_id]));
+    const slotMap = new Map((slots ?? []).map((s) => [s.leg_id, { truck_id: s.truck_id, slot_order: s.slot_order }]));
     const exceptionMap = new Map((exceptions ?? []).map((e: any) => [e.scheduling_leg_id, e]));
 
     setLegs(
       (data ?? []).map((l: any) => {
         const exc = exceptionMap.get(l.id);
+        const slot = slotMap.get(l.id);
         return {
           id: l.id,
           patient_name: l.patient ? `${l.patient.first_name} ${l.patient.last_name}` : "Unknown",
@@ -167,7 +169,8 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           trip_type: l.trip_type,
           estimated_duration_minutes: l.estimated_duration_minutes,
           notes: exc?.notes !== undefined ? exc.notes : l.notes,
-          assigned_truck_id: slotMap.get(l.id) ?? null,
+          assigned_truck_id: slot?.truck_id ?? null,
+          slot_order: slot?.slot_order ?? null,
           exception_pickup_time: exc?.pickup_time ?? null,
           exception_pickup_location: exc?.pickup_location ?? null,
           exception_destination_location: exc?.destination_location ?? null,
