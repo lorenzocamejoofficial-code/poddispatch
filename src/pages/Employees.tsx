@@ -31,7 +31,7 @@ export default function Employees() {
   const [saving, setSaving] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [form, setForm] = useState({
-    full_name: "", email: "", password: "", role: "crew" as "admin" | "crew",
+    full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew",
     sex: "M" as "M" | "F", cert_level: "EMT-B", phone_number: "",
   });
   const [editForm, setEditForm] = useState({
@@ -90,7 +90,7 @@ export default function Employees() {
     } else {
       toast.success(`${form.full_name} created successfully`);
       setDialogOpen(false);
-      setForm({ full_name: "", email: "", password: "", role: "crew", sex: "M", cert_level: "EMT-B", phone_number: "" });
+      setForm({ full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew", sex: "M", cert_level: "EMT-B", phone_number: "" });
       fetchEmployees();
     }
     setCreating(false);
@@ -166,10 +166,11 @@ export default function Employees() {
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <Label>Role</Label>
-                      <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as "admin" | "crew" })}>
+                      <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as "admin" | "dispatcher" | "crew" })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="dispatcher">Dispatcher</SelectItem>
                           <SelectItem value="crew">Crew</SelectItem>
                         </SelectContent>
                       </Select>
@@ -227,9 +228,13 @@ export default function Employees() {
                     <td className="px-4 py-3 text-muted-foreground">{e.phone_number || "—"}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        e.role === "admin" ? "bg-primary/10 text-primary" : "bg-accent text-accent-foreground"
+                        e.role === "admin"
+                          ? "bg-primary/10 text-primary"
+                          : e.role === "dispatcher"
+                          ? "bg-secondary text-secondary-foreground"
+                          : "bg-accent text-accent-foreground"
                       }`}>
-                        {e.role === "admin" ? "Admin" : "Crew"}
+                        {e.role === "admin" ? "Admin" : e.role === "dispatcher" ? "Dispatcher" : "Crew"}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{e.cert_level}</td>
