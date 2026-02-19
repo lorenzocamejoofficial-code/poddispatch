@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Truck, Users, Clock, ArrowRight, Zap, MapPin, RefreshCw, CheckCircle2, Navigation, UserCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 interface LegRow {
   id: string;
@@ -46,6 +47,10 @@ const STATUS_ICONS: Record<string, any> = {
   completed: CheckCircle2,
 };
 
+function getEdgeFunctionUrl(path: string) {
+  return `${SUPABASE_URL}/functions/v1/${path}`;
+}
+
 export default function DailyRunSheet() {
   const { token } = useParams<{ token: string }>();
   const [data, setData] = useState<SheetData | null>(null);
@@ -57,74 +62,23 @@ export default function DailyRunSheet() {
   const fetchSheet = useCallback(async () => {
     if (!token) { setError("No token provided"); setLoading(false); return; }
 
-    const { data: tokenRow, error: tokenErr } = await supabase
-      .from("crew_share_tokens")
-      .select("truck_id, valid_from, valid_until")
-      .eq("token", token)
-      .eq("active", true)
-      .maybeSingle();
+    try {
+      const res = await fetch(
+        getEdgeFunctionUrl(`crew-run-sheet?token=${encodeURIComponent(token)}`),
+        { method: "GET" }
+      );
+      const json = await res.json();
 
-    if (tokenErr || !tokenRow) {
-      setError("Invalid or expired share link.");
-      setLoading(false);
-      return;
+      if (!res.ok) {
+        setError(json.error ?? "Could not load schedule.");
+        setLoading(false);
+        return;
+      }
+
+      setData(json);
+    } catch {
+      setError("Network error. Please try again.");
     }
-
-    const today = new Date().toISOString().split("T")[0];
-    const scheduleDate = today >= tokenRow.valid_from && today <= tokenRow.valid_until ? today : tokenRow.valid_from;
-
-    const [{ data: truck }, { data: crew }, { data: slots }] = await Promise.all([
-      supabase.from("trucks").select("name").eq("id", tokenRow.truck_id).single(),
-      supabase.from("crews")
-        .select("member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
-        .eq("truck_id", tokenRow.truck_id).eq("active_date", scheduleDate).maybeSingle(),
-      supabase.from("truck_run_slots")
-        .select("id, leg_id, slot_order, status")
-        .eq("truck_id", tokenRow.truck_id).eq("run_date", scheduleDate).order("slot_order"),
-    ]);
-
-    const legIds = (slots ?? []).map((s) => s.leg_id);
-
-    let legs: LegRow[] = [];
-    if (legIds.length > 0) {
-      const { data: legData } = await supabase
-        .from("scheduling_legs")
-        .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, notes)")
-        .in("id", legIds);
-
-      const orderMap = new Map((slots ?? []).map((s) => [s.leg_id, { order: s.slot_order, slotId: s.id, status: s.status }]));
-      legs = (legData ?? [])
-        .map((l: any) => {
-          const slotInfo = orderMap.get(l.id);
-          return {
-            id: l.id,
-            leg_type: l.leg_type,
-            patient_name: l.patient ? `${l.patient.first_name} ${l.patient.last_name}` : "Unknown",
-            pickup_time: l.pickup_time,
-            chair_time: l.chair_time,
-            pickup_location: l.pickup_location,
-            destination_location: l.destination_location,
-            estimated_duration_minutes: l.estimated_duration_minutes,
-            notes: l.patient?.notes ?? l.notes ?? null,
-            patient_weight: l.patient?.weight_lbs ?? null,
-            slot_id: slotInfo?.slotId ?? null,
-            slot_status: slotInfo?.status ?? "pending",
-          };
-        })
-        .sort((a, b) => {
-          const aOrder = orderMap.get(a.id)?.order ?? 0;
-          const bOrder = orderMap.get(b.id)?.order ?? 0;
-          return aOrder - bOrder;
-        });
-    }
-
-    setData({
-      truckName: truck?.name ?? "Unknown Truck",
-      date: scheduleDate,
-      member1: (crew as any)?.member1?.full_name ?? null,
-      member2: (crew as any)?.member2?.full_name ?? null,
-      legs,
-    });
     setLoading(false);
   }, [token]);
 
@@ -143,24 +97,32 @@ export default function DailyRunSheet() {
     const nextStatus = STATUS_FLOW[currentIdx + 1];
 
     setUpdatingSlot(leg.slot_id);
-    const { error } = await supabase
-      .from("truck_run_slots")
-      .update({ status: nextStatus } as any)
-      .eq("id", leg.slot_id);
+    try {
+      const res = await fetch(
+        getEdgeFunctionUrl(`crew-run-sheet?token=${encodeURIComponent(token!)}`),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slot_id: leg.slot_id, next_status: nextStatus }),
+        }
+      );
+      const json = await res.json();
 
-    if (error) {
-      toast.error("Failed to update status");
-    } else {
-      // Update local state immediately
-      setData((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          legs: prev.legs.map((l) =>
-            l.slot_id === leg.slot_id ? { ...l, slot_status: nextStatus } : l
-          ),
-        };
-      });
+      if (!res.ok) {
+        toast.error(json.error ?? "Failed to update status");
+      } else {
+        setData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            legs: prev.legs.map((l) =>
+              l.slot_id === leg.slot_id ? { ...l, slot_status: nextStatus } : l
+            ),
+          };
+        });
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
     }
     setUpdatingSlot(null);
   };
@@ -272,7 +234,6 @@ export default function DailyRunSheet() {
                   )}
                 </div>
 
-                {/* Status advance button */}
                 {nextStatus && (
                   <Button
                     variant="outline"
