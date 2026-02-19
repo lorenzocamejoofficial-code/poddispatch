@@ -7,9 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Pencil, AlertTriangle, Zap, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Search, Pencil, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables, Database } from "@/integrations/supabase/types";
 import { PatientStatusBadge } from "@/components/patients/PatientStatusBadge";
@@ -43,9 +43,19 @@ export default function Patients() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Patient | null>(null);
+
+  // Selection state
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Single-delete state
   const [deleteTarget, setDeleteTarget] = useState<Patient | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [editing, setEditing] = useState<Patient | null>(null);
+
+  // Bulk-delete state
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   const [form, setForm] = useState({
     first_name: "", last_name: "", dob: "", phone: "",
     pickup_address: "", dropoff_facility: "", chair_time: "",
@@ -128,6 +138,7 @@ export default function Patients() {
     fetchPatients();
   };
 
+  // ── Single delete ──
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -137,11 +148,29 @@ export default function Patients() {
     } else {
       toast.success(`${deleteTarget.first_name} ${deleteTarget.last_name} deleted`);
       setDeleteTarget(null);
+      setSelected((prev) => { const n = new Set(prev); n.delete(deleteTarget.id); return n; });
       fetchPatients();
     }
     setDeleting(false);
   };
 
+  // ── Bulk delete ──
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    const ids = Array.from(selected);
+    const { error } = await supabase.from("patients").delete().in("id", ids);
+    if (error) {
+      toast.error("Failed to delete patients");
+    } else {
+      toast.success(`${ids.length} patient${ids.length > 1 ? "s" : ""} deleted`);
+      setSelected(new Set());
+      setBulkDeleteOpen(false);
+      fetchPatients();
+    }
+    setBulkDeleting(false);
+  };
+
+  // ── Selection helpers ──
   const filtered = patients.filter((p) => {
     const q = search.toLowerCase();
     const nameMatch = `${p.first_name} ${p.last_name}`.toLowerCase().includes(q);
@@ -149,11 +178,39 @@ export default function Patients() {
     return nameMatch && statusMatch;
   });
 
+  const allFilteredSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.id));
+  const someSelected = selected.size > 0;
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelected((prev) => {
+        const n = new Set(prev);
+        filtered.forEach((p) => n.delete(p.id));
+        return n;
+      });
+    } else {
+      setSelected((prev) => {
+        const n = new Set(prev);
+        filtered.forEach((p) => n.add(p.id));
+        return n;
+      });
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  };
+
   const isRepetitive = form.transport_type !== "adhoc";
 
   return (
     <AdminLayout>
       <div className="space-y-4">
+        {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3 flex-1">
             <div className="relative flex-1 max-w-sm min-w-[200px]">
@@ -172,140 +229,162 @@ export default function Patients() {
               </SelectContent>
             </Select>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button><Plus className="mr-1.5 h-4 w-4" /> Add Patient</Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{editing ? "Edit Patient" : "Add Patient"}</DialogTitle>
-                <DialogDescription>Enter patient details including contact info, addresses, and recurring transport schedule.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-2">
 
-                {/* Basic Info */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>First Name *</Label><Input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
-                  <div><Label>Last Name *</Label><Input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>DOB</Label><Input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></div>
-                  <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-                </div>
-                <div><Label>Pickup Address</Label><Input value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} /></div>
-                <div><Label>Dropoff Facility</Label><Input value={form.dropoff_facility} onChange={(e) => setForm({ ...form, dropoff_facility: e.target.value })} /></div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Weight (lbs)</Label><Input type="number" value={form.weight_lbs} onChange={(e) => setForm({ ...form, weight_lbs: e.target.value })} /></div>
-                  <div>
-                    <Label>Status</Label>
-                    <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as PatientStatus })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {STATUS_OPTIONS.map((s) => (
-                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+          <div className="flex items-center gap-2">
+            {someSelected && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setBulkDeleteOpen(true)}
+                className="gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete {selected.size} selected
+              </Button>
+            )}
+            <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
+              <DialogTrigger asChild>
+                <Button><Plus className="mr-1.5 h-4 w-4" /> Add Patient</Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>{editing ? "Edit Patient" : "Add Patient"}</DialogTitle>
+                  <DialogDescription>Enter patient details including contact info, addresses, and recurring transport schedule.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-2">
+
+                  {/* Basic Info */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>First Name *</Label><Input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
+                    <div><Label>Last Name *</Label><Input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></div>
                   </div>
-                </div>
-                <div><Label>Notes / Standing Instructions</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
-
-                {/* Transport Type + Recurrence */}
-                <div className="border-t pt-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Transport &amp; Recurrence Profile</p>
-
-                  <div className="mb-3">
-                    <Label className="mb-1.5 block">Transport Type</Label>
-                    <div className="space-y-2">
-                      {TRANSPORT_TYPE_OPTIONS.map((opt) => (
-                        <label key={opt.value} className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${form.transport_type === opt.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}>
-                          <input
-                            type="radio"
-                            name="transport_type"
-                            value={opt.value}
-                            checked={form.transport_type === opt.value}
-                            onChange={() => setForm({ ...form, transport_type: opt.value })}
-                            className="mt-0.5 accent-primary"
-                          />
-                          <div>
-                            <div className="text-sm font-medium text-foreground">{opt.label}</div>
-                            <div className="text-xs text-muted-foreground">{opt.description}</div>
-                          </div>
-                        </label>
-                      ))}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>DOB</Label><Input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></div>
+                    <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+                  </div>
+                  <div><Label>Pickup Address</Label><Input value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} /></div>
+                  <div><Label>Dropoff Facility</Label><Input value={form.dropoff_facility} onChange={(e) => setForm({ ...form, dropoff_facility: e.target.value })} /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Weight (lbs)</Label><Input type="number" value={form.weight_lbs} onChange={(e) => setForm({ ...form, weight_lbs: e.target.value })} /></div>
+                    <div>
+                      <Label>Status</Label>
+                      <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as PatientStatus })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {STATUS_OPTIONS.map((s) => (
+                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
+                  <div><Label>Notes / Standing Instructions</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></div>
 
-                  {isRepetitive && (
-                    <div className="space-y-3 rounded-md border bg-muted/30 p-3">
-                      <p className="text-xs text-muted-foreground font-medium">Recurrence schedule — used by Auto-Fill to generate daily runs</p>
+                  {/* Transport Type + Recurrence */}
+                  <div className="border-t pt-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Transport &amp; Recurrence Profile</p>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label>Schedule Days</Label>
-                          <Select value={form.schedule_days} onValueChange={(v) => setForm({ ...form, schedule_days: v })}>
-                            <SelectTrigger><SelectValue placeholder="Select days" /></SelectTrigger>
-                            <SelectContent>
-                              {SCHEDULE_DAY_OPTIONS.map((d) => (
-                                <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label>Chair Time</Label>
-                          <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label>Est. Duration (min)</Label>
-                          <Input type="number" placeholder="30" value={form.run_duration_minutes} onChange={(e) => setForm({ ...form, run_duration_minutes: e.target.value })} />
-                        </div>
-                        <div>
-                          <Label>Recurrence Start Date</Label>
-                          <Input type="date" value={form.recurrence_start_date} onChange={(e) => setForm({ ...form, recurrence_start_date: e.target.value })} />
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <Label>End Date</Label>
-                          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                            <Checkbox
-                              checked={form.no_end_date}
-                              onCheckedChange={(v) => setForm({ ...form, no_end_date: !!v, recurrence_end_date: "" })}
+                    <div className="mb-3">
+                      <Label className="mb-1.5 block">Transport Type</Label>
+                      <div className="space-y-2">
+                        {TRANSPORT_TYPE_OPTIONS.map((opt) => (
+                          <label key={opt.value} className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${form.transport_type === opt.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}>
+                            <input
+                              type="radio"
+                              name="transport_type"
+                              value={opt.value}
+                              checked={form.transport_type === opt.value}
+                              onChange={() => setForm({ ...form, transport_type: opt.value })}
+                              className="mt-0.5 accent-primary"
                             />
-                            No end date
+                            <div>
+                              <div className="text-sm font-medium text-foreground">{opt.label}</div>
+                              <div className="text-xs text-muted-foreground">{opt.description}</div>
+                            </div>
                           </label>
-                        </div>
-                        {!form.no_end_date && (
-                          <Input type="date" value={form.recurrence_end_date} onChange={(e) => setForm({ ...form, recurrence_end_date: e.target.value })} />
-                        )}
+                        ))}
                       </div>
                     </div>
-                  )}
-                </div>
 
-                <Button onClick={handleSave}>{editing ? "Save Changes" : "Add Patient"}</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+                    {isRepetitive && (
+                      <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+                        <p className="text-xs text-muted-foreground font-medium">Recurrence schedule — used by Auto-Fill to generate daily runs</p>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label>Schedule Days</Label>
+                            <Select value={form.schedule_days} onValueChange={(v) => setForm({ ...form, schedule_days: v })}>
+                              <SelectTrigger><SelectValue placeholder="Select days" /></SelectTrigger>
+                              <SelectContent>
+                                {SCHEDULE_DAY_OPTIONS.map((d) => (
+                                  <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Chair Time</Label>
+                            <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label>Est. Duration (min)</Label>
+                            <Input type="number" placeholder="30" value={form.run_duration_minutes} onChange={(e) => setForm({ ...form, run_duration_minutes: e.target.value })} />
+                          </div>
+                          <div>
+                            <Label>Recurrence Start Date</Label>
+                            <Input type="date" value={form.recurrence_start_date} onChange={(e) => setForm({ ...form, recurrence_start_date: e.target.value })} />
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <Label>End Date</Label>
+                            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                              <Checkbox
+                                checked={form.no_end_date}
+                                onCheckedChange={(v) => setForm({ ...form, no_end_date: !!v, recurrence_end_date: "" })}
+                              />
+                              No end date
+                            </label>
+                          </div>
+                          {!form.no_end_date && (
+                            <Input type="date" value={form.recurrence_end_date} onChange={(e) => setForm({ ...form, recurrence_end_date: e.target.value })} />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <Button onClick={handleSave}>{editing ? "Save Changes" : "Add Patient"}</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
+        {/* Table */}
         <div className="rounded-lg border bg-card">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-xs font-medium uppercase text-muted-foreground">
+                  <th className="px-4 py-3 w-10">
+                    <Checkbox
+                      checked={allFilteredSelected}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all"
+                    />
+                  </th>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">Schedule</th>
                   <th className="px-4 py-3">Phone</th>
                   <th className="px-4 py-3">Weight</th>
-                  <th className="px-4 py-3"></th>
+                  <th className="px-4 py-3 w-20"></th>
                 </tr>
               </thead>
               <tbody>
@@ -313,8 +392,19 @@ export default function Patients() {
                   const isHeavy = (p.weight_lbs ?? 0) > 200;
                   const isInactive = (p as any).status !== "active";
                   const tType = (p as any).transport_type ?? "dialysis";
+                  const isChecked = selected.has(p.id);
                   return (
-                    <tr key={p.id} className={`border-b last:border-0 ${isInactive ? "opacity-60" : ""}`}>
+                    <tr
+                      key={p.id}
+                      className={`border-b last:border-0 transition-colors ${isInactive ? "opacity-60" : ""} ${isChecked ? "bg-primary/5" : ""}`}
+                    >
+                      <td className="px-4 py-3">
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={() => toggleOne(p.id)}
+                          aria-label={`Select ${p.first_name} ${p.last_name}`}
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-card-foreground">{p.first_name} {p.last_name}</span>
@@ -349,7 +439,12 @@ export default function Patients() {
                           <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteTarget(p)}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setDeleteTarget(p)}
+                          >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -358,7 +453,7 @@ export default function Patients() {
                   );
                 })}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">No patients found</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No patients found</td></tr>
                 )}
               </tbody>
             </table>
@@ -366,6 +461,7 @@ export default function Patients() {
         </div>
       </div>
 
+      {/* Single delete confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -382,6 +478,28 @@ export default function Patients() {
               disabled={deleting}
             >
               {deleting ? "Deleting..." : "Delete Patient"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk delete confirmation */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selected.size} Patient{selected.size > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{selected.size}</strong> patient{selected.size > 1 ? "s" : ""} along with all associated runs and scheduling legs. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+            >
+              {bulkDeleting ? "Deleting..." : `Delete ${selected.size} Patient${selected.size > 1 ? "s" : ""}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

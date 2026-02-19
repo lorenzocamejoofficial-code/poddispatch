@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Plus, Search, Pencil, Trash2 } from "lucide-react";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 interface Employee {
@@ -31,8 +32,18 @@ export default function Employees() {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+
+  // Selection state
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Single-delete state
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Bulk-delete state
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   const [form, setForm] = useState({
     full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew",
     sex: "M" as "M" | "F", cert_level: "EMT-B", phone_number: "",
@@ -111,20 +122,6 @@ export default function Employees() {
     setEditDialogOpen(true);
   };
 
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    const { error } = await supabase.from("profiles").delete().eq("id", deleteTarget.id);
-    if (error) {
-      toast.error("Failed to delete employee");
-    } else {
-      toast.success(`${deleteTarget.full_name} deleted`);
-      setDeleteTarget(null);
-      fetchEmployees();
-    }
-    setDeleting(false);
-  };
-
   const handleSaveEdit = async () => {
     if (!editingEmployee) return;
     if (!editForm.full_name.trim()) {
@@ -150,11 +147,71 @@ export default function Employees() {
     setSaving(false);
   };
 
+  // ── Single delete ──
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase.from("profiles").delete().eq("id", deleteTarget.id);
+    if (error) {
+      toast.error("Failed to delete employee");
+    } else {
+      toast.success(`${deleteTarget.full_name} deleted`);
+      setDeleteTarget(null);
+      setSelected((prev) => { const n = new Set(prev); n.delete(deleteTarget.id); return n; });
+      fetchEmployees();
+    }
+    setDeleting(false);
+  };
+
+  // ── Bulk delete ──
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    const ids = Array.from(selected);
+    const { error } = await supabase.from("profiles").delete().in("id", ids);
+    if (error) {
+      toast.error("Failed to delete employees");
+    } else {
+      toast.success(`${ids.length} employee${ids.length > 1 ? "s" : ""} deleted`);
+      setSelected(new Set());
+      setBulkDeleteOpen(false);
+      fetchEmployees();
+    }
+    setBulkDeleting(false);
+  };
+
   const filtered = employees.filter((e) => {
     if (!showInactive && !e.active) return false;
     return e.full_name.toLowerCase().includes(search.toLowerCase()) ||
       (e.phone_number ?? "").includes(search);
   });
+
+  // ── Selection helpers ──
+  const allFilteredSelected = filtered.length > 0 && filtered.every((e) => selected.has(e.id));
+  const someSelected = selected.size > 0;
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelected((prev) => {
+        const n = new Set(prev);
+        filtered.forEach((e) => n.delete(e.id));
+        return n;
+      });
+    } else {
+      setSelected((prev) => {
+        const n = new Set(prev);
+        filtered.forEach((e) => n.add(e.id));
+        return n;
+      });
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  };
 
   return (
     <AdminLayout>
@@ -169,6 +226,17 @@ export default function Employees() {
               <Switch checked={showInactive} onCheckedChange={setShowInactive} />
               Show inactive
             </label>
+            {someSelected && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setBulkDeleteOpen(true)}
+                className="gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete {selected.size} selected
+              </Button>
+            )}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button><Plus className="mr-1.5 h-4 w-4" /> Add Employee</Button>
@@ -230,52 +298,74 @@ export default function Employees() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-xs font-medium uppercase text-muted-foreground">
+                  <th className="px-4 py-3 w-10">
+                    <Checkbox
+                      checked={allFilteredSelected}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all"
+                    />
+                  </th>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Phone</th>
                   <th className="px-4 py-3">Role</th>
                   <th className="px-4 py-3">Cert</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 w-10"></th>
+                  <th className="px-4 py-3 w-20"></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((e) => (
-                  <tr key={e.id} className={`border-b last:border-0 ${!e.active ? "opacity-50" : ""}`}>
-                    <td className="px-4 py-3 font-medium text-card-foreground">{e.full_name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{e.phone_number || "—"}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        e.role === "admin"
-                          ? "bg-primary/10 text-primary"
-                          : e.role === "dispatcher"
-                          ? "bg-secondary text-secondary-foreground"
-                          : "bg-accent text-accent-foreground"
-                      }`}>
-                        {e.role === "admin" ? "Admin" : e.role === "dispatcher" ? "Dispatcher" : "Crew"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{e.cert_level}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        e.active ? "bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))]" : "bg-muted text-muted-foreground"
-                      }`}>
-                        {e.active ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(e)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteTarget(e)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((e) => {
+                  const isChecked = selected.has(e.id);
+                  return (
+                    <tr key={e.id} className={`border-b last:border-0 transition-colors ${!e.active ? "opacity-50" : ""} ${isChecked ? "bg-primary/5" : ""}`}>
+                      <td className="px-4 py-3">
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={() => toggleOne(e.id)}
+                          aria-label={`Select ${e.full_name}`}
+                        />
+                      </td>
+                      <td className="px-4 py-3 font-medium text-card-foreground">{e.full_name}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{e.phone_number || "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          e.role === "admin"
+                            ? "bg-primary/10 text-primary"
+                            : e.role === "dispatcher"
+                            ? "bg-secondary text-secondary-foreground"
+                            : "bg-accent text-accent-foreground"
+                        }`}>
+                          {e.role === "admin" ? "Admin" : e.role === "dispatcher" ? "Dispatcher" : "Crew"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{e.cert_level}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          e.active ? "bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))]" : "bg-muted text-muted-foreground"
+                        }`}>
+                          {e.active ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(e)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setDeleteTarget(e)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No employees found</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">No employees found</td></tr>
                 )}
               </tbody>
             </table>
@@ -329,6 +419,7 @@ export default function Employees() {
         </Dialog>
       </div>
 
+      {/* Single delete confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -345,6 +436,28 @@ export default function Employees() {
               disabled={deleting}
             >
               {deleting ? "Deleting..." : "Delete Employee"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk delete confirmation */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selected.size} Employee{selected.size > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{selected.size}</strong> employee{selected.size > 1 ? "s" : ""} and their profiles. Consider deactivating instead to preserve scheduling history. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+            >
+              {bulkDeleting ? "Deleting..." : `Delete ${selected.size} Employee${selected.size > 1 ? "s" : ""}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
