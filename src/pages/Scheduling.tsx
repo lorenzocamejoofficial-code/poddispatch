@@ -257,6 +257,21 @@ export default function Scheduling() {
     ? unassignedLegs.filter(l => l.patient_name.toLowerCase().includes(runPoolSearch.toLowerCase()))
     : unassignedLegs;
 
+  // ── Daily Ops Snapshot metrics ──
+  const OVERLOAD_THRESHOLD = 8; // configurable
+  const activeTrucks = trucks.filter(t => legs.some(l => l.assigned_truck_id === t.id));
+  const totalRuns = legs.length;
+  const unassignedCount = unassignedLegs.length;
+  const truckRunCounts = trucks.map(t => legs.filter(l => l.assigned_truck_id === t.id).length);
+  const avgRunsPerTruck = activeTrucks.length > 0
+    ? (truckRunCounts.reduce((s, c) => s + c, 0) / trucks.length).toFixed(1)
+    : "0.0";
+  const zeroRunTrucks = trucks.filter(t => !legs.some(l => l.assigned_truck_id === t.id)).length;
+  const overloadedTrucks = trucks.filter(t => legs.filter(l => l.assigned_truck_id === t.id).length > OVERLOAD_THRESHOLD).length;
+  // Down trucks and crew missing are computed from availability/crews loaded by TruckBuilder — we track them via a callback
+  const [downTruckCount, setDownTruckCount] = useState(0);
+  const crewMissingTrucks = trucks.filter(t => !crews.some(c => c.truck_id === t.id)).length;
+
   const weekLabel = (() => {
     const start = new Date(weekDates[0] + "T12:00:00");
     const end = new Date(weekDates[6] + "T12:00:00");
@@ -342,6 +357,50 @@ export default function Scheduling() {
         ) : (
           /* DAILY DRILL-DOWN VIEW */
           <>
+            {/* ── DAILY OPS SNAPSHOT ── */}
+            <section className="rounded-lg border bg-card p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Daily Ops Snapshot</span>
+                <span className="text-[10px] text-muted-foreground/70">
+                  {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1.5 text-xs">
+                  <span className="text-muted-foreground">Active trucks</span>
+                  <span className="font-bold text-foreground">{activeTrucks.length}/{trucks.length}</span>
+                </div>
+                <div className="flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1.5 text-xs">
+                  <span className="text-muted-foreground">Total runs</span>
+                  <span className="font-bold text-foreground">{totalRuns}</span>
+                </div>
+                <div className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs ${unassignedCount > 0 ? "border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))]" : "bg-background"}`}>
+                  <span className="text-muted-foreground">Unassigned</span>
+                  <span className={`font-bold ${unassignedCount > 0 ? "text-[hsl(var(--status-yellow))]" : "text-foreground"}`}>{unassignedCount}</span>
+                </div>
+                <div className="flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1.5 text-xs">
+                  <span className="text-muted-foreground">Avg/truck</span>
+                  <span className="font-bold text-foreground">{avgRunsPerTruck}</span>
+                </div>
+                <div className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs ${zeroRunTrucks > 0 ? "border-[hsl(var(--status-red))]/30 bg-[hsl(var(--status-red))]/5" : "bg-background"}`}>
+                  <span className="text-muted-foreground">Empty trucks</span>
+                  <span className={`font-bold ${zeroRunTrucks > 0 ? "text-[hsl(var(--status-red))]" : "text-foreground"}`}>{zeroRunTrucks}</span>
+                </div>
+                <div className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs ${overloadedTrucks > 0 ? "border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))]" : "bg-background"}`}>
+                  <span className="text-muted-foreground">Overloaded (&gt;{OVERLOAD_THRESHOLD})</span>
+                  <span className={`font-bold ${overloadedTrucks > 0 ? "text-[hsl(var(--status-yellow))]" : "text-foreground"}`}>{overloadedTrucks}</span>
+                </div>
+                <div className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs ${downTruckCount > 0 ? "border-destructive/40 bg-destructive/5" : "bg-background"}`}>
+                  <span className="text-muted-foreground">DOWN trucks</span>
+                  <span className={`font-bold ${downTruckCount > 0 ? "text-destructive" : "text-foreground"}`}>{downTruckCount}</span>
+                </div>
+                <div className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs ${crewMissingTrucks > 0 ? "border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))]" : "bg-background"}`}>
+                  <span className="text-muted-foreground">No crew</span>
+                  <span className={`font-bold ${crewMissingTrucks > 0 ? "text-[hsl(var(--status-yellow))]" : "text-foreground"}`}>{crewMissingTrucks}</span>
+                </div>
+              </div>
+            </section>
+
             {/* ── RUN POOL ── */}
             <section className="rounded-lg border bg-card p-4">
               <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
@@ -368,7 +427,7 @@ export default function Scheduling() {
                     : "No legs match search."}
                 </p>
               ) : (
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredUnassigned.map((leg) => (
                     <RunPoolCard
                       key={leg.id}
@@ -389,6 +448,7 @@ export default function Scheduling() {
               selectedDate={selectedDate}
               onRefresh={refresh}
               onEditException={openExceptionEdit}
+              onDownCountChange={setDownTruckCount}
             />
           </>
         )}
