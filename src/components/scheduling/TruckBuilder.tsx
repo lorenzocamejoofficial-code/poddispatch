@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle } from "lucide-react";
+import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { useSchedulingStore, type LegDisplay, type TruckOption, type CrewDisplay } from "@/hooks/useSchedulingStore";
 import {
@@ -92,9 +92,10 @@ interface TruckBuilderProps {
   selectedDate: string;
   onRefresh: () => void;
   onEditException: (leg: LegDisplay) => void;
+  onDownCountChange?: (count: number) => void;
 }
 
-export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException }: TruckBuilderProps) {
+export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException, onDownCountChange }: TruckBuilderProps) {
   const { addingLeg, setAddingLeg } = useSchedulingStore();
   const [availability, setAvailability] = useState<AvailabilityRecord[]>([]);
 
@@ -111,10 +112,13 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
         .select("*")
         .lte("start_date", selectedDate)
         .gte("end_date", selectedDate);
-      setAvailability((data ?? []) as unknown as AvailabilityRecord[]);
+      const records = (data ?? []) as unknown as AvailabilityRecord[];
+      setAvailability(records);
+      // Report down count up to parent for the snapshot bar
+      onDownCountChange?.(records.length);
     };
     load();
-  }, [selectedDate]);
+  }, [selectedDate, onDownCountChange]);
 
   const getTruckDown = (truckId: string): AvailabilityRecord | undefined =>
     availability.find((a) => a.truck_id === truckId);
@@ -212,12 +216,31 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     return `${slack}min (at risk)`;
   };
 
+  // Per-truck utilization: green=6–8, yellow=3–5, red=0–2 or >10
+  const utilizationColor = (count: number) => {
+    if (count >= 6 && count <= 8) return "bg-[hsl(var(--status-green))]/20 text-[hsl(var(--status-green))] border-[hsl(var(--status-green))]/30";
+    if (count >= 3 && count <= 5) return "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] border-[hsl(var(--status-yellow))]/30";
+    return "bg-[hsl(var(--status-red))]/10 text-[hsl(var(--status-red))] border-[hsl(var(--status-red))]/30";
+  };
+
+  const firstPickup = (tLegs: LegDisplay[]): string | null => {
+    const times = tLegs.map(l => l.pickup_time).filter(Boolean) as string[];
+    if (times.length === 0) return null;
+    return times.sort()[0];
+  };
+
+  const lastPickup = (tLegs: LegDisplay[]): string | null => {
+    const times = tLegs.map(l => l.pickup_time).filter(Boolean) as string[];
+    if (times.length === 0) return null;
+    return times.sort().reverse()[0];
+  };
+
   return (
     <section>
       <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Truck Builder
       </h3>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {trucks.map((truck) => {
           const tLegs = truckLegs(truck.id);
           const slack = calcSlackMinutes(truck.id);
@@ -227,30 +250,36 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
           const isDown = !!downRecord;
           const hasRunsWhileDown = isDown && tLegs.length > 0;
 
+          const first = firstPickup(tLegs);
+          const last = lastPickup(tLegs);
+
           return (
             <div
               key={truck.id}
               className={`rounded-lg border bg-card p-4 ${isDown ? "border-destructive/40 bg-destructive/5" : ""}`}
             >
-              <div className="mb-2 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="mb-2 flex items-center justify-between gap-1 flex-wrap">
+                <div className="flex items-center gap-1.5 min-w-0">
                   <Truck className={`h-4 w-4 shrink-0 ${isDown ? "text-destructive" : "text-muted-foreground"}`} />
-                  <span className={`font-semibold ${isDown ? "text-destructive" : "text-card-foreground"}`}>{truck.name}</span>
+                  <span className={`font-semibold truncate ${isDown ? "text-destructive" : "text-card-foreground"}`}>{truck.name}</span>
                   {isDown && (
-                    <Badge variant="destructive" className="text-[9px] px-1.5 py-0">
+                    <Badge variant="destructive" className="text-[9px] px-1.5 py-0 shrink-0">
                       {downRecord.status === "down_maintenance" ? "MAINT" : "OUT OF SVC"}
                     </Badge>
                   )}
                   {hasHeavy && !isDown && (
-                    <span className="text-[hsl(var(--status-yellow))]" title="Has heavy patient - electric stretcher needed">
-                      <Zap className="h-4 w-4" />
+                    <span className="text-[hsl(var(--status-yellow))] shrink-0" title="Has heavy patient - electric stretcher needed">
+                      <Zap className="h-3.5 w-3.5" />
                     </span>
                   )}
                 </div>
                 {!isDown && (
-                  <span className={`text-xs font-medium ${slackColor(slack)}`}>
-                    {slackLabel(slack)}
-                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* Utilization badge */}
+                    <span className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${utilizationColor(tLegs.length)}`}>
+                      {tLegs.length} runs
+                    </span>
+                  </div>
                 )}
               </div>
 
@@ -273,21 +302,26 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
 
               {/* Crew info */}
               {!isDown && (
-                <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Users className="h-3 w-3" />
+                <div className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Users className="h-3 w-3 shrink-0" />
                   {crew ? (
-                    <span>{crew.member1_name ?? "—"} & {crew.member2_name ?? "—"}</span>
+                    <span className="truncate">{crew.member1_name ?? "—"} & {crew.member2_name ?? "—"}</span>
                   ) : (
-                    <span className="italic">No crew assigned</span>
+                    <span className="italic text-[hsl(var(--status-yellow))]">⚠ No crew assigned</span>
                   )}
                 </div>
               )}
 
-              {!isDown && (
-                <div className="mb-2 text-xs text-muted-foreground">
-                  {tLegs.length}/10 slots used
+              {/* First / last pickup time */}
+              {!isDown && tLegs.length > 0 && (
+                <div className="mb-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <Clock className="h-3 w-3 shrink-0" />
+                  <span>{first ?? "—"} → {last ?? "—"}</span>
                 </div>
               )}
+
+
+
 
               {/* Sortable legs — always show if runs exist (even on down truck to allow reassignment) */}
               {tLegs.length > 0 && (

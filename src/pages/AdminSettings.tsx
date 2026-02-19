@@ -164,7 +164,7 @@ export default function AdminSettings() {
         <section className="space-y-3">
           <div>
             <h3 className="text-lg font-semibold text-foreground">System Limits</h3>
-            <p className="text-sm text-muted-foreground">Hard-capped for this version.</p>
+            <p className="text-sm text-muted-foreground">Operational caps for this deployment.</p>
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-lg border bg-card p-3">
@@ -177,11 +177,16 @@ export default function AdminSettings() {
             </div>
             <div className="rounded-lg border bg-card p-3">
               <p className="text-muted-foreground">Max Trucks</p>
-              <p className="text-lg font-bold text-foreground">12</p>
+              <p className="text-lg font-bold text-foreground">30</p>
             </div>
             <div className="rounded-lg border bg-card p-3">
               <p className="text-muted-foreground">Runs per Truck</p>
               <p className="text-lg font-bold text-foreground">10</p>
+            </div>
+            <div className="rounded-lg border bg-card p-3 col-span-2">
+              <p className="text-muted-foreground text-xs">Overload threshold (snapshot warning)</p>
+              <p className="text-lg font-bold text-foreground">8 <span className="text-sm font-normal text-muted-foreground">runs/truck</span></p>
+              <p className="text-xs text-muted-foreground mt-0.5">Trucks with &gt;8 runs show as "Overloaded" in the Daily Ops Snapshot. Green = 6–8, Yellow = 3–5, Red = 0–2 or &gt;10.</p>
             </div>
           </div>
         </section>
