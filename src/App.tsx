@@ -20,6 +20,22 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+function SessionWarningBanner() {
+  const { sessionWarning, signOut } = useAuth();
+  if (!sessionWarning) return null;
+  return (
+    <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-between gap-4 bg-destructive px-4 py-2 text-sm text-destructive-foreground shadow-lg">
+      <span>⚠️ Your session will expire in 2 minutes due to inactivity. Move your mouse or press a key to stay logged in.</span>
+      <button
+        onClick={signOut}
+        className="rounded border border-destructive-foreground/40 px-3 py-1 text-xs font-medium hover:bg-destructive-foreground/10 transition-colors"
+      >
+        Sign Out Now
+      </button>
+    </div>
+  );
+}
+
 function AppRoutes() {
   const { user, role, loading } = useAuth();
 
@@ -82,6 +98,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <SessionWarningBanner />
           <AppRoutes />
         </AuthProvider>
       </BrowserRouter>
@@ -90,3 +107,4 @@ const App = () => (
 );
 
 export default App;
+

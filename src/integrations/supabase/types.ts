@@ -59,6 +59,48 @@ export type Database = {
           },
         ]
       }
+      audit_logs: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_user_id: string | null
+          created_at: string
+          id: string
+          ip_address: string | null
+          new_data: Json | null
+          notes: string | null
+          old_data: Json | null
+          record_id: string | null
+          table_name: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          new_data?: Json | null
+          notes?: string | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          new_data?: Json | null
+          notes?: string | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+        }
+        Relationships: []
+      }
       company_settings: {
         Row: {
           company_name: string
@@ -614,6 +656,19 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      write_audit_log: {
+        Args: {
+          _action: string
+          _actor_email: string
+          _actor_user_id: string
+          _new_data?: Json
+          _notes?: string
+          _old_data?: Json
+          _record_id?: string
+          _table_name?: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "crew"

@@ -1,6 +1,11 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from "react";
+import { useState, useEffect, useRef, createContext, useContext, ReactNode, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+
+// HIPAA: Session automatically expires after this many milliseconds of inactivity.
+const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const WARNING_BEFORE_MS = 2 * 60 * 1000;       // warn 2 min before expiry
+const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"] as const;
 
 type AppRole = "admin" | "crew";
 
@@ -10,6 +15,7 @@ interface AuthContextType {
   role: AppRole | null;
   profileId: string | null;
   loading: boolean;
+  sessionWarning: boolean; // true when the 2-min pre-expiry warning is active
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
@@ -22,6 +28,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionWarning, setSessionWarning] = useState(false);
+
+  // HIPAA: inactivity timeout refs
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userRef = useRef<User | null>(null);
 
   const loadUserData = async (userId: string) => {
     const [{ data: roleData }, { data: profileData }] = await Promise.all([
@@ -31,6 +43,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (roleData) setRole(roleData.role as AppRole);
     if (profileData) setProfileId(profileData.id);
   };
+
+  // HIPAA: sign out and clear all session data
+  const doSignOut = useCallback(async () => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    if (warningTimer.current) clearTimeout(warningTimer.current);
+    setSessionWarning(false);
+    await supabase.auth.signOut();
+    setRole(null);
+    setProfileId(null);
+  }, []);
+
+  // HIPAA: reset inactivity timers on user activity
+  const resetInactivityTimer = useCallback(() => {
+    if (!userRef.current) return; // only track when logged in
+
+    setSessionWarning(false);
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    if (warningTimer.current) clearTimeout(warningTimer.current);
+
+    warningTimer.current = setTimeout(() => {
+      setSessionWarning(true);
+    }, INACTIVITY_TIMEOUT_MS - WARNING_BEFORE_MS);
+
+    inactivityTimer.current = setTimeout(() => {
+      doSignOut();
+    }, INACTIVITY_TIMEOUT_MS);
+  }, [doSignOut]);
+
+  // HIPAA: attach/detach activity listeners based on login state
+  useEffect(() => {
+    userRef.current = user;
+    if (user) {
+      resetInactivityTimer();
+      ACTIVITY_EVENTS.forEach((evt) =>
+        window.addEventListener(evt, resetInactivityTimer, { passive: true })
+      );
+    } else {
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      if (warningTimer.current) clearTimeout(warningTimer.current);
+      setSessionWarning(false);
+      ACTIVITY_EVENTS.forEach((evt) =>
+        window.removeEventListener(evt, resetInactivityTimer)
+      );
+    }
+    return () => {
+      ACTIVITY_EVENTS.forEach((evt) =>
+        window.removeEventListener(evt, resetInactivityTimer)
+      );
+    };
+  }, [user, resetInactivityTimer]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -69,13 +131,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setRole(null);
-    setProfileId(null);
+    await doSignOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, profileId, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, role, profileId, loading, sessionWarning, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
