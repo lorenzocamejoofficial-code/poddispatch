@@ -13,7 +13,6 @@ const supabaseAdmin = createClient(
 
 async function validateToken(token: string) {
   const today = new Date().toISOString().split("T")[0];
-
   const { data: tokenRow, error } = await supabaseAdmin
     .from("crew_share_tokens")
     .select("truck_id, valid_from, valid_until")
@@ -22,9 +21,13 @@ async function validateToken(token: string) {
     .lte("valid_from", today)
     .gte("valid_until", today)
     .maybeSingle();
-
   if (error || !tokenRow) return null;
   return tokenRow;
+}
+
+function getScheduleDate(tokenRow: { valid_from: string; valid_until: string }) {
+  const today = new Date().toISOString().split("T")[0];
+  return today >= tokenRow.valid_from && today <= tokenRow.valid_until ? today : tokenRow.valid_from;
 }
 
 Deno.serve(async (req) => {
@@ -37,34 +40,26 @@ Deno.serve(async (req) => {
 
   if (!token) {
     return new Response(JSON.stringify({ error: "Missing token" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  // ── GET: fetch run sheet ──────────────────────────────────────────────────
+  // ── GET: fetch run sheet ──
   if (req.method === "GET") {
     const tokenRow = await validateToken(token);
     if (!tokenRow) {
       return new Response(JSON.stringify({ error: "Invalid or expired link." }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const today = new Date().toISOString().split("T")[0];
-    const scheduleDate =
-      today >= tokenRow.valid_from && today <= tokenRow.valid_until
-        ? today
-        : tokenRow.valid_from;
+    const scheduleDate = getScheduleDate(tokenRow);
 
     const [{ data: truck }, { data: crew }, { data: slots }, { data: companySettings }] = await Promise.all([
       supabaseAdmin.from("trucks").select("name, company_id").eq("id", tokenRow.truck_id).single(),
       supabaseAdmin
         .from("crews")
-        .select(
-          "member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)"
-        )
+        .select("member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
         .eq("truck_id", tokenRow.truck_id)
         .eq("active_date", scheduleDate)
         .maybeSingle(),
@@ -83,12 +78,9 @@ Deno.serve(async (req) => {
     if (legIds.length > 0) {
       const { data: legData } = await supabaseAdmin
         .from("scheduling_legs")
-        .select(
-          "*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, dob, phone, weight_lbs, notes)"
-        )
+        .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, dob, phone, weight_lbs, notes)")
         .in("id", legIds);
 
-      // Fetch open operational alerts for this truck/date
       const { data: alertData } = await supabaseAdmin
         .from("operational_alerts")
         .select("id, leg_id, note, created_at, status")
@@ -96,31 +88,36 @@ Deno.serve(async (req) => {
         .eq("run_date", scheduleDate)
         .eq("alert_type", "PATIENT_NOT_READY");
 
-      const alertMap = new Map<string, { id: string; note: string | null; created_at: string; status: string }>();
+      // Fetch trip_records for this truck/date to get trip capture status
+      const { data: tripData } = await supabaseAdmin
+        .from("trip_records")
+        .select("id, leg_id, loaded_miles, signature_obtained, pcs_attached, status, loaded_at, dropped_at")
+        .eq("truck_id", tokenRow.truck_id)
+        .eq("run_date", scheduleDate);
+
+      const tripMap = new Map<string, any>();
+      for (const t of tripData ?? []) {
+        if (t.leg_id) tripMap.set(t.leg_id, t);
+      }
+
+      const alertMap = new Map<string, any>();
       for (const a of alertData ?? []) {
-        // Latest alert per leg
         if (!alertMap.has(a.leg_id) || a.created_at > alertMap.get(a.leg_id)!.created_at) {
           alertMap.set(a.leg_id, { id: a.id, note: a.note, created_at: a.created_at, status: a.status });
         }
       }
 
-      const orderMap = new Map(
-        (slots ?? []).map((s) => [
-          s.leg_id,
-          { order: s.slot_order, slotId: s.id, status: s.status },
-        ])
-      );
+      const orderMap = new Map((slots ?? []).map((s) => [s.leg_id, { order: s.slot_order, slotId: s.id, status: s.status }]));
 
       legs = (legData ?? [])
         .map((l: any) => {
           const slotInfo = orderMap.get(l.id);
           const alert = alertMap.get(l.id) ?? null;
+          const trip = tripMap.get(l.id) ?? null;
           return {
             id: l.id,
             leg_type: l.leg_type,
-            patient_name: l.patient
-              ? `${l.patient.first_name} ${l.patient.last_name}`
-              : "Unknown",
+            patient_name: l.patient ? `${l.patient.first_name} ${l.patient.last_name}` : "Unknown",
             patient_dob: l.patient?.dob ?? null,
             patient_phone: l.patient?.phone ?? null,
             patient_notes: l.patient?.notes ?? null,
@@ -134,6 +131,12 @@ Deno.serve(async (req) => {
             slot_id: slotInfo?.slotId ?? null,
             slot_status: slotInfo?.status ?? "pending",
             not_ready_alert: alert && alert.status === "open" ? alert : null,
+            // Trip capture data
+            trip_id: trip?.id ?? null,
+            trip_loaded_miles: trip?.loaded_miles ?? null,
+            trip_signature: trip?.signature_obtained ?? false,
+            trip_pcs: trip?.pcs_attached ?? false,
+            trip_status: trip?.status ?? null,
           };
         })
         .sort((a: any, b: any) => {
@@ -154,42 +157,84 @@ Deno.serve(async (req) => {
         member2: (crew as any)?.member2?.full_name ?? null,
         legs,
       }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
-  // ── PATCH: advance slot status ────────────────────────────────────────────
+  // ── PATCH: actions ──
   if (req.method === "PATCH") {
     const tokenRow = await validateToken(token);
     if (!tokenRow) {
       return new Response(JSON.stringify({ error: "Invalid or expired link." }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const body = await req.json();
+    const scheduleDate = getScheduleDate(tokenRow);
 
-    // ── Sub-action: patient not ready signal ──
+    // ── Trip capture: update loaded miles ──
+    if (body.action === "update_trip") {
+      const { trip_id, loaded_miles, signature_obtained, pcs_attached, complete } = body;
+      if (!trip_id) {
+        return new Response(JSON.stringify({ error: "Missing trip_id" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Verify trip belongs to this truck/date
+      const { data: trip } = await supabaseAdmin
+        .from("trip_records")
+        .select("id, truck_id, run_date, status")
+        .eq("id", trip_id)
+        .eq("truck_id", tokenRow.truck_id)
+        .eq("run_date", scheduleDate)
+        .maybeSingle();
+
+      if (!trip) {
+        return new Response(JSON.stringify({ error: "Trip not found or access denied" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const updates: any = {};
+      if (loaded_miles !== undefined) updates.loaded_miles = loaded_miles;
+      if (signature_obtained !== undefined) updates.signature_obtained = signature_obtained;
+      if (pcs_attached !== undefined) updates.pcs_attached = pcs_attached;
+
+      if (complete) {
+        updates.status = "completed";
+        updates.dropped_at = new Date().toISOString();
+        if (!trip.status || ["scheduled", "assigned", "en_route", "loaded"].includes(trip.status)) {
+          updates.loaded_at = updates.loaded_at ?? new Date().toISOString();
+        }
+      }
+
+      const { error: updateErr } = await supabaseAdmin
+        .from("trip_records")
+        .update(updates)
+        .eq("id", trip_id);
+
+      if (updateErr) {
+        return new Response(JSON.stringify({ error: "Failed to update trip" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Patient not ready ──
     if (body.action === "not_ready") {
       const { leg_id, note, company_id } = body;
       if (!leg_id) {
         return new Response(JSON.stringify({ error: "Missing leg_id" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const today = new Date().toISOString().split("T")[0];
-      const scheduleDate =
-        today >= tokenRow.valid_from && today <= tokenRow.valid_until
-          ? today
-          : tokenRow.valid_from;
-
-      // Verify leg belongs to this truck/date
       const { data: slot } = await supabaseAdmin
         .from("truck_run_slots")
         .select("id")
@@ -200,8 +245,7 @@ Deno.serve(async (req) => {
 
       if (!slot) {
         return new Response(JSON.stringify({ error: "Leg not found or access denied" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
@@ -222,8 +266,7 @@ Deno.serve(async (req) => {
 
       if (insertErr) {
         return new Response(JSON.stringify({ error: "Failed to create alert" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
@@ -233,13 +276,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Sub-action: clear / patient ready ──
+    // ── Clear not ready ──
     if (body.action === "clear_not_ready") {
       const { alert_id } = body;
       if (!alert_id) {
         return new Response(JSON.stringify({ error: "Missing alert_id" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
@@ -250,60 +292,42 @@ Deno.serve(async (req) => {
 
       if (updateErr) {
         return new Response(JSON.stringify({ error: "Failed to resolve alert" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      return new Response(
-        JSON.stringify({ success: true }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // ── Default: advance slot status ──
+    // ── Advance slot status ──
     const { slot_id, next_status } = body;
 
     if (!slot_id || !next_status) {
       return new Response(JSON.stringify({ error: "Missing slot_id or next_status" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const STATUS_FLOW = [
-      "pending",
-      "en_route",
-      "arrived",
-      "with_patient",
-      "transporting",
-      "completed",
-    ];
+    const STATUS_FLOW = ["pending", "en_route", "arrived", "with_patient", "transporting", "completed"];
     if (!STATUS_FLOW.includes(next_status)) {
       return new Response(JSON.stringify({ error: "Invalid status" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const today2 = new Date().toISOString().split("T")[0];
-    const scheduleDate2 =
-      today2 >= tokenRow.valid_from && today2 <= tokenRow.valid_until
-        ? today2
-        : tokenRow.valid_from;
 
     const { data: slot } = await supabaseAdmin
       .from("truck_run_slots")
       .select("id, status, slot_order")
       .eq("id", slot_id)
       .eq("truck_id", tokenRow.truck_id)
-      .eq("run_date", scheduleDate2)
+      .eq("run_date", scheduleDate)
       .maybeSingle();
 
     if (!slot) {
       return new Response(JSON.stringify({ error: "Slot not found or access denied" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -312,10 +336,7 @@ Deno.serve(async (req) => {
     if (nextIdx !== currentIdx + 1) {
       return new Response(
         JSON.stringify({ error: "Status can only advance one step at a time" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -326,19 +347,16 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       return new Response(JSON.stringify({ error: "Failed to update status" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     return new Response(JSON.stringify({ success: true, status: next_status }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   return new Response(JSON.stringify({ error: "Method not allowed" }), {
-    status: 405,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });

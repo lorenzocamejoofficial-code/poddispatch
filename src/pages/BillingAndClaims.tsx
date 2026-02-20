@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2 } from "lucide-react";
 import { toast } from "sonner";
+import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
+import { computeHcpcsCodes } from "@/lib/billing-utils";
 
 type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction";
 
@@ -32,8 +34,16 @@ interface ClaimRecord {
   submitted_at: string | null;
   paid_at: string | null;
   notes: string | null;
+  origin_type: string | null;
+  destination_type: string | null;
+  hcpcs_codes: string[] | null;
+  hcpcs_modifiers: string[] | null;
   // joined
   patient_name?: string;
+  // trip data for badge
+  trip_loaded_miles?: number | null;
+  trip_signature?: boolean;
+  trip_pcs?: boolean;
 }
 
 interface ChargeMaster {
@@ -67,8 +77,6 @@ export default function BillingAndClaims() {
     amount_paid: "", denial_reason: "", denial_code: "", notes: "",
   });
   const [savingClaim, setSavingClaim] = useState(false);
-
-  // Charge master edit state
   const [editingRate, setEditingRate] = useState<ChargeMaster | null>(null);
   const [rateForm, setRateForm] = useState({
     payer_type: "default", base_rate: "", mileage_rate: "", wait_rate_per_min: "",
@@ -85,16 +93,29 @@ export default function BillingAndClaims() {
     ]);
 
     const patientIds = [...new Set(((claimRows ?? []) as any[]).map((c: any) => c.patient_id).filter(Boolean))];
-    const { data: pRows } = patientIds.length > 0
-      ? await supabase.from("patients").select("id, first_name, last_name").in("id", patientIds)
-      : { data: [] };
+    const tripIds = [...new Set(((claimRows ?? []) as any[]).map((c: any) => c.trip_id).filter(Boolean))];
+    const [{ data: pRows }, { data: tripRows }] = await Promise.all([
+      patientIds.length > 0
+        ? supabase.from("patients").select("id, first_name, last_name").in("id", patientIds)
+        : Promise.resolve({ data: [] }),
+      tripIds.length > 0
+        ? supabase.from("trip_records" as any).select("id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type").in("id", tripIds)
+        : Promise.resolve({ data: [] }),
+    ]);
     const pMap = new Map((pRows ?? []).map((p: any) => [p.id, `${p.first_name} ${p.last_name}`]));
+    const tMap = new Map((tripRows ?? []).map((t: any) => [t.id, t]));
 
     setClaims(
-      ((claimRows ?? []) as any[]).map((c: any) => ({
-        ...c,
-        patient_name: pMap.get(c.patient_id) ?? "Unknown",
-      }))
+      ((claimRows ?? []) as any[]).map((c: any) => {
+        const tripData = tMap.get(c.trip_id) as any;
+        return {
+          ...c,
+          patient_name: pMap.get(c.patient_id) ?? "Unknown",
+          trip_loaded_miles: tripData?.loaded_miles ?? null,
+          trip_signature: tripData?.signature_obtained ?? false,
+          trip_pcs: tripData?.pcs_attached ?? false,
+        };
+      })
     );
     setChargeMaster((rateRows ?? []) as any[]);
     setLoading(false);
@@ -102,7 +123,6 @@ export default function BillingAndClaims() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Auto-create claims for ready_for_billing trips
   const syncClaimsFromTrips = async () => {
     const { data: trips } = await supabase
       .from("trip_records" as any)
@@ -111,8 +131,7 @@ export default function BillingAndClaims() {
 
     if (!trips?.length) { toast.info("No new trips ready for billing"); return; }
 
-    const { data: existing } = await supabase
-      .from("claim_records" as any).select("trip_id");
+    const { data: existing } = await supabase.from("claim_records" as any).select("trip_id");
     const existingTripIds = new Set((existing ?? []).map((e: any) => e.trip_id));
 
     const newClaims = (trips as any[])
@@ -125,6 +144,16 @@ export default function BillingAndClaims() {
         const wait = Number(t.wait_time_minutes ?? 0) * Number(rate?.wait_rate_per_min ?? 0);
         const extras = (t.patient?.oxygen_required ? Number(rate?.oxygen_fee ?? 0) : 0)
           + (t.patient?.bariatric ? Number(rate?.bariatric_fee ?? 0) : 0);
+
+        // Derive HCPCS
+        const { codes, modifiers: mods } = computeHcpcsCodes({
+          service_level: t.service_level,
+          loaded_miles: t.loaded_miles,
+          wait_time_minutes: t.wait_time_minutes,
+          oxygen_required: t.patient?.oxygen_required,
+          bariatric: t.patient?.bariatric,
+        });
+
         return {
           trip_id: t.id,
           patient_id: t.patient_id,
@@ -138,6 +167,10 @@ export default function BillingAndClaims() {
           extras_charge: extras + wait,
           total_charge: base + miles + extras + wait,
           status: "ready_to_bill",
+          origin_type: t.origin_type,
+          destination_type: t.destination_type,
+          hcpcs_codes: codes,
+          hcpcs_modifiers: mods,
         };
       });
 
@@ -277,9 +310,22 @@ export default function BillingAndClaims() {
                           onClick={() => openClaim(claim)}
                           className="w-full rounded-md border bg-card p-3 text-left hover:border-primary/40 hover:shadow-sm transition-all"
                         >
-                          <p className="text-xs font-semibold text-foreground truncate">{claim.patient_name}</p>
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <p className="text-xs font-semibold text-foreground truncate">{claim.patient_name}</p>
+                            <CleanTripBadge
+                              trip={{
+                                loaded_miles: claim.trip_loaded_miles,
+                                signature_obtained: claim.trip_signature,
+                                pcs_attached: claim.trip_pcs,
+                                origin_type: claim.origin_type,
+                                destination_type: claim.destination_type,
+                              }}
+                            />
+                          </div>
                           <p className="text-[10px] text-muted-foreground">{claim.run_date}</p>
-                          <p className="text-[10px] text-muted-foreground capitalize">{claim.payer_type}</p>
+                          {claim.hcpcs_codes?.length ? (
+                            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{claim.hcpcs_codes.join(", ")}</p>
+                          ) : null}
                           <div className="mt-1.5 flex items-center justify-between">
                             <span className="text-xs font-bold text-foreground">${claim.total_charge.toFixed(2)}</span>
                             {claim.denial_reason && (
@@ -348,11 +394,31 @@ export default function BillingAndClaims() {
             <DialogDescription>{selectedClaim?.run_date} · {selectedClaim?.payer_type}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="rounded-md border bg-muted/30 p-3 text-sm grid grid-cols-3 gap-2">
-              <div><p className="text-xs text-muted-foreground">Base</p><p className="font-semibold">${selectedClaim?.base_charge.toFixed(2)}</p></div>
-              <div><p className="text-xs text-muted-foreground">Mileage</p><p className="font-semibold">${selectedClaim?.mileage_charge.toFixed(2)}</p></div>
-              <div><p className="text-xs text-muted-foreground">Total</p><p className="font-bold text-lg">${selectedClaim?.total_charge.toFixed(2)}</p></div>
-            </div>
+            {/* HCPCS + origin/dest info */}
+            {selectedClaim && (
+              <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div><p className="text-xs text-muted-foreground">Base</p><p className="font-semibold">${selectedClaim.base_charge.toFixed(2)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Mileage</p><p className="font-semibold">${selectedClaim.mileage_charge.toFixed(2)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Total</p><p className="font-bold text-lg">${selectedClaim.total_charge.toFixed(2)}</p></div>
+                </div>
+                {(selectedClaim.origin_type || selectedClaim.destination_type) && (
+                  <p className="text-[10px] text-muted-foreground">
+                    {selectedClaim.origin_type ?? "?"} → {selectedClaim.destination_type ?? "?"}
+                  </p>
+                )}
+                {selectedClaim.hcpcs_codes?.length ? (
+                  <div className="flex flex-wrap gap-1">
+                    {selectedClaim.hcpcs_codes.map(c => (
+                      <span key={c} className="rounded bg-primary/10 text-primary text-[10px] font-mono px-1.5 py-0.5">{c}</span>
+                    ))}
+                    {selectedClaim.hcpcs_modifiers?.map(m => (
+                      <span key={m} className="rounded bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] text-[10px] font-mono px-1.5 py-0.5">{m}</span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            )}
             <div>
               <Label>Status</Label>
               <Select value={editForm.status} onValueChange={v => setEditForm({ ...editForm, status: v as ClaimStatus })}>

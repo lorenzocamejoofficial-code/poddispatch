@@ -7,10 +7,18 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Search, ChevronRight, FileText, Clock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
+import { LocationTypeSelect } from "@/components/billing/LocationTypeSelect";
+import {
+  computeHcpcsCodes,
+  inferLocationType,
+  validateLoadedMiles,
+  computeCleanTripStatus,
+  LOCATION_TYPES,
+} from "@/lib/billing-utils";
 
 type TripStatus = "scheduled" | "assigned" | "en_route" | "loaded" | "completed" | "ready_for_billing" | "cancelled";
 
@@ -35,12 +43,18 @@ interface TripRecord {
   billing_blocked_reason: string | null;
   slot_id: string | null;
   leg_id: string | null;
+  origin_type: string | null;
+  destination_type: string | null;
+  hcpcs_codes: string[] | null;
+  hcpcs_modifiers: string[] | null;
   // joined
   patient_name?: string;
   truck_name?: string;
   payer?: string;
   auth_expiration?: string | null;
   auth_required?: boolean;
+  oxygen_required?: boolean;
+  bariatric?: boolean;
 }
 
 const STATUS_PIPELINE: TripStatus[] = [
@@ -67,14 +81,6 @@ const STATUS_COLORS: Record<TripStatus, string> = {
   cancelled: "bg-destructive/10 text-destructive",
 };
 
-function computeBlockedReason(trip: Partial<TripRecord>): string | null {
-  const issues: string[] = [];
-  if (!trip.loaded_miles) issues.push("missing loaded miles");
-  if (!trip.pcs_attached) issues.push("PCS not attached");
-  if (!trip.signature_obtained) issues.push("no signature");
-  return issues.length > 0 ? issues.join(", ") : null;
-}
-
 export default function TripsAndClinical() {
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,32 +89,42 @@ export default function TripsAndClinical() {
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split("T")[0]);
   const [selectedTrip, setSelectedTrip] = useState<TripRecord | null>(null);
   const [saving, setSaving] = useState(false);
+  const [facilityMap, setFacilityMap] = useState<Map<string, string>>(new Map());
+  const [payerRulesMap, setPayerRulesMap] = useState<Map<string, any>>(new Map());
 
-  // Edit form
   const [form, setForm] = useState({
     loaded_miles: "", loaded_at: "", dropped_at: "", wait_time_minutes: "",
     signature_obtained: false, pcs_attached: false, necessity_notes: "", service_level: "BLS",
+    origin_type: "", destination_type: "",
   });
 
   const fetchTrips = useCallback(async () => {
     setLoading(true);
     try {
-      // Pull trip_records joined with patients and trucks
-      const { data: tripRows, error } = await supabase
-        .from("trip_records" as any)
-        .select("*")
-        .eq("run_date", dateFilter)
-        .order("scheduled_pickup_time", { ascending: true });
+      const [{ data: tripRows, error }, { data: facilities }, { data: payerRules }] = await Promise.all([
+        supabase.from("trip_records" as any).select("*").eq("run_date", dateFilter).order("scheduled_pickup_time", { ascending: true }),
+        supabase.from("facilities" as any).select("name, facility_type"),
+        supabase.from("payer_billing_rules" as any).select("*"),
+      ]);
 
       if (error || !tripRows) { setLoading(false); return; }
 
-      // Enrich with patient + truck names
+      // Build facility map for auto-inference
+      const fMap = new Map<string, string>();
+      (facilities ?? []).forEach((f: any) => fMap.set(f.name, f.facility_type));
+      setFacilityMap(fMap);
+
+      // Build payer rules map
+      const prMap = new Map<string, any>();
+      (payerRules ?? []).forEach((r: any) => prMap.set(r.payer_type, r));
+      setPayerRulesMap(prMap);
+
       const patientIds = [...new Set((tripRows as any[]).map((t: any) => t.patient_id).filter(Boolean))];
       const truckIds = [...new Set((tripRows as any[]).map((t: any) => t.truck_id).filter(Boolean))];
 
       const [{ data: pRows }, { data: tRows }] = await Promise.all([
         patientIds.length > 0
-          ? supabase.from("patients").select("id, first_name, last_name, primary_payer, auth_expiration, auth_required").in("id", patientIds)
+          ? supabase.from("patients").select("id, first_name, last_name, primary_payer, auth_expiration, auth_required, oxygen_required, bariatric").in("id", patientIds)
           : Promise.resolve({ data: [] }),
         truckIds.length > 0
           ? supabase.from("trucks").select("id, name").in("id", truckIds)
@@ -128,6 +144,8 @@ export default function TripsAndClinical() {
           payer: p?.primary_payer ?? "—",
           auth_expiration: p?.auth_expiration ?? null,
           auth_required: p?.auth_required ?? false,
+          oxygen_required: p?.oxygen_required ?? false,
+          bariatric: p?.bariatric ?? false,
         };
       });
 
@@ -139,20 +157,17 @@ export default function TripsAndClinical() {
 
   useEffect(() => { fetchTrips(); }, [fetchTrips]);
 
-  // Realtime
   useEffect(() => {
     const ch = supabase
       .channel("trips-clinical-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, fetchTrips)
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => {
-        // When a slot is assigned, auto-create trip_records for any new slots
         syncSlotsToTrips(dateFilter);
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [fetchTrips, dateFilter]);
 
-  // Auto-sync: find truck_run_slots with no trip_record and create them
   const syncSlotsToTrips = async (runDate: string) => {
     const { data: slots } = await supabase
       .from("truck_run_slots")
@@ -161,26 +176,30 @@ export default function TripsAndClinical() {
     if (!slots?.length) return;
 
     const { data: existing } = await supabase
-      .from("trip_records" as any)
-      .select("slot_id")
-      .eq("run_date", runDate);
+      .from("trip_records" as any).select("slot_id").eq("run_date", runDate);
     const existingSlotIds = new Set((existing ?? []).map((e: any) => e.slot_id));
 
     const newTrips = (slots as any[])
       .filter(s => !existingSlotIds.has(s.id))
-      .map(s => ({
-        slot_id: s.id,
-        leg_id: s.leg_id,
-        patient_id: s.leg?.patient_id ?? null,
-        truck_id: s.truck_id,
-        run_date: s.run_date,
-        company_id: s.company_id,
-        status: "assigned",
-        scheduled_pickup_time: s.leg?.pickup_time ?? null,
-        pickup_location: s.leg?.pickup_location ?? null,
-        destination_location: s.leg?.destination_location ?? null,
-        trip_type: s.leg?.trip_type ?? "dialysis",
-      }));
+      .map(s => {
+        const originType = inferLocationType(s.leg?.pickup_location, facilityMap);
+        const destType = inferLocationType(s.leg?.destination_location, facilityMap);
+        return {
+          slot_id: s.id,
+          leg_id: s.leg_id,
+          patient_id: s.leg?.patient_id ?? null,
+          truck_id: s.truck_id,
+          run_date: s.run_date,
+          company_id: s.company_id,
+          status: "assigned",
+          scheduled_pickup_time: s.leg?.pickup_time ?? null,
+          pickup_location: s.leg?.pickup_location ?? null,
+          destination_location: s.leg?.destination_location ?? null,
+          trip_type: s.leg?.trip_type ?? "dialysis",
+          origin_type: originType,
+          destination_type: destType,
+        };
+      });
 
     if (newTrips.length > 0) {
       await supabase.from("trip_records" as any).insert(newTrips);
@@ -190,6 +209,9 @@ export default function TripsAndClinical() {
 
   const openTrip = (trip: TripRecord) => {
     setSelectedTrip(trip);
+    // Auto-infer origin/destination if empty
+    const autoOrigin = trip.origin_type || inferLocationType(trip.pickup_location, facilityMap) || "";
+    const autoDest = trip.destination_type || inferLocationType(trip.destination_location, facilityMap) || "";
     setForm({
       loaded_miles: trip.loaded_miles?.toString() ?? "",
       loaded_at: trip.loaded_at ? new Date(trip.loaded_at).toISOString().slice(0, 16) : "",
@@ -199,6 +221,8 @@ export default function TripsAndClinical() {
       pcs_attached: trip.pcs_attached,
       necessity_notes: trip.necessity_notes ?? "",
       service_level: trip.service_level ?? "BLS",
+      origin_type: autoOrigin,
+      destination_type: autoDest,
     });
   };
 
@@ -208,9 +232,9 @@ export default function TripsAndClinical() {
     const next = STATUS_PIPELINE[idx + 1];
 
     if (next === "ready_for_billing") {
-      const blocked = computeBlockedReason(trip);
-      if (blocked) {
-        toast.error(`Cannot mark ready for billing: ${blocked}`);
+      const cleanResult = computeCleanTripStatus(trip, payerRulesMap.get(trip.payer ?? "") ?? null);
+      if (cleanResult.level === "blocked") {
+        toast.error(`Cannot mark ready for billing: ${cleanResult.issues.join(", ")}`);
         return;
       }
     }
@@ -224,8 +248,17 @@ export default function TripsAndClinical() {
     if (!selectedTrip) return;
     setSaving(true);
     try {
+      const miles = form.loaded_miles ? parseFloat(form.loaded_miles) : null;
+      const { codes, modifiers } = computeHcpcsCodes({
+        service_level: form.service_level,
+        loaded_miles: miles,
+        wait_time_minutes: form.wait_time_minutes ? parseInt(form.wait_time_minutes) : null,
+        oxygen_required: selectedTrip.oxygen_required,
+        bariatric: selectedTrip.bariatric,
+      });
+
       const payload: any = {
-        loaded_miles: form.loaded_miles ? parseFloat(form.loaded_miles) : null,
+        loaded_miles: miles,
         loaded_at: form.loaded_at ? new Date(form.loaded_at).toISOString() : null,
         dropped_at: form.dropped_at ? new Date(form.dropped_at).toISOString() : null,
         wait_time_minutes: form.wait_time_minutes ? parseInt(form.wait_time_minutes) : null,
@@ -233,8 +266,19 @@ export default function TripsAndClinical() {
         pcs_attached: form.pcs_attached,
         necessity_notes: form.necessity_notes || null,
         service_level: form.service_level,
+        origin_type: form.origin_type || null,
+        destination_type: form.destination_type || null,
+        hcpcs_codes: codes,
+        hcpcs_modifiers: modifiers,
       };
-      payload.billing_blocked_reason = computeBlockedReason({ ...selectedTrip, ...payload });
+
+      // Compute billing block
+      const cleanResult = computeCleanTripStatus(
+        { ...selectedTrip, ...payload },
+        payerRulesMap.get(selectedTrip.payer ?? "") ?? null,
+      );
+      payload.billing_blocked_reason = cleanResult.level === "blocked" ? cleanResult.issues.join(", ") : null;
+
       await supabase.from("trip_records" as any).update(payload).eq("id", selectedTrip.id);
       toast.success("Trip record saved");
       setSelectedTrip(null);
@@ -254,30 +298,23 @@ export default function TripsAndClinical() {
   const authWarning = (trip: TripRecord) =>
     trip.auth_required && trip.auth_expiration && new Date(trip.auth_expiration) <= new Date();
 
+  const milesValidation = form.loaded_miles ? validateLoadedMiles(parseFloat(form.loaded_miles)) : null;
+
   return (
     <AdminLayout>
       <div className="space-y-4">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3">
-          <Input
-            type="date"
-            value={dateFilter}
-            onChange={e => setDateFilter(e.target.value)}
-            className="w-40"
-          />
+          <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-40" />
           <div className="relative flex-1 max-w-xs min-w-[180px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Search patient..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-44">
-              <SelectValue placeholder="All statuses" />
-            </SelectTrigger>
+            <SelectTrigger className="w-44"><SelectValue placeholder="All statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              {STATUS_PIPELINE.map(s => (
-                <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
-              ))}
+              {STATUS_PIPELINE.map(s => <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>)}
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
@@ -320,10 +357,9 @@ export default function TripsAndClinical() {
                   <th className="px-4 py-3 text-left">Pickup</th>
                   <th className="px-4 py-3 text-left">Route</th>
                   <th className="px-4 py-3 text-left">Truck</th>
-                  <th className="px-4 py-3 text-left">Payer</th>
                   <th className="px-4 py-3 text-left">Status</th>
                   <th className="px-4 py-3 text-left">Miles</th>
-                  <th className="px-4 py-3 text-left">Flags</th>
+                  <th className="px-4 py-3 text-left">Billing</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -336,7 +372,6 @@ export default function TripsAndClinical() {
                       {trip.pickup_location ?? "—"} → {trip.destination_location ?? "—"}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{trip.truck_name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{trip.payer}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${STATUS_COLORS[trip.status]}`}>
                         {STATUS_LABELS[trip.status]}
@@ -344,18 +379,10 @@ export default function TripsAndClinical() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{trip.loaded_miles ?? "—"}</td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {!trip.signature_obtained && <span className="text-[hsl(var(--status-yellow))] text-[10px] font-medium">No Sig</span>}
-                        {!trip.pcs_attached && <span className="text-[hsl(var(--status-yellow))] text-[10px] font-medium">No PCS</span>}
-                        {authWarning(trip) && (
-                          <span className="flex items-center gap-0.5 text-destructive text-[10px] font-medium">
-                            <AlertTriangle className="h-3 w-3" />Auth Exp
-                          </span>
-                        )}
-                        {trip.billing_blocked_reason && trip.status !== "ready_for_billing" && (
-                          <span className="text-destructive/70 text-[10px]">⛔</span>
-                        )}
-                      </div>
+                      <CleanTripBadge
+                        trip={trip}
+                        payerRules={payerRulesMap.get(trip.payer ?? "") ?? null}
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
@@ -388,6 +415,41 @@ export default function TripsAndClinical() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* Clean trip badge at top */}
+            {selectedTrip && (
+              <div className="flex items-center justify-between">
+                <CleanTripBadge
+                  trip={{ ...selectedTrip, origin_type: form.origin_type, destination_type: form.destination_type,
+                    loaded_miles: form.loaded_miles ? parseFloat(form.loaded_miles) : null,
+                    signature_obtained: form.signature_obtained, pcs_attached: form.pcs_attached }}
+                  payerRules={payerRulesMap.get(selectedTrip.payer ?? "") ?? null}
+                  size="md"
+                />
+                {selectedTrip.hcpcs_codes?.length ? (
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    HCPCS: {selectedTrip.hcpcs_codes.join(", ")}
+                    {selectedTrip.hcpcs_modifiers?.length ? ` (${selectedTrip.hcpcs_modifiers.join(", ")})` : ""}
+                  </span>
+                ) : null}
+              </div>
+            )}
+
+            {/* Origin / Destination Type */}
+            <div className="grid grid-cols-2 gap-3">
+              <LocationTypeSelect
+                label="Origin Type"
+                value={form.origin_type}
+                onChange={v => setForm({ ...form, origin_type: v })}
+                autoValue={selectedTrip ? inferLocationType(selectedTrip.pickup_location, facilityMap) : null}
+              />
+              <LocationTypeSelect
+                label="Destination Type"
+                value={form.destination_type}
+                onChange={v => setForm({ ...form, destination_type: v })}
+                autoValue={selectedTrip ? inferLocationType(selectedTrip.destination_location, facilityMap) : null}
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Service Level</Label>
@@ -405,6 +467,11 @@ export default function TripsAndClinical() {
                 <Label>Loaded Miles</Label>
                 <Input type="number" step="0.1" placeholder="0.0" value={form.loaded_miles}
                   onChange={e => setForm({ ...form, loaded_miles: e.target.value })} />
+                {milesValidation && milesValidation.status !== "ok" && (
+                  <p className={`text-[10px] mt-0.5 ${milesValidation.status === "error" ? "text-destructive" : "text-[hsl(var(--status-yellow))]"}`}>
+                    ⚠ {milesValidation.message}
+                  </p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -442,24 +509,33 @@ export default function TripsAndClinical() {
                 onChange={e => setForm({ ...form, necessity_notes: e.target.value })}
                 placeholder="Document why transport was medically necessary…" />
             </div>
-            {computeBlockedReason({ ...selectedTrip, ...{
-              loaded_miles: form.loaded_miles ? parseFloat(form.loaded_miles) : null,
-              pcs_attached: form.pcs_attached,
-              signature_obtained: form.signature_obtained,
-            }}) && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold mb-0.5">Billing Blocked</p>
-                  <p>{computeBlockedReason({ ...selectedTrip, ...{
+
+            {/* HCPCS preview */}
+            {selectedTrip && (
+              <div className="rounded-md border bg-muted/30 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Auto HCPCS Codes</p>
+                {(() => {
+                  const { codes, modifiers } = computeHcpcsCodes({
+                    service_level: form.service_level,
                     loaded_miles: form.loaded_miles ? parseFloat(form.loaded_miles) : null,
-                    pcs_attached: form.pcs_attached,
-                    signature_obtained: form.signature_obtained,
-                  }})}
-                  </p>
-                </div>
+                    wait_time_minutes: form.wait_time_minutes ? parseInt(form.wait_time_minutes) : null,
+                    oxygen_required: selectedTrip.oxygen_required,
+                    bariatric: selectedTrip.bariatric,
+                  });
+                  return (
+                    <div className="flex flex-wrap gap-1.5">
+                      {codes.map(c => (
+                        <span key={c} className="rounded bg-primary/10 text-primary text-xs font-mono px-2 py-0.5">{c}</span>
+                      ))}
+                      {modifiers.map(m => (
+                        <span key={m} className="rounded bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] text-xs font-mono px-2 py-0.5">{m}</span>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
+
             <Button className="w-full" onClick={saveTrip} disabled={saving}>
               {saving ? "Saving…" : "Save Clinical Record"}
             </Button>
