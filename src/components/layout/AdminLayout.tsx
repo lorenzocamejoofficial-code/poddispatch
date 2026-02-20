@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Building2,
   BarChart3,
+  ArrowRightLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ const navItems = [
   { path: "/reports", label: "Reports & Metrics", icon: BarChart3 },
   { path: "/employees", label: "Employees", icon: UserPlus },
   { path: "/trucks", label: "Trucks & Crews", icon: Truck },
+  { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 
