@@ -20,6 +20,7 @@ interface TruckData {
     status: RunStatus;
     trip_type: string;
     is_current: boolean;
+    patient_weight?: number | null;
   }[];
   overallStatus: "green" | "yellow" | "red";
   downStatus: "down_maintenance" | "down_out_of_service" | null;
@@ -47,16 +48,23 @@ export default function DispatchBoard() {
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
-    const [{ data: truckRows }, { data: crewRows }, { data: runRows }, { data: slotRows }, { data: alertRows }, { data: availRows }] = await Promise.all([
+    const [
+      { data: truckRows },
+      { data: crewRows },
+      { data: slotRows },
+      { data: alertRows },
+      { data: availRows },
+    ] = await Promise.all([
       supabase.from("trucks").select("*").eq("active", true),
       supabase.from("crews")
         .select("*, member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
         .eq("active_date", selectedDate),
-      supabase.from("runs")
-        .select("*, patient:patients!runs_patient_id_fkey(first_name, last_name, weight_lbs)")
+      // Pull from scheduling_legs + truck_run_slots (same source as TruckBuilder)
+      supabase
+        .from("truck_run_slots")
+        .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, trip_type, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs))")
         .eq("run_date", selectedDate)
-        .order("sort_order"),
-      supabase.from("truck_run_slots").select("truck_id, leg_id").eq("run_date", selectedDate),
+        .order("slot_order"),
       supabase.from("alerts").select("*").eq("dismissed", false).order("created_at", { ascending: false }),
       supabase.from("truck_availability" as any).select("*").lte("start_date", selectedDate).gte("end_date", selectedDate),
     ]);
@@ -73,34 +81,39 @@ export default function DispatchBoard() {
         if (crew.member2?.full_name) crewNames.push(crew.member2.full_name);
       }
 
-      const truckRuns = (runRows ?? [])
-        .filter((r) => r.truck_id === t.id)
-        .map((r) => {
-          const patientName = r.patient
-            ? `${r.patient.first_name} ${r.patient.last_name}`
-            : "Unknown";
-          return {
-            id: r.id,
-            patient_name: patientName,
-            pickup_time: r.pickup_time,
-            status: r.status,
-            trip_type: r.trip_type,
-            is_current: false,
-            patient_weight: r.patient?.weight_lbs ?? null,
-          };
-        });
+      // Get runs from truck_run_slots joined with scheduling_legs
+      const truckSlots = ((slotRows ?? []) as any[])
+        .filter((s) => s.truck_id === t.id)
+        .sort((a, b) => (a.slot_order ?? 0) - (b.slot_order ?? 0));
 
+      const truckRuns = truckSlots.map((s) => {
+        const leg = s.leg as any;
+        const patient = leg?.patient;
+        const patientName = patient
+          ? `${patient.first_name} ${patient.last_name}`
+          : "Unknown";
+        return {
+          id: s.id,
+          patient_name: patientName,
+          pickup_time: leg?.pickup_time ?? null,
+          status: (s.status ?? "pending") as RunStatus,
+          trip_type: leg?.trip_type ?? "dialysis",
+          is_current: false,
+          patient_weight: patient?.weight_lbs ?? null,
+        };
+      });
+
+      // Mark first non-completed as "current"
       const currentIdx = truckRuns.findIndex((r) => r.status !== "completed");
       if (currentIdx >= 0) truckRuns[currentIdx].is_current = true;
 
-      const scheduledLegsCount = (slotRows ?? []).filter((s) => s.truck_id === t.id).length;
       const avail = availMap.get(t.id);
 
       return {
         id: t.id,
         name: t.name,
         crewNames,
-        scheduledLegsCount,
+        scheduledLegsCount: truckSlots.length,
         runs: truckRuns,
         overallStatus: computeOverallStatus(truckRuns),
         downStatus: (avail?.status as "down_maintenance" | "down_out_of_service" | null) ?? null,
@@ -126,13 +139,12 @@ export default function DispatchBoard() {
 
     const channel = supabase
       .channel("dispatch-board")
-      .on("postgres_changes", { event: "*", schema: "public", table: "runs" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "status_updates" }, () => fetchData())
+      // Listen to truck_run_slots and scheduling_legs (the scheduling system's tables)
+      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs" }, () => fetchData())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -180,7 +192,16 @@ export default function DispatchBoard() {
             ) : (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {trucks.map((t) => (
-                  <TruckCard key={t.id} truckName={t.name} crewNames={t.crewNames} scheduledLegsCount={t.scheduledLegsCount} runs={t.runs} overallStatus={t.overallStatus} downStatus={t.downStatus} downReason={t.downReason} />
+                  <TruckCard
+                    key={t.id}
+                    truckName={t.name}
+                    crewNames={t.crewNames}
+                    scheduledLegsCount={t.scheduledLegsCount}
+                    runs={t.runs}
+                    overallStatus={t.overallStatus}
+                    downStatus={t.downStatus}
+                    downReason={t.downReason}
+                  />
                 ))}
               </div>
             )}
