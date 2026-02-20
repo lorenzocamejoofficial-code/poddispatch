@@ -492,6 +492,93 @@ export type Database = {
           },
         ]
       }
+      import_mapping_templates: {
+        Row: {
+          company_id: string
+          created_at: string
+          data_type: string
+          id: string
+          mapping: Json
+          name: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          data_type?: string
+          id?: string
+          mapping?: Json
+          name?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          data_type?: string
+          id?: string
+          mapping?: Json
+          name?: string
+        }
+        Relationships: []
+      }
+      import_sessions: {
+        Row: {
+          column_mapping: Json | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data_type: string
+          error_count: number
+          file_name: string
+          id: string
+          imported_rows: number
+          is_historical: boolean
+          is_test_mode: boolean
+          raw_headers: string[] | null
+          status: string
+          total_rows: number
+          updated_at: string
+          warning_count: number
+          warnings: Json | null
+        }
+        Insert: {
+          column_mapping?: Json | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data_type?: string
+          error_count?: number
+          file_name: string
+          id?: string
+          imported_rows?: number
+          is_historical?: boolean
+          is_test_mode?: boolean
+          raw_headers?: string[] | null
+          status?: string
+          total_rows?: number
+          updated_at?: string
+          warning_count?: number
+          warnings?: Json | null
+        }
+        Update: {
+          column_mapping?: Json | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_type?: string
+          error_count?: number
+          file_name?: string
+          id?: string
+          imported_rows?: number
+          is_historical?: boolean
+          is_test_mode?: boolean
+          raw_headers?: string[] | null
+          status?: string
+          total_rows?: number
+          updated_at?: string
+          warning_count?: number
+          warnings?: Json | null
+        }
+        Relationships: []
+      }
       leg_exceptions: {
         Row: {
           created_at: string
@@ -532,6 +619,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      migration_settings: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          parallel_mode: boolean
+          start_forward_mode: boolean
+          updated_at: string
+          wizard_completed: boolean
+          wizard_step: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          parallel_mode?: boolean
+          start_forward_mode?: boolean
+          updated_at?: string
+          wizard_completed?: boolean
+          wizard_step?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          parallel_mode?: boolean
+          start_forward_mode?: boolean
+          updated_at?: string
+          wizard_completed?: boolean
+          wizard_step?: number
+        }
+        Relationships: []
       }
       notifications: {
         Row: {
