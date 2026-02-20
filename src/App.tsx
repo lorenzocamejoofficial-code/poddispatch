@@ -17,6 +17,11 @@ import AdminSettings from "./pages/AdminSettings";
 import CrewScheduleAdmin from "./pages/CrewScheduleAdmin";
 import DailyRunSheet from "./pages/DailyRunSheet";
 import NotFound from "./pages/NotFound";
+import TripsAndClinical from "./pages/TripsAndClinical";
+import BillingAndClaims from "./pages/BillingAndClaims";
+import ComplianceAndQA from "./pages/ComplianceAndQA";
+import FacilitiesPage from "./pages/FacilitiesPage";
+import ReportsAndMetrics from "./pages/ReportsAndMetrics";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +86,11 @@ function AppRoutes() {
         <Route path="/crew/:token" element={<DailyRunSheet />} />
         <Route path="/runs" element={<Runs />} /> {/* legacy */}
         <Route path="/patients" element={<Patients />} />
+        <Route path="/trips" element={<TripsAndClinical />} />
+        <Route path="/billing" element={<BillingAndClaims />} />
+        <Route path="/compliance" element={<ComplianceAndQA />} />
+        <Route path="/facilities" element={<FacilitiesPage />} />
+        <Route path="/reports" element={<ReportsAndMetrics />} />
         <Route path="/employees" element={<Employees />} />
         <Route path="/trucks" element={<TrucksCrews />} />
         <Route path="/settings" element={<AdminSettings />} />

@@ -64,6 +64,10 @@ export default function Patients() {
     transport_type: "dialysis" as TransportType,
     recurrence_start_date: "", recurrence_end_date: "",
     no_end_date: true,
+    mobility: "ambulatory", oxygen_required: false, bariatric: false,
+    standing_order: false, special_handling: "",
+    primary_payer: "", secondary_payer: "", member_id: "",
+    auth_required: false, auth_expiration: "", trips_per_week_limit: "",
   });
 
   const fetchPatients = async () => {
@@ -82,6 +86,10 @@ export default function Patients() {
       transport_type: "dialysis",
       recurrence_start_date: "", recurrence_end_date: "",
       no_end_date: true,
+      mobility: "ambulatory", oxygen_required: false, bariatric: false,
+      standing_order: false, special_handling: "",
+      primary_payer: "", secondary_payer: "", member_id: "",
+      auth_required: false, auth_expiration: "", trips_per_week_limit: "",
     });
     setEditing(null);
   };
@@ -100,6 +108,17 @@ export default function Patients() {
       recurrence_start_date: (p as any).recurrence_start_date ?? "",
       recurrence_end_date: endDate,
       no_end_date: !endDate,
+      mobility: (p as any).mobility ?? "ambulatory",
+      oxygen_required: (p as any).oxygen_required ?? false,
+      bariatric: (p as any).bariatric ?? false,
+      standing_order: (p as any).standing_order ?? false,
+      special_handling: (p as any).special_handling ?? "",
+      primary_payer: (p as any).primary_payer ?? "",
+      secondary_payer: (p as any).secondary_payer ?? "",
+      member_id: (p as any).member_id ?? "",
+      auth_required: (p as any).auth_required ?? false,
+      auth_expiration: (p as any).auth_expiration ?? "",
+      trips_per_week_limit: (p as any).trips_per_week_limit?.toString() ?? "",
     });
     setDialogOpen(true);
   };
@@ -121,6 +140,18 @@ export default function Patients() {
       transport_type: form.transport_type,
       recurrence_start_date: form.recurrence_start_date || null,
       recurrence_end_date: form.no_end_date ? null : (form.recurrence_end_date || null),
+      // New insurance & transport fields
+      mobility: form.mobility,
+      oxygen_required: form.oxygen_required,
+      bariatric: form.bariatric,
+      standing_order: form.standing_order,
+      special_handling: form.special_handling || null,
+      primary_payer: form.primary_payer || null,
+      secondary_payer: form.secondary_payer || null,
+      member_id: form.member_id || null,
+      auth_required: form.auth_required,
+      auth_expiration: form.auth_expiration || null,
+      trips_per_week_limit: form.trips_per_week_limit ? parseInt(form.trips_per_week_limit) : null,
     };
 
     if (!payload.first_name || !payload.last_name) return;
@@ -354,6 +385,66 @@ export default function Patients() {
                             <Input type="date" value={form.recurrence_end_date} onChange={(e) => setForm({ ...form, recurrence_end_date: e.target.value })} />
                           )}
                         </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Insurance & Transport Flags */}
+                  <div className="border-t pt-3 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Insurance &amp; Transport</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Primary Payer</Label>
+                        <Select value={form.primary_payer || "none"} onValueChange={v => setForm({ ...form, primary_payer: v === "none" ? "" : v })}>
+                          <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">— None —</SelectItem>
+                            <SelectItem value="medicare">Medicare</SelectItem>
+                            <SelectItem value="medicaid">Medicaid</SelectItem>
+                            <SelectItem value="facility">Facility</SelectItem>
+                            <SelectItem value="cash">Cash / Private</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Member ID</Label>
+                        <Input value={form.member_id} onChange={e => setForm({ ...form, member_id: e.target.value })} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Mobility</Label>
+                        <Select value={form.mobility} onValueChange={v => setForm({ ...form, mobility: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ambulatory">Ambulatory</SelectItem>
+                            <SelectItem value="wheelchair">Wheelchair</SelectItem>
+                            <SelectItem value="stretcher">Stretcher</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Trips/Week Limit</Label>
+                        <Input type="number" value={form.trips_per_week_limit} onChange={e => setForm({ ...form, trips_per_week_limit: e.target.value })} placeholder="No limit" />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-4">
+                      {[
+                        { key: "oxygen_required" as const, label: "Oxygen Required" },
+                        { key: "bariatric" as const, label: "Bariatric" },
+                        { key: "standing_order" as const, label: "Standing Order" },
+                        { key: "auth_required" as const, label: "Auth Required" },
+                      ].map(f => (
+                        <label key={f.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input type="checkbox" checked={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.checked })} className="accent-primary" />
+                          {f.label}
+                        </label>
+                      ))}
+                    </div>
+                    {form.auth_required && (
+                      <div>
+                        <Label>Auth Expiration</Label>
+                        <Input type="date" value={form.auth_expiration} onChange={e => setForm({ ...form, auth_expiration: e.target.value })} />
                       </div>
                     )}
                   </div>
