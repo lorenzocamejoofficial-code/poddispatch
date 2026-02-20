@@ -11,13 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import {
   Plus, Zap, AlertTriangle, ArrowRight,
   Wand2, ChevronLeft, ChevronRight, CalendarDays, ArrowLeft,
-  GitBranch, GripVertical,
+  GitBranch, GripVertical, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
 import { RunPool } from "@/components/scheduling/RunPool";
 import { TemplateControls } from "@/components/scheduling/TemplateControls";
 import { UpcomingNonDialysisPanel } from "@/components/scheduling/UpcomingNonDialysisPanel";
+import { OperationalAlertsPanel, type OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
 import { useSchedulingStore, type LegDisplay } from "@/hooks/useSchedulingStore";
 import {
   DndContext,
@@ -93,14 +94,101 @@ export default function Scheduling() {
   // Active share tokens for "Link active" indicators on truck cards
   const [activeShareTokens, setActiveShareTokens] = useState<{ truck_id: string; valid_from: string; valid_until: string }[]>([]);
 
+  // Operational alerts (Patient Not Ready signals from crew)
+  const [operationalAlerts, setOperationalAlerts] = useState<OperationalAlert[]>([]);
+
+  const fetchOperationalAlerts = useCallback(async () => {
+    const { data: alertRows } = await supabase
+      .from("operational_alerts" as any)
+      .select("*")
+      .eq("run_date", selectedDate)
+      .eq("alert_type", "PATIENT_NOT_READY")
+      .order("created_at", { ascending: false });
+
+    if (!alertRows) return;
+
+    // Enrich with truck names and patient info
+    const truckIds = [...new Set((alertRows as any[]).map((a: any) => a.truck_id))];
+    const legIds = [...new Set((alertRows as any[]).map((a: any) => a.leg_id))];
+
+    const [{ data: truckRows }, { data: legRows }, { data: slotRows }] = await Promise.all([
+      truckIds.length > 0 ? supabase.from("trucks").select("id, name").in("id", truckIds) : Promise.resolve({ data: [] }),
+      legIds.length > 0
+        ? supabase.from("scheduling_legs")
+            .select("id, pickup_time, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)")
+            .in("id", legIds)
+        : Promise.resolve({ data: [] }),
+      legIds.length > 0
+        ? supabase.from("truck_run_slots").select("leg_id, slot_order, truck_id").eq("run_date", selectedDate).in("leg_id", legIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const truckMap = new Map((truckRows ?? []).map((t: any) => [t.id, t.name]));
+    const legMap = new Map((legRows ?? []).map((l: any) => [l.id, l]));
+    const slotMap = new Map((slotRows ?? []).map((s: any) => [s.leg_id, s]));
+
+    // Build sorted slots per truck to find "next" pickup after each alert
+    const truckSlots = new Map<string, { leg_id: string; slot_order: number; pickup_time?: string }[]>();
+    for (const s of slotRows ?? []) {
+      const arr = truckSlots.get((s as any).truck_id) ?? [];
+      const leg = legMap.get((s as any).leg_id);
+      arr.push({ leg_id: (s as any).leg_id, slot_order: (s as any).slot_order, pickup_time: (leg as any)?.pickup_time });
+      truckSlots.set((s as any).truck_id, arr);
+    }
+
+    const enriched: OperationalAlert[] = (alertRows as any[]).map((a: any) => {
+      const leg = legMap.get(a.leg_id) as any;
+      const slot = slotMap.get(a.leg_id) as any;
+      const truckSlotList = (truckSlots.get(a.truck_id) ?? []).sort((x, y) => x.slot_order - y.slot_order);
+      const myIdx = truckSlotList.findIndex((s) => s.leg_id === a.leg_id);
+      const nextSlot = myIdx >= 0 && myIdx < truckSlotList.length - 1 ? truckSlotList[myIdx + 1] : null;
+
+      return {
+        id: a.id,
+        truck_id: a.truck_id,
+        leg_id: a.leg_id,
+        note: a.note,
+        created_at: a.created_at,
+        status: a.status,
+        run_date: a.run_date,
+        truck_name: truckMap.get(a.truck_id) ?? "Unknown Truck",
+        patient_name: leg?.patient ? `${leg.patient.first_name} ${leg.patient.last_name}` : undefined,
+        pickup_time: leg?.pickup_time ?? null,
+        slot_order: slot?.slot_order ?? null,
+        next_pickup_time: nextSlot?.pickup_time ?? null,
+      };
+    });
+
+    setOperationalAlerts(enriched);
+  }, [selectedDate]);
+
   useEffect(() => {
     supabase
       .from("crew_share_tokens")
       .select("truck_id, valid_from, valid_until")
       .eq("active", true)
       .then(({ data }) => setActiveShareTokens((data ?? []) as any[]));
-  }, [selectedDate]);
 
+    fetchOperationalAlerts();
+  }, [selectedDate, fetchOperationalAlerts]);
+
+  // Realtime subscription for operational alerts
+  useEffect(() => {
+    const channel = supabase
+      .channel("operational-alerts-scheduling")
+      .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => fetchOperationalAlerts())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchOperationalAlerts]);
+
+  const resolveOperationalAlert = async (id: string) => {
+    await supabase
+      .from("operational_alerts" as any)
+      .update({ status: "resolved", resolved_at: new Date().toISOString(), resolved_by: "dispatch" })
+      .eq("id", id);
+    toast.success("Alert resolved");
+    setOperationalAlerts((prev) => prev.map((a) => a.id === id ? { ...a, status: "resolved" } : a));
+  };
 
   // Drag state
   const [activeDragLeg, setActiveDragLeg] = useState<LegDisplay | null>(null);
@@ -599,6 +687,30 @@ export default function Scheduling() {
               </div>
             </section>
 
+            {/* ── PATIENT NOT READY ALERTS ── */}
+            {(() => {
+              const openAlerts = operationalAlerts.filter((a) => a.status === "open");
+              return (
+                <section>
+                  <div className="mb-2 flex items-center gap-2">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                      Patient Not Ready Alerts
+                    </h3>
+                    {openAlerts.length > 0 && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--status-red))]/15 px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--status-red))]">
+                        <AlertCircle className="h-3 w-3" />
+                        {openAlerts.length} open
+                      </span>
+                    )}
+                  </div>
+                  <OperationalAlertsPanel
+                    alerts={operationalAlerts}
+                    onResolve={resolveOperationalAlert}
+                  />
+                </section>
+              );
+            })()}
+
             {/* ── RUN POOL (scalable, collapsible, grouped) ── */}
             <RunPool
               unassigned={unassignedLegs}
@@ -616,6 +728,7 @@ export default function Scheduling() {
               onEditException={openExceptionEdit}
               onDownCountChange={setDownTruckCount}
               activeTokens={activeShareTokens}
+              operationalAlerts={operationalAlerts}
             />
 
             {/* ── TEMPLATE CONTROLS (bottom of truck builder area) ── */}

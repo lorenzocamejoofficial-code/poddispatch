@@ -333,6 +333,73 @@ export type Database = {
         }
         Relationships: []
       }
+      operational_alerts: {
+        Row: {
+          alert_type: string
+          company_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          leg_id: string
+          note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          run_date: string
+          status: string
+          truck_id: string
+        }
+        Insert: {
+          alert_type?: string
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          leg_id: string
+          note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          run_date?: string
+          status?: string
+          truck_id: string
+        }
+        Update: {
+          alert_type?: string
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          leg_id?: string
+          note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          run_date?: string
+          status?: string
+          truck_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operational_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operational_alerts_leg_id_fkey"
+            columns: ["leg_id"]
+            isOneToOne: false
+            referencedRelation: "scheduling_legs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operational_alerts_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           chair_time: string | null

@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
   Truck, Users, Clock, ArrowRight, Zap, MapPin, RefreshCw,
-  CheckCircle2, Navigation, UserCheck, Loader2, Building2, X, Phone, Calendar, FileText
+  CheckCircle2, Navigation, UserCheck, Loader2, Building2, X, Phone, Calendar, FileText,
+  AlertCircle, CheckCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -12,6 +13,13 @@ import { format } from "date-fns";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const AUTO_REFRESH_MS = 45_000;
+
+interface NotReadyAlert {
+  id: string;
+  note: string | null;
+  created_at: string;
+  status: string;
+}
 
 interface LegRow {
   id: string;
@@ -29,11 +37,14 @@ interface LegRow {
   notes: string | null;
   slot_id: string | null;
   slot_status: string;
+  not_ready_alert: NotReadyAlert | null;
 }
 
 interface SheetData {
   companyName: string;
   truckName: string;
+  truckId: string;
+  companyId: string | null;
   date: string;
   member1: string | null;
   member2: string | null;
@@ -91,6 +102,12 @@ export default function DailyRunSheet() {
   const [updatingSlot, setUpdatingSlot] = useState<string | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<LegRow | null>(null);
   const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Not Ready state
+  const [notReadyLeg, setNotReadyLeg] = useState<LegRow | null>(null);
+  const [notReadyNote, setNotReadyNote] = useState("");
+  const [submittingNotReady, setSubmittingNotReady] = useState(false);
+  const [clearingAlert, setClearingAlert] = useState<string | null>(null);
 
   const fetchSheet = useCallback(async (silent = false) => {
     if (!token) { setError("No token provided"); setLoading(false); return; }
@@ -165,6 +182,85 @@ export default function DailyRunSheet() {
       toast.error("Network error. Please try again.");
     }
     setUpdatingSlot(null);
+  };
+
+  const submitNotReady = async () => {
+    if (!notReadyLeg || !data) return;
+    setSubmittingNotReady(true);
+    try {
+      const res = await fetch(
+        getEdgeFunctionUrl(`crew-run-sheet?token=${encodeURIComponent(token!)}`),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "not_ready",
+            leg_id: notReadyLeg.id,
+            note: notReadyNote,
+            company_id: data.companyId,
+          }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "Failed to send alert");
+      } else {
+        toast.success("Dispatch has been notified");
+        const newAlert: NotReadyAlert = {
+          id: json.alert_id,
+          note: notReadyNote.trim() || null,
+          created_at: json.created_at,
+          status: "open",
+        };
+        setData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            legs: prev.legs.map((l) =>
+              l.id === notReadyLeg.id ? { ...l, not_ready_alert: newAlert } : l
+            ),
+          };
+        });
+        setNotReadyLeg(null);
+        setNotReadyNote("");
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    }
+    setSubmittingNotReady(false);
+  };
+
+  const clearNotReady = async (leg: LegRow) => {
+    if (!leg.not_ready_alert) return;
+    setClearingAlert(leg.id);
+    try {
+      const res = await fetch(
+        getEdgeFunctionUrl(`crew-run-sheet?token=${encodeURIComponent(token!)}`),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "clear_not_ready", alert_id: leg.not_ready_alert.id }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "Failed to clear alert");
+      } else {
+        toast.success("Patient ready — alert cleared");
+        setData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            legs: prev.legs.map((l) =>
+              l.id === leg.id ? { ...l, not_ready_alert: null } : l
+            ),
+          };
+        });
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    }
+    setClearingAlert(null);
   };
 
   const openInMaps = (address: string) => {
@@ -260,11 +356,14 @@ export default function DailyRunSheet() {
             const StatusIcon = STATUS_ICONS[leg.slot_status] ?? Clock;
             const currentIdx = STATUS_FLOW.indexOf(leg.slot_status as any);
             const nextStatus = currentIdx < STATUS_FLOW.length - 1 ? STATUS_FLOW[currentIdx + 1] : null;
+            const hasNotReady = !!leg.not_ready_alert;
 
             return (
               <div
                 key={leg.id}
-                className={`rounded-lg border bg-card p-3 ${isCompleted ? "opacity-60" : ""}`}
+                className={`rounded-lg border bg-card p-3 ${isCompleted ? "opacity-60" : ""} ${
+                  hasNotReady ? "border-[hsl(var(--status-red))]/50" : ""
+                }`}
               >
                 {/* Row header */}
                 <div className="flex items-center justify-between mb-2">
@@ -294,6 +393,33 @@ export default function DailyRunSheet() {
                     {STATUS_LABELS[leg.slot_status] ?? leg.slot_status}
                   </span>
                 </div>
+
+                {/* NOT READY badge */}
+                {hasNotReady && (
+                  <div className="mb-2 flex items-start justify-between gap-2 rounded-md border border-[hsl(var(--status-red))]/40 bg-[hsl(var(--status-red))]/8 px-2.5 py-2">
+                    <div className="flex items-start gap-1.5 min-w-0">
+                      <AlertCircle className="h-3.5 w-3.5 text-[hsl(var(--status-red))] shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-bold text-[hsl(var(--status-red))] uppercase tracking-wide">
+                          Not Ready · {format(new Date(leg.not_ready_alert!.created_at), "h:mm a")}
+                        </span>
+                        {leg.not_ready_alert!.note && (
+                          <p className="text-xs text-foreground mt-0.5 truncate">{leg.not_ready_alert!.note}</p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[10px] shrink-0 border-[hsl(var(--status-green))]/50 text-[hsl(var(--status-green))] hover:bg-[hsl(var(--status-green-bg))]"
+                      disabled={clearingAlert === leg.id}
+                      onClick={() => clearNotReady(leg)}
+                    >
+                      <CheckCheck className="h-3 w-3 mr-1" />
+                      {clearingAlert === leg.id ? "Clearing..." : "Patient Ready"}
+                    </Button>
+                  </div>
+                )}
 
                 {/* Details */}
                 <div className="space-y-1.5 text-sm">
@@ -339,22 +465,88 @@ export default function DailyRunSheet() {
                   )}
                 </div>
 
-                {nextStatus && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-3 w-full"
-                    disabled={updatingSlot === leg.slot_id}
-                    onClick={() => advanceStatus(leg)}
-                  >
-                    {updatingSlot === leg.slot_id ? "Updating..." : `Mark ${STATUS_LABELS[nextStatus]}`}
-                  </Button>
-                )}
+                {/* Action buttons */}
+                <div className="mt-3 flex flex-col gap-2">
+                  {nextStatus && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={updatingSlot === leg.slot_id}
+                      onClick={() => advanceStatus(leg)}
+                    >
+                      {updatingSlot === leg.slot_id ? "Updating..." : `Mark ${STATUS_LABELS[nextStatus]}`}
+                    </Button>
+                  )}
+
+                  {/* Patient Not Ready button — only shown when not completed and no open alert */}
+                  {!isCompleted && !hasNotReady && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-[hsl(var(--status-red))] hover:bg-[hsl(var(--status-red))]/8 hover:text-[hsl(var(--status-red))] border border-[hsl(var(--status-red))]/20"
+                      onClick={() => { setNotReadyLeg(leg); setNotReadyNote(""); }}
+                    >
+                      <AlertCircle className="h-3.5 w-3.5 mr-1.5" />
+                      Patient Not Ready
+                    </Button>
+                  )}
+                </div>
               </div>
             );
           })
         )}
       </div>
+
+      {/* Patient Not Ready Dialog */}
+      <Dialog open={!!notReadyLeg} onOpenChange={(o) => { if (!o) { setNotReadyLeg(null); setNotReadyNote(""); } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[hsl(var(--status-red))]">
+              <AlertCircle className="h-4 w-4" />
+              Patient Not Ready
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">{notReadyLeg?.patient_name}</span> — Run #{notReadyLeg ? data.legs.indexOf(notReadyLeg) + 1 : ""}
+              {notReadyLeg?.pickup_time && (
+                <span className="ml-1">(Pickup: {formatTime(notReadyLeg.pickup_time)})</span>
+              )}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Dispatch will be notified immediately. Add an optional note with more detail.
+            </p>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1.5 block">
+                Note (optional)
+              </label>
+              <textarea
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                rows={3}
+                placeholder='e.g. "Facility says 15 min", "Patient in bathroom", "Nurse delayed paperwork"'
+                value={notReadyNote}
+                onChange={(e) => setNotReadyNote(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1 bg-[hsl(var(--status-red))] hover:bg-[hsl(var(--status-red))]/90 text-white"
+                disabled={submittingNotReady}
+                onClick={submitNotReady}
+              >
+                {submittingNotReady ? "Sending..." : "Notify Dispatch"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setNotReadyLeg(null); setNotReadyNote(""); }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Patient Detail Modal */}
       <Dialog open={!!selectedPatient} onOpenChange={(o) => { if (!o) setSelectedPatient(null); }}>
@@ -428,12 +620,6 @@ export default function DailyRunSheet() {
                       <p className="text-xs uppercase font-semibold tracking-wide mb-0.5">Notes</p>
                       <p className="text-foreground text-xs">{selectedPatient.patient_notes}</p>
                     </div>
-                  </div>
-                )}
-                {selectedPatient.chair_time && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Clock className="h-3.5 w-3.5 shrink-0" />
-                    <span>Chair time: <span className="font-medium text-foreground">{formatTime(selectedPatient.chair_time)}</span></span>
                   </div>
                 )}
               </div>
