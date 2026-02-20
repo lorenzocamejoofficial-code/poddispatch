@@ -20,7 +20,9 @@ interface Facility {
   contact_name: string | null;
   notes: string | null;
   active: boolean;
-  // computed
+  contract_payer_type: string | null;
+  rate_type: string | null;
+  invoice_preference: string | null;
   patient_count?: number;
 }
 
@@ -44,38 +46,26 @@ export default function FacilitiesPage() {
   const [editing, setEditing] = useState<Facility | null>(null);
   const [form, setForm] = useState({
     name: "", facility_type: "dialysis", address: "", phone: "", contact_name: "", notes: "", active: true,
+    contract_payer_type: "", rate_type: "medicare", invoice_preference: "per_trip",
   });
   const [saving, setSaving] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data: facilityRows } = await supabase
-      .from("facilities" as any)
-      .select("*")
-      .order("name");
-
-    // Count patients per facility (by dropoff_facility name match)
+    const { data: facilityRows } = await supabase.from("facilities" as any).select("*").order("name");
     const { data: patients } = await supabase.from("patients").select("dropoff_facility");
     const countMap = new Map<string, number>();
     (patients ?? []).forEach((p: any) => {
-      if (p.dropoff_facility) {
-        countMap.set(p.dropoff_facility, (countMap.get(p.dropoff_facility) ?? 0) + 1);
-      }
+      if (p.dropoff_facility) countMap.set(p.dropoff_facility, (countMap.get(p.dropoff_facility) ?? 0) + 1);
     });
-
-    setFacilities(
-      ((facilityRows ?? []) as any[]).map((f: any) => ({
-        ...f,
-        patient_count: countMap.get(f.name) ?? 0,
-      }))
-    );
+    setFacilities(((facilityRows ?? []) as any[]).map((f: any) => ({ ...f, patient_count: countMap.get(f.name) ?? 0 })));
     setLoading(false);
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const resetForm = () => {
-    setForm({ name: "", facility_type: "dialysis", address: "", phone: "", contact_name: "", notes: "", active: true });
+    setForm({ name: "", facility_type: "dialysis", address: "", phone: "", contact_name: "", notes: "", active: true, contract_payer_type: "", rate_type: "medicare", invoice_preference: "per_trip" });
     setEditing(null);
   };
 
@@ -84,6 +74,8 @@ export default function FacilitiesPage() {
     setForm({
       name: f.name, facility_type: f.facility_type, address: f.address ?? "",
       phone: f.phone ?? "", contact_name: f.contact_name ?? "", notes: f.notes ?? "", active: f.active,
+      contract_payer_type: f.contract_payer_type ?? "", rate_type: f.rate_type ?? "medicare",
+      invoice_preference: f.invoice_preference ?? "per_trip",
     });
     setDialogOpen(true);
   };
@@ -93,7 +85,14 @@ export default function FacilitiesPage() {
     setSaving(true);
     const { data: profileData } = await supabase.from("profiles").select("company_id").limit(1).single();
     const companyId = (profileData as any)?.company_id ?? null;
-    const payload = { ...form, name: form.name.trim(), company_id: companyId };
+    const payload = {
+      name: form.name.trim(), facility_type: form.facility_type, address: form.address || null,
+      phone: form.phone || null, contact_name: form.contact_name || null, notes: form.notes || null,
+      active: form.active, company_id: companyId,
+      contract_payer_type: form.contract_payer_type || null,
+      rate_type: form.rate_type || null,
+      invoice_preference: form.invoice_preference || null,
+    };
 
     if (editing) {
       await supabase.from("facilities" as any).update(payload).eq("id", editing.id);
@@ -108,14 +107,11 @@ export default function FacilitiesPage() {
     setSaving(false);
   };
 
-  const filtered = facilities.filter(f =>
-    f.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = facilities.filter(f => f.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <AdminLayout>
       <div className="space-y-4">
-        {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3 justify-between">
           <div className="relative max-w-xs flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -126,7 +122,6 @@ export default function FacilitiesPage() {
           </Button>
         </div>
 
-        {/* Grid */}
         {loading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground">Loading…</div>
         ) : filtered.length === 0 ? (
@@ -155,15 +150,15 @@ export default function FacilitiesPage() {
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                   {f.phone && <span>📞 {f.phone}</span>}
                   {f.contact_name && <span>👤 {f.contact_name}</span>}
+                  {f.rate_type && <span className="capitalize">💲 {f.rate_type}</span>}
+                  {f.contract_payer_type && <span className="capitalize">📄 {f.contract_payer_type}</span>}
                 </div>
                 <div className="flex items-center gap-2 pt-1 border-t">
                   <Users className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">{f.patient_count} active patients</span>
                   {!f.active && <Badge variant="secondary" className="text-[10px] ml-auto">Inactive</Badge>}
                 </div>
-                {f.notes && (
-                  <p className="text-xs text-muted-foreground border-t pt-2 line-clamp-2">{f.notes}</p>
-                )}
+                {f.notes && <p className="text-xs text-muted-foreground border-t pt-2 line-clamp-2">{f.notes}</p>}
               </div>
             ))}
           </div>
@@ -171,7 +166,7 @@ export default function FacilitiesPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={o => { setDialogOpen(o); if (!o) resetForm(); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Facility" : "Add Facility"}</DialogTitle>
             <DialogDescription>Dialysis centers, hospitals, SNFs, and other destinations.</DialogDescription>
@@ -200,6 +195,49 @@ export default function FacilitiesPage() {
               <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
               <div><Label>Contact Name</Label><Input value={form.contact_name} onChange={e => setForm({ ...form, contact_name: e.target.value })} /></div>
             </div>
+
+            {/* Contract fields */}
+            <div className="border-t pt-3 space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contract Details</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Contract Payer Type</Label>
+                  <Select value={form.contract_payer_type || ""} onValueChange={v => setForm({ ...form, contract_payer_type: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="medicare">Medicare</SelectItem>
+                      <SelectItem value="medicaid">Medicaid</SelectItem>
+                      <SelectItem value="facility">Facility Contract</SelectItem>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="mixed">Mixed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Rate Type</Label>
+                  <Select value={form.rate_type} onValueChange={v => setForm({ ...form, rate_type: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="medicare">Medicare</SelectItem>
+                      <SelectItem value="contract">Contract</SelectItem>
+                      <SelectItem value="mixed">Mixed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>Invoice Preference</Label>
+                <Select value={form.invoice_preference} onValueChange={v => setForm({ ...form, invoice_preference: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="per_trip">Per Trip</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
             <div className="flex items-center justify-between">
               <Label>Active</Label>

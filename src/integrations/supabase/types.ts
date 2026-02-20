@@ -168,13 +168,17 @@ export type Database = {
           created_at: string
           denial_code: string | null
           denial_reason: string | null
+          destination_type: string | null
           destination_zip: string | null
           extras_charge: number | null
+          hcpcs_codes: string[] | null
+          hcpcs_modifiers: string[] | null
           icd10_codes: string[] | null
           id: string
           member_id: string | null
           mileage_charge: number | null
           notes: string | null
+          origin_type: string | null
           origin_zip: string | null
           paid_at: string | null
           patient_id: string | null
@@ -196,13 +200,17 @@ export type Database = {
           created_at?: string
           denial_code?: string | null
           denial_reason?: string | null
+          destination_type?: string | null
           destination_zip?: string | null
           extras_charge?: number | null
+          hcpcs_codes?: string[] | null
+          hcpcs_modifiers?: string[] | null
           icd10_codes?: string[] | null
           id?: string
           member_id?: string | null
           mileage_charge?: number | null
           notes?: string | null
+          origin_type?: string | null
           origin_zip?: string | null
           paid_at?: string | null
           patient_id?: string | null
@@ -224,13 +232,17 @@ export type Database = {
           created_at?: string
           denial_code?: string | null
           denial_reason?: string | null
+          destination_type?: string | null
           destination_zip?: string | null
           extras_charge?: number | null
+          hcpcs_codes?: string[] | null
+          hcpcs_modifiers?: string[] | null
           icd10_codes?: string[] | null
           id?: string
           member_id?: string | null
           mileage_charge?: number | null
           notes?: string | null
+          origin_type?: string | null
           origin_zip?: string | null
           paid_at?: string | null
           patient_id?: string | null
@@ -427,12 +439,15 @@ export type Database = {
           address: string | null
           company_id: string | null
           contact_name: string | null
+          contract_payer_type: string | null
           created_at: string
           facility_type: string
           id: string
+          invoice_preference: string | null
           name: string
           notes: string | null
           phone: string | null
+          rate_type: string | null
           updated_at: string
         }
         Insert: {
@@ -440,12 +455,15 @@ export type Database = {
           address?: string | null
           company_id?: string | null
           contact_name?: string | null
+          contract_payer_type?: string | null
           created_at?: string
           facility_type?: string
           id?: string
+          invoice_preference?: string | null
           name: string
           notes?: string | null
           phone?: string | null
+          rate_type?: string | null
           updated_at?: string
         }
         Update: {
@@ -453,12 +471,15 @@ export type Database = {
           address?: string | null
           company_id?: string | null
           contact_name?: string | null
+          contract_payer_type?: string | null
           created_at?: string
           facility_type?: string
           id?: string
+          invoice_preference?: string | null
           name?: string
           notes?: string | null
           phone?: string | null
+          rate_type?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1110,12 +1131,16 @@ export type Database = {
           created_at: string
           crew_id: string | null
           destination_location: string | null
+          destination_type: string | null
           dropped_at: string | null
+          hcpcs_codes: string[] | null
+          hcpcs_modifiers: string[] | null
           id: string
           leg_id: string | null
           loaded_at: string | null
           loaded_miles: number | null
           necessity_notes: string | null
+          origin_type: string | null
           patient_id: string | null
           pcs_attached: boolean | null
           pickup_location: string | null
@@ -1136,12 +1161,16 @@ export type Database = {
           created_at?: string
           crew_id?: string | null
           destination_location?: string | null
+          destination_type?: string | null
           dropped_at?: string | null
+          hcpcs_codes?: string[] | null
+          hcpcs_modifiers?: string[] | null
           id?: string
           leg_id?: string | null
           loaded_at?: string | null
           loaded_miles?: number | null
           necessity_notes?: string | null
+          origin_type?: string | null
           patient_id?: string | null
           pcs_attached?: boolean | null
           pickup_location?: string | null
@@ -1162,12 +1191,16 @@ export type Database = {
           created_at?: string
           crew_id?: string | null
           destination_location?: string | null
+          destination_type?: string | null
           dropped_at?: string | null
+          hcpcs_codes?: string[] | null
+          hcpcs_modifiers?: string[] | null
           id?: string
           leg_id?: string | null
           loaded_at?: string | null
           loaded_miles?: number | null
           necessity_notes?: string | null
+          origin_type?: string | null
           patient_id?: string | null
           pcs_attached?: boolean | null
           pickup_location?: string | null

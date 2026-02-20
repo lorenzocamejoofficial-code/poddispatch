@@ -38,6 +38,11 @@ interface LegRow {
   slot_id: string | null;
   slot_status: string;
   not_ready_alert: NotReadyAlert | null;
+  trip_id: string | null;
+  trip_loaded_miles: number | null;
+  trip_signature: boolean;
+  trip_pcs: boolean;
+  trip_status: string | null;
 }
 
 interface SheetData {
@@ -108,6 +113,46 @@ export default function DailyRunSheet() {
   const [notReadyNote, setNotReadyNote] = useState("");
   const [submittingNotReady, setSubmittingNotReady] = useState(false);
   const [clearingAlert, setClearingAlert] = useState<string | null>(null);
+
+  // Trip capture state
+  const [captureLeg, setCaptureLeg] = useState<LegRow | null>(null);
+  const [captureMiles, setCaptureMiles] = useState("");
+  const [submittingCapture, setSubmittingCapture] = useState(false);
+
+  const submitTripCapture = async (leg: LegRow, updates: { loaded_miles?: number; signature_obtained?: boolean; pcs_attached?: boolean; complete?: boolean }) => {
+    if (!leg.trip_id) { toast.error("No trip record linked"); return; }
+    setSubmittingCapture(true);
+    try {
+      const res = await fetch(
+        getEdgeFunctionUrl(`crew-run-sheet?token=${encodeURIComponent(token!)}`),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "update_trip", trip_id: leg.trip_id, ...updates }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) { toast.error(json.error ?? "Failed"); }
+      else {
+        toast.success(updates.complete ? "Trip completed!" : "Trip updated");
+        setData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            legs: prev.legs.map(l => l.id === leg.id ? {
+              ...l,
+              trip_loaded_miles: updates.loaded_miles ?? l.trip_loaded_miles,
+              trip_signature: updates.signature_obtained ?? l.trip_signature,
+              trip_pcs: updates.pcs_attached ?? l.trip_pcs,
+              trip_status: updates.complete ? "completed" : l.trip_status,
+            } : l),
+          };
+        });
+        setCaptureLeg(null);
+      }
+    } catch { toast.error("Network error"); }
+    setSubmittingCapture(false);
+  };
 
   const fetchSheet = useCallback(async (silent = false) => {
     if (!token) { setError("No token provided"); setLoading(false); return; }
@@ -479,7 +524,53 @@ export default function DailyRunSheet() {
                     </Button>
                   )}
 
-                  {/* Patient Not Ready button — only shown when not completed and no open alert */}
+                  {/* Trip capture panel — show when trip exists and not completed */}
+                  {leg.trip_id && leg.trip_status !== "completed" && leg.trip_status !== "ready_for_billing" && (
+                    <div className="rounded-md border bg-muted/30 p-2.5 space-y-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Trip Capture</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <Button
+                          variant={leg.trip_loaded_miles ? "secondary" : "outline"}
+                          size="sm"
+                          className="text-[10px] h-8"
+                          onClick={() => { setCaptureLeg(leg); setCaptureMiles(leg.trip_loaded_miles?.toString() ?? ""); }}
+                        >
+                          {leg.trip_loaded_miles ? `${leg.trip_loaded_miles} mi` : "Enter Miles"}
+                        </Button>
+                        <Button
+                          variant={leg.trip_signature ? "secondary" : "outline"}
+                          size="sm"
+                          className="text-[10px] h-8"
+                          onClick={() => submitTripCapture(leg, { signature_obtained: !leg.trip_signature })}
+                          disabled={submittingCapture}
+                        >
+                          {leg.trip_signature ? "✓ Signed" : "Capture Sig"}
+                        </Button>
+                        <Button
+                          variant={leg.trip_pcs ? "secondary" : "outline"}
+                          size="sm"
+                          className="text-[10px] h-8"
+                          onClick={() => submitTripCapture(leg, { pcs_attached: !leg.trip_pcs })}
+                          disabled={submittingCapture}
+                        >
+                          {leg.trip_pcs ? "✓ PCS" : "Upload PCS"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="text-[10px] h-8 bg-[hsl(var(--status-green))] hover:bg-[hsl(var(--status-green))]/90 text-white"
+                          onClick={() => submitTripCapture(leg, { complete: true, loaded_miles: leg.trip_loaded_miles ?? undefined })}
+                          disabled={submittingCapture || !leg.trip_loaded_miles}
+                        >
+                          Complete Trip
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {leg.trip_status === "completed" && (
+                    <p className="text-[10px] text-center text-[hsl(var(--status-green))] font-semibold">✓ Trip Completed</p>
+                  )}
+
+                  {/* Patient Not Ready button */}
                   {!isCompleted && !hasNotReady && (
                     <Button
                       variant="ghost"
