@@ -13,16 +13,26 @@ import {
   Menu,
   X,
   Send,
+  FileText,
+  DollarSign,
+  ShieldCheck,
+  Building2,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { HelpButton } from "@/components/help/HelpButton";
 
 const navItems = [
-  { path: "/", label: "Dispatch Board", icon: LayoutDashboard },
+  { path: "/", label: "Dispatch Command", icon: LayoutDashboard },
   { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList },
   { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send },
   { path: "/patients", label: "Patients", icon: Users },
+  { path: "/trips", label: "Trips & Clinical", icon: FileText },
+  { path: "/billing", label: "Billing & Claims", icon: DollarSign },
+  { path: "/compliance", label: "Compliance & QA", icon: ShieldCheck },
+  { path: "/facilities", label: "Facilities", icon: Building2 },
+  { path: "/reports", label: "Reports & Metrics", icon: BarChart3 },
   { path: "/employees", label: "Employees", icon: UserPlus },
   { path: "/trucks", label: "Trucks & Crews", icon: Truck },
   { path: "/settings", label: "Settings", icon: Settings },

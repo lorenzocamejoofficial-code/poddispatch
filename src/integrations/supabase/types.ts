@@ -111,6 +111,162 @@ export type Database = {
         }
         Relationships: []
       }
+      charge_master: {
+        Row: {
+          bariatric_fee: number | null
+          base_rate: number
+          company_id: string | null
+          extra_attendant_fee: number | null
+          id: string
+          mileage_rate: number
+          oxygen_fee: number | null
+          payer_type: string
+          updated_at: string
+          wait_rate_per_min: number | null
+        }
+        Insert: {
+          bariatric_fee?: number | null
+          base_rate?: number
+          company_id?: string | null
+          extra_attendant_fee?: number | null
+          id?: string
+          mileage_rate?: number
+          oxygen_fee?: number | null
+          payer_type?: string
+          updated_at?: string
+          wait_rate_per_min?: number | null
+        }
+        Update: {
+          bariatric_fee?: number | null
+          base_rate?: number
+          company_id?: string | null
+          extra_attendant_fee?: number | null
+          id?: string
+          mileage_rate?: number
+          oxygen_fee?: number | null
+          payer_type?: string
+          updated_at?: string
+          wait_rate_per_min?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "charge_master_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      claim_records: {
+        Row: {
+          amount_paid: number | null
+          auth_number: string | null
+          base_charge: number | null
+          company_id: string | null
+          cpt_codes: string[] | null
+          created_at: string
+          denial_code: string | null
+          denial_reason: string | null
+          destination_zip: string | null
+          extras_charge: number | null
+          icd10_codes: string[] | null
+          id: string
+          member_id: string | null
+          mileage_charge: number | null
+          notes: string | null
+          origin_zip: string | null
+          paid_at: string | null
+          patient_id: string | null
+          payer_name: string | null
+          payer_type: string | null
+          run_date: string
+          status: Database["public"]["Enums"]["claim_status"]
+          submitted_at: string | null
+          total_charge: number | null
+          trip_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_paid?: number | null
+          auth_number?: string | null
+          base_charge?: number | null
+          company_id?: string | null
+          cpt_codes?: string[] | null
+          created_at?: string
+          denial_code?: string | null
+          denial_reason?: string | null
+          destination_zip?: string | null
+          extras_charge?: number | null
+          icd10_codes?: string[] | null
+          id?: string
+          member_id?: string | null
+          mileage_charge?: number | null
+          notes?: string | null
+          origin_zip?: string | null
+          paid_at?: string | null
+          patient_id?: string | null
+          payer_name?: string | null
+          payer_type?: string | null
+          run_date: string
+          status?: Database["public"]["Enums"]["claim_status"]
+          submitted_at?: string | null
+          total_charge?: number | null
+          trip_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_paid?: number | null
+          auth_number?: string | null
+          base_charge?: number | null
+          company_id?: string | null
+          cpt_codes?: string[] | null
+          created_at?: string
+          denial_code?: string | null
+          denial_reason?: string | null
+          destination_zip?: string | null
+          extras_charge?: number | null
+          icd10_codes?: string[] | null
+          id?: string
+          member_id?: string | null
+          mileage_charge?: number | null
+          notes?: string | null
+          origin_zip?: string | null
+          paid_at?: string | null
+          patient_id?: string | null
+          payer_name?: string | null
+          payer_type?: string | null
+          run_date?: string
+          status?: Database["public"]["Enums"]["claim_status"]
+          submitted_at?: string | null
+          total_charge?: number | null
+          trip_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "claim_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_records_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_records_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           created_at: string
@@ -265,6 +421,56 @@ export type Database = {
           },
         ]
       }
+      facilities: {
+        Row: {
+          active: boolean | null
+          address: string | null
+          company_id: string | null
+          contact_name: string | null
+          created_at: string
+          facility_type: string
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean | null
+          address?: string | null
+          company_id?: string | null
+          contact_name?: string | null
+          created_at?: string
+          facility_type?: string
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean | null
+          address?: string | null
+          company_id?: string | null
+          contact_name?: string | null
+          created_at?: string
+          facility_type?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facilities_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leg_exceptions: {
         Row: {
           created_at: string
@@ -402,6 +608,9 @@ export type Database = {
       }
       patients: {
         Row: {
+          auth_expiration: string | null
+          auth_required: boolean | null
+          bariatric: boolean | null
           chair_time: string | null
           company_id: string | null
           created_at: string
@@ -410,19 +619,30 @@ export type Database = {
           first_name: string
           id: string
           last_name: string
+          member_id: string | null
+          mobility: string | null
           notes: string | null
+          oxygen_required: boolean | null
           phone: string | null
           pickup_address: string | null
+          primary_payer: string | null
           recurrence_end_date: string | null
           recurrence_start_date: string | null
           run_duration_minutes: number | null
           schedule_days: Database["public"]["Enums"]["schedule_days"] | null
+          secondary_payer: string | null
+          special_handling: string | null
+          standing_order: boolean | null
           status: Database["public"]["Enums"]["patient_status"]
           transport_type: Database["public"]["Enums"]["transport_type"]
+          trips_per_week_limit: number | null
           updated_at: string
           weight_lbs: number | null
         }
         Insert: {
+          auth_expiration?: string | null
+          auth_required?: boolean | null
+          bariatric?: boolean | null
           chair_time?: string | null
           company_id?: string | null
           created_at?: string
@@ -431,19 +651,30 @@ export type Database = {
           first_name: string
           id?: string
           last_name: string
+          member_id?: string | null
+          mobility?: string | null
           notes?: string | null
+          oxygen_required?: boolean | null
           phone?: string | null
           pickup_address?: string | null
+          primary_payer?: string | null
           recurrence_end_date?: string | null
           recurrence_start_date?: string | null
           run_duration_minutes?: number | null
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
+          secondary_payer?: string | null
+          special_handling?: string | null
+          standing_order?: boolean | null
           status?: Database["public"]["Enums"]["patient_status"]
           transport_type?: Database["public"]["Enums"]["transport_type"]
+          trips_per_week_limit?: number | null
           updated_at?: string
           weight_lbs?: number | null
         }
         Update: {
+          auth_expiration?: string | null
+          auth_required?: boolean | null
+          bariatric?: boolean | null
           chair_time?: string | null
           company_id?: string | null
           created_at?: string
@@ -452,21 +683,76 @@ export type Database = {
           first_name?: string
           id?: string
           last_name?: string
+          member_id?: string | null
+          mobility?: string | null
           notes?: string | null
+          oxygen_required?: boolean | null
           phone?: string | null
           pickup_address?: string | null
+          primary_payer?: string | null
           recurrence_end_date?: string | null
           recurrence_start_date?: string | null
           run_duration_minutes?: number | null
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
+          secondary_payer?: string | null
+          special_handling?: string | null
+          standing_order?: boolean | null
           status?: Database["public"]["Enums"]["patient_status"]
           transport_type?: Database["public"]["Enums"]["transport_type"]
+          trips_per_week_limit?: number | null
           updated_at?: string
           weight_lbs?: number | null
         }
         Relationships: [
           {
             foreignKeyName: "patients_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payer_billing_rules: {
+        Row: {
+          company_id: string | null
+          id: string
+          payer_type: string
+          requires_auth: boolean | null
+          requires_miles: boolean | null
+          requires_necessity_note: boolean | null
+          requires_pcs: boolean | null
+          requires_signature: boolean | null
+          requires_timestamps: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          company_id?: string | null
+          id?: string
+          payer_type?: string
+          requires_auth?: boolean | null
+          requires_miles?: boolean | null
+          requires_necessity_note?: boolean | null
+          requires_pcs?: boolean | null
+          requires_signature?: boolean | null
+          requires_timestamps?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string | null
+          id?: string
+          payer_type?: string
+          requires_auth?: boolean | null
+          requires_miles?: boolean | null
+          requires_necessity_note?: boolean | null
+          requires_pcs?: boolean | null
+          requires_signature?: boolean | null
+          requires_timestamps?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payer_billing_rules_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -547,6 +833,67 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      qa_reviews: {
+        Row: {
+          claim_id: string | null
+          company_id: string | null
+          created_at: string
+          flag_reason: string
+          id: string
+          qa_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          trip_id: string | null
+        }
+        Insert: {
+          claim_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          flag_reason: string
+          id?: string
+          qa_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          trip_id?: string | null
+        }
+        Update: {
+          claim_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          flag_reason?: string
+          id?: string
+          qa_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          trip_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_reviews_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "claim_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_reviews_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_reviews_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       runs: {
         Row: {
@@ -752,6 +1099,130 @@ export type Database = {
             columns: ["run_id"]
             isOneToOne: false
             referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_records: {
+        Row: {
+          billing_blocked_reason: string | null
+          company_id: string | null
+          created_at: string
+          crew_id: string | null
+          destination_location: string | null
+          dropped_at: string | null
+          id: string
+          leg_id: string | null
+          loaded_at: string | null
+          loaded_miles: number | null
+          necessity_notes: string | null
+          patient_id: string | null
+          pcs_attached: boolean | null
+          pickup_location: string | null
+          run_date: string
+          scheduled_pickup_time: string | null
+          service_level: string | null
+          signature_obtained: boolean | null
+          slot_id: string | null
+          status: Database["public"]["Enums"]["trip_status"]
+          trip_type: Database["public"]["Enums"]["trip_type"] | null
+          truck_id: string | null
+          updated_at: string
+          wait_time_minutes: number | null
+        }
+        Insert: {
+          billing_blocked_reason?: string | null
+          company_id?: string | null
+          created_at?: string
+          crew_id?: string | null
+          destination_location?: string | null
+          dropped_at?: string | null
+          id?: string
+          leg_id?: string | null
+          loaded_at?: string | null
+          loaded_miles?: number | null
+          necessity_notes?: string | null
+          patient_id?: string | null
+          pcs_attached?: boolean | null
+          pickup_location?: string | null
+          run_date?: string
+          scheduled_pickup_time?: string | null
+          service_level?: string | null
+          signature_obtained?: boolean | null
+          slot_id?: string | null
+          status?: Database["public"]["Enums"]["trip_status"]
+          trip_type?: Database["public"]["Enums"]["trip_type"] | null
+          truck_id?: string | null
+          updated_at?: string
+          wait_time_minutes?: number | null
+        }
+        Update: {
+          billing_blocked_reason?: string | null
+          company_id?: string | null
+          created_at?: string
+          crew_id?: string | null
+          destination_location?: string | null
+          dropped_at?: string | null
+          id?: string
+          leg_id?: string | null
+          loaded_at?: string | null
+          loaded_miles?: number | null
+          necessity_notes?: string | null
+          patient_id?: string | null
+          pcs_attached?: boolean | null
+          pickup_location?: string | null
+          run_date?: string
+          scheduled_pickup_time?: string | null
+          service_level?: string | null
+          signature_obtained?: boolean | null
+          slot_id?: string | null
+          status?: Database["public"]["Enums"]["trip_status"]
+          trip_type?: Database["public"]["Enums"]["trip_type"] | null
+          truck_id?: string | null
+          updated_at?: string
+          wait_time_minutes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_records_crew_id_fkey"
+            columns: ["crew_id"]
+            isOneToOne: false
+            referencedRelation: "crews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_records_leg_id_fkey"
+            columns: ["leg_id"]
+            isOneToOne: false
+            referencedRelation: "scheduling_legs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_records_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_records_slot_id_fkey"
+            columns: ["slot_id"]
+            isOneToOne: false
+            referencedRelation: "truck_run_slots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_records_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
             referencedColumns: ["id"]
           },
         ]
@@ -973,6 +1444,12 @@ export type Database = {
     Enums: {
       app_role: "admin" | "crew"
       cert_level: "EMT-B" | "EMT-A" | "EMT-P" | "AEMT" | "Other"
+      claim_status:
+        | "ready_to_bill"
+        | "submitted"
+        | "paid"
+        | "denied"
+        | "needs_correction"
       leg_type: "A" | "B"
       patient_status:
         | "active"
@@ -990,6 +1467,14 @@ export type Database = {
       schedule_days: "MWF" | "TTS"
       sex_type: "M" | "F"
       transport_type: "dialysis" | "outpatient" | "adhoc"
+      trip_status:
+        | "scheduled"
+        | "assigned"
+        | "en_route"
+        | "loaded"
+        | "completed"
+        | "ready_for_billing"
+        | "cancelled"
       trip_type:
         | "dialysis"
         | "discharge"
@@ -1125,6 +1610,13 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "crew"],
       cert_level: ["EMT-B", "EMT-A", "EMT-P", "AEMT", "Other"],
+      claim_status: [
+        "ready_to_bill",
+        "submitted",
+        "paid",
+        "denied",
+        "needs_correction",
+      ],
       leg_type: ["A", "B"],
       patient_status: [
         "active",
@@ -1144,6 +1636,15 @@ export const Constants = {
       schedule_days: ["MWF", "TTS"],
       sex_type: ["M", "F"],
       transport_type: ["dialysis", "outpatient", "adhoc"],
+      trip_status: [
+        "scheduled",
+        "assigned",
+        "en_route",
+        "loaded",
+        "completed",
+        "ready_for_billing",
+        "cancelled",
+      ],
       trip_type: [
         "dialysis",
         "discharge",
