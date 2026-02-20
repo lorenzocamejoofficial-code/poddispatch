@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,7 @@ function getTransportGroup(tripType: string): string {
 }
 
 /* ── compact draggable card ── */
-function PoolCard({
+const PoolCard = memo(function PoolCard({
   leg, onDelete, onEditException,
 }: {
   leg: LegDisplay;
@@ -107,7 +107,7 @@ function PoolCard({
       </div>
     </div>
   );
-}
+});
 
 /* ── collapsible group section ── */
 function GroupSection({

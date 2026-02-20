@@ -112,6 +112,8 @@ interface SchedulingStore {
   refresh: () => void;
   refreshTrucks: () => void;
   autoGenerateLegs: () => Promise<number>;
+  // Optimistic: directly mutate legs state without a network round-trip
+  optimisticUpdateLegs: (updater: (prev: LegDisplay[]) => LegDisplay[]) => void;
 }
 
 const SchedulingContext = createContext<SchedulingStore | undefined>(undefined);
@@ -342,6 +344,11 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(channel); };
   }, [selectedDate, fetchLegs, fetchOptions, fetchCrews]);
 
+  const optimisticUpdateLegs = useCallback(
+    (updater: (prev: LegDisplay[]) => LegDisplay[]) => setLegs(updater),
+    []
+  );
+
   return (
     <SchedulingContext.Provider
       value={{
@@ -352,6 +359,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         dialogOpen, setDialogOpen,
         addingLeg, setAddingLeg,
         refresh, refreshTrucks, autoGenerateLegs,
+        optimisticUpdateLegs,
       }}
     >
       {children}
