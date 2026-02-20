@@ -80,7 +80,7 @@ export default function Scheduling() {
     legForm, setLegForm, resetLegForm,
     pendingLegType, setPendingLegType,
     dialogOpen, setDialogOpen,
-    refresh, autoGenerateLegs,
+    refresh, autoGenerateLegs, optimisticUpdateLegs,
   } = useSchedulingStore();
 
   const [generating, setGenerating] = useState(false);
@@ -301,22 +301,20 @@ export default function Scheduling() {
 
   const unassignedLegs = legs.filter(l => !l.assigned_truck_id);
 
-  // ── DnD sensors ──
+  // ── DnD sensors — 8px activation distance for fast response ──
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const handleDragStart = (event: DragStartEvent) => {
     const { data } = event.active;
-    // leg is attached for both pool-leg and assigned-leg drag types
     const leg = data.current?.leg as LegDisplay | undefined;
-    // fallback: find by id (covers sortable items from TruckBuilder)
     const resolved = leg ?? legs.find(l => l.id === event.active.id);
     if (resolved) setActiveDragLeg(resolved);
   };
 
-  // Master drag-end handler: covers pool→truck, truck→truck, truck→pool, reorder within truck
+  // Master drag-end handler: optimistic UI first, DB write in background
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveDragLeg(null);
     const { active, over } = event;
@@ -325,7 +323,6 @@ export default function Scheduling() {
     const sourceData = active.data.current as any;
     const targetData = over.data.current as any;
 
-    // Resolve the active leg from drag data or from state by id
     const activeLeg: LegDisplay | undefined =
       sourceData?.leg ?? legs.find(l => l.id === active.id);
     if (!activeLeg) return;
@@ -335,23 +332,30 @@ export default function Scheduling() {
 
     // ── Case 1: Drop on pool drop zone (unassign) ──
     if (overId === "pool-droppable") {
-      if (!activeLeg.assigned_truck_id) return; // already unassigned
+      if (!activeLeg.assigned_truck_id) return;
+
+      // Optimistic update
+      optimisticUpdateLegs(prev =>
+        prev.map(l => l.id === activeId ? { ...l, assigned_truck_id: null, slot_order: null } : l)
+      );
+      toast.success("Run returned to pool");
+
       const { error } = await supabase
         .from("truck_run_slots")
         .delete()
         .eq("leg_id", activeId)
         .eq("run_date", selectedDate);
-      if (error) { toast.error("Assignment failed — try again"); return; }
-      toast.success("Run returned to pool");
-      refresh();
+      if (error) {
+        toast.error("Assignment failed — reverting");
+        refresh();
+      }
       return;
     }
 
-    // ── Case 2: Drop on a truck zone or within a truck (assign / move / reorder) ──
+    // ── Case 2: Drop on a truck zone or within a truck ──
     const targetTruckId: string | undefined =
       targetData?.type === "truck-zone" ? targetData.truckId :
       targetData?.type === "assigned-leg" ? targetData.leg?.assigned_truck_id :
-      // over.id might be a leg id (sortable drop)
       legs.find(l => l.id === overId)?.assigned_truck_id;
 
     if (!targetTruckId) return;
@@ -359,7 +363,7 @@ export default function Scheduling() {
     const currentTruckId = activeLeg.assigned_truck_id;
 
     if (currentTruckId === targetTruckId) {
-      // ── Reorder within same truck ── sort by slot_order (same as TruckBuilder display order)
+      // ── Reorder within same truck ──
       const tLegs = legs
         .filter(l => l.assigned_truck_id === targetTruckId)
         .sort((a, b) => {
@@ -372,6 +376,16 @@ export default function Scheduling() {
       const newIdx = tLegs.findIndex(l => l.id === overId);
       if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return;
       const reordered = arrayMove(tLegs, oldIdx, newIdx);
+
+      // Optimistic reorder
+      optimisticUpdateLegs(prev => {
+        const reorderMap = new Map(reordered.map((l, idx) => [l.id, idx]));
+        return prev.map(l =>
+          reorderMap.has(l.id) ? { ...l, slot_order: reorderMap.get(l.id)! } : l
+        );
+      });
+
+      // DB write (fire and forget, realtime will reconcile if needed)
       await Promise.all(
         reordered.map((leg, idx) =>
           supabase.from("truck_run_slots")
@@ -381,7 +395,6 @@ export default function Scheduling() {
             .eq("truck_id", targetTruckId)
         )
       );
-      refresh();
       return;
     }
 
@@ -389,17 +402,29 @@ export default function Scheduling() {
     const targetLegs = legs.filter(l => l.assigned_truck_id === targetTruckId);
     if (targetLegs.length >= 10) { toast.error("Truck is full (10 run slots max)"); return; }
 
+    const truckName = trucks.find(t => t.id === targetTruckId)?.name ?? "truck";
+
+    // Optimistic assign
+    optimisticUpdateLegs(prev =>
+      prev.map(l => l.id === activeId
+        ? { ...l, assigned_truck_id: targetTruckId, slot_order: targetLegs.length }
+        : l
+      )
+    );
+
     if (currentTruckId) {
-      // Move between trucks: update existing slot
+      toast.success(`Run moved to ${truckName}`);
       const { error } = await supabase
         .from("truck_run_slots")
         .update({ truck_id: targetTruckId, slot_order: targetLegs.length } as any)
         .eq("leg_id", activeId)
         .eq("run_date", selectedDate);
-      if (error) { toast.error("Assignment failed — try again"); return; }
-      toast.success(`Run moved to ${trucks.find(t => t.id === targetTruckId)?.name ?? "truck"}`);
+      if (error) {
+        toast.error("Assignment failed — reverting");
+        refresh();
+      }
     } else {
-      // Assign from pool: insert new slot — include company_id for RLS
+      toast.success(`Run assigned to ${truckName}`);
       const { data: profileData } = await supabase.from("profiles").select("company_id").limit(1).single();
       const companyId = (profileData as any)?.company_id ?? null;
       const { error } = await supabase.from("truck_run_slots").insert({
@@ -413,13 +438,11 @@ export default function Scheduling() {
         if (error.code === "23505") {
           toast.error("This leg is already assigned to a truck");
         } else {
-          toast.error("Assignment failed — try again");
+          toast.error("Assignment failed — reverting");
         }
-        return;
+        refresh();
       }
-      toast.success(`Run assigned to ${trucks.find(t => t.id === targetTruckId)?.name ?? "truck"}`);
     }
-    refresh();
   };
 
   // ── Daily Ops Snapshot metrics ──

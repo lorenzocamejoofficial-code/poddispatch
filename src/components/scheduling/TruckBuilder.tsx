@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -29,7 +29,7 @@ interface SortableLegItemProps {
   onEditException: () => void;
 }
 
-function SortableLegItem({ leg, onRemove, onEditException }: SortableLegItemProps) {
+const SortableLegItem = memo(function SortableLegItem({ leg, onRemove, onEditException }: SortableLegItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: leg.id,
     data: { type: "assigned-leg", leg },
@@ -37,7 +37,7 @@ function SortableLegItem({ leg, onRemove, onEditException }: SortableLegItemProp
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: transition ?? "transform 150ms ease",
     opacity: isDragging ? 0.4 : 1,
   };
 
@@ -47,7 +47,7 @@ function SortableLegItem({ leg, onRemove, onEditException }: SortableLegItemProp
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs bg-card ${leg.has_exception ? "border-primary/40" : ""} ${isDragging ? "shadow-lg ring-1 ring-primary/40" : ""}`}
+      className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs bg-card ${leg.has_exception ? "border-primary/40" : ""} ${isDragging ? "shadow-md ring-1 ring-primary/30" : ""}`}
     >
       <div className="flex items-center gap-1.5 min-w-0 flex-1">
         <button
@@ -76,10 +76,10 @@ function SortableLegItem({ leg, onRemove, onEditException }: SortableLegItemProp
       </div>
     </div>
   );
-}
+});
 
 // Droppable zone for a truck — handles both pool→truck and truck→truck
-function TruckDropZone({ truckId, isEmpty }: { truckId: string; isEmpty: boolean }) {
+const TruckDropZone = memo(function TruckDropZone({ truckId, isEmpty }: { truckId: string; isEmpty: boolean }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `truck-drop-${truckId}`,
     data: { type: "truck-zone", truckId },
@@ -90,7 +90,7 @@ function TruckDropZone({ truckId, isEmpty }: { truckId: string; isEmpty: boolean
   return (
     <div
       ref={setNodeRef}
-      className={`rounded-md border-2 border-dashed px-3 py-3 text-center text-xs transition-colors ${
+      className={`rounded-md border-2 border-dashed px-3 py-3 text-center text-xs transition-colors duration-150 ${
         isOver
           ? "border-primary/60 bg-primary/5 text-primary"
           : "border-muted-foreground/20 text-muted-foreground/50"
@@ -99,7 +99,7 @@ function TruckDropZone({ truckId, isEmpty }: { truckId: string; isEmpty: boolean
       {isOver ? "Drop here to assign" : "Drop runs here"}
     </div>
   );
-}
+});
 
 interface ActiveShareToken {
   truck_id: string;
@@ -122,10 +122,11 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   const { addingLeg, setAddingLeg } = useSchedulingStore();
   const [availability, setAvailability] = useState<AvailabilityRecord[]>([]);
 
-  const hasActiveLinkForDate = (truckId: string): boolean =>
-    activeTokens.some(t => t.truck_id === truckId && selectedDate >= t.valid_from && selectedDate <= t.valid_until);
+  const hasActiveLinkForDate = useCallback((truckId: string): boolean =>
+    activeTokens.some(t => t.truck_id === truckId && selectedDate >= t.valid_from && selectedDate <= t.valid_until),
+    [activeTokens, selectedDate]
+  );
 
-  // Load truck availability for the selected date
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase
@@ -140,38 +141,40 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     load();
   }, [selectedDate, onDownCountChange]);
 
-  const getTruckDown = (truckId: string): AvailabilityRecord | undefined =>
-    availability.find((a) => a.truck_id === truckId);
+  const getTruckDown = useCallback((truckId: string): AvailabilityRecord | undefined =>
+    availability.find((a) => a.truck_id === truckId),
+    [availability]
+  );
 
-  const truckLegs = (truckId: string) =>
+  const truckLegs = useCallback((truckId: string) =>
     legs
       .filter((l) => l.assigned_truck_id === truckId)
       .sort((a, b) => {
-        // Sort by manual slot_order first; fall back to pickup_time
         if (a.slot_order != null && b.slot_order != null) return a.slot_order - b.slot_order;
         if (a.slot_order != null) return -1;
         if (b.slot_order != null) return 1;
         if (!a.pickup_time) return 1;
         if (!b.pickup_time) return -1;
         return a.pickup_time.localeCompare(b.pickup_time);
-      });
+      }),
+    [legs]
+  );
 
   const unassigned = legs.filter((l) => !l.assigned_truck_id);
 
-  const crewForTruck = (truckId: string): CrewDisplay | undefined =>
-    crews.find((c) => c.truck_id === truckId);
+  const crewForTruck = useCallback((truckId: string): CrewDisplay | undefined =>
+    crews.find((c) => c.truck_id === truckId),
+    [crews]
+  );
 
-  const assignLeg = async (truckId: string, legId: string) => {
+  const assignLeg = useCallback(async (truckId: string, legId: string) => {
     const currentSlots = truckLegs(truckId);
     if (currentSlots.length >= 10) {
       toast.error("Truck is full (10 run slots max)");
       return;
     }
-
-    // Resolve company_id for RLS
     const { data: profileData } = await supabase.from("profiles").select("company_id").limit(1).single();
     const companyId = (profileData as any)?.company_id ?? null;
-
     const { error } = await supabase.from("truck_run_slots").insert({
       truck_id: truckId,
       leg_id: legId,
@@ -179,7 +182,6 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       slot_order: currentSlots.length,
       company_id: companyId,
     } as any);
-
     if (error) {
       if (error.code === "23505") {
         toast.error("This leg is already assigned to a truck for this date");
@@ -188,43 +190,22 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       }
       return;
     }
-
     toast.success("Leg assigned to truck");
     setAddingLeg(null);
     onRefresh();
-  };
+  }, [truckLegs, selectedDate, onRefresh, setAddingLeg]);
 
-  const removeLeg = async (legId: string) => {
+  const removeLeg = useCallback(async (legId: string) => {
     await supabase.from("truck_run_slots").delete().eq("leg_id", legId).eq("run_date", selectedDate);
     toast.success("Leg removed from truck");
     onRefresh();
-  };
+  }, [selectedDate, onRefresh]);
 
-  const calcSlackMinutes = (truckId: string): number => {
-    const tLegs = truckLegs(truckId);
-    if (tLegs.length === 0) return 999;
-    const totalDuration = tLegs.reduce((sum, l) => sum + (l.estimated_duration_minutes ?? 30), 0);
-    const workingMinutes = 600;
-    return Math.max(0, workingMinutes - totalDuration * 2);
-  };
-
-  const utilizationColor = (count: number) => {
+  const utilizationColor = useCallback((count: number) => {
     if (count >= 6 && count <= 8) return "bg-[hsl(var(--status-green))]/20 text-[hsl(var(--status-green))] border-[hsl(var(--status-green))]/30";
     if (count >= 3 && count <= 5) return "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] border-[hsl(var(--status-yellow))]/30";
     return "bg-[hsl(var(--status-red))]/10 text-[hsl(var(--status-red))] border-[hsl(var(--status-red))]/30";
-  };
-
-  const firstPickup = (tLegs: LegDisplay[]): string | null => {
-    const times = tLegs.map(l => l.pickup_time).filter(Boolean) as string[];
-    if (times.length === 0) return null;
-    return times.sort()[0];
-  };
-
-  const lastPickup = (tLegs: LegDisplay[]): string | null => {
-    const times = tLegs.map(l => l.pickup_time).filter(Boolean) as string[];
-    if (times.length === 0) return null;
-    return times.sort().reverse()[0];
-  };
+  }, []);
 
   return (
     <section>
@@ -239,8 +220,9 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
           const downRecord = getTruckDown(truck.id);
           const isDown = !!downRecord;
           const hasRunsWhileDown = isDown && tLegs.length > 0;
-          const first = firstPickup(tLegs);
-          const last = lastPickup(tLegs);
+          const times = tLegs.map(l => l.pickup_time).filter(Boolean) as string[];
+          const first = times.length > 0 ? times.sort()[0] : null;
+          const last = times.length > 0 ? [...times].sort().reverse()[0] : null;
           const hasLink = hasActiveLinkForDate(truck.id);
 
           return (
@@ -295,7 +277,7 @@ interface TruckCardProps {
   onEditException: (leg: LegDisplay) => void;
 }
 
-function TruckCard({
+const TruckCard = memo(function TruckCard({
   truck, tLegs, crew, downRecord, isDown, hasRunsWhileDown, hasHeavy,
   first, last, hasActiveLink, utilizationColor, unassigned, addingLeg, setAddingLeg,
   onAssignLeg, onRemoveLeg, onEditException,
@@ -307,7 +289,7 @@ function TruckCard({
 
   return (
     <div
-      className={`rounded-lg border bg-card p-4 transition-colors ${
+      className={`rounded-lg border bg-card p-4 transition-colors duration-150 ${
         isDown ? "border-destructive/40 bg-destructive/5" : ""
       } ${isOver && !isDown ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20" : ""}`}
     >
@@ -381,7 +363,7 @@ function TruckCard({
       {/* Drop zone + sortable leg list */}
       <div ref={setDropRef} className="mb-2 min-h-[2rem]">
         {tLegs.length > 0 ? (
-          <div className={`space-y-1.5 rounded-md transition-colors ${isOver && !isDown ? "bg-primary/3" : ""}`}>
+          <div className={`space-y-1.5 rounded-md transition-colors duration-150 ${isOver && !isDown ? "bg-primary/3" : ""}`}>
             <SortableContext items={tLegs.map((l) => l.id)} strategy={verticalListSortingStrategy}>
               {tLegs.map((leg) => (
                 <SortableLegItem
@@ -433,4 +415,4 @@ function TruckCard({
       )}
     </div>
   );
-}
+});
