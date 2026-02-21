@@ -88,10 +88,9 @@ Deno.serve(async (req) => {
         .eq("run_date", scheduleDate)
         .eq("alert_type", "PATIENT_NOT_READY");
 
-      // Fetch trip_records for this truck/date to get trip capture status
       const { data: tripData } = await supabaseAdmin
         .from("trip_records")
-        .select("id, leg_id, loaded_miles, signature_obtained, pcs_attached, status, loaded_at, dropped_at")
+        .select("id, leg_id, loaded_miles, signature_obtained, pcs_attached, status, loaded_at, dropped_at, documentation_complete")
         .eq("truck_id", tokenRow.truck_id)
         .eq("run_date", scheduleDate);
 
@@ -131,12 +130,12 @@ Deno.serve(async (req) => {
             slot_id: slotInfo?.slotId ?? null,
             slot_status: slotInfo?.status ?? "pending",
             not_ready_alert: alert && alert.status === "open" ? alert : null,
-            // Trip capture data
             trip_id: trip?.id ?? null,
             trip_loaded_miles: trip?.loaded_miles ?? null,
             trip_signature: trip?.signature_obtained ?? false,
             trip_pcs: trip?.pcs_attached ?? false,
             trip_status: trip?.status ?? null,
+            trip_doc_complete: trip?.documentation_complete ?? false,
           };
         })
         .sort((a: any, b: any) => {
@@ -173,6 +172,69 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const scheduleDate = getScheduleDate(tokenRow);
 
+    // ── Submit full documentation ──
+    if (body.action === "submit_documentation") {
+      const { trip_id } = body;
+      if (!trip_id) {
+        return new Response(JSON.stringify({ error: "Missing trip_id" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: trip } = await supabaseAdmin
+        .from("trip_records")
+        .select("id, truck_id, run_date, status")
+        .eq("id", trip_id)
+        .eq("truck_id", tokenRow.truck_id)
+        .eq("run_date", scheduleDate)
+        .maybeSingle();
+
+      if (!trip) {
+        return new Response(JSON.stringify({ error: "Trip not found or access denied" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const updates: any = {
+        loaded_miles: body.loaded_miles ?? null,
+        loaded_at: body.loaded_at ? new Date(body.loaded_at).toISOString() : null,
+        dropped_at: body.dropped_at ? new Date(body.dropped_at).toISOString() : null,
+        blood_pressure: body.blood_pressure ?? null,
+        heart_rate: body.heart_rate ?? null,
+        oxygen_saturation: body.oxygen_saturation ?? null,
+        respiration_rate: body.respiration_rate ?? null,
+        vitals_taken_at: new Date().toISOString(),
+        stretcher_required: body.stretcher_required ?? false,
+        bed_confined: body.bed_confined ?? false,
+        general_weakness: body.general_weakness ?? false,
+        esrd_dialysis: body.esrd_dialysis ?? false,
+        oxygen_during_transport: body.oxygen_during_transport ?? false,
+        fall_risk: body.fall_risk ?? false,
+        mobility_method: body.mobility_method ?? null,
+        necessity_notes: body.necessity_notes ?? null,
+        pcs_attached: body.pcs_attached ?? false,
+        signature_obtained: body.signature_obtained ?? false,
+        crew_names: body.crew_names ?? null,
+        documentation_complete: true,
+        status: "completed",
+      };
+
+      const { error: updateErr } = await supabaseAdmin
+        .from("trip_records")
+        .update(updates)
+        .eq("id", trip_id);
+
+      if (updateErr) {
+        return new Response(JSON.stringify({ error: "Failed to submit documentation" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ── Trip capture: update loaded miles ──
     if (body.action === "update_trip") {
       const { trip_id, loaded_miles, signature_obtained, pcs_attached, complete } = body;
@@ -182,7 +244,6 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Verify trip belongs to this truck/date
       const { data: trip } = await supabaseAdmin
         .from("trip_records")
         .select("id, truck_id, run_date, status")

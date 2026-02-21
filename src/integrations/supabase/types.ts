@@ -1446,6 +1446,7 @@ export type Database = {
           bed_confined: boolean | null
           billing_blocked_reason: string | null
           blockers: string[] | null
+          blood_pressure: string | null
           cannot_transfer_safely: boolean | null
           claim_ready: boolean | null
           clinical_note: string | null
@@ -1453,24 +1454,33 @@ export type Database = {
           created_at: string
           crew_id: string | null
           crew_ids: string[] | null
+          crew_names: string | null
           destination_location: string | null
           destination_type: string | null
           dispatch_time: string | null
+          documentation_complete: boolean | null
           dropped_at: string | null
+          esrd_dialysis: boolean | null
           expected_revenue: number | null
+          fall_risk: boolean | null
+          general_weakness: boolean | null
           hcpcs_codes: string[] | null
           hcpcs_modifiers: string[] | null
+          heart_rate: number | null
           id: string
           leg_id: string | null
           loaded_at: string | null
           loaded_miles: number | null
+          mobility_method: string | null
           necessity_notes: string | null
           origin_type: string | null
           oxygen_during_transport: boolean | null
+          oxygen_saturation: number | null
           patient_id: string | null
           pcs_attached: boolean | null
           pickup_location: string | null
           requires_monitoring: boolean | null
+          respiration_rate: number | null
           run_date: string
           scheduled_dropoff_time: string | null
           scheduled_pickup_time: string | null
@@ -1478,9 +1488,11 @@ export type Database = {
           signature_obtained: boolean | null
           slot_id: string | null
           status: Database["public"]["Enums"]["trip_status"]
+          stretcher_required: boolean | null
           trip_type: Database["public"]["Enums"]["trip_type"] | null
           truck_id: string | null
           updated_at: string
+          vitals_taken_at: string | null
           wait_time_minutes: number | null
         }
         Insert: {
@@ -1489,6 +1501,7 @@ export type Database = {
           bed_confined?: boolean | null
           billing_blocked_reason?: string | null
           blockers?: string[] | null
+          blood_pressure?: string | null
           cannot_transfer_safely?: boolean | null
           claim_ready?: boolean | null
           clinical_note?: string | null
@@ -1496,24 +1509,33 @@ export type Database = {
           created_at?: string
           crew_id?: string | null
           crew_ids?: string[] | null
+          crew_names?: string | null
           destination_location?: string | null
           destination_type?: string | null
           dispatch_time?: string | null
+          documentation_complete?: boolean | null
           dropped_at?: string | null
+          esrd_dialysis?: boolean | null
           expected_revenue?: number | null
+          fall_risk?: boolean | null
+          general_weakness?: boolean | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
+          heart_rate?: number | null
           id?: string
           leg_id?: string | null
           loaded_at?: string | null
           loaded_miles?: number | null
+          mobility_method?: string | null
           necessity_notes?: string | null
           origin_type?: string | null
           oxygen_during_transport?: boolean | null
+          oxygen_saturation?: number | null
           patient_id?: string | null
           pcs_attached?: boolean | null
           pickup_location?: string | null
           requires_monitoring?: boolean | null
+          respiration_rate?: number | null
           run_date?: string
           scheduled_dropoff_time?: string | null
           scheduled_pickup_time?: string | null
@@ -1521,9 +1543,11 @@ export type Database = {
           signature_obtained?: boolean | null
           slot_id?: string | null
           status?: Database["public"]["Enums"]["trip_status"]
+          stretcher_required?: boolean | null
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
           updated_at?: string
+          vitals_taken_at?: string | null
           wait_time_minutes?: number | null
         }
         Update: {
@@ -1532,6 +1556,7 @@ export type Database = {
           bed_confined?: boolean | null
           billing_blocked_reason?: string | null
           blockers?: string[] | null
+          blood_pressure?: string | null
           cannot_transfer_safely?: boolean | null
           claim_ready?: boolean | null
           clinical_note?: string | null
@@ -1539,24 +1564,33 @@ export type Database = {
           created_at?: string
           crew_id?: string | null
           crew_ids?: string[] | null
+          crew_names?: string | null
           destination_location?: string | null
           destination_type?: string | null
           dispatch_time?: string | null
+          documentation_complete?: boolean | null
           dropped_at?: string | null
+          esrd_dialysis?: boolean | null
           expected_revenue?: number | null
+          fall_risk?: boolean | null
+          general_weakness?: boolean | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
+          heart_rate?: number | null
           id?: string
           leg_id?: string | null
           loaded_at?: string | null
           loaded_miles?: number | null
+          mobility_method?: string | null
           necessity_notes?: string | null
           origin_type?: string | null
           oxygen_during_transport?: boolean | null
+          oxygen_saturation?: number | null
           patient_id?: string | null
           pcs_attached?: boolean | null
           pickup_location?: string | null
           requires_monitoring?: boolean | null
+          respiration_rate?: number | null
           run_date?: string
           scheduled_dropoff_time?: string | null
           scheduled_pickup_time?: string | null
@@ -1564,9 +1598,11 @@ export type Database = {
           signature_obtained?: boolean | null
           slot_id?: string | null
           status?: Database["public"]["Enums"]["trip_status"]
+          stretcher_required?: boolean | null
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
           updated_at?: string
+          vitals_taken_at?: string | null
           wait_time_minutes?: number | null
         }
         Relationships: [
