@@ -3,11 +3,12 @@ import { useParams } from "react-router-dom";
 import {
   Truck, Users, Clock, ArrowRight, Zap, MapPin, RefreshCw,
   CheckCircle2, Navigation, UserCheck, Loader2, Building2, X, Phone, Calendar, FileText,
-  AlertCircle, CheckCheck,
+  AlertCircle, CheckCheck, ClipboardCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { HelpButton } from "@/components/help/HelpButton";
+import { CrewDocumentationPanel } from "@/components/crew/CrewDocumentationPanel";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -43,6 +44,7 @@ interface LegRow {
   trip_signature: boolean;
   trip_pcs: boolean;
   trip_status: string | null;
+  trip_doc_complete: boolean;
 }
 
 interface SheetData {
@@ -118,6 +120,9 @@ export default function DailyRunSheet() {
   const [captureLeg, setCaptureLeg] = useState<LegRow | null>(null);
   const [captureMiles, setCaptureMiles] = useState("");
   const [submittingCapture, setSubmittingCapture] = useState(false);
+
+  // Documentation panel state
+  const [docLeg, setDocLeg] = useState<LegRow | null>(null);
 
   const submitTripCapture = async (leg: LegRow, updates: { loaded_miles?: number; signature_obtained?: boolean; pcs_attached?: boolean; complete?: boolean }) => {
     if (!leg.trip_id) { toast.error("No trip record linked"); return; }
@@ -347,6 +352,31 @@ export default function DailyRunSheet() {
     );
   }
 
+  // Documentation panel view — full screen overlay
+  if (docLeg && data) {
+    const crewNames = [data.member1, data.member2].filter(Boolean).join(" & ");
+    return (
+      <CrewDocumentationPanel
+        legId={docLeg.id}
+        tripId={docLeg.trip_id!}
+        patientName={docLeg.patient_name}
+        pickupLocation={docLeg.pickup_location}
+        destinationLocation={docLeg.destination_location}
+        crewNames={crewNames}
+        existingMiles={docLeg.trip_loaded_miles}
+        existingSignature={docLeg.trip_signature}
+        existingPcs={docLeg.trip_pcs}
+        token={token!}
+        edgeFunctionUrl={getEdgeFunctionUrl("crew-run-sheet")}
+        onClose={() => setDocLeg(null)}
+        onSubmitted={() => {
+          setDocLeg(null);
+          fetchSheet();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -524,50 +554,25 @@ export default function DailyRunSheet() {
                     </Button>
                   )}
 
-                  {/* Trip capture panel — show when trip exists and not completed */}
-                  {leg.trip_id && leg.trip_status !== "completed" && leg.trip_status !== "ready_for_billing" && (
-                    <div className="rounded-md border bg-muted/30 p-2.5 space-y-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Trip Capture</p>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <Button
-                          variant={leg.trip_loaded_miles ? "secondary" : "outline"}
-                          size="sm"
-                          className="text-[10px] h-8"
-                          onClick={() => { setCaptureLeg(leg); setCaptureMiles(leg.trip_loaded_miles?.toString() ?? ""); }}
-                        >
-                          {leg.trip_loaded_miles ? `${leg.trip_loaded_miles} mi` : "Enter Miles"}
-                        </Button>
-                        <Button
-                          variant={leg.trip_signature ? "secondary" : "outline"}
-                          size="sm"
-                          className="text-[10px] h-8"
-                          onClick={() => submitTripCapture(leg, { signature_obtained: !leg.trip_signature })}
-                          disabled={submittingCapture}
-                        >
-                          {leg.trip_signature ? "✓ Signed" : "Capture Sig"}
-                        </Button>
-                        <Button
-                          variant={leg.trip_pcs ? "secondary" : "outline"}
-                          size="sm"
-                          className="text-[10px] h-8"
-                          onClick={() => submitTripCapture(leg, { pcs_attached: !leg.trip_pcs })}
-                          disabled={submittingCapture}
-                        >
-                          {leg.trip_pcs ? "✓ PCS" : "Upload PCS"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="text-[10px] h-8 bg-[hsl(var(--status-green))] hover:bg-[hsl(var(--status-green))]/90 text-white"
-                          onClick={() => submitTripCapture(leg, { complete: true, loaded_miles: leg.trip_loaded_miles ?? undefined })}
-                          disabled={submittingCapture || !leg.trip_loaded_miles}
-                        >
-                          Complete Trip
-                        </Button>
-                      </div>
-                    </div>
+                  {/* Trip documentation — show Complete Run button when trip exists and not documented */}
+                  {leg.trip_id && !leg.trip_doc_complete && leg.trip_status !== "ready_for_billing" && (
+                    <Button
+                      size="sm"
+                      className="w-full bg-[hsl(var(--status-green))] hover:bg-[hsl(var(--status-green))]/90 text-white"
+                      onClick={() => setDocLeg(leg)}
+                    >
+                      <ClipboardCheck className="h-4 w-4 mr-1.5" />
+                      Complete Run Documentation
+                    </Button>
                   )}
-                  {leg.trip_status === "completed" && (
-                    <p className="text-[10px] text-center text-[hsl(var(--status-green))] font-semibold">✓ Trip Completed</p>
+                  {leg.trip_doc_complete && (
+                    <p className="text-[10px] text-center text-[hsl(var(--status-green))] font-semibold">✓ Documentation Complete — Ready for Billing</p>
+                  )}
+                  {!leg.trip_doc_complete && leg.trip_status === "completed" && (
+                    <div className="flex items-center gap-1.5 justify-center">
+                      <AlertCircle className="h-3 w-3 text-[hsl(var(--status-yellow))]" />
+                      <p className="text-[10px] text-[hsl(var(--status-yellow))] font-semibold">Missing documentation</p>
+                    </div>
                   )}
 
                   {/* Patient Not Ready button */}
