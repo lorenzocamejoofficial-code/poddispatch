@@ -110,9 +110,17 @@ export default function Login() {
             {loading ? "Signing in..." : "Sign In"}
           </Button>
 
-          <p className="text-center text-xs text-muted-foreground">
-            Accounts are created by your company admin.
-          </p>
+          <div className="text-center space-y-1">
+            <p className="text-xs text-muted-foreground">
+              Accounts are created by your company admin.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              New company?{" "}
+              <a href="/signup" className="text-primary hover:underline font-medium">
+                Create Company
+              </a>
+            </p>
+          </div>
         </form>
       </div>
     </div>

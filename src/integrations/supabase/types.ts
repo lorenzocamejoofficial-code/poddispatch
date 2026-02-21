@@ -293,19 +293,43 @@ export type Database = {
       }
       companies: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           id: string
           name: string
+          onboarding_status: Database["public"]["Enums"]["onboarding_status"]
+          owner_email: string | null
+          owner_user_id: string | null
+          rejected_at: string | null
+          rejected_reason: string | null
+          suspended_reason: string | null
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           id?: string
           name: string
+          onboarding_status?: Database["public"]["Enums"]["onboarding_status"]
+          owner_email?: string | null
+          owner_user_id?: string | null
+          rejected_at?: string | null
+          rejected_reason?: string | null
+          suspended_reason?: string | null
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           id?: string
           name?: string
+          onboarding_status?: Database["public"]["Enums"]["onboarding_status"]
+          owner_email?: string | null
+          owner_user_id?: string | null
+          rejected_at?: string | null
+          rejected_reason?: string | null
+          suspended_reason?: string | null
         }
         Relationships: []
       }
@@ -638,6 +662,44 @@ export type Database = {
           },
         ]
       }
+      legal_acceptances: {
+        Row: {
+          accepted_at: string
+          accepted_ip: string | null
+          agreement_type: string
+          agreement_version: string
+          company_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          accepted_ip?: string | null
+          agreement_type: string
+          agreement_version?: string
+          company_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string
+          accepted_ip?: string | null
+          agreement_type?: string
+          agreement_version?: string
+          company_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_acceptances_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       migration_settings: {
         Row: {
           company_id: string
@@ -697,6 +759,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      onboarding_events: {
+        Row: {
+          actor_email: string | null
+          actor_user_id: string | null
+          company_id: string
+          created_at: string
+          details: Json | null
+          event_type: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          actor_email?: string | null
+          actor_user_id?: string | null
+          company_id: string
+          created_at?: string
+          details?: Json | null
+          event_type: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          actor_email?: string | null
+          actor_user_id?: string | null
+          company_id?: string
+          created_at?: string
+          details?: Json | null
+          event_type?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       operational_alerts: {
         Row: {
@@ -1262,6 +1365,62 @@ export type Database = {
           },
         ]
       }
+      subscription_records: {
+        Row: {
+          company_id: string
+          created_at: string
+          current_period_end: string | null
+          id: string
+          last_payment_at: string | null
+          last_payment_status: string | null
+          monthly_amount_cents: number
+          plan_id: string
+          provider: string
+          provider_customer_id: string | null
+          provider_subscription_id: string | null
+          subscription_status: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          last_payment_at?: string | null
+          last_payment_status?: string | null
+          monthly_amount_cents?: number
+          plan_id?: string
+          provider?: string
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          subscription_status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          last_payment_at?: string | null
+          last_payment_status?: string | null
+          monthly_amount_cents?: number
+          plan_id?: string
+          provider?: string
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          subscription_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_creators: {
         Row: {
           created_at: string
@@ -1682,6 +1841,16 @@ export type Database = {
         | "denied"
         | "needs_correction"
       leg_type: "A" | "B"
+      onboarding_status:
+        | "signup_started"
+        | "agreements_accepted"
+        | "payment_pending"
+        | "payment_confirmed"
+        | "pending_approval"
+        | "active"
+        | "rejected"
+        | "suspended"
+        | "payment_issue"
       patient_status:
         | "active"
         | "in_hospital"
@@ -1854,6 +2023,17 @@ export const Constants = {
         "needs_correction",
       ],
       leg_type: ["A", "B"],
+      onboarding_status: [
+        "signup_started",
+        "agreements_accepted",
+        "payment_pending",
+        "payment_confirmed",
+        "pending_approval",
+        "active",
+        "rejected",
+        "suspended",
+        "payment_issue",
+      ],
       patient_status: [
         "active",
         "in_hospital",
