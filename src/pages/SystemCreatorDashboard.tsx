@@ -10,11 +10,14 @@ import {
   Building2, Users, TrendingUp, AlertTriangle, Activity,
   FlaskConical, LogOut, Truck, LayoutDashboard, ShieldCheck, Settings2,
   Code2, ExternalLink,
+  ClipboardList, Send, FileText, DollarSign, Building2 as FacilityIcon,
+  BarChart3, UserPlus, Settings,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ViewAsSwitcher, type ViewAsRole } from "@/components/creator/ViewAsSwitcher";
 import { DevModePanel } from "@/components/creator/DevModePanel";
 import { SandboxPreview } from "@/components/creator/SandboxPreview";
+import { useSandboxMode } from "@/hooks/useSandboxMode";
 
 interface SystemMetrics {
   totalCompanies: number;
@@ -31,6 +34,7 @@ export default function SystemCreatorDashboard() {
   const { user, signOut, isSystemCreator } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { sandboxMode, setSandboxMode } = useSandboxMode();
   const [metrics, setMetrics] = useState<SystemMetrics>({
     totalCompanies: 0, totalUsers: 0, totalTrucks: 0, totalTrips: 0,
     totalClaims: 0, cleanClaimRate: 0, avgDispatchEfficiency: 0, systemErrors: 0,
@@ -88,6 +92,26 @@ export default function SystemCreatorDashboard() {
     { path: "/simulation", label: "Company Simulation", icon: FlaskConical },
   ];
 
+  const sandboxNavItems = [
+    { path: "/sandbox/dispatch", label: "Dispatch Command", icon: LayoutDashboard },
+    { path: "/sandbox/scheduling", label: "Scheduling", icon: ClipboardList },
+    { path: "/sandbox/crew-schedule", label: "Crew Schedule", icon: Send },
+    { path: "/sandbox/patients", label: "Patients", icon: Users },
+    { path: "/sandbox/trips", label: "Trips & Clinical", icon: FileText },
+    { path: "/sandbox/billing", label: "Billing & Claims", icon: DollarSign },
+    { path: "/sandbox/compliance", label: "Compliance", icon: ShieldCheck },
+    { path: "/sandbox/facilities", label: "Facilities", icon: Building2 },
+    { path: "/sandbox/reports", label: "Reports", icon: BarChart3 },
+    { path: "/sandbox/employees", label: "Employees", icon: UserPlus },
+    { path: "/sandbox/trucks", label: "Trucks & Crews", icon: Truck },
+    { path: "/sandbox/settings", label: "Settings", icon: Settings },
+  ];
+
+  const handleToggleSandbox = (on: boolean) => {
+    setSandboxMode(on);
+    if (on) navigate("/sandbox/dispatch");
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-dispatch-surface">
       {/* Sidebar */}
@@ -97,7 +121,7 @@ export default function SystemCreatorDashboard() {
           <span className="font-bold text-sidebar-primary">PodDispatch</span>
           <Badge variant="outline" className="ml-auto text-[9px]">CREATOR</Badge>
         </div>
-        <nav className="flex-1 space-y-1 p-3">
+        <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
           {sidebarItems.map((item) => {
             const active = location.pathname === item.path;
             return (
@@ -107,6 +131,31 @@ export default function SystemCreatorDashboard() {
                 className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                   active
                     ? "bg-sidebar-accent text-sidebar-primary"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                }`}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+
+          {/* Sandbox toggle */}
+          <div className="flex items-center gap-2 px-3 pt-4 pb-1">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">Sandbox Mode</span>
+            <Switch checked={sandboxMode} onCheckedChange={handleToggleSandbox} className="ml-auto" />
+          </div>
+
+          {sandboxMode && sandboxNavItems.map((item) => {
+            const active = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  active
+                    ? "bg-amber-500/10 text-amber-700"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                 }`}
               >
