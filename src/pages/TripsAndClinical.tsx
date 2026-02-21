@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Search, ChevronRight, FileText, Clock, AlertTriangle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, ChevronRight, FileText, Clock, AlertTriangle, XCircle, CheckCircle, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { LocationTypeSelect } from "@/components/billing/LocationTypeSelect";
@@ -31,6 +33,7 @@ interface TripRecord {
   loaded_miles: number | null;
   loaded_at: string | null;
   dropped_at: string | null;
+  dispatch_time: string | null;
   wait_time_minutes: number | null;
   signature_obtained: boolean;
   pcs_attached: boolean;
@@ -47,6 +50,10 @@ interface TripRecord {
   destination_type: string | null;
   hcpcs_codes: string[] | null;
   hcpcs_modifiers: string[] | null;
+  bed_confined: boolean;
+  cannot_transfer_safely: boolean;
+  requires_monitoring: boolean;
+  oxygen_during_transport: boolean;
   // joined
   patient_name?: string;
   truck_name?: string;
@@ -82,6 +89,7 @@ const STATUS_COLORS: Record<TripStatus, string> = {
 };
 
 export default function TripsAndClinical() {
+  const { canManageBilling } = useAuth();
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -93,9 +101,10 @@ export default function TripsAndClinical() {
   const [payerRulesMap, setPayerRulesMap] = useState<Map<string, any>>(new Map());
 
   const [form, setForm] = useState({
-    loaded_miles: "", loaded_at: "", dropped_at: "", wait_time_minutes: "",
+    loaded_miles: "", loaded_at: "", dropped_at: "", dispatch_time: "", wait_time_minutes: "",
     signature_obtained: false, pcs_attached: false, necessity_notes: "", service_level: "BLS",
     origin_type: "", destination_type: "",
+    bed_confined: false, cannot_transfer_safely: false, requires_monitoring: false, oxygen_during_transport: false,
   });
 
   const fetchTrips = useCallback(async () => {
@@ -109,12 +118,10 @@ export default function TripsAndClinical() {
 
       if (error || !tripRows) { setLoading(false); return; }
 
-      // Build facility map for auto-inference
       const fMap = new Map<string, string>();
       (facilities ?? []).forEach((f: any) => fMap.set(f.name, f.facility_type));
       setFacilityMap(fMap);
 
-      // Build payer rules map
       const prMap = new Map<string, any>();
       (payerRules ?? []).forEach((r: any) => prMap.set(r.payer_type, r));
       setPayerRulesMap(prMap);
@@ -209,13 +216,13 @@ export default function TripsAndClinical() {
 
   const openTrip = (trip: TripRecord) => {
     setSelectedTrip(trip);
-    // Auto-infer origin/destination if empty
     const autoOrigin = trip.origin_type || inferLocationType(trip.pickup_location, facilityMap) || "";
     const autoDest = trip.destination_type || inferLocationType(trip.destination_location, facilityMap) || "";
     setForm({
       loaded_miles: trip.loaded_miles?.toString() ?? "",
       loaded_at: trip.loaded_at ? new Date(trip.loaded_at).toISOString().slice(0, 16) : "",
       dropped_at: trip.dropped_at ? new Date(trip.dropped_at).toISOString().slice(0, 16) : "",
+      dispatch_time: trip.dispatch_time ? new Date(trip.dispatch_time).toISOString().slice(0, 16) : "",
       wait_time_minutes: trip.wait_time_minutes?.toString() ?? "",
       signature_obtained: trip.signature_obtained,
       pcs_attached: trip.pcs_attached,
@@ -223,6 +230,10 @@ export default function TripsAndClinical() {
       service_level: trip.service_level ?? "BLS",
       origin_type: autoOrigin,
       destination_type: autoDest,
+      bed_confined: trip.bed_confined ?? false,
+      cannot_transfer_safely: trip.cannot_transfer_safely ?? false,
+      requires_monitoring: trip.requires_monitoring ?? false,
+      oxygen_during_transport: trip.oxygen_during_transport ?? false,
     });
   };
 
@@ -232,7 +243,11 @@ export default function TripsAndClinical() {
     const next = STATUS_PIPELINE[idx + 1];
 
     if (next === "ready_for_billing") {
-      const cleanResult = computeCleanTripStatus(trip, payerRulesMap.get(trip.payer ?? "") ?? null);
+      const cleanResult = computeCleanTripStatus(
+        trip,
+        payerRulesMap.get(trip.payer ?? "") ?? null,
+        { auth_required: trip.auth_required, auth_expiration: trip.auth_expiration }
+      );
       if (cleanResult.level === "blocked") {
         toast.error(`Cannot mark ready for billing: ${cleanResult.issues.join(", ")}`);
         return;
@@ -261,6 +276,7 @@ export default function TripsAndClinical() {
         loaded_miles: miles,
         loaded_at: form.loaded_at ? new Date(form.loaded_at).toISOString() : null,
         dropped_at: form.dropped_at ? new Date(form.dropped_at).toISOString() : null,
+        dispatch_time: form.dispatch_time ? new Date(form.dispatch_time).toISOString() : null,
         wait_time_minutes: form.wait_time_minutes ? parseInt(form.wait_time_minutes) : null,
         signature_obtained: form.signature_obtained,
         pcs_attached: form.pcs_attached,
@@ -270,12 +286,17 @@ export default function TripsAndClinical() {
         destination_type: form.destination_type || null,
         hcpcs_codes: codes,
         hcpcs_modifiers: modifiers,
+        bed_confined: form.bed_confined,
+        cannot_transfer_safely: form.cannot_transfer_safely,
+        requires_monitoring: form.requires_monitoring,
+        oxygen_during_transport: form.oxygen_during_transport,
       };
 
       // Compute billing block
       const cleanResult = computeCleanTripStatus(
         { ...selectedTrip, ...payload },
         payerRulesMap.get(selectedTrip.payer ?? "") ?? null,
+        { auth_required: selectedTrip.auth_required, auth_expiration: selectedTrip.auth_expiration }
       );
       payload.billing_blocked_reason = cleanResult.level === "blocked" ? cleanResult.issues.join(", ") : null;
 
@@ -299,6 +320,22 @@ export default function TripsAndClinical() {
     trip.auth_required && trip.auth_expiration && new Date(trip.auth_expiration) <= new Date();
 
   const milesValidation = form.loaded_miles ? validateLoadedMiles(parseFloat(form.loaded_miles)) : null;
+
+  // Compute current form's clean status for inline display
+  const currentCleanResult = selectedTrip ? computeCleanTripStatus(
+    {
+      ...selectedTrip,
+      origin_type: form.origin_type, destination_type: form.destination_type,
+      loaded_miles: form.loaded_miles ? parseFloat(form.loaded_miles) : null,
+      signature_obtained: form.signature_obtained, pcs_attached: form.pcs_attached,
+      necessity_notes: form.necessity_notes, loaded_at: form.loaded_at || null,
+      dropped_at: form.dropped_at || null, dispatch_time: form.dispatch_time || null,
+      bed_confined: form.bed_confined, cannot_transfer_safely: form.cannot_transfer_safely,
+      requires_monitoring: form.requires_monitoring, oxygen_during_transport: form.oxygen_during_transport,
+    },
+    payerRulesMap.get(selectedTrip.payer ?? "") ?? null,
+    { auth_required: selectedTrip.auth_required, auth_expiration: selectedTrip.auth_expiration }
+  ) : null;
 
   return (
     <AdminLayout>
@@ -366,7 +403,14 @@ export default function TripsAndClinical() {
               <tbody>
                 {filtered.map(trip => (
                   <tr key={trip.id} className="border-b hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 font-medium text-foreground">{trip.patient_name}</td>
+                    <td className="px-4 py-3 font-medium text-foreground">
+                      {trip.patient_name}
+                      {authWarning(trip) && (
+                        <span className="ml-1 text-destructive" title="Auth expired">
+                          <AlertTriangle className="inline h-3 w-3" />
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{trip.scheduled_pickup_time ?? "—"}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground max-w-[180px] truncate">
                       {trip.pickup_location ?? "—"} → {trip.destination_location ?? "—"}
@@ -382,6 +426,7 @@ export default function TripsAndClinical() {
                       <CleanTripBadge
                         trip={trip}
                         payerRules={payerRulesMap.get(trip.payer ?? "") ?? null}
+                        authInfo={{ auth_required: trip.auth_required, auth_expiration: trip.auth_expiration }}
                       />
                     </td>
                     <td className="px-4 py-3">
@@ -415,39 +460,77 @@ export default function TripsAndClinical() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {/* Clean trip badge at top */}
-            {selectedTrip && (
-              <div className="flex items-center justify-between">
-                <CleanTripBadge
-                  trip={{ ...selectedTrip, origin_type: form.origin_type, destination_type: form.destination_type,
-                    loaded_miles: form.loaded_miles ? parseFloat(form.loaded_miles) : null,
-                    signature_obtained: form.signature_obtained, pcs_attached: form.pcs_attached }}
-                  payerRules={payerRulesMap.get(selectedTrip.payer ?? "") ?? null}
-                  size="md"
-                />
-                {selectedTrip.hcpcs_codes?.length ? (
-                  <span className="text-[10px] text-muted-foreground font-mono">
-                    HCPCS: {selectedTrip.hcpcs_codes.join(", ")}
-                    {selectedTrip.hcpcs_modifiers?.length ? ` (${selectedTrip.hcpcs_modifiers.join(", ")})` : ""}
-                  </span>
-                ) : null}
+            {/* Clean claim status banner */}
+            {currentCleanResult && (
+              <div className={`rounded-md border p-3 space-y-2 ${
+                currentCleanResult.level === "clean" ? "border-[hsl(var(--status-green))]/40 bg-[hsl(var(--status-green))]/5" :
+                currentCleanResult.level === "review" ? "border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))]" :
+                "border-destructive/40 bg-destructive/5"
+              }`}>
+                <div className="flex items-center gap-2">
+                  {currentCleanResult.level === "clean" ? (
+                    <><CheckCircle className="h-4 w-4 text-[hsl(var(--status-green))]" /><span className="text-sm font-semibold text-[hsl(var(--status-green))]">🟢 Clean Claim Ready</span></>
+                  ) : currentCleanResult.level === "review" ? (
+                    <><AlertTriangle className="h-4 w-4 text-[hsl(var(--status-yellow))]" /><span className="text-sm font-semibold text-[hsl(var(--status-yellow))]">🟡 Review Required</span></>
+                  ) : (
+                    <><XCircle className="h-4 w-4 text-destructive" /><span className="text-sm font-semibold text-destructive">🔴 Blocked – Missing Required Items</span></>
+                  )}
+                  <CleanTripBadge
+                    trip={{
+                      ...selectedTrip!, origin_type: form.origin_type, destination_type: form.destination_type,
+                      loaded_miles: form.loaded_miles ? parseFloat(form.loaded_miles) : null,
+                      signature_obtained: form.signature_obtained, pcs_attached: form.pcs_attached,
+                      necessity_notes: form.necessity_notes, loaded_at: form.loaded_at || null,
+                      dropped_at: form.dropped_at || null, dispatch_time: form.dispatch_time || null,
+                      bed_confined: form.bed_confined, cannot_transfer_safely: form.cannot_transfer_safely,
+                      requires_monitoring: form.requires_monitoring, oxygen_during_transport: form.oxygen_during_transport,
+                    }}
+                    payerRules={payerRulesMap.get(selectedTrip?.payer ?? "") ?? null}
+                    authInfo={{ auth_required: selectedTrip?.auth_required, auth_expiration: selectedTrip?.auth_expiration }}
+                    size="md"
+                  />
+                </div>
+                {currentCleanResult.structured_issues.length > 0 && (
+                  <ul className="text-xs space-y-1">
+                    {currentCleanResult.structured_issues.map((issue, i) => (
+                      <li key={i} className={`flex items-center gap-1.5 ${issue.severity === "blocker" ? "text-destructive" : "text-[hsl(var(--status-yellow))]"}`}>
+                        {issue.severity === "blocker" ? <XCircle className="h-3 w-3 shrink-0" /> : <AlertTriangle className="h-3 w-3 shrink-0" />}
+                        {issue.message}
+                        <button
+                          className="ml-auto text-[10px] underline opacity-70 hover:opacity-100"
+                          onClick={() => {
+                            // Scroll to the relevant field
+                            const el = document.querySelector(`[data-field="${issue.field}"]`);
+                            el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                          }}
+                        >
+                          Fix
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
 
             {/* Origin / Destination Type */}
-            <div className="grid grid-cols-2 gap-3">
-              <LocationTypeSelect
-                label="Origin Type"
-                value={form.origin_type}
-                onChange={v => setForm({ ...form, origin_type: v })}
-                autoValue={selectedTrip ? inferLocationType(selectedTrip.pickup_location, facilityMap) : null}
-              />
-              <LocationTypeSelect
-                label="Destination Type"
-                value={form.destination_type}
-                onChange={v => setForm({ ...form, destination_type: v })}
-                autoValue={selectedTrip ? inferLocationType(selectedTrip.destination_location, facilityMap) : null}
-              />
+            <div className="grid grid-cols-2 gap-3" data-field="origin_type">
+              <div data-field="origin_type">
+                <LocationTypeSelect
+                  label="Origin Type"
+                  value={form.origin_type}
+                  onChange={v => setForm({ ...form, origin_type: v })}
+                  autoValue={selectedTrip ? inferLocationType(selectedTrip.pickup_location, facilityMap) : null}
+                />
+              </div>
+              <div data-field="destination_type">
+                <LocationTypeSelect
+                  label="Destination Type"
+                  value={form.destination_type}
+                  onChange={v => setForm({ ...form, destination_type: v })}
+                  autoValue={selectedTrip ? inferLocationType(selectedTrip.destination_location, facilityMap) : null}
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -463,7 +546,7 @@ export default function TripsAndClinical() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div data-field="loaded_miles">
                 <Label>Loaded Miles</Label>
                 <Input type="number" step="0.1" placeholder="0.0" value={form.loaded_miles}
                   onChange={e => setForm({ ...form, loaded_miles: e.target.value })} />
@@ -474,40 +557,77 @@ export default function TripsAndClinical() {
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+
+            {/* Timestamps */}
+            <div className="grid grid-cols-3 gap-3">
+              <div data-field="dispatch_time">
+                <Label>Dispatch Time</Label>
+                <Input type="datetime-local" value={form.dispatch_time}
+                  onChange={e => setForm({ ...form, dispatch_time: e.target.value })} />
+              </div>
+              <div data-field="loaded_at">
                 <Label>Loaded At</Label>
                 <Input type="datetime-local" value={form.loaded_at}
                   onChange={e => setForm({ ...form, loaded_at: e.target.value })} />
               </div>
-              <div>
+              <div data-field="dropped_at">
                 <Label>Dropped At</Label>
                 <Input type="datetime-local" value={form.dropped_at}
                   onChange={e => setForm({ ...form, dropped_at: e.target.value })} />
               </div>
             </div>
+
             <div>
               <Label>Wait Time (minutes)</Label>
               <Input type="number" placeholder="0" value={form.wait_time_minutes}
                 onChange={e => setForm({ ...form, wait_time_minutes: e.target.value })} />
             </div>
-            <div className="flex flex-col gap-3 rounded-md border p-3">
-              <div className="flex items-center justify-between">
+
+            {/* Signature + PCS */}
+            <div className="flex flex-col gap-3 rounded-md border p-3" data-field="signature_obtained">
+              <div className="flex items-center justify-between" data-field="signature_obtained">
                 <Label>Signature Obtained</Label>
                 <Switch checked={form.signature_obtained}
                   onCheckedChange={v => setForm({ ...form, signature_obtained: v })} />
               </div>
-              <div className="flex items-center justify-between">
-                <Label>PCS Attached</Label>
+              <div className="flex items-center justify-between" data-field="pcs_attached">
+                <Label>PCS Attached (file uploaded)</Label>
                 <Switch checked={form.pcs_attached}
                   onCheckedChange={v => setForm({ ...form, pcs_attached: v })} />
               </div>
             </div>
-            <div>
-              <Label>Medical Necessity Notes</Label>
-              <Textarea rows={3} value={form.necessity_notes}
-                onChange={e => setForm({ ...form, necessity_notes: e.target.value })}
-                placeholder="Document why transport was medically necessary…" />
+
+            {/* Structured Medical Necessity Checklist */}
+            <div className="rounded-md border p-3 space-y-3" data-field="necessity_checklist">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Medical Necessity (Medicare)</p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox id="bed_confined" checked={form.bed_confined}
+                    onCheckedChange={(v) => setForm({ ...form, bed_confined: !!v })} />
+                  <label htmlFor="bed_confined" className="text-sm">Bed confined at origin</label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox id="cannot_transfer" checked={form.cannot_transfer_safely}
+                    onCheckedChange={(v) => setForm({ ...form, cannot_transfer_safely: !!v })} />
+                  <label htmlFor="cannot_transfer" className="text-sm">Cannot safely transfer without stretcher</label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox id="requires_monitoring" checked={form.requires_monitoring}
+                    onCheckedChange={(v) => setForm({ ...form, requires_monitoring: !!v })} />
+                  <label htmlFor="requires_monitoring" className="text-sm">Requires medical monitoring</label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox id="oxygen_transport" checked={form.oxygen_during_transport}
+                    onCheckedChange={(v) => setForm({ ...form, oxygen_during_transport: !!v })} />
+                  <label htmlFor="oxygen_transport" className="text-sm">Oxygen required during transport</label>
+                </div>
+              </div>
+              <div data-field="necessity_notes">
+                <Label className="text-xs">Clinical Justification Note</Label>
+                <Textarea rows={2} value={form.necessity_notes}
+                  onChange={e => setForm({ ...form, necessity_notes: e.target.value })}
+                  placeholder="1–2 sentence clinical justification for transport necessity…" />
+              </div>
             </div>
 
             {/* HCPCS preview */}
@@ -533,6 +653,14 @@ export default function TripsAndClinical() {
                     </div>
                   );
                 })()}
+              </div>
+            )}
+
+            {/* Auth warning */}
+            {selectedTrip && authWarning(selectedTrip) && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive flex items-center gap-2" data-field="auth_expiration">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                Authorization expired on {selectedTrip.auth_expiration}. Update patient authorization before billing.
               </div>
             )}
 

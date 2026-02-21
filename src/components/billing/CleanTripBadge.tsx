@@ -5,6 +5,7 @@ import { CheckCircle, AlertTriangle, XCircle } from "lucide-react";
 interface CleanTripBadgeProps {
   trip: Parameters<typeof computeCleanTripStatus>[0];
   payerRules?: Parameters<typeof computeCleanTripStatus>[1];
+  authInfo?: Parameters<typeof computeCleanTripStatus>[2];
   size?: "sm" | "md";
 }
 
@@ -30,8 +31,8 @@ const BADGE_CONFIG: Record<CleanTripResult["level"], {
   },
 };
 
-export function CleanTripBadge({ trip, payerRules, size = "sm" }: CleanTripBadgeProps) {
-  const result = computeCleanTripStatus(trip, payerRules);
+export function CleanTripBadge({ trip, payerRules, authInfo, size = "sm" }: CleanTripBadgeProps) {
+  const result = computeCleanTripStatus(trip, payerRules, authInfo);
   const config = BADGE_CONFIG[result.level];
   const Icon = config.icon;
 

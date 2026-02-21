@@ -24,20 +24,27 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { HelpButton } from "@/components/help/HelpButton";
 
-const navItems = [
-  { path: "/", label: "Dispatch Command", icon: LayoutDashboard },
-  { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList },
-  { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send },
-  { path: "/patients", label: "Patients", icon: Users },
-  { path: "/trips", label: "Trips & Clinical", icon: FileText },
-  { path: "/billing", label: "Billing & Claims", icon: DollarSign },
-  { path: "/compliance", label: "Compliance & QA", icon: ShieldCheck },
-  { path: "/facilities", label: "Facilities", icon: Building2 },
-  { path: "/reports", label: "Reports & Metrics", icon: BarChart3 },
-  { path: "/employees", label: "Employees", icon: UserPlus },
-  { path: "/trucks", label: "Trucks & Crews", icon: Truck },
-  { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft },
-  { path: "/settings", label: "Settings", icon: Settings },
+interface NavItem {
+  path: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  roles: string[]; // which roles can see this nav item
+}
+
+const navItems: NavItem[] = [
+  { path: "/", label: "Dispatch Command", icon: LayoutDashboard, roles: ["admin", "dispatcher"] },
+  { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList, roles: ["admin", "dispatcher"] },
+  { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send, roles: ["admin", "dispatcher"] },
+  { path: "/patients", label: "Patients", icon: Users, roles: ["admin", "dispatcher"] },
+  { path: "/trips", label: "Trips & Clinical", icon: FileText, roles: ["admin", "dispatcher", "billing"] },
+  { path: "/billing", label: "Billing & Claims", icon: DollarSign, roles: ["admin", "billing"] },
+  { path: "/compliance", label: "Compliance & QA", icon: ShieldCheck, roles: ["admin", "billing"] },
+  { path: "/facilities", label: "Facilities", icon: Building2, roles: ["admin", "dispatcher", "billing"] },
+  { path: "/reports", label: "Reports & Metrics", icon: BarChart3, roles: ["admin"] },
+  { path: "/employees", label: "Employees", icon: UserPlus, roles: ["admin"] },
+  { path: "/trucks", label: "Trucks & Crews", icon: Truck, roles: ["admin", "dispatcher"] },
+  { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft, roles: ["admin"] },
+  { path: "/settings", label: "Settings", icon: Settings, roles: ["admin"] },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {
@@ -58,9 +65,12 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       });
   }, []);
 
-  if (role !== "admin") {
+  // Allow admin, dispatcher, and billing roles to use this layout
+  if (!role || !["admin", "dispatcher", "billing"].includes(role)) {
     return null;
   }
+
+  const visibleNav = navItems.filter(item => role && item.roles.includes(role));
 
   return (
     <div className="flex h-screen overflow-hidden bg-dispatch-surface">
@@ -93,7 +103,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
-          {navItems.map((item) => {
+          {visibleNav.map((item) => {
             const active = location.pathname === item.path;
             return (
               <Link
@@ -115,8 +125,13 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="border-t border-sidebar-border p-3">
-          <div className="mb-2 px-3 text-xs text-sidebar-foreground/50 truncate">
-            {user?.email}
+          <div className="mb-1 px-3 flex items-center gap-2">
+            <span className="text-xs text-sidebar-foreground/50 truncate flex-1">
+              {user?.email}
+            </span>
+            <span className="rounded bg-sidebar-accent px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-sidebar-primary">
+              {role}
+            </span>
           </div>
           <button
             onClick={() => { signOut(); navigate("/login"); }}
