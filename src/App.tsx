@@ -23,6 +23,7 @@ import ComplianceAndQA from "./pages/ComplianceAndQA";
 import FacilitiesPage from "./pages/FacilitiesPage";
 import ReportsAndMetrics from "./pages/ReportsAndMetrics";
 import MigrationOnboarding from "./pages/MigrationOnboarding";
+import CompanySimulation from "./pages/CompanySimulation";
 
 const queryClient = new QueryClient();
 
@@ -128,6 +129,7 @@ function AppRoutes() {
         <Route path="/facilities" element={<FacilitiesPage />} />
         <Route path="/reports" element={<ReportsAndMetrics />} />
         <Route path="/migration" element={<MigrationOnboarding />} />
+        <Route path="/simulation" element={<CompanySimulation />} />
         <Route path="/employees" element={<Employees />} />
         <Route path="/trucks" element={<TrucksCrews />} />
         <Route path="/settings" element={<AdminSettings />} />
