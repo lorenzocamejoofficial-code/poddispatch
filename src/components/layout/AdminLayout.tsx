@@ -19,6 +19,7 @@ import {
   Building2,
   BarChart3,
   ArrowRightLeft,
+  FlaskConical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,7 @@ const navItems: NavItem[] = [
   { path: "/employees", label: "Employees", icon: UserPlus, roles: ["admin"] },
   { path: "/trucks", label: "Trucks & Crews", icon: Truck, roles: ["admin", "dispatcher"] },
   { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft, roles: ["admin"] },
+  { path: "/simulation", label: "Company Simulation", icon: FlaskConical, roles: ["admin"] },
   { path: "/settings", label: "Settings", icon: Settings, roles: ["admin"] },
 ];
 
