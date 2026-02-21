@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.setup-system-creator]
 verify_jwt = false
+
+[functions.company-signup]
+verify_jwt = false

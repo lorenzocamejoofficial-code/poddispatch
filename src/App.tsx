@@ -25,6 +25,9 @@ import ReportsAndMetrics from "./pages/ReportsAndMetrics";
 import MigrationOnboarding from "./pages/MigrationOnboarding";
 import CompanySimulation from "./pages/CompanySimulation";
 import SystemCreatorDashboard from "./pages/SystemCreatorDashboard";
+import CompanySignup from "./pages/CompanySignup";
+import PendingApproval from "./pages/PendingApproval";
+import CreatorConsole from "./pages/CreatorConsole";
 const queryClient = new QueryClient();
 
 function SessionWarningBanner() {
@@ -59,18 +62,24 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<CompanySignup />} />
         <Route path="/crew/:token" element={<DailyRunSheet />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
   }
 
+  // Pending approval — company created but not yet activated
+  // Check if user's company is pending (non-system-creator, non-active)
+  // We'll handle this by checking onboarding_status in a wrapper, but for now route exists
+  
   // System creator — special dashboard
   if (isSystemCreator) {
     return (
       <SchedulingProvider>
         <Routes>
           <Route path="/system" element={<SystemCreatorDashboard />} />
+          <Route path="/creator-console" element={<CreatorConsole />} />
           <Route path="/simulation" element={<CompanySimulation />} />
           <Route path="/" element={<SystemCreatorDashboard />} />
           <Route path="/login" element={<Navigate to="/" replace />} />
@@ -79,6 +88,9 @@ function AppRoutes() {
       </SchedulingProvider>
     );
   }
+
+  // Pending approval route (available to all authenticated users)
+  // The actual gating by onboarding_status will be checked in the individual pages
 
   // Crew role — mobile-only view
   if (role === "crew") {
@@ -132,6 +144,7 @@ function AppRoutes() {
   return (
     <SchedulingProvider>
       <Routes>
+        <Route path="/pending-approval" element={<PendingApproval />} />
         <Route path="/" element={<DispatchBoard />} />
         <Route path="/scheduling" element={<Scheduling />} />
         <Route path="/crew-schedule" element={<CrewScheduleAdmin />} />
