@@ -28,6 +28,8 @@ import SystemCreatorDashboard from "./pages/SystemCreatorDashboard";
 import CompanySignup from "./pages/CompanySignup";
 import PendingApproval from "./pages/PendingApproval";
 import CreatorConsole from "./pages/CreatorConsole";
+import SandboxPage from "./pages/SandboxPage";
+import { SandboxModeProvider } from "./hooks/useSandboxMode";
 const queryClient = new QueryClient();
 
 function SessionWarningBanner() {
@@ -77,14 +79,29 @@ function AppRoutes() {
   if (isSystemCreator) {
     return (
       <SchedulingProvider>
-        <Routes>
-          <Route path="/system" element={<SystemCreatorDashboard />} />
-          <Route path="/creator-console" element={<CreatorConsole />} />
-          <Route path="/simulation" element={<CompanySimulation />} />
-          <Route path="/" element={<SystemCreatorDashboard />} />
-          <Route path="/login" element={<Navigate to="/" replace />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <SandboxModeProvider>
+          <Routes>
+            <Route path="/system" element={<SystemCreatorDashboard />} />
+            <Route path="/creator-console" element={<CreatorConsole />} />
+            <Route path="/simulation" element={<CompanySimulation />} />
+            {/* Sandbox routes */}
+            <Route path="/sandbox/dispatch" element={<SandboxPage pageKey="dispatch" />} />
+            <Route path="/sandbox/scheduling" element={<SandboxPage pageKey="scheduling" />} />
+            <Route path="/sandbox/crew-schedule" element={<SandboxPage pageKey="crew-schedule" />} />
+            <Route path="/sandbox/patients" element={<SandboxPage pageKey="patients" />} />
+            <Route path="/sandbox/trips" element={<SandboxPage pageKey="trips" />} />
+            <Route path="/sandbox/billing" element={<SandboxPage pageKey="billing" />} />
+            <Route path="/sandbox/compliance" element={<SandboxPage pageKey="compliance" />} />
+            <Route path="/sandbox/facilities" element={<SandboxPage pageKey="facilities" />} />
+            <Route path="/sandbox/reports" element={<SandboxPage pageKey="reports" />} />
+            <Route path="/sandbox/employees" element={<SandboxPage pageKey="employees" />} />
+            <Route path="/sandbox/trucks" element={<SandboxPage pageKey="trucks" />} />
+            <Route path="/sandbox/settings" element={<SandboxPage pageKey="settings" />} />
+            <Route path="/" element={<SystemCreatorDashboard />} />
+            <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </SandboxModeProvider>
       </SchedulingProvider>
     );
   }
