@@ -1,4 +1,4 @@
-// Shared billing constants and utilities for the NEMT OS
+// Shared billing constants and utilities for the NEMT OS — Closed-Loop Engine
 
 export const LOCATION_TYPES = [
   "Home",
@@ -98,7 +98,77 @@ export function validateLoadedMiles(
   return { status: "ok", message: null };
 }
 
-// Clean trip badge logic — enhanced with structured medical necessity
+// ============================================================
+// DOCUMENTATION GATES — validation before claim_ready
+// ============================================================
+
+export interface DocGateField {
+  field: string;
+  label: string;
+  present: boolean;
+  required: boolean;
+}
+
+export interface DocGateResult {
+  passed: boolean;
+  fields: DocGateField[];
+  missingCount: number;
+  readyPercent: number;
+}
+
+export function evaluateDocGates(trip: {
+  loaded_miles?: number | null;
+  loaded_at?: string | null;
+  dropped_at?: string | null;
+  dispatch_time?: string | null;
+  origin_type?: string | null;
+  destination_type?: string | null;
+  signature_obtained?: boolean;
+  pcs_attached?: boolean;
+  clinical_note?: string | null;
+  necessity_notes?: string | null;
+  bed_confined?: boolean;
+  cannot_transfer_safely?: boolean;
+  requires_monitoring?: boolean;
+  oxygen_during_transport?: boolean;
+  crew_ids?: string[];
+  truck_id?: string | null;
+}): DocGateResult {
+  const fields: DocGateField[] = [
+    { field: "loaded_at", label: "Loaded timestamp", present: !!trip.loaded_at, required: true },
+    { field: "dropped_at", label: "Drop-off timestamp", present: !!trip.dropped_at, required: true },
+    { field: "dispatch_time", label: "Dispatch timestamp", present: !!trip.dispatch_time, required: true },
+    { field: "loaded_miles", label: "Loaded miles", present: (trip.loaded_miles ?? 0) > 0, required: true },
+    { field: "origin_type", label: "Origin type", present: !!trip.origin_type, required: true },
+    { field: "destination_type", label: "Destination type", present: !!trip.destination_type, required: true },
+    { field: "crew", label: "Crew assigned", present: !!trip.truck_id, required: true },
+    { field: "signature_obtained", label: "Signature", present: !!trip.signature_obtained, required: true },
+    { field: "pcs_attached", label: "PCS document", present: !!trip.pcs_attached, required: false },
+    { field: "necessity_checklist", label: "Medical necessity flag", present: !!(trip.bed_confined || trip.cannot_transfer_safely || trip.requires_monitoring || trip.oxygen_during_transport), required: false },
+    { field: "clinical_note", label: "Clinical note", present: !!(trip.clinical_note || trip.necessity_notes), required: false },
+  ];
+
+  const requiredFields = fields.filter(f => f.required);
+  const missingRequired = requiredFields.filter(f => !f.present);
+  const totalPresent = fields.filter(f => f.present).length;
+
+  return {
+    passed: missingRequired.length === 0,
+    fields,
+    missingCount: missingRequired.length,
+    readyPercent: Math.round((totalPresent / fields.length) * 100),
+  };
+}
+
+// Compute missing docs per day for a batch of trips
+export function computeMissingDocsCount(trips: Parameters<typeof evaluateDocGates>[0][]): number {
+  return trips.filter(t => !evaluateDocGates(t).passed).length;
+}
+
+// ============================================================
+// CLEAN CLAIM ENGINE — enhanced with structured gates
+// ============================================================
+
 export type CleanTripLevel = "clean" | "review" | "blocked";
 
 export interface CleanTripIssue {
@@ -120,6 +190,7 @@ export function computeCleanTripStatus(trip: {
   origin_type?: string | null;
   destination_type?: string | null;
   necessity_notes?: string | null;
+  clinical_note?: string | null;
   loaded_at?: string | null;
   dropped_at?: string | null;
   dispatch_time?: string | null;
@@ -161,8 +232,7 @@ export function computeCleanTripStatus(trip: {
     if (payerRules.requires_signature && !trip.signature_obtained) structured.push({ field: "signature_obtained", message: "Signature required by payer", severity: "blocker" });
     if (payerRules.requires_pcs && !trip.pcs_attached) structured.push({ field: "pcs_attached", message: "PCS required by payer", severity: "blocker" });
     if (payerRules.requires_necessity_note) {
-      if (!trip.necessity_notes) structured.push({ field: "necessity_notes", message: "Clinical justification note required", severity: "blocker" });
-      // Check structured checklist - at least one must be checked
+      if (!trip.necessity_notes && !trip.clinical_note) structured.push({ field: "necessity_notes", message: "Clinical justification note required", severity: "blocker" });
       const hasChecklist = trip.bed_confined || trip.cannot_transfer_safely || trip.requires_monitoring || trip.oxygen_during_transport;
       if (!hasChecklist) structured.push({ field: "necessity_checklist", message: "At least one medical necessity criterion required", severity: "blocker" });
     }
@@ -181,7 +251,108 @@ export function computeCleanTripStatus(trip: {
   return { level: "clean", issues: [], structured_issues: [] };
 }
 
-// AR aging bucket calculator
+// ============================================================
+// DENIAL TRACKING
+// ============================================================
+
+export const DENIAL_CATEGORIES = [
+  "missing_auth",
+  "missing_medical_necessity",
+  "duplicate_claim",
+  "missing_pcs_signature",
+  "incorrect_hcpcs",
+  "timely_filing",
+  "invalid_member_id",
+  "other",
+] as const;
+
+export type DenialCategory = (typeof DENIAL_CATEGORIES)[number];
+
+export const DENIAL_LABELS: Record<DenialCategory, string> = {
+  missing_auth: "Missing Authorization",
+  missing_medical_necessity: "Missing Medical Necessity",
+  duplicate_claim: "Duplicate Claim",
+  missing_pcs_signature: "Missing PCS / Signature",
+  incorrect_hcpcs: "Incorrect HCPCS",
+  timely_filing: "Timely Filing Exceeded",
+  invalid_member_id: "Invalid Member ID",
+  other: "Other",
+};
+
+// ============================================================
+// FINANCIAL METRICS — closed-loop dashboard computations
+// ============================================================
+
+export interface FinancialMetrics {
+  revenueCaptured: number;
+  revenueAtRisk: number;
+  revenueDelayed: number;
+  cleanClaimRate: number;
+  dispatchEfficiency: number;
+  missingDocsCount: number;
+  completedTrips: number;
+  plannedTrips: number;
+  blockedTrips: number;
+  latePickupCascades: number;
+}
+
+export function computeFinancialMetrics(
+  trips: {
+    status: string;
+    expected_revenue?: number;
+    claim_ready?: boolean;
+    billing_blocked_reason?: string | null;
+    blockers?: string[];
+  }[],
+  claims: {
+    total_charge: number;
+    status: string;
+    submitted_at: string | null;
+    paid_at: string | null;
+  }[],
+  avgPaymentDays: number,
+  billingCadenceDays: number,
+): FinancialMetrics {
+  const completedStatuses = ["completed", "ready_for_billing", "arrived_dropoff"];
+  const terminalStatuses = [...completedStatuses, "no_show", "cancelled"];
+
+  const completed = trips.filter(t => completedStatuses.includes(t.status));
+  const blocked = completed.filter(t => t.billing_blocked_reason || (t.blockers && t.blockers.length > 0));
+  const clean = completed.filter(t => t.claim_ready && !t.billing_blocked_reason);
+  const planned = trips.filter(t => t.status !== "cancelled");
+
+  const revenueCaptured = claims
+    .filter(c => ["submitted", "paid"].includes(c.status))
+    .reduce((s, c) => s + c.total_charge, 0);
+
+  const revenueAtRisk = blocked.reduce((s, t) => s + (t.expected_revenue ?? 0), 0);
+
+  const submittedUnpaid = claims.filter(c => c.status === "submitted" && c.submitted_at);
+  const revenueDelayed = submittedUnpaid.reduce((s, c) => s + c.total_charge, 0);
+
+  const cleanClaimRate = completed.length > 0 ? (clean.length / completed.length) * 100 : 0;
+  const dispatchEfficiency = planned.length > 0 ? (completed.length / planned.length) * 100 : 0;
+
+  const missingDocsCount = blocked.length;
+
+  return {
+    revenueCaptured: Math.round(revenueCaptured),
+    revenueAtRisk: Math.round(revenueAtRisk),
+    revenueDelayed: Math.round(revenueDelayed),
+    cleanClaimRate: Math.round(cleanClaimRate),
+    dispatchEfficiency: Math.round(dispatchEfficiency),
+    missingDocsCount,
+    completedTrips: completed.length,
+    plannedTrips: planned.length,
+    blockedTrips: blocked.length,
+    latePickupCascades: 0, // computed from status_updates at query time
+  };
+}
+
+// ============================================================
+// AR AGING
+// ============================================================
+
 export interface AgingBucket {
   label: string;
   min: number;
@@ -236,4 +407,64 @@ export function computeAverageDaysToPayment(claims: {
   }, 0);
 
   return Math.round(total / paidClaims.length);
+}
+
+// ============================================================
+// BILLING PACKET — structured export per trip
+// ============================================================
+
+export interface BillingPacket {
+  trip_id: string;
+  patient_name: string;
+  run_date: string;
+  trip_type: string;
+  origin: { location: string | null; type: string | null };
+  destination: { location: string | null; type: string | null };
+  timestamps: { dispatch: string | null; loaded: string | null; dropped: string | null };
+  loaded_miles: number | null;
+  hcpcs_codes: string[];
+  hcpcs_modifiers: string[];
+  payer: string | null;
+  auth_number: string | null;
+  signature_obtained: boolean;
+  pcs_attached: boolean;
+  medical_necessity: {
+    bed_confined: boolean;
+    cannot_transfer_safely: boolean;
+    requires_monitoring: boolean;
+    oxygen_during_transport: boolean;
+    clinical_note: string | null;
+  };
+  claim_status: string;
+  blockers: string[];
+  expected_revenue: number;
+}
+
+export function buildBillingPacket(trip: any, patientName: string): BillingPacket {
+  return {
+    trip_id: trip.id,
+    patient_name: patientName,
+    run_date: trip.run_date,
+    trip_type: trip.trip_type ?? "dialysis",
+    origin: { location: trip.pickup_location, type: trip.origin_type },
+    destination: { location: trip.destination_location, type: trip.destination_type },
+    timestamps: { dispatch: trip.dispatch_time, loaded: trip.loaded_at, dropped: trip.dropped_at },
+    loaded_miles: trip.loaded_miles,
+    hcpcs_codes: trip.hcpcs_codes ?? [],
+    hcpcs_modifiers: trip.hcpcs_modifiers ?? [],
+    payer: trip.payer ?? null,
+    auth_number: trip.auth_number ?? null,
+    signature_obtained: trip.signature_obtained ?? false,
+    pcs_attached: trip.pcs_attached ?? false,
+    medical_necessity: {
+      bed_confined: trip.bed_confined ?? false,
+      cannot_transfer_safely: trip.cannot_transfer_safely ?? false,
+      requires_monitoring: trip.requires_monitoring ?? false,
+      oxygen_during_transport: trip.oxygen_during_transport ?? false,
+      clinical_note: trip.clinical_note ?? trip.necessity_notes ?? null,
+    },
+    claim_status: trip.claim_ready ? "clean" : "blocked",
+    blockers: trip.blockers ?? [],
+    expected_revenue: trip.expected_revenue ?? 0,
+  };
 }

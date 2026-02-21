@@ -19,10 +19,11 @@ import {
   inferLocationType,
   validateLoadedMiles,
   computeCleanTripStatus,
+  evaluateDocGates,
   LOCATION_TYPES,
 } from "@/lib/billing-utils";
 
-type TripStatus = "scheduled" | "assigned" | "en_route" | "loaded" | "completed" | "ready_for_billing" | "cancelled";
+type TripStatus = "scheduled" | "assigned" | "en_route" | "arrived_pickup" | "loaded" | "arrived_dropoff" | "completed" | "ready_for_billing" | "cancelled" | "no_show" | "patient_not_ready" | "facility_delay";
 
 interface TripRecord {
   id: string;
@@ -38,6 +39,7 @@ interface TripRecord {
   signature_obtained: boolean;
   pcs_attached: boolean;
   necessity_notes: string | null;
+  clinical_note: string | null;
   service_level: string;
   scheduled_pickup_time: string | null;
   pickup_location: string | null;
@@ -54,6 +56,11 @@ interface TripRecord {
   cannot_transfer_safely: boolean;
   requires_monitoring: boolean;
   oxygen_during_transport: boolean;
+  expected_revenue: number;
+  claim_ready: boolean;
+  blockers: string[];
+  arrived_pickup_at: string | null;
+  arrived_dropoff_at: string | null;
   // joined
   patient_name?: string;
   truck_name?: string;
@@ -65,27 +72,37 @@ interface TripRecord {
 }
 
 const STATUS_PIPELINE: TripStatus[] = [
-  "scheduled", "assigned", "en_route", "loaded", "completed", "ready_for_billing"
+  "scheduled", "assigned", "en_route", "arrived_pickup", "loaded", "arrived_dropoff", "completed", "ready_for_billing"
 ];
 
 const STATUS_LABELS: Record<TripStatus, string> = {
   scheduled: "Scheduled",
   assigned: "Assigned",
   en_route: "En Route",
+  arrived_pickup: "Arrived Pickup",
   loaded: "Loaded",
+  arrived_dropoff: "Arrived Dropoff",
   completed: "Completed",
   ready_for_billing: "Ready for Billing",
   cancelled: "Cancelled",
+  no_show: "No-Show",
+  patient_not_ready: "Patient Not Ready",
+  facility_delay: "Facility Delay",
 };
 
 const STATUS_COLORS: Record<TripStatus, string> = {
   scheduled: "bg-muted text-muted-foreground",
   assigned: "bg-primary/10 text-primary",
   en_route: "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]",
+  arrived_pickup: "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]",
   loaded: "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]",
+  arrived_dropoff: "bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))]",
   completed: "bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))]",
   ready_for_billing: "bg-[hsl(var(--status-green))]/20 text-[hsl(var(--status-green))] font-semibold",
   cancelled: "bg-destructive/10 text-destructive",
+  no_show: "bg-destructive/10 text-destructive",
+  patient_not_ready: "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]",
+  facility_delay: "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]",
 };
 
 export default function TripsAndClinical() {
@@ -102,7 +119,7 @@ export default function TripsAndClinical() {
 
   const [form, setForm] = useState({
     loaded_miles: "", loaded_at: "", dropped_at: "", dispatch_time: "", wait_time_minutes: "",
-    signature_obtained: false, pcs_attached: false, necessity_notes: "", service_level: "BLS",
+    signature_obtained: false, pcs_attached: false, necessity_notes: "", clinical_note: "", service_level: "BLS",
     origin_type: "", destination_type: "",
     bed_confined: false, cannot_transfer_safely: false, requires_monitoring: false, oxygen_during_transport: false,
   });
@@ -227,6 +244,7 @@ export default function TripsAndClinical() {
       signature_obtained: trip.signature_obtained,
       pcs_attached: trip.pcs_attached,
       necessity_notes: trip.necessity_notes ?? "",
+      clinical_note: trip.clinical_note ?? "",
       service_level: trip.service_level ?? "BLS",
       origin_type: autoOrigin,
       destination_type: autoDest,
@@ -242,7 +260,14 @@ export default function TripsAndClinical() {
     if (idx < 0 || idx >= STATUS_PIPELINE.length - 1) return;
     const next = STATUS_PIPELINE[idx + 1];
 
+    // Documentation gate: block ready_for_billing if docs incomplete
     if (next === "ready_for_billing") {
+      const docGate = evaluateDocGates(trip);
+      if (!docGate.passed) {
+        const missing = docGate.fields.filter(f => f.required && !f.present).map(f => f.label);
+        toast.error(`Documentation gate failed: ${missing.join(", ")}`);
+        return;
+      }
       const cleanResult = computeCleanTripStatus(
         trip,
         payerRulesMap.get(trip.payer ?? "") ?? null,
@@ -254,8 +279,22 @@ export default function TripsAndClinical() {
       }
     }
 
-    await supabase.from("trip_records" as any).update({ status: next }).eq("id", trip.id);
+    const updatePayload: any = { status: next };
+    // Auto-set timestamps on status transitions
+    if (next === "arrived_pickup") updatePayload.arrived_pickup_at = new Date().toISOString();
+    if (next === "loaded") updatePayload.loaded_at = new Date().toISOString();
+    if (next === "arrived_dropoff") updatePayload.arrived_dropoff_at = new Date().toISOString();
+    if (next === "completed") updatePayload.dropped_at = new Date().toISOString();
+    if (next === "ready_for_billing") updatePayload.claim_ready = true;
+
+    await supabase.from("trip_records" as any).update(updatePayload).eq("id", trip.id);
     toast.success(`Status → ${STATUS_LABELS[next]}`);
+    fetchTrips();
+  };
+
+  const markSpecialStatus = async (trip: TripRecord, status: "no_show" | "patient_not_ready" | "facility_delay" | "cancelled") => {
+    await supabase.from("trip_records" as any).update({ status }).eq("id", trip.id);
+    toast.success(`Status → ${STATUS_LABELS[status]}`);
     fetchTrips();
   };
 
@@ -431,11 +470,22 @@ export default function TripsAndClinical() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        {trip.status !== "cancelled" && trip.status !== "ready_for_billing" && (
+                        {trip.status !== "cancelled" && trip.status !== "ready_for_billing" && trip.status !== "no_show" && (
                           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => advanceStatus(trip)}>
                             <ChevronRight className="h-3 w-3 mr-0.5" />
                             {STATUS_LABELS[STATUS_PIPELINE[STATUS_PIPELINE.indexOf(trip.status) + 1] ?? trip.status]}
                           </Button>
+                        )}
+                        {trip.status !== "cancelled" && trip.status !== "no_show" && trip.status !== "completed" && trip.status !== "ready_for_billing" && (
+                          <Select onValueChange={(v: any) => markSpecialStatus(trip, v)}>
+                            <SelectTrigger className="h-7 w-20 text-[10px]"><SelectValue placeholder="Flag" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="no_show">No-Show</SelectItem>
+                              <SelectItem value="patient_not_ready">Not Ready</SelectItem>
+                              <SelectItem value="facility_delay">Facility Delay</SelectItem>
+                              <SelectItem value="cancelled">Cancel</SelectItem>
+                            </SelectContent>
+                          </Select>
                         )}
                         <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => openTrip(trip)}>
                           Edit
