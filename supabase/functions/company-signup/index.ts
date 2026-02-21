@@ -135,11 +135,11 @@ serve(async (req) => {
       });
     }
 
-    // 7. Create subscription record (pending payment)
+    // 7. Create subscription record (TEST_ACTIVE — payments disabled in build mode)
     await supabaseAdmin.from("subscription_records").insert({
       company_id: companyId,
-      provider: "paddle",
-      subscription_status: "pending",
+      provider: "none",
+      subscription_status: "TEST_ACTIVE",
       plan_id: "poddispatch_standard",
     });
 
