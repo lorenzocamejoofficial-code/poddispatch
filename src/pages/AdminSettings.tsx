@@ -18,6 +18,8 @@ export default function AdminSettings() {
   const [facilityDelay, setFacilityDelay] = useState("10");
   const [dialysisBuffer, setDialysisBuffer] = useState("15");
   const [dischargeBuffer, setDischargeBuffer] = useState("20");
+  const [sessionTimeout, setSessionTimeout] = useState("30");
+  const [sessionWarningEnabled, setSessionWarningEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -31,6 +33,8 @@ export default function AdminSettings() {
         setFacilityDelay(String((data as any).facility_delay_minutes ?? 10));
         setDialysisBuffer(String((data as any).dialysis_b_leg_buffer_minutes ?? 15));
         setDischargeBuffer(String((data as any).discharge_buffer_minutes ?? 20));
+        setSessionTimeout(String((data as any).session_timeout_minutes ?? 30));
+        setSessionWarningEnabled((data as any).session_warning_enabled ?? true);
       }
     });
   }, []);
@@ -46,6 +50,8 @@ export default function AdminSettings() {
       facility_delay_minutes: parseInt(facilityDelay),
       dialysis_b_leg_buffer_minutes: parseInt(dialysisBuffer),
       discharge_buffer_minutes: parseInt(dischargeBuffer),
+      session_timeout_minutes: parseInt(sessionTimeout),
+      session_warning_enabled: sessionWarningEnabled,
     } as any).eq("id", settingsId);
     toast.success("Settings saved");
     setSaving(false);
@@ -157,6 +163,37 @@ export default function AdminSettings() {
               <Label>Discharge Buffer (min)</Label>
               <Input type="number" value={dischargeBuffer} onChange={(e) => setDischargeBuffer(e.target.value)} />
             </div>
+          </div>
+        </section>
+
+        {/* Session Security */}
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Session Security</h3>
+            <p className="text-sm text-muted-foreground">HIPAA-compliant session timeout settings for all users.</p>
+          </div>
+          <div>
+            <Label>Auto-Logout Timer</Label>
+            <Select value={sessionTimeout} onValueChange={setSessionTimeout}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Manual logout only</SelectItem>
+                <SelectItem value="15">15 minutes</SelectItem>
+                <SelectItem value="30">30 minutes</SelectItem>
+                <SelectItem value="45">45 minutes</SelectItem>
+                <SelectItem value="60">60 minutes</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="sessionWarning"
+              checked={sessionWarningEnabled}
+              onCheckedChange={(v) => setSessionWarningEnabled(v === true)}
+            />
+            <Label htmlFor="sessionWarning" className="text-sm font-normal text-muted-foreground">
+              Show warning popup 2 minutes before auto-logout
+            </Label>
           </div>
         </section>
 

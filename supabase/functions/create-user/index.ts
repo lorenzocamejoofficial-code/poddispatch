@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
     }
 
     // Validate role is one of the allowed values
-    const allowedRoles = ["admin", "crew"];
+    const allowedRoles = ["admin", "crew", "dispatcher", "billing"];
     if (!allowedRoles.includes(role)) {
       return new Response(JSON.stringify({ error: "Invalid role" }), {
         status: 400,

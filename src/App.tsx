@@ -24,7 +24,7 @@ import FacilitiesPage from "./pages/FacilitiesPage";
 import ReportsAndMetrics from "./pages/ReportsAndMetrics";
 import MigrationOnboarding from "./pages/MigrationOnboarding";
 import CompanySimulation from "./pages/CompanySimulation";
-
+import SystemCreatorDashboard from "./pages/SystemCreatorDashboard";
 const queryClient = new QueryClient();
 
 function SessionWarningBanner() {
@@ -44,7 +44,7 @@ function SessionWarningBanner() {
 }
 
 function AppRoutes() {
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, isSystemCreator } = useAuth();
 
   if (loading) {
     return (
@@ -62,6 +62,21 @@ function AppRoutes() {
         <Route path="/crew/:token" element={<DailyRunSheet />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+    );
+  }
+
+  // System creator — special dashboard
+  if (isSystemCreator) {
+    return (
+      <SchedulingProvider>
+        <Routes>
+          <Route path="/system" element={<SystemCreatorDashboard />} />
+          <Route path="/simulation" element={<CompanySimulation />} />
+          <Route path="/" element={<SystemCreatorDashboard />} />
+          <Route path="/login" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </SchedulingProvider>
     );
   }
 
