@@ -11,11 +11,11 @@ import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 import {
   Building2, Search, CheckCircle2, XCircle, Ban, RefreshCw,
   Mail, ShieldCheck, LogOut, LayoutDashboard, FlaskConical, Settings2,
-  AlertTriangle,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { useSandboxMode } from "@/hooks/useSandboxMode";
+import { PreviewRoleBar } from "@/components/creator/PreviewRoleBar";
 
 interface CompanyRecord {
   id: string;
@@ -40,7 +40,7 @@ export default function CreatorConsole() {
   const { user, signOut, isSystemCreator } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { sandboxMode, setSandboxMode } = useSandboxMode();
+  const { sandboxMode } = useSandboxMode();
   const [search, setSearch] = useState("");
   const [companies, setCompanies] = useState<CompanyRecord[]>([]);
   const [subscriptions, setSubscriptions] = useState<Record<string, SubscriptionRecord>>({});
@@ -154,13 +154,6 @@ export default function CreatorConsole() {
               </Link>
             );
           })}
-
-          {/* Sandbox toggle */}
-          <div className="flex items-center gap-2 px-3 pt-4 pb-1">
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">Sandbox</span>
-            <Switch checked={sandboxMode} onCheckedChange={(on) => { setSandboxMode(on); if (on) navigate("/sandbox/dispatch"); }} className="ml-auto" />
-          </div>
         </nav>
         <div className="border-t border-sidebar-border p-3">
           <div className="mb-1 px-3">
@@ -180,6 +173,7 @@ export default function CreatorConsole() {
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 items-center gap-3 border-b bg-card px-4 lg:px-6">
           <h2 className="text-lg font-semibold text-foreground flex-1">Company Console</h2>
+          <PreviewRoleBar />
           <Badge variant="secondary" className="text-xs">No PHI — Onboarding Only</Badge>
           <Button
             variant="ghost"

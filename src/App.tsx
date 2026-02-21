@@ -30,6 +30,7 @@ import PendingApproval from "./pages/PendingApproval";
 import CreatorConsole from "./pages/CreatorConsole";
 import SandboxPage from "./pages/SandboxPage";
 import { SandboxModeProvider } from "./hooks/useSandboxMode";
+import { PreviewRoleProvider } from "./hooks/usePreviewRole";
 const queryClient = new QueryClient();
 
 function SessionWarningBanner() {
@@ -80,6 +81,7 @@ function AppRoutes() {
     return (
       <SchedulingProvider>
         <SandboxModeProvider>
+          <PreviewRoleProvider>
           <Routes>
             <Route path="/system" element={<SystemCreatorDashboard />} />
             <Route path="/creator-console" element={<CreatorConsole />} />
@@ -101,6 +103,7 @@ function AppRoutes() {
             <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </PreviewRoleProvider>
         </SandboxModeProvider>
       </SchedulingProvider>
     );

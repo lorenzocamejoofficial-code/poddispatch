@@ -9,14 +9,11 @@ import { Switch } from "@/components/ui/switch";
 import {
   Building2, Users, TrendingUp, AlertTriangle, Activity,
   FlaskConical, LogOut, Truck, LayoutDashboard, ShieldCheck, Settings2,
-  Code2, ExternalLink,
-  ClipboardList, Send, FileText, DollarSign, Building2 as FacilityIcon,
-  BarChart3, UserPlus, Settings,
+  Code2,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ViewAsSwitcher, type ViewAsRole } from "@/components/creator/ViewAsSwitcher";
 import { DevModePanel } from "@/components/creator/DevModePanel";
-import { SandboxPreview } from "@/components/creator/SandboxPreview";
+import { PreviewRoleBar } from "@/components/creator/PreviewRoleBar";
 import { useSandboxMode } from "@/hooks/useSandboxMode";
 
 interface SystemMetrics {
@@ -34,13 +31,12 @@ export default function SystemCreatorDashboard() {
   const { user, signOut, isSystemCreator } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { sandboxMode, setSandboxMode } = useSandboxMode();
+  const { sandboxMode } = useSandboxMode();
   const [metrics, setMetrics] = useState<SystemMetrics>({
     totalCompanies: 0, totalUsers: 0, totalTrucks: 0, totalTrips: 0,
     totalClaims: 0, cleanClaimRate: 0, avgDispatchEfficiency: 0, systemErrors: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [viewAs, setViewAs] = useState<ViewAsRole>("creator");
   const [devMode, setDevMode] = useState(false);
 
   useEffect(() => {
@@ -92,29 +88,9 @@ export default function SystemCreatorDashboard() {
     { path: "/simulation", label: "Company Simulation", icon: FlaskConical },
   ];
 
-  const sandboxNavItems = [
-    { path: "/sandbox/dispatch", label: "Dispatch Command", icon: LayoutDashboard },
-    { path: "/sandbox/scheduling", label: "Scheduling", icon: ClipboardList },
-    { path: "/sandbox/crew-schedule", label: "Crew Schedule", icon: Send },
-    { path: "/sandbox/patients", label: "Patients", icon: Users },
-    { path: "/sandbox/trips", label: "Trips & Clinical", icon: FileText },
-    { path: "/sandbox/billing", label: "Billing & Claims", icon: DollarSign },
-    { path: "/sandbox/compliance", label: "Compliance", icon: ShieldCheck },
-    { path: "/sandbox/facilities", label: "Facilities", icon: Building2 },
-    { path: "/sandbox/reports", label: "Reports", icon: BarChart3 },
-    { path: "/sandbox/employees", label: "Employees", icon: UserPlus },
-    { path: "/sandbox/trucks", label: "Trucks & Crews", icon: Truck },
-    { path: "/sandbox/settings", label: "Settings", icon: Settings },
-  ];
-
-  const handleToggleSandbox = (on: boolean) => {
-    setSandboxMode(on);
-    if (on) navigate("/sandbox/dispatch");
-  };
-
   return (
     <div className="flex h-screen overflow-hidden bg-dispatch-surface">
-      {/* Sidebar */}
+      {/* Sidebar — only 3 items, no sandbox sub-pages */}
       <aside className="hidden lg:flex w-60 flex-col bg-sidebar text-sidebar-foreground">
         <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
           <ShieldCheck className="h-5 w-5 text-sidebar-primary" />
@@ -131,31 +107,6 @@ export default function SystemCreatorDashboard() {
                 className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                   active
                     ? "bg-sidebar-accent text-sidebar-primary"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                }`}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
-
-          {/* Sandbox toggle */}
-          <div className="flex items-center gap-2 px-3 pt-4 pb-1">
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">Sandbox Mode</span>
-            <Switch checked={sandboxMode} onCheckedChange={handleToggleSandbox} className="ml-auto" />
-          </div>
-
-          {sandboxMode && sandboxNavItems.map((item) => {
-            const active = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-amber-500/10 text-amber-700"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                 }`}
               >
@@ -184,15 +135,15 @@ export default function SystemCreatorDashboard() {
         <header className="flex h-14 items-center gap-3 border-b bg-card px-4 lg:px-6">
           <h2 className="text-lg font-semibold text-foreground flex-1">System Creator Dashboard</h2>
 
+          {/* Preview Role Bar (sandbox toggle + role switcher) */}
+          <PreviewRoleBar />
+
           {/* Dev Mode Toggle */}
           <div className="flex items-center gap-2">
             <Code2 className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs text-muted-foreground hidden sm:inline">Dev Mode</span>
             <Switch checked={devMode} onCheckedChange={setDevMode} />
           </div>
-
-          {/* View As Switcher */}
-          <ViewAsSwitcher current={viewAs} onChange={setViewAs} />
 
           {/* Logout */}
           <Button variant="ghost" size="sm" className="gap-2 text-xs text-muted-foreground" onClick={handleLogout}>
@@ -204,106 +155,99 @@ export default function SystemCreatorDashboard() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {/* Sandbox preview for non-creator views */}
-          {viewAs !== "creator" ? (
-            <SandboxPreview viewAs={viewAs} />
+          {/* How this works */}
+          <Collapsible className="mb-6">
+            <CollapsibleTrigger className="text-xs text-primary hover:underline">
+              ℹ️ How this works
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+              <p>This dashboard shows anonymized system-level metrics across all companies.</p>
+              <p>No patient names, addresses, or DOBs are shown — only aggregate counts and percentages.</p>
+              <p>Use the <strong>View As</strong> switcher to preview role-based views with synthetic data.</p>
+              <p>Enable <strong>Dev Mode</strong> to inspect routes, feature flags, permissions, and schema.</p>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Dev Mode Panel */}
+          {devMode && (
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Code2 className="h-4 w-4 text-primary" />
+                Developer Mode
+              </h3>
+              <DevModePanel />
+            </div>
+          )}
+
+          {loading ? (
+            <p className="text-muted-foreground">Loading system metrics...</p>
           ) : (
-            <>
-              {/* How this works */}
-              <Collapsible className="mb-6">
-                <CollapsibleTrigger className="text-xs text-primary hover:underline">
-                  ℹ️ How this works
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
-                  <p>This dashboard shows anonymized system-level metrics across all companies.</p>
-                  <p>No patient names, addresses, or DOBs are shown — only aggregate counts and percentages.</p>
-                  <p>Use the <strong>View As</strong> switcher to preview role-based views with synthetic data.</p>
-                  <p>Enable <strong>Dev Mode</strong> to inspect routes, feature flags, permissions, and schema.</p>
-                </CollapsibleContent>
-              </Collapsible>
+            <div className="space-y-6">
+              {/* Platform Overview */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <MetricCard icon={Building2} label="Companies" value={metrics.totalCompanies} />
+                <MetricCard icon={Users} label="Total Users" value={metrics.totalUsers} />
+                <MetricCard icon={Truck} label="Total Trucks" value={metrics.totalTrucks} />
+                <MetricCard icon={Activity} label="Total Trips" value={metrics.totalTrips} />
+              </div>
 
-              {/* Dev Mode Panel */}
-              {devMode && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                    <Code2 className="h-4 w-4 text-primary" />
-                    Developer Mode
-                  </h3>
-                  <DevModePanel />
-                </div>
-              )}
+              {/* Performance */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Clean Claim Rate</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-foreground">{metrics.cleanClaimRate}%</div>
+                    <p className="text-xs text-muted-foreground mt-1">{metrics.totalClaims} total claims tracked</p>
+                  </CardContent>
+                </Card>
 
-              {loading ? (
-                <p className="text-muted-foreground">Loading system metrics...</p>
-              ) : (
-                <div className="space-y-6">
-                  {/* Platform Overview */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <MetricCard icon={Building2} label="Companies" value={metrics.totalCompanies} />
-                    <MetricCard icon={Users} label="Total Users" value={metrics.totalUsers} />
-                    <MetricCard icon={Truck} label="Total Trucks" value={metrics.totalTrucks} />
-                    <MetricCard icon={Activity} label="Total Trips" value={metrics.totalTrips} />
-                  </div>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Dispatch Efficiency</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-foreground">{metrics.avgDispatchEfficiency}%</div>
+                    <p className="text-xs text-muted-foreground mt-1">Completed / Total trips</p>
+                  </CardContent>
+                </Card>
 
-                  {/* Performance */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Clean Claim Rate</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-3xl font-bold text-foreground">{metrics.cleanClaimRate}%</div>
-                        <p className="text-xs text-muted-foreground mt-1">{metrics.totalClaims} total claims tracked</p>
-                      </CardContent>
-                    </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                      <AlertTriangle className="h-3.5 w-3.5" /> System Errors
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold text-foreground">{metrics.systemErrors}</div>
+                    <p className="text-xs text-muted-foreground mt-1">Last 24h</p>
+                  </CardContent>
+                </Card>
+              </div>
 
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Dispatch Efficiency</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-3xl font-bold text-foreground">{metrics.avgDispatchEfficiency}%</div>
-                        <p className="text-xs text-muted-foreground mt-1">Completed / Total trips</p>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-                          <AlertTriangle className="h-3.5 w-3.5" /> System Errors
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-3xl font-bold text-foreground">{metrics.systemErrors}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Last 24h</p>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Feature Usage placeholder */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4" /> Feature Usage Heatmap
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-3 md:grid-cols-5 gap-2 text-xs">
-                        {["Dispatch Board", "Scheduling", "Trips", "Billing", "Patients", "Facilities", "Crew Schedule", "Reports", "Compliance", "Settings"].map((feature) => (
-                          <div key={feature} className="rounded border bg-muted/30 p-2 text-center">
-                            <p className="text-muted-foreground">{feature}</p>
-                            <p className="font-bold text-foreground mt-1">—</p>
-                          </div>
-                        ))}
+              {/* Feature Usage placeholder */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" /> Feature Usage Heatmap
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 md:grid-cols-5 gap-2 text-xs">
+                    {["Dispatch Board", "Scheduling", "Trips", "Billing", "Patients", "Facilities", "Crew Schedule", "Reports", "Compliance", "Settings"].map((feature) => (
+                      <div key={feature} className="rounded border bg-muted/30 p-2 text-center">
+                        <p className="text-muted-foreground">{feature}</p>
+                        <p className="font-bold text-foreground mt-1">—</p>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-3">
-                        Usage tracking will populate as companies use the platform.
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-            </>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Usage tracking will populate as companies use the platform.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           )}
         </main>
       </div>
