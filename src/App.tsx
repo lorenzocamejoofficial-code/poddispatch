@@ -53,9 +53,7 @@ function AppRoutes() {
     );
   }
 
-  // Public route: crew share link (no auth required)
-  // This needs to be outside auth checks
-
+  // Public routes (no auth)
   if (!user) {
     return (
       <Routes>
@@ -66,7 +64,7 @@ function AppRoutes() {
     );
   }
 
-  // Crew role
+  // Crew role — mobile-only view
   if (role === "crew") {
     return (
       <Routes>
@@ -77,7 +75,44 @@ function AppRoutes() {
     );
   }
 
-  // Admin role
+  // Dispatcher role — dispatch + scheduling + trips + patients, no billing/reports/settings
+  if (role === "dispatcher") {
+    return (
+      <SchedulingProvider>
+        <Routes>
+          <Route path="/" element={<DispatchBoard />} />
+          <Route path="/scheduling" element={<Scheduling />} />
+          <Route path="/crew-schedule" element={<CrewScheduleAdmin />} />
+          <Route path="/crew/:token" element={<DailyRunSheet />} />
+          <Route path="/patients" element={<Patients />} />
+          <Route path="/trips" element={<TripsAndClinical />} />
+          <Route path="/facilities" element={<FacilitiesPage />} />
+          <Route path="/trucks" element={<TrucksCrews />} />
+          <Route path="/login" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </SchedulingProvider>
+    );
+  }
+
+  // Billing role — completed trips + claims + compliance + facilities
+  if (role === "billing") {
+    return (
+      <SchedulingProvider>
+        <Routes>
+          <Route path="/" element={<BillingAndClaims />} />
+          <Route path="/trips" element={<TripsAndClinical />} />
+          <Route path="/billing" element={<BillingAndClaims />} />
+          <Route path="/compliance" element={<ComplianceAndQA />} />
+          <Route path="/facilities" element={<FacilitiesPage />} />
+          <Route path="/login" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </SchedulingProvider>
+    );
+  }
+
+  // Admin role — full access
   return (
     <SchedulingProvider>
       <Routes>
@@ -85,7 +120,7 @@ function AppRoutes() {
         <Route path="/scheduling" element={<Scheduling />} />
         <Route path="/crew-schedule" element={<CrewScheduleAdmin />} />
         <Route path="/crew/:token" element={<DailyRunSheet />} />
-        <Route path="/runs" element={<Runs />} /> {/* legacy */}
+        <Route path="/runs" element={<Runs />} />
         <Route path="/patients" element={<Patients />} />
         <Route path="/trips" element={<TripsAndClinical />} />
         <Route path="/billing" element={<BillingAndClaims />} />
@@ -119,4 +154,3 @@ const App = () => (
 );
 
 export default App;
-

@@ -98,12 +98,19 @@ export function validateLoadedMiles(
   return { status: "ok", message: null };
 }
 
-// Clean trip badge logic
+// Clean trip badge logic — enhanced with structured medical necessity
 export type CleanTripLevel = "clean" | "review" | "blocked";
+
+export interface CleanTripIssue {
+  field: string;
+  message: string;
+  severity: "blocker" | "warning";
+}
 
 export interface CleanTripResult {
   level: CleanTripLevel;
   issues: string[];
+  structured_issues: CleanTripIssue[];
 }
 
 export function computeCleanTripStatus(trip: {
@@ -115,6 +122,11 @@ export function computeCleanTripStatus(trip: {
   necessity_notes?: string | null;
   loaded_at?: string | null;
   dropped_at?: string | null;
+  dispatch_time?: string | null;
+  bed_confined?: boolean;
+  cannot_transfer_safely?: boolean;
+  requires_monitoring?: boolean;
+  oxygen_during_transport?: boolean;
 }, payerRules?: {
   requires_pcs?: boolean;
   requires_signature?: boolean;
@@ -122,33 +134,51 @@ export function computeCleanTripStatus(trip: {
   requires_timestamps?: boolean;
   requires_miles?: boolean;
   requires_auth?: boolean;
+} | null, authInfo?: {
+  auth_required?: boolean;
+  auth_expiration?: string | null;
 } | null): CleanTripResult {
-  const issues: string[] = [];
-  const blockers: string[] = [];
+  const structured: CleanTripIssue[] = [];
 
   // Always required for billing
-  if (!trip.origin_type) blockers.push("Missing origin type");
-  if (!trip.destination_type) blockers.push("Missing destination type");
-  if (!trip.loaded_miles || trip.loaded_miles <= 0) blockers.push("Missing loaded miles");
+  if (!trip.origin_type) structured.push({ field: "origin_type", message: "Missing origin type", severity: "blocker" });
+  if (!trip.destination_type) structured.push({ field: "destination_type", message: "Missing destination type", severity: "blocker" });
+  if (!trip.loaded_miles || trip.loaded_miles <= 0) structured.push({ field: "loaded_miles", message: "Missing loaded miles", severity: "blocker" });
+
+  // Timestamp checks - always required
+  if (!trip.loaded_at) structured.push({ field: "loaded_at", message: "Missing loaded timestamp", severity: "blocker" });
+  if (!trip.dropped_at) structured.push({ field: "dropped_at", message: "Missing drop-off timestamp", severity: "blocker" });
+
+  // Auth expiry check
+  if (authInfo?.auth_required && authInfo.auth_expiration) {
+    if (new Date(authInfo.auth_expiration) <= new Date()) {
+      structured.push({ field: "auth_expiration", message: "Authorization expired", severity: "blocker" });
+    }
+  }
 
   // Payer rule checks
   if (payerRules) {
-    if (payerRules.requires_signature && !trip.signature_obtained) blockers.push("Signature required");
-    if (payerRules.requires_pcs && !trip.pcs_attached) blockers.push("PCS required");
-    if (payerRules.requires_necessity_note && !trip.necessity_notes) issues.push("Necessity note missing");
-    if (payerRules.requires_timestamps && (!trip.loaded_at || !trip.dropped_at)) blockers.push("Timestamps required");
-    if (payerRules.requires_miles && (!trip.loaded_miles || trip.loaded_miles <= 0)) {
-      // already covered above
+    if (payerRules.requires_signature && !trip.signature_obtained) structured.push({ field: "signature_obtained", message: "Signature required by payer", severity: "blocker" });
+    if (payerRules.requires_pcs && !trip.pcs_attached) structured.push({ field: "pcs_attached", message: "PCS required by payer", severity: "blocker" });
+    if (payerRules.requires_necessity_note) {
+      if (!trip.necessity_notes) structured.push({ field: "necessity_notes", message: "Clinical justification note required", severity: "blocker" });
+      // Check structured checklist - at least one must be checked
+      const hasChecklist = trip.bed_confined || trip.cannot_transfer_safely || trip.requires_monitoring || trip.oxygen_during_transport;
+      if (!hasChecklist) structured.push({ field: "necessity_checklist", message: "At least one medical necessity criterion required", severity: "blocker" });
     }
+    if (payerRules.requires_timestamps && !trip.dispatch_time) structured.push({ field: "dispatch_time", message: "Dispatch timestamp required", severity: "blocker" });
   } else {
     // Default checks without payer rules
-    if (!trip.signature_obtained) issues.push("No signature");
-    if (!trip.pcs_attached) issues.push("No PCS");
+    if (!trip.signature_obtained) structured.push({ field: "signature_obtained", message: "No signature", severity: "warning" });
+    if (!trip.pcs_attached) structured.push({ field: "pcs_attached", message: "No PCS", severity: "warning" });
   }
 
-  if (blockers.length > 0) return { level: "blocked", issues: blockers };
-  if (issues.length > 0) return { level: "review", issues };
-  return { level: "clean", issues: [] };
+  const blockers = structured.filter(i => i.severity === "blocker");
+  const warnings = structured.filter(i => i.severity === "warning");
+
+  if (blockers.length > 0) return { level: "blocked", issues: blockers.map(i => i.message), structured_issues: structured };
+  if (warnings.length > 0) return { level: "review", issues: warnings.map(i => i.message), structured_issues: structured };
+  return { level: "clean", issues: [], structured_issues: [] };
 }
 
 // AR aging bucket calculator

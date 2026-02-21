@@ -7,8 +7,7 @@ const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const WARNING_BEFORE_MS = 2 * 60 * 1000;       // warn 2 min before expiry
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"] as const;
 
-type AppRole = "admin" | "crew";
-type AppRoleExtended = AppRole | "dispatcher";
+type AppRole = "admin" | "crew" | "dispatcher" | "billing";
 
 interface AuthContextType {
   user: User | null;
@@ -16,9 +15,17 @@ interface AuthContextType {
   role: AppRole | null;
   profileId: string | null;
   loading: boolean;
-  sessionWarning: boolean; // true when the 2-min pre-expiry warning is active
+  sessionWarning: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  // Role convenience checks
+  isAdmin: boolean;
+  isDispatcher: boolean;
+  isBilling: boolean;
+  isCrew: boolean;
+  canManageTrips: boolean;    // admin or dispatcher
+  canManageBilling: boolean;  // admin or billing
+  canManagePatients: boolean; // admin or dispatcher
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -57,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // HIPAA: reset inactivity timers on user activity
   const resetInactivityTimer = useCallback(() => {
-    if (!userRef.current) return; // only track when logged in
+    if (!userRef.current) return;
 
     setSessionWarning(false);
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
@@ -101,7 +108,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          // Defer to avoid Supabase auth deadlock
           setTimeout(() => {
             loadUserData(session.user.id).finally(() => setLoading(false));
           }, 0);
@@ -135,8 +141,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await doSignOut();
   };
 
+  // Derived role checks
+  const isAdmin = role === "admin";
+  const isDispatcher = role === "dispatcher";
+  const isBilling = role === "billing";
+  const isCrew = role === "crew";
+  const canManageTrips = isAdmin || isDispatcher;
+  const canManageBilling = isAdmin || isBilling;
+  const canManagePatients = isAdmin || isDispatcher;
+
   return (
-    <AuthContext.Provider value={{ user, session, role, profileId, loading, sessionWarning, signIn, signOut }}>
+    <AuthContext.Provider value={{
+      user, session, role, profileId, loading, sessionWarning, signIn, signOut,
+      isAdmin, isDispatcher, isBilling, isCrew,
+      canManageTrips, canManageBilling, canManagePatients,
+    }}>
       {children}
     </AuthContext.Provider>
   );
