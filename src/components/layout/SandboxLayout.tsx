@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSandboxMode } from "@/hooks/useSandboxMode";
-import { Switch } from "@/components/ui/switch";
+import { PreviewRoleBar } from "@/components/creator/PreviewRoleBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { HelpButton } from "@/components/help/HelpButton";
@@ -145,11 +145,8 @@ export function SandboxLayout({ children, pageLabel }: { children: ReactNode; pa
           </Button>
           <h2 className="text-lg font-semibold text-foreground flex-1">{currentLabel}</h2>
 
-          {/* Sandbox toggle */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground hidden sm:inline">Sandbox</span>
-            <Switch checked={sandboxMode} onCheckedChange={handleToggleSandbox} />
-          </div>
+          {/* Preview Role Bar (sandbox toggle + role switcher) */}
+          <PreviewRoleBar />
 
           <HelpButton routeKey={location.pathname} />
 

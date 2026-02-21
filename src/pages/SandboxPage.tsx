@@ -2,6 +2,8 @@ import { SandboxLayout } from "@/components/layout/SandboxLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { usePreviewRole } from "@/hooks/usePreviewRole";
 import {
   generateTrucks, generatePatients, generateTrips,
   generateClaims, generateFacilities, generateEmployees,
@@ -29,7 +31,55 @@ const PAGE_LABELS: Record<PageKey, string> = {
   settings: "Settings",
 };
 
+// Map pageKey to module name for role visibility checks
+const PAGE_MODULE: Record<PageKey, string> = {
+  dispatch: "dispatch",
+  scheduling: "scheduling",
+  "crew-schedule": "crew-schedule",
+  patients: "patients",
+  trips: "trips",
+  billing: "billing",
+  compliance: "compliance",
+  facilities: "facilities",
+  reports: "reports",
+  employees: "employees",
+  trucks: "trucks",
+  settings: "settings",
+};
+
+/** Wrapper that disables content when the preview role can't access this module */
+function RoleGate({ module, children }: { module: string; children: React.ReactNode }) {
+  const { canView, previewRole, isPreviewActive } = usePreviewRole();
+  if (!isPreviewActive || canView(module)) return <>{children}</>;
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
+      <Badge variant="outline" className="text-xs">
+        Not permitted for: {previewRole}
+      </Badge>
+      <p className="text-sm text-muted-foreground max-w-md">
+        The <strong>{previewRole}</strong> role does not have access to this module. 
+        Switch to a role with permission using the "View as" dropdown.
+      </p>
+    </div>
+  );
+}
+
+/** Conditionally disable a section with tooltip */
+export function RoleDisabled({ action, children }: { action: string; children: React.ReactNode }) {
+  const { canAct, previewRole, isPreviewActive } = usePreviewRole();
+  if (!isPreviewActive || canAct(action)) return <>{children}</>;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="opacity-50 pointer-events-none cursor-not-allowed">{children}</div>
+      </TooltipTrigger>
+      <TooltipContent className="text-xs">Not permitted for {previewRole} role</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export default function SandboxPage({ pageKey }: { pageKey: PageKey }) {
+  const { previewRole, isPreviewActive } = usePreviewRole();
   return (
     <SandboxLayout pageLabel={PAGE_LABELS[pageKey]}>
       <Collapsible className="mb-4">
@@ -37,22 +87,33 @@ export default function SandboxPage({ pageKey }: { pageKey: PageKey }) {
         <CollapsibleContent className="mt-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
           <p>This is a <strong>Sandbox preview</strong> of the {PAGE_LABELS[pageKey]} page.</p>
           <p>All data shown is synthetic — no real patient or company data is used.</p>
-          <p>This lets the System Creator inspect every page's layout and flow without accessing any tenant.</p>
+          <p>Use the <strong>"View as"</strong> switcher to see how each role experiences this page.</p>
+          <p>Disabled sections show a tooltip: "Not permitted for this role".</p>
+          <p>No cross-company or real PHI is accessible. RLS + tenant isolation unchanged.</p>
         </CollapsibleContent>
       </Collapsible>
 
-      {pageKey === "dispatch" && <DispatchSandbox />}
-      {pageKey === "scheduling" && <SchedulingSandbox />}
-      {pageKey === "crew-schedule" && <CrewScheduleSandbox />}
-      {pageKey === "patients" && <PatientsSandbox />}
-      {pageKey === "trips" && <TripsSandbox />}
-      {pageKey === "billing" && <BillingSandbox />}
-      {pageKey === "compliance" && <ComplianceSandbox />}
-      {pageKey === "facilities" && <FacilitiesSandbox />}
-      {pageKey === "reports" && <ReportsSandbox />}
-      {pageKey === "employees" && <EmployeesSandbox />}
-      {pageKey === "trucks" && <TrucksSandbox />}
-      {pageKey === "settings" && <SettingsSandbox />}
+      {isPreviewActive && (
+        <div className="mb-4 rounded-md border border-primary/20 bg-primary/5 p-3 text-xs text-primary flex items-center gap-2">
+          <Badge variant="outline" className="text-[10px]">{previewRole.toUpperCase()}</Badge>
+          Viewing as <strong>{previewRole}</strong> — modules and actions are filtered accordingly.
+        </div>
+      )}
+
+      <RoleGate module={PAGE_MODULE[pageKey]}>
+        {pageKey === "dispatch" && <DispatchSandbox />}
+        {pageKey === "scheduling" && <SchedulingSandbox />}
+        {pageKey === "crew-schedule" && <CrewScheduleSandbox />}
+        {pageKey === "patients" && <PatientsSandbox />}
+        {pageKey === "trips" && <TripsSandbox />}
+        {pageKey === "billing" && <BillingSandbox />}
+        {pageKey === "compliance" && <ComplianceSandbox />}
+        {pageKey === "facilities" && <FacilitiesSandbox />}
+        {pageKey === "reports" && <ReportsSandbox />}
+        {pageKey === "employees" && <EmployeesSandbox />}
+        {pageKey === "trucks" && <TrucksSandbox />}
+        {pageKey === "settings" && <SettingsSandbox />}
+      </RoleGate>
     </SandboxLayout>
   );
 }
