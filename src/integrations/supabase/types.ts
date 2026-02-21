@@ -1246,12 +1246,15 @@ export type Database = {
       }
       trip_records: {
         Row: {
+          bed_confined: boolean | null
           billing_blocked_reason: string | null
+          cannot_transfer_safely: boolean | null
           company_id: string | null
           created_at: string
           crew_id: string | null
           destination_location: string | null
           destination_type: string | null
+          dispatch_time: string | null
           dropped_at: string | null
           hcpcs_codes: string[] | null
           hcpcs_modifiers: string[] | null
@@ -1261,9 +1264,11 @@ export type Database = {
           loaded_miles: number | null
           necessity_notes: string | null
           origin_type: string | null
+          oxygen_during_transport: boolean | null
           patient_id: string | null
           pcs_attached: boolean | null
           pickup_location: string | null
+          requires_monitoring: boolean | null
           run_date: string
           scheduled_pickup_time: string | null
           service_level: string | null
@@ -1276,12 +1281,15 @@ export type Database = {
           wait_time_minutes: number | null
         }
         Insert: {
+          bed_confined?: boolean | null
           billing_blocked_reason?: string | null
+          cannot_transfer_safely?: boolean | null
           company_id?: string | null
           created_at?: string
           crew_id?: string | null
           destination_location?: string | null
           destination_type?: string | null
+          dispatch_time?: string | null
           dropped_at?: string | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
@@ -1291,9 +1299,11 @@ export type Database = {
           loaded_miles?: number | null
           necessity_notes?: string | null
           origin_type?: string | null
+          oxygen_during_transport?: boolean | null
           patient_id?: string | null
           pcs_attached?: boolean | null
           pickup_location?: string | null
+          requires_monitoring?: boolean | null
           run_date?: string
           scheduled_pickup_time?: string | null
           service_level?: string | null
@@ -1306,12 +1316,15 @@ export type Database = {
           wait_time_minutes?: number | null
         }
         Update: {
+          bed_confined?: boolean | null
           billing_blocked_reason?: string | null
+          cannot_transfer_safely?: boolean | null
           company_id?: string | null
           created_at?: string
           crew_id?: string | null
           destination_location?: string | null
           destination_type?: string | null
+          dispatch_time?: string | null
           dropped_at?: string | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
@@ -1321,9 +1334,11 @@ export type Database = {
           loaded_miles?: number | null
           necessity_notes?: string | null
           origin_type?: string | null
+          oxygen_during_transport?: boolean | null
           patient_id?: string | null
           pcs_attached?: boolean | null
           pickup_location?: string | null
+          requires_monitoring?: boolean | null
           run_date?: string
           scheduled_pickup_time?: string | null
           service_level?: string | null
@@ -1580,6 +1595,8 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      is_billing: { Args: never; Returns: boolean }
+      is_dispatcher: { Args: never; Returns: boolean }
       write_audit_log: {
         Args: {
           _action: string
