@@ -160,6 +160,15 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             {navItems.find((i) => i.path === location.pathname)?.label ?? "PodDispatch"}
           </h2>
           <HelpButton routeKey={location.pathname} />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => { signOut(); localStorage.clear(); navigate("/login"); }}
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Logout</span>
+          </Button>
         </header>
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>
