@@ -16,6 +16,7 @@ interface AuthContextType {
   profileId: string | null;
   loading: boolean;
   sessionWarning: boolean;
+  isSystemCreator: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   // Role convenience checks
@@ -37,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionWarning, setSessionWarning] = useState(false);
+  const [isSystemCreator, setIsSystemCreator] = useState(false);
 
   // HIPAA: inactivity timeout refs
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -44,12 +46,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const userRef = useRef<User | null>(null);
 
   const loadUserData = async (userId: string) => {
-    const [{ data: roleData }, { data: profileData }] = await Promise.all([
+    const [{ data: roleData }, { data: profileData }, { data: scData }] = await Promise.all([
       supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
       supabase.from("profiles").select("id").eq("user_id", userId).maybeSingle(),
+      supabase.from("system_creators").select("id").eq("user_id", userId).maybeSingle(),
     ]);
     if (roleData) setRole(roleData.role as AppRole);
     if (profileData) setProfileId(profileData.id);
+    setIsSystemCreator(!!scData);
   };
 
   // HIPAA: sign out and clear all session data
@@ -60,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setRole(null);
     setProfileId(null);
+    setIsSystemCreator(false);
   }, []);
 
   // HIPAA: reset inactivity timers on user activity
@@ -152,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, session, role, profileId, loading, sessionWarning, signIn, signOut,
+      user, session, role, profileId, loading, sessionWarning, isSystemCreator, signIn, signOut,
       isAdmin, isDispatcher, isBilling, isCrew,
       canManageTrips, canManageBilling, canManagePatients,
     }}>

@@ -318,6 +318,8 @@ export type Database = {
           grace_window_minutes: number
           id: string
           load_time_minutes: number
+          session_timeout_minutes: number
+          session_warning_enabled: boolean
           unload_time_minutes: number
           updated_at: string
         }
@@ -329,6 +331,8 @@ export type Database = {
           grace_window_minutes?: number
           id?: string
           load_time_minutes?: number
+          session_timeout_minutes?: number
+          session_warning_enabled?: boolean
           unload_time_minutes?: number
           updated_at?: string
         }
@@ -340,6 +344,8 @@ export type Database = {
           grace_window_minutes?: number
           id?: string
           load_time_minutes?: number
+          session_timeout_minutes?: number
+          session_warning_enabled?: boolean
           unload_time_minutes?: number
           updated_at?: string
         }
@@ -1256,6 +1262,24 @@ export type Database = {
           },
         ]
       }
+      system_creators: {
+        Row: {
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       trip_records: {
         Row: {
           arrived_dropoff_at: string | null
@@ -1633,6 +1657,7 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_billing: { Args: never; Returns: boolean }
       is_dispatcher: { Args: never; Returns: boolean }
+      is_system_creator: { Args: never; Returns: boolean }
       write_audit_log: {
         Args: {
           _action: string
