@@ -163,13 +163,16 @@ export type Database = {
           amount_paid: number | null
           auth_number: string | null
           base_charge: number | null
+          claim_build_date: string | null
           company_id: string | null
           cpt_codes: string[] | null
           created_at: string
+          denial_category: string | null
           denial_code: string | null
           denial_reason: string | null
           destination_type: string | null
           destination_zip: string | null
+          expected_revenue: number | null
           extras_charge: number | null
           hcpcs_codes: string[] | null
           hcpcs_modifiers: string[] | null
@@ -184,6 +187,7 @@ export type Database = {
           patient_id: string | null
           payer_name: string | null
           payer_type: string | null
+          resubmitted_at: string | null
           run_date: string
           status: Database["public"]["Enums"]["claim_status"]
           submitted_at: string | null
@@ -195,13 +199,16 @@ export type Database = {
           amount_paid?: number | null
           auth_number?: string | null
           base_charge?: number | null
+          claim_build_date?: string | null
           company_id?: string | null
           cpt_codes?: string[] | null
           created_at?: string
+          denial_category?: string | null
           denial_code?: string | null
           denial_reason?: string | null
           destination_type?: string | null
           destination_zip?: string | null
+          expected_revenue?: number | null
           extras_charge?: number | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
@@ -216,6 +223,7 @@ export type Database = {
           patient_id?: string | null
           payer_name?: string | null
           payer_type?: string | null
+          resubmitted_at?: string | null
           run_date: string
           status?: Database["public"]["Enums"]["claim_status"]
           submitted_at?: string | null
@@ -227,13 +235,16 @@ export type Database = {
           amount_paid?: number | null
           auth_number?: string | null
           base_charge?: number | null
+          claim_build_date?: string | null
           company_id?: string | null
           cpt_codes?: string[] | null
           created_at?: string
+          denial_category?: string | null
           denial_code?: string | null
           denial_reason?: string | null
           destination_type?: string | null
           destination_zip?: string | null
+          expected_revenue?: number | null
           extras_charge?: number | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
@@ -248,6 +259,7 @@ export type Database = {
           patient_id?: string | null
           payer_name?: string | null
           payer_type?: string | null
+          resubmitted_at?: string | null
           run_date?: string
           status?: Database["public"]["Enums"]["claim_status"]
           submitted_at?: string | null
@@ -1246,16 +1258,23 @@ export type Database = {
       }
       trip_records: {
         Row: {
+          arrived_dropoff_at: string | null
+          arrived_pickup_at: string | null
           bed_confined: boolean | null
           billing_blocked_reason: string | null
+          blockers: string[] | null
           cannot_transfer_safely: boolean | null
+          claim_ready: boolean | null
+          clinical_note: string | null
           company_id: string | null
           created_at: string
           crew_id: string | null
+          crew_ids: string[] | null
           destination_location: string | null
           destination_type: string | null
           dispatch_time: string | null
           dropped_at: string | null
+          expected_revenue: number | null
           hcpcs_codes: string[] | null
           hcpcs_modifiers: string[] | null
           id: string
@@ -1270,6 +1289,7 @@ export type Database = {
           pickup_location: string | null
           requires_monitoring: boolean | null
           run_date: string
+          scheduled_dropoff_time: string | null
           scheduled_pickup_time: string | null
           service_level: string | null
           signature_obtained: boolean | null
@@ -1281,16 +1301,23 @@ export type Database = {
           wait_time_minutes: number | null
         }
         Insert: {
+          arrived_dropoff_at?: string | null
+          arrived_pickup_at?: string | null
           bed_confined?: boolean | null
           billing_blocked_reason?: string | null
+          blockers?: string[] | null
           cannot_transfer_safely?: boolean | null
+          claim_ready?: boolean | null
+          clinical_note?: string | null
           company_id?: string | null
           created_at?: string
           crew_id?: string | null
+          crew_ids?: string[] | null
           destination_location?: string | null
           destination_type?: string | null
           dispatch_time?: string | null
           dropped_at?: string | null
+          expected_revenue?: number | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
           id?: string
@@ -1305,6 +1332,7 @@ export type Database = {
           pickup_location?: string | null
           requires_monitoring?: boolean | null
           run_date?: string
+          scheduled_dropoff_time?: string | null
           scheduled_pickup_time?: string | null
           service_level?: string | null
           signature_obtained?: boolean | null
@@ -1316,16 +1344,23 @@ export type Database = {
           wait_time_minutes?: number | null
         }
         Update: {
+          arrived_dropoff_at?: string | null
+          arrived_pickup_at?: string | null
           bed_confined?: boolean | null
           billing_blocked_reason?: string | null
+          blockers?: string[] | null
           cannot_transfer_safely?: boolean | null
+          claim_ready?: boolean | null
+          clinical_note?: string | null
           company_id?: string | null
           created_at?: string
           crew_id?: string | null
+          crew_ids?: string[] | null
           destination_location?: string | null
           destination_type?: string | null
           dispatch_time?: string | null
           dropped_at?: string | null
+          expected_revenue?: number | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
           id?: string
@@ -1340,6 +1375,7 @@ export type Database = {
           pickup_location?: string | null
           requires_monitoring?: boolean | null
           run_date?: string
+          scheduled_dropoff_time?: string | null
           scheduled_pickup_time?: string | null
           service_level?: string | null
           signature_obtained?: boolean | null
@@ -1645,6 +1681,11 @@ export type Database = {
         | "completed"
         | "ready_for_billing"
         | "cancelled"
+        | "arrived_pickup"
+        | "arrived_dropoff"
+        | "no_show"
+        | "patient_not_ready"
+        | "facility_delay"
       trip_type:
         | "dialysis"
         | "discharge"
@@ -1814,6 +1855,11 @@ export const Constants = {
         "completed",
         "ready_for_billing",
         "cancelled",
+        "arrived_pickup",
+        "arrived_dropoff",
+        "no_show",
+        "patient_not_ready",
+        "facility_delay",
       ],
       trip_type: [
         "dialysis",
