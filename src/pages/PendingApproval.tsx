@@ -24,9 +24,8 @@ export default function PendingApproval() {
         </h1>
 
         <p className="text-sm text-muted-foreground mb-6">
-          Payment received. Your company account is being reviewed by the
-          PodDispatch team. You'll receive an email notification when your
-          account is activated.
+          Your company account is being reviewed by the PodDispatch team.
+          You'll receive an email notification when your account is activated.
         </p>
 
         <div className="rounded-lg border bg-card p-4 space-y-3 text-left text-sm mb-6">

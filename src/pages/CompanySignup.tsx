@@ -108,7 +108,7 @@ export default function CompanySignup() {
             Create Your Company
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            PodDispatch Standard — $599/month
+            PodDispatch Standard
           </p>
         </div>
 
@@ -272,7 +272,7 @@ export default function CompanySignup() {
                 </p>
                 <p>
                   <span className="text-foreground font-medium">Plan:</span>{" "}
-                  PodDispatch Standard — $599/month
+                  PodDispatch Standard (Build Mode — No Payment Required)
                 </p>
               </div>
               <div className="border-t pt-2">
@@ -290,7 +290,6 @@ export default function CompanySignup() {
               <p className="font-medium text-foreground mb-1">What happens next:</p>
               <ol className="list-decimal list-inside space-y-0.5">
                 <li>Your account and company will be created</li>
-                <li>Payment setup will follow (Paddle checkout)</li>
                 <li>Your account will be reviewed and activated by the PodDispatch team</li>
               </ol>
             </div>
