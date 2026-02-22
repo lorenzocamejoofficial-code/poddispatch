@@ -89,6 +89,15 @@ export default function CompanySignup() {
       if (fnError) throw new Error(fnError.message);
       if (data?.error) throw new Error(data.error);
 
+      // Auto-login the newly created user so they don't have to sign in manually
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (signInError) throw new Error(signInError.message);
+
+      // Auth state change will trigger useAuth which routes pending companies to /pending-approval
       navigate("/pending-approval");
     } catch (err: any) {
       setError(err.message || "Something went wrong. Please try again.");
