@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
   Building2, Users, TrendingUp, AlertTriangle, Activity,
-  FlaskConical, LogOut, Truck, LayoutDashboard, ShieldCheck, Settings2,
+  LogOut, Truck, LayoutDashboard, ShieldCheck, Settings2,
   Code2,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -85,7 +85,6 @@ export default function SystemCreatorDashboard() {
   const sidebarItems = [
     { path: "/system", label: "System Dashboard", icon: LayoutDashboard },
     { path: "/creator-console", label: "Company Console", icon: Settings2 },
-    { path: "/simulation", label: "Company Simulation", icon: FlaskConical },
   ];
 
   return (

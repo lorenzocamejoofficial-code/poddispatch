@@ -23,7 +23,7 @@ import ComplianceAndQA from "./pages/ComplianceAndQA";
 import FacilitiesPage from "./pages/FacilitiesPage";
 import ReportsAndMetrics from "./pages/ReportsAndMetrics";
 import MigrationOnboarding from "./pages/MigrationOnboarding";
-import CompanySimulation from "./pages/CompanySimulation";
+
 import SystemCreatorDashboard from "./pages/SystemCreatorDashboard";
 import CompanySignup from "./pages/CompanySignup";
 import PendingApproval from "./pages/PendingApproval";
@@ -83,7 +83,7 @@ function AppRoutes() {
           {/* Creator-specific pages */}
           <Route path="/system" element={<SystemCreatorDashboard />} />
           <Route path="/creator-console" element={<CreatorConsole />} />
-          <Route path="/simulation" element={<CompanySimulation />} />
+          <Route path="/simulation" element={<Navigate to="/system" replace />} />
           {/* All operational pages — real components, full interaction */}
           <Route path="/" element={<DispatchBoard />} />
           <Route path="/scheduling" element={<Scheduling />} />
@@ -182,7 +182,7 @@ function AppRoutes() {
         <Route path="/facilities" element={<FacilitiesPage />} />
         <Route path="/reports" element={<ReportsAndMetrics />} />
         <Route path="/migration" element={<MigrationOnboarding />} />
-        <Route path="/simulation" element={<CompanySimulation />} />
+        <Route path="/simulation" element={<Navigate to="/" replace />} />
         <Route path="/employees" element={<Employees />} />
         <Route path="/trucks" element={<TrucksCrews />} />
         <Route path="/settings" element={<AdminSettings />} />
