@@ -78,7 +78,6 @@ serve(async (req) => {
       .single();
 
     if (companyError) {
-      // Cleanup: delete the auth user
       await supabaseAdmin.auth.admin.deleteUser(userId);
       return new Response(
         JSON.stringify({ error: "Failed to create company: " + companyError.message }),
@@ -88,7 +87,18 @@ serve(async (req) => {
 
     const companyId = company.id;
 
-    // 3. Create profile
+    // 3. Create company_membership with role=owner
+    const { error: membershipError } = await supabaseAdmin.from("company_memberships").insert({
+      company_id: companyId,
+      user_id: userId,
+      role: "owner",
+    });
+
+    if (membershipError) {
+      console.error("Membership creation error:", membershipError);
+    }
+
+    // 4. Create profile
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
       user_id: userId,
       full_name: fullName.trim(),
@@ -100,7 +110,7 @@ serve(async (req) => {
       console.error("Profile creation error:", profileError);
     }
 
-    // 4. Assign admin role
+    // 5. Also create user_roles for backward compatibility
     const { error: roleError } = await supabaseAdmin.from("user_roles").insert({
       user_id: userId,
       role: "admin",
@@ -110,7 +120,7 @@ serve(async (req) => {
       console.error("Role assignment error:", roleError);
     }
 
-    // 5. Create company_settings
+    // 6. Create company_settings
     const { error: settingsError } = await supabaseAdmin
       .from("company_settings")
       .insert({ company_name: companyName.trim() });
@@ -119,7 +129,7 @@ serve(async (req) => {
       console.error("Settings creation error:", settingsError);
     }
 
-    // 6. Record legal acceptances
+    // 7. Record legal acceptances
     const agreementTypes = [
       "terms_of_service",
       "privacy_policy",
@@ -135,7 +145,7 @@ serve(async (req) => {
       });
     }
 
-    // 7. Create subscription record (TEST_ACTIVE — payments disabled in build mode)
+    // 8. Create subscription record (TEST_ACTIVE — payments disabled in build mode)
     await supabaseAdmin.from("subscription_records").insert({
       company_id: companyId,
       provider: "none",
@@ -143,7 +153,7 @@ serve(async (req) => {
       plan_id: "poddispatch_standard",
     });
 
-    // 8. Log onboarding event
+    // 9. Log onboarding event
     await supabaseAdmin.from("onboarding_events").insert({
       company_id: companyId,
       event_type: "signup_completed",

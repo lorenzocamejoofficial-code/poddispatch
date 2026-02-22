@@ -7,12 +7,13 @@ const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const WARNING_BEFORE_MS = 2 * 60 * 1000;       // warn 2 min before expiry
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"] as const;
 
-type AppRole = "admin" | "crew" | "dispatcher" | "billing";
+export type MembershipRole = "creator" | "owner" | "dispatcher" | "biller" | "crew";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  role: AppRole | null;
+  role: MembershipRole | null;
+  activeCompanyId: string | null;
   profileId: string | null;
   loading: boolean;
   sessionWarning: boolean;
@@ -21,12 +22,14 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   // Role convenience checks
   isAdmin: boolean;
+  isOwner: boolean;
   isDispatcher: boolean;
   isBilling: boolean;
   isCrew: boolean;
-  canManageTrips: boolean;    // admin or dispatcher
-  canManageBilling: boolean;  // admin or billing
-  canManagePatients: boolean; // admin or dispatcher
+  isCreator: boolean;
+  canManageTrips: boolean;
+  canManageBilling: boolean;
+  canManagePatients: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,7 +37,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [role, setRole] = useState<AppRole | null>(null);
+  const [role, setRole] = useState<MembershipRole | null>(null);
+  const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionWarning, setSessionWarning] = useState(false);
@@ -46,12 +50,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const userRef = useRef<User | null>(null);
 
   const loadUserData = async (userId: string) => {
-    const [{ data: roleData }, { data: profileData }, { data: scData }] = await Promise.all([
-      supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
+    const [{ data: membershipData }, { data: profileData }, { data: scData }] = await Promise.all([
+      supabase.from("company_memberships").select("company_id, role").eq("user_id", userId).limit(1).maybeSingle(),
       supabase.from("profiles").select("id").eq("user_id", userId).maybeSingle(),
       supabase.from("system_creators").select("id").eq("user_id", userId).maybeSingle(),
     ]);
-    if (roleData) setRole(roleData.role as AppRole);
+    if (membershipData) {
+      setRole(membershipData.role as MembershipRole);
+      setActiveCompanyId(membershipData.company_id);
+    }
     if (profileData) setProfileId(profileData.id);
     setIsSystemCreator(!!scData);
   };
@@ -63,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionWarning(false);
     await supabase.auth.signOut();
     setRole(null);
+    setActiveCompanyId(null);
     setProfileId(null);
     setIsSystemCreator(false);
   }, []);
@@ -118,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }, 0);
         } else {
           setRole(null);
+          setActiveCompanyId(null);
           setProfileId(null);
           setLoading(false);
         }
@@ -147,18 +156,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Derived role checks
-  const isAdmin = role === "admin";
-  const isDispatcher = role === "dispatcher";
-  const isBilling = role === "billing";
+  const isCreator = role === "creator";
+  const isOwner = role === "owner";
+  const isAdmin = isOwner || isCreator;
+  const isDispatcher = role === "dispatcher" || isAdmin;
+  const isBilling = role === "biller" || isAdmin;
   const isCrew = role === "crew";
-  const canManageTrips = isAdmin || isDispatcher;
-  const canManageBilling = isAdmin || isBilling;
-  const canManagePatients = isAdmin || isDispatcher;
+  const canManageTrips = isAdmin || role === "dispatcher";
+  const canManageBilling = isAdmin || role === "biller";
+  const canManagePatients = isAdmin || role === "dispatcher";
 
   return (
     <AuthContext.Provider value={{
-      user, session, role, profileId, loading, sessionWarning, isSystemCreator, signIn, signOut,
-      isAdmin, isDispatcher, isBilling, isCrew,
+      user, session, role, activeCompanyId, profileId, loading, sessionWarning, isSystemCreator, signIn, signOut,
+      isAdmin, isOwner, isDispatcher, isBilling, isCrew, isCreator,
       canManageTrips, canManageBilling, canManagePatients,
     }}>
       {children}

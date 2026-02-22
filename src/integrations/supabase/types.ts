@@ -333,6 +333,38 @@ export type Database = {
         }
         Relationships: []
       }
+      company_memberships: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["membership_role"]
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["membership_role"]
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["membership_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_memberships_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_settings: {
         Row: {
           company_name: string
@@ -1842,6 +1874,7 @@ export type Database = {
     }
     Functions: {
       get_my_company_id: { Args: never; Returns: string }
+      get_my_role: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1877,6 +1910,7 @@ export type Database = {
         | "denied"
         | "needs_correction"
       leg_type: "A" | "B"
+      membership_role: "creator" | "owner" | "dispatcher" | "biller" | "crew"
       onboarding_status:
         | "signup_started"
         | "agreements_accepted"
@@ -2059,6 +2093,7 @@ export const Constants = {
         "needs_correction",
       ],
       leg_type: ["A", "B"],
+      membership_role: ["creator", "owner", "dispatcher", "biller", "crew"],
       onboarding_status: [
         "signup_started",
         "agreements_accepted",
