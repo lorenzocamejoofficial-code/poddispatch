@@ -135,18 +135,18 @@ export default function SystemCreatorDashboard() {
         <header className="flex h-14 items-center gap-3 border-b bg-card px-4 lg:px-6">
           <h2 className="text-lg font-semibold text-foreground flex-1">System Creator Dashboard</h2>
 
-          {/* Preview Role Bar (sandbox toggle + role switcher) */}
+          {/* Sandbox toggle + View-as dropdown */}
           <PreviewRoleBar />
 
           {/* Dev Mode Toggle */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <Code2 className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground hidden sm:inline">Dev Mode</span>
+            <span className="text-[10px] text-muted-foreground hidden sm:inline">Dev</span>
             <Switch checked={devMode} onCheckedChange={setDevMode} />
           </div>
 
           {/* Logout */}
-          <Button variant="ghost" size="sm" className="gap-2 text-xs text-muted-foreground" onClick={handleLogout}>
+          <Button variant="ghost" size="sm" className="gap-2 text-xs text-muted-foreground hover:text-foreground" onClick={handleLogout}>
             <LogOut className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Logout</span>
           </Button>

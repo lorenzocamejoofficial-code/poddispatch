@@ -174,7 +174,6 @@ export default function CreatorConsole() {
         <header className="flex h-14 items-center gap-3 border-b bg-card px-4 lg:px-6">
           <h2 className="text-lg font-semibold text-foreground flex-1">Company Console</h2>
           <PreviewRoleBar />
-          <Badge variant="secondary" className="text-xs">No PHI — Onboarding Only</Badge>
           <Button
             variant="ghost"
             size="sm"
@@ -184,6 +183,7 @@ export default function CreatorConsole() {
             <LogOut className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Logout</span>
           </Button>
+          <Badge variant="secondary" className="text-xs hidden md:inline-flex">No PHI</Badge>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4">

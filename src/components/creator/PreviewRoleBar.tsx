@@ -23,8 +23,17 @@ const ROLE_OPTIONS: { value: PreviewRole; label: string; desc: string }[] = [
   { value: "crew", label: "Crew", desc: "Mobile crew preview (read-only)" },
 ];
 
+// Human-readable permission labels per role
+const ROLE_PERMISSIONS: Record<PreviewRole, string[]> = {
+  creator: ["Full system access", "All modules", "All actions"],
+  owner: ["All modules", "All actions", "Settings management", "Employee management"],
+  dispatcher: ["View Scheduling Calendar", "Create/Assign Runs", "Manage Patients", "Manage Trucks", "View Trips", "View Facilities"],
+  biller: ["View Completed Trips", "Submit Claims", "Edit Claims", "Manage Compliance", "View Facilities"],
+  crew: ["View Assigned Run Sheet", "Update Run Status", "Submit Documentation"],
+};
+
 export function PreviewRoleBar() {
-  const { previewRole, setPreviewRole } = usePreviewRole();
+  const { previewRole, setPreviewRole, isPreviewActive } = usePreviewRole();
   const { sandboxMode, setSandboxMode } = useSandboxMode();
   const navigate = useNavigate();
   const location = useLocation();
@@ -40,19 +49,12 @@ export function PreviewRoleBar() {
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3">
       {/* Sandbox toggle */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-muted-foreground hidden sm:inline">Sandbox</span>
-            <Switch checked={sandboxMode} onCheckedChange={handleToggleSandbox} />
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" className="text-xs max-w-[200px]">
-          Toggle sandbox mode to preview pages with synthetic data
-        </TooltipContent>
-      </Tooltip>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground hidden sm:inline">Sandbox</span>
+        <Switch checked={sandboxMode} onCheckedChange={handleToggleSandbox} />
+      </div>
 
       {/* Sandbox badge */}
       {sandboxMode && (
@@ -71,7 +73,7 @@ export function PreviewRoleBar() {
             <ChevronDown className="h-2.5 w-2.5" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuContent align="end" className="w-72">
           <DropdownMenuLabel className="text-xs">Preview As Role</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {ROLE_OPTIONS.map((opt) => (
@@ -90,10 +92,22 @@ export function PreviewRoleBar() {
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
-          <div className="px-2 py-1.5 text-[10px] text-muted-foreground space-y-0.5">
-            <p>⚠️ This is a <strong>UI preview</strong> using synthetic data only.</p>
-            <p>No real PHI is accessible. RLS + tenant isolation unchanged.</p>
-            <p>Intended for testing and debugging RBAC + UI composition.</p>
+          {/* Permission summary */}
+          <div className="px-2 py-2 space-y-1.5">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Permissions: {currentOption?.label}
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {ROLE_PERMISSIONS[previewRole].map((perm) => (
+                <Badge key={perm} variant="outline" className="text-[9px] font-normal">
+                  {perm}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          <DropdownMenuSeparator />
+          <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
+            ⚠️ UI preview only — synthetic data, no real PHI. RLS unchanged.
           </div>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -145,7 +145,7 @@ export function SandboxLayout({ children, pageLabel }: { children: ReactNode; pa
           </Button>
           <h2 className="text-lg font-semibold text-foreground flex-1">{currentLabel}</h2>
 
-          {/* Preview Role Bar (sandbox toggle + role switcher) */}
+          {/* Sandbox toggle + View-as dropdown */}
           <PreviewRoleBar />
 
           <HelpButton routeKey={location.pathname} />
@@ -154,6 +154,8 @@ export function SandboxLayout({ children, pageLabel }: { children: ReactNode; pa
             <LogOut className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Logout</span>
           </Button>
+
+          <Badge variant="secondary" className="text-xs hidden md:inline-flex">No PHI</Badge>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>

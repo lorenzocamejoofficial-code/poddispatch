@@ -47,19 +47,26 @@ const PAGE_MODULE: Record<PageKey, string> = {
   settings: "settings",
 };
 
-/** Wrapper that disables content when the preview role can't access this module */
+/** Shows the page content always, but adds a "Not permitted" banner when role lacks access */
 function RoleGate({ module, children }: { module: string; children: React.ReactNode }) {
   const { canView, previewRole, isPreviewActive } = usePreviewRole();
-  if (!isPreviewActive || canView(module)) return <>{children}</>;
+  const permitted = !isPreviewActive || canView(module);
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
-      <Badge variant="outline" className="text-xs">
-        Not permitted for: {previewRole}
-      </Badge>
-      <p className="text-sm text-muted-foreground max-w-md">
-        The <strong>{previewRole}</strong> role does not have access to this module. 
-        Switch to a role with permission using the "View as" dropdown.
-      </p>
+    <div className={!permitted ? "relative" : ""}>
+      {!permitted && (
+        <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive flex items-center gap-2">
+          <Badge variant="outline" className="text-[10px] border-destructive/40 text-destructive">
+            {previewRole.toUpperCase()}
+          </Badge>
+          <span>
+            The <strong>{previewRole}</strong> role does not have access to this module.
+            Actions are disabled. Switch roles using the "View as" dropdown above.
+          </span>
+        </div>
+      )}
+      <div className={!permitted ? "opacity-50 pointer-events-none select-none" : ""}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -93,12 +100,7 @@ export default function SandboxPage({ pageKey }: { pageKey: PageKey }) {
         </CollapsibleContent>
       </Collapsible>
 
-      {isPreviewActive && (
-        <div className="mb-4 rounded-md border border-primary/20 bg-primary/5 p-3 text-xs text-primary flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px]">{previewRole.toUpperCase()}</Badge>
-          Viewing as <strong>{previewRole}</strong> — modules and actions are filtered accordingly.
-        </div>
-      )}
+      {/* Role info is now shown in PreviewRoleBar permission summary */}
 
       <RoleGate module={PAGE_MODULE[pageKey]}>
         {pageKey === "dispatch" && <DispatchSandbox />}
