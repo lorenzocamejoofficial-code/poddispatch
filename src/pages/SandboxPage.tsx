@@ -1,9 +1,11 @@
 import { SandboxLayout } from "@/components/layout/SandboxLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePreviewRole } from "@/hooks/usePreviewRole";
+import { AlertTriangle, Info } from "lucide-react";
 import {
   generateTrucks, generatePatients, generateTrips,
   generateClaims, generateFacilities, generateEmployees,
@@ -31,7 +33,6 @@ const PAGE_LABELS: Record<PageKey, string> = {
   settings: "Settings",
 };
 
-// Map pageKey to module name for role visibility checks
 const PAGE_MODULE: Record<PageKey, string> = {
   dispatch: "dispatch",
   scheduling: "scheduling",
@@ -47,24 +48,27 @@ const PAGE_MODULE: Record<PageKey, string> = {
   settings: "settings",
 };
 
-/** Shows the page content always, but adds a "Not permitted" banner when role lacks access */
+/**
+ * RoleGate: ALWAYS renders the full page content.
+ * If the current preview role lacks access, it overlays a banner and disables pointer events,
+ * but NEVER replaces the page with an empty view or redirects.
+ */
 function RoleGate({ module, children }: { module: string; children: React.ReactNode }) {
   const { canView, previewRole, isPreviewActive } = usePreviewRole();
   const permitted = !isPreviewActive || canView(module);
+
+  if (permitted) return <>{children}</>;
+
   return (
-    <div className={!permitted ? "relative" : ""}>
-      {!permitted && (
-        <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] border-destructive/40 text-destructive">
-            {previewRole.toUpperCase()}
-          </Badge>
-          <span>
-            The <strong>{previewRole}</strong> role does not have access to this module.
-            Actions are disabled. Switch roles using the "View as" dropdown above.
-          </span>
-        </div>
-      )}
-      <div className={!permitted ? "opacity-50 pointer-events-none select-none" : ""}>
+    <div className="relative">
+      <div className="sticky top-0 z-10 mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 shrink-0" />
+        <span>
+          <strong>{previewRole}</strong> role does not have access to {PAGE_LABELS[module as PageKey] ?? module}.
+          Controls are disabled. Switch roles using "View as" above.
+        </span>
+      </div>
+      <div className="opacity-40 pointer-events-none select-none">
         {children}
       </div>
     </div>
@@ -86,21 +90,20 @@ export function RoleDisabled({ action, children }: { action: string; children: R
 }
 
 export default function SandboxPage({ pageKey }: { pageKey: PageKey }) {
-  const { previewRole, isPreviewActive } = usePreviewRole();
   return (
     <SandboxLayout pageLabel={PAGE_LABELS[pageKey]}>
       <Collapsible className="mb-4">
-        <CollapsibleTrigger className="text-xs text-primary hover:underline">ℹ️ How this works</CollapsibleTrigger>
+        <CollapsibleTrigger className="text-xs text-primary hover:underline flex items-center gap-1">
+          <Info className="h-3 w-3" />
+          How this works
+        </CollapsibleTrigger>
         <CollapsibleContent className="mt-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
-          <p>This is a <strong>Sandbox preview</strong> of the {PAGE_LABELS[pageKey]} page.</p>
+          <p>This is the <strong>{PAGE_LABELS[pageKey]}</strong> page rendered with <strong>synthetic sandbox data</strong>.</p>
           <p>All data shown is synthetic — no real patient or company data is used.</p>
-          <p>Use the <strong>"View as"</strong> switcher to see how each role experiences this page.</p>
-          <p>Disabled sections show a tooltip: "Not permitted for this role".</p>
-          <p>No cross-company or real PHI is accessible. RLS + tenant isolation unchanged.</p>
+          <p>Use the <strong>"View as"</strong> switcher to see how each role experiences this page. Restricted roles see the full layout but with disabled controls.</p>
+          <p>No cross-company or real PHI is accessible. RLS + tenant isolation are unchanged.</p>
         </CollapsibleContent>
       </Collapsible>
-
-      {/* Role info is now shown in PreviewRoleBar permission summary */}
 
       <RoleGate module={PAGE_MODULE[pageKey]}>
         {pageKey === "dispatch" && <DispatchSandbox />}
@@ -142,6 +145,14 @@ function DispatchSandbox() {
         <StatCard label="In Progress" value={trucks.reduce((a, t) => a + t.runs.filter(r => r.status !== "completed" && r.status !== "pending").length, 0)} />
       </div>
 
+      {/* Action bar */}
+      <RoleDisabled action="assign_run">
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" className="text-xs">+ Add Run</Button>
+          <Button size="sm" variant="outline" className="text-xs">Auto-Assign</Button>
+        </div>
+      </RoleDisabled>
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {trucks.map(truck => (
           <Card key={truck.id}>
@@ -179,6 +190,18 @@ function DispatchSandbox() {
 function SchedulingSandbox() {
   const trucks = generateTrucks();
   const patients = generatePatients();
+
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const today = new Date();
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay());
+
+  const weekDates = days.map((day, i) => {
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate() + i);
+    return { day, date: d.getDate(), month: d.getMonth() + 1, isToday: d.toDateString() === today.toDateString() };
+  });
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -187,19 +210,111 @@ function SchedulingSandbox() {
         <StatCard label="Legs Scheduled" value={trucks.reduce((a, t) => a + t.runs.length, 0)} />
         <StatCard label="Unassigned" value={2} />
       </div>
+
+      {/* Action bar */}
+      <RoleDisabled action="create_run">
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="default" className="text-xs">+ New Run</Button>
+          <Button size="sm" variant="outline" className="text-xs">Auto-Generate from Template</Button>
+          <Button size="sm" variant="outline" className="text-xs">Copy Week Forward</Button>
+        </div>
+      </RoleDisabled>
+
+      {/* Weekly calendar header */}
       <Card>
-        <CardHeader><CardTitle className="text-sm">Truck Builder (Sandbox)</CardTitle></CardHeader>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">Weekly Schedule</CardTitle>
+            <div className="flex gap-1">
+              <Button size="sm" variant="ghost" className="text-xs h-7">← Prev</Button>
+              <Button size="sm" variant="ghost" className="text-xs h-7">Today</Button>
+              <Button size="sm" variant="ghost" className="text-xs h-7">Next →</Button>
+            </div>
+          </div>
+        </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {trucks.slice(0, 3).map(truck => (
+          {/* Day headers */}
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {weekDates.map(wd => (
+              <div
+                key={wd.day}
+                className={`text-center rounded p-2 text-xs ${wd.isToday ? "bg-primary/10 font-bold text-primary" : "text-muted-foreground"}`}
+              >
+                <div className="font-medium">{wd.day}</div>
+                <div className="text-lg">{wd.date}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar grid with runs */}
+          <div className="border rounded-lg overflow-hidden">
+            {trucks.slice(0, 5).map((truck, truckIdx) => (
+              <div key={truck.id} className={`grid grid-cols-7 gap-px ${truckIdx > 0 ? "border-t" : ""}`}>
+                {weekDates.map((wd, dayIdx) => {
+                  // Show runs on some days based on truck pattern
+                  const hasRuns = truck.runs.length > 0 && (dayIdx % 2 === truckIdx % 2);
+                  const dayRuns = hasRuns ? truck.runs.slice(0, 2) : [];
+                  return (
+                    <div key={dayIdx} className="min-h-[60px] p-1 bg-card hover:bg-accent/50 transition-colors">
+                      {dayIdx === 0 && (
+                        <p className="text-[10px] font-semibold text-foreground mb-1 truncate">{truck.name}</p>
+                      )}
+                      {dayRuns.map(run => (
+                        <div
+                          key={run.id}
+                          className="rounded bg-primary/10 border border-primary/20 p-1 mb-0.5 text-[9px] cursor-grab hover:bg-primary/20 transition-colors"
+                          title={`${run.patientName} — ${run.pickupTime}`}
+                        >
+                          <span className="font-medium truncate block">{run.patientName.split(" ")[2] ?? run.patientName}</span>
+                          <span className="text-muted-foreground">{run.pickupTime}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Truck Builder */}
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Truck Builder</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {trucks.slice(0, 5).map(truck => (
               <div key={truck.id} className="rounded border p-3 space-y-2">
-                <p className="text-sm font-semibold text-foreground">{truck.name} <span className="text-muted-foreground font-normal">— {truck.crewNames.join(", ")}</span></p>
-                {truck.runs.map(run => (
-                  <div key={run.id} className="rounded bg-muted/40 p-2 text-xs">
-                    <p className="font-medium">{run.patientName}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-foreground">{truck.name}</p>
+                  <span className="text-xs text-muted-foreground">{truck.crewNames.join(", ")}</span>
+                </div>
+                {truck.runs.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic py-2">No legs — drag from Run Pool to assign</p>
+                ) : truck.runs.map(run => (
+                  <div key={run.id} className="rounded bg-muted/40 p-2 text-xs cursor-grab hover:bg-muted/70 transition-colors border border-transparent hover:border-border">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium">{run.patientName}</p>
+                      <Badge variant="outline" className="text-[9px]">{run.tripType}</Badge>
+                    </div>
                     <p className="text-muted-foreground">{run.pickupTime} → {run.destination}</p>
                   </div>
                 ))}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Run Pool */}
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Run Pool (Unassigned Legs)</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {patients.filter(p => p.status === "active").slice(0, 4).map(p => (
+              <div key={p.id} className="rounded border border-dashed p-2 text-xs cursor-grab hover:bg-accent/50 transition-colors">
+                <p className="font-medium text-foreground">{p.firstName} {p.lastName}</p>
+                <p className="text-muted-foreground">{p.transportType} · {p.scheduleDays} · {p.primaryPayer}</p>
               </div>
             ))}
           </div>
@@ -215,8 +330,14 @@ function CrewScheduleSandbox() {
   const trucks = generateTrucks();
   return (
     <div className="space-y-4">
+      <RoleDisabled action="assign_run">
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" className="text-xs">Send All Run Sheets</Button>
+          <Button size="sm" variant="outline" className="text-xs">Preview as Crew</Button>
+        </div>
+      </RoleDisabled>
       <Card>
-        <CardHeader><CardTitle className="text-sm">Crew Schedule Delivery (Sandbox)</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">Crew Schedule Delivery</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {trucks.filter(t => t.runs.length > 0).map(truck => (
             <div key={truck.id} className="rounded border p-3">
@@ -254,6 +375,14 @@ function PatientsSandbox() {
         <StatCard label="Dialysis" value={patients.filter(p => p.transportType === "dialysis").length} />
         <StatCard label="Outpatient" value={patients.filter(p => p.transportType === "outpatient").length} />
       </div>
+
+      <RoleDisabled action="manage_patients">
+        <div className="flex gap-2">
+          <Button size="sm" variant="default" className="text-xs">+ Add Patient</Button>
+          <Button size="sm" variant="outline" className="text-xs">Import</Button>
+        </div>
+      </RoleDisabled>
+
       <Card>
         <CardContent className="pt-4">
           <table className="w-full text-xs">
@@ -264,16 +393,22 @@ function PatientsSandbox() {
                 <th className="pb-2 font-medium">Schedule</th>
                 <th className="pb-2 font-medium">Payer</th>
                 <th className="pb-2 font-medium">Status</th>
+                <th className="pb-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {patients.map(p => (
-                <tr key={p.id} className="border-b last:border-0">
+                <tr key={p.id} className="border-b last:border-0 hover:bg-accent/50">
                   <td className="py-2 font-medium text-foreground">{p.firstName} {p.lastName}</td>
                   <td className="py-2">{p.transportType}</td>
                   <td className="py-2">{p.scheduleDays}</td>
                   <td className="py-2">{p.primaryPayer}</td>
                   <td className="py-2"><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColor[p.status] ?? statusColor.active}`}>{p.status}</span></td>
+                  <td className="py-2">
+                    <RoleDisabled action="manage_patients">
+                      <Button size="sm" variant="ghost" className="text-[10px] h-6">Edit</Button>
+                    </RoleDisabled>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -311,7 +446,7 @@ function TripsSandbox() {
             </thead>
             <tbody>
               {trips.map(t => (
-                <tr key={t.id} className="border-b last:border-0">
+                <tr key={t.id} className="border-b last:border-0 hover:bg-accent/50">
                   <td className="py-2 font-medium text-foreground">{t.patientName}</td>
                   <td className="py-2 text-muted-foreground">{t.pickupLocation} → {t.destination}</td>
                   <td className="py-2">{t.loadedMiles || "—"}</td>
@@ -347,6 +482,14 @@ function BillingSandbox() {
         <StatCard label="Pending" value={claims.filter(c => c.status === "submitted" || c.status === "ready_to_bill").length} />
         <StatCard label="Denied" value={claims.filter(c => c.status === "denied").length} />
       </div>
+
+      <RoleDisabled action="submit_claim">
+        <div className="flex gap-2">
+          <Button size="sm" variant="default" className="text-xs">Submit Selected</Button>
+          <Button size="sm" variant="outline" className="text-xs">Batch Submit All Ready</Button>
+        </div>
+      </RoleDisabled>
+
       <Card>
         <CardContent className="pt-4">
           <table className="w-full text-xs">
@@ -357,16 +500,22 @@ function BillingSandbox() {
                 <th className="pb-2 font-medium">Payer</th>
                 <th className="pb-2 font-medium">Charge</th>
                 <th className="pb-2 font-medium">Status</th>
+                <th className="pb-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {claims.map(c => (
-                <tr key={c.id} className="border-b last:border-0">
+                <tr key={c.id} className="border-b last:border-0 hover:bg-accent/50">
                   <td className="py-2 font-medium text-foreground">{c.patientName}</td>
                   <td className="py-2">{c.runDate}</td>
                   <td className="py-2">{c.payerName}</td>
                   <td className="py-2">${c.totalCharge.toFixed(2)}</td>
                   <td className="py-2"><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColor[c.status] ?? ""}`}>{c.status.replace(/_/g, " ")}</span></td>
+                  <td className="py-2">
+                    <RoleDisabled action="edit_claim">
+                      <Button size="sm" variant="ghost" className="text-[10px] h-6">Edit</Button>
+                    </RoleDisabled>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -388,15 +537,23 @@ function ComplianceSandbox() {
         <StatCard label="Resolved" value={1} />
         <StatCard label="Flags This Week" value={4} />
       </div>
+
+      <RoleDisabled action="manage_compliance">
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" className="text-xs">Review Next</Button>
+          <Button size="sm" variant="outline" className="text-xs">Export Report</Button>
+        </div>
+      </RoleDisabled>
+
       <Card>
-        <CardHeader><CardTitle className="text-sm">QA Review Queue (Sandbox)</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">QA Review Queue</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {[
             { patient: "Test Patient G", reason: "Missing PCS documentation", status: "pending" },
             { patient: "Test Patient D", reason: "Authorization expired", status: "pending" },
             { patient: "Test Patient A", reason: "Vitals incomplete", status: "resolved" },
           ].map((item, i) => (
-            <div key={i} className="flex items-center justify-between rounded border p-2 text-xs">
+            <div key={i} className="flex items-center justify-between rounded border p-2 text-xs hover:bg-accent/50">
               <div>
                 <p className="font-medium text-foreground">{item.patient}</p>
                 <p className="text-muted-foreground">{item.reason}</p>
@@ -435,7 +592,7 @@ function FacilitiesSandbox() {
             </thead>
             <tbody>
               {facilities.map(f => (
-                <tr key={f.id} className="border-b last:border-0">
+                <tr key={f.id} className="border-b last:border-0 hover:bg-accent/50">
                   <td className="py-2 font-medium text-foreground">{f.name}</td>
                   <td className="py-2">{f.type}</td>
                   <td className="py-2 text-muted-foreground">{f.address}</td>
@@ -463,7 +620,7 @@ function ReportsSandbox() {
         <StatCard label="Avg Miles/Trip" value="11.3" isText />
       </div>
       <Card>
-        <CardHeader><CardTitle className="text-sm">Monthly Summary (Sandbox)</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">Monthly Summary</CardTitle></CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-4 text-xs">
             <div className="space-y-2">
@@ -494,6 +651,13 @@ function EmployeesSandbox() {
         <StatCard label="Active" value={employees.filter(e => e.active).length} />
         <StatCard label="Inactive" value={employees.filter(e => !e.active).length} />
       </div>
+
+      <RoleDisabled action="manage_employees">
+        <div className="flex gap-2">
+          <Button size="sm" variant="default" className="text-xs">+ Add Employee</Button>
+        </div>
+      </RoleDisabled>
+
       <Card>
         <CardContent className="pt-4">
           <table className="w-full text-xs">
@@ -503,15 +667,21 @@ function EmployeesSandbox() {
                 <th className="pb-2 font-medium">Cert Level</th>
                 <th className="pb-2 font-medium">Phone</th>
                 <th className="pb-2 font-medium">Status</th>
+                <th className="pb-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {employees.map(e => (
-                <tr key={e.id} className="border-b last:border-0">
+                <tr key={e.id} className="border-b last:border-0 hover:bg-accent/50">
                   <td className="py-2 font-medium text-foreground">{e.fullName}</td>
                   <td className="py-2">{e.certLevel}</td>
                   <td className="py-2">{e.phone}</td>
                   <td className="py-2"><Badge variant={e.active ? "secondary" : "outline"} className="text-[10px]">{e.active ? "Active" : "Inactive"}</Badge></td>
+                  <td className="py-2">
+                    <RoleDisabled action="manage_employees">
+                      <Button size="sm" variant="ghost" className="text-[10px] h-6">Edit</Button>
+                    </RoleDisabled>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -533,10 +703,18 @@ function TrucksSandbox() {
         <StatCard label="With Runs" value={trucks.filter(t => t.runs.length > 0).length} />
         <StatCard label="Idle" value={trucks.filter(t => t.runs.length === 0).length} />
       </div>
+
+      <RoleDisabled action="manage_trucks">
+        <div className="flex gap-2">
+          <Button size="sm" variant="default" className="text-xs">+ Add Truck</Button>
+          <Button size="sm" variant="outline" className="text-xs">Manage Crews</Button>
+        </div>
+      </RoleDisabled>
+
       <Card>
         <CardContent className="pt-4 space-y-3">
           {trucks.map(t => (
-            <div key={t.id} className="flex items-center justify-between rounded border p-3 text-xs">
+            <div key={t.id} className="flex items-center justify-between rounded border p-3 text-xs hover:bg-accent/50">
               <div>
                 <p className="font-semibold text-foreground">{t.name}</p>
                 <p className="text-muted-foreground">Crew: {t.crewNames.join(", ") || "Unassigned"}</p>
@@ -559,7 +737,7 @@ function SettingsSandbox() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader><CardTitle className="text-sm">Company Settings (Sandbox)</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">Company Settings</CardTitle></CardHeader>
         <CardContent className="space-y-3 text-xs">
           {[
             ["Company Name", "SandboxCo"],
@@ -588,7 +766,7 @@ function StatCard({ label, value, isText }: { label: string; value: number | str
   return (
     <Card>
       <CardContent className="pt-4">
-        <p className="text-2xl font-bold text-foreground">{isText ? value : value}</p>
+        <p className="text-2xl font-bold text-foreground">{value}</p>
         <p className="text-xs text-muted-foreground">{label}</p>
       </CardContent>
     </Card>

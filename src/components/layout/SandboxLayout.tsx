@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSandboxMode } from "@/hooks/useSandboxMode";
+import { usePreviewRole } from "@/hooks/usePreviewRole";
 import { PreviewRoleBar } from "@/components/creator/PreviewRoleBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,19 +15,26 @@ import {
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
-const sandboxNavItems = [
-  { path: "/sandbox/dispatch", label: "Dispatch Command", icon: LayoutDashboard },
-  { path: "/sandbox/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList },
-  { path: "/sandbox/crew-schedule", label: "Crew Schedule Delivery", icon: Send },
-  { path: "/sandbox/patients", label: "Patients", icon: Users },
-  { path: "/sandbox/trips", label: "Trips & Clinical", icon: FileText },
-  { path: "/sandbox/billing", label: "Billing & Claims", icon: DollarSign },
-  { path: "/sandbox/compliance", label: "Compliance & QA", icon: ShieldCheck },
-  { path: "/sandbox/facilities", label: "Facilities", icon: Building2 },
-  { path: "/sandbox/reports", label: "Reports & Metrics", icon: BarChart3 },
-  { path: "/sandbox/employees", label: "Employees", icon: UserPlus },
-  { path: "/sandbox/trucks", label: "Trucks & Crews", icon: Truck },
-  { path: "/sandbox/settings", label: "Settings", icon: Settings },
+interface SandboxNavItem {
+  path: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  module: string; // maps to usePreviewRole canView check
+}
+
+const sandboxNavItems: SandboxNavItem[] = [
+  { path: "/sandbox/dispatch", label: "Dispatch Command", icon: LayoutDashboard, module: "dispatch" },
+  { path: "/sandbox/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList, module: "scheduling" },
+  { path: "/sandbox/crew-schedule", label: "Crew Schedule Delivery", icon: Send, module: "crew-schedule" },
+  { path: "/sandbox/patients", label: "Patients", icon: Users, module: "patients" },
+  { path: "/sandbox/trips", label: "Trips & Clinical", icon: FileText, module: "trips" },
+  { path: "/sandbox/billing", label: "Billing & Claims", icon: DollarSign, module: "billing" },
+  { path: "/sandbox/compliance", label: "Compliance & QA", icon: ShieldCheck, module: "compliance" },
+  { path: "/sandbox/facilities", label: "Facilities", icon: Building2, module: "facilities" },
+  { path: "/sandbox/reports", label: "Reports & Metrics", icon: BarChart3, module: "reports" },
+  { path: "/sandbox/employees", label: "Employees", icon: UserPlus, module: "employees" },
+  { path: "/sandbox/trucks", label: "Trucks & Crews", icon: Truck, module: "trucks" },
+  { path: "/sandbox/settings", label: "Settings", icon: Settings, module: "settings" },
 ];
 
 const creatorNavItems = [
@@ -37,7 +45,8 @@ const creatorNavItems = [
 
 export function SandboxLayout({ children, pageLabel }: { children: ReactNode; pageLabel?: string }) {
   const { user, signOut } = useAuth();
-  const { sandboxMode, setSandboxMode } = useSandboxMode();
+  const { setSandboxMode } = useSandboxMode();
+  const { canView, previewRole } = usePreviewRole();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -48,10 +57,14 @@ export function SandboxLayout({ children, pageLabel }: { children: ReactNode; pa
     navigate("/login");
   };
 
-  const handleToggleSandbox = (on: boolean) => {
-    setSandboxMode(on);
-    if (!on) navigate("/system");
-  };
+  // Filter sandbox nav items based on preview role
+  const visibleSandboxNav = sandboxNavItems.filter(item => canView(item.module));
+
+  // Only show Company Simulation for creator role
+  const visibleCreatorNav = creatorNavItems.filter(item => {
+    if (item.path === "/simulation" && previewRole !== "creator") return false;
+    return true;
+  });
 
   const currentLabel = pageLabel ?? sandboxNavItems.find(i => i.path === location.pathname)?.label ?? "Sandbox";
 
@@ -79,7 +92,7 @@ export function SandboxLayout({ children, pageLabel }: { children: ReactNode; pa
         <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
           {/* Creator nav */}
           <p className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">Creator</p>
-          {creatorNavItems.map((item) => {
+          {visibleCreatorNav.map((item) => {
             const active = location.pathname === item.path;
             return (
               <Link
@@ -97,9 +110,11 @@ export function SandboxLayout({ children, pageLabel }: { children: ReactNode; pa
             );
           })}
 
-          {/* Sandbox nav */}
-          <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600">Sandbox App</p>
-          {sandboxNavItems.map((item) => {
+          {/* Sandbox nav - filtered by role */}
+          <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600">
+            Sandbox App {previewRole !== "creator" && `(${previewRole})`}
+          </p>
+          {visibleSandboxNav.map((item) => {
             const active = location.pathname === item.path;
             return (
               <Link
@@ -139,23 +154,22 @@ export function SandboxLayout({ children, pageLabel }: { children: ReactNode; pa
           <AlertTriangle className="h-3.5 w-3.5" />
         </div>
 
-        <header className="flex h-14 items-center gap-3 border-b bg-card px-4 lg:px-6">
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
+        <header className="flex h-14 items-center gap-2 border-b bg-card px-4 lg:px-6">
+          <Button variant="ghost" size="icon" className="lg:hidden shrink-0" onClick={() => setSidebarOpen(true)}>
             <Menu className="h-5 w-5" />
           </Button>
-          <h2 className="text-lg font-semibold text-foreground flex-1">{currentLabel}</h2>
+          <h2 className="text-base font-semibold text-foreground truncate flex-1">{currentLabel}</h2>
 
-          {/* Sandbox toggle + View-as dropdown */}
           <PreviewRoleBar />
 
           <HelpButton routeKey={location.pathname} />
 
-          <Button variant="ghost" size="sm" className="gap-2 text-xs text-muted-foreground hover:text-foreground" onClick={handleLogout}>
+          <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground hover:text-foreground shrink-0" onClick={handleLogout}>
             <LogOut className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Logout</span>
           </Button>
 
-          <Badge variant="secondary" className="text-xs hidden md:inline-flex">No PHI</Badge>
+          <Badge variant="secondary" className="text-[10px] hidden md:inline-flex shrink-0">No PHI</Badge>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
