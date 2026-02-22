@@ -1884,6 +1884,10 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       is_billing: { Args: never; Returns: boolean }
+      is_company_owner_or_creator: {
+        Args: { _company_id: string }
+        Returns: boolean
+      }
       is_dispatcher: { Args: never; Returns: boolean }
       is_system_creator: { Args: never; Returns: boolean }
       write_audit_log: {
