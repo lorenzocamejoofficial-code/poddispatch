@@ -40,29 +40,22 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check admin role
-    const { data: roleData } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
+    // Check caller has owner/creator role via company_memberships
+    const { data: callerMembership } = await supabaseAdmin
+      .from("company_memberships")
+      .select("company_id, role")
       .eq("user_id", callerUser.user.id)
-      .eq("role", "admin")
+      .in("role", ["owner", "creator"])
       .maybeSingle();
 
-    if (!roleData) {
-      return new Response(JSON.stringify({ error: "Admin access required" }), {
+    if (!callerMembership) {
+      return new Response(JSON.stringify({ error: "Owner/Creator access required" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Get calling admin's company_id — new user inherits this
-    const { data: adminProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id")
-      .eq("user_id", callerUser.user.id)
-      .maybeSingle();
-
-    const company_id = adminProfile?.company_id ?? null;
+    const company_id = callerMembership.company_id;
 
     const { email, password, full_name, role, sex, cert_level, phone_number } = await req.json();
 
@@ -73,16 +66,27 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Validate role is one of the allowed values
-    const allowedRoles = ["admin", "crew", "dispatcher", "billing"];
-    if (!allowedRoles.includes(role)) {
+    // Map incoming role to membership_role
+    const roleMap: Record<string, string> = {
+      admin: "owner",
+      owner: "owner",
+      dispatcher: "dispatcher",
+      billing: "biller",
+      biller: "biller",
+      crew: "crew",
+    };
+    const membershipRole = roleMap[role] || "crew";
+
+    // Validate
+    const allowedRoles = ["owner", "dispatcher", "biller", "crew"];
+    if (!allowedRoles.includes(membershipRole)) {
       return new Response(JSON.stringify({ error: "Invalid role" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    console.log(`Admin ${callerUser.user.email} creating user: ${email} with role: ${role}, company: ${company_id}`);
+    console.log(`Admin ${callerUser.user.email} creating user: ${email} with role: ${membershipRole}, company: ${company_id}`);
 
     // Create auth user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -99,7 +103,23 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create profile — attach to admin's company
+    // Create company_membership
+    const { error: membershipError } = await supabaseAdmin.from("company_memberships").insert({
+      company_id,
+      user_id: newUser.user.id,
+      role: membershipRole,
+    });
+
+    if (membershipError) {
+      console.error("Error creating membership:", membershipError);
+      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
+      return new Response(JSON.stringify({ error: "Failed to create membership" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Create profile
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
       user_id: newUser.user.id,
       full_name,
@@ -111,7 +131,6 @@ Deno.serve(async (req) => {
 
     if (profileError) {
       console.error("Error creating profile:", profileError);
-      // Clean up auth user if profile creation fails
       await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
       return new Response(JSON.stringify({ error: "Failed to create user profile" }), {
         status: 500,
@@ -119,17 +138,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Assign role
-    const { error: roleError } = await supabaseAdmin.from("user_roles").insert({
-      user_id: newUser.user.id,
-      role,
-    });
-
-    if (roleError) {
-      console.error("Error assigning role:", roleError);
+    // Backward compat: also insert into user_roles
+    const legacyRole = role === "biller" ? "billing" : (role === "owner" ? "admin" : role);
+    const validLegacyRoles = ["admin", "crew", "dispatcher", "billing"];
+    if (validLegacyRoles.includes(legacyRole)) {
+      await supabaseAdmin.from("user_roles").insert({
+        user_id: newUser.user.id,
+        role: legacyRole,
+      });
     }
 
-    console.log(`User ${email} created successfully with role ${role} under company ${company_id}`);
+    console.log(`User ${email} created successfully with role ${membershipRole} under company ${company_id}`);
 
     return new Response(
       JSON.stringify({ user: newUser.user, message: "User created successfully" }),

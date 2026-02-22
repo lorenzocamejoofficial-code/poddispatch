@@ -148,8 +148,8 @@ function AppRoutes() {
     );
   }
 
-  // Billing role — completed trips + claims + compliance + facilities
-  if (role === "billing") {
+  // Biller role — completed trips + claims + compliance + facilities
+  if (role === "biller") {
     return (
       <SchedulingProvider>
         <Routes>
