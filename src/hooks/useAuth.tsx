@@ -8,6 +8,7 @@ const WARNING_BEFORE_MS = 2 * 60 * 1000;       // warn 2 min before expiry
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"] as const;
 
 export type MembershipRole = "creator" | "owner" | "dispatcher" | "biller" | "crew";
+export type OnboardingStatus = "signup_started" | "agreements_accepted" | "payment_pending" | "payment_confirmed" | "pending_approval" | "active" | "rejected" | "suspended" | "payment_issue";
 
 interface AuthContextType {
   user: User | null;
@@ -18,8 +19,10 @@ interface AuthContextType {
   loading: boolean;
   sessionWarning: boolean;
   isSystemCreator: boolean;
+  onboardingStatus: OnboardingStatus | null;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  refreshOnboardingStatus: () => Promise<void>;
   // Role convenience checks
   isAdmin: boolean;
   isOwner: boolean;
@@ -43,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [sessionWarning, setSessionWarning] = useState(false);
   const [isSystemCreator, setIsSystemCreator] = useState(false);
+  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
 
   // HIPAA: inactivity timeout refs
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -58,10 +62,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (membershipData) {
       setRole(membershipData.role as MembershipRole);
       setActiveCompanyId(membershipData.company_id);
+      // Load company onboarding status
+      const { data: companyData } = await supabase
+        .from("companies")
+        .select("onboarding_status")
+        .eq("id", membershipData.company_id)
+        .maybeSingle();
+      if (companyData) {
+        setOnboardingStatus(companyData.onboarding_status as OnboardingStatus);
+      }
     }
     if (profileData) setProfileId(profileData.id);
     setIsSystemCreator(!!scData);
   };
+
+  const refreshOnboardingStatus = useCallback(async () => {
+    if (!activeCompanyId) return;
+    const { data } = await supabase
+      .from("companies")
+      .select("onboarding_status")
+      .eq("id", activeCompanyId)
+      .maybeSingle();
+    if (data) setOnboardingStatus(data.onboarding_status as OnboardingStatus);
+  }, [activeCompanyId]);
 
   // HIPAA: sign out and clear all session data
   const doSignOut = useCallback(async () => {
@@ -69,11 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (warningTimer.current) clearTimeout(warningTimer.current);
     setSessionWarning(false);
     await supabase.auth.signOut();
-    setRole(null);
-    setActiveCompanyId(null);
-    setProfileId(null);
-    setIsSystemCreator(false);
-  }, []);
+      setRole(null);
+      setActiveCompanyId(null);
+      setProfileId(null);
+      setIsSystemCreator(false);
+      setOnboardingStatus(null);
+    }, []);
 
   // HIPAA: reset inactivity timers on user activity
   const resetInactivityTimer = useCallback(() => {
@@ -168,7 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, session, role, activeCompanyId, profileId, loading, sessionWarning, isSystemCreator, signIn, signOut,
+      user, session, role, activeCompanyId, profileId, loading, sessionWarning, isSystemCreator, onboardingStatus, signIn, signOut, refreshOnboardingStatus,
       isAdmin, isOwner, isDispatcher, isBilling, isCrew, isCreator,
       canManageTrips, canManageBilling, canManagePatients,
     }}>
