@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Building2, Users, TrendingUp, AlertTriangle, Activity,
   LogOut, Truck, LayoutDashboard, ShieldCheck, Settings2,
-  Code2,
+  Code2, ClipboardCheck,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DevModePanel } from "@/components/creator/DevModePanel";
@@ -84,6 +84,7 @@ export default function SystemCreatorDashboard() {
 
   const sidebarItems = [
     { path: "/system", label: "System Dashboard", icon: LayoutDashboard },
+    { path: "/pending-companies", label: "Pending Companies", icon: ClipboardCheck },
     { path: "/creator-console", label: "Company Console", icon: Settings2 },
   ];
 

@@ -29,6 +29,7 @@ import CompanySignup from "./pages/CompanySignup";
 import PendingApproval from "./pages/PendingApproval";
 import CreatorConsole from "./pages/CreatorConsole";
 import SandboxPage from "./pages/SandboxPage";
+import PendingCompaniesAdmin from "./pages/PendingCompaniesAdmin";
 // SandboxModeProvider and PreviewRoleProvider removed — no role-based view filtering
 const queryClient = new QueryClient();
 
@@ -49,7 +50,7 @@ function SessionWarningBanner() {
 }
 
 function AppRoutes() {
-  const { user, role, loading, isSystemCreator } = useAuth();
+  const { user, role, loading, isSystemCreator, onboardingStatus } = useAuth();
 
   if (loading) {
     return (
@@ -72,8 +73,18 @@ function AppRoutes() {
   }
 
   // Pending approval — company created but not yet activated
-  // Check if user's company is pending (non-system-creator, non-active)
-  // We'll handle this by checking onboarding_status in a wrapper, but for now route exists
+  // Non-creator users whose company is not active get locked to PendingApproval
+  if (!isSystemCreator && onboardingStatus && onboardingStatus !== "active") {
+    return (
+      <Routes>
+        <Route path="/pending-approval" element={<PendingApproval />} />
+        <Route path="*" element={<Navigate to="/pending-approval" replace />} />
+      </Routes>
+    );
+  }
+
+  // Newly approved companies route to migration first
+  // (handled naturally — they have active status and land on "/" which is DispatchBoard)
   
   // System creator — full access to everything
   if (isSystemCreator) {
@@ -100,7 +111,7 @@ function AppRoutes() {
           <Route path="/employees" element={<Employees />} />
           <Route path="/trucks" element={<TrucksCrews />} />
           <Route path="/settings" element={<AdminSettings />} />
-          <Route path="/pending-approval" element={<PendingApproval />} />
+          <Route path="/pending-companies" element={<PendingCompaniesAdmin />} />
           {/* Redirect old sandbox routes to real pages */}
           <Route path="/sandbox/dispatch" element={<Navigate to="/" replace />} />
           <Route path="/sandbox/scheduling" element={<Navigate to="/scheduling" replace />} />
