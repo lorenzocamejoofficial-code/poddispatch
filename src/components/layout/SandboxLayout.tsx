@@ -2,6 +2,8 @@ import { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSandboxMode } from "@/hooks/useSandboxMode";
+import { usePreviewRole } from "@/hooks/usePreviewRole";
+import { PreviewRoleBar } from "@/components/creator/PreviewRoleBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { HelpButton } from "@/components/help/HelpButton";
@@ -44,7 +46,7 @@ const creatorNavItems = [
 export function SandboxLayout({ children, pageLabel }: { children: ReactNode; pageLabel?: string }) {
   const { user, signOut } = useAuth();
   const { setSandboxMode } = useSandboxMode();
-  
+  const { canView, previewRole } = usePreviewRole();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -55,8 +57,14 @@ export function SandboxLayout({ children, pageLabel }: { children: ReactNode; pa
     navigate("/login");
   };
 
-  const visibleSandboxNav = sandboxNavItems;
-  const visibleCreatorNav = creatorNavItems;
+  // Filter sandbox nav items based on preview role
+  const visibleSandboxNav = sandboxNavItems.filter(item => canView(item.module));
+
+  // Only show Company Simulation for creator role
+  const visibleCreatorNav = creatorNavItems.filter(item => {
+    if (item.path === "/simulation" && previewRole !== "creator") return false;
+    return true;
+  });
 
   const currentLabel = pageLabel ?? sandboxNavItems.find(i => i.path === location.pathname)?.label ?? "Sandbox";
 
@@ -104,7 +112,7 @@ export function SandboxLayout({ children, pageLabel }: { children: ReactNode; pa
 
           {/* Sandbox nav - filtered by role */}
           <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600">
-            Sandbox App
+            Sandbox App {previewRole !== "creator" && `(${previewRole})`}
           </p>
           {visibleSandboxNav.map((item) => {
             const active = location.pathname === item.path;
@@ -151,6 +159,8 @@ export function SandboxLayout({ children, pageLabel }: { children: ReactNode; pa
             <Menu className="h-5 w-5" />
           </Button>
           <h2 className="text-base font-semibold text-foreground truncate flex-1">{currentLabel}</h2>
+
+          <PreviewRoleBar />
 
           <HelpButton routeKey={location.pathname} />
 
