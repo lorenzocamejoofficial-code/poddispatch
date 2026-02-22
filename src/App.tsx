@@ -30,6 +30,7 @@ import PendingApproval from "./pages/PendingApproval";
 import CreatorConsole from "./pages/CreatorConsole";
 import SandboxPage from "./pages/SandboxPage";
 import PendingCompaniesAdmin from "./pages/PendingCompaniesAdmin";
+import CreatorSettings from "./pages/CreatorSettings";
 // SandboxModeProvider and PreviewRoleProvider removed — no role-based view filtering
 const queryClient = new QueryClient();
 
@@ -95,6 +96,7 @@ function AppRoutes() {
           <Route path="/system" element={<SystemCreatorDashboard />} />
           <Route path="/creator-console" element={<CreatorConsole />} />
           <Route path="/pending-companies" element={<PendingCompaniesAdmin />} />
+          <Route path="/creator-settings" element={<CreatorSettings />} />
           {/* App Simulation — all operational pages */}
           <Route path="/simulation" element={<DispatchBoard />} />
           <Route path="/scheduling" element={<Scheduling />} />

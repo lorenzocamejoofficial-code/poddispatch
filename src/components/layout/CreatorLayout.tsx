@@ -20,7 +20,7 @@ const creatorNavItems: NavItem[] = [
   { path: "/system", label: "System Dashboard", icon: LayoutDashboard },
   { path: "/pending-companies", label: "Pending Companies", icon: ClipboardCheck },
   { path: "/creator-console", label: "Company Console", icon: Settings2 },
-  { path: "/settings", label: "Settings", icon: Settings },
+  { path: "/creator-settings", label: "Settings", icon: Settings },
 ];
 
 export function CreatorLayout({ children, title }: { children: ReactNode; title?: string }) {
@@ -72,7 +72,7 @@ export function CreatorLayout({ children, title }: { children: ReactNode; title?
         <nav className="flex-1 p-3 overflow-y-auto">
           {/* Creator Tools Section */}
           <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-            Creator Tools
+            Creator System
           </p>
           <div className="space-y-1 mb-4">
             {creatorNavItems.map((item) => {
@@ -96,12 +96,12 @@ export function CreatorLayout({ children, title }: { children: ReactNode; title?
             })}
           </div>
 
-          {/* App Simulation */}
+          {/* Simulation */}
           <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-            Product
+            Simulation
           </p>
           <Link
-            to="/"
+            to="/simulation"
             onClick={() => setSidebarOpen(false)}
             className={cn(
               "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",

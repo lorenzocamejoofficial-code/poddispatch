@@ -51,6 +51,7 @@ export default function CreatorConsole() {
     const { data: companiesData } = await supabase
       .from("companies")
       .select("id, name, onboarding_status, owner_email, created_at, approved_at, rejected_reason, suspended_reason")
+      .in("onboarding_status", ["active", "suspended"])
       .order("created_at", { ascending: false });
 
     const { data: subsData } = await supabase
