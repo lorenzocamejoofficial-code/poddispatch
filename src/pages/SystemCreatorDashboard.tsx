@@ -132,26 +132,23 @@ export default function SystemCreatorDashboard() {
 
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 items-center gap-3 border-b bg-card px-4 lg:px-6">
-          <h2 className="text-lg font-semibold text-foreground flex-1">System Creator Dashboard</h2>
+        <header className="flex h-14 items-center gap-2 border-b bg-card px-4 lg:px-6">
+          <h2 className="text-base font-semibold text-foreground truncate flex-1">System Creator Dashboard</h2>
 
-          {/* Sandbox toggle + View-as dropdown */}
           <PreviewRoleBar />
 
-          {/* Dev Mode Toggle */}
           <div className="flex items-center gap-1.5">
             <Code2 className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-[10px] text-muted-foreground hidden sm:inline">Dev</span>
             <Switch checked={devMode} onCheckedChange={setDevMode} />
           </div>
 
-          {/* Logout */}
-          <Button variant="ghost" size="sm" className="gap-2 text-xs text-muted-foreground hover:text-foreground" onClick={handleLogout}>
+          <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground hover:text-foreground shrink-0" onClick={handleLogout}>
             <LogOut className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Logout</span>
           </Button>
 
-          <Badge variant="secondary" className="text-xs hidden md:inline-flex">No PHI</Badge>
+          <Badge variant="secondary" className="text-[10px] hidden md:inline-flex shrink-0">No PHI</Badge>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
