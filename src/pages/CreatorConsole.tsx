@@ -15,7 +15,6 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { useSandboxMode } from "@/hooks/useSandboxMode";
-import { PreviewRoleBar } from "@/components/creator/PreviewRoleBar";
 
 interface CompanyRecord {
   id: string;
@@ -173,7 +172,6 @@ export default function CreatorConsole() {
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 items-center gap-2 border-b bg-card px-4 lg:px-6">
           <h2 className="text-base font-semibold text-foreground truncate flex-1">Company Console</h2>
-          <PreviewRoleBar />
           <Button
             variant="ghost"
             size="sm"
