@@ -96,7 +96,8 @@ export default function CreatorConsole() {
       <Collapsible className="mb-4">
         <CollapsibleTrigger className="text-xs text-primary hover:underline">ℹ️ How this works</CollapsibleTrigger>
         <CollapsibleContent className="mt-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
-          <p>Search and manage company onboarding. Approve, reject, suspend, or retry provisioning.</p>
+          <p>Manage approved companies here — view status, suspend access, or reactivate accounts.</p>
+          <p>Pending companies are handled separately in the <strong>Pending Companies</strong> page.</p>
           <p>All override actions require typing OVERRIDE and a reason. Actions are logged for audit.</p>
         </CollapsibleContent>
       </Collapsible>

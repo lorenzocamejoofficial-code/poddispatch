@@ -3,12 +3,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Settings, ShieldCheck, Bell, Globe } from "lucide-react";
 
 export default function CreatorSettings() {
   return (
     <CreatorLayout title="System Settings">
       <div className="space-y-6 max-w-2xl">
+        <Collapsible className="mb-2">
+          <CollapsibleTrigger className="text-xs text-primary hover:underline">ℹ️ How this works</CollapsibleTrigger>
+          <CollapsibleContent className="mt-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+            <p>System-level settings control platform-wide behavior — approval workflows, notifications, and access policies.</p>
+            <p>These are separate from company-level settings, which are managed inside each tenant's App Simulation.</p>
+          </CollapsibleContent>
+        </Collapsible>
+
         <div className="space-y-1">
           <h3 className="text-sm font-semibold text-foreground">Platform Configuration</h3>
           <p className="text-xs text-muted-foreground">
