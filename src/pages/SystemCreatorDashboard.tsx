@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DevModePanel } from "@/components/creator/DevModePanel";
-import { PreviewRoleBar } from "@/components/creator/PreviewRoleBar";
 import { useSandboxMode } from "@/hooks/useSandboxMode";
 
 interface SystemMetrics {
@@ -134,8 +133,6 @@ export default function SystemCreatorDashboard() {
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 items-center gap-2 border-b bg-card px-4 lg:px-6">
           <h2 className="text-base font-semibold text-foreground truncate flex-1">System Creator Dashboard</h2>
-
-          <PreviewRoleBar />
 
           <div className="flex items-center gap-1.5">
             <Code2 className="h-3.5 w-3.5 text-muted-foreground" />
