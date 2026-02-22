@@ -283,4 +283,230 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
       ],
     },
   },
+
+  "/billing": {
+    title: "Billing & Claims",
+    content: {
+      does: [
+        "Shows all claim records with their current status: Ready to Bill, Submitted, Paid, Denied, Needs Correction.",
+        "Lets you submit claims, mark them as paid, or flag them for correction.",
+        "Displays charge breakdown: base charge, mileage charge, extras, and total.",
+        "Shows HCPCS codes and modifiers auto-computed from trip data.",
+        "Lets you filter claims by status, date range, and payer type.",
+        "Tracks denial reasons and codes for follow-up.",
+        "Supports resubmission of denied or corrected claims.",
+        "Shows Clean Trip badges indicating billing readiness.",
+      ],
+      doesNot: [
+        "Does not submit claims electronically to payers — claims must be exported or entered into your clearinghouse.",
+        "Does not calculate or verify insurance eligibility.",
+        "Does not generate EOBs or remittance advice.",
+        "Does not handle patient billing or collections.",
+      ],
+      tips: [
+        "Use the Charge Master in Settings to configure base rates and mileage rates per payer type.",
+        "Claims are auto-generated from completed trips that pass documentation gates.",
+        "Check the Compliance page for QA flags before submitting claims.",
+        "Denied claims show the denial code — use this to correct and resubmit.",
+      ],
+    },
+  },
+
+  "/trips": {
+    title: "Trips & Clinical Documentation",
+    content: {
+      does: [
+        "Shows all trip records with full clinical documentation status.",
+        "Displays documentation completeness: vitals, signatures, PCS, necessity notes, loaded miles.",
+        "Lets you review and complete missing documentation fields.",
+        "Shows Clean Trip status — whether a trip meets all billing requirements.",
+        "Evaluates documentation gates per payer type (Medicare, Medicaid, etc.).",
+        "Lets you set origin and destination location types for HCPCS coding.",
+        "Shows blockers preventing a trip from being claim-ready.",
+        "Filters by date, status, and documentation completeness.",
+      ],
+      doesNot: [
+        "Does not create new trips — trips are created from scheduled runs.",
+        "Does not submit claims — use Billing & Claims for that.",
+        "Does not replace clinical charting software or ePCR systems.",
+        "Does not validate medical necessity beyond documentation presence.",
+      ],
+      tips: [
+        "Crew can complete most documentation from their run sheet link — review here for anything missed.",
+        "A trip needs loaded miles, timestamps, and vitals at minimum to pass documentation gates.",
+        "Location types (R, D, H, etc.) drive HCPCS code assignment — verify these are correct.",
+        "Trips marked 'Ready for Billing' automatically generate claim records.",
+      ],
+    },
+  },
+
+  "/compliance": {
+    title: "Compliance & QA",
+    content: {
+      does: [
+        "Shows QA review flags for trips that need attention before billing.",
+        "Lets you review, approve, or reject flagged trips with notes.",
+        "Configures payer-specific billing rules: which documentation is required per payer type.",
+        "Tracks flag reasons and resolution status.",
+        "Shows compliance metrics: total flags, resolved, pending.",
+      ],
+      doesNot: [
+        "Does not auto-correct documentation — it only flags issues for manual review.",
+        "Does not enforce HIPAA or regulatory compliance beyond documentation gates.",
+        "Does not interface with external compliance systems or auditors.",
+        "Does not block billing automatically — flagged trips can still be billed if rules allow.",
+      ],
+      tips: [
+        "Configure payer billing rules first — these determine what gets flagged.",
+        "Review QA flags weekly to catch documentation issues before claim submission.",
+        "Use QA notes to communicate corrections needed back to crew or dispatch.",
+      ],
+    },
+  },
+
+  "/facilities": {
+    title: "Facilities",
+    content: {
+      does: [
+        "Stores facility records: dialysis centers, hospitals, SNFs, and other locations.",
+        "Tracks facility type, address, phone, contact name, and notes.",
+        "Shows how many patients are associated with each facility.",
+        "Lets you add, edit, and deactivate facilities.",
+        "Stores contract payer type, rate type, and invoice preference per facility.",
+        "Search and filter facilities by name and type.",
+      ],
+      doesNot: [
+        "Does not store facility-specific billing rates — use the Charge Master for that.",
+        "Does not auto-detect facility type from address.",
+        "Does not manage facility contracts or agreements.",
+        "Does not track facility performance metrics.",
+      ],
+      tips: [
+        "Add all dialysis centers before creating patient profiles — patients reference facilities by name.",
+        "Use the contract payer type field to track which payer covers transports to each facility.",
+        "Deactivate facilities instead of deleting to preserve historical trip data.",
+      ],
+    },
+  },
+
+  "/reports": {
+    title: "Reports & Metrics",
+    content: {
+      does: [
+        "Shows operational metrics: total trips, completed, cancelled, on-time percentage.",
+        "Shows financial metrics: revenue collected, revenue pending, denial count.",
+        "Breaks down trip volume by truck to identify utilization patterns.",
+        "Shows top denial reasons to target billing improvements.",
+        "Displays AR aging buckets: 0–30, 31–60, 61–90, 90+ days.",
+        "Calculates average days to payment.",
+        "Supports date range filtering: day, week, month, custom.",
+      ],
+      doesNot: [
+        "Does not generate downloadable reports or PDFs.",
+        "Does not forecast revenue or project future trends.",
+        "Does not compare metrics across companies.",
+        "Does not drill down into individual trips — use Trips page for that.",
+      ],
+      tips: [
+        "Check reports weekly to spot denial trends before they compound.",
+        "Use the AR aging view to prioritize follow-ups on unpaid claims.",
+        "Compare truck utilization to identify underused assets.",
+      ],
+    },
+  },
+
+  "/migration": {
+    title: "Migration & Onboarding",
+    content: {
+      does: [
+        "Guides you through importing existing data: patients, facilities, employees.",
+        "Supports CSV/Excel file upload with column mapping.",
+        "Detects duplicate records before importing.",
+        "Shows import results with success/error/warning counts.",
+        "Quick Start Wizard walks through setup steps in order.",
+        "Parallel Run Mode lets you run the new system alongside your existing one.",
+        "Stores mapping templates for repeated imports.",
+      ],
+      doesNot: [
+        "Does not import trip or billing history from other systems.",
+        "Does not auto-map columns — you must verify column assignments.",
+        "Does not delete existing data during import.",
+        "Does not connect to external databases or APIs for data transfer.",
+      ],
+      tips: [
+        "Export patient lists from your current system as CSV before starting.",
+        "Map required fields first (first name, last name) — optional fields can be filled later.",
+        "Use test mode to preview import results without committing data.",
+        "Complete the Quick Start Wizard before your first live dispatch day.",
+      ],
+    },
+  },
+
+  "/runs": {
+    title: "Runs",
+    content: {
+      does: [
+        "Shows all runs for a selected date with patient, truck, crew, and status.",
+        "Lets you create new runs: assign patient, truck, crew, pickup time, and trip type.",
+        "Displays run status progression: Pending → En Route → Arrived → With Patient → Transporting → Completed.",
+        "Filters runs by date.",
+      ],
+      doesNot: [
+        "Does not support drag-and-drop reordering — use Scheduling for that.",
+        "Does not auto-assign trucks or crews — those must be selected manually.",
+        "Does not generate recurring runs — use patient recurrence profiles for that.",
+        "Does not show trip documentation — use Trips page for that.",
+      ],
+      tips: [
+        "Use this page for quick one-off run creation when you don't need the full scheduling workflow.",
+        "The Scheduling page provides a more powerful interface for daily run management.",
+      ],
+    },
+  },
+
+  "/system": {
+    title: "System Dashboard",
+    content: {
+      does: [
+        "Shows system-wide metrics: total companies, users, trucks, trips, and claims.",
+        "Displays clean claim rate and dispatch efficiency across all companies.",
+        "Provides a high-level health overview of the entire platform.",
+        "Links to Company Console for managing individual companies.",
+      ],
+      doesNot: [
+        "Does not show per-company breakdowns — use Company Console for that.",
+        "Does not allow editing company data directly.",
+        "Does not show individual trip or patient details.",
+      ],
+      tips: [
+        "Check the system dashboard daily for anomalies in claim rates or efficiency.",
+        "A drop in clean claim rate may indicate a documentation training issue across companies.",
+      ],
+    },
+  },
+
+  "/creator-console": {
+    title: "Company Console",
+    content: {
+      does: [
+        "Lists all registered companies with their onboarding status.",
+        "Lets you approve, reject, or suspend companies.",
+        "Shows company details: name, owner email, creation date, approval status.",
+        "Tracks subscription and payment status per company.",
+        "Lets you search and filter companies by name or status.",
+        "Provides actions to resend welcome emails or reset company status.",
+      ],
+      doesNot: [
+        "Does not manage individual users within a company — that's done in Employees.",
+        "Does not show company-level operational data (trips, runs, etc.).",
+        "Does not process payments or manage subscriptions directly.",
+        "Does not delete companies — suspend instead to preserve data.",
+      ],
+      tips: [
+        "Review pending companies promptly — they cannot operate until approved.",
+        "Use the suspend action for companies with payment issues rather than rejecting.",
+        "Check subscription status before investigating why a company can't access features.",
+      ],
+    },
+  },
 };

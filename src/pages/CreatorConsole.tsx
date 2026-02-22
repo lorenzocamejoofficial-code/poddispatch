@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 import {
   Building2, Search, CheckCircle2, XCircle, Ban, RefreshCw,
-  Mail, ShieldCheck, LogOut, LayoutDashboard, FlaskConical, Settings2,
+  Mail, ShieldCheck, LogOut, LayoutDashboard, Settings2,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
@@ -124,7 +124,6 @@ export default function CreatorConsole() {
   const sidebarItems = [
     { path: "/system", label: "System Dashboard", icon: LayoutDashboard },
     { path: "/creator-console", label: "Company Console", icon: Settings2 },
-    { path: "/simulation", label: "Company Simulation", icon: FlaskConical },
   ];
 
   return (
