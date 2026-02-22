@@ -50,7 +50,7 @@ const navItems: NavItem[] = [
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {
-  const { user, signOut, role } = useAuth();
+  const { user, signOut, role, isSystemCreator } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [companyName, setCompanyName] = useState("PodDispatch");
@@ -67,12 +67,16 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       });
   }, []);
 
-  // Allow admin, dispatcher, and billing roles to use this layout
-  if (!role || !["admin", "dispatcher", "billing"].includes(role)) {
+  // System creator gets full access to all nav items
+  // Regular users need admin, dispatcher, or billing role
+  if (!isSystemCreator && (!role || !["admin", "dispatcher", "billing"].includes(role))) {
     return null;
   }
 
-  const visibleNav = navItems.filter(item => role && item.roles.includes(role));
+  // System creator sees everything; regular users see role-filtered nav
+  const visibleNav = isSystemCreator
+    ? navItems
+    : navItems.filter(item => role && item.roles.includes(role));
 
   return (
     <div className="flex h-screen overflow-hidden bg-dispatch-surface">
