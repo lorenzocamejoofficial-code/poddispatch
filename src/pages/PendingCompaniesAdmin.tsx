@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { CreatorLayout } from "@/components/layout/CreatorLayout";
@@ -89,6 +90,14 @@ export default function PendingCompaniesAdmin() {
 
   return (
     <CreatorLayout title="Pending Companies">
+      <Collapsible className="mb-4">
+        <CollapsibleTrigger className="text-xs text-primary hover:underline">ℹ️ How this works</CollapsibleTrigger>
+        <CollapsibleContent className="mt-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+          <p>This page shows companies awaiting your approval. New signups land here with <strong>pending</strong> status.</p>
+          <p>Approve to activate a company's workspace, or reject with a reason. Approved companies move to the Company Console.</p>
+          <p>All actions are logged for audit. Rejected companies can be reactivated later from the Company Console.</p>
+        </CollapsibleContent>
+      </Collapsible>
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium text-muted-foreground">Companies awaiting review</CardTitle>
