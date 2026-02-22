@@ -45,7 +45,6 @@ const navItems: NavItem[] = [
   { path: "/employees", label: "Employees", icon: UserPlus, roles: ["admin"] },
   { path: "/trucks", label: "Trucks & Crews", icon: Truck, roles: ["admin", "dispatcher"] },
   { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft, roles: ["admin"] },
-  { path: "/simulation", label: "Company Simulation", icon: FlaskConical, roles: ["admin"] },
   { path: "/settings", label: "Settings", icon: Settings, roles: ["admin"] },
 ];
 
@@ -74,8 +73,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   // System creator sees everything; regular users see role-filtered nav
+  // For creators, remap "/" to "/simulation" since "/" redirects to /system
   const visibleNav = isSystemCreator
-    ? navItems
+    ? navItems.map(item => item.path === "/" ? { ...item, path: "/simulation" } : item)
     : navItems.filter(item => role && item.roles.includes(role));
 
   return (
@@ -108,7 +108,26 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </Button>
         </div>
 
-        <nav className="flex-1 space-y-1 p-3">
+        <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
+          {/* System Creator: back to control tower */}
+          {isSystemCreator && (
+            <>
+              <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                Creator
+              </p>
+              <Link
+                to="/system"
+                onClick={() => setSidebarOpen(false)}
+                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors mb-2"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                ← System Dashboard
+              </Link>
+              <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                App Simulation
+              </p>
+            </>
+          )}
           {visibleNav.map((item) => {
             const active = location.pathname === item.path;
             return (

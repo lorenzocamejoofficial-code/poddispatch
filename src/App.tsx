@@ -91,12 +91,12 @@ function AppRoutes() {
     return (
       <SchedulingProvider>
         <Routes>
-          {/* Creator-specific pages */}
+          {/* Creator-specific pages (use CreatorLayout internally) */}
           <Route path="/system" element={<SystemCreatorDashboard />} />
           <Route path="/creator-console" element={<CreatorConsole />} />
-          <Route path="/simulation" element={<Navigate to="/system" replace />} />
-          {/* All operational pages — real components, full interaction */}
-          <Route path="/" element={<DispatchBoard />} />
+          <Route path="/pending-companies" element={<PendingCompaniesAdmin />} />
+          {/* App Simulation — all operational pages */}
+          <Route path="/simulation" element={<DispatchBoard />} />
           <Route path="/scheduling" element={<Scheduling />} />
           <Route path="/crew-schedule" element={<CrewScheduleAdmin />} />
           <Route path="/crew/:token" element={<DailyRunSheet />} />
@@ -111,14 +111,10 @@ function AppRoutes() {
           <Route path="/employees" element={<Employees />} />
           <Route path="/trucks" element={<TrucksCrews />} />
           <Route path="/settings" element={<AdminSettings />} />
-          <Route path="/pending-companies" element={<PendingCompaniesAdmin />} />
-          {/* Redirect old sandbox routes to real pages */}
-          <Route path="/sandbox/dispatch" element={<Navigate to="/" replace />} />
-          <Route path="/sandbox/scheduling" element={<Navigate to="/scheduling" replace />} />
-          <Route path="/sandbox/patients" element={<Navigate to="/patients" replace />} />
-          <Route path="/sandbox/billing" element={<Navigate to="/billing" replace />} />
-          <Route path="/sandbox/*" element={<Navigate to="/" replace />} />
+          {/* Default: creator lands on System Dashboard */}
+          <Route path="/" element={<Navigate to="/system" replace />} />
           <Route path="/login" element={<Navigate to="/system" replace />} />
+          <Route path="/sandbox/*" element={<Navigate to="/system" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </SchedulingProvider>
