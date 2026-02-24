@@ -2,10 +2,12 @@ import { StatusBadge, StatusDot } from "./StatusBadge";
 import { Truck, Users, Zap, WrenchIcon, AlertTriangle, CheckCircle, XCircle, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useState } from "react";
 import type { Database } from "@/integrations/supabase/types";
+import { RevenueStrengthBadge, type RevenueStrength } from "./RevenueStrengthBadge";
+import { TimingRiskBadge, computeTimingRisk } from "./TimingRiskBadge";
+import { BillingReadinessSummary } from "./BillingReadinessSummary";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
 
@@ -35,6 +37,9 @@ interface TruckCardProps {
   overallStatus: "green" | "yellow" | "red";
   downStatus?: "down_maintenance" | "down_out_of_service" | null;
   downReason?: string | null;
+  revenueStrength?: RevenueStrength;
+  medicareCount?: number;
+  facilityContractCount?: number;
 }
 
 function BillingStatusDot({ status, issues }: { status: BillingStatus; issues?: string[] }) {
@@ -126,7 +131,7 @@ function BillingPreviewDialog({ run, open, onOpenChange }: { run: RunInfo; open:
   );
 }
 
-export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, overallStatus, downStatus, downReason }: TruckCardProps) {
+export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, overallStatus, downStatus, downReason, revenueStrength, medicareCount = 0, facilityContractCount = 0 }: TruckCardProps) {
   const hasHeavy = runs.some((r) => (r.patient_weight ?? 0) > 200);
   const isDown = !!downStatus;
   const hasRunsWhileDown = isDown && runs.length > 0;
@@ -153,6 +158,14 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
               </span>
             )}
           </div>
+          {!isDown && revenueStrength && (
+            <RevenueStrengthBadge
+              strength={revenueStrength}
+              tripCount={runs.length}
+              medicareCount={medicareCount}
+              facilityCount={facilityContractCount}
+            />
+          )}
         </div>
 
         {/* Down warning banner */}
@@ -208,6 +221,10 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  {run.trip_type === "dialysis" && run.pickup_time && run.status !== "completed" && (() => {
+                    const risk = computeTimingRisk(run.pickup_time, run.status);
+                    return risk ? <TimingRiskBadge risk={risk} pickupTime={run.pickup_time} /> : null;
+                  })()}
                   <BillingStatusDot status={run.billing_status ?? null} issues={run.billing_issues} />
                   {run.billing_status && run.billing_status !== "not_ready" && (
                     <button
@@ -224,6 +241,9 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
             ))}
           </div>
         )}
+
+        {/* Billing readiness summary */}
+        <BillingReadinessSummary runs={runs} />
       </div>
 
       {previewRun && (
