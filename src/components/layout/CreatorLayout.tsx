@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import {
   LayoutDashboard, ClipboardCheck, Settings2, Play,
-  ShieldCheck, LogOut, Menu, X, Settings,
+  ShieldCheck, LogOut, Menu, X, Settings, FlaskConical,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -105,11 +105,26 @@ export function CreatorLayout({ children, title }: { children: ReactNode; title?
             onClick={() => setSidebarOpen(false)}
             className={cn(
               "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              location.pathname === "/simulation"
+                ? "bg-sidebar-accent text-sidebar-primary"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
             )}
           >
             <Play className="h-4 w-4" />
             Enter App Simulation
+          </Link>
+          <Link
+            to="/simulation-lab"
+            onClick={() => setSidebarOpen(false)}
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              location.pathname === "/simulation-lab"
+                ? "bg-sidebar-accent text-sidebar-primary"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            )}
+          >
+            <FlaskConical className="h-4 w-4" />
+            Simulation Lab
           </Link>
         </nav>
 
