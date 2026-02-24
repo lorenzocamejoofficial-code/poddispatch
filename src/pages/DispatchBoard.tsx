@@ -5,6 +5,7 @@ import { AlertsPanel } from "@/components/dispatch/AlertsPanel";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { computeCleanTripStatus } from "@/lib/billing-utils";
+import { computeRevenueStrength, type RevenueStrength } from "@/components/dispatch/RevenueStrengthBadge";
 import type { Database } from "@/integrations/supabase/types";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
@@ -33,6 +34,9 @@ interface TruckData {
   overallStatus: "green" | "yellow" | "red";
   downStatus: "down_maintenance" | "down_out_of_service" | null;
   downReason: string | null;
+  revenueStrength: RevenueStrength;
+  medicareCount: number;
+  facilityContractCount: number;
 }
 
 interface AlertData {
@@ -165,6 +169,20 @@ export default function DispatchBoard() {
 
       const avail = availMap.get(t.id);
 
+      // Compute revenue strength
+      const medicareCount = truckRuns.filter(r => {
+        const trip = truckSlots.find(s => s.id === r.id);
+        const patient = (trip?.leg as any)?.patient;
+        return patient?.primary_payer?.toLowerCase()?.includes("medicare");
+      }).length;
+      const facilityContractCount = truckRuns.filter(r => {
+        const trip = truckSlots.find(s => s.id === r.id);
+        const patient = (trip?.leg as any)?.patient;
+        const payer = patient?.primary_payer?.toLowerCase() ?? "";
+        return payer.includes("facility") || payer.includes("contract");
+      }).length;
+      const revenueStrength = computeRevenueStrength(truckRuns.length, medicareCount, facilityContractCount);
+
       return {
         id: t.id,
         name: t.name,
@@ -174,6 +192,9 @@ export default function DispatchBoard() {
         overallStatus: computeOverallStatus(truckRuns),
         downStatus: (avail?.status as "down_maintenance" | "down_out_of_service" | null) ?? null,
         downReason: avail?.reason ?? null,
+        revenueStrength,
+        medicareCount,
+        facilityContractCount,
       };
     });
 
@@ -257,6 +278,9 @@ export default function DispatchBoard() {
                     overallStatus={t.overallStatus}
                     downStatus={t.downStatus}
                     downReason={t.downReason}
+                    revenueStrength={t.revenueStrength}
+                    medicareCount={t.medicareCount}
+                    facilityContractCount={t.facilityContractCount}
                   />
                 ))}
               </div>
