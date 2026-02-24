@@ -178,6 +178,7 @@ export type Database = {
           hcpcs_modifiers: string[] | null
           icd10_codes: string[] | null
           id: string
+          is_simulated: boolean
           member_id: string | null
           mileage_charge: number | null
           notes: string | null
@@ -189,6 +190,7 @@ export type Database = {
           payer_type: string | null
           resubmitted_at: string | null
           run_date: string
+          simulation_run_id: string | null
           status: Database["public"]["Enums"]["claim_status"]
           submitted_at: string | null
           total_charge: number | null
@@ -214,6 +216,7 @@ export type Database = {
           hcpcs_modifiers?: string[] | null
           icd10_codes?: string[] | null
           id?: string
+          is_simulated?: boolean
           member_id?: string | null
           mileage_charge?: number | null
           notes?: string | null
@@ -225,6 +228,7 @@ export type Database = {
           payer_type?: string | null
           resubmitted_at?: string | null
           run_date: string
+          simulation_run_id?: string | null
           status?: Database["public"]["Enums"]["claim_status"]
           submitted_at?: string | null
           total_charge?: number | null
@@ -250,6 +254,7 @@ export type Database = {
           hcpcs_modifiers?: string[] | null
           icd10_codes?: string[] | null
           id?: string
+          is_simulated?: boolean
           member_id?: string | null
           mileage_charge?: number | null
           notes?: string | null
@@ -261,6 +266,7 @@ export type Database = {
           payer_type?: string | null
           resubmitted_at?: string | null
           run_date?: string
+          simulation_run_id?: string | null
           status?: Database["public"]["Enums"]["claim_status"]
           submitted_at?: string | null
           total_charge?: number | null
@@ -297,6 +303,7 @@ export type Database = {
           approved_by: string | null
           created_at: string
           id: string
+          is_sandbox: boolean
           name: string
           onboarding_status: Database["public"]["Enums"]["onboarding_status"]
           owner_email: string | null
@@ -310,6 +317,7 @@ export type Database = {
           approved_by?: string | null
           created_at?: string
           id?: string
+          is_sandbox?: boolean
           name: string
           onboarding_status?: Database["public"]["Enums"]["onboarding_status"]
           owner_email?: string | null
@@ -323,6 +331,7 @@ export type Database = {
           approved_by?: string | null
           created_at?: string
           id?: string
+          is_sandbox?: boolean
           name?: string
           onboarding_status?: Database["public"]["Enums"]["onboarding_status"]
           owner_email?: string | null
@@ -454,8 +463,10 @@ export type Database = {
           company_id: string | null
           created_at: string
           id: string
+          is_simulated: boolean
           member1_id: string | null
           member2_id: string | null
+          simulation_run_id: string | null
           truck_id: string
         }
         Insert: {
@@ -463,8 +474,10 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
+          is_simulated?: boolean
           member1_id?: string | null
           member2_id?: string | null
+          simulation_run_id?: string | null
           truck_id: string
         }
         Update: {
@@ -472,8 +485,10 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
+          is_simulated?: boolean
           member1_id?: string | null
           member2_id?: string | null
+          simulation_run_id?: string | null
           truck_id?: string
         }
         Relationships: [
@@ -518,10 +533,12 @@ export type Database = {
           facility_type: string
           id: string
           invoice_preference: string | null
+          is_simulated: boolean
           name: string
           notes: string | null
           phone: string | null
           rate_type: string | null
+          simulation_run_id: string | null
           updated_at: string
         }
         Insert: {
@@ -534,10 +551,12 @@ export type Database = {
           facility_type?: string
           id?: string
           invoice_preference?: string | null
+          is_simulated?: boolean
           name: string
           notes?: string | null
           phone?: string | null
           rate_type?: string | null
+          simulation_run_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -550,10 +569,12 @@ export type Database = {
           facility_type?: string
           id?: string
           invoice_preference?: string | null
+          is_simulated?: boolean
           name?: string
           notes?: string | null
           phone?: string | null
           rate_type?: string | null
+          simulation_run_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -912,6 +933,7 @@ export type Database = {
           dropoff_facility: string | null
           first_name: string
           id: string
+          is_simulated: boolean
           last_name: string
           member_id: string | null
           mobility: string | null
@@ -925,6 +947,7 @@ export type Database = {
           run_duration_minutes: number | null
           schedule_days: Database["public"]["Enums"]["schedule_days"] | null
           secondary_payer: string | null
+          simulation_run_id: string | null
           special_handling: string | null
           standing_order: boolean | null
           status: Database["public"]["Enums"]["patient_status"]
@@ -944,6 +967,7 @@ export type Database = {
           dropoff_facility?: string | null
           first_name: string
           id?: string
+          is_simulated?: boolean
           last_name: string
           member_id?: string | null
           mobility?: string | null
@@ -957,6 +981,7 @@ export type Database = {
           run_duration_minutes?: number | null
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
           secondary_payer?: string | null
+          simulation_run_id?: string | null
           special_handling?: string | null
           standing_order?: boolean | null
           status?: Database["public"]["Enums"]["patient_status"]
@@ -976,6 +1001,7 @@ export type Database = {
           dropoff_facility?: string | null
           first_name?: string
           id?: string
+          is_simulated?: boolean
           last_name?: string
           member_id?: string | null
           mobility?: string | null
@@ -989,6 +1015,7 @@ export type Database = {
           run_duration_minutes?: number | null
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
           secondary_payer?: string | null
+          simulation_run_id?: string | null
           special_handling?: string | null
           standing_order?: boolean | null
           status?: Database["public"]["Enums"]["patient_status"]
@@ -1062,8 +1089,10 @@ export type Database = {
           created_at: string
           full_name: string
           id: string
+          is_simulated: boolean
           phone_number: string | null
           sex: Database["public"]["Enums"]["sex_type"]
+          simulation_run_id: string | null
           updated_at: string
           user_id: string
         }
@@ -1074,8 +1103,10 @@ export type Database = {
           created_at?: string
           full_name: string
           id?: string
+          is_simulated?: boolean
           phone_number?: string | null
           sex?: Database["public"]["Enums"]["sex_type"]
+          simulation_run_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -1086,8 +1117,10 @@ export type Database = {
           created_at?: string
           full_name?: string
           id?: string
+          is_simulated?: boolean
           phone_number?: string | null
           sex?: Database["public"]["Enums"]["sex_type"]
+          simulation_run_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -1301,12 +1334,14 @@ export type Database = {
           destination_location: string
           estimated_duration_minutes: number | null
           id: string
+          is_simulated: boolean
           leg_type: Database["public"]["Enums"]["leg_type"]
           notes: string | null
           patient_id: string
           pickup_location: string
           pickup_time: string | null
           run_date: string
+          simulation_run_id: string | null
           trip_type: Database["public"]["Enums"]["trip_type"]
           updated_at: string
         }
@@ -1317,12 +1352,14 @@ export type Database = {
           destination_location: string
           estimated_duration_minutes?: number | null
           id?: string
+          is_simulated?: boolean
           leg_type: Database["public"]["Enums"]["leg_type"]
           notes?: string | null
           patient_id: string
           pickup_location: string
           pickup_time?: string | null
           run_date?: string
+          simulation_run_id?: string | null
           trip_type?: Database["public"]["Enums"]["trip_type"]
           updated_at?: string
         }
@@ -1333,12 +1370,14 @@ export type Database = {
           destination_location?: string
           estimated_duration_minutes?: number | null
           id?: string
+          is_simulated?: boolean
           leg_type?: Database["public"]["Enums"]["leg_type"]
           notes?: string | null
           patient_id?: string
           pickup_location?: string
           pickup_time?: string | null
           run_date?: string
+          simulation_run_id?: string | null
           trip_type?: Database["public"]["Enums"]["trip_type"]
           updated_at?: string
         }
@@ -1358,6 +1397,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      simulation_runs: {
+        Row: {
+          config: Json | null
+          created_at: string
+          created_by: string
+          id: string
+          scenario_name: string
+          status: string
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string
+          created_by: string
+          id?: string
+          scenario_name: string
+          status?: string
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          scenario_name?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      simulation_snapshots: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          snapshot_data: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          snapshot_data?: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          snapshot_data?: Json
+        }
+        Relationships: []
       }
       status_updates: {
         Row: {
@@ -1500,6 +1590,7 @@ export type Database = {
           hcpcs_modifiers: string[] | null
           heart_rate: number | null
           id: string
+          is_simulated: boolean
           leg_id: string | null
           loaded_at: string | null
           loaded_miles: number | null
@@ -1518,6 +1609,7 @@ export type Database = {
           scheduled_pickup_time: string | null
           service_level: string | null
           signature_obtained: boolean | null
+          simulation_run_id: string | null
           slot_id: string | null
           status: Database["public"]["Enums"]["trip_status"]
           stretcher_required: boolean | null
@@ -1555,6 +1647,7 @@ export type Database = {
           hcpcs_modifiers?: string[] | null
           heart_rate?: number | null
           id?: string
+          is_simulated?: boolean
           leg_id?: string | null
           loaded_at?: string | null
           loaded_miles?: number | null
@@ -1573,6 +1666,7 @@ export type Database = {
           scheduled_pickup_time?: string | null
           service_level?: string | null
           signature_obtained?: boolean | null
+          simulation_run_id?: string | null
           slot_id?: string | null
           status?: Database["public"]["Enums"]["trip_status"]
           stretcher_required?: boolean | null
@@ -1610,6 +1704,7 @@ export type Database = {
           hcpcs_modifiers?: string[] | null
           heart_rate?: number | null
           id?: string
+          is_simulated?: boolean
           leg_id?: string | null
           loaded_at?: string | null
           loaded_miles?: number | null
@@ -1628,6 +1723,7 @@ export type Database = {
           scheduled_pickup_time?: string | null
           service_level?: string | null
           signature_obtained?: boolean | null
+          simulation_run_id?: string | null
           slot_id?: string | null
           status?: Database["public"]["Enums"]["trip_status"]
           stretcher_required?: boolean | null
@@ -1768,8 +1864,10 @@ export type Database = {
           company_id: string | null
           created_at: string
           id: string
+          is_simulated: boolean
           leg_id: string
           run_date: string
+          simulation_run_id: string | null
           slot_order: number
           status: Database["public"]["Enums"]["run_status"]
           truck_id: string
@@ -1778,8 +1876,10 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
+          is_simulated?: boolean
           leg_id: string
           run_date?: string
+          simulation_run_id?: string | null
           slot_order?: number
           status?: Database["public"]["Enums"]["run_status"]
           truck_id: string
@@ -1788,8 +1888,10 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
+          is_simulated?: boolean
           leg_id?: string
           run_date?: string
+          simulation_run_id?: string | null
           slot_order?: number
           status?: Database["public"]["Enums"]["run_status"]
           truck_id?: string
@@ -1824,21 +1926,27 @@ export type Database = {
           company_id: string | null
           created_at: string
           id: string
+          is_simulated: boolean
           name: string
+          simulation_run_id: string | null
         }
         Insert: {
           active?: boolean
           company_id?: string | null
           created_at?: string
           id?: string
+          is_simulated?: boolean
           name: string
+          simulation_run_id?: string | null
         }
         Update: {
           active?: boolean
           company_id?: string | null
           created_at?: string
           id?: string
+          is_simulated?: boolean
           name?: string
+          simulation_run_id?: string | null
         }
         Relationships: [
           {
