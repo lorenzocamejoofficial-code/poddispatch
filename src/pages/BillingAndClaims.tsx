@@ -146,7 +146,7 @@ export default function BillingAndClaims() {
       .from("trip_records" as any)
       .select("*")
       .eq("run_date", dateFilter)
-      .in("status", ["completed", "ready_for_billing"])
+      .or("status.in.(completed,ready_for_billing),claim_ready.eq.true")
       .order("scheduled_pickup_time");
 
     if (simulationRunId) {
