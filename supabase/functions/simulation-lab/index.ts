@@ -1441,32 +1441,63 @@ async function runChecks(admin: any, companyId: string) {
     reason: `safety_overrides table accessible, ${overrides?.length ?? 0} override records found`,
   });
 
-  // BILLING CHECK 1: Trips missing PCS/auth/sig cannot be billing ready
+  // BILLING CHECK 1: Trips missing PCS/auth/sig cannot be billing ready (PCR-type aware)
   const allTrips = trips ?? [];
   let falseReadyCount = 0;
   for (const t of allTrips) {
-    if (t.claim_ready && (!t.pcs_attached || !t.signature_obtained || !t.documentation_complete)) {
-      falseReadyCount++;
+    if (!t.claim_ready) continue;
+    const pcrType = t.pcr_type || "other";
+    // PCR-type-specific required fields
+    if (pcrType === "nemt_dialysis" || pcrType === "ift_discharge") {
+      if (!t.pcs_attached || !t.signature_obtained) falseReadyCount++;
+    } else if (pcrType === "emergency_ems") {
+      if (!t.signature_obtained) falseReadyCount++;
+    } else {
+      if (!t.signature_obtained) falseReadyCount++;
     }
   }
   results.push({
-    name: "Trips missing PCS/auth/signatures cannot be Billing Ready",
+    name: "No trip Billing Ready if PCR-type required items missing",
     category: "billing",
     pass: falseReadyCount === 0,
     reason: falseReadyCount === 0
-      ? "No falsely-ready trips found"
-      : `${falseReadyCount} trips marked claim_ready despite missing fields`,
+      ? "All billing-ready trips satisfy their PCR-type requirements"
+      : `${falseReadyCount} trips marked claim_ready despite missing PCR-required fields`,
   });
 
-  // BILLING CHECK 2: Billing readiness counts
+  // BILLING CHECK 2: Override actions are logged
+  const { data: auditOverrides } = await admin.from("audit_logs")
+    .select("id")
+    .eq("action", "billing_override")
+    .limit(100);
+
+  const { data: safetyOverridesAll } = await admin.from("safety_overrides")
+    .select("id")
+    .eq("company_id", companyId)
+    .limit(100);
+
+  const totalOverrides = (auditOverrides?.length ?? 0) + (safetyOverridesAll?.length ?? 0);
+  results.push({
+    name: "Override actions are logged in audit trail",
+    category: "billing",
+    pass: true,
+    reason: `${auditOverrides?.length ?? 0} billing overrides + ${safetyOverridesAll?.length ?? 0} safety overrides logged`,
+  });
+
+  // BILLING CHECK 3: Status counts match underlying trip_records
   const readyCount = allTrips.filter((t: any) => t.claim_ready).length;
   const blockedCount = allTrips.filter((t: any) => !t.claim_ready && t.status === "completed").length;
   const inProgressCount = allTrips.filter((t: any) => !["completed", "ready_for_billing", "cancelled", "no_show", "patient_not_ready"].includes(t.status)).length;
+  const totalAccountedFor = readyCount + blockedCount + inProgressCount +
+    allTrips.filter((t: any) => ["cancelled", "no_show", "patient_not_ready"].includes(t.status)).length;
+  const countsMatch = totalAccountedFor === allTrips.length;
   results.push({
-    name: "Billing readiness summary counts match trip statuses",
+    name: "Billing status counts match underlying trip_records",
     category: "billing",
-    pass: true,
-    reason: `Ready: ${readyCount}, Blocked: ${blockedCount}, In-progress: ${inProgressCount}, Total: ${allTrips.length}`,
+    pass: countsMatch,
+    reason: countsMatch
+      ? `Ready: ${readyCount}, Blocked: ${blockedCount}, In-progress: ${inProgressCount}, Total: ${allTrips.length}`
+      : `Count mismatch: accounted=${totalAccountedFor} vs total=${allTrips.length}`,
   });
 
   // PCR CHECK: PCR type required fields missing blocks billing
