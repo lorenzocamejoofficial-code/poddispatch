@@ -16,6 +16,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { SimulationSummary } from "@/components/simulation/SimulationSummary";
+import { useSimulationSession } from "@/hooks/useSimulationSession";
 
 type CheckResult = { name: string; category: string; pass: boolean; reason: string };
 type SandboxStatus = { companyId: string; trucks: number; patients: number; trips: number; crews: number; recentRuns: any[] };
@@ -77,6 +78,7 @@ export default function SimulationLab() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState<string | null>(null);
+  const { setSimulationRunId, setSandboxCompanyId, triggerSimulationRefresh } = useSimulationSession();
   const [status, setStatus] = useState<SandboxStatus | null>(null);
   const [checks, setChecks] = useState<CheckResult[] | null>(null);
   const [snapshotName, setSnapshotName] = useState("");
@@ -107,6 +109,8 @@ export default function SimulationLab() {
     try {
       const result = await callLabChecked({ action: "status" });
       setStatus(result);
+      setSandboxCompanyId(result?.companyId ?? null);
+      setSimulationRunId(result?.recentRuns?.[0]?.id ?? null);
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     }
@@ -121,6 +125,8 @@ export default function SimulationLab() {
       setSummary(null);
       if (data.ok) {
         toast({ title: "Scenario Seeded", description: `${data.scenario || data.result?.scenario}: ${data.tripCount || data.result?.tripCount} trips (${seedSize})` });
+        setSimulationRunId(data.runId ?? null);
+        triggerSimulationRefresh();
         invalidateAll();
         loadStatus();
       } else {
@@ -172,8 +178,11 @@ export default function SimulationLab() {
     setLoading("reset");
     try {
       const result = await callLabChecked({ action: "reset" });
-      const totalDeleted = Object.values(result as Record<string, number>).reduce((a, b) => a + b, 0);
+      const deletedCounts = (result as any)?.deleted_counts ?? result;
+      const totalDeleted = Object.values(deletedCounts as Record<string, number>).reduce((a, b) => a + b, 0);
       toast({ title: "Sandbox Reset", description: `${totalDeleted} records removed` });
+      setSimulationRunId((result as any)?.simulation_run_id ?? null);
+      triggerSimulationRefresh();
       setChecks(null);
       setSeedResult(null);
       setSummary(null);

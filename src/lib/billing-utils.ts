@@ -351,6 +351,11 @@ export function evaluatePcrCompleteness(trip: {
 
 export type BillingQueueStatus = "ready" | "review" | "blocked";
 
+export interface BillingOverrideLike {
+  trip_id: string;
+  is_active?: boolean | null;
+}
+
 export interface BillingQueueTrip {
   id: string;
   patient_name: string;
@@ -363,6 +368,61 @@ export interface BillingQueueTrip {
   queue_status: BillingQueueStatus;
   missing_fields: string[];
   blockers: string[];
+}
+
+export function computeBillingQueueStatus(
+  trip: {
+    id: string;
+    status: string;
+    claim_ready?: boolean | null;
+    pcr_type?: string | null;
+    loaded_miles?: number | null;
+    loaded_at?: string | null;
+    dropped_at?: string | null;
+    dispatch_time?: string | null;
+    origin_type?: string | null;
+    destination_type?: string | null;
+    signature_obtained?: boolean;
+    pcs_attached?: boolean;
+    necessity_notes?: string | null;
+    clinical_note?: string | null;
+    bed_confined?: boolean;
+    cannot_transfer_safely?: boolean;
+    requires_monitoring?: boolean;
+    oxygen_during_transport?: boolean;
+    blockers?: string[] | null;
+    auth_required?: boolean;
+    auth_expiration?: string | null;
+  },
+  payerRules?: {
+    requires_pcs?: boolean;
+    requires_signature?: boolean;
+    requires_necessity_note?: boolean;
+    requires_timestamps?: boolean;
+    requires_miles?: boolean;
+    requires_auth?: boolean;
+  } | null,
+  overrideMap?: Map<string, BillingOverrideLike>,
+): BillingQueueStatus {
+  const activeOverride = overrideMap?.get(trip.id);
+  if (trip.claim_ready || (activeOverride && activeOverride.is_active !== false)) {
+    return "ready";
+  }
+
+  if (!["completed", "ready_for_billing"].includes(trip.status)) {
+    return "blocked";
+  }
+
+  const pcrResult = evaluatePcrCompleteness(trip);
+  const cleanResult = computeCleanTripStatus(
+    trip,
+    payerRules,
+    { auth_required: trip.auth_required, auth_expiration: trip.auth_expiration }
+  );
+
+  if (cleanResult.level === "blocked") return "blocked";
+  if (!pcrResult.passed || cleanResult.level === "review") return "review";
+  return "ready";
 }
 
 // ============================================================

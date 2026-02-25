@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes } from "@/lib/billing-utils";
+import { useSimulationSession } from "@/hooks/useSimulationSession";
 
 type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction";
 
@@ -90,11 +91,18 @@ export default function BillingAndClaims() {
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split("T")[0]);
   const [overrideLogs, setOverrideLogs] = useState<any[]>([]);
   const [overrideLogSort, setOverrideLogSort] = useState<"date" | "user" | "reason">("date");
+  const { simulationRunId, refreshToken } = useSimulationSession();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+
+    let claimsQuery = supabase.from("claim_records" as any).select("*").order("run_date", { ascending: false });
+    if (simulationRunId) {
+      claimsQuery = claimsQuery.eq("simulation_run_id", simulationRunId);
+    }
+
     const [{ data: claimRows }, { data: rateRows }, { data: payerRules }] = await Promise.all([
-      supabase.from("claim_records" as any).select("*").order("run_date", { ascending: false }),
+      claimsQuery,
       supabase.from("charge_master" as any).select("*").order("payer_type"),
       supabase.from("payer_billing_rules" as any).select("*"),
     ]);
@@ -113,6 +121,7 @@ export default function BillingAndClaims() {
         ? supabase.from("trip_records" as any).select("id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type").in("id", tripIds)
         : Promise.resolve({ data: [] }),
     ]);
+
     const pMap = new Map((pRows ?? []).map((p: any) => [p.id, `${p.first_name} ${p.last_name}`]));
     const tMap = new Map((tripRows ?? []).map((t: any) => [t.id, t]));
 
@@ -130,15 +139,21 @@ export default function BillingAndClaims() {
     );
     setChargeMaster((rateRows ?? []) as any[]);
     setLoading(false);
-  }, []);
+  }, [simulationRunId]);
 
   const fetchQueueTrips = useCallback(async () => {
-    const { data: tripRows } = await supabase
+    let tripQuery = supabase
       .from("trip_records" as any)
       .select("*")
       .eq("run_date", dateFilter)
       .in("status", ["completed", "ready_for_billing"])
       .order("scheduled_pickup_time");
+
+    if (simulationRunId) {
+      tripQuery = tripQuery.eq("simulation_run_id", simulationRunId);
+    }
+
+    const { data: tripRows } = await tripQuery;
 
     if (!tripRows?.length) { setQueueTrips([]); return; }
 
@@ -171,18 +186,31 @@ export default function BillingAndClaims() {
         };
       })
     );
-  }, [dateFilter]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { fetchQueueTrips(); }, [fetchQueueTrips]);
+  }, [dateFilter, simulationRunId]);
 
   const fetchOverrideLogs = useCallback(async () => {
-    const { data } = await supabase
+    const tripScope = simulationRunId
+      ? await supabase.from("trip_records" as any).select("id, patient_id, run_date").eq("simulation_run_id", simulationRunId)
+      : { data: [] as any[] };
+
+    const scopedTripIds = simulationRunId ? (tripScope.data ?? []).map((t: any) => t.id) : null;
+
+    let overridesQuery = supabase
       .from("billing_overrides" as any)
       .select("*")
-      .order("overridden_at", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(200);
-    
+
+    if (simulationRunId) {
+      if (!scopedTripIds?.length) {
+        setOverrideLogs([]);
+        return;
+      }
+      overridesQuery = overridesQuery.in("trip_id", scopedTripIds);
+    }
+
+    const { data } = await overridesQuery;
+
     if (!data?.length) { setOverrideLogs([]); return; }
 
     const tripIds = [...new Set((data as any[]).map((d: any) => d.trip_id).filter(Boolean))];
@@ -206,9 +234,19 @@ export default function BillingAndClaims() {
         run_date: trip?.run_date ?? "—",
       };
     }));
-  }, []);
+  }, [simulationRunId]);
 
-  useEffect(() => { fetchOverrideLogs(); }, [fetchOverrideLogs]);
+  useEffect(() => { fetchData(); fetchQueueTrips(); fetchOverrideLogs(); }, [fetchData, fetchQueueTrips, fetchOverrideLogs]);
+
+  useEffect(() => {
+    if (!refreshToken) return;
+    setQueueTrips([]);
+    setOverrideLogs([]);
+    setClaims([]);
+    fetchData();
+    fetchQueueTrips();
+    fetchOverrideLogs();
+  }, [refreshToken, fetchData, fetchQueueTrips, fetchOverrideLogs]);
 
   const syncClaimsFromTrips = async () => {
     const { data: trips } = await supabase
@@ -485,28 +523,29 @@ export default function BillingAndClaims() {
                 <tbody>
                   {[...overrideLogs]
                     .sort((a, b) => {
-                      if (overrideLogSort === "date") return new Date(b.overridden_at).getTime() - new Date(a.overridden_at).getTime();
-                      if (overrideLogSort === "user") return (a.overridden_by ?? "").localeCompare(b.overridden_by ?? "");
-                      return (a.override_reason ?? "").localeCompare(b.override_reason ?? "");
+                      if (overrideLogSort === "date") return new Date(b.created_at ?? b.overridden_at).getTime() - new Date(a.created_at ?? a.overridden_at).getTime();
+                      if (overrideLogSort === "user") return (a.user_id ?? a.overridden_by ?? "").localeCompare(b.user_id ?? b.overridden_by ?? "");
+                      return (a.reason ?? a.override_reason ?? "").localeCompare(b.reason ?? b.override_reason ?? "");
                     })
                     .map((o: any) => (
                       <tr key={o.id} className="border-b hover:bg-muted/30">
                         <td className="px-4 py-3 text-xs whitespace-nowrap">
-                          {new Date(o.overridden_at).toLocaleDateString()}<br />
-                          <span className="text-muted-foreground">{new Date(o.overridden_at).toLocaleTimeString()}</span>
+                          {new Date(o.created_at ?? o.overridden_at).toLocaleDateString()}<br />
+                          <span className="text-muted-foreground">{new Date(o.created_at ?? o.overridden_at).toLocaleTimeString()}</span>
                         </td>
                         <td className="px-4 py-3">
                           <p className="text-xs font-medium">{o.patient_name}</p>
                           <p className="text-[10px] text-muted-foreground">{o.run_date}</p>
                         </td>
                         <td className="px-4 py-3 text-xs font-mono text-muted-foreground">
-                          {o.overridden_by?.slice(0, 8) ?? "—"}…
+                          {(o.user_id ?? o.overridden_by)?.slice(0, 8) ?? "—"}…
                         </td>
-                        <td className="px-4 py-3 text-xs max-w-[200px] truncate">{o.override_reason}</td>
+                        <td className="px-4 py-3 text-xs max-w-[200px] truncate">{o.reason ?? o.override_reason}</td>
                         <td className="px-4 py-3 text-[10px] text-muted-foreground max-w-[200px] truncate">
-                          {o.previous_blockers_snapshot
-                            ? ((o.previous_blockers_snapshot as any)?.blockers?.join(", ") ||
-                               (o.previous_blockers_snapshot as any)?.missing?.join(", ") ||
+                          {(o.snapshot ?? o.previous_blockers_snapshot)
+                            ? (((o.snapshot ?? o.previous_blockers_snapshot) as any)?.blockers?.join(", ") ||
+                               ((o.snapshot ?? o.previous_blockers_snapshot) as any)?.missing?.join(", ") ||
+                               (o.previous_blockers ?? []).join(", ") ||
                                "—")
                             : "—"}
                         </td>

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SchedulingProvider } from "@/hooks/useSchedulingStore";
+import { SimulationSessionProvider } from "@/hooks/useSimulationSession";
 import Login from "./pages/Login";
 import DispatchBoard from "./pages/DispatchBoard";
 import CrewView from "./pages/CrewView";
@@ -211,8 +212,10 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <SessionWarningBanner />
-          <AppRoutes />
+          <SimulationSessionProvider>
+            <SessionWarningBanner />
+            <AppRoutes />
+          </SimulationSessionProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

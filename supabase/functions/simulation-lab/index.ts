@@ -1691,7 +1691,7 @@ async function generateSummary(admin: any, companyId: string) {
   };
 }
 
-async function resetSandbox(admin: any, companyId: string) {
+async function resetSandbox(admin: any, companyId: string, userId: string) {
   // Clear billing_overrides linked to sandbox trips first (no company_id column, use trip FK)
   const { data: sandboxTripIds } = await admin.from("trip_records")
     .select("id")
@@ -1731,7 +1731,18 @@ async function resetSandbox(admin: any, companyId: string) {
   const { data: runs } = await admin.from("simulation_runs").delete().neq("id", "00000000-0000-0000-0000-000000000000").select("id");
   counts["simulation_runs"] = runs?.length ?? 0;
 
-  return counts;
+  const simulation_run_id = crypto.randomUUID();
+  await admin.from("simulation_runs").insert({
+    id: simulation_run_id,
+    scenario_name: "Sandbox Reset",
+    created_by: userId,
+    status: "reset",
+  });
+
+  return {
+    deleted_counts: counts,
+    simulation_run_id,
+  };
 }
 
 async function saveSnapshot(admin: any, companyId: string, userId: string, name: string) {
@@ -1830,7 +1841,7 @@ Deno.serve(async (req) => {
         result = await runChecks(admin, companyId);
         break;
       case "reset":
-        result = await resetSandbox(admin, companyId);
+        result = await resetSandbox(admin, companyId, callerUser.user.id);
         break;
       case "snapshot":
         result = await saveSnapshot(admin, companyId, callerUser.user.id, body.name || "Snapshot");
@@ -1870,7 +1881,11 @@ Deno.serve(async (req) => {
         });
     }
 
-    return new Response(JSON.stringify({ ok: true, result }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      ...(action === "reset" ? { simulation_run_id: result?.simulation_run_id } : {}),
+      result,
+    }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
