@@ -1441,11 +1441,19 @@ async function runChecks(admin: any, companyId: string) {
     reason: `safety_overrides table accessible, ${overrides?.length ?? 0} override records found`,
   });
 
-  // BILLING CHECK 1: Trips missing PCS/auth/sig cannot be billing ready (PCR-type aware)
+  // Fetch billing overrides up-front (used in multiple checks below)
+  const { data: billingOverrides } = await admin.from("billing_overrides")
+    .select("id, trip_id")
+    .limit(100);
+
+  // BILLING CHECK 1: Trips missing PCS/auth/sig cannot be billing ready UNLESS overridden
   const allTrips = trips ?? [];
+  const overriddenTripIdSet = new Set((billingOverrides ?? []).map((o: any) => o.trip_id));
   let falseReadyCount = 0;
   for (const t of allTrips) {
     if (!t.claim_ready) continue;
+    // Overridden trips are allowed to be billing-ready even with missing fields
+    if (overriddenTripIdSet.has(t.id)) continue;
     const pcrType = t.pcr_type || "other";
     // PCR-type-specific required fields
     if (pcrType === "nemt_dialysis" || pcrType === "ift_discharge") {
@@ -1457,18 +1465,13 @@ async function runChecks(admin: any, companyId: string) {
     }
   }
   results.push({
-    name: "No trip Billing Ready if PCR-type required items missing",
+    name: "No trip Billing Ready if PCR-type required items missing (unless overridden)",
     category: "billing",
     pass: falseReadyCount === 0,
     reason: falseReadyCount === 0
-      ? "All billing-ready trips satisfy their PCR-type requirements"
-      : `${falseReadyCount} trips marked claim_ready despite missing PCR-required fields`,
+      ? `All billing-ready trips satisfy their PCR-type requirements (${overriddenTripIdSet.size} overridden trips excluded)`
+      : `${falseReadyCount} trips marked claim_ready despite missing PCR-required fields (not overridden)`,
   });
-
-  // BILLING CHECK 2: Override actions are logged in billing_overrides table
-  const { data: billingOverrides } = await admin.from("billing_overrides")
-    .select("id, trip_id")
-    .limit(100);
 
   const { data: auditOverrides } = await admin.from("audit_logs")
     .select("id")
@@ -1689,6 +1692,20 @@ async function generateSummary(admin: any, companyId: string) {
 }
 
 async function resetSandbox(admin: any, companyId: string) {
+  // Clear billing_overrides linked to sandbox trips first (no company_id column, use trip FK)
+  const { data: sandboxTripIds } = await admin.from("trip_records")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("is_simulated", true);
+
+  if (sandboxTripIds?.length) {
+    const tripIds = sandboxTripIds.map((t: any) => t.id);
+    // Delete billing_overrides for these trips
+    await admin.from("billing_overrides").delete().in("trip_id", tripIds);
+    // Delete audit_logs for billing overrides on these trips
+    await admin.from("audit_logs").delete().eq("action", "billing_override").in("record_id", tripIds);
+  }
+
   const tables = [
     "safety_overrides", "claim_records", "trip_records", "truck_run_slots", "scheduling_legs",
     "crews", "trucks", "patients", "facilities",

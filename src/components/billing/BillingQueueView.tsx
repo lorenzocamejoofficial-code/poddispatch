@@ -61,13 +61,14 @@ interface BillingQueueViewProps {
   onRefresh: () => void;
 }
 
-function computeQueueStatus(trip: TripForQueue, payerRules: any): {
+function computeQueueStatus(trip: TripForQueue, payerRules: any, overrideMap?: Map<string, BillingOverrideRecord>): {
   status: BillingQueueStatus;
   missing: string[];
   blockers: string[];
 } {
-  // Override takes absolute priority: if claim_ready is true the trip is Ready regardless of PCR gaps
-  if (trip.claim_ready) {
+  // Override takes absolute priority: if claim_ready is true OR an active override exists,
+  // the trip is Ready regardless of PCR gaps or blocker evaluations
+  if (trip.claim_ready || overrideMap?.has(trip.id)) {
     return { status: "ready", missing: [], blockers: [] };
   }
 
@@ -148,7 +149,10 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
 
   useEffect(() => { fetchOverrideHistory(); }, [fetchOverrideHistory]);
 
-  const completedTrips = trips.filter(t => ["completed", "ready_for_billing"].includes(t.status));
+  // Include overridden trips even if their status isn't completed/ready_for_billing yet (race condition safety)
+  const completedTrips = trips.filter(t =>
+    ["completed", "ready_for_billing"].includes(t.status) || overrideHistory.has(t.id) || t.claim_ready
+  );
 
   const grouped: Record<BillingQueueStatus, Array<TripForQueue & { queueMissing: string[]; queueBlockers: string[] }>> = {
     ready: [],
@@ -158,12 +162,12 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
 
   for (const trip of completedTrips) {
     const payerRules = payerRulesMap.get(trip.payer ?? "") ?? null;
-    const { status, missing, blockers } = computeQueueStatus(trip, payerRules);
+    const { status, missing, blockers } = computeQueueStatus(trip, payerRules, overrideHistory);
     grouped[status].push({ ...trip, queueMissing: missing, queueBlockers: blockers });
   }
 
   const selectedQueueInfo = selectedTrip
-    ? computeQueueStatus(selectedTrip, payerRulesMap.get(selectedTrip.payer ?? "") ?? null)
+    ? computeQueueStatus(selectedTrip, payerRulesMap.get(selectedTrip.payer ?? "") ?? null, overrideHistory)
     : null;
 
   const pcrRules = selectedTrip ? getPcrRules(selectedTrip.pcr_type) : [];
@@ -174,50 +178,32 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
     if (!selectedTrip || !overrideReason.trim()) return;
     setOverriding(true);
     try {
-      const previousBlockers = selectedQueueInfo
-        ? { status: selectedQueueInfo.status, missing: selectedQueueInfo.missing, blockers: selectedQueueInfo.blockers }
-        : null;
-
-      // 1. Insert billing_overrides record
-      const { error: overrideErr } = await supabase.from("billing_overrides" as any).insert({
-        trip_id: selectedTrip.id,
-        override_reason: overrideReason.trim(),
-        previous_blockers_snapshot: previousBlockers,
+      // Call the transactional DB function that inserts override + updates trip + writes audit in one transaction
+      const { data, error } = await supabase.rpc("apply_billing_override", {
+        p_trip_id: selectedTrip.id,
+        p_reason: overrideReason.trim(),
       });
-      if (overrideErr) {
-        toast.error(`Override record failed: ${overrideErr.message}`);
+
+      if (error) {
+        toast.error(`Override failed: ${error.message}`);
         setOverriding(false);
         return;
       }
 
-      // 2. Write audit log
-      const { error: auditErr } = await supabase.from("audit_logs" as any).insert({
-        action: "billing_override",
-        table_name: "trip_records",
-        record_id: selectedTrip.id,
-        notes: overrideReason.trim(),
-        new_data: { claim_ready: true, previous_blockers: previousBlockers },
-      });
-      if (auditErr) {
-        toast.error(`Audit log write failed: ${auditErr.message}`);
-      }
-
-      // 3. Update trip status to ready_for_billing
-      const { error: tripErr } = await supabase.from("trip_records" as any).update({
-        claim_ready: true,
-        billing_blocked_reason: null,
-        blockers: [],
-        status: "ready_for_billing",
-      }).eq("id", selectedTrip.id);
-      if (tripErr) {
-        toast.error(`Trip update failed: ${tripErr.message}`);
-        setOverriding(false);
-        return;
+      // Optimistic: update the override history map so computeQueueStatus immediately classifies as ready
+      const overrideRecord = (data as any)?.override;
+      if (overrideRecord) {
+        setOverrideHistory(prev => {
+          const next = new Map(prev);
+          next.set(selectedTrip.id, overrideRecord);
+          return next;
+        });
       }
 
       toast.success("Override applied — trip moved to Ready for Billing");
       setSelectedTrip(null);
       setOverrideReason("");
+      // Trigger full refetch to confirm DB state
       onRefresh();
     } catch (e: any) {
       toast.error(`Override failed: ${e.message}`);
