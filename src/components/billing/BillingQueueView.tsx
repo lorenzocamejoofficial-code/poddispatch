@@ -204,12 +204,28 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
         p_reason: overrideReason.trim(),
       });
 
+      // Handle transport-level errors (network, etc.)
       if (error) {
         toast.error(`Override failed: ${error.message}`);
         return;
       }
 
-      const overrideRecord = (data as any)?.override as BillingOverrideRecord | undefined;
+      // Handle structured error responses from the RPC
+      const result = data as any;
+      if (result && result.ok === false) {
+        const msg = result.message || "Unknown error";
+        const code = result.error_code || "";
+        if (code === "SIMULATION_RUN_MISMATCH") {
+          toast.error("Stale data — sandbox was reset. Refreshing…");
+          onRefresh();
+        } else {
+          toast.error(`Override failed: ${msg}`);
+        }
+        return;
+      }
+
+      // Success path
+      const overrideRecord = result?.override as BillingOverrideRecord | undefined;
       if (overrideRecord) {
         setOverrideHistory(prev => {
           const next = new Map(prev);
