@@ -113,28 +113,46 @@ export type Database = {
       }
       billing_overrides: {
         Row: {
+          created_at: string
           id: string
+          is_active: boolean
           overridden_at: string
           overridden_by: string | null
           override_reason: string
+          previous_blockers: string[] | null
           previous_blockers_snapshot: Json | null
+          reason: string | null
+          snapshot: Json | null
           trip_id: string
+          user_id: string | null
         }
         Insert: {
+          created_at?: string
           id?: string
+          is_active?: boolean
           overridden_at?: string
           overridden_by?: string | null
           override_reason: string
+          previous_blockers?: string[] | null
           previous_blockers_snapshot?: Json | null
+          reason?: string | null
+          snapshot?: Json | null
           trip_id: string
+          user_id?: string | null
         }
         Update: {
+          created_at?: string
           id?: string
+          is_active?: boolean
           overridden_at?: string
           overridden_by?: string | null
           override_reason?: string
+          previous_blockers?: string[] | null
           previous_blockers_snapshot?: Json | null
+          reason?: string | null
+          snapshot?: Json | null
           trip_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -2135,6 +2153,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_billing_override: {
+        Args: { p_reason: string; p_trip_id: string }
+        Returns: Json
+      }
       get_my_company_id: { Args: never; Returns: string }
       get_my_role: { Args: never; Returns: string }
       has_role: {
