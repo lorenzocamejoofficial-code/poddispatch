@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -120,9 +120,10 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
   const [overrideReason, setOverrideReason] = useState("");
   const [overriding, setOverriding] = useState(false);
   const [overrideHistory, setOverrideHistory] = useState<Map<string, BillingOverrideRecord>>(new Map());
+  const [tripAuditLog, setTripAuditLog] = useState<any[] | null>(null);
+  const [showAuditLog, setShowAuditLog] = useState(false);
 
-  // Fetch override history for all trips
-  useEffect(() => {
+  const fetchOverrideHistory = useCallback(() => {
     const tripIds = trips.map(t => t.id);
     if (tripIds.length === 0) return;
     
@@ -139,6 +140,8 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
         setOverrideHistory(map);
       });
   }, [trips]);
+
+  useEffect(() => { fetchOverrideHistory(); }, [fetchOverrideHistory]);
 
   const completedTrips = trips.filter(t => ["completed", "ready_for_billing"].includes(t.status));
 
@@ -176,7 +179,11 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
         override_reason: overrideReason.trim(),
         previous_blockers_snapshot: previousBlockers,
       });
-      if (overrideErr) throw new Error(`Override record failed: ${overrideErr.message}`);
+      if (overrideErr) {
+        toast.error(`Override record failed: ${overrideErr.message}`);
+        setOverriding(false);
+        return;
+      }
 
       // 2. Write audit log
       const { error: auditErr } = await supabase.from("audit_logs" as any).insert({
@@ -186,7 +193,9 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
         notes: overrideReason.trim(),
         new_data: { claim_ready: true, previous_blockers: previousBlockers },
       });
-      if (auditErr) console.warn("Audit log insert failed:", auditErr.message);
+      if (auditErr) {
+        toast.error(`Audit log write failed: ${auditErr.message}`);
+      }
 
       // 3. Update trip status to ready_for_billing
       const { error: tripErr } = await supabase.from("trip_records" as any).update({
@@ -194,17 +203,55 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
         billing_blocked_reason: null,
         status: "ready_for_billing",
       }).eq("id", selectedTrip.id);
-      if (tripErr) throw new Error(`Trip update failed: ${tripErr.message}`);
+      if (tripErr) {
+        toast.error(`Trip update failed: ${tripErr.message}`);
+        setOverriding(false);
+        return;
+      }
 
-      toast.success("Override applied — trip moved to Billing Ready");
+      toast.success("Override applied — trip moved to Ready for Billing");
       setSelectedTrip(null);
       setOverrideReason("");
       onRefresh();
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(`Override failed: ${e.message}`);
     } finally {
       setOverriding(false);
     }
+  };
+
+  const viewTripAuditLog = async (tripId: string) => {
+    const [{ data: overrides }, { data: audits }] = await Promise.all([
+      supabase.from("billing_overrides" as any).select("*").eq("trip_id", tripId).order("overridden_at", { ascending: false }),
+      supabase.from("audit_logs" as any).select("*").eq("record_id", tripId).eq("action", "billing_override").order("created_at", { ascending: false }),
+    ]);
+
+    const combined = [
+      ...((overrides ?? []) as any[]).map((o: any) => ({
+        type: "override" as const,
+        timestamp: o.overridden_at,
+        user: o.overridden_by,
+        reason: o.override_reason,
+        blockers: o.previous_blockers_snapshot,
+      })),
+      ...((audits ?? []) as any[]).map((a: any) => ({
+        type: "audit" as const,
+        timestamp: a.created_at,
+        user: a.actor_user_id || a.actor_email,
+        reason: a.notes,
+        blockers: a.new_data,
+      })),
+    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    // Deduplicate by timestamp (within 2 seconds)
+    const deduped: typeof combined = [];
+    for (const entry of combined) {
+      const dup = deduped.find(d => Math.abs(new Date(d.timestamp).getTime() - new Date(entry.timestamp).getTime()) < 2000);
+      if (!dup) deduped.push(entry);
+    }
+
+    setTripAuditLog(deduped);
+    setShowAuditLog(true);
   };
 
   const totalRevenue = completedTrips.reduce((s, t) => s + (t.expected_revenue ?? 0), 0);
@@ -416,8 +463,66 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                   </Button>
                 </div>
               )}
+              {/* View Override Log button */}
+              {selectedOverride && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1.5"
+                  onClick={() => viewTripAuditLog(selectedTrip.id)}
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  View Override Log
+                </Button>
+              )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Trip Audit Log Dialog */}
+      <Dialog open={showAuditLog} onOpenChange={o => { if (!o) { setShowAuditLog(false); setTripAuditLog(null); } }}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Override Audit Trail
+            </DialogTitle>
+            <DialogDescription>
+              {selectedTrip?.patient_name} — {selectedTrip?.run_date}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {tripAuditLog === null ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Loading…</p>
+            ) : tripAuditLog.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">No override records found</p>
+            ) : (
+              tripAuditLog.map((entry, i) => (
+                <div key={i} className="rounded-md border p-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="h-3.5 w-3.5 text-[hsl(var(--status-yellow))]" />
+                      <span className="text-xs font-semibold text-foreground capitalize">{entry.type}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(entry.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="text-xs space-y-0.5">
+                    <p><span className="text-muted-foreground">User:</span> {entry.user?.slice(0, 8) ?? "System"}…</p>
+                    <p><span className="text-muted-foreground">Reason:</span> {entry.reason}</p>
+                    {entry.blockers && (
+                      <p className="text-[10px] text-muted-foreground">
+                        <span className="font-medium">Snapshot:</span>{" "}
+                        {JSON.stringify(entry.blockers).slice(0, 200)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
