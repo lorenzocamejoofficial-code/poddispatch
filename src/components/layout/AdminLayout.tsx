@@ -20,8 +20,10 @@ import {
   BarChart3,
   ArrowRightLeft,
   FlaskConical,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { HelpButton } from "@/components/help/HelpButton";
 
@@ -118,10 +120,18 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               <Link
                 to="/system"
                 onClick={() => setSidebarOpen(false)}
-                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors mb-2"
+                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
               >
                 <ShieldCheck className="h-4 w-4" />
                 ← System Dashboard
+              </Link>
+              <Link
+                to="/simulation-lab"
+                onClick={() => setSidebarOpen(false)}
+                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors mb-2"
+              >
+                <FlaskConical className="h-4 w-4" />
+                Simulation Lab
               </Link>
               <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
                 App Simulation
@@ -170,6 +180,14 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
       {/* Main */}
       <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Simulation Mode Banner — creator only */}
+        {isSystemCreator && (
+          <div className="flex items-center justify-center gap-2 bg-amber-500 px-4 py-1.5 text-xs font-bold text-black">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            SIMULATION MODE — Sandbox Company · No real PHI
+            <AlertTriangle className="h-3.5 w-3.5" />
+          </div>
+        )}
         <header className="flex h-14 items-center gap-3 border-b bg-card px-4 lg:px-6">
           <Button
             variant="ghost"
