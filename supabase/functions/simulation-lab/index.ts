@@ -57,6 +57,13 @@ function timeToMin(time: string): number {
 function rand(min: number, max: number): number { return min + Math.floor(Math.random() * (max - min + 1)); }
 function coinFlip(prob = 0.5): boolean { return Math.random() < prob; }
 
+// Valid enum values from database
+const VALID_CERT_LEVELS = ["EMT-B", "EMT-A", "EMT-P", "AEMT", "Other"] as const;
+const VALID_SEX_TYPES = ["M", "F"] as const;
+const VALID_TRANSPORT_TYPES = ["dialysis", "outpatient", "adhoc"] as const;
+const VALID_TRIP_TYPES = ["dialysis", "discharge", "outpatient", "hospital", "private_pay"] as const;
+const VALID_TRIP_STATUSES = ["scheduled", "assigned", "en_route", "loaded", "completed", "ready_for_billing", "cancelled", "arrived_pickup", "arrived_dropoff", "no_show", "patient_not_ready", "facility_delay"] as const;
+
 async function ensureSandboxCompany(admin: any, userId: string) {
   const { data: existing } = await admin
     .from("companies")
@@ -102,6 +109,13 @@ const CREW_PROFILES: CrewProfile[] = [
   { speed: "avg", docReliability: "risky" },
 ];
 
+// Seed size multipliers
+const SEED_SIZES: Record<string, { truckMult: number; patientMult: number }> = {
+  small: { truckMult: 0.5, patientMult: 0.4 },
+  medium: { truckMult: 0.75, patientMult: 0.7 },
+  large: { truckMult: 1.0, patientMult: 1.0 },
+};
+
 interface ScenarioConfig {
   name: string;
   truckCount: number;
@@ -114,14 +128,13 @@ interface ScenarioConfig {
   missingTimestamps: number;
   facilityDelayCount: number;
   authExpiring: number;
-  // Cascade pressure fields
   dispatchPressure?: {
-    overstackedDialysisHours?: boolean;   // multiple same-time pickups
-    crossCityRouting?: boolean;           // conflicting facility locations
-    missingPatientInfo?: number;          // patients with unknown needs
-    lateDischargeAdds?: number;           // mid-day discharge injections
-    unrealisticGaps?: boolean;            // too-tight turnaround windows
-    insufficientTrucks?: boolean;         // fewer trucks than needed
+    overstackedDialysisHours?: boolean;
+    crossCityRouting?: boolean;
+    missingPatientInfo?: number;
+    lateDischargeAdds?: number;
+    unrealisticGaps?: boolean;
+    insufficientTrucks?: boolean;
   };
 }
 
@@ -166,7 +179,6 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
     missingPcs: 2, missingAuth: 1, missingSignature: 1, missingTimestamps: 1,
     facilityDelayCount: 8, authExpiring: 1,
   },
-  // ── NEW CASCADE SCENARIOS ──
   dispatch_overload: {
     name: "Dispatch Overload — Cascade Failure",
     truckCount: 4, patientCount: 45,
@@ -208,87 +220,146 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
   },
 };
 
-async function seedScenario(admin: any, companyId: string, userId: string, scenarioKey: string) {
-  const config = SCENARIOS[scenarioKey];
-  if (!config) throw new Error(`Unknown scenario: ${scenarioKey}`);
+interface SeedStepLog {
+  step: string;
+  status: "ok" | "error" | "skipped";
+  count?: number;
+  error?: string;
+  detail?: string;
+}
 
+async function seedScenario(admin: any, companyId: string, userId: string, scenarioKey: string, seedSize: string = "small") {
+  const baseConfig = SCENARIOS[scenarioKey];
+  if (!baseConfig) return { ok: false, step: "init", error: `Unknown scenario: ${scenarioKey}`, logs: [] };
+
+  const sizeMultiplier = SEED_SIZES[seedSize] || SEED_SIZES.small;
+  // Apply size multiplier
+  const config: ScenarioConfig = {
+    ...baseConfig,
+    truckCount: Math.max(2, Math.round(baseConfig.truckCount * sizeMultiplier.truckMult)),
+    patientCount: Math.max(4, Math.round(baseConfig.patientCount * sizeMultiplier.patientMult)),
+  };
+  // Scale trip mix proportionally
+  const patientRatio = config.patientCount / baseConfig.patientCount;
+  config.tripMix = {
+    dialysis: Math.max(1, Math.round(baseConfig.tripMix.dialysis * patientRatio)),
+    discharge: Math.max(0, Math.round(baseConfig.tripMix.discharge * patientRatio)),
+    outpatient: Math.max(0, Math.round(baseConfig.tripMix.outpatient * patientRatio)),
+    hospital: Math.max(0, Math.round(baseConfig.tripMix.hospital * patientRatio)),
+  };
+  config.missingPcs = Math.round(baseConfig.missingPcs * patientRatio);
+  config.missingAuth = Math.round(baseConfig.missingAuth * patientRatio);
+  config.missingSignature = Math.round(baseConfig.missingSignature * patientRatio);
+  config.missingTimestamps = Math.round(baseConfig.missingTimestamps * patientRatio);
+  config.authExpiring = Math.round(baseConfig.authExpiring * patientRatio);
+
+  const logs: SeedStepLog[] = [];
   const runId = crypto.randomUUID();
   const today = new Date().toISOString().slice(0, 10);
   const pressure = config.dispatchPressure;
 
-  await admin.from("simulation_runs").insert({
-    id: runId,
-    scenario_name: config.name,
-    created_by: userId,
-    config: config,
-  });
+  // Step 1: Create simulation run
+  try {
+    const { error } = await admin.from("simulation_runs").insert({
+      id: runId,
+      scenario_name: config.name,
+      created_by: userId,
+      config: config,
+    });
+    if (error) throw error;
+    logs.push({ step: "create_simulation_run", status: "ok" });
+  } catch (e: any) {
+    logs.push({ step: "create_simulation_run", status: "error", error: e.message });
+    return { ok: false, step: "create_simulation_run", error: e.message, logs };
+  }
 
-  // Create facilities — use city clusters if cross-city routing enabled
-  const facilityTypes = ["dialysis", "hospital", "hospital", "snf", "rehab"];
+  // Step 2: Create facilities (batch)
+  const facilityIds: string[] = [];
+  try {
+    const facilityTypes = ["dialysis", "hospital", "hospital", "snf", "rehab"];
+    const facilityNames = ["Sim Dialysis Center", "Sim General Hospital", "Sim Medical Center", "Sim Nursing Facility", "Sim Rehab Center"];
+    if (pressure?.crossCityRouting) {
+      facilityNames.push("Sim Dialysis North", "Sim Dialysis South");
+    }
+    const facilityRows = facilityNames.map((name, i) => {
+      const addr = pressure?.crossCityRouting && i >= 5
+        ? pick(CITY_CLUSTERS[i % CITY_CLUSTERS.length])
+        : FAKE_ADDRESSES[i % FAKE_ADDRESSES.length];
+      return {
+        name,
+        address: addr,
+        facility_type: facilityTypes[i % facilityTypes.length],
+        phone: `(555) 900-${String(i + 1).padStart(4, "0")}`,
+        company_id: companyId,
+        is_simulated: true,
+        simulation_run_id: runId,
+      };
+    });
+    const { data, error } = await admin.from("facilities").insert(facilityRows).select("id");
+    if (error) throw error;
+    for (const f of data ?? []) facilityIds.push(f.id);
+    logs.push({ step: "create_facilities", status: "ok", count: facilityIds.length });
+  } catch (e: any) {
+    logs.push({ step: "create_facilities", status: "error", error: e.message });
+    return { ok: false, step: "create_facilities", error: e.message, logs };
+  }
+
   const facilityNames = ["Sim Dialysis Center", "Sim General Hospital", "Sim Medical Center", "Sim Nursing Facility", "Sim Rehab Center"];
   if (pressure?.crossCityRouting) {
     facilityNames.push("Sim Dialysis North", "Sim Dialysis South");
   }
-  const facilityIds: string[] = [];
-  for (let i = 0; i < facilityNames.length; i++) {
-    const addr = pressure?.crossCityRouting && i >= 5
-      ? pick(CITY_CLUSTERS[i % CITY_CLUSTERS.length])
-      : FAKE_ADDRESSES[i % FAKE_ADDRESSES.length];
-    const { data } = await admin.from("facilities").insert({
-      name: facilityNames[i],
-      address: addr,
-      facility_type: facilityTypes[i % facilityTypes.length],
-      phone: `(555) 900-${String(i + 1).padStart(4, "0")}`,
-      company_id: companyId,
-      is_simulated: true,
-      simulation_run_id: runId,
-    }).select("id").single();
-    if (data) facilityIds.push(data.id);
-  }
 
-  // Create trucks — fewer if insufficientTrucks
+  // Step 3: Create trucks (batch)
   const truckIds: string[] = [];
-  const equipConfigs = [
-    { has_power_stretcher: true, has_stair_chair: true, has_bariatric_kit: true, has_oxygen_mount: true },
-    { has_power_stretcher: true, has_stair_chair: true, has_bariatric_kit: false, has_oxygen_mount: true },
-    { has_power_stretcher: true, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: true },
-    { has_power_stretcher: false, has_stair_chair: true, has_bariatric_kit: false, has_oxygen_mount: false },
-    { has_power_stretcher: false, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: true },
-    { has_power_stretcher: false, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: false },
-  ];
-
-  // For crew mismatch scenario, strip equipment from most trucks
-  const isMismatch = scenarioKey === "crew_mismatch";
-  for (let i = 0; i < config.truckCount; i++) {
-    let equip = equipConfigs[i % equipConfigs.length];
-    if (isMismatch && i > 1) {
-      equip = { has_power_stretcher: false, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: false };
+  try {
+    const equipConfigs = [
+      { has_power_stretcher: true, has_stair_chair: true, has_bariatric_kit: true, has_oxygen_mount: true },
+      { has_power_stretcher: true, has_stair_chair: true, has_bariatric_kit: false, has_oxygen_mount: true },
+      { has_power_stretcher: true, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: true },
+      { has_power_stretcher: false, has_stair_chair: true, has_bariatric_kit: false, has_oxygen_mount: false },
+      { has_power_stretcher: false, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: true },
+      { has_power_stretcher: false, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: false },
+    ];
+    const isMismatch = scenarioKey === "crew_mismatch";
+    const truckRows = [];
+    for (let i = 0; i < config.truckCount; i++) {
+      let equip = equipConfigs[i % equipConfigs.length];
+      if (isMismatch && i > 1) {
+        equip = { has_power_stretcher: false, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: false };
+      }
+      truckRows.push({
+        name: `SIM-${100 + i + 1}`,
+        company_id: companyId,
+        is_simulated: true,
+        simulation_run_id: runId,
+        ...equip,
+      });
     }
-    const { data } = await admin.from("trucks").insert({
-      name: `SIM-${100 + i + 1}`,
-      company_id: companyId,
-      is_simulated: true,
-      simulation_run_id: runId,
-      ...equip,
-    }).select("id").single();
-    if (data) truckIds.push(data.id);
+    const { data, error } = await admin.from("trucks").insert(truckRows).select("id");
+    if (error) throw error;
+    for (const t of data ?? []) truckIds.push(t.id);
+    logs.push({ step: "create_trucks", status: "ok", count: truckIds.length });
+  } catch (e: any) {
+    logs.push({ step: "create_trucks", status: "error", error: e.message });
+    return { ok: false, step: "create_trucks", error: e.message, logs };
   }
 
-  // Create crew profiles with speed/doc reliability
+  // Step 4: Create crew profiles (batch)
   const crewIds: string[] = [];
-  for (let i = 0; i < truckIds.length; i++) {
-    const profile = CREW_PROFILES[i % CREW_PROFILES.length];
-    const crewName1 = FAKE_NAMES[i * 2] || `Crew Member ${i * 2}`;
-    const crewName2 = FAKE_NAMES[i * 2 + 1] || `Crew Member ${i * 2 + 1}`;
+  try {
+    const isMismatch = scenarioKey === "crew_mismatch";
+    const profileRows: any[] = [];
+    const crewRows: any[] = [];
+    const memberPairs: { m1: string; m2: string }[] = [];
 
-    // For mismatch scenario: make most crews undertrained
-    const isMismatchCrew = isMismatch && i > 0;
-    const member1Id = crypto.randomUUID();
-    const member2Id = crypto.randomUUID();
+    for (let i = 0; i < truckIds.length; i++) {
+      const isMismatchCrew = isMismatch && i > 0;
+      const member1Id = crypto.randomUUID();
+      const member2Id = crypto.randomUUID();
+      const crewName1 = FAKE_NAMES[i * 2] || `Crew Member ${i * 2}`;
+      const crewName2 = FAKE_NAMES[i * 2 + 1] || `Crew Member ${i * 2 + 1}`;
 
-    // Create simulated profiles for crew members
-    await admin.from("profiles").upsert([
-      {
+      profileRows.push({
         id: member1Id,
         user_id: member1Id,
         full_name: crewName1,
@@ -300,10 +371,10 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         bariatric_trained: isMismatchCrew ? false : coinFlip(0.4),
         oxygen_handling_trained: isMismatchCrew ? false : coinFlip(0.6),
         lift_assist_ok: coinFlip(0.5),
-        cert_level: pick(["EMT", "AEMT", "Paramedic"]),
-        sex: pick(["male", "female"]),
-      },
-      {
+        cert_level: pick([...VALID_CERT_LEVELS]),
+        sex: pick([...VALID_SEX_TYPES]),
+      });
+      profileRows.push({
         id: member2Id,
         user_id: member2Id,
         full_name: crewName2,
@@ -315,285 +386,377 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         bariatric_trained: isMismatchCrew ? false : coinFlip(0.3),
         oxygen_handling_trained: isMismatchCrew ? false : coinFlip(0.5),
         lift_assist_ok: coinFlip(0.5),
-        cert_level: pick(["EMT", "AEMT", "Paramedic"]),
-        sex: pick(["male", "female"]),
-      },
-    ]);
+        cert_level: pick([...VALID_CERT_LEVELS]),
+        sex: pick([...VALID_SEX_TYPES]),
+      });
+      memberPairs.push({ m1: member1Id, m2: member2Id });
+    }
 
-    const { data: crew } = await admin.from("crews").insert({
-      truck_id: truckIds[i],
-      member1_id: member1Id,
-      member2_id: member2Id,
-      active_date: today,
-      company_id: companyId,
-      is_simulated: true,
-      simulation_run_id: runId,
-    }).select("id").single();
-    if (crew) crewIds.push(crew.id);
+    // Batch insert profiles
+    const { error: profErr } = await admin.from("profiles").upsert(profileRows);
+    if (profErr) throw new Error(`profiles insert: ${profErr.message}`);
+
+    // Batch insert crews
+    for (let i = 0; i < truckIds.length; i++) {
+      crewRows.push({
+        truck_id: truckIds[i],
+        member1_id: memberPairs[i].m1,
+        member2_id: memberPairs[i].m2,
+        active_date: today,
+        company_id: companyId,
+        is_simulated: true,
+        simulation_run_id: runId,
+      });
+    }
+    const { data: crewData, error: crewErr } = await admin.from("crews").insert(crewRows).select("id");
+    if (crewErr) throw new Error(`crews insert: ${crewErr.message}`);
+    for (const c of crewData ?? []) crewIds.push(c.id);
+    logs.push({ step: "create_crews_profiles", status: "ok", count: crewIds.length, detail: `${profileRows.length} profiles, ${crewIds.length} crews` });
+  } catch (e: any) {
+    logs.push({ step: "create_crews_profiles", status: "error", error: e.message });
+    return { ok: false, step: "create_crews_profiles", error: e.message, logs };
   }
 
-  // Create patients
-  const patientNames = pickN(FAKE_NAMES, config.patientCount);
-  const totalTrips = config.tripMix.dialysis + config.tripMix.discharge + config.tripMix.outpatient + config.tripMix.hospital;
-  const tripTypes: string[] = [];
-  for (const [type, count] of Object.entries(config.tripMix)) {
-    for (let i = 0; i < count; i++) tripTypes.push(type);
-  }
-  const payerTypes: string[] = [];
-  for (const [payer, count] of Object.entries(config.payerMix)) {
-    for (let i = 0; i < count; i++) payerTypes.push(payer);
-  }
-
+  // Step 5: Create patients (batch, chunks of 25)
   const patientIds: string[] = [];
-  const expiringAuthIndices = new Set(pickN([...Array(config.patientCount).keys()], config.authExpiring));
-  // Indices of patients with missing needs data
-  const missingInfoIndices = new Set(
-    pressure?.missingPatientInfo
-      ? pickN([...Array(config.patientCount).keys()], Math.min(pressure.missingPatientInfo, config.patientCount))
-      : []
-  );
+  try {
+    const patientNames = pickN(FAKE_NAMES, config.patientCount);
+    const totalTrips = config.tripMix.dialysis + config.tripMix.discharge + config.tripMix.outpatient + config.tripMix.hospital;
+    const tripTypes: string[] = [];
+    for (const [type, count] of Object.entries(config.tripMix)) {
+      for (let j = 0; j < count; j++) tripTypes.push(type);
+    }
+    const payerTypes: string[] = [];
+    for (const [payer, count] of Object.entries(config.payerMix)) {
+      for (let j = 0; j < count; j++) payerTypes.push(payer);
+    }
 
-  for (let i = 0; i < config.patientCount; i++) {
-    const [first, last] = patientNames[i].split(" ");
-    const tripType = tripTypes[i % tripTypes.length] as string;
-    const payer = payerTypes[i % payerTypes.length];
-    const authExpiring = expiringAuthIndices.has(i);
-    const hasMissingInfo = missingInfoIndices.has(i);
-    const authExpDate = authExpiring
-      ? new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10)
-      : new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+    const expiringAuthIndices = new Set(pickN([...Array(config.patientCount).keys()], Math.min(config.authExpiring, config.patientCount)));
+    const missingInfoIndices = new Set(
+      pressure?.missingPatientInfo
+        ? pickN([...Array(config.patientCount).keys()], Math.min(pressure.missingPatientInfo, config.patientCount))
+        : []
+    );
 
-    // Weight distribution with intentional mismatches for cascade scenarios
+    const isMismatch = scenarioKey === "crew_mismatch";
     const weights = [120, 150, 165, 180, 195, 210, 240, 275, 310, 340, 360, 380];
-    let weightVal = isMismatch
-      ? weights[Math.min(i, weights.length - 1)]  // heavier patients for mismatch
-      : weights[i % weights.length];
-    // Bump some patients heavier for overload scenario
-    if (pressure?.insufficientTrucks && i % 3 === 0) weightVal = pick([310, 340, 360]);
-
     const mobilities = ["ambulatory", "wheelchair", "stretcher", "bedbound"];
     const stairsOptions = ["none", "few_steps", "full_flight", "unknown"];
     const equipOptions = ["none", "none", "none", "bariatric_stretcher", "extra_crew", "lift_assist"];
 
-    const mobilityVal = hasMissingInfo ? null : mobilities[i % mobilities.length];
-    const stairsVal = hasMissingInfo ? "unknown" : stairsOptions[i % stairsOptions.length];
-    const equipVal = hasMissingInfo ? "none" : equipOptions[i % equipOptions.length];
-    const oxygenReq = !hasMissingInfo && i % 5 === 0;
+    const patientRows: any[] = [];
+    for (let i = 0; i < config.patientCount; i++) {
+      const nameParts = patientNames[i]?.split(" ") || ["Test", `P${i}`];
+      const first = nameParts[0];
+      const last = nameParts.slice(1).join(" ") || `Patient${i}`;
+      const tripType = tripTypes[i % tripTypes.length] || "dialysis";
+      const payer = payerTypes[i % payerTypes.length] || "Medicare";
+      const authExpiring = expiringAuthIndices.has(i);
+      const hasMissingInfo = missingInfoIndices.has(i);
+      const authExpDate = authExpiring
+        ? new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10)
+        : new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
 
-    const { data } = await admin.from("patients").insert({
-      first_name: first,
-      last_name: last,
-      dob: `19${50 + (i % 30)}-${String((i % 12) + 1).padStart(2, "0")}-${String((i % 28) + 1).padStart(2, "0")}`,
-      phone: `(555) 800-${String(i + 1).padStart(4, "0")}`,
-      pickup_address: pressure?.crossCityRouting ? pick(pick(CITY_CLUSTERS)) : pick(FAKE_ADDRESSES),
-      dropoff_facility: facilityNames[i % facilityNames.length],
-      transport_type: tripType === "hospital" ? "adhoc" : tripType === "discharge" ? "outpatient" : tripType as any,
-      schedule_days: tripType === "dialysis" ? (i % 2 === 0 ? "MWF" : "TTS") : "MWF",
-      status: "active",
-      primary_payer: payer,
-      auth_required: payer === "Medicare" || payer === "Medicaid",
-      auth_expiration: authExpDate,
-      weight_lbs: hasMissingInfo ? null : weightVal,
-      mobility: mobilityVal,
-      stairs_required: stairsVal,
-      stair_chair_required: stairsVal === "full_flight",
-      oxygen_required: oxygenReq,
-      oxygen_lpm: oxygenReq ? [2, 3, 4, 6][i % 4] : null,
-      bariatric: weightVal >= 300,
-      special_equipment_required: equipVal,
-      dialysis_window_minutes: tripType === "dialysis" ? 45 : 60,
-      must_arrive_by: tripType === "dialysis" ? randTime(6, 8) : null,
-      company_id: companyId,
-      is_simulated: true,
-      simulation_run_id: runId,
-    }).select("id").single();
-    if (data) patientIds.push(data.id);
-  }
+      let weightVal = isMismatch
+        ? weights[Math.min(i, weights.length - 1)]
+        : weights[i % weights.length];
+      if (pressure?.insufficientTrucks && i % 3 === 0) weightVal = pick([310, 340, 360]);
 
-  // Create scheduling legs and trip records
-  const missingPcsSet = new Set(pickN([...Array(totalTrips).keys()], config.missingPcs));
-  const missingAuthSet = new Set(pickN([...Array(totalTrips).keys()], config.missingAuth));
-  const missingSigSet = new Set(pickN([...Array(totalTrips).keys()], config.missingSignature));
-  const missingTimesSet = new Set(pickN([...Array(totalTrips).keys()], config.missingTimestamps));
+      const mobilityVal = hasMissingInfo ? null : mobilities[i % mobilities.length];
+      const stairsVal = hasMissingInfo ? "unknown" : stairsOptions[i % stairsOptions.length];
+      const equipVal = hasMissingInfo ? "none" : equipOptions[i % equipOptions.length];
+      const oxygenReq = !hasMissingInfo && i % 5 === 0;
 
-  // For overstacked dialysis: force many pickups into the same 06:00-07:00 window
-  const dialysisOverstacked = pressure?.overstackedDialysisHours;
-  // For unrealistic gaps: make turnaround windows too tight
-  const unrealisticGaps = pressure?.unrealisticGaps;
+      // Map trip type to valid transport_type enum
+      const transportType: string = tripType === "hospital" ? "adhoc" : tripType === "discharge" ? "outpatient" : (tripType === "dialysis" ? "dialysis" : "outpatient");
 
-  const statuses = ["scheduled", "assigned", "en_route", "loaded", "completed", "completed", "completed"];
-  let tripIdx = 0;
-
-  for (let i = 0; i < Math.min(totalTrips, patientIds.length); i++) {
-    const truckIdx = i % truckIds.length;
-    const patientId = patientIds[i];
-    const tripType = tripTypes[i] as any;
-    const payer = payerTypes[i % payerTypes.length];
-
-    // Pickup time — overstacked means many at same time
-    let pickupTime: string;
-    if (dialysisOverstacked && tripType === "dialysis") {
-      pickupTime = pick(["06:00", "06:15", "06:30", "06:00", "06:15"]); // clustered
-    } else {
-      pickupTime = tripType === "dialysis" ? randTime(5, 8) : randTime(8, 14);
-    }
-
-    // Cross-city facility assignment
-    const facility = pressure?.crossCityRouting
-      ? facilityNames[i % facilityNames.length]
-      : facilityNames[tripType === "dialysis" ? 0 : (i % facilityNames.length)];
-
-    const status = pick(statuses) as any;
-    const isCompleted = status === "completed";
-
-    // Crew profile for this truck affects PCR quality
-    const crewProfile = CREW_PROFILES[truckIdx % CREW_PROFILES.length];
-    const isRiskyCrew = crewProfile.docReliability === "risky";
-    const isSlowCrew = crewProfile.speed === "slow";
-
-    // Risky crews have higher chance of missing documentation
-    const riskPcsMissing = missingPcsSet.has(tripIdx) || (isRiskyCrew && coinFlip(0.4));
-    const riskSigMissing = missingSigSet.has(tripIdx) || (isRiskyCrew && coinFlip(0.35));
-    const riskTimesMissing = missingTimesSet.has(tripIdx) || (isRiskyCrew && coinFlip(0.25));
-
-    // Slow crews create late pickups
-    const isLate = isSlowCrew && coinFlip(0.5);
-    const actualPickupDelay = isLate ? rand(10, 35) : 0;
-
-    // Pickup location — cross-city creates long distances
-    const pickupLoc = pressure?.crossCityRouting
-      ? pick(pick(CITY_CLUSTERS))
-      : pick(FAKE_ADDRESSES);
-
-    // A-leg
-    const { data: legA } = await admin.from("scheduling_legs").insert({
-      patient_id: patientId,
-      leg_type: "A",
-      pickup_location: pickupLoc,
-      destination_location: facility,
-      pickup_time: pickupTime,
-      trip_type: tripType === "hospital" ? "hospital" : tripType === "discharge" ? "discharge" : tripType,
-      run_date: today,
-      company_id: companyId,
-      is_simulated: true,
-      simulation_run_id: runId,
-      estimated_duration_minutes: unrealisticGaps ? rand(5, 10) : rand(20, 40),
-    }).select("id").single();
-
-    if (legA) {
-      await admin.from("truck_run_slots").insert({
-        truck_id: truckIds[truckIdx],
-        leg_id: legA.id,
-        run_date: today,
-        slot_order: i,
+      patientRows.push({
+        first_name: first,
+        last_name: last,
+        dob: `19${50 + (i % 30)}-${String((i % 12) + 1).padStart(2, "0")}-${String((i % 28) + 1).padStart(2, "0")}`,
+        phone: `(555) 800-${String(i + 1).padStart(4, "0")}`,
+        pickup_address: pressure?.crossCityRouting ? pick(pick(CITY_CLUSTERS)) : pick(FAKE_ADDRESSES),
+        dropoff_facility: facilityNames[i % facilityNames.length],
+        transport_type: transportType,
+        schedule_days: tripType === "dialysis" ? (i % 2 === 0 ? "MWF" : "TTS") : "MWF",
+        status: "active",
+        primary_payer: payer,
+        auth_required: payer === "Medicare" || payer === "Medicaid",
+        auth_expiration: authExpDate,
+        weight_lbs: hasMissingInfo ? null : weightVal,
+        mobility: mobilityVal,
+        stairs_required: stairsVal,
+        stair_chair_required: stairsVal === "full_flight",
+        oxygen_required: oxygenReq,
+        oxygen_lpm: oxygenReq ? [2, 3, 4, 6][i % 4] : null,
+        bariatric: weightVal >= 300,
+        special_equipment_required: equipVal,
+        dialysis_window_minutes: tripType === "dialysis" ? 45 : 60,
+        must_arrive_by: tripType === "dialysis" ? randTime(6, 8) : null,
         company_id: companyId,
         is_simulated: true,
         simulation_run_id: runId,
       });
     }
 
-    // B-leg for dialysis
-    if (tripType === "dialysis") {
-      const chairTime = addMinutes(pickupTime, 30);
-      const bTime = addMinutes(pickupTime, 240 + Math.floor(Math.random() * 60));
-      const { data: legB } = await admin.from("scheduling_legs").insert({
-        patient_id: patientId,
-        leg_type: "B",
-        pickup_location: facility,
-        destination_location: pickupLoc,
-        pickup_time: bTime,
-        chair_time: chairTime,
-        trip_type: "dialysis",
+    // Insert in chunks of 25
+    for (let chunk = 0; chunk < patientRows.length; chunk += 25) {
+      const batch = patientRows.slice(chunk, chunk + 25);
+      const { data, error } = await admin.from("patients").insert(batch).select("id");
+      if (error) throw new Error(`patients batch ${chunk}: ${error.message}`);
+      for (const p of data ?? []) patientIds.push(p.id);
+    }
+    logs.push({ step: "create_patients", status: "ok", count: patientIds.length });
+  } catch (e: any) {
+    logs.push({ step: "create_patients", status: "error", error: e.message });
+    return { ok: false, step: "create_patients", error: e.message, logs };
+  }
+
+  // Step 6: Create scheduling legs + trip records (batched)
+  let tripCount = 0;
+  try {
+    const totalTrips = config.tripMix.dialysis + config.tripMix.discharge + config.tripMix.outpatient + config.tripMix.hospital;
+    const tripTypes: string[] = [];
+    for (const [type, count] of Object.entries(config.tripMix)) {
+      for (let j = 0; j < count; j++) tripTypes.push(type);
+    }
+    const payerTypes: string[] = [];
+    for (const [payer, count] of Object.entries(config.payerMix)) {
+      for (let j = 0; j < count; j++) payerTypes.push(payer);
+    }
+
+    const missingPcsSet = new Set(pickN([...Array(totalTrips).keys()], Math.min(config.missingPcs, totalTrips)));
+    const missingAuthSet = new Set(pickN([...Array(totalTrips).keys()], Math.min(config.missingAuth, totalTrips)));
+    const missingSigSet = new Set(pickN([...Array(totalTrips).keys()], Math.min(config.missingSignature, totalTrips)));
+    const missingTimesSet = new Set(pickN([...Array(totalTrips).keys()], Math.min(config.missingTimestamps, totalTrips)));
+
+    const dialysisOverstacked = pressure?.overstackedDialysisHours;
+    const unrealisticGaps = pressure?.unrealisticGaps;
+    const statuses: string[] = ["scheduled", "assigned", "en_route", "loaded", "completed", "completed", "completed"];
+
+    const tripsToCreate = Math.min(totalTrips, patientIds.length);
+
+    // Process in batches of 10 trips at a time
+    for (let batchStart = 0; batchStart < tripsToCreate; batchStart += 10) {
+      const batchEnd = Math.min(batchStart + 10, tripsToCreate);
+      const legARows: any[] = [];
+      const tripMeta: any[] = [];
+
+      for (let i = batchStart; i < batchEnd; i++) {
+        const truckIdx = i % truckIds.length;
+        const patientId = patientIds[i];
+        const tripType = tripTypes[i % tripTypes.length] || "dialysis";
+        const payer = payerTypes[i % payerTypes.length] || "Medicare";
+
+        let pickupTime: string;
+        if (dialysisOverstacked && tripType === "dialysis") {
+          pickupTime = pick(["06:00", "06:15", "06:30", "06:00", "06:15"]);
+        } else {
+          pickupTime = tripType === "dialysis" ? randTime(5, 8) : randTime(8, 14);
+        }
+
+        const facility = pressure?.crossCityRouting
+          ? facilityNames[i % facilityNames.length]
+          : facilityNames[tripType === "dialysis" ? 0 : (i % facilityNames.length)];
+
+        const status = pick(statuses);
+        const isCompleted = status === "completed";
+        const crewProfile = CREW_PROFILES[truckIdx % CREW_PROFILES.length];
+        const isRiskyCrew = crewProfile.docReliability === "risky";
+        const isSlowCrew = crewProfile.speed === "slow";
+
+        const riskPcsMissing = missingPcsSet.has(i) || (isRiskyCrew && coinFlip(0.4));
+        const riskSigMissing = missingSigSet.has(i) || (isRiskyCrew && coinFlip(0.35));
+        const riskTimesMissing = missingTimesSet.has(i) || (isRiskyCrew && coinFlip(0.25));
+        const isLate = isSlowCrew && coinFlip(0.5);
+        const actualPickupDelay = isLate ? rand(10, 35) : 0;
+
+        const pickupLoc = pressure?.crossCityRouting
+          ? pick(pick(CITY_CLUSTERS))
+          : pick(FAKE_ADDRESSES);
+
+        // Map to valid trip_type enum
+        const validTripType = (["dialysis", "discharge", "outpatient", "hospital"].includes(tripType)) ? tripType : "outpatient";
+
+        const legAId = crypto.randomUUID();
+        legARows.push({
+          id: legAId,
+          patient_id: patientId,
+          leg_type: "A",
+          pickup_location: pickupLoc,
+          destination_location: facility,
+          pickup_time: pickupTime,
+          trip_type: validTripType,
+          run_date: today,
+          company_id: companyId,
+          is_simulated: true,
+          simulation_run_id: runId,
+          estimated_duration_minutes: unrealisticGaps ? rand(5, 10) : rand(20, 40),
+        });
+
+        const hasPcs = !riskPcsMissing;
+        const hasAuth = !missingAuthSet.has(i);
+        const hasSig = !riskSigMissing;
+        const hasTimes = !riskTimesMissing;
+        const claimReady = isCompleted && hasPcs && hasSig && hasTimes && hasAuth;
+
+        const pcrType = tripType === "dialysis" ? "nemt_dialysis"
+          : tripType === "discharge" ? "ift_discharge"
+          : tripType === "hospital" ? "emergency_ems" : "other";
+
+        const baseRevenue = payer === "Medicare" ? rand(180, 350) : payer === "Medicaid" ? rand(120, 250) : rand(200, 400);
+
+        tripMeta.push({
+          patientId, truckIdx, legAId, tripType: validTripType, pickupTime, pickupLoc, facility,
+          status, isCompleted, hasPcs, hasSig, hasTimes, hasAuth, claimReady,
+          pcrType, baseRevenue, actualPickupDelay,
+        });
+      }
+
+      // Batch insert A-legs
+      const { error: legErr } = await admin.from("scheduling_legs").insert(legARows);
+      if (legErr) throw new Error(`scheduling_legs A batch: ${legErr.message}`);
+
+      // Batch insert truck_run_slots for A-legs
+      const slotRows = legARows.map((leg, idx) => ({
+        truck_id: truckIds[tripMeta[idx].truckIdx],
+        leg_id: leg.id,
         run_date: today,
+        slot_order: batchStart + idx,
         company_id: companyId,
         is_simulated: true,
         simulation_run_id: runId,
-        estimated_duration_minutes: unrealisticGaps ? rand(5, 10) : rand(20, 40),
-      }).select("id").single();
+      }));
+      const { error: slotErr } = await admin.from("truck_run_slots").insert(slotRows);
+      if (slotErr) throw new Error(`truck_run_slots A batch: ${slotErr.message}`);
 
-      if (legB) {
-        await admin.from("truck_run_slots").insert({
-          truck_id: truckIds[truckIdx],
-          leg_id: legB.id,
+      // B-legs for dialysis
+      const bLegRows: any[] = [];
+      const bSlotRows: any[] = [];
+      for (let idx = 0; idx < tripMeta.length; idx++) {
+        const meta = tripMeta[idx];
+        if (meta.tripType === "dialysis") {
+          const chairTime = addMinutes(meta.pickupTime, 30);
+          const bTime = addMinutes(meta.pickupTime, 240 + Math.floor(Math.random() * 60));
+          const bLegId = crypto.randomUUID();
+          bLegRows.push({
+            id: bLegId,
+            patient_id: meta.patientId,
+            leg_type: "B",
+            pickup_location: meta.facility,
+            destination_location: meta.pickupLoc,
+            pickup_time: bTime,
+            chair_time: chairTime,
+            trip_type: "dialysis",
+            run_date: today,
+            company_id: companyId,
+            is_simulated: true,
+            simulation_run_id: runId,
+            estimated_duration_minutes: (pressure?.unrealisticGaps) ? rand(5, 10) : rand(20, 40),
+          });
+          bSlotRows.push({
+            truck_id: truckIds[meta.truckIdx],
+            leg_id: bLegId,
+            run_date: today,
+            slot_order: batchStart + idx + 1000,
+            company_id: companyId,
+            is_simulated: true,
+            simulation_run_id: runId,
+          });
+        }
+      }
+      if (bLegRows.length > 0) {
+        const { error: bErr } = await admin.from("scheduling_legs").insert(bLegRows);
+        if (bErr) throw new Error(`scheduling_legs B batch: ${bErr.message}`);
+        const { error: bsErr } = await admin.from("truck_run_slots").insert(bSlotRows);
+        if (bsErr) throw new Error(`truck_run_slots B batch: ${bsErr.message}`);
+      }
+
+      // Batch insert trip records
+      const tripRows = tripMeta.map((meta) => ({
+        patient_id: meta.patientId,
+        truck_id: truckIds[meta.truckIdx],
+        crew_id: crewIds[meta.truckIdx] || null,
+        leg_id: meta.legAId,
+        run_date: today,
+        status: meta.status,
+        trip_type: meta.tripType,
+        pickup_location: meta.pickupLoc,
+        destination_location: meta.facility,
+        scheduled_pickup_time: meta.pickupTime,
+        loaded_miles: meta.isCompleted ? Math.round((5 + Math.random() * 25) * 10) / 10 : null,
+        pcs_attached: meta.hasPcs,
+        signature_obtained: meta.hasSig,
+        arrived_pickup_at: meta.hasTimes && meta.isCompleted ? `${today}T${addMinutes(meta.pickupTime, meta.actualPickupDelay)}:00` : null,
+        arrived_dropoff_at: meta.hasTimes && meta.isCompleted ? `${today}T${addMinutes(meta.pickupTime, 30 + meta.actualPickupDelay + Math.floor(Math.random() * 20))}:00` : null,
+        documentation_complete: meta.hasPcs && meta.hasSig && meta.hasTimes,
+        claim_ready: meta.claimReady,
+        origin_type: "Home",
+        destination_type: meta.tripType === "dialysis" ? "Dialysis Center" : "Hospital Outpatient",
+        service_level: "BLS",
+        necessity_notes: meta.hasPcs ? "Patient requires stretcher transport due to medical necessity" : null,
+        pcr_type: meta.pcrType,
+        expected_revenue: meta.baseRevenue,
+        company_id: companyId,
+        is_simulated: true,
+        simulation_run_id: runId,
+      }));
+      const { error: tripErr } = await admin.from("trip_records").insert(tripRows);
+      if (tripErr) throw new Error(`trip_records batch: ${tripErr.message}`);
+
+      tripCount += tripMeta.length;
+    }
+
+    logs.push({ step: "create_legs_trips", status: "ok", count: tripCount });
+  } catch (e: any) {
+    logs.push({ step: "create_legs_trips", status: "error", error: e.message, detail: `${tripCount} trips created before failure` });
+    return { ok: false, step: "create_legs_trips", error: e.message, logs, partialResult: { tripCount } };
+  }
+
+  // Step 7: Late discharge adds
+  if (pressure?.lateDischargeAdds && pressure.lateDischargeAdds > 0) {
+    try {
+      const lateRows = [];
+      for (let d = 0; d < pressure.lateDischargeAdds; d++) {
+        const pIdx = rand(0, patientIds.length - 1);
+        lateRows.push({
+          patient_id: patientIds[pIdx],
+          truck_id: truckIds[rand(0, truckIds.length - 1)],
           run_date: today,
-          slot_order: i + 1000,
+          status: "scheduled",
+          trip_type: "discharge",
+          pickup_location: "Sim General Hospital",
+          destination_location: pick(FAKE_ADDRESSES),
+          scheduled_pickup_time: randTime(12, 16),
+          pcr_type: "ift_discharge",
+          expected_revenue: rand(150, 300),
           company_id: companyId,
           is_simulated: true,
           simulation_run_id: runId,
         });
       }
-    }
-
-    // Trip record — crew quality impacts documentation
-    const hasPcs = !riskPcsMissing;
-    const hasAuth = !missingAuthSet.has(tripIdx);
-    const hasSig = !riskSigMissing;
-    const hasTimes = !riskTimesMissing;
-    const claimReady = isCompleted && hasPcs && hasSig && hasTimes && hasAuth;
-
-    // PCR type based on trip type
-    const pcrType = tripType === "dialysis" ? "nemt_dialysis"
-      : tripType === "discharge" ? "ift_discharge"
-      : tripType === "hospital" ? "emergency_ems" : "other";
-
-    // Revenue estimate
-    const baseRevenue = payer === "Medicare" ? rand(180, 350) : payer === "Medicaid" ? rand(120, 250) : rand(200, 400);
-
-    await admin.from("trip_records").insert({
-      patient_id: patientId,
-      truck_id: truckIds[truckIdx],
-      crew_id: crewIds[truckIdx] || null,
-      leg_id: legA?.id,
-      run_date: today,
-      status: status,
-      trip_type: tripType === "hospital" ? "hospital" : tripType === "discharge" ? "discharge" : tripType,
-      pickup_location: pickupLoc,
-      destination_location: facility,
-      scheduled_pickup_time: pickupTime,
-      loaded_miles: isCompleted ? Math.round((5 + Math.random() * 25) * 10) / 10 : null,
-      pcs_attached: hasPcs,
-      signature_obtained: hasSig,
-      arrived_pickup_at: hasTimes && isCompleted ? `${today}T${addMinutes(pickupTime, actualPickupDelay)}:00` : null,
-      arrived_dropoff_at: hasTimes && isCompleted ? `${today}T${addMinutes(pickupTime, 30 + actualPickupDelay + Math.floor(Math.random() * 20))}:00` : null,
-      documentation_complete: hasPcs && hasSig && hasTimes,
-      claim_ready: claimReady,
-      origin_type: "Home",
-      destination_type: tripType === "dialysis" ? "Dialysis Center" : "Hospital Outpatient",
-      service_level: "BLS",
-      necessity_notes: hasPcs ? "Patient requires stretcher transport due to medical necessity" : null,
-      pcr_type: pcrType,
-      expected_revenue: baseRevenue,
-      company_id: companyId,
-      is_simulated: true,
-      simulation_run_id: runId,
-    });
-
-    tripIdx++;
-  }
-
-  // Inject late discharge adds if configured
-  if (pressure?.lateDischargeAdds) {
-    for (let d = 0; d < pressure.lateDischargeAdds; d++) {
-      const pIdx = rand(0, patientIds.length - 1);
-      await admin.from("trip_records").insert({
-        patient_id: patientIds[pIdx],
-        truck_id: truckIds[rand(0, truckIds.length - 1)],
-        run_date: today,
-        status: "scheduled",
-        trip_type: "discharge",
-        pickup_location: "Sim General Hospital",
-        destination_location: pick(FAKE_ADDRESSES),
-        scheduled_pickup_time: randTime(12, 16),
-        pcr_type: "ift_discharge",
-        expected_revenue: rand(150, 300),
-        company_id: companyId,
-        is_simulated: true,
-        simulation_run_id: runId,
-      });
+      const { error } = await admin.from("trip_records").insert(lateRows);
+      if (error) throw error;
+      tripCount += lateRows.length;
+      logs.push({ step: "late_discharge_adds", status: "ok", count: lateRows.length });
+    } catch (e: any) {
+      logs.push({ step: "late_discharge_adds", status: "error", error: e.message });
+      // Non-fatal, continue
     }
   }
 
-  return { runId, scenario: config.name, truckCount: truckIds.length, patientCount: patientIds.length, tripCount: tripIdx + (pressure?.lateDischargeAdds ?? 0) };
+  logs.push({ step: "complete", status: "ok" });
+
+  return {
+    ok: true,
+    runId,
+    scenario: config.name,
+    truckCount: truckIds.length,
+    patientCount: patientIds.length,
+    tripCount,
+    seedSize,
+    logs,
+  };
 }
 
 async function injectEvent(admin: any, companyId: string, eventType: string) {
@@ -705,7 +868,6 @@ async function injectEvent(admin: any, companyId: string, eventType: string) {
       return { affected: 0, description: "No active simulated trucks to disable" };
     }
     case "cascade_pressure": {
-      // Inject combined pressure: facility delay + crew slow + late adds
       const results: string[] = [];
       const r1 = await injectEvent(admin, companyId, "facility_behind");
       results.push(r1.description);
@@ -713,7 +875,6 @@ async function injectEvent(admin: any, companyId: string, eventType: string) {
       results.push(r2.description);
       const r3 = await injectEvent(admin, companyId, "late_add_discharge");
       results.push(r3.description);
-      // Degrade PCR quality on some completed trips
       const { data: completed } = await admin.from("trip_records")
         .select("id")
         .eq("company_id", companyId).eq("is_simulated", true)
@@ -791,7 +952,7 @@ async function runChecks(admin: any, companyId: string) {
 
   // DISPATCH CHECK 3: Overstacked hours detection
   const { data: allLegsA } = await admin.from("scheduling_legs")
-    .select("id, pickup_time, truck_run_slots(truck_id)")
+    .select("id, pickup_time")
     .eq("company_id", companyId).eq("is_simulated", true)
     .eq("leg_type", "A").eq("run_date", today);
 
@@ -933,13 +1094,28 @@ async function runChecks(admin: any, companyId: string) {
     reason: `${pcrMissing} completed trips missing PCR-required fields (correctly blocked from billing)`,
   });
 
+  // REGRESSION CHECK: Scenario Seeder completes successfully
+  const { data: recentRuns } = await admin.from("simulation_runs")
+    .select("id, scenario_name, status")
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  const hasCompletedRun = (recentRuns ?? []).length > 0;
+  results.push({
+    name: "Scenario Seeder completes successfully for all scenarios",
+    category: "dispatch",
+    pass: hasCompletedRun,
+    reason: hasCompletedRun
+      ? `${recentRuns?.length} recent simulation runs found`
+      : "No simulation runs found — seed a scenario first",
+  });
+
   return results;
 }
 
 async function generateSummary(admin: any, companyId: string) {
   const today = new Date().toISOString().slice(0, 10);
 
-  // Fetch all data needed for summary
   const [tripsRes, patientsRes, trucksRes, crewsRes, overridesRes, bLegsRes] = await Promise.all([
     admin.from("trip_records").select("*").eq("company_id", companyId).eq("is_simulated", true).eq("run_date", today),
     admin.from("patients").select("id, weight_lbs, mobility, stairs_required, oxygen_required").eq("company_id", companyId).eq("is_simulated", true),
@@ -953,14 +1129,12 @@ async function generateSummary(admin: any, companyId: string) {
   const patients = patientsRes.data ?? [];
   const trucks = trucksRes.data ?? [];
 
-  // ── Core metrics ──
   const totalTrips = trips.length;
   const completed = trips.filter((t: any) => t.status === "completed").length;
   const cancelled = trips.filter((t: any) => ["cancelled", "no_show"].includes(t.status)).length;
   const inProgress = trips.filter((t: any) => !["completed", "cancelled", "no_show", "patient_not_ready", "ready_for_billing"].includes(t.status)).length;
   const patientNotReady = trips.filter((t: any) => t.status === "patient_not_ready").length;
 
-  // ── Late trips (arrived after scheduled) ──
   let lateTrips = 0;
   for (const t of trips) {
     if (t.scheduled_pickup_time && t.arrived_pickup_at) {
@@ -973,7 +1147,6 @@ async function generateSummary(admin: any, companyId: string) {
     }
   }
 
-  // ── Safety risks ──
   const missingNeeds = patients.filter((p: any) => !p.weight_lbs || !p.mobility || p.stairs_required === "unknown").length;
   const heavyPatients = patients.filter((p: any) => p.weight_lbs && p.weight_lbs >= 300).length;
   const oxygenPatients = patients.filter((p: any) => p.oxygen_required).length;
@@ -981,7 +1154,6 @@ async function generateSummary(admin: any, companyId: string) {
   const trucksWithoutO2 = trucks.filter((t: any) => !t.has_oxygen_mount).length;
   const trucksDown = trucks.filter((t: any) => !t.active).length;
 
-  // B-leg risk
   const bLegs = (bLegsRes.data ?? []).filter((l: any) => l.leg_type === "B");
   let bLegRisk = 0;
   for (const leg of bLegs) {
@@ -991,7 +1163,6 @@ async function generateSummary(admin: any, companyId: string) {
     }
   }
 
-  // ── PCR & Billing ──
   const completedTrips = trips.filter((t: any) => t.status === "completed");
   const missingPcs = completedTrips.filter((t: any) => !t.pcs_attached).length;
   const missingSig = completedTrips.filter((t: any) => !t.signature_obtained).length;
@@ -999,13 +1170,11 @@ async function generateSummary(admin: any, companyId: string) {
   const billingReady = completedTrips.filter((t: any) => t.claim_ready).length;
   const billingBlocked = completedTrips.filter((t: any) => !t.claim_ready).length;
 
-  // Revenue
   const totalRevenue = trips.reduce((sum: number, t: any) => sum + (t.expected_revenue || 0), 0);
   const readyRevenue = completedTrips.filter((t: any) => t.claim_ready).reduce((sum: number, t: any) => sum + (t.expected_revenue || 0), 0);
   const atRiskRevenue = completedTrips.filter((t: any) => !t.claim_ready).reduce((sum: number, t: any) => sum + (t.expected_revenue || 0), 0);
   const lostRevenue = trips.filter((t: any) => ["cancelled", "no_show"].includes(t.status)).reduce((sum: number, t: any) => sum + (t.expected_revenue || 0), 0);
 
-  // ── Per-truck breakdown ──
   const truckSummary: any[] = [];
   for (const truck of trucks) {
     const truckTrips = trips.filter((t: any) => t.truck_id === truck.id);
@@ -1039,7 +1208,6 @@ async function generateSummary(admin: any, companyId: string) {
     });
   }
 
-  // ── Cascade failure flags ──
   const flags: { flag: string; severity: "critical" | "warning" | "info"; detail: string }[] = [];
 
   if (missingNeeds > 0) flags.push({ flag: "MISSING PATIENT REQUIREMENTS", severity: "critical", detail: `${missingNeeds} patients have incomplete operational data (weight/mobility/stairs)` });
@@ -1052,45 +1220,19 @@ async function generateSummary(admin: any, companyId: string) {
   if (atRiskRevenue > readyRevenue * 0.3) flags.push({ flag: "REVENUE LEAK RISK", severity: "critical", detail: `$${atRiskRevenue.toLocaleString()} at risk vs $${readyRevenue.toLocaleString()} ready` });
   if (trucksDown > 0) flags.push({ flag: "TRUCK DOWN", severity: "warning", detail: `${trucksDown} truck(s) inactive` });
 
-  // Overcapacity check
   const truckWithMostTrips = truckSummary.reduce((max, t) => t.totalTrips > max ? t.totalTrips : max, 0);
   if (truckWithMostTrips > 10) flags.push({ flag: "OVERCAPACITY SCHEDULING", severity: "warning", detail: `Busiest truck has ${truckWithMostTrips} trips — exceeds safe capacity` });
 
-  // Low revenue trucks
   const lowRevTrucks = truckSummary.filter(t => t.totalTrips > 0 && t.revenue < totalRevenue / trucks.length * 0.5);
   if (lowRevTrucks.length > 0) flags.push({ flag: "LOW REVENUE TRUCK", severity: "info", detail: `${lowRevTrucks.length} truck(s) producing <50% of average revenue` });
 
   const overrideCount = overridesRes.data?.length ?? 0;
 
   return {
-    overview: {
-      totalTrips,
-      completed,
-      cancelled,
-      inProgress,
-      patientNotReady,
-      lateTrips,
-    },
-    safety: {
-      missingNeeds,
-      heavyPatients,
-      oxygenPatients,
-      bLegRisk,
-      overridesUsed: overrideCount,
-    },
-    billing: {
-      billingReady,
-      billingBlocked,
-      missingPcs,
-      missingSig,
-      missingDoc,
-    },
-    revenue: {
-      total: totalRevenue,
-      ready: readyRevenue,
-      atRisk: atRiskRevenue,
-      lost: lostRevenue,
-    },
+    overview: { totalTrips, completed, cancelled, inProgress, patientNotReady, lateTrips },
+    safety: { missingNeeds, heavyPatients, oxygenPatients, bLegRisk, overridesUsed: overrideCount },
+    billing: { billingReady, billingBlocked, missingPcs, missingSig, missingDoc },
+    revenue: { total: totalRevenue, ready: readyRevenue, atRisk: atRiskRevenue, lost: lostRevenue },
     trucks: truckSummary,
     flags,
   };
@@ -1112,7 +1254,6 @@ async function resetSandbox(admin: any, companyId: string) {
     counts[table] = data?.length ?? 0;
   }
 
-  // Also delete simulated profiles
   const { data: simProfiles } = await admin.from("profiles")
     .delete()
     .eq("company_id", companyId)
@@ -1120,7 +1261,6 @@ async function resetSandbox(admin: any, companyId: string) {
     .select("id");
   counts["profiles"] = simProfiles?.length ?? 0;
 
-  // Clear simulation runs
   const { data: runs } = await admin.from("simulation_runs").delete().neq("id", "00000000-0000-0000-0000-000000000000").select("id");
   counts["simulation_runs"] = runs?.length ?? 0;
 
@@ -1171,7 +1311,7 @@ Deno.serve(async (req) => {
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "No auth header" }), {
+      return new Response(JSON.stringify({ ok: false, error: "No auth header" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -1184,7 +1324,7 @@ Deno.serve(async (req) => {
 
     const { data: callerUser } = await callerClient.auth.getUser();
     if (!callerUser?.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -1196,7 +1336,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!isCreator) {
-      return new Response(JSON.stringify({ error: "System creator access required" }), {
+      return new Response(JSON.stringify({ ok: false, error: "System creator access required" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -1209,9 +1349,18 @@ Deno.serve(async (req) => {
     let result: any;
 
     switch (action) {
-      case "seed":
-        result = await seedScenario(admin, companyId, callerUser.user.id, body.scenario);
+      case "seed": {
+        const seedResult = await seedScenario(admin, companyId, callerUser.user.id, body.scenario, body.seedSize || "small");
+        // seedScenario returns its own ok/error structure
+        if (seedResult.ok === false) {
+          // Return 200 with error details so UI can render diagnostics
+          return new Response(JSON.stringify(seedResult), {
+            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        result = seedResult;
         break;
+      }
       case "inject":
         result = await injectEvent(admin, companyId, body.eventType);
         break;
@@ -1254,8 +1403,8 @@ Deno.serve(async (req) => {
         break;
       }
       default:
-        return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        return new Response(JSON.stringify({ ok: false, error: `Unknown action: ${action}` }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
     }
 
@@ -1264,8 +1413,9 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error("Simulation lab error:", error);
-    return new Response(JSON.stringify({ error: error.message || "Internal error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // Always return 200 with error details
+    return new Response(JSON.stringify({ ok: false, step: "handler", error: error.message || "Internal error" }), {
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

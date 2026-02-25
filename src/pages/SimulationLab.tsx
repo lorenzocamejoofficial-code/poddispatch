@@ -4,13 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
   FlaskConical, Zap, ShieldCheck, Camera, RotateCcw, Loader2,
   CheckCircle2, XCircle, AlertTriangle, Truck, Users, Activity,
   Clock, Ban, UserX, Plus, Wrench, Play, ExternalLink,
-  BarChart3, Flame,
+  BarChart3, Flame, Bug,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,6 +19,18 @@ import { SimulationSummary } from "@/components/simulation/SimulationSummary";
 
 type CheckResult = { name: string; category: string; pass: boolean; reason: string };
 type SandboxStatus = { companyId: string; trucks: number; patients: number; trips: number; crews: number; recentRuns: any[] };
+type SeedDiagnostics = {
+  ok: boolean;
+  step?: string;
+  error?: string;
+  logs?: { step: string; status: string; count?: number; error?: string; detail?: string }[];
+  scenario?: string;
+  truckCount?: number;
+  patientCount?: number;
+  tripCount?: number;
+  seedSize?: string;
+  result?: { scenario?: string; tripCount?: number; truckCount?: number; patientCount?: number; seedSize?: string };
+};
 
 const SCENARIOS = [
   { key: "dialysis_heavy", label: "Dialysis Heavy Day", desc: "6 trucks, 40 patients, 30+ dialysis trips", group: "standard" },
@@ -49,8 +62,9 @@ export default function SimulationLab() {
   const [checks, setChecks] = useState<CheckResult[] | null>(null);
   const [snapshotName, setSnapshotName] = useState("");
   const [snapshots, setSnapshots] = useState<any[]>([]);
-  const [seedResult, setSeedResult] = useState<any>(null);
+  const [seedResult, setSeedResult] = useState<SeedDiagnostics | null>(null);
   const [summary, setSummary] = useState<any>(null);
+  const [seedSize, setSeedSize] = useState<string>("small");
 
   const invalidateAll = useCallback(() => {
     queryClient.invalidateQueries();
@@ -60,31 +74,41 @@ export default function SimulationLab() {
   const callLab = useCallback(async (body: any) => {
     const { data, error } = await supabase.functions.invoke("simulation-lab", { body });
     if (error) throw new Error(error.message);
+    return data;
+  }, []);
+
+  const callLabChecked = useCallback(async (body: any) => {
+    const data = await callLab(body);
     if (!data?.ok) throw new Error(data?.error || "Unknown error");
     return data.result;
-  }, []);
+  }, [callLab]);
 
   const loadStatus = useCallback(async () => {
     setLoading("status");
     try {
-      const result = await callLab({ action: "status" });
+      const result = await callLabChecked({ action: "status" });
       setStatus(result);
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     }
     setLoading(null);
-  }, [callLab, toast]);
+  }, [callLabChecked, toast]);
 
   const seedScenario = async (scenario: string) => {
     setLoading(`seed_${scenario}`);
     try {
-      const result = await callLab({ action: "seed", scenario });
-      setSeedResult(result);
+      const data = await callLab({ action: "seed", scenario, seedSize });
+      setSeedResult(data);
       setSummary(null);
-      toast({ title: "Scenario Seeded", description: `${result.scenario}: ${result.tripCount} trips across ${result.truckCount} trucks` });
-      invalidateAll();
-      loadStatus();
+      if (data.ok) {
+        toast({ title: "Scenario Seeded", description: `${data.scenario || data.result?.scenario}: ${data.tripCount || data.result?.tripCount} trips (${seedSize})` });
+        invalidateAll();
+        loadStatus();
+      } else {
+        toast({ title: "Seed Failed", description: `Step: ${data.step} — ${data.error}`, variant: "destructive" });
+      }
     } catch (e: any) {
+      setSeedResult({ ok: false, step: "network", error: e.message });
       toast({ title: "Seed Failed", description: e.message, variant: "destructive" });
     }
     setLoading(null);
@@ -93,7 +117,7 @@ export default function SimulationLab() {
   const injectEvent = async (eventType: string) => {
     setLoading(`inject_${eventType}`);
     try {
-      const result = await callLab({ action: "inject", eventType });
+      const result = await callLabChecked({ action: "inject", eventType });
       toast({ title: "Event Injected", description: result.description });
       setSummary(null);
       invalidateAll();
@@ -106,7 +130,7 @@ export default function SimulationLab() {
   const runChecks = async () => {
     setLoading("checks");
     try {
-      const result = await callLab({ action: "check" });
+      const result = await callLabChecked({ action: "check" });
       setChecks(result);
     } catch (e: any) {
       toast({ title: "Check Failed", description: e.message, variant: "destructive" });
@@ -117,7 +141,7 @@ export default function SimulationLab() {
   const runSummary = async () => {
     setLoading("summary");
     try {
-      const result = await callLab({ action: "summary" });
+      const result = await callLabChecked({ action: "summary" });
       setSummary(result);
     } catch (e: any) {
       toast({ title: "Summary Failed", description: e.message, variant: "destructive" });
@@ -128,7 +152,7 @@ export default function SimulationLab() {
   const resetSandbox = async () => {
     setLoading("reset");
     try {
-      const result = await callLab({ action: "reset" });
+      const result = await callLabChecked({ action: "reset" });
       const totalDeleted = Object.values(result as Record<string, number>).reduce((a, b) => a + b, 0);
       toast({ title: "Sandbox Reset", description: `${totalDeleted} records removed` });
       setChecks(null);
@@ -146,7 +170,7 @@ export default function SimulationLab() {
     if (!snapshotName.trim()) return;
     setLoading("snapshot");
     try {
-      const result = await callLab({ action: "snapshot", name: snapshotName.trim() });
+      const result = await callLabChecked({ action: "snapshot", name: snapshotName.trim() });
       toast({ title: "Snapshot Saved", description: `"${result.name}" saved` });
       setSnapshotName("");
       loadSnapshots();
@@ -158,7 +182,7 @@ export default function SimulationLab() {
 
   const loadSnapshots = async () => {
     try {
-      const result = await callLab({ action: "list_snapshots" });
+      const result = await callLabChecked({ action: "list_snapshots" });
       setSnapshots(result ?? []);
     } catch { /* ignore */ }
   };
@@ -210,10 +234,25 @@ export default function SimulationLab() {
         {/* Scenario Seeder */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Play className="h-4 w-4 text-primary" />
-              Scenario Seeder
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Play className="h-4 w-4 text-primary" />
+                Scenario Seeder
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground font-medium">Seed Size:</span>
+                <Select value={seedSize} onValueChange={setSeedSize}>
+                  <SelectTrigger className="w-24 h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="small">Small</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="large">Large</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Standard Scenarios */}
@@ -238,13 +277,56 @@ export default function SimulationLab() {
               </div>
             </div>
 
-            {seedResult && (
+            {seedResult && seedResult.ok && (
               <div className="rounded-md bg-primary/5 border border-primary/20 p-3 text-xs text-foreground">
-                <strong>Last Seed:</strong> {seedResult.scenario} — {seedResult.tripCount} trips, {seedResult.truckCount} trucks, {seedResult.patientCount} patients
+                <strong>Last Seed:</strong> {seedResult.scenario || seedResult.result?.scenario} — {seedResult.tripCount || seedResult.result?.tripCount} trips, {seedResult.truckCount || seedResult.result?.truckCount} trucks, {seedResult.patientCount || seedResult.result?.patientCount} patients ({seedResult.seedSize || seedResult.result?.seedSize || "small"})
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Seed Diagnostics Panel */}
+        {seedResult && !seedResult.ok && (
+          <Card className="border-destructive/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2 text-destructive">
+                <Bug className="h-4 w-4" />
+                Seed Diagnostics
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-md bg-destructive/5 border border-destructive/20 p-3 text-xs space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-destructive">Failed Step:</span>
+                  <code className="bg-destructive/10 px-1.5 py-0.5 rounded text-destructive font-mono">{seedResult.step}</code>
+                </div>
+                <div>
+                  <span className="font-semibold text-destructive">Error:</span>
+                  <span className="ml-1 text-foreground">{seedResult.error}</span>
+                </div>
+              </div>
+              {seedResult.logs && seedResult.logs.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Pipeline Steps</p>
+                  {seedResult.logs.map((log, i) => (
+                    <div key={i} className="flex items-center gap-2 rounded border p-2 text-xs">
+                      {log.status === "ok" ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-[hsl(var(--status-green))] shrink-0" />
+                      ) : log.status === "error" ? (
+                        <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                      ) : (
+                        <AlertTriangle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      )}
+                      <span className="font-mono text-[10px] text-muted-foreground w-40 shrink-0">{log.step}</span>
+                      <span className="text-foreground flex-1">{log.error || log.detail || (log.count !== undefined ? `${log.count} records` : "OK")}</span>
+                      <Badge variant={log.status === "ok" ? "secondary" : "destructive"} className="text-[9px]">{log.status.toUpperCase()}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Event Injection */}
         <Card>
