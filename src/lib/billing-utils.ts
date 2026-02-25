@@ -252,6 +252,120 @@ export function computeCleanTripStatus(trip: {
 }
 
 // ============================================================
+// PCR TYPE RULES — required fields per PCR type
+// ============================================================
+
+export const PCR_TYPES = [
+  { value: "nemt_dialysis", label: "NEMT Dialysis" },
+  { value: "ift_discharge", label: "IFT Discharge" },
+  { value: "emergency_ems", label: "Emergency / EMS" },
+  { value: "other", label: "Other" },
+] as const;
+
+export type PcrType = (typeof PCR_TYPES)[number]["value"];
+
+export interface PcrFieldRule {
+  field: string;
+  label: string;
+  required: boolean;
+}
+
+const BASE_PCR_FIELDS: PcrFieldRule[] = [
+  { field: "loaded_miles", label: "Loaded miles", required: true },
+  { field: "loaded_at", label: "Loaded timestamp", required: true },
+  { field: "dropped_at", label: "Drop-off timestamp", required: true },
+  { field: "origin_type", label: "Origin type", required: true },
+  { field: "destination_type", label: "Destination type", required: true },
+  { field: "signature_obtained", label: "Signature", required: true },
+];
+
+const PCR_RULES: Record<PcrType, PcrFieldRule[]> = {
+  nemt_dialysis: [
+    ...BASE_PCR_FIELDS,
+    { field: "pcs_attached", label: "PCS document", required: true },
+    { field: "necessity_checklist", label: "Medical necessity flag", required: true },
+    { field: "dispatch_time", label: "Dispatch timestamp", required: true },
+  ],
+  ift_discharge: [
+    ...BASE_PCR_FIELDS,
+    { field: "pcs_attached", label: "PCS document", required: true },
+    { field: "clinical_note", label: "Clinical note", required: true },
+    { field: "dispatch_time", label: "Dispatch timestamp", required: true },
+  ],
+  emergency_ems: [
+    ...BASE_PCR_FIELDS,
+    { field: "necessity_checklist", label: "Medical necessity flag", required: true },
+    { field: "clinical_note", label: "Clinical note", required: true },
+    { field: "dispatch_time", label: "Dispatch timestamp", required: true },
+  ],
+  other: [
+    ...BASE_PCR_FIELDS,
+  ],
+};
+
+export function getPcrRules(pcrType: PcrType | string | null): PcrFieldRule[] {
+  return PCR_RULES[(pcrType as PcrType) ?? "other"] ?? PCR_RULES.other;
+}
+
+export function evaluatePcrCompleteness(trip: {
+  loaded_miles?: number | null;
+  loaded_at?: string | null;
+  dropped_at?: string | null;
+  dispatch_time?: string | null;
+  origin_type?: string | null;
+  destination_type?: string | null;
+  signature_obtained?: boolean;
+  pcs_attached?: boolean;
+  clinical_note?: string | null;
+  necessity_notes?: string | null;
+  bed_confined?: boolean;
+  cannot_transfer_safely?: boolean;
+  requires_monitoring?: boolean;
+  oxygen_during_transport?: boolean;
+  pcr_type?: string | null;
+}): { passed: boolean; missing: PcrFieldRule[]; rules: PcrFieldRule[] } {
+  const rules = getPcrRules(trip.pcr_type ?? null);
+  const hasNecessity = !!(trip.bed_confined || trip.cannot_transfer_safely || trip.requires_monitoring || trip.oxygen_during_transport);
+  const hasClinicalNote = !!(trip.clinical_note || trip.necessity_notes);
+
+  const fieldPresent: Record<string, boolean> = {
+    loaded_miles: (trip.loaded_miles ?? 0) > 0,
+    loaded_at: !!trip.loaded_at,
+    dropped_at: !!trip.dropped_at,
+    dispatch_time: !!trip.dispatch_time,
+    origin_type: !!trip.origin_type,
+    destination_type: !!trip.destination_type,
+    signature_obtained: !!trip.signature_obtained,
+    pcs_attached: !!trip.pcs_attached,
+    clinical_note: hasClinicalNote,
+    necessity_checklist: hasNecessity,
+  };
+
+  const missing = rules.filter(r => r.required && !fieldPresent[r.field]);
+  return { passed: missing.length === 0, missing, rules };
+}
+
+// ============================================================
+// BILLING QUEUE STATUS — computed per trip for One-Screen view
+// ============================================================
+
+export type BillingQueueStatus = "ready" | "review" | "blocked";
+
+export interface BillingQueueTrip {
+  id: string;
+  patient_name: string;
+  run_date: string;
+  trip_type: string | null;
+  pcr_type: string | null;
+  truck_name: string;
+  status: string;
+  expected_revenue: number;
+  queue_status: BillingQueueStatus;
+  missing_fields: string[];
+  blockers: string[];
+}
+
+// ============================================================
 // DENIAL TRACKING
 // ============================================================
 

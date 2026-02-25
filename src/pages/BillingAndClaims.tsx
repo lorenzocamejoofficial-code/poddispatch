@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2 } from "lucide-react";
+import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
+import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes } from "@/lib/billing-utils";
 
 type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction";
@@ -84,13 +85,21 @@ export default function BillingAndClaims() {
   });
   const [savingRate, setSavingRate] = useState(false);
   const [addingRate, setAddingRate] = useState(false);
+  const [queueTrips, setQueueTrips] = useState<any[]>([]);
+  const [payerRulesMap, setPayerRulesMap] = useState<Map<string, any>>(new Map());
+  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split("T")[0]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [{ data: claimRows }, { data: rateRows }] = await Promise.all([
+    const [{ data: claimRows }, { data: rateRows }, { data: payerRules }] = await Promise.all([
       supabase.from("claim_records" as any).select("*").order("run_date", { ascending: false }),
       supabase.from("charge_master" as any).select("*").order("payer_type"),
+      supabase.from("payer_billing_rules" as any).select("*"),
     ]);
+
+    const prMap = new Map<string, any>();
+    (payerRules ?? []).forEach((r: any) => prMap.set(r.payer_type, r));
+    setPayerRulesMap(prMap);
 
     const patientIds = [...new Set(((claimRows ?? []) as any[]).map((c: any) => c.patient_id).filter(Boolean))];
     const tripIds = [...new Set(((claimRows ?? []) as any[]).map((c: any) => c.trip_id).filter(Boolean))];
@@ -121,7 +130,49 @@ export default function BillingAndClaims() {
     setLoading(false);
   }, []);
 
+  const fetchQueueTrips = useCallback(async () => {
+    const { data: tripRows } = await supabase
+      .from("trip_records" as any)
+      .select("*")
+      .eq("run_date", dateFilter)
+      .in("status", ["completed", "ready_for_billing"])
+      .order("scheduled_pickup_time");
+
+    if (!tripRows?.length) { setQueueTrips([]); return; }
+
+    const patientIds = [...new Set((tripRows as any[]).map((t: any) => t.patient_id).filter(Boolean))];
+    const truckIds = [...new Set((tripRows as any[]).map((t: any) => t.truck_id).filter(Boolean))];
+
+    const [{ data: pRows }, { data: tRows }] = await Promise.all([
+      patientIds.length > 0
+        ? supabase.from("patients").select("id, first_name, last_name, primary_payer, auth_expiration, auth_required").in("id", patientIds)
+        : Promise.resolve({ data: [] }),
+      truckIds.length > 0
+        ? supabase.from("trucks").select("id, name").in("id", truckIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const pMap = new Map((pRows ?? []).map((p: any) => [p.id, p]));
+    const tMap = new Map((tRows ?? []).map((t: any) => [t.id, t]));
+
+    setQueueTrips(
+      (tripRows as any[]).map((t: any) => {
+        const p = pMap.get(t.patient_id) as any;
+        const tr = tMap.get(t.truck_id) as any;
+        return {
+          ...t,
+          patient_name: p ? `${p.first_name} ${p.last_name}` : "Unknown",
+          truck_name: tr?.name ?? "Unassigned",
+          payer: p?.primary_payer ?? "—",
+          auth_expiration: p?.auth_expiration ?? null,
+          auth_required: p?.auth_required ?? false,
+        };
+      })
+    );
+  }, [dateFilter]);
+
   useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchQueueTrips(); }, [fetchQueueTrips]);
 
   const syncClaimsFromTrips = async () => {
     const { data: trips } = await supabase
@@ -259,15 +310,19 @@ export default function BillingAndClaims() {
 
   return (
     <AdminLayout>
-      <Tabs defaultValue="claims" className="space-y-4">
+      <Tabs defaultValue="trip-queue" className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <TabsList>
+            <TabsTrigger value="trip-queue"><ClipboardList className="h-3.5 w-3.5 mr-1.5" />Trip Queue</TabsTrigger>
             <TabsTrigger value="claims">Claims Board</TabsTrigger>
             <TabsTrigger value="charge-master"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Charge Master</TabsTrigger>
           </TabsList>
-          <Button size="sm" onClick={syncClaimsFromTrips}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Sync from Trips
-          </Button>
+          <div className="flex items-center gap-2">
+            <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-40 h-9" />
+            <Button size="sm" onClick={syncClaimsFromTrips}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Sync from Trips
+            </Button>
+          </div>
         </div>
 
         {/* Summary KPIs */}
@@ -285,6 +340,15 @@ export default function BillingAndClaims() {
             <p className={`text-2xl font-bold ${parseFloat(denialRate) > 10 ? "text-destructive" : "text-foreground"}`}>{denialRate}%</p>
           </div>
         </div>
+
+        {/* Trip Queue - One Screen View */}
+        <TabsContent value="trip-queue" className="m-0">
+          <BillingQueueView
+            trips={queueTrips}
+            payerRulesMap={payerRulesMap}
+            onRefresh={() => { fetchQueueTrips(); fetchData(); }}
+          />
+        </TabsContent>
 
         {/* Claims Board */}
         <TabsContent value="claims" className="m-0">

@@ -20,6 +20,8 @@ import {
   validateLoadedMiles,
   computeCleanTripStatus,
   evaluateDocGates,
+  evaluatePcrCompleteness,
+  PCR_TYPES,
   LOCATION_TYPES,
 } from "@/lib/billing-utils";
 
@@ -59,6 +61,7 @@ interface TripRecord {
   expected_revenue: number;
   claim_ready: boolean;
   blockers: string[];
+  pcr_type: string | null;
   arrived_pickup_at: string | null;
   arrived_dropoff_at: string | null;
   // joined
@@ -122,6 +125,7 @@ export default function TripsAndClinical() {
     signature_obtained: false, pcs_attached: false, necessity_notes: "", clinical_note: "", service_level: "BLS",
     origin_type: "", destination_type: "",
     bed_confined: false, cannot_transfer_safely: false, requires_monitoring: false, oxygen_during_transport: false,
+    pcr_type: "other",
   });
 
   const fetchTrips = useCallback(async () => {
@@ -252,6 +256,7 @@ export default function TripsAndClinical() {
       cannot_transfer_safely: trip.cannot_transfer_safely ?? false,
       requires_monitoring: trip.requires_monitoring ?? false,
       oxygen_during_transport: trip.oxygen_during_transport ?? false,
+      pcr_type: trip.pcr_type ?? "other",
     });
   };
 
@@ -262,12 +267,14 @@ export default function TripsAndClinical() {
 
     // Documentation gate: block ready_for_billing if docs incomplete
     if (next === "ready_for_billing") {
-      const docGate = evaluateDocGates(trip);
-      if (!docGate.passed) {
-        const missing = docGate.fields.filter(f => f.required && !f.present).map(f => f.label);
-        toast.error(`Documentation gate failed: ${missing.join(", ")}`);
+      // PCR-type-aware validation
+      const pcrResult = evaluatePcrCompleteness(trip);
+      if (!pcrResult.passed) {
+        const missingLabels = pcrResult.missing.map(f => f.label);
+        toast.error(`PCR requirements not met (${PCR_TYPES.find(p => p.value === trip.pcr_type)?.label ?? "Other"}): ${missingLabels.join(", ")}`);
         return;
       }
+
       const cleanResult = computeCleanTripStatus(
         trip,
         payerRulesMap.get(trip.payer ?? "") ?? null,
@@ -329,6 +336,7 @@ export default function TripsAndClinical() {
         cannot_transfer_safely: form.cannot_transfer_safely,
         requires_monitoring: form.requires_monitoring,
         oxygen_during_transport: form.oxygen_during_transport,
+        pcr_type: form.pcr_type,
       };
 
       // Compute billing block
@@ -361,20 +369,25 @@ export default function TripsAndClinical() {
   const milesValidation = form.loaded_miles ? validateLoadedMiles(parseFloat(form.loaded_miles)) : null;
 
   // Compute current form's clean status for inline display
-  const currentCleanResult = selectedTrip ? computeCleanTripStatus(
-    {
-      ...selectedTrip,
-      origin_type: form.origin_type, destination_type: form.destination_type,
-      loaded_miles: form.loaded_miles ? parseFloat(form.loaded_miles) : null,
-      signature_obtained: form.signature_obtained, pcs_attached: form.pcs_attached,
-      necessity_notes: form.necessity_notes, loaded_at: form.loaded_at || null,
-      dropped_at: form.dropped_at || null, dispatch_time: form.dispatch_time || null,
-      bed_confined: form.bed_confined, cannot_transfer_safely: form.cannot_transfer_safely,
-      requires_monitoring: form.requires_monitoring, oxygen_during_transport: form.oxygen_during_transport,
-    },
-    payerRulesMap.get(selectedTrip.payer ?? "") ?? null,
-    { auth_required: selectedTrip.auth_required, auth_expiration: selectedTrip.auth_expiration }
+  const formTripData = selectedTrip ? {
+    ...selectedTrip,
+    origin_type: form.origin_type, destination_type: form.destination_type,
+    loaded_miles: form.loaded_miles ? parseFloat(form.loaded_miles) : null,
+    signature_obtained: form.signature_obtained, pcs_attached: form.pcs_attached,
+    necessity_notes: form.necessity_notes, loaded_at: form.loaded_at || null,
+    dropped_at: form.dropped_at || null, dispatch_time: form.dispatch_time || null,
+    bed_confined: form.bed_confined, cannot_transfer_safely: form.cannot_transfer_safely,
+    requires_monitoring: form.requires_monitoring, oxygen_during_transport: form.oxygen_during_transport,
+    pcr_type: form.pcr_type,
+  } : null;
+
+  const currentCleanResult = formTripData ? computeCleanTripStatus(
+    formTripData,
+    payerRulesMap.get(selectedTrip?.payer ?? "") ?? null,
+    { auth_required: selectedTrip?.auth_required, auth_expiration: selectedTrip?.auth_expiration }
   ) : null;
+
+  const currentPcrResult = formTripData ? evaluatePcrCompleteness(formTripData) : null;
 
   return (
     <AdminLayout>
@@ -583,7 +596,18 @@ export default function TripsAndClinical() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label>PCR Type</Label>
+                <Select value={form.pcr_type} onValueChange={v => setForm({ ...form, pcr_type: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {PCR_TYPES.map(p => (
+                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <Label>Service Level</Label>
                 <Select value={form.service_level} onValueChange={v => setForm({ ...form, service_level: v })}>
