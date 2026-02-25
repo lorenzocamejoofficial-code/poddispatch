@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList } from "lucide-react";
+import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
@@ -88,6 +88,8 @@ export default function BillingAndClaims() {
   const [queueTrips, setQueueTrips] = useState<any[]>([]);
   const [payerRulesMap, setPayerRulesMap] = useState<Map<string, any>>(new Map());
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split("T")[0]);
+  const [overrideLogs, setOverrideLogs] = useState<any[]>([]);
+  const [overrideLogSort, setOverrideLogSort] = useState<"date" | "user" | "reason">("date");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -173,6 +175,40 @@ export default function BillingAndClaims() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchQueueTrips(); }, [fetchQueueTrips]);
+
+  const fetchOverrideLogs = useCallback(async () => {
+    const { data } = await supabase
+      .from("billing_overrides" as any)
+      .select("*")
+      .order("overridden_at", { ascending: false })
+      .limit(200);
+    
+    if (!data?.length) { setOverrideLogs([]); return; }
+
+    const tripIds = [...new Set((data as any[]).map((d: any) => d.trip_id).filter(Boolean))];
+    const { data: tripRows } = tripIds.length > 0
+      ? await supabase.from("trip_records" as any).select("id, patient_id, run_date, truck_id").in("id", tripIds)
+      : { data: [] };
+
+    const patientIds = [...new Set((tripRows ?? []).map((t: any) => t.patient_id).filter(Boolean))];
+    const { data: pRows } = patientIds.length > 0
+      ? await supabase.from("patients").select("id, first_name, last_name").in("id", patientIds)
+      : { data: [] };
+
+    const tripMap = new Map((tripRows ?? []).map((t: any) => [t.id, t]));
+    const pMap = new Map((pRows ?? []).map((p: any) => [p.id, `${p.first_name} ${p.last_name}`]));
+
+    setOverrideLogs((data as any[]).map((o: any) => {
+      const trip = tripMap.get(o.trip_id) as any;
+      return {
+        ...o,
+        patient_name: trip ? pMap.get(trip.patient_id) ?? "Unknown" : "Unknown",
+        run_date: trip?.run_date ?? "—",
+      };
+    }));
+  }, []);
+
+  useEffect(() => { fetchOverrideLogs(); }, [fetchOverrideLogs]);
 
   const syncClaimsFromTrips = async () => {
     const { data: trips } = await supabase
@@ -315,6 +351,7 @@ export default function BillingAndClaims() {
           <TabsList>
             <TabsTrigger value="trip-queue"><ClipboardList className="h-3.5 w-3.5 mr-1.5" />Trip Queue</TabsTrigger>
             <TabsTrigger value="claims">Claims Board</TabsTrigger>
+            <TabsTrigger value="overrides-log"><ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Overrides Log</TabsTrigger>
             <TabsTrigger value="charge-master"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Charge Master</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2">
@@ -346,7 +383,7 @@ export default function BillingAndClaims() {
           <BillingQueueView
             trips={queueTrips}
             payerRulesMap={payerRulesMap}
-            onRefresh={() => { fetchQueueTrips(); fetchData(); }}
+            onRefresh={() => { fetchQueueTrips(); fetchData(); fetchOverrideLogs(); }}
           />
         </TabsContent>
 
@@ -402,6 +439,81 @@ export default function BillingAndClaims() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Overrides Log */}
+        <TabsContent value="overrides-log" className="m-0 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-foreground">All Billing Overrides</p>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground">Sort by:</span>
+              {(["date", "user", "reason"] as const).map(s => (
+                <Button
+                  key={s}
+                  variant={overrideLogSort === s ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 text-xs capitalize"
+                  onClick={() => setOverrideLogSort(s)}
+                >
+                  {s}
+                </Button>
+              ))}
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={fetchOverrideLogs}>
+                <RefreshCw className="h-3 w-3 mr-1" />Refresh
+              </Button>
+            </div>
+          </div>
+          {overrideLogs.length === 0 ? (
+            <div className="rounded-lg border bg-card p-8 text-center">
+              <ShieldAlert className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">No billing overrides recorded yet</p>
+            </div>
+          ) : (
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <th className="px-4 py-3 text-left">Date</th>
+                    <th className="px-4 py-3 text-left">Patient / Trip</th>
+                    <th className="px-4 py-3 text-left">User</th>
+                    <th className="px-4 py-3 text-left">Reason</th>
+                    <th className="px-4 py-3 text-left">Original Blockers</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...overrideLogs]
+                    .sort((a, b) => {
+                      if (overrideLogSort === "date") return new Date(b.overridden_at).getTime() - new Date(a.overridden_at).getTime();
+                      if (overrideLogSort === "user") return (a.overridden_by ?? "").localeCompare(b.overridden_by ?? "");
+                      return (a.override_reason ?? "").localeCompare(b.override_reason ?? "");
+                    })
+                    .map((o: any) => (
+                      <tr key={o.id} className="border-b hover:bg-muted/30">
+                        <td className="px-4 py-3 text-xs whitespace-nowrap">
+                          {new Date(o.overridden_at).toLocaleDateString()}<br />
+                          <span className="text-muted-foreground">{new Date(o.overridden_at).toLocaleTimeString()}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-xs font-medium">{o.patient_name}</p>
+                          <p className="text-[10px] text-muted-foreground">{o.run_date}</p>
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono text-muted-foreground">
+                          {o.overridden_by?.slice(0, 8) ?? "—"}…
+                        </td>
+                        <td className="px-4 py-3 text-xs max-w-[200px] truncate">{o.override_reason}</td>
+                        <td className="px-4 py-3 text-[10px] text-muted-foreground max-w-[200px] truncate">
+                          {o.previous_blockers_snapshot
+                            ? ((o.previous_blockers_snapshot as any)?.blockers?.join(", ") ||
+                               (o.previous_blockers_snapshot as any)?.missing?.join(", ") ||
+                               "—")
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
             </div>
           )}
         </TabsContent>
