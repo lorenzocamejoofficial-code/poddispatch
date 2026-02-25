@@ -9,8 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   FlaskConical, Zap, ShieldCheck, Camera, RotateCcw, Loader2,
   CheckCircle2, XCircle, AlertTriangle, Truck, Users, Activity,
-  Clock, Ban, UserX, Plus, Wrench, Play,
+  Clock, Ban, UserX, Plus, Wrench, Play, ExternalLink,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 
 type CheckResult = { name: string; category: string; pass: boolean; reason: string };
 type SandboxStatus = { companyId: string; trucks: number; patients: number; trips: number; recentRuns: any[] };
@@ -34,12 +36,21 @@ const EVENTS = [
 
 export default function SimulationLab() {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState<string | null>(null);
   const [status, setStatus] = useState<SandboxStatus | null>(null);
   const [checks, setChecks] = useState<CheckResult[] | null>(null);
   const [snapshotName, setSnapshotName] = useState("");
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [seedResult, setSeedResult] = useState<any>(null);
+
+  // Invalidate all cached queries so App Simulation views refresh
+  const invalidateAll = useCallback(() => {
+    queryClient.invalidateQueries();
+    // Also fire a custom event for components using local state + realtime
+    window.dispatchEvent(new CustomEvent("simulation-refresh"));
+  }, [queryClient]);
 
   const callLab = useCallback(async (body: any) => {
     const { data, error } = await supabase.functions.invoke("simulation-lab", { body });
@@ -65,6 +76,7 @@ export default function SimulationLab() {
       const result = await callLab({ action: "seed", scenario });
       setSeedResult(result);
       toast({ title: "Scenario Seeded", description: `${result.scenario}: ${result.tripCount} trips across ${result.truckCount} trucks` });
+      invalidateAll();
       loadStatus();
     } catch (e: any) {
       toast({ title: "Seed Failed", description: e.message, variant: "destructive" });
@@ -77,6 +89,7 @@ export default function SimulationLab() {
     try {
       const result = await callLab({ action: "inject", eventType });
       toast({ title: "Event Injected", description: result.description });
+      invalidateAll();
     } catch (e: any) {
       toast({ title: "Inject Failed", description: e.message, variant: "destructive" });
     }
@@ -102,6 +115,7 @@ export default function SimulationLab() {
       toast({ title: "Sandbox Reset", description: `${totalDeleted} records removed` });
       setChecks(null);
       setSeedResult(null);
+      invalidateAll();
       loadStatus();
     } catch (e: any) {
       toast({ title: "Reset Failed", description: e.message, variant: "destructive" });
@@ -149,6 +163,15 @@ export default function SimulationLab() {
             <p className="text-xs text-muted-foreground">Seed scenarios, inject events, and run regression checks in an isolated sandbox.</p>
           </div>
           <Badge variant="outline" className="text-[10px]">CREATOR ONLY</Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs ml-auto"
+            onClick={() => navigate("/simulation")}
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Open Live App Simulation
+          </Button>
         </div>
 
         {/* Sandbox Status */}
