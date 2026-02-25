@@ -63,6 +63,248 @@ const VALID_SEX_TYPES = ["M", "F"] as const;
 const VALID_TRANSPORT_TYPES = ["dialysis", "outpatient", "adhoc"] as const;
 const VALID_TRIP_TYPES = ["dialysis", "discharge", "outpatient", "hospital", "private_pay"] as const;
 const VALID_TRIP_STATUSES = ["scheduled", "assigned", "en_route", "loaded", "completed", "ready_for_billing", "cancelled", "arrived_pickup", "arrived_dropoff", "no_show", "patient_not_ready", "facility_delay"] as const;
+const VALID_PATIENT_STATUSES = ["active", "in_hospital", "out_of_hospital", "vacation", "paused"] as const;
+const VALID_LEG_TYPES = ["A", "B"] as const;
+
+// Seeder strict enums requested for stable inserts
+const STRICT_CERT_LEVELS = ["EMT-B", "EMT-P"] as const;
+const STRICT_SEX_TYPES = ["M", "F"] as const;
+
+interface SeedStepLog {
+  step: string;
+  status: "ok" | "error" | "skipped";
+  count?: number;
+  error?: string;
+  detail?: string;
+  table?: string;
+  row?: Record<string, unknown>;
+  validationErrors?: string[];
+}
+
+interface SeedRowError {
+  step: string;
+  table: string;
+  error: string;
+  row: Record<string, unknown>;
+  validationErrors?: string[];
+}
+
+function chunkArray<T>(arr: T[], size = 25): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
+  return chunks;
+}
+
+function toRowSnippet(row: Record<string, unknown>) {
+  const entries = Object.entries(row).slice(0, 14);
+  return Object.fromEntries(entries);
+}
+
+function pushSeedLog(logs: SeedStepLog[], log: SeedStepLog) {
+  logs.push(log);
+  console.log(JSON.stringify({ type: "seed_stage", ...log, row: log.row ? toRowSnippet(log.row) : undefined }));
+}
+
+function normalizeCertLevel(value: string | null | undefined): (typeof STRICT_CERT_LEVELS)[number] {
+  const raw = (value ?? "").trim().toLowerCase();
+  if (raw === "emt-p" || raw === "paramedic") return "EMT-P";
+  if (raw === "emt-b" || raw === "emt") return "EMT-B";
+  if ((STRICT_CERT_LEVELS as readonly string[]).includes(value ?? "")) return value as (typeof STRICT_CERT_LEVELS)[number];
+  return "EMT-B";
+}
+
+function normalizeSex(value: string | null | undefined): (typeof STRICT_SEX_TYPES)[number] {
+  const raw = (value ?? "").trim().toLowerCase();
+  if (raw === "f" || raw === "female") return "F";
+  if (raw === "m" || raw === "male") return "M";
+  if ((STRICT_SEX_TYPES as readonly string[]).includes(value ?? "")) return value as (typeof STRICT_SEX_TYPES)[number];
+  return "M";
+}
+
+function normalizeTransportType(value: string | null | undefined): (typeof VALID_TRANSPORT_TYPES)[number] {
+  const raw = (value ?? "").trim().toLowerCase();
+  if (raw === "hospital") return "adhoc";
+  if (raw === "discharge") return "outpatient";
+  if ((VALID_TRANSPORT_TYPES as readonly string[]).includes(raw)) return raw as (typeof VALID_TRANSPORT_TYPES)[number];
+  return "outpatient";
+}
+
+function normalizeTripType(value: string | null | undefined): (typeof VALID_TRIP_TYPES)[number] {
+  const raw = (value ?? "").trim().toLowerCase();
+  if ((VALID_TRIP_TYPES as readonly string[]).includes(raw)) return raw as (typeof VALID_TRIP_TYPES)[number];
+  return "outpatient";
+}
+
+function normalizeTripStatus(value: string | null | undefined): (typeof VALID_TRIP_STATUSES)[number] {
+  const raw = (value ?? "").trim().toLowerCase();
+  if ((VALID_TRIP_STATUSES as readonly string[]).includes(raw)) return raw as (typeof VALID_TRIP_STATUSES)[number];
+  return "scheduled";
+}
+
+function validateRequired(row: Record<string, unknown>, requiredFields: string[]): string[] {
+  const errors: string[] = [];
+  for (const field of requiredFields) {
+    const value = row[field];
+    if (value === null || value === undefined || value === "") {
+      errors.push(`Required field '${field}' is missing`);
+    }
+  }
+  return errors;
+}
+
+function validateEnum(
+  row: Record<string, unknown>,
+  enumRules: { field: string; values: readonly string[] }[],
+): string[] {
+  const errors: string[] = [];
+  for (const rule of enumRules) {
+    const raw = row[rule.field];
+    if (raw === null || raw === undefined) continue;
+    const value = String(raw);
+    if (!rule.values.includes(value)) {
+      errors.push(`Enum '${rule.field}' has invalid value '${value}'`);
+    }
+  }
+  return errors;
+}
+
+function validateForeignKeys(
+  row: Record<string, unknown>,
+  fkRules: { field: string; allowed: Set<string>; label: string; nullable?: boolean }[],
+): string[] {
+  const errors: string[] = [];
+  for (const rule of fkRules) {
+    const raw = row[rule.field];
+    if (raw === null || raw === undefined || raw === "") {
+      if (!rule.nullable) errors.push(`Foreign key '${rule.field}' is missing (${rule.label})`);
+      continue;
+    }
+    const id = String(raw);
+    if (!rule.allowed.has(id)) {
+      errors.push(`Foreign key '${rule.field}' invalid (${rule.label} not found): '${id}'`);
+    }
+  }
+  return errors;
+}
+
+async function insertRowsResilient(params: {
+  admin: any;
+  step: string;
+  table: string;
+  rows: Record<string, unknown>[];
+  logs: SeedStepLog[];
+  rowErrors: SeedRowError[];
+  requiredFields?: string[];
+  enumRules?: { field: string; values: readonly string[] }[];
+  fkRules?: { field: string; allowed: Set<string>; label: string; nullable?: boolean }[];
+  batchSize?: number;
+  select?: string;
+}) {
+  const {
+    admin,
+    step,
+    table,
+    rows,
+    logs,
+    rowErrors,
+    requiredFields = [],
+    enumRules = [],
+    fkRules = [],
+    batchSize = 25,
+    select = "id",
+  } = params;
+
+  const insertedRows: any[] = [];
+  let insertedCount = 0;
+  let skippedCount = 0;
+
+  for (const batch of chunkArray(rows, batchSize)) {
+    const validRows: Record<string, unknown>[] = [];
+
+    for (const row of batch) {
+      const validationErrors = [
+        ...validateRequired(row, requiredFields),
+        ...validateEnum(row, enumRules),
+        ...validateForeignKeys(row, fkRules),
+      ];
+
+      if (validationErrors.length > 0) {
+        skippedCount++;
+        const failure: SeedRowError = {
+          step,
+          table,
+          error: validationErrors[0],
+          validationErrors,
+          row: toRowSnippet(row),
+        };
+        rowErrors.push(failure);
+        pushSeedLog(logs, {
+          step,
+          status: "skipped",
+          table,
+          error: failure.error,
+          validationErrors,
+          row: failure.row,
+        });
+        continue;
+      }
+      validRows.push(row);
+    }
+
+    if (validRows.length === 0) continue;
+
+    const bulkQuery = admin.from(table).insert(validRows).select(select);
+    const { data: bulkData, error: bulkError } = await bulkQuery;
+
+    if (!bulkError) {
+      insertedCount += bulkData?.length ?? validRows.length;
+      insertedRows.push(...(bulkData ?? []));
+      continue;
+    }
+
+    pushSeedLog(logs, {
+      step,
+      status: "error",
+      table,
+      error: `Batch insert failed, falling back to row inserts: ${bulkError.message}`,
+      detail: `batch_size=${validRows.length}`,
+    });
+
+    for (const row of validRows) {
+      const { data, error } = await admin.from(table).insert(row).select(select).maybeSingle();
+      if (error) {
+        skippedCount++;
+        const failure: SeedRowError = {
+          step,
+          table,
+          error: error.message,
+          row: toRowSnippet(row),
+        };
+        rowErrors.push(failure);
+        pushSeedLog(logs, {
+          step,
+          status: "error",
+          table,
+          error: error.message,
+          row: failure.row,
+        });
+      } else if (data) {
+        insertedCount += 1;
+        insertedRows.push(data);
+      }
+    }
+  }
+
+  pushSeedLog(logs, {
+    step,
+    status: insertedCount > 0 ? "ok" : "skipped",
+    table,
+    count: insertedCount,
+    detail: `inserted=${insertedCount}, skipped=${skippedCount}`,
+  });
+
+  return { insertedRows, insertedCount, skippedCount };
+}
 
 async function ensureSandboxCompany(admin: any, userId: string) {
   const { data: existing } = await admin
@@ -220,26 +462,24 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
   },
 };
 
-interface SeedStepLog {
-  step: string;
-  status: "ok" | "error" | "skipped";
-  count?: number;
-  error?: string;
-  detail?: string;
-}
-
 async function seedScenario(admin: any, companyId: string, userId: string, scenarioKey: string, seedSize: string = "small") {
   const baseConfig = SCENARIOS[scenarioKey];
-  if (!baseConfig) return { ok: false, step: "init", error: `Unknown scenario: ${scenarioKey}`, logs: [] };
+  if (!baseConfig) {
+    return { ok: false, step: "init", error: `Unknown scenario: ${scenarioKey}`, logs: [] as SeedStepLog[] };
+  }
+
+  const logs: SeedStepLog[] = [];
+  const rowErrors: SeedRowError[] = [];
+  const runId = crypto.randomUUID();
+  const today = new Date().toISOString().slice(0, 10);
 
   const sizeMultiplier = SEED_SIZES[seedSize] || SEED_SIZES.small;
-  // Apply size multiplier
   const config: ScenarioConfig = {
     ...baseConfig,
     truckCount: Math.max(2, Math.round(baseConfig.truckCount * sizeMultiplier.truckMult)),
     patientCount: Math.max(4, Math.round(baseConfig.patientCount * sizeMultiplier.patientMult)),
   };
-  // Scale trip mix proportionally
+
   const patientRatio = config.patientCount / baseConfig.patientCount;
   config.tripMix = {
     dialysis: Math.max(1, Math.round(baseConfig.tripMix.dialysis * patientRatio)),
@@ -253,64 +493,74 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
   config.missingTimestamps = Math.round(baseConfig.missingTimestamps * patientRatio);
   config.authExpiring = Math.round(baseConfig.authExpiring * patientRatio);
 
-  const logs: SeedStepLog[] = [];
-  const runId = crypto.randomUUID();
-  const today = new Date().toISOString().slice(0, 10);
   const pressure = config.dispatchPressure;
 
-  // Step 1: Create simulation run
+  pushSeedLog(logs, {
+    step: "sandbox_tenant_company_ready",
+    status: "ok",
+    detail: `company_id=${companyId}`,
+  });
+
   try {
     const { error } = await admin.from("simulation_runs").insert({
       id: runId,
       scenario_name: config.name,
       created_by: userId,
-      config: config,
+      status: "running",
+      config,
     });
     if (error) throw error;
-    logs.push({ step: "create_simulation_run", status: "ok" });
+    pushSeedLog(logs, { step: "create_simulation_run", status: "ok" });
   } catch (e: any) {
-    logs.push({ step: "create_simulation_run", status: "error", error: e.message });
+    pushSeedLog(logs, { step: "create_simulation_run", status: "error", error: e.message });
     return { ok: false, step: "create_simulation_run", error: e.message, logs };
   }
 
-  // Step 2: Create facilities (batch)
-  const facilityIds: string[] = [];
+  let facilityRowsInserted: Array<{ id: string; name: string }> = [];
   try {
     const facilityTypes = ["dialysis", "hospital", "hospital", "snf", "rehab"];
     const facilityNames = ["Sim Dialysis Center", "Sim General Hospital", "Sim Medical Center", "Sim Nursing Facility", "Sim Rehab Center"];
-    if (pressure?.crossCityRouting) {
-      facilityNames.push("Sim Dialysis North", "Sim Dialysis South");
-    }
-    const facilityRows = facilityNames.map((name, i) => {
-      const addr = pressure?.crossCityRouting && i >= 5
+    if (pressure?.crossCityRouting) facilityNames.push("Sim Dialysis North", "Sim Dialysis South");
+
+    const facilityRows = facilityNames.map((name, i) => ({
+      name,
+      address: pressure?.crossCityRouting && i >= 5
         ? pick(CITY_CLUSTERS[i % CITY_CLUSTERS.length])
-        : FAKE_ADDRESSES[i % FAKE_ADDRESSES.length];
-      return {
-        name,
-        address: addr,
-        facility_type: facilityTypes[i % facilityTypes.length],
-        phone: `(555) 900-${String(i + 1).padStart(4, "0")}`,
-        company_id: companyId,
-        is_simulated: true,
-        simulation_run_id: runId,
-      };
+        : FAKE_ADDRESSES[i % FAKE_ADDRESSES.length],
+      facility_type: facilityTypes[i % facilityTypes.length],
+      phone: `(555) 900-${String(i + 1).padStart(4, "0")}`,
+      company_id: companyId,
+      is_simulated: true,
+      simulation_run_id: runId,
+    }));
+
+    const { insertedRows } = await insertRowsResilient({
+      admin,
+      step: "create_facilities",
+      table: "facilities",
+      rows: facilityRows,
+      logs,
+      rowErrors,
+      requiredFields: ["name", "facility_type", "company_id"],
+      batchSize: 25,
+      select: "id,name",
     });
-    const { data, error } = await admin.from("facilities").insert(facilityRows).select("id");
-    if (error) throw error;
-    for (const f of data ?? []) facilityIds.push(f.id);
-    logs.push({ step: "create_facilities", status: "ok", count: facilityIds.length });
+    facilityRowsInserted = insertedRows as Array<{ id: string; name: string }>;
   } catch (e: any) {
-    logs.push({ step: "create_facilities", status: "error", error: e.message });
-    return { ok: false, step: "create_facilities", error: e.message, logs };
+    pushSeedLog(logs, { step: "create_facilities", status: "error", error: e.message });
   }
 
-  const facilityNames = ["Sim Dialysis Center", "Sim General Hospital", "Sim Medical Center", "Sim Nursing Facility", "Sim Rehab Center"];
-  if (pressure?.crossCityRouting) {
-    facilityNames.push("Sim Dialysis North", "Sim Dialysis South");
-  }
+  const facilityNames = facilityRowsInserted.map((f) => f.name);
 
-  // Step 3: Create trucks (batch)
-  const truckIds: string[] = [];
+  const profileMeta = new Map<string, { maxLift: number; stairChair: boolean; bariatric: boolean; oxygen: boolean }>();
+  const truckMeta = new Map<string, { has_stair_chair: boolean; has_bariatric_kit: boolean; has_oxygen_mount: boolean }>();
+
+  let truckIds: string[] = [];
+  let crewIds: string[] = [];
+  let patientIds: string[] = [];
+  let tripCount = 0;
+
+  // b) create trucks + equipment
   try {
     const equipConfigs = [
       { has_power_stretcher: true, has_stair_chair: true, has_bariatric_kit: true, has_oxygen_mount: true },
@@ -320,13 +570,14 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
       { has_power_stretcher: false, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: true },
       { has_power_stretcher: false, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: false },
     ];
-    const isMismatch = scenarioKey === "crew_mismatch";
-    const truckRows = [];
+
+    const truckRows: Record<string, unknown>[] = [];
     for (let i = 0; i < config.truckCount; i++) {
-      let equip = equipConfigs[i % equipConfigs.length];
-      if (isMismatch && i > 1) {
-        equip = { has_power_stretcher: false, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: false };
-      }
+      const mismatch = scenarioKey === "crew_mismatch" && i > 1;
+      const equip = mismatch
+        ? { has_power_stretcher: false, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: false }
+        : equipConfigs[i % equipConfigs.length];
+
       truckRows.push({
         name: `SIM-${100 + i + 1}`,
         company_id: companyId,
@@ -335,101 +586,146 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         ...equip,
       });
     }
-    const { data, error } = await admin.from("trucks").insert(truckRows).select("id");
-    if (error) throw error;
-    for (const t of data ?? []) truckIds.push(t.id);
-    logs.push({ step: "create_trucks", status: "ok", count: truckIds.length });
+
+    const { insertedRows } = await insertRowsResilient({
+      admin,
+      step: "create_trucks_equipment",
+      table: "trucks",
+      rows: truckRows,
+      logs,
+      rowErrors,
+      requiredFields: ["name", "company_id"],
+      batchSize: 25,
+      select: "id,has_stair_chair,has_bariatric_kit,has_oxygen_mount",
+    });
+
+    truckIds = (insertedRows as any[]).map((row) => row.id);
+    for (const t of insertedRows as any[]) {
+      truckMeta.set(t.id, {
+        has_stair_chair: !!t.has_stair_chair,
+        has_bariatric_kit: !!t.has_bariatric_kit,
+        has_oxygen_mount: !!t.has_oxygen_mount,
+      });
+    }
   } catch (e: any) {
-    logs.push({ step: "create_trucks", status: "error", error: e.message });
-    return { ok: false, step: "create_trucks", error: e.message, logs };
+    pushSeedLog(logs, { step: "create_trucks_equipment", status: "error", error: e.message });
   }
 
-  // Step 4: Create crew profiles (batch)
-  const crewIds: string[] = [];
+  // c) create crews + profiles/capabilities
   try {
-    const isMismatch = scenarioKey === "crew_mismatch";
-    const profileRows: any[] = [];
-    const crewRows: any[] = [];
-    const memberPairs: { m1: string; m2: string }[] = [];
+    const profileRows: Record<string, unknown>[] = [];
+    const plannedCrews: Array<{ truck_id: string; member1_id: string; member2_id: string }> = [];
 
     for (let i = 0; i < truckIds.length; i++) {
-      const isMismatchCrew = isMismatch && i > 0;
+      const mismatch = scenarioKey === "crew_mismatch" && i > 0;
       const member1Id = crypto.randomUUID();
       const member2Id = crypto.randomUUID();
-      const crewName1 = FAKE_NAMES[i * 2] || `Crew Member ${i * 2}`;
-      const crewName2 = FAKE_NAMES[i * 2 + 1] || `Crew Member ${i * 2 + 1}`;
 
-      profileRows.push({
+      const rawCert1 = i % 4 === 0 ? "EMT" : i % 4 === 1 ? "Paramedic" : pick([...STRICT_CERT_LEVELS]);
+      const rawCert2 = i % 3 === 0 ? "Paramedic" : "EMT";
+      const rawSex1 = i % 2 === 0 ? "male" : "female";
+      const rawSex2 = i % 2 === 0 ? "female" : "male";
+
+      const profile1 = {
         id: member1Id,
         user_id: member1Id,
-        full_name: crewName1,
+        full_name: FAKE_NAMES[i * 2] || `Crew ${i * 2}`,
         company_id: companyId,
         is_simulated: true,
         simulation_run_id: runId,
-        max_safe_team_lift_lbs: isMismatchCrew ? rand(150, 200) : rand(250, 400),
-        stair_chair_trained: isMismatchCrew ? false : coinFlip(0.7),
-        bariatric_trained: isMismatchCrew ? false : coinFlip(0.4),
-        oxygen_handling_trained: isMismatchCrew ? false : coinFlip(0.6),
+        max_safe_team_lift_lbs: mismatch ? rand(150, 200) : rand(250, 400),
+        stair_chair_trained: mismatch ? false : coinFlip(0.7),
+        bariatric_trained: mismatch ? false : coinFlip(0.4),
+        oxygen_handling_trained: mismatch ? false : coinFlip(0.6),
         lift_assist_ok: coinFlip(0.5),
-        cert_level: pick([...VALID_CERT_LEVELS]),
-        sex: pick([...VALID_SEX_TYPES]),
-      });
-      profileRows.push({
+        cert_level: normalizeCertLevel(rawCert1),
+        sex: normalizeSex(rawSex1),
+      };
+
+      const profile2 = {
         id: member2Id,
         user_id: member2Id,
-        full_name: crewName2,
+        full_name: FAKE_NAMES[i * 2 + 1] || `Crew ${i * 2 + 1}`,
         company_id: companyId,
         is_simulated: true,
         simulation_run_id: runId,
-        max_safe_team_lift_lbs: isMismatchCrew ? rand(150, 200) : rand(250, 400),
-        stair_chair_trained: isMismatchCrew ? false : coinFlip(0.6),
-        bariatric_trained: isMismatchCrew ? false : coinFlip(0.3),
-        oxygen_handling_trained: isMismatchCrew ? false : coinFlip(0.5),
+        max_safe_team_lift_lbs: mismatch ? rand(150, 200) : rand(250, 400),
+        stair_chair_trained: mismatch ? false : coinFlip(0.6),
+        bariatric_trained: mismatch ? false : coinFlip(0.3),
+        oxygen_handling_trained: mismatch ? false : coinFlip(0.5),
         lift_assist_ok: coinFlip(0.5),
-        cert_level: pick([...VALID_CERT_LEVELS]),
-        sex: pick([...VALID_SEX_TYPES]),
-      });
-      memberPairs.push({ m1: member1Id, m2: member2Id });
+        cert_level: normalizeCertLevel(rawCert2),
+        sex: normalizeSex(rawSex2),
+      };
+
+      profileRows.push(profile1, profile2);
+      plannedCrews.push({ truck_id: truckIds[i], member1_id: member1Id, member2_id: member2Id });
     }
 
-    // Batch insert profiles
-    const { error: profErr } = await admin.from("profiles").upsert(profileRows);
-    if (profErr) throw new Error(`profiles insert: ${profErr.message}`);
+    const { insertedRows: insertedProfiles } = await insertRowsResilient({
+      admin,
+      step: "create_crews_profiles_capabilities",
+      table: "profiles",
+      rows: profileRows,
+      logs,
+      rowErrors,
+      requiredFields: ["id", "user_id", "full_name", "company_id", "cert_level", "sex"],
+      enumRules: [
+        { field: "cert_level", values: STRICT_CERT_LEVELS },
+        { field: "sex", values: STRICT_SEX_TYPES },
+      ],
+      batchSize: 25,
+      select: "id,max_safe_team_lift_lbs,stair_chair_trained,bariatric_trained,oxygen_handling_trained",
+    });
 
-    // Batch insert crews
-    for (let i = 0; i < truckIds.length; i++) {
-      crewRows.push({
-        truck_id: truckIds[i],
-        member1_id: memberPairs[i].m1,
-        member2_id: memberPairs[i].m2,
-        active_date: today,
-        company_id: companyId,
-        is_simulated: true,
-        simulation_run_id: runId,
+    const profileIdSet = new Set((insertedProfiles as any[]).map((p) => p.id));
+    for (const p of insertedProfiles as any[]) {
+      profileMeta.set(p.id, {
+        maxLift: Number(p.max_safe_team_lift_lbs ?? 0),
+        stairChair: !!p.stair_chair_trained,
+        bariatric: !!p.bariatric_trained,
+        oxygen: !!p.oxygen_handling_trained,
       });
     }
-    const { data: crewData, error: crewErr } = await admin.from("crews").insert(crewRows).select("id");
-    if (crewErr) throw new Error(`crews insert: ${crewErr.message}`);
-    for (const c of crewData ?? []) crewIds.push(c.id);
-    logs.push({ step: "create_crews_profiles", status: "ok", count: crewIds.length, detail: `${profileRows.length} profiles, ${crewIds.length} crews` });
+
+    const crewRows = plannedCrews.map((crew) => ({
+      ...crew,
+      active_date: today,
+      company_id: companyId,
+      is_simulated: true,
+      simulation_run_id: runId,
+    }));
+
+    const { insertedRows: insertedCrews } = await insertRowsResilient({
+      admin,
+      step: "create_crews_profiles_capabilities",
+      table: "crews",
+      rows: crewRows,
+      logs,
+      rowErrors,
+      requiredFields: ["truck_id", "member1_id", "member2_id", "company_id"],
+      fkRules: [
+        { field: "truck_id", allowed: new Set(truckIds), label: "trucks" },
+        { field: "member1_id", allowed: profileIdSet, label: "profiles" },
+        { field: "member2_id", allowed: profileIdSet, label: "profiles" },
+      ],
+      batchSize: 25,
+      select: "id,truck_id,member1_id,member2_id",
+    });
+
+    crewIds = (insertedCrews as any[]).map((c) => c.id);
   } catch (e: any) {
-    logs.push({ step: "create_crews_profiles", status: "error", error: e.message });
-    return { ok: false, step: "create_crews_profiles", error: e.message, logs };
+    pushSeedLog(logs, { step: "create_crews_profiles_capabilities", status: "error", error: e.message });
   }
 
-  // Step 5: Create patients (batch, chunks of 25)
-  const patientIds: string[] = [];
+  // d) create patients + needs
+  const patientMeta = new Map<string, { weight: number | null; stairs: string; oxygen: boolean; stairChairRequired: boolean }>();
   try {
     const patientNames = pickN(FAKE_NAMES, config.patientCount);
-    const totalTrips = config.tripMix.dialysis + config.tripMix.discharge + config.tripMix.outpatient + config.tripMix.hospital;
     const tripTypes: string[] = [];
-    for (const [type, count] of Object.entries(config.tripMix)) {
-      for (let j = 0; j < count; j++) tripTypes.push(type);
-    }
+    for (const [type, count] of Object.entries(config.tripMix)) for (let j = 0; j < count; j++) tripTypes.push(type);
     const payerTypes: string[] = [];
-    for (const [payer, count] of Object.entries(config.payerMix)) {
-      for (let j = 0; j < count; j++) payerTypes.push(payer);
-    }
+    for (const [payer, count] of Object.entries(config.payerMix)) for (let j = 0; j < count; j++) payerTypes.push(payer);
 
     const expiringAuthIndices = new Set(pickN([...Array(config.patientCount).keys()], Math.min(config.authExpiring, config.patientCount)));
     const missingInfoIndices = new Set(
@@ -438,314 +734,407 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         : []
     );
 
-    const isMismatch = scenarioKey === "crew_mismatch";
     const weights = [120, 150, 165, 180, 195, 210, 240, 275, 310, 340, 360, 380];
     const mobilities = ["ambulatory", "wheelchair", "stretcher", "bedbound"];
     const stairsOptions = ["none", "few_steps", "full_flight", "unknown"];
     const equipOptions = ["none", "none", "none", "bariatric_stretcher", "extra_crew", "lift_assist"];
 
-    const patientRows: any[] = [];
+    const patientRows: Record<string, unknown>[] = [];
+
     for (let i = 0; i < config.patientCount; i++) {
       const nameParts = patientNames[i]?.split(" ") || ["Test", `P${i}`];
       const first = nameParts[0];
       const last = nameParts.slice(1).join(" ") || `Patient${i}`;
-      const tripType = tripTypes[i % tripTypes.length] || "dialysis";
+      const tripType = normalizeTripType(tripTypes[i % tripTypes.length] || "dialysis");
       const payer = payerTypes[i % payerTypes.length] || "Medicare";
-      const authExpiring = expiringAuthIndices.has(i);
-      const hasMissingInfo = missingInfoIndices.has(i);
-      const authExpDate = authExpiring
+      const authExpDate = expiringAuthIndices.has(i)
         ? new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10)
         : new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
 
-      let weightVal = isMismatch
-        ? weights[Math.min(i, weights.length - 1)]
-        : weights[i % weights.length];
-      if (pressure?.insufficientTrucks && i % 3 === 0) weightVal = pick([310, 340, 360]);
-
-      const mobilityVal = hasMissingInfo ? null : mobilities[i % mobilities.length];
-      const stairsVal = hasMissingInfo ? "unknown" : stairsOptions[i % stairsOptions.length];
-      const equipVal = hasMissingInfo ? "none" : equipOptions[i % equipOptions.length];
+      const hasMissingInfo = missingInfoIndices.has(i);
+      const baseWeight = pressure?.insufficientTrucks && i % 3 === 0 ? pick([310, 340, 360]) : weights[i % weights.length];
+      const weight = hasMissingInfo ? null : baseWeight;
+      const stairs = hasMissingInfo ? "unknown" : stairsOptions[i % stairsOptions.length];
       const oxygenReq = !hasMissingInfo && i % 5 === 0;
 
-      // Map trip type to valid transport_type enum
-      const transportType: string = tripType === "hospital" ? "adhoc" : tripType === "discharge" ? "outpatient" : (tripType === "dialysis" ? "dialysis" : "outpatient");
-
-      patientRows.push({
+      const row = {
         first_name: first,
         last_name: last,
         dob: `19${50 + (i % 30)}-${String((i % 12) + 1).padStart(2, "0")}-${String((i % 28) + 1).padStart(2, "0")}`,
         phone: `(555) 800-${String(i + 1).padStart(4, "0")}`,
         pickup_address: pressure?.crossCityRouting ? pick(pick(CITY_CLUSTERS)) : pick(FAKE_ADDRESSES),
-        dropoff_facility: facilityNames[i % facilityNames.length],
-        transport_type: transportType,
+        dropoff_facility: facilityNames[i % Math.max(1, facilityNames.length)] || "Sim Dialysis Center",
+        transport_type: normalizeTransportType(tripType),
         schedule_days: tripType === "dialysis" ? (i % 2 === 0 ? "MWF" : "TTS") : "MWF",
         status: "active",
         primary_payer: payer,
         auth_required: payer === "Medicare" || payer === "Medicaid",
         auth_expiration: authExpDate,
-        weight_lbs: hasMissingInfo ? null : weightVal,
-        mobility: mobilityVal,
-        stairs_required: stairsVal,
-        stair_chair_required: stairsVal === "full_flight",
+        weight_lbs: weight,
+        mobility: hasMissingInfo ? null : mobilities[i % mobilities.length],
+        stairs_required: stairs,
+        stair_chair_required: stairs === "full_flight",
         oxygen_required: oxygenReq,
         oxygen_lpm: oxygenReq ? [2, 3, 4, 6][i % 4] : null,
-        bariatric: weightVal >= 300,
-        special_equipment_required: equipVal,
+        bariatric: (weight ?? 0) >= 300,
+        special_equipment_required: hasMissingInfo ? "none" : equipOptions[i % equipOptions.length],
         dialysis_window_minutes: tripType === "dialysis" ? 45 : 60,
         must_arrive_by: tripType === "dialysis" ? randTime(6, 8) : null,
         company_id: companyId,
         is_simulated: true,
         simulation_run_id: runId,
+      };
+
+      patientRows.push(row);
+    }
+
+    const { insertedRows } = await insertRowsResilient({
+      admin,
+      step: "create_patients_needs",
+      table: "patients",
+      rows: patientRows,
+      logs,
+      rowErrors,
+      requiredFields: ["first_name", "last_name", "transport_type", "status", "company_id", "special_equipment_required", "stairs_required"],
+      enumRules: [
+        { field: "transport_type", values: VALID_TRANSPORT_TYPES },
+        { field: "status", values: VALID_PATIENT_STATUSES },
+      ],
+      batchSize: 25,
+      select: "id,weight_lbs,stairs_required,oxygen_required,stair_chair_required",
+    });
+
+    patientIds = (insertedRows as any[]).map((p) => p.id);
+    for (const p of insertedRows as any[]) {
+      patientMeta.set(p.id, {
+        weight: p.weight_lbs,
+        stairs: p.stairs_required,
+        oxygen: !!p.oxygen_required,
+        stairChairRequired: !!p.stair_chair_required,
       });
     }
-
-    // Insert in chunks of 25
-    for (let chunk = 0; chunk < patientRows.length; chunk += 25) {
-      const batch = patientRows.slice(chunk, chunk + 25);
-      const { data, error } = await admin.from("patients").insert(batch).select("id");
-      if (error) throw new Error(`patients batch ${chunk}: ${error.message}`);
-      for (const p of data ?? []) patientIds.push(p.id);
-    }
-    logs.push({ step: "create_patients", status: "ok", count: patientIds.length });
   } catch (e: any) {
-    logs.push({ step: "create_patients", status: "error", error: e.message });
-    return { ok: false, step: "create_patients", error: e.message, logs };
+    pushSeedLog(logs, { step: "create_patients_needs", status: "error", error: e.message });
   }
 
-  // Step 6: Create scheduling legs + trip records (batched)
-  let tripCount = 0;
+  // e) create trips + legs + time windows  / f) assign trips to trucks/crews
+  let tripRowsInserted: any[] = [];
   try {
     const totalTrips = config.tripMix.dialysis + config.tripMix.discharge + config.tripMix.outpatient + config.tripMix.hospital;
     const tripTypes: string[] = [];
-    for (const [type, count] of Object.entries(config.tripMix)) {
-      for (let j = 0; j < count; j++) tripTypes.push(type);
-    }
+    for (const [type, count] of Object.entries(config.tripMix)) for (let j = 0; j < count; j++) tripTypes.push(type);
     const payerTypes: string[] = [];
-    for (const [payer, count] of Object.entries(config.payerMix)) {
-      for (let j = 0; j < count; j++) payerTypes.push(payer);
-    }
+    for (const [payer, count] of Object.entries(config.payerMix)) for (let j = 0; j < count; j++) payerTypes.push(payer);
 
     const missingPcsSet = new Set(pickN([...Array(totalTrips).keys()], Math.min(config.missingPcs, totalTrips)));
     const missingAuthSet = new Set(pickN([...Array(totalTrips).keys()], Math.min(config.missingAuth, totalTrips)));
     const missingSigSet = new Set(pickN([...Array(totalTrips).keys()], Math.min(config.missingSignature, totalTrips)));
     const missingTimesSet = new Set(pickN([...Array(totalTrips).keys()], Math.min(config.missingTimestamps, totalTrips)));
 
-    const dialysisOverstacked = pressure?.overstackedDialysisHours;
-    const unrealisticGaps = pressure?.unrealisticGaps;
-    const statuses: string[] = ["scheduled", "assigned", "en_route", "loaded", "completed", "completed", "completed"];
+    const legRows: Record<string, unknown>[] = [];
+    const slotRows: Record<string, unknown>[] = [];
+    const tripRows: Record<string, unknown>[] = [];
 
     const tripsToCreate = Math.min(totalTrips, patientIds.length);
 
-    // Process in batches of 10 trips at a time
-    for (let batchStart = 0; batchStart < tripsToCreate; batchStart += 10) {
-      const batchEnd = Math.min(batchStart + 10, tripsToCreate);
-      const legARows: any[] = [];
-      const tripMeta: any[] = [];
+    for (let i = 0; i < tripsToCreate; i++) {
+      const patientId = patientIds[i];
+      const tripType = normalizeTripType(tripTypes[i % tripTypes.length] || "dialysis");
+      const status = normalizeTripStatus(pick(["scheduled", "assigned", "en_route", "loaded", "completed", "completed", "completed"]));
+      const truckIdx = truckIds.length > 0 ? i % truckIds.length : -1;
+      const truckId = truckIdx >= 0 ? truckIds[truckIdx] : null;
+      const crewId = truckIdx >= 0 ? crewIds[truckIdx] ?? null : null;
+      const payer = payerTypes[i % payerTypes.length] || "Medicare";
 
-      for (let i = batchStart; i < batchEnd; i++) {
-        const truckIdx = i % truckIds.length;
-        const patientId = patientIds[i];
-        const tripType = tripTypes[i % tripTypes.length] || "dialysis";
-        const payer = payerTypes[i % payerTypes.length] || "Medicare";
+      const pickupTime = pressure?.overstackedDialysisHours && tripType === "dialysis"
+        ? pick(["06:00", "06:15", "06:30", "06:00", "06:15"])
+        : (tripType === "dialysis" ? randTime(5, 8) : randTime(8, 14));
 
-        let pickupTime: string;
-        if (dialysisOverstacked && tripType === "dialysis") {
-          pickupTime = pick(["06:00", "06:15", "06:30", "06:00", "06:15"]);
-        } else {
-          pickupTime = tripType === "dialysis" ? randTime(5, 8) : randTime(8, 14);
-        }
+      const pickupLoc = pressure?.crossCityRouting ? pick(pick(CITY_CLUSTERS)) : pick(FAKE_ADDRESSES);
+      const facility = pressure?.crossCityRouting
+        ? (facilityNames[i % Math.max(1, facilityNames.length)] || "Sim General Hospital")
+        : (facilityNames[tripType === "dialysis" ? 0 : i % Math.max(1, facilityNames.length)] || "Sim General Hospital");
 
-        const facility = pressure?.crossCityRouting
-          ? facilityNames[i % facilityNames.length]
-          : facilityNames[tripType === "dialysis" ? 0 : (i % facilityNames.length)];
-
-        const status = pick(statuses);
-        const isCompleted = status === "completed";
-        const crewProfile = CREW_PROFILES[truckIdx % CREW_PROFILES.length];
-        const isRiskyCrew = crewProfile.docReliability === "risky";
-        const isSlowCrew = crewProfile.speed === "slow";
-
-        const riskPcsMissing = missingPcsSet.has(i) || (isRiskyCrew && coinFlip(0.4));
-        const riskSigMissing = missingSigSet.has(i) || (isRiskyCrew && coinFlip(0.35));
-        const riskTimesMissing = missingTimesSet.has(i) || (isRiskyCrew && coinFlip(0.25));
-        const isLate = isSlowCrew && coinFlip(0.5);
-        const actualPickupDelay = isLate ? rand(10, 35) : 0;
-
-        const pickupLoc = pressure?.crossCityRouting
-          ? pick(pick(CITY_CLUSTERS))
-          : pick(FAKE_ADDRESSES);
-
-        // Map to valid trip_type enum
-        const validTripType = (["dialysis", "discharge", "outpatient", "hospital"].includes(tripType)) ? tripType : "outpatient";
-
-        const legAId = crypto.randomUUID();
-        legARows.push({
-          id: legAId,
-          patient_id: patientId,
-          leg_type: "A",
-          pickup_location: pickupLoc,
-          destination_location: facility,
-          pickup_time: pickupTime,
-          trip_type: validTripType,
-          run_date: today,
-          company_id: companyId,
-          is_simulated: true,
-          simulation_run_id: runId,
-          estimated_duration_minutes: unrealisticGaps ? rand(5, 10) : rand(20, 40),
-        });
-
-        const hasPcs = !riskPcsMissing;
-        const hasAuth = !missingAuthSet.has(i);
-        const hasSig = !riskSigMissing;
-        const hasTimes = !riskTimesMissing;
-        const claimReady = isCompleted && hasPcs && hasSig && hasTimes && hasAuth;
-
-        const pcrType = tripType === "dialysis" ? "nemt_dialysis"
-          : tripType === "discharge" ? "ift_discharge"
-          : tripType === "hospital" ? "emergency_ems" : "other";
-
-        const baseRevenue = payer === "Medicare" ? rand(180, 350) : payer === "Medicaid" ? rand(120, 250) : rand(200, 400);
-
-        tripMeta.push({
-          patientId, truckIdx, legAId, tripType: validTripType, pickupTime, pickupLoc, facility,
-          status, isCompleted, hasPcs, hasSig, hasTimes, hasAuth, claimReady,
-          pcrType, baseRevenue, actualPickupDelay,
-        });
-      }
-
-      // Batch insert A-legs
-      const { error: legErr } = await admin.from("scheduling_legs").insert(legARows);
-      if (legErr) throw new Error(`scheduling_legs A batch: ${legErr.message}`);
-
-      // Batch insert truck_run_slots for A-legs
-      const slotRows = legARows.map((leg, idx) => ({
-        truck_id: truckIds[tripMeta[idx].truckIdx],
-        leg_id: leg.id,
+      const legId = crypto.randomUUID();
+      legRows.push({
+        id: legId,
+        patient_id: patientId,
+        leg_type: "A",
+        pickup_location: pickupLoc,
+        destination_location: facility,
+        pickup_time: pickupTime,
+        trip_type: tripType,
         run_date: today,
-        slot_order: batchStart + idx,
         company_id: companyId,
         is_simulated: true,
         simulation_run_id: runId,
-      }));
-      const { error: slotErr } = await admin.from("truck_run_slots").insert(slotRows);
-      if (slotErr) throw new Error(`truck_run_slots A batch: ${slotErr.message}`);
+        estimated_duration_minutes: pressure?.unrealisticGaps ? rand(5, 10) : rand(20, 40),
+      });
 
-      // B-legs for dialysis
-      const bLegRows: any[] = [];
-      const bSlotRows: any[] = [];
-      for (let idx = 0; idx < tripMeta.length; idx++) {
-        const meta = tripMeta[idx];
-        if (meta.tripType === "dialysis") {
-          const chairTime = addMinutes(meta.pickupTime, 30);
-          const bTime = addMinutes(meta.pickupTime, 240 + Math.floor(Math.random() * 60));
-          const bLegId = crypto.randomUUID();
-          bLegRows.push({
-            id: bLegId,
-            patient_id: meta.patientId,
-            leg_type: "B",
-            pickup_location: meta.facility,
-            destination_location: meta.pickupLoc,
-            pickup_time: bTime,
-            chair_time: chairTime,
-            trip_type: "dialysis",
-            run_date: today,
-            company_id: companyId,
-            is_simulated: true,
-            simulation_run_id: runId,
-            estimated_duration_minutes: (pressure?.unrealisticGaps) ? rand(5, 10) : rand(20, 40),
-          });
-          bSlotRows.push({
-            truck_id: truckIds[meta.truckIdx],
-            leg_id: bLegId,
-            run_date: today,
-            slot_order: batchStart + idx + 1000,
-            company_id: companyId,
-            is_simulated: true,
-            simulation_run_id: runId,
-          });
-        }
-      }
-      if (bLegRows.length > 0) {
-        const { error: bErr } = await admin.from("scheduling_legs").insert(bLegRows);
-        if (bErr) throw new Error(`scheduling_legs B batch: ${bErr.message}`);
-        const { error: bsErr } = await admin.from("truck_run_slots").insert(bSlotRows);
-        if (bsErr) throw new Error(`truck_run_slots B batch: ${bsErr.message}`);
+      if (truckId) {
+        slotRows.push({
+          truck_id: truckId,
+          leg_id: legId,
+          run_date: today,
+          slot_order: i,
+          status: "pending",
+          company_id: companyId,
+          is_simulated: true,
+          simulation_run_id: runId,
+        });
       }
 
-      // Batch insert trip records
-      const tripRows = tripMeta.map((meta) => ({
-        patient_id: meta.patientId,
-        truck_id: truckIds[meta.truckIdx],
-        crew_id: crewIds[meta.truckIdx] || null,
-        leg_id: meta.legAId,
+      const isCompleted = status === "completed";
+      const hasPcs = !missingPcsSet.has(i);
+      const hasSig = !missingSigSet.has(i);
+      const hasTimes = !missingTimesSet.has(i);
+      const hasAuth = !missingAuthSet.has(i);
+
+      const pcrType = tripType === "dialysis"
+        ? "nemt_dialysis"
+        : tripType === "discharge"
+        ? "ift_discharge"
+        : tripType === "hospital"
+        ? "emergency_ems"
+        : "other";
+
+      const baseRevenue = payer === "Medicare" ? rand(180, 350) : payer === "Medicaid" ? rand(120, 250) : rand(200, 400);
+
+      tripRows.push({
+        patient_id: patientId,
+        truck_id: truckId,
+        crew_id: crewId,
+        leg_id: legId,
         run_date: today,
-        status: meta.status,
-        trip_type: meta.tripType,
-        pickup_location: meta.pickupLoc,
-        destination_location: meta.facility,
-        scheduled_pickup_time: meta.pickupTime,
-        loaded_miles: meta.isCompleted ? Math.round((5 + Math.random() * 25) * 10) / 10 : null,
-        pcs_attached: meta.hasPcs,
-        signature_obtained: meta.hasSig,
-        arrived_pickup_at: meta.hasTimes && meta.isCompleted ? `${today}T${addMinutes(meta.pickupTime, meta.actualPickupDelay)}:00` : null,
-        arrived_dropoff_at: meta.hasTimes && meta.isCompleted ? `${today}T${addMinutes(meta.pickupTime, 30 + meta.actualPickupDelay + Math.floor(Math.random() * 20))}:00` : null,
-        documentation_complete: meta.hasPcs && meta.hasSig && meta.hasTimes,
-        claim_ready: meta.claimReady,
+        status,
+        trip_type: tripType,
+        pickup_location: pickupLoc,
+        destination_location: facility,
+        scheduled_pickup_time: pickupTime,
+        loaded_miles: isCompleted ? Math.round((5 + Math.random() * 25) * 10) / 10 : null,
+        pcs_attached: hasPcs,
+        signature_obtained: hasSig,
+        arrived_pickup_at: hasTimes && isCompleted ? `${today}T${pickupTime}:00` : null,
+        arrived_dropoff_at: hasTimes && isCompleted ? `${today}T${addMinutes(pickupTime, rand(20, 60))}:00` : null,
+        documentation_complete: hasPcs && hasSig && hasTimes,
+        claim_ready: isCompleted && hasPcs && hasSig && hasTimes && hasAuth,
         origin_type: "Home",
-        destination_type: meta.tripType === "dialysis" ? "Dialysis Center" : "Hospital Outpatient",
+        destination_type: tripType === "dialysis" ? "Dialysis Center" : "Hospital Outpatient",
         service_level: "BLS",
-        necessity_notes: meta.hasPcs ? "Patient requires stretcher transport due to medical necessity" : null,
-        pcr_type: meta.pcrType,
-        expected_revenue: meta.baseRevenue,
+        necessity_notes: hasPcs ? "Patient requires stretcher transport due to medical necessity" : null,
+        pcr_type: pcrType,
+        expected_revenue: baseRevenue,
         company_id: companyId,
         is_simulated: true,
         simulation_run_id: runId,
-      }));
-      const { error: tripErr } = await admin.from("trip_records").insert(tripRows);
-      if (tripErr) throw new Error(`trip_records batch: ${tripErr.message}`);
-
-      tripCount += tripMeta.length;
+      });
     }
 
-    logs.push({ step: "create_legs_trips", status: "ok", count: tripCount });
+    const patientIdSet = new Set(patientIds);
+    const truckIdSet = new Set(truckIds);
+    const crewIdSet = new Set(crewIds);
+
+    const legsInsert = await insertRowsResilient({
+      admin,
+      step: "create_trips_legs_time_windows",
+      table: "scheduling_legs",
+      rows: legRows,
+      logs,
+      rowErrors,
+      requiredFields: ["id", "patient_id", "leg_type", "pickup_location", "destination_location", "trip_type", "company_id"],
+      enumRules: [
+        { field: "leg_type", values: VALID_LEG_TYPES },
+        { field: "trip_type", values: VALID_TRIP_TYPES },
+      ],
+      fkRules: [{ field: "patient_id", allowed: patientIdSet, label: "patients" }],
+      batchSize: 25,
+      select: "id",
+    });
+
+    const legIdSet = new Set((legsInsert.insertedRows as any[]).map((l) => l.id));
+
+    await insertRowsResilient({
+      admin,
+      step: "assign_trips_to_trucks_crews",
+      table: "truck_run_slots",
+      rows: slotRows,
+      logs,
+      rowErrors,
+      requiredFields: ["truck_id", "leg_id", "company_id", "status"],
+      enumRules: [{ field: "status", values: ["pending", "en_route", "arrived", "with_patient", "transporting", "completed"] }],
+      fkRules: [
+        { field: "truck_id", allowed: truckIdSet, label: "trucks" },
+        { field: "leg_id", allowed: legIdSet, label: "scheduling_legs" },
+      ],
+      batchSize: 25,
+      select: "id",
+    });
+
+    const tripsInsert = await insertRowsResilient({
+      admin,
+      step: "assign_trips_to_trucks_crews",
+      table: "trip_records",
+      rows: tripRows,
+      logs,
+      rowErrors,
+      requiredFields: ["patient_id", "run_date", "status", "company_id"],
+      enumRules: [
+        { field: "status", values: VALID_TRIP_STATUSES },
+        { field: "trip_type", values: VALID_TRIP_TYPES },
+      ],
+      fkRules: [
+        { field: "patient_id", allowed: patientIdSet, label: "patients" },
+        { field: "truck_id", allowed: truckIdSet, label: "trucks", nullable: true },
+        { field: "crew_id", allowed: crewIdSet, label: "crews", nullable: true },
+        { field: "leg_id", allowed: legIdSet, label: "scheduling_legs", nullable: true },
+      ],
+      batchSize: 25,
+      select: "id,patient_id,truck_id,crew_id,trip_type,claim_ready",
+    });
+
+    tripRowsInserted = tripsInsert.insertedRows as any[];
+    tripCount = tripsInsert.insertedCount;
+
+    pushSeedLog(logs, {
+      step: "create_trips_legs_time_windows",
+      status: "ok",
+      count: tripCount,
+      detail: `legs=${legsInsert.insertedCount}, trips=${tripCount}`,
+    });
   } catch (e: any) {
-    logs.push({ step: "create_legs_trips", status: "error", error: e.message, detail: `${tripCount} trips created before failure` });
-    return { ok: false, step: "create_legs_trips", error: e.message, logs, partialResult: { tripCount } };
+    pushSeedLog(logs, { step: "create_trips_legs_time_windows", status: "error", error: e.message });
   }
 
-  // Step 7: Late discharge adds
-  if (pressure?.lateDischargeAdds && pressure.lateDischargeAdds > 0) {
-    try {
-      const lateRows = [];
-      for (let d = 0; d < pressure.lateDischargeAdds; d++) {
-        const pIdx = rand(0, patientIds.length - 1);
-        lateRows.push({
-          patient_id: patientIds[pIdx],
-          truck_id: truckIds[rand(0, truckIds.length - 1)],
-          run_date: today,
-          status: "scheduled",
-          trip_type: "discharge",
-          pickup_location: "Sim General Hospital",
-          destination_location: pick(FAKE_ADDRESSES),
-          scheduled_pickup_time: randTime(12, 16),
-          pcr_type: "ift_discharge",
-          expected_revenue: rand(150, 300),
-          company_id: companyId,
-          is_simulated: true,
-          simulation_run_id: runId,
-        });
-      }
-      const { error } = await admin.from("trip_records").insert(lateRows);
-      if (error) throw error;
-      tripCount += lateRows.length;
-      logs.push({ step: "late_discharge_adds", status: "ok", count: lateRows.length });
-    } catch (e: any) {
-      logs.push({ step: "late_discharge_adds", status: "error", error: e.message });
-      // Non-fatal, continue
+  // g) apply safety rules + mark warnings/blocked
+  let blockedTrips = 0;
+  let warningTrips = 0;
+  try {
+    const { data: allCrews } = await admin
+      .from("crews")
+      .select("id,member1_id,member2_id")
+      .in("id", crewIds.length ? crewIds : ["00000000-0000-0000-0000-000000000000"]);
+
+    const crewMap = new Map<string, { member1_id: string | null; member2_id: string | null }>();
+    for (const c of allCrews ?? []) {
+      crewMap.set(c.id, { member1_id: c.member1_id, member2_id: c.member2_id });
     }
+
+    const overrideRows: Record<string, unknown>[] = [];
+
+    for (const trip of tripRowsInserted) {
+      const blockers: string[] = [];
+      const warnings: string[] = [];
+      const needs = patientMeta.get(trip.patient_id);
+      const truck = trip.truck_id ? truckMeta.get(trip.truck_id) : undefined;
+      const crew = trip.crew_id ? crewMap.get(trip.crew_id) : undefined;
+
+      const m1 = crew?.member1_id ? profileMeta.get(crew.member1_id) : undefined;
+      const m2 = crew?.member2_id ? profileMeta.get(crew.member2_id) : undefined;
+      const crewLift = (m1?.maxLift ?? 0) + (m2?.maxLift ?? 0);
+
+      if (!needs) {
+        warnings.push("MISSING_PATIENT_REQUIREMENTS");
+      } else {
+        if ((needs.weight ?? 0) >= 300 && !truck?.has_bariatric_kit) blockers.push("UNSAFE_LIFT_RISK");
+        if (needs.stairChairRequired && !truck?.has_stair_chair) blockers.push("STAIR_CHAIR_REQUIRED");
+        if (needs.oxygen && !truck?.has_oxygen_mount) blockers.push("OXYGEN_SUPPORT_REQUIRED");
+        if ((needs.weight ?? 0) > 0 && crewLift > 0 && (needs.weight ?? 0) > crewLift) blockers.push("CREW_LIFT_CAPACITY_EXCEEDED");
+      }
+
+      if (blockers.length > 0) {
+        blockedTrips++;
+        await admin
+          .from("trip_records")
+          .update({
+            claim_ready: false,
+            blockers,
+            billing_blocked_reason: blockers.join(", "),
+          })
+          .eq("id", trip.id);
+
+        overrideRows.push({
+          company_id: companyId,
+          trip_record_id: trip.id,
+          overridden_by: userId,
+          override_reason: "SIM_SEED",
+          override_status: "approved",
+          reasons: blockers,
+        });
+      } else if (warnings.length > 0) {
+        warningTrips++;
+      }
+    }
+
+    if (overrideRows.length > 0) {
+      await insertRowsResilient({
+        admin,
+        step: "apply_safety_rules",
+        table: "safety_overrides",
+        rows: overrideRows,
+        logs,
+        rowErrors,
+        requiredFields: ["company_id", "trip_record_id", "overridden_by", "override_reason", "override_status"],
+        batchSize: 25,
+        select: "id",
+      });
+    }
+
+    pushSeedLog(logs, {
+      step: "apply_safety_rules",
+      status: "ok",
+      detail: `blocked=${blockedTrips}, warnings=${warningTrips}, overrides=${overrideRows.length}`,
+    });
+  } catch (e: any) {
+    pushSeedLog(logs, { step: "apply_safety_rules", status: "error", error: e.message });
   }
 
-  logs.push({ step: "complete", status: "ok" });
+  // h) set billing readiness fields
+  try {
+    const { data: billingTrips } = await admin
+      .from("trip_records")
+      .select("id,status,pcs_attached,signature_obtained,documentation_complete")
+      .eq("company_id", companyId)
+      .eq("simulation_run_id", runId);
+
+    for (const t of billingTrips ?? []) {
+      const ready = t.status === "completed" && !!t.pcs_attached && !!t.signature_obtained && !!t.documentation_complete;
+      if (!ready) {
+        await admin.from("trip_records").update({ claim_ready: false }).eq("id", t.id);
+      }
+    }
+
+    pushSeedLog(logs, {
+      step: "set_billing_readiness_fields",
+      status: "ok",
+      count: billingTrips?.length ?? 0,
+    });
+  } catch (e: any) {
+    pushSeedLog(logs, { step: "set_billing_readiness_fields", status: "error", error: e.message });
+  }
+
+  const firstRowError = rowErrors[0];
+
+  if (tripCount === 0) {
+    await admin.from("simulation_runs").update({ status: "failed" }).eq("id", runId);
+    return {
+      ok: false,
+      step: firstRowError?.step || "create_trips_legs_time_windows",
+      table: firstRowError?.table,
+      error: firstRowError?.error || "No trips were seeded",
+      row: firstRowError?.row,
+      validationErrors: firstRowError?.validationErrors,
+      logs,
+      rowErrors: rowErrors.slice(0, 50),
+    };
+  }
+
+  await admin.from("simulation_runs").update({ status: rowErrors.length > 0 ? "completed_with_warnings" : "completed" }).eq("id", runId);
+
+  pushSeedLog(logs, {
+    step: "complete",
+    status: "ok",
+    detail: `trip_count=${tripCount}, row_errors=${rowErrors.length}`,
+  });
 
   return {
     ok: true,
@@ -756,6 +1145,8 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
     tripCount,
     seedSize,
     logs,
+    rowErrors: rowErrors.slice(0, 50),
+    warnings: rowErrors.length,
   };
 }
 
@@ -1351,15 +1742,10 @@ Deno.serve(async (req) => {
     switch (action) {
       case "seed": {
         const seedResult = await seedScenario(admin, companyId, callerUser.user.id, body.scenario, body.seedSize || "small");
-        // seedScenario returns its own ok/error structure
-        if (seedResult.ok === false) {
-          // Return 200 with error details so UI can render diagnostics
-          return new Response(JSON.stringify(seedResult), {
-            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        result = seedResult;
-        break;
+        return new Response(JSON.stringify(seedResult), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
       case "inject":
         result = await injectEvent(admin, companyId, body.eventType);

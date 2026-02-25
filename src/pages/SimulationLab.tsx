@@ -22,8 +22,27 @@ type SandboxStatus = { companyId: string; trucks: number; patients: number; trip
 type SeedDiagnostics = {
   ok: boolean;
   step?: string;
+  table?: string;
   error?: string;
-  logs?: { step: string; status: string; count?: number; error?: string; detail?: string }[];
+  row?: Record<string, unknown>;
+  validationErrors?: string[];
+  logs?: {
+    step: string;
+    status: string;
+    table?: string;
+    count?: number;
+    error?: string;
+    detail?: string;
+    row?: Record<string, unknown>;
+    validationErrors?: string[];
+  }[];
+  rowErrors?: {
+    step: string;
+    table: string;
+    error: string;
+    row: Record<string, unknown>;
+    validationErrors?: string[];
+  }[];
   scenario?: string;
   truckCount?: number;
   patientCount?: number;
@@ -296,15 +315,53 @@ export default function SimulationLab() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="rounded-md bg-destructive/5 border border-destructive/20 p-3 text-xs space-y-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-semibold text-destructive">Failed Step:</span>
-                  <code className="bg-destructive/10 px-1.5 py-0.5 rounded text-destructive font-mono">{seedResult.step}</code>
+                  <code className="bg-destructive/10 px-1.5 py-0.5 rounded text-destructive font-mono">{seedResult.step || "unknown"}</code>
+                  {seedResult.table && (
+                    <>
+                      <span className="font-semibold text-destructive ml-2">Table:</span>
+                      <code className="bg-destructive/10 px-1.5 py-0.5 rounded text-destructive font-mono">{seedResult.table}</code>
+                    </>
+                  )}
                 </div>
                 <div>
-                  <span className="font-semibold text-destructive">Error:</span>
+                  <span className="font-semibold text-destructive">Reason:</span>
                   <span className="ml-1 text-foreground">{seedResult.error}</span>
                 </div>
+                {seedResult.validationErrors && seedResult.validationErrors.length > 0 && (
+                  <div>
+                    <span className="font-semibold text-destructive">Validation:</span>
+                    <span className="ml-1 text-foreground">{seedResult.validationErrors.join(" • ")}</span>
+                  </div>
+                )}
+                {seedResult.row && (
+                  <div className="space-y-1">
+                    <p className="font-semibold text-destructive">Payload Snippet:</p>
+                    <pre className="rounded bg-background/80 border p-2 text-[10px] overflow-x-auto text-foreground">
+                      {JSON.stringify(seedResult.row, null, 2)}
+                    </pre>
+                  </div>
+                )}
               </div>
+              {seedResult.rowErrors && seedResult.rowErrors.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Row-Level Failures (first {Math.min(seedResult.rowErrors.length, 5)})</p>
+                  {seedResult.rowErrors.slice(0, 5).map((failure, i) => (
+                    <div key={i} className="rounded border p-2 text-xs space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="destructive" className="text-[9px]">{failure.table}</Badge>
+                        <code className="text-[10px] text-muted-foreground font-mono">{failure.step}</code>
+                      </div>
+                      <p className="text-foreground">{failure.error}</p>
+                      {failure.validationErrors && failure.validationErrors.length > 0 && (
+                        <p className="text-[10px] text-muted-foreground">{failure.validationErrors.join(" • ")}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {seedResult.logs && seedResult.logs.length > 0 && (
                 <div className="space-y-1">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Pipeline Steps</p>
@@ -318,8 +375,11 @@ export default function SimulationLab() {
                         <AlertTriangle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       )}
                       <span className="font-mono text-[10px] text-muted-foreground w-40 shrink-0">{log.step}</span>
-                      <span className="text-foreground flex-1">{log.error || log.detail || (log.count !== undefined ? `${log.count} records` : "OK")}</span>
-                      <Badge variant={log.status === "ok" ? "secondary" : "destructive"} className="text-[9px]">{log.status.toUpperCase()}</Badge>
+                      <span className="text-foreground flex-1">
+                        {log.table ? `[${log.table}] ` : ""}
+                        {log.error || log.detail || (log.count !== undefined ? `${log.count} records` : "OK")}
+                      </span>
+                      <Badge variant={log.status === "ok" ? "secondary" : log.status === "error" ? "destructive" : "outline"} className="text-[9px]">{log.status.toUpperCase()}</Badge>
                     </div>
                   ))}
                 </div>
