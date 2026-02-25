@@ -111,6 +111,41 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_overrides: {
+        Row: {
+          id: string
+          overridden_at: string
+          overridden_by: string | null
+          override_reason: string
+          previous_blockers_snapshot: Json | null
+          trip_id: string
+        }
+        Insert: {
+          id?: string
+          overridden_at?: string
+          overridden_by?: string | null
+          override_reason: string
+          previous_blockers_snapshot?: Json | null
+          trip_id: string
+        }
+        Update: {
+          id?: string
+          overridden_at?: string
+          overridden_by?: string | null
+          override_reason?: string
+          previous_blockers_snapshot?: Json | null
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_overrides_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       charge_master: {
         Row: {
           bariatric_fee: number | null
