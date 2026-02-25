@@ -10,19 +10,24 @@ import {
   FlaskConical, Zap, ShieldCheck, Camera, RotateCcw, Loader2,
   CheckCircle2, XCircle, AlertTriangle, Truck, Users, Activity,
   Clock, Ban, UserX, Plus, Wrench, Play, ExternalLink,
+  BarChart3, Flame,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { SimulationSummary } from "@/components/simulation/SimulationSummary";
 
 type CheckResult = { name: string; category: string; pass: boolean; reason: string };
-type SandboxStatus = { companyId: string; trucks: number; patients: number; trips: number; recentRuns: any[] };
+type SandboxStatus = { companyId: string; trucks: number; patients: number; trips: number; crews: number; recentRuns: any[] };
 
 const SCENARIOS = [
-  { key: "dialysis_heavy", label: "Dialysis Heavy Day", desc: "6 trucks, 40 patients, 30+ dialysis trips" },
-  { key: "mixed_day", label: "Dialysis + Discharge Mix", desc: "Mixed IFT day with discharge volume" },
-  { key: "stress_test", label: "Late Adds + Cancellations", desc: "50 patients, high chaos, missing fields" },
-  { key: "billing_risk", label: "Billing Risk Day", desc: "Many missing PCS, auth, signatures" },
-  { key: "facility_delay", label: "Facility Delay Day", desc: "B-leg timing pressure, late pickups" },
+  { key: "dialysis_heavy", label: "Dialysis Heavy Day", desc: "6 trucks, 40 patients, 30+ dialysis trips", group: "standard" },
+  { key: "mixed_day", label: "Dialysis + Discharge Mix", desc: "Mixed IFT day with discharge volume", group: "standard" },
+  { key: "stress_test", label: "Late Adds + Cancellations", desc: "50 patients, high chaos, missing fields", group: "standard" },
+  { key: "billing_risk", label: "Billing Risk Day", desc: "Many missing PCS, auth, signatures", group: "standard" },
+  { key: "facility_delay", label: "Facility Delay Day", desc: "B-leg timing pressure, late pickups", group: "standard" },
+  { key: "dispatch_overload", label: "Dispatch Overload", desc: "4 trucks, 45 patients — cascade failure", group: "cascade" },
+  { key: "crew_mismatch", label: "Crew Mismatch Day", desc: "Heavy patients + undertrained crews", group: "cascade" },
+  { key: "revenue_leak", label: "Revenue Leak Day", desc: "PCR failures + billing cascade", group: "cascade" },
 ];
 
 const EVENTS = [
@@ -32,6 +37,7 @@ const EVENTS = [
   { key: "late_add_discharge", label: "Late Add Discharge", icon: Plus, desc: "Inserts mid-day discharge" },
   { key: "cancel_no_show", label: "Cancel / No Show", icon: Ban, desc: "Cancels scheduled trips" },
   { key: "truck_down", label: "Truck Down", icon: Wrench, desc: "Disables truck, unassigns runs" },
+  { key: "cascade_pressure", label: "Cascade Pressure", icon: Flame, desc: "Combined: delay + slow + late add + PCR degrade" },
 ];
 
 export default function SimulationLab() {
@@ -44,11 +50,10 @@ export default function SimulationLab() {
   const [snapshotName, setSnapshotName] = useState("");
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [seedResult, setSeedResult] = useState<any>(null);
+  const [summary, setSummary] = useState<any>(null);
 
-  // Invalidate all cached queries so App Simulation views refresh
   const invalidateAll = useCallback(() => {
     queryClient.invalidateQueries();
-    // Also fire a custom event for components using local state + realtime
     window.dispatchEvent(new CustomEvent("simulation-refresh"));
   }, [queryClient]);
 
@@ -75,6 +80,7 @@ export default function SimulationLab() {
     try {
       const result = await callLab({ action: "seed", scenario });
       setSeedResult(result);
+      setSummary(null);
       toast({ title: "Scenario Seeded", description: `${result.scenario}: ${result.tripCount} trips across ${result.truckCount} trucks` });
       invalidateAll();
       loadStatus();
@@ -89,6 +95,7 @@ export default function SimulationLab() {
     try {
       const result = await callLab({ action: "inject", eventType });
       toast({ title: "Event Injected", description: result.description });
+      setSummary(null);
       invalidateAll();
     } catch (e: any) {
       toast({ title: "Inject Failed", description: e.message, variant: "destructive" });
@@ -107,6 +114,17 @@ export default function SimulationLab() {
     setLoading(null);
   };
 
+  const runSummary = async () => {
+    setLoading("summary");
+    try {
+      const result = await callLab({ action: "summary" });
+      setSummary(result);
+    } catch (e: any) {
+      toast({ title: "Summary Failed", description: e.message, variant: "destructive" });
+    }
+    setLoading(null);
+  };
+
   const resetSandbox = async () => {
     setLoading("reset");
     try {
@@ -115,6 +133,7 @@ export default function SimulationLab() {
       toast({ title: "Sandbox Reset", description: `${totalDeleted} records removed` });
       setChecks(null);
       setSeedResult(null);
+      setSummary(null);
       invalidateAll();
       loadStatus();
     } catch (e: any) {
@@ -144,11 +163,14 @@ export default function SimulationLab() {
     } catch { /* ignore */ }
   };
 
-  // Load status on mount
   useEffect(() => { loadStatus(); loadSnapshots(); }, []);
 
   const dispatchChecks = checks?.filter(c => c.category === "dispatch") ?? [];
   const billingChecks = checks?.filter(c => c.category === "billing") ?? [];
+  const safetyChecks = checks?.filter(c => c.category === "safety") ?? [];
+
+  const standardScenarios = SCENARIOS.filter(s => s.group === "standard");
+  const cascadeScenarios = SCENARIOS.filter(s => s.group === "cascade");
 
   return (
     <CreatorLayout title="Simulation Lab">
@@ -160,7 +182,7 @@ export default function SimulationLab() {
           </div>
           <div className="flex-1">
             <h1 className="text-lg font-bold text-foreground">Simulation Lab</h1>
-            <p className="text-xs text-muted-foreground">Seed scenarios, inject events, and run regression checks in an isolated sandbox.</p>
+            <p className="text-xs text-muted-foreground">Seed scenarios, inject events, run regression checks, and analyze cascade failures.</p>
           </div>
           <Badge variant="outline" className="text-[10px]">CREATOR ONLY</Badge>
           <Button
@@ -176,10 +198,11 @@ export default function SimulationLab() {
 
         {/* Sandbox Status */}
         {status && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <StatusCard icon={Truck} label="Trucks" value={status.trucks} />
             <StatusCard icon={Users} label="Patients" value={status.patients} />
             <StatusCard icon={Activity} label="Trips" value={status.trips} />
+            <StatusCard icon={Users} label="Crews" value={status.crews} />
             <StatusCard icon={FlaskConical} label="Runs" value={status.recentRuns.length} />
           </div>
         )}
@@ -192,27 +215,31 @@ export default function SimulationLab() {
               Scenario Seeder
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {SCENARIOS.map(s => (
-                <button
-                  key={s.key}
-                  onClick={() => seedScenario(s.key)}
-                  disabled={loading !== null}
-                  className="rounded-lg border bg-card p-3 text-left transition-colors hover:bg-accent/50 hover:border-primary/30 disabled:opacity-50"
-                >
-                  <p className="text-sm font-semibold text-foreground">{s.label}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{s.desc}</p>
-                  {loading === `seed_${s.key}` && (
-                    <div className="flex items-center gap-1 mt-2 text-xs text-primary">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Seeding...
-                    </div>
-                  )}
-                </button>
-              ))}
+          <CardContent className="space-y-4">
+            {/* Standard Scenarios */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Standard Scenarios</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {standardScenarios.map(s => (
+                  <ScenarioButton key={s.key} scenario={s} loading={loading} onSeed={seedScenario} />
+                ))}
+              </div>
             </div>
+
+            {/* Cascade Scenarios */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive mb-2 flex items-center gap-1">
+                <Flame className="h-3 w-3" /> Cascade Failure Scenarios
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {cascadeScenarios.map(s => (
+                  <ScenarioButton key={s.key} scenario={s} loading={loading} onSeed={seedScenario} cascade />
+                ))}
+              </div>
+            </div>
+
             {seedResult && (
-              <div className="mt-3 rounded-md bg-primary/5 border border-primary/20 p-3 text-xs text-foreground">
+              <div className="rounded-md bg-primary/5 border border-primary/20 p-3 text-xs text-foreground">
                 <strong>Last Seed:</strong> {seedResult.scenario} — {seedResult.tripCount} trips, {seedResult.truckCount} trucks, {seedResult.patientCount} patients
               </div>
             )}
@@ -223,16 +250,16 @@ export default function SimulationLab() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Zap className="h-4 w-4 text-amber-500" />
+              <Zap className="h-4 w-4 text-[hsl(var(--status-yellow))]" />
               Event Injection
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {EVENTS.map(e => (
                 <Button
                   key={e.key}
-                  variant="outline"
+                  variant={e.key === "cascade_pressure" ? "destructive" : "outline"}
                   size="sm"
                   className="h-auto py-2.5 px-3 flex flex-col items-start gap-1 text-left"
                   onClick={() => injectEvent(e.key)}
@@ -242,11 +269,34 @@ export default function SimulationLab() {
                     <e.icon className="h-3.5 w-3.5" />
                     {e.label}
                   </span>
-                  <span className="text-[10px] text-muted-foreground font-normal">{e.desc}</span>
-                  {loading === `inject_${e.key}` && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
+                  <span className="text-[10px] opacity-70 font-normal">{e.desc}</span>
+                  {loading === `inject_${e.key}` && <Loader2 className="h-3 w-3 animate-spin" />}
                 </Button>
               ))}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* End-of-Day Summary */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-primary" />
+                End-of-Day Simulation Summary
+              </CardTitle>
+              <Button size="sm" onClick={runSummary} disabled={loading !== null} className="gap-1.5 text-xs">
+                {loading === "summary" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BarChart3 className="h-3.5 w-3.5" />}
+                Generate Summary
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {summary ? (
+              <SimulationSummary data={summary} />
+            ) : (
+              <p className="text-xs text-muted-foreground">Seed a scenario, inject events, then generate a summary to see the dispatch → crew → billing cascade.</p>
+            )}
           </CardContent>
         </Card>
 
@@ -269,25 +319,12 @@ export default function SimulationLab() {
               <p className="text-xs text-muted-foreground">No checks run yet. Seed a scenario first, then run checks.</p>
             ) : (
               <div className="space-y-4">
-                {dispatchChecks.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Dispatch</p>
-                    <div className="space-y-1.5">
-                      {dispatchChecks.map((c, i) => <CheckRow key={i} check={c} />)}
-                    </div>
-                  </div>
-                )}
-                {billingChecks.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Billing</p>
-                    <div className="space-y-1.5">
-                      {billingChecks.map((c, i) => <CheckRow key={i} check={c} />)}
-                    </div>
-                  </div>
-                )}
+                <CheckSection title="Dispatch" checks={dispatchChecks} />
+                <CheckSection title="Safety" checks={safetyChecks} />
+                <CheckSection title="Billing" checks={billingChecks} />
                 <div className="flex items-center gap-2 pt-2 border-t">
                   {checks.every(c => c.pass) ? (
-                    <Badge className="bg-emerald-500/10 text-emerald-700 border-0 text-xs">
+                    <Badge className="bg-[hsl(var(--status-green))]/10 text-[hsl(var(--status-green))] border-0 text-xs">
                       <CheckCircle2 className="h-3 w-3 mr-1" /> All Checks Passed
                     </Badge>
                   ) : (
@@ -367,11 +404,50 @@ function StatusCard({ icon: Icon, label, value }: { icon: any; label: string; va
   );
 }
 
+function ScenarioButton({ scenario, loading, onSeed, cascade }: {
+  scenario: { key: string; label: string; desc: string };
+  loading: string | null;
+  onSeed: (key: string) => void;
+  cascade?: boolean;
+}) {
+  return (
+    <button
+      onClick={() => onSeed(scenario.key)}
+      disabled={loading !== null}
+      className={`rounded-lg border p-3 text-left transition-colors disabled:opacity-50 ${
+        cascade
+          ? "bg-destructive/5 hover:bg-destructive/10 border-destructive/20 hover:border-destructive/40"
+          : "bg-card hover:bg-accent/50 hover:border-primary/30"
+      }`}
+    >
+      <p className={`text-sm font-semibold ${cascade ? "text-destructive" : "text-foreground"}`}>{scenario.label}</p>
+      <p className="text-xs text-muted-foreground mt-1">{scenario.desc}</p>
+      {loading === `seed_${scenario.key}` && (
+        <div className="flex items-center gap-1 mt-2 text-xs text-primary">
+          <Loader2 className="h-3 w-3 animate-spin" /> Seeding...
+        </div>
+      )}
+    </button>
+  );
+}
+
+function CheckSection({ title, checks }: { title: string; checks: CheckResult[] }) {
+  if (checks.length === 0) return null;
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">{title}</p>
+      <div className="space-y-1.5">
+        {checks.map((c, i) => <CheckRow key={i} check={c} />)}
+      </div>
+    </div>
+  );
+}
+
 function CheckRow({ check }: { check: CheckResult }) {
   return (
     <div className="flex items-start gap-2 rounded-md border p-2">
       {check.pass ? (
-        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+        <CheckCircle2 className="h-4 w-4 text-[hsl(var(--status-green))] shrink-0 mt-0.5" />
       ) : (
         <XCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
       )}
