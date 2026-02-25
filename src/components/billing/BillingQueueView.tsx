@@ -66,6 +66,11 @@ function computeQueueStatus(trip: TripForQueue, payerRules: any): {
   missing: string[];
   blockers: string[];
 } {
+  // If trip was already overridden (claim_ready + ready_for_billing), treat as ready
+  if (trip.status === "ready_for_billing" && trip.claim_ready) {
+    return { status: "ready", missing: [], blockers: [] };
+  }
+
   if (!["completed", "ready_for_billing"].includes(trip.status)) {
     return { status: "blocked", missing: [], blockers: ["Trip not completed"] };
   }
@@ -201,6 +206,7 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
       const { error: tripErr } = await supabase.from("trip_records" as any).update({
         claim_ready: true,
         billing_blocked_reason: null,
+        blockers: [],
         status: "ready_for_billing",
       }).eq("id", selectedTrip.id);
       if (tripErr) {
