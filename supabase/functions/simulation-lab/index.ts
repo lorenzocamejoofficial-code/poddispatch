@@ -1465,7 +1465,11 @@ async function runChecks(admin: any, companyId: string) {
       : `${falseReadyCount} trips marked claim_ready despite missing PCR-required fields`,
   });
 
-  // BILLING CHECK 2: Override actions are logged
+  // BILLING CHECK 2: Override actions are logged in billing_overrides table
+  const { data: billingOverrides } = await admin.from("billing_overrides")
+    .select("id, trip_id")
+    .limit(100);
+
   const { data: auditOverrides } = await admin.from("audit_logs")
     .select("id")
     .eq("action", "billing_override")
@@ -1476,13 +1480,37 @@ async function runChecks(admin: any, companyId: string) {
     .eq("company_id", companyId)
     .limit(100);
 
-  const totalOverrides = (auditOverrides?.length ?? 0) + (safetyOverridesAll?.length ?? 0);
+  // Verify every billing_overrides row has a matching audit_logs entry
+  const boCount = billingOverrides?.length ?? 0;
+  const alCount = auditOverrides?.length ?? 0;
+  const overrideAuditMatch = boCount <= alCount;
+
   results.push({
     name: "Override actions are logged in audit trail",
     category: "billing",
-    pass: true,
-    reason: `${auditOverrides?.length ?? 0} billing overrides + ${safetyOverridesAll?.length ?? 0} safety overrides logged`,
+    pass: overrideAuditMatch,
+    reason: overrideAuditMatch
+      ? `${boCount} billing overrides, ${alCount} audit logs, ${safetyOverridesAll?.length ?? 0} safety overrides — all logged`
+      : `Mismatch: ${boCount} billing_overrides but only ${alCount} audit_logs entries`,
   });
+
+  // BILLING CHECK 2b: Overridden trips are in ready_for_billing status
+  if (boCount > 0) {
+    const overriddenTripIds = (billingOverrides ?? []).map((o: any) => o.trip_id);
+    const { data: overriddenTrips } = await admin.from("trip_records")
+      .select("id, status, claim_ready")
+      .in("id", overriddenTripIds);
+
+    const notReady = (overriddenTrips ?? []).filter((t: any) => t.status !== "ready_for_billing" || !t.claim_ready);
+    results.push({
+      name: "Overridden trips are in Billing Ready state",
+      category: "billing",
+      pass: notReady.length === 0,
+      reason: notReady.length === 0
+        ? `All ${boCount} overridden trips are correctly in ready_for_billing`
+        : `${notReady.length} overridden trips are NOT in ready_for_billing state`,
+    });
+  }
 
   // BILLING CHECK 3: Status counts match underlying trip_records
   const readyCount = allTrips.filter((t: any) => t.claim_ready).length;

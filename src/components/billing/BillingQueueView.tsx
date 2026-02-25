@@ -1,11 +1,10 @@
-import { useState } from "react";
-import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -47,6 +46,15 @@ interface TripForQueue {
   auth_expiration?: string | null;
 }
 
+interface BillingOverrideRecord {
+  id: string;
+  trip_id: string;
+  override_reason: string;
+  overridden_by: string | null;
+  overridden_at: string;
+  previous_blockers_snapshot: any;
+}
+
 interface BillingQueueViewProps {
   trips: TripForQueue[];
   payerRulesMap: Map<string, any>;
@@ -58,7 +66,6 @@ function computeQueueStatus(trip: TripForQueue, payerRules: any): {
   missing: string[];
   blockers: string[];
 } {
-  // Only show completed/ready_for_billing trips in the queue
   if (!["completed", "ready_for_billing"].includes(trip.status)) {
     return { status: "blocked", missing: [], blockers: ["Trip not completed"] };
   }
@@ -112,6 +119,26 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
   const [selectedTrip, setSelectedTrip] = useState<TripForQueue | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
   const [overriding, setOverriding] = useState(false);
+  const [overrideHistory, setOverrideHistory] = useState<Map<string, BillingOverrideRecord>>(new Map());
+
+  // Fetch override history for all trips
+  useEffect(() => {
+    const tripIds = trips.map(t => t.id);
+    if (tripIds.length === 0) return;
+    
+    supabase
+      .from("billing_overrides" as any)
+      .select("*")
+      .in("trip_id", tripIds)
+      .order("overridden_at", { ascending: false })
+      .then(({ data }) => {
+        const map = new Map<string, BillingOverrideRecord>();
+        for (const row of (data ?? []) as any[]) {
+          if (!map.has(row.trip_id)) map.set(row.trip_id, row);
+        }
+        setOverrideHistory(map);
+      });
+  }, [trips]);
 
   const completedTrips = trips.filter(t => ["completed", "ready_for_billing"].includes(t.status));
 
@@ -133,28 +160,43 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
 
   const pcrRules = selectedTrip ? getPcrRules(selectedTrip.pcr_type) : [];
   const pcrResult = selectedTrip ? evaluatePcrCompleteness(selectedTrip) : null;
+  const selectedOverride = selectedTrip ? overrideHistory.get(selectedTrip.id) : null;
 
   const handleOverride = async () => {
     if (!selectedTrip || !overrideReason.trim()) return;
     setOverriding(true);
     try {
-      // Write audit log
-      await supabase.from("audit_logs" as any).insert({
+      const previousBlockers = selectedQueueInfo
+        ? { status: selectedQueueInfo.status, missing: selectedQueueInfo.missing, blockers: selectedQueueInfo.blockers }
+        : null;
+
+      // 1. Insert billing_overrides record
+      const { error: overrideErr } = await supabase.from("billing_overrides" as any).insert({
+        trip_id: selectedTrip.id,
+        override_reason: overrideReason.trim(),
+        previous_blockers_snapshot: previousBlockers,
+      });
+      if (overrideErr) throw new Error(`Override record failed: ${overrideErr.message}`);
+
+      // 2. Write audit log
+      const { error: auditErr } = await supabase.from("audit_logs" as any).insert({
         action: "billing_override",
         table_name: "trip_records",
         record_id: selectedTrip.id,
         notes: overrideReason.trim(),
-        new_data: { claim_ready: true, previous_blockers: selectedTrip.blockers },
+        new_data: { claim_ready: true, previous_blockers: previousBlockers },
       });
+      if (auditErr) console.warn("Audit log insert failed:", auditErr.message);
 
-      // Mark trip as billing ready
-      await supabase.from("trip_records" as any).update({
+      // 3. Update trip status to ready_for_billing
+      const { error: tripErr } = await supabase.from("trip_records" as any).update({
         claim_ready: true,
         billing_blocked_reason: null,
         status: "ready_for_billing",
       }).eq("id", selectedTrip.id);
+      if (tripErr) throw new Error(`Trip update failed: ${tripErr.message}`);
 
-      toast.success("Override applied and logged");
+      toast.success("Override applied — trip moved to Billing Ready");
       setSelectedTrip(null);
       setOverrideReason("");
       onRefresh();
@@ -209,30 +251,40 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
               {items.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-4">None</p>
               ) : (
-                items.map(trip => (
-                  <button
-                    key={trip.id}
-                    onClick={() => setSelectedTrip(trip)}
-                    className="w-full rounded-md border bg-card p-3 text-left hover:border-primary/40 hover:shadow-sm transition-all"
-                  >
-                    <div className="flex items-center justify-between gap-1 mb-1">
-                      <p className="text-xs font-semibold text-foreground truncate">{trip.patient_name}</p>
-                      <Badge variant="outline" className="text-[9px]">
-                        {PCR_TYPES.find(p => p.value === trip.pcr_type)?.label ?? trip.pcr_type ?? "—"}
-                      </Badge>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">{trip.run_date} · {trip.truck_name}</p>
-                    {trip.queueMissing.length > 0 && (
-                      <p className="text-[10px] text-destructive mt-1 truncate">
-                        Missing: {trip.queueMissing.join(", ")}
-                      </p>
-                    )}
-                    <div className="mt-1.5 flex items-center justify-between">
-                      <span className="text-xs font-bold text-foreground">${(trip.expected_revenue ?? 0).toLocaleString()}</span>
-                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                    </div>
-                  </button>
-                ))
+                items.map(trip => {
+                  const hasOverride = overrideHistory.has(trip.id);
+                  return (
+                    <button
+                      key={trip.id}
+                      onClick={() => setSelectedTrip(trip)}
+                      className="w-full rounded-md border bg-card p-3 text-left hover:border-primary/40 hover:shadow-sm transition-all"
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <p className="text-xs font-semibold text-foreground truncate">{trip.patient_name}</p>
+                        <div className="flex items-center gap-1">
+                          {hasOverride && (
+                            <Badge variant="outline" className="text-[9px] border-[hsl(var(--status-yellow))]/40 text-[hsl(var(--status-yellow))]">
+                              <ShieldAlert className="h-2.5 w-2.5 mr-0.5" />Override
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-[9px]">
+                            {PCR_TYPES.find(p => p.value === trip.pcr_type)?.label ?? trip.pcr_type ?? "—"}
+                          </Badge>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">{trip.run_date} · {trip.truck_name}</p>
+                      {trip.queueMissing.length > 0 && (
+                        <p className="text-[10px] text-destructive mt-1 truncate">
+                          Missing: {trip.queueMissing.join(", ")}
+                        </p>
+                      )}
+                      <div className="mt-1.5 flex items-center justify-between">
+                        <span className="text-xs font-bold text-foreground">${(trip.expected_revenue ?? 0).toLocaleString()}</span>
+                        <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
           );
@@ -251,6 +303,35 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
 
           {selectedTrip && selectedQueueInfo && (
             <div className="space-y-4 py-2">
+              {/* Override Banner — shown when this trip was overridden */}
+              {selectedOverride && (
+                <div className="rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] p-3 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-[hsl(var(--status-yellow))]" />
+                    <span className="text-sm font-semibold text-[hsl(var(--status-yellow))]">Billing Override Applied</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {new Date(selectedOverride.overridden_at).toLocaleString()}
+                    </div>
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <User className="h-3 w-3" />
+                      {selectedOverride.overridden_by?.slice(0, 8) ?? "System"}…
+                    </div>
+                  </div>
+                  <p className="text-xs text-foreground"><span className="font-medium">Reason:</span> {selectedOverride.override_reason}</p>
+                  {selectedOverride.previous_blockers_snapshot && (
+                    <div className="text-[10px] text-muted-foreground">
+                      <span className="font-medium">Original blockers:</span>{" "}
+                      {(selectedOverride.previous_blockers_snapshot as any)?.blockers?.join(", ") ||
+                       (selectedOverride.previous_blockers_snapshot as any)?.missing?.join(", ") ||
+                       "None recorded"}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Status banner */}
               <div className={`rounded-md border p-3 ${QUEUE_CONFIG[selectedQueueInfo.status].className}`}>
                 <div className="flex items-center gap-2">
@@ -313,7 +394,7 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                 <div className="rounded-md border p-3 space-y-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Override to Billing Ready</p>
                   <p className="text-xs text-muted-foreground">
-                    This will mark the trip as billing-ready despite missing items. The override will be logged to the audit trail.
+                    This will mark the trip as billing-ready despite missing items. The override will be logged to the audit trail and billing_overrides table.
                   </p>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Override Reason (required)</Label>
