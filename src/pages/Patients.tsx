@@ -68,6 +68,10 @@ export default function Patients() {
     standing_order: false, special_handling: "",
     primary_payer: "", secondary_payer: "", member_id: "",
     auth_required: false, auth_expiration: "", trips_per_week_limit: "",
+    // New operational needs
+    stairs_required: "unknown", stair_chair_required: false,
+    oxygen_lpm: "", special_equipment_required: "none",
+    dialysis_window_minutes: "45", must_arrive_by: "",
   });
 
   const fetchPatients = async () => {
@@ -90,6 +94,9 @@ export default function Patients() {
       standing_order: false, special_handling: "",
       primary_payer: "", secondary_payer: "", member_id: "",
       auth_required: false, auth_expiration: "", trips_per_week_limit: "",
+      stairs_required: "unknown", stair_chair_required: false,
+      oxygen_lpm: "", special_equipment_required: "none",
+      dialysis_window_minutes: "45", must_arrive_by: "",
     });
     setEditing(null);
   };
@@ -119,6 +126,12 @@ export default function Patients() {
       auth_required: (p as any).auth_required ?? false,
       auth_expiration: (p as any).auth_expiration ?? "",
       trips_per_week_limit: (p as any).trips_per_week_limit?.toString() ?? "",
+      stairs_required: (p as any).stairs_required ?? "unknown",
+      stair_chair_required: (p as any).stair_chair_required ?? false,
+      oxygen_lpm: (p as any).oxygen_lpm?.toString() ?? "",
+      special_equipment_required: (p as any).special_equipment_required ?? "none",
+      dialysis_window_minutes: (p as any).dialysis_window_minutes?.toString() ?? "45",
+      must_arrive_by: (p as any).must_arrive_by ?? "",
     });
     setDialogOpen(true);
   };
@@ -152,6 +165,13 @@ export default function Patients() {
       auth_required: form.auth_required,
       auth_expiration: form.auth_expiration || null,
       trips_per_week_limit: form.trips_per_week_limit ? parseInt(form.trips_per_week_limit) : null,
+      // New operational needs
+      stairs_required: form.stairs_required,
+      stair_chair_required: form.stair_chair_required,
+      oxygen_lpm: form.oxygen_lpm ? parseFloat(form.oxygen_lpm) : null,
+      special_equipment_required: form.special_equipment_required,
+      dialysis_window_minutes: form.dialysis_window_minutes ? parseInt(form.dialysis_window_minutes) : 45,
+      must_arrive_by: form.must_arrive_by || null,
     };
 
     if (!payload.first_name || !payload.last_name) return;
@@ -420,6 +440,7 @@ export default function Patients() {
                             <SelectItem value="ambulatory">Ambulatory</SelectItem>
                             <SelectItem value="wheelchair">Wheelchair</SelectItem>
                             <SelectItem value="stretcher">Stretcher</SelectItem>
+                            <SelectItem value="bedbound">Bedbound</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -427,6 +448,56 @@ export default function Patients() {
                         <Label>Trips/Week Limit</Label>
                         <Input type="number" value={form.trips_per_week_limit} onChange={e => setForm({ ...form, trips_per_week_limit: e.target.value })} placeholder="No limit" />
                       </div>
+                    </div>
+
+                    {/* Operational Needs */}
+                    <div className="border-t pt-3 space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Operational Needs</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label>Stairs Required</Label>
+                          <Select value={form.stairs_required} onValueChange={v => setForm({ ...form, stairs_required: v, stair_chair_required: v === "full_flight" })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              <SelectItem value="few_steps">Few Steps</SelectItem>
+                              <SelectItem value="full_flight">Full Flight</SelectItem>
+                              <SelectItem value="unknown">Unknown</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Special Equipment</Label>
+                          <Select value={form.special_equipment_required} onValueChange={v => setForm({ ...form, special_equipment_required: v })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              <SelectItem value="bariatric_stretcher">Bariatric Stretcher</SelectItem>
+                              <SelectItem value="extra_crew">Extra Crew</SelectItem>
+                              <SelectItem value="lift_assist">Lift Assist</SelectItem>
+                              <SelectItem value="other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <Label>O₂ LPM</Label>
+                          <Input type="number" step="0.5" value={form.oxygen_lpm} onChange={e => setForm({ ...form, oxygen_lpm: e.target.value })} placeholder="—" />
+                        </div>
+                        <div>
+                          <Label>Dialysis Window (min)</Label>
+                          <Input type="number" value={form.dialysis_window_minutes} onChange={e => setForm({ ...form, dialysis_window_minutes: e.target.value })} />
+                        </div>
+                        <div>
+                          <Label>Must Arrive By</Label>
+                          <Input type="time" value={form.must_arrive_by} onChange={e => setForm({ ...form, must_arrive_by: e.target.value })} />
+                        </div>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={form.stair_chair_required} onChange={e => setForm({ ...form, stair_chair_required: e.target.checked })} className="accent-primary" />
+                        Stair Chair Required
+                      </label>
                     </div>
                     <div className="flex flex-wrap gap-4">
                       {[

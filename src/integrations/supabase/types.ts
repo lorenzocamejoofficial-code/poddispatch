@@ -929,6 +929,7 @@ export type Database = {
           chair_time: string | null
           company_id: string | null
           created_at: string
+          dialysis_window_minutes: number
           dob: string | null
           dropoff_facility: string | null
           first_name: string
@@ -937,7 +938,9 @@ export type Database = {
           last_name: string
           member_id: string | null
           mobility: string | null
+          must_arrive_by: string | null
           notes: string | null
+          oxygen_lpm: number | null
           oxygen_required: boolean | null
           phone: string | null
           pickup_address: string | null
@@ -948,7 +951,10 @@ export type Database = {
           schedule_days: Database["public"]["Enums"]["schedule_days"] | null
           secondary_payer: string | null
           simulation_run_id: string | null
+          special_equipment_required: string
           special_handling: string | null
+          stair_chair_required: boolean | null
+          stairs_required: string
           standing_order: boolean | null
           status: Database["public"]["Enums"]["patient_status"]
           transport_type: Database["public"]["Enums"]["transport_type"]
@@ -963,6 +969,7 @@ export type Database = {
           chair_time?: string | null
           company_id?: string | null
           created_at?: string
+          dialysis_window_minutes?: number
           dob?: string | null
           dropoff_facility?: string | null
           first_name: string
@@ -971,7 +978,9 @@ export type Database = {
           last_name: string
           member_id?: string | null
           mobility?: string | null
+          must_arrive_by?: string | null
           notes?: string | null
+          oxygen_lpm?: number | null
           oxygen_required?: boolean | null
           phone?: string | null
           pickup_address?: string | null
@@ -982,7 +991,10 @@ export type Database = {
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
           secondary_payer?: string | null
           simulation_run_id?: string | null
+          special_equipment_required?: string
           special_handling?: string | null
+          stair_chair_required?: boolean | null
+          stairs_required?: string
           standing_order?: boolean | null
           status?: Database["public"]["Enums"]["patient_status"]
           transport_type?: Database["public"]["Enums"]["transport_type"]
@@ -997,6 +1009,7 @@ export type Database = {
           chair_time?: string | null
           company_id?: string | null
           created_at?: string
+          dialysis_window_minutes?: number
           dob?: string | null
           dropoff_facility?: string | null
           first_name?: string
@@ -1005,7 +1018,9 @@ export type Database = {
           last_name?: string
           member_id?: string | null
           mobility?: string | null
+          must_arrive_by?: string | null
           notes?: string | null
+          oxygen_lpm?: number | null
           oxygen_required?: boolean | null
           phone?: string | null
           pickup_address?: string | null
@@ -1016,7 +1031,10 @@ export type Database = {
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
           secondary_payer?: string | null
           simulation_run_id?: string | null
+          special_equipment_required?: string
           special_handling?: string | null
+          stair_chair_required?: boolean | null
+          stairs_required?: string
           standing_order?: boolean | null
           status?: Database["public"]["Enums"]["patient_status"]
           transport_type?: Database["public"]["Enums"]["transport_type"]
@@ -1084,43 +1102,58 @@ export type Database = {
       profiles: {
         Row: {
           active: boolean
+          bariatric_trained: boolean
           cert_level: Database["public"]["Enums"]["cert_level"]
           company_id: string | null
           created_at: string
           full_name: string
           id: string
           is_simulated: boolean
+          lift_assist_ok: boolean
+          max_safe_team_lift_lbs: number
+          oxygen_handling_trained: boolean
           phone_number: string | null
           sex: Database["public"]["Enums"]["sex_type"]
           simulation_run_id: string | null
+          stair_chair_trained: boolean
           updated_at: string
           user_id: string
         }
         Insert: {
           active?: boolean
+          bariatric_trained?: boolean
           cert_level?: Database["public"]["Enums"]["cert_level"]
           company_id?: string | null
           created_at?: string
           full_name: string
           id?: string
           is_simulated?: boolean
+          lift_assist_ok?: boolean
+          max_safe_team_lift_lbs?: number
+          oxygen_handling_trained?: boolean
           phone_number?: string | null
           sex?: Database["public"]["Enums"]["sex_type"]
           simulation_run_id?: string | null
+          stair_chair_trained?: boolean
           updated_at?: string
           user_id: string
         }
         Update: {
           active?: boolean
+          bariatric_trained?: boolean
           cert_level?: Database["public"]["Enums"]["cert_level"]
           company_id?: string | null
           created_at?: string
           full_name?: string
           id?: string
           is_simulated?: boolean
+          lift_assist_ok?: boolean
+          max_safe_team_lift_lbs?: number
+          oxygen_handling_trained?: boolean
           phone_number?: string | null
           sex?: Database["public"]["Enums"]["sex_type"]
           simulation_run_id?: string | null
+          stair_chair_trained?: boolean
           updated_at?: string
           user_id?: string
         }
@@ -1295,6 +1328,77 @@ export type Database = {
             columns: ["truck_id"]
             isOneToOne: false
             referencedRelation: "trucks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      safety_overrides: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          id: string
+          leg_id: string | null
+          overridden_at: string
+          overridden_by: string
+          override_reason: string
+          override_status: string
+          reasons: string[]
+          slot_id: string | null
+          trip_record_id: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          leg_id?: string | null
+          overridden_at?: string
+          overridden_by: string
+          override_reason: string
+          override_status: string
+          reasons?: string[]
+          slot_id?: string | null
+          trip_record_id?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          leg_id?: string | null
+          overridden_at?: string
+          overridden_by?: string
+          override_reason?: string
+          override_status?: string
+          reasons?: string[]
+          slot_id?: string | null
+          trip_record_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "safety_overrides_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "safety_overrides_leg_id_fkey"
+            columns: ["leg_id"]
+            isOneToOne: false
+            referencedRelation: "scheduling_legs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "safety_overrides_slot_id_fkey"
+            columns: ["slot_id"]
+            isOneToOne: false
+            referencedRelation: "truck_run_slots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "safety_overrides_trip_record_id_fkey"
+            columns: ["trip_record_id"]
+            isOneToOne: false
+            referencedRelation: "trip_records"
             referencedColumns: ["id"]
           },
         ]
@@ -1600,6 +1704,7 @@ export type Database = {
           oxygen_during_transport: boolean | null
           oxygen_saturation: number | null
           patient_id: string | null
+          pcr_type: string | null
           pcs_attached: boolean | null
           pickup_location: string | null
           requires_monitoring: boolean | null
@@ -1657,6 +1762,7 @@ export type Database = {
           oxygen_during_transport?: boolean | null
           oxygen_saturation?: number | null
           patient_id?: string | null
+          pcr_type?: string | null
           pcs_attached?: boolean | null
           pickup_location?: string | null
           requires_monitoring?: boolean | null
@@ -1714,6 +1820,7 @@ export type Database = {
           oxygen_during_transport?: boolean | null
           oxygen_saturation?: number | null
           patient_id?: string | null
+          pcr_type?: string | null
           pcs_attached?: boolean | null
           pickup_location?: string | null
           requires_monitoring?: boolean | null
@@ -1925,6 +2032,10 @@ export type Database = {
           active: boolean
           company_id: string | null
           created_at: string
+          has_bariatric_kit: boolean
+          has_oxygen_mount: boolean
+          has_power_stretcher: boolean
+          has_stair_chair: boolean
           id: string
           is_simulated: boolean
           name: string
@@ -1934,6 +2045,10 @@ export type Database = {
           active?: boolean
           company_id?: string | null
           created_at?: string
+          has_bariatric_kit?: boolean
+          has_oxygen_mount?: boolean
+          has_power_stretcher?: boolean
+          has_stair_chair?: boolean
           id?: string
           is_simulated?: boolean
           name: string
@@ -1943,6 +2058,10 @@ export type Database = {
           active?: boolean
           company_id?: string | null
           created_at?: string
+          has_bariatric_kit?: boolean
+          has_oxygen_mount?: boolean
+          has_power_stretcher?: boolean
+          has_stair_chair?: boolean
           id?: string
           is_simulated?: boolean
           name?: string

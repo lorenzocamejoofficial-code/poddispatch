@@ -8,6 +8,8 @@ import type { Database } from "@/integrations/supabase/types";
 import { RevenueStrengthBadge, type RevenueStrength } from "./RevenueStrengthBadge";
 import { TimingRiskBadge, computeTimingRisk } from "./TimingRiskBadge";
 import { BillingReadinessSummary } from "./BillingReadinessSummary";
+import { SafetyBadge, PatientNeedsWarning } from "./SafetyBadge";
+import { evaluateSafetyRules, hasCompletePatientNeeds, type PatientNeeds, type CrewCapability, type TruckEquipment, type SafetyStatus } from "@/lib/safety-rules";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
 
@@ -27,6 +29,11 @@ interface RunInfo {
   hcpcs_modifiers?: string[];
   loaded_miles?: number | null;
   estimated_charge?: number | null;
+  // Safety fields
+  patient_needs?: PatientNeeds;
+  safety_status?: SafetyStatus;
+  safety_reasons?: string[];
+  needs_missing?: string[];
 }
 
 interface TruckCardProps {
@@ -221,6 +228,13 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  {/* Safety badge */}
+                  {run.safety_status && run.safety_status !== "OK" && (
+                    <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
+                  )}
+                  {run.safety_status === "OK" && run.needs_missing && run.needs_missing.length > 0 && (
+                    <PatientNeedsWarning missing={run.needs_missing} />
+                  )}
                   {run.trip_type === "dialysis" && run.pickup_time && run.status !== "completed" && (() => {
                     const risk = computeTimingRisk(run.pickup_time, run.status);
                     return risk ? <TimingRiskBadge risk={risk} pickupTime={run.pickup_time} /> : null;
