@@ -66,8 +66,8 @@ function computeQueueStatus(trip: TripForQueue, payerRules: any): {
   missing: string[];
   blockers: string[];
 } {
-  // If trip was already overridden (claim_ready + ready_for_billing), treat as ready
-  if (trip.status === "ready_for_billing" && trip.claim_ready) {
+  // Override takes absolute priority: if claim_ready is true the trip is Ready regardless of PCR gaps
+  if (trip.claim_ready) {
     return { status: "ready", missing: [], blockers: [] };
   }
 
