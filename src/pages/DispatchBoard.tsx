@@ -6,6 +6,7 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { computeCleanTripStatus } from "@/lib/billing-utils";
 import { computeRevenueStrength, type RevenueStrength } from "@/components/dispatch/RevenueStrengthBadge";
+import { evaluateSafetyRules, hasCompletePatientNeeds, type SafetyStatus } from "@/lib/safety-rules";
 import type { Database } from "@/integrations/supabase/types";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
@@ -83,27 +84,26 @@ export default function DispatchBoard() {
   const fetchData = async () => {
     const [
       { data: truckRows },
-      { data: crewRows },
       { data: slotRows },
       { data: alertRows },
       { data: availRows },
       { data: tripRows },
       { data: payerRules },
+      { data: crewCapRows },
     ] = await Promise.all([
       supabase.from("trucks").select("*").eq("active", true),
-      supabase.from("crews")
-        .select("*, member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
-        .eq("active_date", selectedDate),
       supabase
         .from("truck_run_slots")
-        .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, trip_type, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, auth_required, auth_expiration))")
+        .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, trip_type, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, auth_required, auth_expiration, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric))")
         .eq("run_date", selectedDate)
         .order("slot_order"),
       supabase.from("alerts").select("*").eq("dismissed", false).order("created_at", { ascending: false }),
       supabase.from("truck_availability" as any).select("*").lte("start_date", selectedDate).gte("end_date", selectedDate),
-      // Fetch trip records for billing status
       supabase.from("trip_records" as any).select("*").eq("run_date", selectedDate),
       supabase.from("payer_billing_rules" as any).select("*"),
+      supabase.from("crews")
+        .select("*, member1:profiles!crews_member1_id_fkey(id, full_name, max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(id, full_name, max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
+        .eq("active_date", selectedDate),
     ]);
 
     const availMap = new Map<string, { status: string; reason: string | null }>(
@@ -120,13 +120,37 @@ export default function DispatchBoard() {
     const prMap = new Map<string, any>();
     ((payerRules ?? []) as any[]).forEach((r: any) => prMap.set(r.payer_type, r));
 
-    const truckData: TruckData[] = (truckRows ?? []).map((t) => {
-      const crew = crewRows?.find((c) => c.truck_id === t.id);
+    const truckData: TruckData[] = (truckRows ?? []).map((t: any) => {
+      const crew = (crewCapRows as any[])?.find((c: any) => c.truck_id === t.id);
       const crewNames: string[] = [];
       if (crew) {
         if (crew.member1?.full_name) crewNames.push(crew.member1.full_name);
         if (crew.member2?.full_name) crewNames.push(crew.member2.full_name);
       }
+
+      // Build crew capability + truck equipment for safety checks
+      const crewCapability = {
+        member1: crew?.member1 ? {
+          max_safe_team_lift_lbs: crew.member1.max_safe_team_lift_lbs ?? 250,
+          stair_chair_trained: crew.member1.stair_chair_trained ?? false,
+          bariatric_trained: crew.member1.bariatric_trained ?? false,
+          oxygen_handling_trained: crew.member1.oxygen_handling_trained ?? false,
+          lift_assist_ok: crew.member1.lift_assist_ok ?? false,
+        } : null,
+        member2: crew?.member2 ? {
+          max_safe_team_lift_lbs: crew.member2.max_safe_team_lift_lbs ?? 250,
+          stair_chair_trained: crew.member2.stair_chair_trained ?? false,
+          bariatric_trained: crew.member2.bariatric_trained ?? false,
+          oxygen_handling_trained: crew.member2.oxygen_handling_trained ?? false,
+          lift_assist_ok: crew.member2.lift_assist_ok ?? false,
+        } : null,
+      };
+      const truckEquipment = {
+        has_power_stretcher: t.has_power_stretcher ?? false,
+        has_stair_chair: t.has_stair_chair ?? false,
+        has_bariatric_kit: t.has_bariatric_kit ?? false,
+        has_oxygen_mount: t.has_oxygen_mount ?? false,
+      };
 
       const truckSlots = ((slotRows ?? []) as any[])
         .filter((s) => s.truck_id === t.id)
@@ -146,6 +170,20 @@ export default function DispatchBoard() {
           prMap
         );
 
+        // Evaluate safety
+        const patientNeeds = {
+          weight_lbs: patient?.weight_lbs ?? null,
+          mobility: patient?.mobility ?? null,
+          stairs_required: patient?.stairs_required ?? null,
+          stair_chair_required: patient?.stair_chair_required ?? null,
+          oxygen_required: patient?.oxygen_required ?? null,
+          oxygen_lpm: patient?.oxygen_lpm ?? null,
+          special_equipment_required: patient?.special_equipment_required ?? null,
+          bariatric: patient?.bariatric ?? null,
+        };
+        const safetyResult = evaluateSafetyRules(patientNeeds, crewCapability, truckEquipment);
+        const needsCheck = hasCompletePatientNeeds(patientNeeds);
+
         return {
           id: s.id,
           patient_name: patientName,
@@ -159,7 +197,11 @@ export default function DispatchBoard() {
           hcpcs_codes: tripRecord?.hcpcs_codes ?? [],
           hcpcs_modifiers: tripRecord?.hcpcs_modifiers ?? [],
           loaded_miles: tripRecord?.loaded_miles ?? null,
-          estimated_charge: null, // computed later if charge master available
+          estimated_charge: null,
+          patient_needs: patientNeeds,
+          safety_status: safetyResult.status as SafetyStatus,
+          safety_reasons: safetyResult.reasons,
+          needs_missing: needsCheck.missing,
         };
       });
 

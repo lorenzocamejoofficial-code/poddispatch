@@ -51,6 +51,8 @@ export default function Employees() {
   const [editForm, setEditForm] = useState({
     full_name: "", phone_number: "", sex: "M" as "M" | "F",
     cert_level: "EMT-B", active: true,
+    max_safe_team_lift_lbs: "250", stair_chair_trained: false,
+    bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false,
   });
 
   const fetchEmployees = async () => {
@@ -118,6 +120,11 @@ export default function Employees() {
       sex: emp.sex as "M" | "F",
       cert_level: emp.cert_level,
       active: emp.active,
+      max_safe_team_lift_lbs: (emp as any).max_safe_team_lift_lbs?.toString() ?? "250",
+      stair_chair_trained: (emp as any).stair_chair_trained ?? false,
+      bariatric_trained: (emp as any).bariatric_trained ?? false,
+      oxygen_handling_trained: (emp as any).oxygen_handling_trained ?? false,
+      lift_assist_ok: (emp as any).lift_assist_ok ?? false,
     });
     setEditDialogOpen(true);
   };
@@ -135,6 +142,11 @@ export default function Employees() {
       sex: editForm.sex,
       cert_level: editForm.cert_level,
       active: editForm.active,
+      max_safe_team_lift_lbs: editForm.max_safe_team_lift_lbs ? parseInt(editForm.max_safe_team_lift_lbs) : 250,
+      stair_chair_trained: editForm.stair_chair_trained,
+      bariatric_trained: editForm.bariatric_trained,
+      oxygen_handling_trained: editForm.oxygen_handling_trained,
+      lift_assist_ok: editForm.lift_assist_ok,
     } as any).eq("id", editingEmployee.id);
 
     if (error) {
@@ -402,6 +414,27 @@ export default function Employees() {
                       <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+              {/* Crew Capability Toggles */}
+              <div className="border-t pt-3 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Crew Capabilities</p>
+                <div>
+                  <Label>Max Safe Team Lift (lbs)</Label>
+                  <Input type="number" value={editForm.max_safe_team_lift_lbs} onChange={e => setEditForm({ ...editForm, max_safe_team_lift_lbs: e.target.value })} placeholder="250" />
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  {[
+                    { key: "stair_chair_trained" as const, label: "Stair Chair Trained" },
+                    { key: "bariatric_trained" as const, label: "Bariatric Trained" },
+                    { key: "oxygen_handling_trained" as const, label: "Oxygen Handling" },
+                    { key: "lift_assist_ok" as const, label: "Lift Assist OK" },
+                  ].map(f => (
+                    <label key={f.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="checkbox" checked={editForm[f.key]} onChange={e => setEditForm({ ...editForm, [f.key]: e.target.checked })} className="accent-primary" />
+                      {f.label}
+                    </label>
+                  ))}
                 </div>
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3">
