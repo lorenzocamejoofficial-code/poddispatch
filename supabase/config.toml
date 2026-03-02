@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.company-signup]
 verify_jwt = false
+
+[functions.dispatch-intelligence]
+verify_jwt = false

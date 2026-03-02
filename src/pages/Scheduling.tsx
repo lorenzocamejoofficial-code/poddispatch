@@ -19,6 +19,7 @@ import { RunPool } from "@/components/scheduling/RunPool";
 import { TemplateControls } from "@/components/scheduling/TemplateControls";
 import { UpcomingNonDialysisPanel } from "@/components/scheduling/UpcomingNonDialysisPanel";
 import { OperationalAlertsPanel, type OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
+import { CommsOutbox } from "@/components/dispatch/CommsOutbox";
 import { useSchedulingStore, type LegDisplay } from "@/hooks/useSchedulingStore";
 import {
   DndContext,
@@ -691,23 +692,26 @@ export default function Scheduling() {
             {(() => {
               const openAlerts = operationalAlerts.filter((a) => a.status === "open");
               return (
-                <section>
-                  <div className="mb-2 flex items-center gap-2">
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                      Patient Not Ready Alerts
-                    </h3>
-                    {openAlerts.length > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--status-red))]/15 px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--status-red))]">
-                        <AlertCircle className="h-3 w-3" />
-                        {openAlerts.length} open
-                      </span>
-                    )}
-                  </div>
-                  <OperationalAlertsPanel
-                    alerts={operationalAlerts}
-                    onResolve={resolveOperationalAlert}
-                  />
-                </section>
+                <>
+                  <section>
+                    <div className="mb-2 flex items-center gap-2">
+                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                        Patient Not Ready Alerts
+                      </h3>
+                      {openAlerts.length > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--status-red))]/15 px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--status-red))]">
+                          <AlertCircle className="h-3 w-3" />
+                          {openAlerts.length} open
+                        </span>
+                      )}
+                    </div>
+                    <OperationalAlertsPanel
+                      alerts={operationalAlerts}
+                      onResolve={resolveOperationalAlert}
+                    />
+                  </section>
+                  <CommsOutbox selectedDate={selectedDate} />
+                </>
               );
             })()}
 
