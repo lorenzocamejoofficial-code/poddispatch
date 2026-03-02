@@ -566,6 +566,12 @@ Deno.serve(async (req) => {
       });
     }
 
+    const body = await req.json();
+    const { action } = body;
+
+    // Resolve company_id: try user auth first, fall back to service-role with body.company_id
+    let companyId: string | null = null;
+
     const callerClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -573,23 +579,24 @@ Deno.serve(async (req) => {
     );
 
     const { data: callerUser } = await callerClient.auth.getUser();
-    if (!callerUser?.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (callerUser?.user) {
+      const { data: membership } = await admin
+        .from("company_memberships")
+        .select("company_id")
+        .eq("user_id", callerUser.user.id)
+        .maybeSingle();
+      companyId = membership?.company_id ?? null;
     }
 
-    const body = await req.json();
-    const { action } = body;
+    // Service-role fallback: accept company_id from body (only when no user resolved)
+    if (!companyId && body.company_id) {
+      // Verify it's actually the service role calling (token matches service role key)
+      const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (authHeader === `Bearer ${svcKey}`) {
+        companyId = body.company_id;
+      }
+    }
 
-    // Get user's company
-    const { data: membership } = await admin
-      .from("company_memberships")
-      .select("company_id")
-      .eq("user_id", callerUser.user.id)
-      .maybeSingle();
-
-    const companyId = membership?.company_id;
     if (!companyId) {
       return new Response(JSON.stringify({ error: "No company found" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },

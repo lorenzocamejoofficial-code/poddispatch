@@ -13,6 +13,18 @@ interface TruckMetric {
   trip_count: number;
 }
 
+interface DailyTruckMetric {
+  truck_id: string;
+  truck_name: string;
+  on_time_pct: number;
+  avg_facility_wait_min: number;
+  operational_risk_score: number;
+  total_trips: number;
+  on_time_count: number;
+  late_count: number;
+  late_causes: Record<string, number>;
+}
+
 export default function ReportsAndMetrics() {
   const [range, setRange] = useState("week");
   const [customStart, setCustomStart] = useState("");
@@ -29,6 +41,7 @@ export default function ReportsAndMetrics() {
   const [agingBuckets, setAgingBuckets] = useState<ReturnType<typeof computeAgingBuckets>>([]);
   const [avgDaysToPay, setAvgDaysToPay] = useState<number | null>(null);
   const [allClaims, setAllClaims] = useState<any[]>([]);
+  const [dailyTruckMetrics, setDailyTruckMetrics] = useState<DailyTruckMetric[]>([]);
 
   const getDateRange = useCallback(() => {
     const today = new Date();
@@ -58,6 +71,7 @@ export default function ReportsAndMetrics() {
         { data: alerts },
         { data: trucks },
         { data: allClaimsData },
+        { data: dtmData },
       ] = await Promise.all([
         supabase.from("trip_records" as any).select("id, status, truck_id").gte("run_date", start).lte("run_date", end),
         supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, denial_reason, submitted_at, paid_at").gte("run_date", start).lte("run_date", end),
@@ -65,6 +79,8 @@ export default function ReportsAndMetrics() {
         supabase.from("trucks").select("id, name"),
         // All claims for AR aging (not date filtered)
         supabase.from("claim_records" as any).select("id, status, total_charge, submitted_at, paid_at"),
+        // Daily truck metrics for OTP/risk
+        supabase.from("daily_truck_metrics" as any).select("*").gte("run_date", start).lte("run_date", end),
       ]);
 
       const tripList = (trips ?? []) as any[];
@@ -113,6 +129,41 @@ export default function ReportsAndMetrics() {
       setAgingBuckets(computeAgingBuckets(allClaimsList));
       setAvgDaysToPay(computeAverageDaysToPayment(allClaimsList));
       setAllClaims(allClaimsList);
+
+      // Daily truck metrics
+      const dtmList = (dtmData ?? []) as any[];
+      const truckNameMap = new Map((trucks ?? []).map((t: any) => [t.id, t.name]));
+      // Aggregate across dates per truck
+      const dtmAgg = new Map<string, DailyTruckMetric>();
+      for (const row of dtmList) {
+        const existing = dtmAgg.get(row.truck_id);
+        if (!existing) {
+          dtmAgg.set(row.truck_id, {
+            truck_id: row.truck_id,
+            truck_name: truckNameMap.get(row.truck_id) ?? "Unknown",
+            on_time_pct: Number(row.on_time_pct),
+            avg_facility_wait_min: Number(row.avg_facility_wait_min),
+            operational_risk_score: Number(row.operational_risk_score),
+            total_trips: Number(row.total_trips),
+            on_time_count: Number(row.on_time_count),
+            late_count: Number(row.late_count),
+            late_causes: row.late_causes ?? {},
+          });
+        } else {
+          // Average across days
+          const total = existing.total_trips + Number(row.total_trips);
+          existing.on_time_count += Number(row.on_time_count);
+          existing.late_count += Number(row.late_count);
+          existing.total_trips = total;
+          existing.on_time_pct = total > 0 ? Math.round(((existing.on_time_count) / total) * 100) : 0;
+          existing.avg_facility_wait_min = Math.round(((existing.avg_facility_wait_min + Number(row.avg_facility_wait_min)) / 2) * 10) / 10;
+          existing.operational_risk_score = Math.max(existing.operational_risk_score, Number(row.operational_risk_score));
+          for (const [k, v] of Object.entries(row.late_causes ?? {})) {
+            existing.late_causes[k] = (existing.late_causes[k] ?? 0) + (v as number);
+          }
+        }
+      }
+      setDailyTruckMetrics(Array.from(dtmAgg.values()).sort((a, b) => b.operational_risk_score - a.operational_risk_score));
     } finally {
       setLoading(false);
     }
@@ -139,6 +190,7 @@ export default function ReportsAndMetrics() {
         <div className="flex flex-wrap items-center gap-3">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="otp"><Clock className="h-3.5 w-3.5 mr-1" />OTP & Risk</TabsTrigger>
             <TabsTrigger value="ar-aging"><DollarSign className="h-3.5 w-3.5 mr-1" />AR Aging</TabsTrigger>
           </TabsList>
           <Select value={range} onValueChange={setRange}>
@@ -227,6 +279,123 @@ export default function ReportsAndMetrics() {
                   </div>
                 </div>
               )}
+            </>
+          )}
+        </TabsContent>
+
+        {/* OTP & Operational Risk */}
+        <TabsContent value="otp" className="m-0 space-y-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-muted-foreground">Loading…</div>
+          ) : dailyTruckMetrics.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+              <AlertTriangle className="h-6 w-6" />
+              <p className="text-sm">No on-time performance data for this period.</p>
+              <p className="text-xs">Run a simulation full_cycle or wait for live data.</p>
+            </div>
+          ) : (
+            <>
+              {/* OTP Summary KPIs */}
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+                <div className="rounded-lg border bg-card p-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Avg On-Time %</p>
+                  <p className={`text-2xl font-bold ${
+                    dailyTruckMetrics.reduce((s, d) => s + d.on_time_pct, 0) / dailyTruckMetrics.length >= 80
+                      ? "text-[hsl(var(--status-green))]" : "text-destructive"
+                  }`}>
+                    {Math.round(dailyTruckMetrics.reduce((s, d) => s + d.on_time_pct, 0) / dailyTruckMetrics.length)}%
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-card p-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Avg Facility Wait</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {(dailyTruckMetrics.reduce((s, d) => s + d.avg_facility_wait_min, 0) / dailyTruckMetrics.length).toFixed(1)}m
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-card p-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Max Risk Score</p>
+                  <p className={`text-2xl font-bold ${
+                    Math.max(...dailyTruckMetrics.map(d => d.operational_risk_score)) > 50
+                      ? "text-destructive" : "text-foreground"
+                  }`}>
+                    {Math.max(...dailyTruckMetrics.map(d => d.operational_risk_score))}
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-card p-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Total Late</p>
+                  <p className="text-2xl font-bold text-destructive">
+                    {dailyTruckMetrics.reduce((s, d) => s + d.late_count, 0)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Per-truck OTP table */}
+              <div className="rounded-lg border bg-card overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <th className="px-4 py-3 text-left">Truck</th>
+                      <th className="px-4 py-3 text-right">Trips</th>
+                      <th className="px-4 py-3 text-right">On-Time %</th>
+                      <th className="px-4 py-3 text-right">Late</th>
+                      <th className="px-4 py-3 text-right">Avg Wait</th>
+                      <th className="px-4 py-3 text-right">Risk Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dailyTruckMetrics.map(dtm => (
+                      <tr key={dtm.truck_id} className="border-b hover:bg-muted/30">
+                        <td className="px-4 py-3 font-medium flex items-center gap-2">
+                          <Truck className="h-3.5 w-3.5 text-muted-foreground" />{dtm.truck_name}
+                        </td>
+                        <td className="px-4 py-3 text-right">{dtm.total_trips}</td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={dtm.on_time_pct >= 80 ? "text-[hsl(var(--status-green))]" : "text-destructive"}>
+                            {dtm.on_time_pct}%
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-destructive">{dtm.late_count}</td>
+                        <td className="px-4 py-3 text-right">{dtm.avg_facility_wait_min}m</td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={`inline-flex items-center justify-center w-8 h-6 rounded text-xs font-bold ${
+                            dtm.operational_risk_score > 50 ? "bg-destructive/10 text-destructive" :
+                            dtm.operational_risk_score > 25 ? "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]" :
+                            "bg-[hsl(var(--status-green))]/10 text-[hsl(var(--status-green))]"
+                          }`}>
+                            {dtm.operational_risk_score}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Late cause breakdown */}
+              {(() => {
+                const allCauses: Record<string, number> = {};
+                dailyTruckMetrics.forEach(d => {
+                  for (const [k, v] of Object.entries(d.late_causes)) {
+                    allCauses[k] = (allCauses[k] ?? 0) + v;
+                  }
+                });
+                const sorted = Object.entries(allCauses).sort(([,a], [,b]) => b - a);
+                if (sorted.length === 0) return null;
+                return (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Late Root Causes</p>
+                    <div className="rounded-lg border bg-card overflow-hidden">
+                      {sorted.map(([cause, count], i) => (
+                        <div key={cause} className="flex items-center gap-3 px-4 py-3 border-b last:border-0">
+                          <span className="rounded-full bg-destructive/10 text-destructive text-xs font-bold w-6 h-6 flex items-center justify-center shrink-0">{i + 1}</span>
+                          <span className="text-sm flex-1 text-foreground">{cause.replace(/_/g, " ")}</span>
+                          <span className="text-sm font-semibold text-destructive">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           )}
         </TabsContent>

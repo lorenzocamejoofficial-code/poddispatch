@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSimulationSession } from "@/hooks/useSimulationSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -110,6 +111,7 @@ const STATUS_COLORS: Record<TripStatus, string> = {
 
 export default function TripsAndClinical() {
   const { canManageBilling } = useAuth();
+  const { simulationRunId, refreshToken } = useSimulationSession();
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -131,8 +133,12 @@ export default function TripsAndClinical() {
   const fetchTrips = useCallback(async () => {
     setLoading(true);
     try {
+      let tripQuery = supabase.from("trip_records" as any).select("*").eq("run_date", dateFilter).order("scheduled_pickup_time", { ascending: true });
+      if (simulationRunId) {
+        tripQuery = tripQuery.eq("simulation_run_id", simulationRunId);
+      }
       const [{ data: tripRows, error }, { data: facilities }, { data: payerRules }] = await Promise.all([
-        supabase.from("trip_records" as any).select("*").eq("run_date", dateFilter).order("scheduled_pickup_time", { ascending: true }),
+        tripQuery,
         supabase.from("facilities" as any).select("name, facility_type"),
         supabase.from("payer_billing_rules" as any).select("*"),
       ]);
@@ -181,9 +187,16 @@ export default function TripsAndClinical() {
     } finally {
       setLoading(false);
     }
-  }, [dateFilter]);
+  }, [dateFilter, simulationRunId]);
 
   useEffect(() => { fetchTrips(); }, [fetchTrips]);
+
+  // Re-fetch when simulation session refreshes
+  useEffect(() => {
+    if (!refreshToken) return;
+    setTrips([]);
+    fetchTrips();
+  }, [refreshToken, fetchTrips]);
 
   useEffect(() => {
     const ch = supabase
