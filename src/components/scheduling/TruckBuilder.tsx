@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle, Clock, Link2, AlertCircle } from "lucide-react";
+import { TruckRiskBadge } from "@/components/dispatch/TruckRiskBadge";
+import { HoldTimerIndicator } from "@/components/dispatch/HoldTimerIndicator";
 import { toast } from "sonner";
 import { useSchedulingStore, type LegDisplay, type TruckOption, type CrewDisplay } from "@/hooks/useSchedulingStore";
 import {
@@ -129,9 +131,51 @@ interface TruckBuilderProps {
   operationalAlerts?: OperationalAlert[];
 }
 
+interface TruckRiskData {
+  truck_id: string;
+  late_probability: number;
+  risk_color: string;
+  collapse_index: number;
+}
+
+interface HoldTimerData {
+  id: string;
+  trip_id: string;
+  hold_type: string;
+  started_at: string;
+  current_level: string;
+  slot_id: string | null;
+}
+
 export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException, onDownCountChange, activeTokens = [], operationalAlerts = [] }: TruckBuilderProps) {
   const { addingLeg, setAddingLeg } = useSchedulingStore();
   const [availability, setAvailability] = useState<AvailabilityRecord[]>([]);
+  const [truckRisks, setTruckRisks] = useState<Map<string, TruckRiskData>>(new Map());
+  const [holdTimers, setHoldTimers] = useState<HoldTimerData[]>([]);
+
+  // Fetch truck risk states
+  useEffect(() => {
+    const loadRisks = async () => {
+      const { data } = await supabase.from("truck_risk_state" as any).select("*");
+      if (data) {
+        const map = new Map((data as any[]).map((r: any) => [r.truck_id, r]));
+        setTruckRisks(map);
+      }
+    };
+    const loadTimers = async () => {
+      const { data } = await supabase.from("hold_timers" as any).select("*").eq("is_active", true);
+      setHoldTimers((data as any[]) ?? []);
+    };
+    loadRisks();
+    loadTimers();
+
+    const channel = supabase
+      .channel("truck-risk-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "truck_risk_state" }, () => loadRisks())
+      .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => loadTimers())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedDate]);
 
   const hasActiveLinkForDate = useCallback((truckId: string): boolean =>
     activeTokens.some(t => t.truck_id === truckId && selectedDate >= t.valid_from && selectedDate <= t.valid_until),
@@ -237,6 +281,11 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
           const hasLink = hasActiveLinkForDate(truck.id);
           const truckAlerts = operationalAlerts.filter(a => a.truck_id === truck.id && a.status === "open");
           const truckLegAlertIds = new Set(truckAlerts.map(a => a.leg_id));
+          const riskData = truckRisks.get(truck.id);
+          const truckTimers = holdTimers.filter(t => {
+            const tripLegIds = tLegs.map(l => l.id);
+            return true; // show all active timers for now
+          });
 
           return (
             <TruckCard
@@ -260,6 +309,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
               onEditException={onEditException}
               truckAlertCount={truckAlerts.length}
               legAlertIds={truckLegAlertIds}
+              riskData={riskData}
             />
           );
         })}
@@ -292,12 +342,13 @@ interface TruckCardProps {
   onEditException: (leg: LegDisplay) => void;
   truckAlertCount?: number;
   legAlertIds?: Set<string>;
+  riskData?: TruckRiskData;
 }
 
 const TruckCard = memo(function TruckCard({
   truck, tLegs, crew, downRecord, isDown, hasRunsWhileDown, hasHeavy,
   first, last, hasActiveLink, utilizationColor, unassigned, addingLeg, setAddingLeg,
-  onAssignLeg, onRemoveLeg, onEditException, truckAlertCount = 0, legAlertIds = new Set(),
+  onAssignLeg, onRemoveLeg, onEditException, truckAlertCount = 0, legAlertIds = new Set(), riskData,
 }: TruckCardProps) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `truck-drop-${truck.id}`,
@@ -343,6 +394,13 @@ const TruckCard = memo(function TruckCard({
             <span className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${utilizationColor(tLegs.length)}`}>
               {tLegs.length} runs
             </span>
+          )}
+          {!isDown && riskData && (
+            <TruckRiskBadge
+              riskColor={riskData.risk_color}
+              lateProbability={riskData.late_probability}
+              collapseIndex={riskData.collapse_index}
+            />
           )}
         </div>
       </div>

@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
 
     const scheduleDate = getScheduleDate(tokenRow);
 
-    const [{ data: truck }, { data: crew }, { data: slots }, { data: companySettings }] = await Promise.all([
+    const [{ data: truck }, { data: crew }, { data: slots }, { data: companySettings }, { data: activeTimers }] = await Promise.all([
       supabaseAdmin.from("trucks").select("name, company_id").eq("id", tokenRow.truck_id).single(),
       supabaseAdmin
         .from("crews")
@@ -70,6 +70,9 @@ Deno.serve(async (req) => {
         .eq("run_date", scheduleDate)
         .order("slot_order"),
       supabaseAdmin.from("company_settings").select("company_name").limit(1).maybeSingle(),
+      supabaseAdmin.from("hold_timers").select("id, trip_id, hold_type, started_at, current_level")
+        .eq("is_active", true)
+        .eq("company_id", truck?.company_id ?? ""),
     ]);
 
     const legIds = (slots ?? []).map((s) => s.leg_id);
@@ -99,6 +102,12 @@ Deno.serve(async (req) => {
         if (t.leg_id) tripMap.set(t.leg_id, t);
       }
 
+      // Build timer map keyed by trip_id
+      const timerByTripId = new Map<string, any>();
+      for (const tm of activeTimers ?? []) {
+        timerByTripId.set(tm.trip_id, tm);
+      }
+
       const alertMap = new Map<string, any>();
       for (const a of alertData ?? []) {
         if (!alertMap.has(a.leg_id) || a.created_at > alertMap.get(a.leg_id)!.created_at) {
@@ -113,6 +122,7 @@ Deno.serve(async (req) => {
           const slotInfo = orderMap.get(l.id);
           const alert = alertMap.get(l.id) ?? null;
           const trip = tripMap.get(l.id) ?? null;
+          const activeTimer = trip ? timerByTripId.get(trip.id) ?? null : null;
           return {
             id: l.id,
             leg_type: l.leg_type,
@@ -136,6 +146,12 @@ Deno.serve(async (req) => {
             trip_pcs: trip?.pcs_attached ?? false,
             trip_status: trip?.status ?? null,
             trip_doc_complete: trip?.documentation_complete ?? false,
+            active_timer: activeTimer ? {
+              id: activeTimer.id,
+              hold_type: activeTimer.hold_type,
+              started_at: activeTimer.started_at,
+              current_level: activeTimer.current_level,
+            } : null,
           };
         })
         .sort((a: any, b: any) => {
@@ -335,6 +351,118 @@ Deno.serve(async (req) => {
         JSON.stringify({ success: true, alert_id: inserted.id, created_at: inserted.created_at }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // ── Start Wait Timer ──
+    if (body.action === "start_wait") {
+      const { trip_id, slot_id, hold_type, note } = body;
+      if (!trip_id || !hold_type) {
+        return new Response(JSON.stringify({ error: "Missing trip_id or hold_type" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Verify trip belongs to this truck
+      const { data: trip } = await supabaseAdmin
+        .from("trip_records")
+        .select("id, truck_id, company_id, simulation_run_id")
+        .eq("id", trip_id)
+        .eq("truck_id", tokenRow.truck_id)
+        .maybeSingle();
+
+      if (!trip) {
+        return new Response(JSON.stringify({ error: "Trip not found or access denied" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const now = new Date().toISOString();
+
+      // Insert hold_timer
+      const { data: timer, error: timerErr } = await supabaseAdmin
+        .from("hold_timers")
+        .insert({
+          company_id: trip.company_id,
+          simulation_run_id: trip.simulation_run_id,
+          trip_id,
+          slot_id: slot_id ?? null,
+          hold_type,
+          started_at: now,
+          current_level: "green",
+          is_active: true,
+        })
+        .select("id")
+        .single();
+
+      if (timerErr) {
+        return new Response(JSON.stringify({ error: "Failed to start timer" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Insert trip_event
+      await supabaseAdmin.from("trip_events").insert({
+        company_id: trip.company_id,
+        simulation_run_id: trip.simulation_run_id,
+        trip_id,
+        slot_id: slot_id ?? null,
+        truck_id: tokenRow.truck_id,
+        event_type: hold_type === "wait_patient" ? "waiting_patient_start" : "waiting_offload_start",
+        event_time: now,
+        source: "crew",
+        meta: note ? { note } : null,
+      });
+
+      return new Response(JSON.stringify({ success: true, timer_id: timer.id }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── End Wait Timer ──
+    if (body.action === "end_wait") {
+      const { timer_id, note } = body;
+      if (!timer_id) {
+        return new Response(JSON.stringify({ error: "Missing timer_id" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: timer } = await supabaseAdmin
+        .from("hold_timers")
+        .select("*")
+        .eq("id", timer_id)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (!timer) {
+        return new Response(JSON.stringify({ error: "Timer not found or already resolved" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const now = new Date().toISOString();
+
+      await supabaseAdmin
+        .from("hold_timers")
+        .update({ resolved_at: now, is_active: false })
+        .eq("id", timer_id);
+
+      // Insert end event
+      await supabaseAdmin.from("trip_events").insert({
+        company_id: timer.company_id,
+        simulation_run_id: timer.simulation_run_id,
+        trip_id: timer.trip_id,
+        slot_id: timer.slot_id,
+        truck_id: tokenRow.truck_id,
+        event_type: timer.hold_type === "wait_patient" ? "waiting_patient_end" : "waiting_offload_end",
+        event_time: now,
+        source: "crew",
+        meta: note ? { note } : null,
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── Clear not ready ──

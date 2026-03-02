@@ -1707,9 +1707,14 @@ async function resetSandbox(admin: any, companyId: string, userId: string) {
   }
 
   const tables = [
+    "comms_events", "trip_events", "hold_timers",
     "safety_overrides", "claim_records", "trip_records", "truck_run_slots", "scheduling_legs",
     "crews", "trucks", "patients", "facilities",
   ];
+
+  // Delete projection/risk state (PK-based, no is_simulated)
+  await admin.from("trip_projection_state").delete().eq("company_id", companyId);
+  await admin.from("truck_risk_state").delete().eq("company_id", companyId);
 
   const counts: Record<string, number> = {};
   for (const table of tables) {

@@ -350,6 +350,67 @@ export type Database = {
           },
         ]
       }
+      comms_events: {
+        Row: {
+          company_id: string
+          created_at: string
+          event_type: string
+          facility_id: string | null
+          id: string
+          payload: Json | null
+          simulation_run_id: string | null
+          status: string
+          trip_id: string
+          truck_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          event_type: string
+          facility_id?: string | null
+          id?: string
+          payload?: Json | null
+          simulation_run_id?: string | null
+          status?: string
+          trip_id: string
+          truck_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          event_type?: string
+          facility_id?: string | null
+          id?: string
+          payload?: Json | null
+          simulation_run_id?: string | null
+          status?: string
+          trip_id?: string
+          truck_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comms_events_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comms_events_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comms_events_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           approved_at: string | null
@@ -636,6 +697,66 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hold_timers: {
+        Row: {
+          company_id: string
+          created_at: string
+          current_level: string
+          hold_type: string
+          id: string
+          is_active: boolean
+          last_escalated_at: string | null
+          resolved_at: string | null
+          simulation_run_id: string | null
+          slot_id: string | null
+          started_at: string
+          trip_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          current_level?: string
+          hold_type: string
+          id?: string
+          is_active?: boolean
+          last_escalated_at?: string | null
+          resolved_at?: string | null
+          simulation_run_id?: string | null
+          slot_id?: string | null
+          started_at: string
+          trip_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          current_level?: string
+          hold_type?: string
+          id?: string
+          is_active?: boolean
+          last_escalated_at?: string | null
+          resolved_at?: string | null
+          simulation_run_id?: string | null
+          slot_id?: string | null
+          started_at?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hold_timers_slot_id_fkey"
+            columns: ["slot_id"]
+            isOneToOne: false
+            referencedRelation: "truck_run_slots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hold_timers_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trip_records"
             referencedColumns: ["id"]
           },
         ]
@@ -1718,6 +1839,127 @@ export type Database = {
         }
         Relationships: []
       }
+      trip_events: {
+        Row: {
+          company_id: string
+          created_at: string
+          crew_id: string | null
+          event_time: string
+          event_type: string
+          id: string
+          meta: Json | null
+          simulation_run_id: string | null
+          slot_id: string | null
+          source: string
+          trip_id: string
+          truck_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          crew_id?: string | null
+          event_time?: string
+          event_type: string
+          id?: string
+          meta?: Json | null
+          simulation_run_id?: string | null
+          slot_id?: string | null
+          source?: string
+          trip_id: string
+          truck_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          crew_id?: string | null
+          event_time?: string
+          event_type?: string
+          id?: string
+          meta?: Json | null
+          simulation_run_id?: string | null
+          slot_id?: string | null
+          source?: string
+          trip_id?: string
+          truck_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_events_crew_id_fkey"
+            columns: ["crew_id"]
+            isOneToOne: false
+            referencedRelation: "crews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_events_slot_id_fkey"
+            columns: ["slot_id"]
+            isOneToOne: false
+            referencedRelation: "truck_run_slots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_events_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_events_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_projection_state: {
+        Row: {
+          company_id: string
+          confidence: number
+          late_probability: number
+          projected_complete_at: string | null
+          projected_next_arrival_at: string | null
+          reason_codes: string[]
+          risk_color: string
+          simulation_run_id: string | null
+          trip_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          confidence?: number
+          late_probability?: number
+          projected_complete_at?: string | null
+          projected_next_arrival_at?: string | null
+          reason_codes?: string[]
+          risk_color?: string
+          simulation_run_id?: string | null
+          trip_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          confidence?: number
+          late_probability?: number
+          projected_complete_at?: string | null
+          projected_next_arrival_at?: string | null
+          reason_codes?: string[]
+          risk_color?: string
+          simulation_run_id?: string | null
+          trip_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_projection_state_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: true
+            referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_records: {
         Row: {
           arrived_dropoff_at: string | null
@@ -2018,6 +2260,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      truck_risk_state: {
+        Row: {
+          collapse_index: number
+          company_id: string
+          late_probability: number
+          risk_color: string
+          simulation_run_id: string | null
+          truck_id: string
+          updated_at: string
+        }
+        Insert: {
+          collapse_index?: number
+          company_id: string
+          late_probability?: number
+          risk_color?: string
+          simulation_run_id?: string | null
+          truck_id: string
+          updated_at?: string
+        }
+        Update: {
+          collapse_index?: number
+          company_id?: string
+          late_probability?: number
+          risk_color?: string
+          simulation_run_id?: string | null
+          truck_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "truck_risk_state_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: true
+            referencedRelation: "trucks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       truck_run_slots: {
         Row: {

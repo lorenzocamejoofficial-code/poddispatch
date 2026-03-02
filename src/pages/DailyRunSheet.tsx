@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import {
   Truck, Users, Clock, ArrowRight, Zap, MapPin, RefreshCw,
   CheckCircle2, Navigation, UserCheck, Loader2, Building2, X, Phone, Calendar, FileText,
-  AlertCircle, CheckCheck, ClipboardCheck,
+  AlertCircle, CheckCheck, ClipboardCheck, Timer, PauseCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -45,6 +45,12 @@ interface LegRow {
   trip_pcs: boolean;
   trip_status: string | null;
   trip_doc_complete: boolean;
+  active_timer: {
+    id: string;
+    hold_type: string;
+    started_at: string;
+    current_level: string;
+  } | null;
 }
 
 interface SheetData {
@@ -98,6 +104,19 @@ function formatTime(t: string | null) {
   } catch { return t; }
 }
 
+// Inline elapsed timer display
+function TimerElapsed({ startedAt }: { startedAt: string }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = new Date(startedAt).getTime();
+    const update = () => setElapsed(Math.floor((Date.now() - start) / 60000));
+    update();
+    const interval = setInterval(update, 30000);
+    return () => clearInterval(interval);
+  }, [startedAt]);
+  return <span className="text-[10px] font-mono font-bold">{elapsed}m</span>;
+}
+
 export default function DailyRunSheet() {
   const { token } = useParams<{ token: string }>();
   const [data, setData] = useState<SheetData | null>(null);
@@ -116,10 +135,72 @@ export default function DailyRunSheet() {
   const [submittingNotReady, setSubmittingNotReady] = useState(false);
   const [clearingAlert, setClearingAlert] = useState<string | null>(null);
 
+  // Wait timer state
+  const [startingWait, setStartingWait] = useState<string | null>(null);
+
   // Trip capture state
   const [captureLeg, setCaptureLeg] = useState<LegRow | null>(null);
   const [captureMiles, setCaptureMiles] = useState("");
   const [submittingCapture, setSubmittingCapture] = useState(false);
+
+  const startWaitTimer = async (leg: LegRow, holdType: "wait_patient" | "wait_offload") => {
+    if (!leg.trip_id) { toast.error("No trip record linked"); return; }
+    setStartingWait(leg.id);
+    try {
+      const res = await fetch(
+        getEdgeFunctionUrl(`crew-run-sheet?token=${encodeURIComponent(token!)}`),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "start_wait", trip_id: leg.trip_id, slot_id: leg.slot_id, hold_type: holdType }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) { toast.error(json.error ?? "Failed to start timer"); }
+      else {
+        toast.success(holdType === "wait_patient" ? "Patient wait timer started" : "Offload wait timer started");
+        setData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            legs: prev.legs.map(l => l.id === leg.id ? {
+              ...l,
+              active_timer: { id: json.timer_id, hold_type: holdType, started_at: new Date().toISOString(), current_level: "green" },
+            } : l),
+          };
+        });
+      }
+    } catch { toast.error("Network error"); }
+    setStartingWait(null);
+  };
+
+  const endWaitTimer = async (leg: LegRow) => {
+    if (!leg.active_timer) return;
+    setStartingWait(leg.id);
+    try {
+      const res = await fetch(
+        getEdgeFunctionUrl(`crew-run-sheet?token=${encodeURIComponent(token!)}`),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "end_wait", timer_id: leg.active_timer.id }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) { toast.error(json.error ?? "Failed to end timer"); }
+      else {
+        toast.success("Wait timer ended");
+        setData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            legs: prev.legs.map(l => l.id === leg.id ? { ...l, active_timer: null } : l),
+          };
+        });
+      }
+    } catch { toast.error("Network error"); }
+    setStartingWait(null);
+  };
 
   // Documentation panel state
   const [docLeg, setDocLeg] = useState<LegRow | null>(null);
@@ -540,6 +621,39 @@ export default function DailyRunSheet() {
                   )}
                 </div>
 
+                {/* Active wait timer indicator */}
+                {leg.active_timer && (
+                  <div className={`mt-2 flex items-center justify-between rounded-md border px-2.5 py-2 ${
+                    leg.active_timer.current_level === "red"
+                      ? "border-[hsl(var(--status-red))]/50 bg-[hsl(var(--status-red))]/8"
+                      : leg.active_timer.current_level === "orange" || leg.active_timer.current_level === "yellow"
+                      ? "border-[hsl(var(--status-yellow))]/50 bg-[hsl(var(--status-yellow-bg))]"
+                      : "border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green-bg))]"
+                  }`}>
+                    <div className="flex items-center gap-1.5">
+                      <Timer className={`h-3.5 w-3.5 animate-pulse ${
+                        leg.active_timer.current_level === "red" ? "text-[hsl(var(--status-red))]" :
+                        leg.active_timer.current_level === "orange" || leg.active_timer.current_level === "yellow" ? "text-[hsl(var(--status-yellow))]" :
+                        "text-[hsl(var(--status-green))]"
+                      }`} />
+                      <span className="text-[10px] font-bold">
+                        {leg.active_timer.hold_type === "wait_patient" ? "Patient Wait" : "Offload Wait"}
+                      </span>
+                      <TimerElapsed startedAt={leg.active_timer.started_at} />
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-[10px] border-[hsl(var(--status-green))]/50 text-[hsl(var(--status-green))]"
+                      disabled={startingWait === leg.id}
+                      onClick={() => endWaitTimer(leg)}
+                    >
+                      <PauseCircle className="h-3 w-3 mr-1" />
+                      End Wait
+                    </Button>
+                  </div>
+                )}
+
                 {/* Action buttons */}
                 <div className="mt-3 flex flex-col gap-2">
                   {nextStatus && (
@@ -586,6 +700,32 @@ export default function DailyRunSheet() {
                       <AlertCircle className="h-3.5 w-3.5 mr-1.5" />
                       Patient Not Ready
                     </Button>
+                  )}
+
+                  {/* Wait timer buttons — only when trip exists and not completed */}
+                  {!isCompleted && leg.trip_id && !leg.active_timer && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-[10px] border-[hsl(var(--status-yellow))]/30 text-[hsl(var(--status-yellow))] hover:bg-[hsl(var(--status-yellow-bg))]"
+                        disabled={startingWait === leg.id}
+                        onClick={() => startWaitTimer(leg, "wait_patient")}
+                      >
+                        <Timer className="h-3 w-3 mr-1" />
+                        Wait: Patient
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-[10px] border-[hsl(var(--status-yellow))]/30 text-[hsl(var(--status-yellow))] hover:bg-[hsl(var(--status-yellow-bg))]"
+                        disabled={startingWait === leg.id}
+                        onClick={() => startWaitTimer(leg, "wait_offload")}
+                      >
+                        <Timer className="h-3 w-3 mr-1" />
+                        Wait: Offload
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>
