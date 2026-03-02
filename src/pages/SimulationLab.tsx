@@ -19,6 +19,7 @@ import { SimulationSummary } from "@/components/simulation/SimulationSummary";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 
 type CheckResult = { name: string; category: string; pass: boolean; reason: string };
+type VerifyResult = { name: string; pass: boolean; detail: string; table?: string };
 type SandboxStatus = { companyId: string; trucks: number; patients: number; trips: number; crews: number; recentRuns: any[] };
 type SeedDiagnostics = {
   ok: boolean;
@@ -86,6 +87,7 @@ export default function SimulationLab() {
   const [seedResult, setSeedResult] = useState<SeedDiagnostics | null>(null);
   const [summary, setSummary] = useState<any>(null);
   const [seedSize, setSeedSize] = useState<string>("small");
+  const [verifyResult, setVerifyResult] = useState<{ pass: boolean; checks: VerifyResult[]; summary: string } | null>(null);
 
   const invalidateAll = useCallback(() => {
     queryClient.invalidateQueries();
@@ -170,6 +172,17 @@ export default function SimulationLab() {
       setSummary(result);
     } catch (e: any) {
       toast({ title: "Summary Failed", description: e.message, variant: "destructive" });
+    }
+    setLoading(null);
+  };
+
+  const runVerify = async () => {
+    setLoading("verify");
+    try {
+      const result = await callLabChecked({ action: "verify" });
+      setVerifyResult(result);
+    } catch (e: any) {
+      toast({ title: "Verify Failed", description: e.message, variant: "destructive" });
     }
     setLoading(null);
   };
@@ -447,6 +460,59 @@ export default function SimulationLab() {
               <SimulationSummary data={summary} />
             ) : (
               <p className="text-xs text-muted-foreground">Seed a scenario, inject events, then generate a summary to see the dispatch → crew → billing cascade.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Simulation Verification */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Activity className="h-4 w-4 text-primary" />
+                Simulation Verification
+              </CardTitle>
+              <Button size="sm" onClick={runVerify} disabled={loading !== null} className="gap-1.5 text-xs">
+                {loading === "verify" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Activity className="h-3.5 w-3.5" />}
+                Verify Wiring
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {verifyResult === null ? (
+              <p className="text-xs text-muted-foreground">Seed a scenario first, then verify that data propagates across all modules.</p>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  {verifyResult.pass ? (
+                    <Badge className="bg-[hsl(var(--status-green))]/10 text-[hsl(var(--status-green))] border-0 text-xs">
+                      <CheckCircle2 className="h-3 w-3 mr-1" /> ALL PASS — {verifyResult.summary}
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-destructive/10 text-destructive border-0 text-xs">
+                      <XCircle className="h-3 w-3 mr-1" /> FAIL — {verifyResult.summary}
+                    </Badge>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  {verifyResult.checks.map((c, i) => (
+                    <div key={i} className="flex items-start gap-2 rounded-md border p-2">
+                      {c.pass ? (
+                        <CheckCircle2 className="h-4 w-4 text-[hsl(var(--status-green))] shrink-0 mt-0.5" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-foreground">{c.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{c.detail}{c.table ? ` [${c.table}]` : ""}</p>
+                      </div>
+                      <Badge variant={c.pass ? "secondary" : "destructive"} className="text-[9px] shrink-0">
+                        {c.pass ? "PASS" : "FAIL"}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

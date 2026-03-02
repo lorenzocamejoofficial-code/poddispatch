@@ -1128,6 +1128,50 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
     };
   }
 
+  // ── Post-seed: run billing hygiene + on-time metrics via dispatch-intelligence ──
+  try {
+    const diUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/dispatch-intelligence`;
+    const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Run billing hygiene batch on seeded trips
+    const hygieneRes = await fetch(diUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${svcKey}`,
+        apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+      },
+      body: JSON.stringify({ action: "billing_hygiene_batch", run_date: today, company_id: companyId }),
+    });
+    const hygieneData = await hygieneRes.json();
+    pushSeedLog(logs, {
+      step: "post_seed_billing_hygiene",
+      status: hygieneData?.ok ? "ok" : "error",
+      detail: `checked=${hygieneData?.result?.checked ?? 0}`,
+      error: hygieneData?.ok ? undefined : hygieneData?.error,
+    });
+
+    // Run full_cycle (projections + on-time metrics)
+    const cycleRes = await fetch(diUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${svcKey}`,
+        apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+      },
+      body: JSON.stringify({ action: "full_cycle", run_date: today, company_id: companyId }),
+    });
+    const cycleData = await cycleRes.json();
+    pushSeedLog(logs, {
+      step: "post_seed_full_cycle",
+      status: cycleData?.ok ? "ok" : "error",
+      detail: `projections=${cycleData?.result?.projections_computed ?? 0}`,
+      error: cycleData?.ok ? undefined : cycleData?.error,
+    });
+  } catch (e: any) {
+    pushSeedLog(logs, { step: "post_seed_dispatch_hooks", status: "error", error: e.message });
+  }
+
   await admin.from("simulation_runs").update({ status: rowErrors.length > 0 ? "completed_with_warnings" : "completed" }).eq("id", runId);
 
   pushSeedLog(logs, {
@@ -1879,6 +1923,64 @@ Deno.serve(async (req) => {
           crews: crews.count ?? 0,
           recentRuns: runs.data ?? [],
         };
+        break;
+      }
+      case "verify": {
+        // Cross-module wiring verification
+        const today = new Date().toISOString().slice(0, 10);
+        const checks: { name: string; pass: boolean; detail: string; table?: string }[] = [];
+
+        // 1. Count consistency: trucks
+        const { count: truckCount } = await admin.from("trucks").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("is_simulated", true);
+        checks.push({ name: "Trucks seeded", pass: (truckCount ?? 0) > 0, detail: `${truckCount ?? 0} trucks`, table: "trucks" });
+
+        // 2. Patients
+        const { count: patientCount } = await admin.from("patients").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("is_simulated", true);
+        checks.push({ name: "Patients seeded", pass: (patientCount ?? 0) > 0, detail: `${patientCount ?? 0} patients`, table: "patients" });
+
+        // 3. Scheduling legs
+        const { count: legCount } = await admin.from("scheduling_legs").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("is_simulated", true).eq("run_date", today);
+        checks.push({ name: "Scheduling legs (today)", pass: (legCount ?? 0) > 0, detail: `${legCount ?? 0} legs`, table: "scheduling_legs" });
+
+        // 4. Truck run slots
+        const { count: slotCount } = await admin.from("truck_run_slots").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("is_simulated", true).eq("run_date", today);
+        checks.push({ name: "Truck run slots (today)", pass: (slotCount ?? 0) > 0, detail: `${slotCount ?? 0} slots`, table: "truck_run_slots" });
+
+        // 5. Trip records
+        const { data: tripRecords } = await admin.from("trip_records").select("id, status, claim_ready, blockers, revenue_risk_score, truck_id, simulation_run_id").eq("company_id", companyId).eq("is_simulated", true).eq("run_date", today);
+        const tripCount = tripRecords?.length ?? 0;
+        checks.push({ name: "Trip records (today)", pass: tripCount > 0, detail: `${tripCount} trips`, table: "trip_records" });
+
+        // 6. Trips with truck assignment
+        const assignedTrips = (tripRecords ?? []).filter((t: any) => t.truck_id);
+        checks.push({ name: "Trips assigned to trucks", pass: assignedTrips.length > 0, detail: `${assignedTrips.length}/${tripCount} assigned`, table: "trip_records" });
+
+        // 7. Billing blockers populated
+        const tripsWithBlockers = (tripRecords ?? []).filter((t: any) => t.blockers && t.blockers.length > 0);
+        checks.push({ name: "Billing blockers computed", pass: tripsWithBlockers.length > 0, detail: `${tripsWithBlockers.length} trips have blockers`, table: "trip_records" });
+
+        // 8. Revenue risk score populated
+        const tripsWithRisk = (tripRecords ?? []).filter((t: any) => t.revenue_risk_score !== null && t.revenue_risk_score > 0);
+        checks.push({ name: "Revenue risk scores computed", pass: tripsWithRisk.length > 0, detail: `${tripsWithRisk.length} trips have revenue_risk_score > 0`, table: "trip_records" });
+
+        // 9. Daily truck metrics
+        const { count: dtmCount } = await admin.from("daily_truck_metrics").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("run_date", today);
+        checks.push({ name: "Daily truck metrics populated", pass: (dtmCount ?? 0) > 0, detail: `${dtmCount ?? 0} truck-day records`, table: "daily_truck_metrics" });
+
+        // 10. Trip projection state
+        const { count: projCount } = await admin.from("trip_projection_state").select("trip_id", { count: "exact", head: true }).eq("company_id", companyId);
+        checks.push({ name: "Trip projections computed", pass: (projCount ?? 0) > 0, detail: `${projCount ?? 0} projections`, table: "trip_projection_state" });
+
+        // 11. Crew records
+        const { count: crewCount } = await admin.from("crews").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("is_simulated", true);
+        checks.push({ name: "Crews seeded", pass: (crewCount ?? 0) > 0, detail: `${crewCount ?? 0} crews`, table: "crews" });
+
+        // 12. At least one trip NOT claim_ready (billing blocker scenario)
+        const blockedTrips = (tripRecords ?? []).filter((t: any) => !t.claim_ready && t.status === "completed");
+        checks.push({ name: "Blocked trips exist (billing test)", pass: blockedTrips.length > 0, detail: `${blockedTrips.length} completed trips not claim_ready`, table: "trip_records" });
+
+        const allPass = checks.every(c => c.pass);
+        result = { pass: allPass, checks, summary: `${checks.filter(c => c.pass).length}/${checks.length} passed` };
         break;
       }
       default:
