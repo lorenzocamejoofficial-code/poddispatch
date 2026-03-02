@@ -263,24 +263,47 @@ async function computeProjections(companyId: string, truckId: string, runDate: s
   }, { onConflict: "truck_id" });
 }
 
+// ── Valid origin/destination modifier combos ──
+const VALID_MODIFIER_COMBOS: Record<string, string[]> = {
+  R: ["D", "E", "G", "H", "I", "J", "N", "P", "S"], // Residence
+  D: ["R", "E", "G", "H", "I", "J", "N", "P", "S"], // Dialysis
+  E: ["R", "D", "G", "H", "I", "J", "N", "P", "S"], // SNF
+  G: ["R", "D", "E", "H", "I", "J", "N", "P", "S"], // Hospital
+  H: ["R", "D", "E", "G", "I", "J", "N", "P", "S"], // Hospital (inpatient)
+  I: ["R", "D", "E", "G", "H", "J", "N", "P", "S"], // Intermediate
+  J: ["R", "D", "E", "G", "H", "I", "N", "P", "S"], // Non-hospital
+  N: ["R", "D", "E", "G", "H", "I", "J", "P", "S"], // SNF
+  P: ["R", "D", "E", "G", "H", "I", "J", "N", "S"], // Physician
+  S: ["R", "D", "E", "G", "H", "I", "J", "N", "P"], // Scene
+};
+
+const ORIGIN_TYPE_TO_MODIFIER: Record<string, string> = {
+  home: "R", residence: "R",
+  dialysis_center: "D", dialysis: "D",
+  hospital_inpatient: "H", hospital_outpatient: "G", hospital: "G",
+  er: "G", emergency: "G",
+  snf: "E", skilled_nursing: "E", nursing_facility: "N",
+  assisted_living: "E", rehab: "I",
+  physician_office: "P", doctor: "P",
+  scene: "S", other: "J",
+};
+
+function getModifierCode(locType: string | null): string | null {
+  if (!locType) return null;
+  return ORIGIN_TYPE_TO_MODIFIER[locType.toLowerCase()] ?? null;
+}
+
 // ── Billing hygiene check ──
 async function billingHygieneCheck(tripId: string) {
   const { data: trip } = await admin
     .from("trip_records")
-    .select("*, patient:patients!trip_records_patient_id_fkey(auth_required, auth_expiration, member_id, weight_lbs, oxygen_required)")
+    .select("*, patient:patients!trip_records_patient_id_fkey(auth_required, auth_expiration, member_id, weight_lbs, oxygen_required, primary_payer, secondary_payer, bariatric)")
     .eq("id", tripId)
     .maybeSingle();
 
   if (!trip) return { checked: false };
 
-  // Get payer rules for the patient's payer
-  const { data: patient } = await admin
-    .from("patients")
-    .select("primary_payer")
-    .eq("id", trip.patient_id)
-    .maybeSingle();
-
-  const payerType = patient?.primary_payer ?? "default";
+  const payerType = trip.patient?.primary_payer ?? "default";
   const { data: rules } = await admin
     .from("payer_billing_rules")
     .select("*")
@@ -289,32 +312,96 @@ async function billingHygieneCheck(tripId: string) {
     .maybeSingle();
 
   const blockers: string[] = [];
+  let riskScore = 0; // 0-100 scale
 
-  // Origin/destination type
-  if (!trip.origin_type) blockers.push("missing_origin_type");
-  if (!trip.destination_type) blockers.push("missing_destination_type");
+  // 1. Origin/destination type
+  if (!trip.origin_type) { blockers.push("missing_origin_type"); riskScore += 15; }
+  if (!trip.destination_type) { blockers.push("missing_destination_type"); riskScore += 15; }
 
-  // PCS
-  if (rules?.requires_pcs && !trip.pcs_attached) blockers.push("missing_pcs");
-
-  // Signature
-  if (rules?.requires_signature && !trip.signature_obtained) blockers.push("missing_signature");
-
-  // Miles
-  if (rules?.requires_miles && (!trip.loaded_miles || trip.loaded_miles <= 0)) blockers.push("missing_miles");
-
-  // Auth
-  if ((trip.patient?.auth_required || rules?.requires_auth) && !trip.patient?.member_id) {
-    blockers.push("missing_auth_number");
+  // 2. Origin/destination modifier validation
+  const originMod = getModifierCode(trip.origin_type);
+  const destMod = getModifierCode(trip.destination_type);
+  if (originMod && destMod) {
+    const allowed = VALID_MODIFIER_COMBOS[originMod];
+    if (allowed && !allowed.includes(destMod)) {
+      blockers.push("invalid_origin_destination_combo");
+      riskScore += 10;
+    }
+    // Same origin and dest is suspicious (not always invalid but flagged)
+    if (originMod === destMod && originMod !== "R") {
+      blockers.push("same_origin_destination_type");
+      riskScore += 5;
+    }
   }
 
-  // Weight
-  if (!trip.patient?.weight_lbs) blockers.push("missing_patient_weight");
+  // 3. PCS
+  if (rules?.requires_pcs && !trip.pcs_attached) { blockers.push("missing_pcs"); riskScore += 15; }
 
-  // Oxygen
+  // 4. Signature
+  if (rules?.requires_signature && !trip.signature_obtained) { blockers.push("missing_signature"); riskScore += 10; }
+
+  // 5. Miles
+  if (rules?.requires_miles && (!trip.loaded_miles || trip.loaded_miles <= 0)) { blockers.push("missing_miles"); riskScore += 10; }
+
+  // 6. Auth / prior authorization
+  const authRequired = trip.patient?.auth_required || rules?.requires_auth;
+  if (authRequired && !trip.patient?.member_id) {
+    blockers.push("missing_auth_number");
+    riskScore += 20;
+  }
+  // Auth expiration check
+  if (authRequired && trip.patient?.auth_expiration) {
+    const expDate = new Date(trip.patient.auth_expiration);
+    const runDate = new Date(trip.run_date);
+    if (expDate < runDate) {
+      blockers.push("auth_expired");
+      riskScore += 20;
+    } else {
+      const daysUntilExpiry = (expDate.getTime() - runDate.getTime()) / 86400000;
+      if (daysUntilExpiry <= 7) {
+        blockers.push("auth_expiring_soon");
+        riskScore += 5;
+      }
+    }
+  }
+
+  // 7. Weight
+  if (!trip.patient?.weight_lbs) { blockers.push("missing_patient_weight"); riskScore += 5; }
+
+  // 8. Oxygen
   if (trip.patient?.oxygen_required && !trip.oxygen_during_transport) {
     blockers.push("missing_oxygen_capture");
+    riskScore += 5;
   }
+
+  // 9. Secondary payer detection
+  const hasSecondaryPayer = !!trip.patient?.secondary_payer;
+  if (hasSecondaryPayer) {
+    // Flag for review, not a hard block
+    blockers.push("secondary_payer_present_needs_review");
+    riskScore += 3;
+  }
+
+  // 10. Level of service validation
+  const serviceLevel = trip.service_level ?? "BLS";
+  if (!serviceLevel || !["BLS", "ALS", "SCT", "BLS-E"].includes(serviceLevel.toUpperCase())) {
+    blockers.push("invalid_service_level");
+    riskScore += 10;
+  }
+  // Bariatric patient on BLS without proper flags
+  if (trip.patient?.bariatric && serviceLevel === "BLS" && !trip.stretcher_required) {
+    blockers.push("bariatric_service_level_mismatch");
+    riskScore += 5;
+  }
+
+  // 11. Trip close prevention: required timestamps
+  if (rules?.requires_timestamps) {
+    if (!trip.arrived_pickup_at) { blockers.push("missing_arrived_pickup_time"); riskScore += 5; }
+    if (!trip.arrived_dropoff_at) { blockers.push("missing_arrived_dropoff_time"); riskScore += 5; }
+  }
+
+  // Cap risk score
+  riskScore = Math.min(100, riskScore);
 
   // Check for existing active override
   const { data: override } = await admin
@@ -328,12 +415,142 @@ async function billingHygieneCheck(tripId: string) {
   const claimReady = hasOverride || blockers.length === 0;
 
   await admin.from("trip_records").update({
-    blockers: blockers,
+    blockers,
     billing_blocked_reason: blockers.length > 0 ? blockers.join(", ") : null,
     claim_ready: claimReady,
+    revenue_risk_score: riskScore,
   }).eq("id", tripId);
 
-  return { checked: true, blockers, claim_ready: claimReady, has_override: hasOverride };
+  return { checked: true, blockers, claim_ready: claimReady, has_override: hasOverride, revenue_risk_score: riskScore };
+}
+
+// ── On-time performance computation ──
+async function computeOnTimeMetrics(companyId: string, truckId: string, runDate: string) {
+  // Get all trips for this truck on this date
+  const { data: trips } = await admin
+    .from("trip_records")
+    .select("id, scheduled_pickup_time, arrived_pickup_at, wait_time_minutes, status, leg_id")
+    .eq("truck_id", truckId)
+    .eq("run_date", runDate)
+    .eq("company_id", companyId);
+
+  if (!trips || trips.length === 0) return;
+
+  // Get projections for these trips
+  const tripIds = trips.map(t => t.id);
+  const { data: projections } = await admin
+    .from("trip_projection_state")
+    .select("trip_id, projected_complete_at, late_probability, reason_codes")
+    .in("trip_id", tripIds);
+
+  // Get active hold timers for wait classification
+  const { data: timers } = await admin
+    .from("hold_timers")
+    .select("trip_id, hold_type, started_at, resolved_at")
+    .in("trip_id", tripIds);
+
+  const projMap = new Map((projections ?? []).map(p => [p.trip_id, p]));
+  const timerMap = new Map<string, any[]>();
+  for (const t of timers ?? []) {
+    if (!timerMap.has(t.trip_id)) timerMap.set(t.trip_id, []);
+    timerMap.get(t.trip_id)!.push(t);
+  }
+
+  const ON_TIME_THRESHOLD_MIN = 10;
+  let onTimeCount = 0;
+  let lateCount = 0;
+  let totalWaitMin = 0;
+  const lateCauses: Record<string, number> = {};
+
+  for (const trip of trips) {
+    if (!trip.scheduled_pickup_time || !trip.arrived_pickup_at) continue;
+
+    // Parse scheduled time
+    const [sh, sm] = trip.scheduled_pickup_time.split(":").map(Number);
+    const scheduledDate = new Date(trip.arrived_pickup_at);
+    scheduledDate.setHours(sh, sm, 0, 0);
+    const actualArrival = new Date(trip.arrived_pickup_at);
+
+    const diffMin = (actualArrival.getTime() - scheduledDate.getTime()) / 60000;
+    const isOnTime = diffMin <= ON_TIME_THRESHOLD_MIN;
+
+    // Determine late root cause
+    let rootCause: string | null = null;
+    if (!isOnTime) {
+      lateCount++;
+      const tripTimers = timerMap.get(trip.id) ?? [];
+      const projection = projMap.get(trip.id);
+      const reasons = projection?.reason_codes ?? [];
+
+      if (tripTimers.some((t: any) => {
+        const elapsed = ((t.resolved_at ? new Date(t.resolved_at) : new Date()).getTime() - new Date(t.started_at).getTime()) / 60000;
+        return elapsed >= 15;
+      })) {
+        rootCause = "wait_over_threshold";
+      } else if (reasons.includes("STACK_INFEASIBLE")) {
+        rootCause = "overstacking";
+      } else if (diffMin > 20) {
+        rootCause = "travel_underestimation";
+      } else {
+        rootCause = "other";
+      }
+
+      lateCauses[rootCause] = (lateCauses[rootCause] ?? 0) + 1;
+    } else {
+      onTimeCount++;
+    }
+
+    // Accumulate wait time
+    totalWaitMin += trip.wait_time_minutes ?? 0;
+
+    // Update trip_projection_state with on-time data
+    await admin.from("trip_projection_state").upsert({
+      trip_id: trip.id,
+      company_id: companyId,
+      on_time_status: isOnTime ? "on_time" : "late",
+      late_root_cause: rootCause,
+      actual_arrival_at: trip.arrived_pickup_at,
+      scheduled_pickup_time: trip.scheduled_pickup_time,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "trip_id" });
+  }
+
+  const completedTrips = onTimeCount + lateCount;
+  const onTimePct = completedTrips > 0 ? Math.round((onTimeCount / completedTrips) * 100) : 100;
+  const avgFacilityWait = completedTrips > 0 ? Math.round((totalWaitMin / completedTrips) * 10) / 10 : 0;
+
+  // Operational risk score: weighted combination
+  // Low on-time% increases risk, high avg wait increases risk, collapse from truck_risk_state
+  const { data: truckRisk } = await admin
+    .from("truck_risk_state")
+    .select("collapse_index, late_probability")
+    .eq("truck_id", truckId)
+    .maybeSingle();
+
+  const collapseIdx = truckRisk?.collapse_index ?? 0;
+  const operationalRiskScore = Math.min(100, Math.round(
+    (100 - onTimePct) * 0.4 +
+    Math.min(avgFacilityWait, 30) * 1.0 +
+    collapseIdx * 30
+  ));
+
+  // Upsert daily_truck_metrics
+  await admin.from("daily_truck_metrics").upsert({
+    truck_id: truckId,
+    company_id: companyId,
+    run_date: runDate,
+    total_trips: trips.length,
+    on_time_count: onTimeCount,
+    late_count: lateCount,
+    on_time_pct: onTimePct,
+    avg_facility_wait_min: avgFacilityWait,
+    total_wait_min: totalWaitMin,
+    operational_risk_score: operationalRiskScore,
+    late_causes: lateCauses,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "truck_id,run_date" });
+
+  return { on_time_pct: onTimePct, operational_risk_score: operationalRiskScore, late_causes: lateCauses };
 }
 
 Deno.serve(async (req) => {
@@ -424,8 +641,19 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "compute_on_time_metrics": {
+        const { truck_id: otTruckId, run_date: otRunDate } = body;
+        if (!otTruckId || !otRunDate) {
+          return new Response(JSON.stringify({ error: "truck_id and run_date required" }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        result = await computeOnTimeMetrics(companyId, otTruckId, otRunDate);
+        break;
+      }
+
       case "full_cycle": {
-        // Escalate + project — used as a periodic refresh
+        // Escalate + project + on-time metrics — used as a periodic refresh
         const runDate = body.run_date || new Date().toISOString().split("T")[0];
         const escalation = await escalateTimers(companyId);
         const { data: trucks } = await admin
@@ -436,8 +664,28 @@ Deno.serve(async (req) => {
 
         for (const truck of trucks ?? []) {
           await computeProjections(companyId, truck.id, runDate);
+          await computeOnTimeMetrics(companyId, truck.id, runDate);
         }
-        result = { ...escalation, projections_computed: trucks?.length ?? 0 };
+        result = { ...escalation, projections_computed: trucks?.length ?? 0, on_time_computed: true };
+        break;
+      }
+
+      case "billing_hygiene_batch": {
+        // Run billing hygiene for all completed trips on a date
+        const batchDate = body.run_date || new Date().toISOString().split("T")[0];
+        const { data: completedTrips } = await admin
+          .from("trip_records")
+          .select("id")
+          .eq("company_id", companyId)
+          .eq("run_date", batchDate)
+          .in("status", ["completed", "ready_for_billing"]);
+
+        const results = [];
+        for (const t of completedTrips ?? []) {
+          const r = await billingHygieneCheck(t.id);
+          results.push({ trip_id: t.id, ...r });
+        }
+        result = { checked: results.length, results };
         break;
       }
 

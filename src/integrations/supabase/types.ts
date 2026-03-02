@@ -636,6 +636,65 @@ export type Database = {
           },
         ]
       }
+      daily_truck_metrics: {
+        Row: {
+          avg_facility_wait_min: number
+          company_id: string
+          id: string
+          late_causes: Json
+          late_count: number
+          on_time_count: number
+          on_time_pct: number
+          operational_risk_score: number
+          run_date: string
+          simulation_run_id: string | null
+          total_trips: number
+          total_wait_min: number
+          truck_id: string
+          updated_at: string
+        }
+        Insert: {
+          avg_facility_wait_min?: number
+          company_id: string
+          id?: string
+          late_causes?: Json
+          late_count?: number
+          on_time_count?: number
+          on_time_pct?: number
+          operational_risk_score?: number
+          run_date: string
+          simulation_run_id?: string | null
+          total_trips?: number
+          total_wait_min?: number
+          truck_id: string
+          updated_at?: string
+        }
+        Update: {
+          avg_facility_wait_min?: number
+          company_id?: string
+          id?: string
+          late_causes?: Json
+          late_count?: number
+          on_time_count?: number
+          on_time_pct?: number
+          operational_risk_score?: number
+          run_date?: string
+          simulation_run_id?: string | null
+          total_trips?: number
+          total_wait_min?: number
+          truck_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_truck_metrics_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facilities: {
         Row: {
           active: boolean | null
@@ -1915,37 +1974,49 @@ export type Database = {
       }
       trip_projection_state: {
         Row: {
+          actual_arrival_at: string | null
           company_id: string
           confidence: number
           late_probability: number
+          late_root_cause: string | null
+          on_time_status: string
           projected_complete_at: string | null
           projected_next_arrival_at: string | null
           reason_codes: string[]
           risk_color: string
+          scheduled_pickup_time: string | null
           simulation_run_id: string | null
           trip_id: string
           updated_at: string
         }
         Insert: {
+          actual_arrival_at?: string | null
           company_id: string
           confidence?: number
           late_probability?: number
+          late_root_cause?: string | null
+          on_time_status?: string
           projected_complete_at?: string | null
           projected_next_arrival_at?: string | null
           reason_codes?: string[]
           risk_color?: string
+          scheduled_pickup_time?: string | null
           simulation_run_id?: string | null
           trip_id: string
           updated_at?: string
         }
         Update: {
+          actual_arrival_at?: string | null
           company_id?: string
           confidence?: number
           late_probability?: number
+          late_root_cause?: string | null
+          on_time_status?: string
           projected_complete_at?: string | null
           projected_next_arrival_at?: string | null
           reason_codes?: string[]
           risk_color?: string
+          scheduled_pickup_time?: string | null
           simulation_run_id?: string | null
           trip_id?: string
           updated_at?: string
@@ -2004,6 +2075,7 @@ export type Database = {
           pickup_location: string | null
           requires_monitoring: boolean | null
           respiration_rate: number | null
+          revenue_risk_score: number | null
           run_date: string
           scheduled_dropoff_time: string | null
           scheduled_pickup_time: string | null
@@ -2062,6 +2134,7 @@ export type Database = {
           pickup_location?: string | null
           requires_monitoring?: boolean | null
           respiration_rate?: number | null
+          revenue_risk_score?: number | null
           run_date?: string
           scheduled_dropoff_time?: string | null
           scheduled_pickup_time?: string | null
@@ -2120,6 +2193,7 @@ export type Database = {
           pickup_location?: string | null
           requires_monitoring?: boolean | null
           respiration_rate?: number | null
+          revenue_risk_score?: number | null
           run_date?: string
           scheduled_dropoff_time?: string | null
           scheduled_pickup_time?: string | null
