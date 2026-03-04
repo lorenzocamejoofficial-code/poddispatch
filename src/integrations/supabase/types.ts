@@ -424,6 +424,8 @@ export type Database = {
           owner_user_id: string | null
           rejected_at: string | null
           rejected_reason: string | null
+          suspended_at: string | null
+          suspended_by: string | null
           suspended_reason: string | null
         }
         Insert: {
@@ -438,6 +440,8 @@ export type Database = {
           owner_user_id?: string | null
           rejected_at?: string | null
           rejected_reason?: string | null
+          suspended_at?: string | null
+          suspended_by?: string | null
           suspended_reason?: string | null
         }
         Update: {
@@ -452,6 +456,8 @@ export type Database = {
           owner_user_id?: string | null
           rejected_at?: string | null
           rejected_reason?: string | null
+          suspended_at?: string | null
+          suspended_by?: string | null
           suspended_reason?: string | null
         }
         Relationships: []
