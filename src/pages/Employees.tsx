@@ -125,33 +125,6 @@ export default function Employees() {
     setEmployees(empList);
   };
 
-  const [clearing, setClearing] = useState(false);
-  const handleClearTestEmployees = async () => {
-    if (!activeCompanyId) return;
-    setClearing(true);
-    // Get owner user_id to protect their profile
-    const { data: ownerMembership } = await supabase
-      .from("company_memberships")
-      .select("user_id")
-      .eq("company_id", activeCompanyId)
-      .eq("role", "owner")
-      .maybeSingle();
-    const ownerUserId = ownerMembership?.user_id;
-    // Delete all non-owner profiles for this company
-    let query = supabase.from("profiles").delete().eq("company_id", activeCompanyId);
-    if (ownerUserId) {
-      query = query.neq("user_id", ownerUserId);
-    }
-    const { error } = await query;
-    if (error) {
-      toast.error("Failed to clear test employees: " + error.message);
-    } else {
-      toast.success("Test employees cleared. Only the Owner remains.");
-      setSelected(new Set());
-      fetchEmployees();
-    }
-    setClearing(false);
-  };
 
   const fetchInvites = async () => {
     if (!activeCompanyId) return;
@@ -365,18 +338,6 @@ export default function Employees() {
             <Input placeholder="Search by name or phone..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
           <div className="flex items-center gap-3">
-            {(userRole === "owner" || userRole === "creator") && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                onClick={handleClearTestEmployees}
-                disabled={clearing}
-              >
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                {clearing ? "Clearing..." : "Clear Test Company Employees"}
-              </Button>
-            )}
             <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
               <Switch checked={showInactive} onCheckedChange={setShowInactive} />
               Show inactive
