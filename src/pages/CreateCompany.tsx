@@ -43,9 +43,9 @@ export default function CreateCompany() {
       return;
     }
 
-    toast.success("Company created! Redirecting...");
-    // Full reload to pick up new membership data
-    setTimeout(() => { window.location.href = "/"; }, 500);
+    toast.success("Company created! Your account is pending approval.");
+    // Full reload to pick up new membership data — will route to /pending-approval
+    setTimeout(() => { window.location.href = "/pending-approval"; }, 500);
   };
 
   return (
