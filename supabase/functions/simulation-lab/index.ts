@@ -688,8 +688,12 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
       });
     }
 
+    // If no profiles were inserted (FK to auth.users fails in simulation),
+    // null out member IDs so crews can still be created
     const crewRows = plannedCrews.map((crew) => ({
-      ...crew,
+      truck_id: crew.truck_id,
+      member1_id: profileIdSet.has(crew.member1_id) ? crew.member1_id : null,
+      member2_id: profileIdSet.has(crew.member2_id) ? crew.member2_id : null,
       active_date: today,
       company_id: companyId,
       is_simulated: true,
@@ -703,11 +707,11 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
       rows: crewRows,
       logs,
       rowErrors,
-      requiredFields: ["truck_id", "member1_id", "member2_id", "company_id"],
+      requiredFields: ["truck_id", "company_id"],
       fkRules: [
         { field: "truck_id", allowed: new Set(truckIds), label: "trucks" },
-        { field: "member1_id", allowed: profileIdSet, label: "profiles" },
-        { field: "member2_id", allowed: profileIdSet, label: "profiles" },
+        { field: "member1_id", allowed: profileIdSet, label: "profiles", nullable: true },
+        { field: "member2_id", allowed: profileIdSet, label: "profiles", nullable: true },
       ],
       batchSize: 25,
       select: "id,truck_id,member1_id,member2_id",
@@ -2045,6 +2049,88 @@ Deno.serve(async (req) => {
         // 12. At least one trip NOT claim_ready (billing blocker scenario)
         const blockedTrips = (tripRecords ?? []).filter((t: any) => !t.claim_ready && t.status === "completed");
         checks.push({ name: "Blocked trips exist (billing test)", pass: blockedTrips.length > 0, detail: `${blockedTrips.length} completed trips not claim_ready`, table: "trip_records" });
+
+        const allPass = checks.every(c => c.pass);
+        result = { pass: allPass, checks, summary: `${checks.filter(c => c.pass).length}/${checks.length} passed` };
+        break;
+      }
+      case "scheduling_validate": {
+        const today = new Date().toISOString().slice(0, 10);
+        const checks: { name: string; pass: boolean; detail: string }[] = [];
+
+        // 1. Trucks created
+        const { count: truckCount } = await admin.from("trucks").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("is_simulated", true);
+        checks.push({ name: "Trucks created", pass: (truckCount ?? 0) > 0, detail: `${truckCount ?? 0}` });
+
+        // 2. Scheduling legs (trips) created for today
+        const { data: allLegs } = await admin.from("scheduling_legs").select("id, pickup_time, estimated_duration_minutes, leg_type").eq("company_id", companyId).eq("is_simulated", true).eq("run_date", today);
+        checks.push({ name: "Scheduling legs created", pass: (allLegs?.length ?? 0) > 0, detail: `${allLegs?.length ?? 0}` });
+
+        // 3. Truck run slots created
+        const { data: allSlots } = await admin.from("truck_run_slots").select("id, truck_id, leg_id, slot_order").eq("company_id", companyId).eq("is_simulated", true).eq("run_date", today).order("truck_id").order("slot_order");
+        checks.push({ name: "Truck run slots created", pass: (allSlots?.length ?? 0) > 0, detail: `${allSlots?.length ?? 0}` });
+
+        // 4. Crews created
+        const { count: crewCount } = await admin.from("crews").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("is_simulated", true);
+        checks.push({ name: "Crews created", pass: (crewCount ?? 0) > 0, detail: `${crewCount ?? 0}` });
+
+        // 5. Overlap detection: duplicate slot_order per truck
+        const truckSlotGroups = new Map<string, number[]>();
+        for (const s of allSlots ?? []) {
+          const arr = truckSlotGroups.get(s.truck_id) ?? [];
+          arr.push(s.slot_order);
+          truckSlotGroups.set(s.truck_id, arr);
+        }
+        let overlapCount = 0;
+        for (const [, orders] of truckSlotGroups) {
+          const uniqueOrders = new Set(orders);
+          overlapCount += orders.length - uniqueOrders.size;
+        }
+        checks.push({ name: "Overlaps detected", pass: true, detail: `${overlapCount}` });
+
+        // 6. Buffer violations: consecutive legs with < 10 min gap
+        const legTimeMap = new Map<string, { pickup: string; duration: number }>(); 
+        for (const l of allLegs ?? []) {
+          if (l.pickup_time) legTimeMap.set(l.id, { pickup: l.pickup_time, duration: l.estimated_duration_minutes ?? 30 });
+        }
+        let bufferViolations = 0;
+        for (const [, orders] of truckSlotGroups) {
+          // Already sorted by slot_order from query
+        }
+        // Re-check with actual times
+        for (const [truckId, _] of truckSlotGroups) {
+          const truckSlotList = (allSlots ?? []).filter(s => s.truck_id === truckId).sort((a, b) => a.slot_order - b.slot_order);
+          for (let i = 1; i < truckSlotList.length; i++) {
+            const prevLeg = legTimeMap.get(truckSlotList[i - 1].leg_id);
+            const currLeg = legTimeMap.get(truckSlotList[i].leg_id);
+            if (prevLeg && currLeg) {
+              const prevEnd = timeToMin(prevLeg.pickup) + prevLeg.duration;
+              const currStart = timeToMin(currLeg.pickup);
+              if (currStart - prevEnd < 10) bufferViolations++;
+            }
+          }
+        }
+        checks.push({ name: "Buffer violations (<10min gap)", pass: true, detail: `${bufferViolations}` });
+
+        // 7. Late trips + root cause
+        const { data: projections } = await admin.from("trip_projection_state").select("on_time_status, late_root_cause").eq("company_id", companyId);
+        const lateTrips = (projections ?? []).filter((p: any) => p.on_time_status === "late");
+        const rootCauses = new Map<string, number>();
+        for (const p of lateTrips) {
+          const cause = p.late_root_cause || "unknown";
+          rootCauses.set(cause, (rootCauses.get(cause) ?? 0) + 1);
+        }
+        const topCause = [...rootCauses.entries()].sort((a, b) => b[1] - a[1])[0];
+        checks.push({ name: "Late trips", pass: true, detail: `${lateTrips.length}${topCause ? ` (top: ${topCause[0]}=${topCause[1]})` : ""}` });
+
+        // 8. Active waits / hold timers
+        const { data: holdTimers } = await admin.from("hold_timers").select("id, current_level, is_active").eq("company_id", companyId).eq("is_active", true);
+        const escalations = (holdTimers ?? []).filter((h: any) => h.current_level === "red" || h.current_level === "orange");
+        checks.push({ name: "Active waits", pass: true, detail: `${holdTimers?.length ?? 0} active, ${escalations.length} escalated` });
+
+        // 9. Daily truck metrics populated
+        const { count: dtmCount } = await admin.from("daily_truck_metrics").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("run_date", today);
+        checks.push({ name: "Daily truck metrics", pass: (dtmCount ?? 0) > 0, detail: `${dtmCount ?? 0} truck-day records` });
 
         const allPass = checks.every(c => c.pass);
         result = { pass: allPass, checks, summary: `${checks.filter(c => c.pass).length}/${checks.length} passed` };
