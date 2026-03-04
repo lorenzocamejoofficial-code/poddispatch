@@ -55,14 +55,54 @@ export default function CompanySignup() {
 
   const allAccepted = AGREEMENTS.every((a) => accepted[a.key]);
 
-  const validateInfo = () => {
+  const [validating, setValidating] = useState(false);
+  const [emailExists, setEmailExists] = useState(false);
+
+  const validateInfo = async () => {
     setError("");
+    setEmailExists(false);
     if (!companyName.trim()) return setError("Company name is required.");
     if (!fullName.trim()) return setError("Your full name is required.");
     if (!email.trim()) return setError("Email is required.");
     if (!password || password.length < 8)
       return setError("Password must be at least 8 characters.");
     if (password !== confirmPassword) return setError("Passwords do not match.");
+
+    // Check if email already exists by attempting a signUp dry-run
+    setValidating(true);
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { data: { dry_run: true } },
+      });
+
+      // Supabase returns a fake user with no identities if email is taken
+      if (
+        data?.user &&
+        (!data.user.identities || data.user.identities.length === 0)
+      ) {
+        setEmailExists(true);
+        setValidating(false);
+        return;
+      }
+
+      if (signUpError) {
+        // Some Supabase configs return an explicit error for existing users
+        const msg = signUpError.message.toLowerCase();
+        if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("already exists")) {
+          setEmailExists(true);
+          setValidating(false);
+          return;
+        }
+        throw signUpError;
+      }
+    } catch (err: any) {
+      setError(err.message || "Could not verify email. Please try again.");
+      setValidating(false);
+      return;
+    }
+    setValidating(false);
     setStep("agreements");
   };
 
@@ -127,6 +167,18 @@ export default function CompanySignup() {
           </div>
         )}
 
+        {emailExists && (
+          <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            <p>An account with this email already exists. Please sign in instead.</p>
+            <Link
+              to={`/login?email=${encodeURIComponent(email.trim())}`}
+              className="mt-2 inline-block font-medium text-primary hover:underline"
+            >
+              Go to Sign In →
+            </Link>
+          </div>
+        )}
+
         {/* Step 1: Company Info */}
         {step === "info" && (
           <div className="space-y-4">
@@ -182,8 +234,8 @@ export default function CompanySignup() {
                 placeholder="Re-enter password"
               />
             </div>
-            <Button className="w-full" onClick={validateInfo}>
-              Continue to Agreements
+            <Button className="w-full" onClick={validateInfo} disabled={validating}>
+              {validating ? "Checking..." : "Continue to Agreements"}
             </Button>
             <p className="text-center text-xs text-muted-foreground">
               Already have an account?{" "}
