@@ -1112,6 +1112,73 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
     pushSeedLog(logs, { step: "set_billing_readiness_fields", status: "error", error: e.message });
   }
 
+  // i) create claim_records for completed/ready_for_billing trips so Billing & Claims has data
+  try {
+    const { data: claimableTrips } = await admin
+      .from("trip_records")
+      .select("id, patient_id, run_date, trip_type, expected_revenue, origin_type, destination_type, hcpcs_codes, hcpcs_modifiers, loaded_miles, claim_ready")
+      .eq("company_id", companyId)
+      .eq("simulation_run_id", runId)
+      .in("status", ["completed", "ready_for_billing"]);
+
+    if (claimableTrips && claimableTrips.length > 0) {
+      const payerTypes: string[] = [];
+      for (const [payer, count] of Object.entries(config.payerMix)) for (let j = 0; j < count; j++) payerTypes.push(payer);
+
+      const claimRows = claimableTrips.map((t: any, idx: number) => {
+        const payer = payerTypes[idx % payerTypes.length] || "Medicare";
+        const payerLower = payer.toLowerCase();
+        const payerType = payerLower.includes("medicare") ? "medicare"
+          : payerLower.includes("medicaid") ? "medicaid"
+          : payerLower.includes("facility") || payerLower.includes("contract") ? "facility"
+          : "cash";
+        const baseCharge = t.expected_revenue ?? rand(150, 350);
+        const mileageCharge = (t.loaded_miles ?? rand(5, 20)) * 2.5;
+        const extrasCharge = rand(0, 30);
+        return {
+          trip_id: t.id,
+          patient_id: t.patient_id,
+          run_date: t.run_date,
+          payer_type: payerType,
+          payer_name: payer,
+          base_charge: baseCharge,
+          mileage_charge: Math.round(mileageCharge * 100) / 100,
+          extras_charge: extrasCharge,
+          total_charge: Math.round((baseCharge + mileageCharge + extrasCharge) * 100) / 100,
+          expected_revenue: t.expected_revenue ?? baseCharge,
+          status: t.claim_ready ? "ready_to_bill" : "needs_correction",
+          origin_type: t.origin_type,
+          destination_type: t.destination_type,
+          hcpcs_codes: t.hcpcs_codes,
+          hcpcs_modifiers: t.hcpcs_modifiers,
+          company_id: companyId,
+          is_simulated: true,
+          simulation_run_id: runId,
+        };
+      });
+
+      await insertRowsResilient({
+        admin,
+        step: "create_claim_records",
+        table: "claim_records",
+        rows: claimRows,
+        logs,
+        rowErrors,
+        requiredFields: ["trip_id", "patient_id", "run_date", "company_id"],
+        batchSize: 25,
+        select: "id",
+      });
+    }
+
+    pushSeedLog(logs, {
+      step: "create_claim_records",
+      status: "ok",
+      count: claimableTrips?.length ?? 0,
+    });
+  } catch (e: any) {
+    pushSeedLog(logs, { step: "create_claim_records", status: "error", error: e.message });
+  }
+
   const firstRowError = rowErrors[0];
 
   if (tripCount === 0) {
