@@ -14,254 +14,6 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
         "Shows all active trucks and their assigned crew for the selected date.",
         "Displays every run assigned to each truck, in order, with current status.",
         "Highlights the current active run on each truck.",
-        "Shows alerts (e.g. late pickups) that need attention.",
-        "Updates in real time — status changes from crew links appear here automatically.",
-        "Lets you dismiss resolved alerts.",
-      ],
-      doesNot: [
-        "Does not let you create or edit runs from this screen — use Scheduling for that.",
-        "Does not show historical runs from past dates (change date in the sidebar date picker).",
-        "Does not calculate drive-time conflicts or route optimization.",
-        "Does not send notifications to crew — use Crew Schedule Delivery for that.",
-      ],
-      tips: [
-        "If a truck shows no crew, it means no crew was assigned for that date in Trucks & Crews.",
-        "If runs are missing, check that they were assigned to the truck in Scheduling.",
-        "The date picker in the header controls which day you're viewing.",
-      ],
-    },
-  },
-
-  "/scheduling": {
-    title: "Patient Runs / Scheduling",
-    content: {
-      does: [
-        "Shows a 7-day weekly overview — click any day to open the daily drill-down.",
-        "Daily Ops Snapshot bar: shows active trucks, total runs, unassigned count, avg runs/truck, empty trucks, overloaded trucks (>8 runs), DOWN trucks, and trucks with no crew — all at a glance.",
-        "Auto-Fill: generates A and B legs from patient recurrence profiles (Dialysis/Outpatient) for the selected date. All generated runs go into the Unassigned Run Pool.",
-        "Run Pool: a collapsible panel that lists all unassigned runs for the day. Default state is collapsed — click the header to expand. On high-volume days (40–100+ runs), the pool stays manageable.",
-        "Run Pool grouping: inside the pool, runs are grouped by transport type (Dialysis / Outpatient / Other) and then by A-legs / B-legs. Each group is collapsible with a count badge.",
-        "Run Pool filters: use the search box, A/B toggle, and transport type buttons to narrow the list. Sort by pickup time or destination.",
-        "Assign Mode: click 'Focus A-legs (N)' or 'Focus B-legs (N)' inside a transport group to zoom into just that subgroup. A breadcrumb shows your location. Click Back or \u00d7 to exit.",
-        "'Show N more' pagination: lists over 25 items show a 'Show more' link instead of rendering 100+ cards at once.",
-        "Drag any pool card to a truck to assign it. Drag an assigned run back to the pool to unassign it. Drag within a truck to reorder slots.",
-        "Default Setup Template: after manually assigning runs to trucks for a day, click 'Save as Default Setup' at the bottom of the Truck Builder. The template stores which transport types (Dialysis/Outpatient/Other) and leg types (A/B) go to which truck — not specific patient IDs.",
-        "Apply Default Setup: on future matching days (same MWF/TTS pattern), click 'Apply Default Setup'. It reads unassigned pool runs and auto-places them into trucks using the saved rules. You can then drag/edit freely after.",
-        "Two apply modes: 'Apply to unassigned only' (safe default — keeps existing assignments, fills the rest) or 'Rebuild all from template' (clears all slots first, then re-places everything).",
-        "Template Info line shows the template name, last-updated date, and how many truck rules are stored. One template per day-type (MWF, TTS, or weekday) per company. Saved indefinitely until updated or cleared.",
-        "Upcoming Non-Dialysis Transports panel: visible on the week view, below the 7-day calendar grid. Shows all outpatient, discharge, hospital, private pay, and ad-hoc legs scheduled for the next 7, 14, or 30 days. Designed to surface runs that are easy to forget because they don't auto-fill like dialysis.",
-        "The panel defaults to 'Unassigned only' — focus on what's at risk of being missed. Toggle to see all upcoming non-dialysis runs. Click 'Go' on any row to jump to that day's view.",
-        "Manually create A-legs and B-legs for ad-hoc runs (discharge, hospital, private pay).",
-        "Exception editing: click the pencil icon on any run to change pickup location, time, or notes for THAT date only — the recurring series is unchanged. A branch icon marks exception runs.",
-        "Each truck card shows a utilization badge: green (6–8 runs), yellow (3–5), red (0–2 or >10). Also shows first and last pickup time.",
-        "Trucks marked DOWN show a red badge — runs cannot be added, but existing runs stay visible for reassignment.",
-      ],
-      doesNot: [
-        "Does not auto-optimize routes or calculate drive-time conflicts between legs.",
-        "Does not send anything to crew — share links are in Crew Schedule Delivery.",
-        "Does not delete or edit patient profiles — use the Patients page for that.",
-        "Does not prevent assigning the same patient twice on the same day.",
-        "Editing a series (changing recurring defaults) must be done in the Patients page, not here.",
-        "Does not automatically move runs off a truck that goes down — dispatcher must reassign manually.",
-        "The Non-Dialysis panel does not show dialysis runs, does not auto-assign runs, and does not let you edit from within the panel.",
-        "This is operational visibility only — not billing, payroll, or route optimization software.",
-      ],
-      tips: [
-        "Check the Upcoming Non-Dialysis panel at the start of each week to catch outpatient/ad-hoc trips that need manual scheduling.",
-        "Use the 30-day window on the Non-Dialysis panel to plan ahead for discharge runs you know are coming.",
-        "If the panel shows 0 unassigned, all upcoming non-dialysis runs have been handled — safe to focus on dialysis.",
-        "On a 100-run day: use Auto-Fill first, then open the Run Pool. Work transport group by transport group using Assign Mode to avoid overwhelm.",
-        "Dialysis A-legs all go to the same facilities — cluster them by destination sort before assigning.",
-        "Dialysis and Outpatient patients auto-fill if they have Schedule Days set and are Active with a recurrence start date.",
-        "A-legs are pickups (home to facility). B-legs are returns (facility to home).",
-        "Exception edits (one-day changes) show a branch icon and are reflected on the crew run sheet.",
-        "Ad-hoc runs (discharge, hospital, private pay) are created manually — they don't auto-fill but appear in the Non-Dialysis panel once created.",
-        "If a truck goes DOWN after runs are assigned: open that truck's card, trash each leg to return it to the pool, then reassign.",
-        "Repeat-day workflow: (1) Auto-Fill generates runs into pool; (2) Apply Default Setup auto-places them into trucks; (3) drag-adjust exceptions; done.",
-        "Template stores rules (e.g. Truck 1 = Dialysis A+B), not specific patient IDs — works even when the patient list varies day to day.",
-        "One template per day-type per company: MWF days share one template, TTS another. Click Update Default at any time to overwrite.",
-      ],
-    },
-  },
-
-  "/trucks": {
-    title: "Trucks & Crews",
-    content: {
-      does: [
-        "Lets you add trucks to your fleet and rename existing trucks.",
-        "Shows a Sunday–Saturday weekly calendar grid — every truck × every day of the week at a glance.",
-        "Lets you assign, edit, or clear crew members on any truck for any day — including days weeks in advance.",
-        "Navigate backward or forward by week using the Previous / Next buttons; jump to today anytime.",
-        "'Copy Week' copies all crew assignments from the current week to a target week without overwriting existing ones.",
-        "Lets you mark a truck as Down (Maintenance or Out of Service) for a specific date range — crew assignment is blocked and a DOWN badge appears.",
-        "Removing a down record instantly restores that truck to available.",
-        "Crew assignments created here appear in Scheduling, Dispatch Board, and Crew Run Sheets automatically.",
-      ],
-      doesNot: [
-        "Does not enforce that the same employee is only on one truck per day — avoid double-assigning manually.",
-        "Does not auto-generate share links — do that in Crew Schedule Delivery.",
-        "Does not affect scheduling legs — legs are assigned to trucks in the Scheduling page.",
-        "Does not delete runs already assigned to a down truck — those must be manually reassigned in Scheduling.",
-        "Does not track maintenance history beyond the date range you enter.",
-      ],
-      tips: [
-        "Crew members must be created in Employees (marked Active) before they appear here.",
-        "Hover any cell to reveal Assign, Edit, and Mark Down actions — the calendar is read-only until you hover.",
-        "Mark a truck down BEFORE assigning crew for that day — the cell will show a DOWN badge and block assignment.",
-        "If a truck goes down after runs were assigned, open Scheduling, find that truck, and move runs to another truck.",
-        "Crew must be assigned for a date BEFORE generating a share link for that day in Crew Schedule Delivery.",
-      ],
-    },
-  },
-
-  "/employees": {
-    title: "Employees",
-    content: {
-      does: [
-        "Lets you create employee accounts with login credentials (email + password).",
-        "Assigns a role to each employee: Admin or Crew.",
-        "Stores employee info: name, phone, certification level, sex.",
-        "Lets you toggle employees between Active and Inactive.",
-        "Lets you search employees by name or phone number.",
-        "Shows inactive employees when 'Show inactive' is toggled on.",
-      ],
-      doesNot: [
-        "Does not reset employee passwords — contact your system administrator to do that.",
-        "Does not delete employee accounts — deactivate instead to preserve history.",
-        "Does not show employee shift history or run history.",
-        "Does not auto-text crew — phone numbers are stored for reference; messages are sent manually via Crew Schedule Delivery.",
-        "Does not manage certifications or expiry dates beyond the cert level label.",
-      ],
-      tips: [
-        "Mark employees Active before assigning them to a crew in Trucks & Crews.",
-        "Only Active employees appear in crew assignment dropdowns.",
-        "Use Crew role for field staff, Admin for full access.",
-      ],
-    },
-  },
-
-  "/patients": {
-    title: "Patients",
-    content: {
-      does: [
-        "Stores patient records including name, DOB, phone, pickup address, dropoff facility, and notes.",
-        "Tracks patient status: Active, In Hospital, Out of Hospital, Vacation, or Paused — non-Active patients are skipped by Auto-Fill.",
-        "Transport Type: classify each patient as Dialysis (highly repetitive), Outpatient (semi-repetitive), or Ad-hoc (manual only).",
-        "Recurrence Profile: set schedule days (MWF or TTS), chair time, duration, and recurrence start/end date — this is what Auto-Fill uses to generate daily runs.",
-        "Stores weight — patients over 200 lbs are flagged for electric stretcher requirement.",
-        "Lets you search and filter patients by name and status.",
-      ],
-      doesNot: [
-        "Does not store medical records, diagnoses, medications, or insurance information.",
-        "Does not auto-schedule patients — scheduling still happens in the Scheduling page.",
-        "Does not allow editing a single run occurrence from here — use the pencil (exception) icon in Scheduling.",
-        "Does not auto-update patient status based on runs — status must be manually updated here.",
-        "Changing recurrence profile here affects ALL future Auto-Fill generations, not past runs.",
-      ],
-      tips: [
-        "Set Transport Type and Recurrence Profile so Auto-Fill can generate runs correctly.",
-        "Mark patients as In Hospital or Vacation to stop Auto-Fill from scheduling them during that period.",
-        "Notes entered here appear on the crew run sheet patient detail view.",
-        "Ad-hoc patients (transport type = Other/Ad-hoc) never auto-fill — create their runs manually in Scheduling.",
-        "Setting an end date on recurrence stops generation after that date automatically.",
-      ],
-    },
-  },
-
-  "/crew-schedule": {
-    title: "Crew Schedule Delivery",
-    content: {
-      does: [
-        "Generates a secure, token-based share link for a specific truck on a specific date.",
-        "One stable link per truck per day — crews can refresh the same link throughout the shift.",
-        "Lets you prepare a formatted message (Daily Run Sheet or Schedule Update) to send to crew.",
-        "Shows each crew member's name, phone, and assigned truck for easy reference.",
-        "Lets you copy messages individually or all at once.",
-        "Lists all currently active share links so you can copy or revoke them.",
-        "Link automatically expires after the scheduled day.",
-      ],
-      doesNot: [
-        "Does not auto-send SMS or push notifications — messages must be copied and sent manually via text/WhatsApp/phone.",
-        "Does not show run status from the crew's view — use the Dispatch Board for live status.",
-        "Does not regenerate a new link if one already exists for that truck/date — it reuses the stable link.",
-        "Does not expire a link early unless you manually revoke it.",
-      ],
-      tips: [
-        "Generate links for today's trucks before crew starts their shift.",
-        "Use the 'Schedule Update' message template when runs have changed after the initial send.",
-        "After publishing the app, links will use your permanent domain instead of the preview URL.",
-        "Revoking a link immediately blocks crew access — only do this if the link was shared by mistake.",
-      ],
-    },
-  },
-
-  "/settings": {
-    title: "Settings",
-    content: {
-      does: [
-        "Lets you set your company display name (appears on crew run sheets and messages).",
-        "Configures the late threshold (grace window) used for on-time tracking.",
-        "Configures default load/unload times and facility delay buffers for feasibility checks.",
-        "Shows system hard limits (max admins, trucks, crews, runs per truck).",
-        "Includes the Staging Test Readiness Checklist to verify the system before live use.",
-      ],
-      doesNot: [
-        "Does not control user passwords or account access — accounts are managed in Employees.",
-        "Does not send any notifications when settings are changed.",
-        "Does not allow changing system limits — those are fixed for this version.",
-        "Does not store billing or subscription information.",
-      ],
-      tips: [
-        "Update the company name before generating share links — it appears in all crew messages.",
-        "Use the Test Readiness Checklist (at the bottom) to verify each setup step before your first live run.",
-        "Settings are company-wide and apply to all users in your organization.",
-      ],
-    },
-  },
-
-  "/crew/:token": {
-    title: "Crew Run Sheet (Token Link)",
-    content: {
-      does: [
-        "Opens without a login — accessible to anyone with the valid link.",
-        "Shows the truck name, date, and crew members assigned for the shift.",
-        "Lists assigned runs in order with pickup time, pickup location, destination, and notes.",
-        "Reflects any exception edits dispatch made for that specific date (e.g. hospital pickup instead of home).",
-        "Lets crew tap a patient name to see contact info, DOB, weight, and transport notes.",
-        "Lets crew mark each leg through the status flow: Pending → En Route → On Scene → With Patient → Transporting → Complete.",
-        "'Complete Run Documentation' button opens a fast mobile form to capture: loaded miles, pickup/dropoff times, vitals (BP, HR, O₂, resp), transport condition checkboxes, mobility method, medical necessity note, PCS status, and patient signature.",
-        "Submitting documentation automatically marks the trip as completed and ready for billing — no dispatcher or office action needed.",
-        "'Patient Not Ready' button: if a patient is unavailable, tap this button. Dispatch sees a live alert immediately.",
-        "Once the patient is ready, tap 'Patient Ready' on the alert banner to clear it from the dispatcher's view.",
-        "Auto-refreshes every 45 seconds to show dispatcher updates.",
-        "Includes a manual Refresh button and 'Last updated' timestamp.",
-        "Pickup and destination addresses are tappable to open in Google Maps.",
-      ],
-      doesNot: [
-        "Does not allow crew to add, remove, or reorder runs — only dispatch can do that.",
-        "Does not allow skipping steps in the status flow — statuses advance one step at a time.",
-        "Does not allow editing documentation after submission — contact dispatch if corrections are needed.",
-        "Does not give access to any other part of the system.",
-        "Does not work after the link expires (midnight following the run date).",
-        "Does not show other trucks' runs — each link is scoped to one truck on one date.",
-      ],
-      tips: [
-        "Complete documentation immediately after each run while details are fresh — it takes 30-60 seconds.",
-        "Loaded miles is the only required field. Vitals and condition checkboxes are strongly recommended for billing.",
-        "If you lose connection mid-form, re-open and re-submit — the system will accept the latest submission.",
-        "Use 'Patient Not Ready' as soon as you know there's a delay — dispatch needs early warning.",
-        "Phone numbers shown in the patient detail are tap-to-call on mobile.",
-      ],
-    },
-  },
-
-  "/dispatch": {
-    title: "Dispatch Board",
-    content: {
-      does: [
-        "Shows all active trucks and their assigned crew for the selected date.",
-        "Displays every run assigned to each truck, in order, with current status.",
-        "Highlights the current active run on each truck.",
         "Patient Not Ready Alerts section: shows open alerts sent by crew when a patient is unavailable. Each alert includes truck name, patient, run number, pickup time, next run time, and the crew's note.",
         "Truck cards show a red alert badge when that truck has an open Patient Not Ready alert.",
         "Resolve button dismisses a Patient Not Ready alert once the situation is handled.",
@@ -284,11 +36,245 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
     },
   },
 
+  "/dispatch": {
+    title: "Dispatch Board",
+    content: {
+      does: [
+        "Shows all active trucks and their assigned crew for the selected date.",
+        "Displays every run assigned to each truck, in order, with current status.",
+        "Highlights the current active run on each truck.",
+        "Patient Not Ready Alerts section: shows open alerts sent by crew when a patient is unavailable.",
+        "Truck cards show a red alert badge when that truck has an open Patient Not Ready alert.",
+        "Updates in real time — status changes and Not Ready alerts from crew links appear here automatically.",
+      ],
+      doesNot: [
+        "Does not let you create or edit runs from this screen — use Scheduling for that.",
+        "Does not show historical runs from past dates.",
+        "Does not calculate drive-time conflicts or route optimization.",
+        "Does not send notifications to crew — use Crew Schedule Delivery for that.",
+      ],
+      tips: [
+        "If a truck shows no crew, assign crew for that date in Trucks & Crews.",
+        "If runs are missing, check that they were assigned to the truck in Scheduling.",
+      ],
+    },
+  },
+
+  "/scheduling": {
+    title: "Patient Runs / Scheduling",
+    content: {
+      does: [
+        "Shows a 7-day weekly overview — click any day to open the daily drill-down.",
+        "Daily Ops Snapshot bar: shows active trucks, total runs, unassigned count, avg runs/truck, empty trucks, overloaded trucks (>8 runs), DOWN trucks, and trucks with no crew.",
+        "Auto-Fill: generates A and B legs from patient recurrence profiles (Dialysis/Outpatient) for the selected date. All generated runs go into the Unassigned Run Pool.",
+        "Run Pool: a collapsible panel that lists all unassigned runs for the day. Runs are grouped by transport type and A/B legs with collapsible groups and count badges.",
+        "Run Pool filters: search box, A/B toggle, and transport type buttons to narrow the list. Sort by pickup time or destination.",
+        "Drag any pool card to a truck to assign it. Drag an assigned run back to the pool to unassign it. Drag within a truck to reorder slots.",
+        "Default Setup Template: save which transport types and leg types go to which truck. Apply on future matching days (MWF/TTS pattern) to auto-place runs.",
+        "Two apply modes: 'Apply to unassigned only' (safe default) or 'Rebuild all from template' (clears all slots first).",
+        "Upcoming Non-Dialysis Transports panel: shows outpatient, discharge, hospital, private pay, and ad-hoc legs for the next 7–30 days.",
+        "Manually create A-legs and B-legs for ad-hoc runs (discharge, hospital, private pay).",
+        "Exception editing: change pickup location, time, or notes for ONE date only — the recurring series is unchanged.",
+        "Each truck card shows a utilization badge and first/last pickup time.",
+        "Trucks marked DOWN show a red badge — runs cannot be added.",
+      ],
+      doesNot: [
+        "Does not auto-optimize routes or calculate drive-time conflicts between legs.",
+        "Does not send anything to crew — share links are in Crew Schedule Delivery.",
+        "Does not delete or edit patient profiles — use the Patients page for that.",
+        "Does not prevent assigning the same patient twice on the same day.",
+        "Does not automatically move runs off a truck that goes down — dispatcher must reassign manually.",
+        "The Non-Dialysis panel does not show dialysis runs, does not auto-assign runs.",
+      ],
+      tips: [
+        "Check the Upcoming Non-Dialysis panel at the start of each week to catch ad-hoc trips.",
+        "On a 100-run day: use Auto-Fill first, then open the Run Pool. Work transport group by transport group using Assign Mode.",
+        "Dialysis A-legs all go to the same facilities — cluster them by destination sort before assigning.",
+        "A-legs are pickups (home to facility). B-legs are returns (facility to home).",
+        "Exception edits show a branch icon and are reflected on the crew run sheet.",
+        "Template stores rules (e.g. Truck 1 = Dialysis A+B), not specific patient IDs — works even when the patient list varies.",
+        "One template per day-type per company: MWF days share one template, TTS another.",
+      ],
+    },
+  },
+
+  "/trucks": {
+    title: "Trucks & Crews",
+    content: {
+      does: [
+        "Lets you add trucks to your fleet and rename existing trucks.",
+        "Shows a Sunday–Saturday weekly calendar grid — every truck × every day of the week at a glance.",
+        "Lets you assign, edit, or clear crew members on any truck for any day — including days weeks in advance.",
+        "Navigate backward or forward by week using the Previous / Next buttons; jump to today anytime.",
+        "'Copy Week' copies all crew assignments from the current week to a target week without overwriting existing ones.",
+        "Lets you mark a truck as Down (Maintenance or Out of Service) for a specific date range.",
+        "Removing a down record instantly restores that truck to available.",
+        "Crew assignments created here appear in Scheduling, Dispatch Board, and Crew Run Sheets automatically.",
+      ],
+      doesNot: [
+        "Does not enforce that the same employee is only on one truck per day — avoid double-assigning manually.",
+        "Does not auto-generate share links — do that in Crew Schedule Delivery.",
+        "Does not affect scheduling legs — legs are assigned to trucks in the Scheduling page.",
+        "Does not delete runs already assigned to a down truck — those must be manually reassigned in Scheduling.",
+        "Does not track maintenance history beyond the date range you enter.",
+      ],
+      tips: [
+        "Crew members must be created in Employees (marked Active) before they appear here.",
+        "Hover any cell to reveal Assign, Edit, and Mark Down actions.",
+        "Mark a truck down BEFORE assigning crew for that day.",
+        "Crew must be assigned for a date BEFORE generating a share link for that day in Crew Schedule Delivery.",
+      ],
+    },
+  },
+
+  "/employees": {
+    title: "Employees",
+    content: {
+      does: [
+        "Lists all employees for your company, scoped by multi-tenant isolation (only your company's employees appear).",
+        "The company Owner is automatically shown — the Owner account is created when the company is set up.",
+        "Lets you create employee accounts with login credentials (email + password) and assign a role: Admin or Crew.",
+        "Stores employee info: name, phone, certification level, sex, and training flags (bariatric, oxygen, stair chair).",
+        "Lets you toggle employees between Active and Inactive.",
+        "Lets you search employees by name or phone number.",
+        "Shows inactive employees when 'Show inactive' is toggled on.",
+        "Owners can use 'Clear Test Company Employees' to remove leftover test/demo data — this deletes all employees except the Owner.",
+      ],
+      doesNot: [
+        "Does not reset employee passwords — use Account Settings or contact your administrator.",
+        "Does not delete employee accounts permanently — deactivate instead to preserve history.",
+        "Does not show employee shift history or run history.",
+        "Does not auto-text crew — phone numbers are stored for reference; messages are sent via Crew Schedule Delivery.",
+        "Does not manage certifications or expiry dates beyond the cert level label.",
+      ],
+      tips: [
+        "Mark employees Active before assigning them to a crew in Trucks & Crews.",
+        "Only Active employees appear in crew assignment dropdowns.",
+        "Use Crew role for field staff, Admin for full access.",
+        "If you see leftover test employees from demo data, use 'Clear Test Company Employees' to clean up.",
+      ],
+    },
+  },
+
+  "/patients": {
+    title: "Patients",
+    content: {
+      does: [
+        "Stores patient records including name, DOB, phone, pickup address, dropoff facility, and notes.",
+        "Only shows patients belonging to your company (multi-tenant isolated).",
+        "Tracks patient status: Active, In Hospital, Out of Hospital, Vacation, or Paused — non-Active patients are skipped by Auto-Fill.",
+        "Transport Type: classify each patient as Dialysis (highly repetitive), Outpatient (semi-repetitive), or Ad-hoc (manual only).",
+        "Recurrence Profile: set schedule days (MWF or TTS), chair time, duration, and recurrence start/end date — this is what Auto-Fill uses to generate daily runs.",
+        "Stores weight — patients over 200 lbs are flagged for electric stretcher requirement.",
+        "Lets you search and filter patients by name and status.",
+      ],
+      doesNot: [
+        "Does not store medical records, diagnoses, medications, or insurance information.",
+        "Does not auto-schedule patients — scheduling happens in the Scheduling page.",
+        "Does not allow editing a single run occurrence from here — use the pencil (exception) icon in Scheduling.",
+        "Does not auto-update patient status based on runs — status must be manually updated here.",
+        "Changing recurrence profile here affects ALL future Auto-Fill generations, not past runs.",
+      ],
+      tips: [
+        "Set Transport Type and Recurrence Profile so Auto-Fill can generate runs correctly.",
+        "Mark patients as In Hospital or Vacation to stop Auto-Fill from scheduling them during that period.",
+        "Notes entered here appear on the crew run sheet patient detail view.",
+        "Ad-hoc patients never auto-fill — create their runs manually in Scheduling.",
+        "Setting an end date on recurrence stops generation after that date automatically.",
+      ],
+    },
+  },
+
+  "/crew-schedule": {
+    title: "Crew Schedule Delivery",
+    content: {
+      does: [
+        "Generates a secure, token-based share link for a specific truck on a specific date.",
+        "One stable link per truck per day — crews can refresh the same link throughout the shift.",
+        "Lets you prepare a formatted message (Daily Run Sheet or Schedule Update) to send to crew.",
+        "Shows each crew member's name, phone, and assigned truck for easy reference.",
+        "Lets you copy messages individually or all at once.",
+        "Lists all currently active share links so you can copy or revoke them.",
+        "Link automatically expires after the scheduled day.",
+      ],
+      doesNot: [
+        "Does not auto-send SMS or push notifications — messages must be copied and sent manually via text/WhatsApp.",
+        "Does not show run status from the crew's view — use the Dispatch Board for live status.",
+        "Does not regenerate a new link if one already exists for that truck/date — it reuses the stable link.",
+        "Does not expire a link early unless you manually revoke it.",
+      ],
+      tips: [
+        "Generate links for today's trucks before crew starts their shift.",
+        "Use the 'Schedule Update' message template when runs have changed after the initial send.",
+        "After publishing the app, links will use your permanent domain instead of the preview URL.",
+        "Revoking a link immediately blocks crew access — only do this if the link was shared by mistake.",
+      ],
+    },
+  },
+
+  "/settings": {
+    title: "Settings",
+    content: {
+      does: [
+        "Lets you set your company display name (appears on crew run sheets and messages).",
+        "Configures the late threshold (grace window) used for on-time tracking.",
+        "Configures default load/unload times and facility delay buffers for feasibility checks.",
+        "Shows system hard limits (max admins, trucks, crews, runs per truck).",
+        "Includes the Staging Test Readiness Checklist to verify the system before live use.",
+        "Settings are scoped to your company — other companies cannot see or change them.",
+      ],
+      doesNot: [
+        "Does not control user passwords or account access — use Account Settings for your own credentials, or Employees for staff accounts.",
+        "Does not send any notifications when settings are changed.",
+        "Does not allow changing system limits — those are fixed for this version.",
+        "Does not store billing or subscription information.",
+      ],
+      tips: [
+        "Update the company name before generating share links — it appears in all crew messages.",
+        "Use the Test Readiness Checklist (at the bottom) to verify each setup step before your first live run.",
+        "Settings are company-wide and apply to all users in your organization.",
+      ],
+    },
+  },
+
+  "/crew/:token": {
+    title: "Crew Run Sheet (Token Link)",
+    content: {
+      does: [
+        "Opens without a login — accessible to anyone with the valid link.",
+        "Shows the truck name, date, and crew members assigned for the shift.",
+        "Lists assigned runs in order with pickup time, pickup location, destination, and notes.",
+        "Reflects any exception edits dispatch made for that specific date.",
+        "Lets crew tap a patient name to see contact info, DOB, weight, and transport notes.",
+        "Lets crew mark each leg through the status flow: Pending → En Route → On Scene → With Patient → Transporting → Complete.",
+        "'Complete Run Documentation' button opens a fast mobile form to capture: loaded miles, pickup/dropoff times, vitals, transport condition, mobility method, medical necessity note, PCS status, and patient signature.",
+        "Submitting documentation automatically marks the trip as completed and ready for billing.",
+        "'Patient Not Ready' button: if a patient is unavailable, dispatch sees a live alert immediately.",
+        "Auto-refreshes every 45 seconds to show dispatcher updates.",
+        "Pickup and destination addresses are tappable to open in Google Maps.",
+      ],
+      doesNot: [
+        "Does not allow crew to add, remove, or reorder runs — only dispatch can do that.",
+        "Does not allow skipping steps in the status flow — statuses advance one step at a time.",
+        "Does not allow editing documentation after submission — contact dispatch if corrections are needed.",
+        "Does not give access to any other part of the system.",
+        "Does not work after the link expires (midnight following the run date).",
+        "Does not show other trucks' runs — each link is scoped to one truck on one date.",
+      ],
+      tips: [
+        "Complete documentation immediately after each run while details are fresh — it takes 30-60 seconds.",
+        "Loaded miles is the only required field. Vitals and condition checkboxes are strongly recommended for billing.",
+        "Use 'Patient Not Ready' as soon as you know there's a delay — dispatch needs early warning.",
+        "Phone numbers shown in the patient detail are tap-to-call on mobile.",
+      ],
+    },
+  },
+
   "/billing": {
     title: "Billing & Claims",
     content: {
       does: [
-        "Shows all claim records with their current status: Ready to Bill, Submitted, Paid, Denied, Needs Correction.",
+        "Shows all claim records for your company with their current status: Ready to Bill, Submitted, Paid, Denied, Needs Correction.",
         "Lets you submit claims, mark them as paid, or flag them for correction.",
         "Displays charge breakdown: base charge, mileage charge, extras, and total.",
         "Shows HCPCS codes and modifiers auto-computed from trip data.",
@@ -296,6 +282,7 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
         "Tracks denial reasons and codes for follow-up.",
         "Supports resubmission of denied or corrected claims.",
         "Shows Clean Trip badges indicating billing readiness.",
+        "All data is scoped to your company — other companies' claims are never visible.",
       ],
       doesNot: [
         "Does not submit claims electronically to payers — claims must be exported or entered into your clearinghouse.",
@@ -316,7 +303,7 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
     title: "Trips & Clinical Documentation",
     content: {
       does: [
-        "Shows all trip records with full clinical documentation status.",
+        "Shows all trip records for your company with full clinical documentation status.",
         "Displays documentation completeness: vitals, signatures, PCS, necessity notes, loaded miles.",
         "Lets you review and complete missing documentation fields.",
         "Shows Clean Trip status — whether a trip meets all billing requirements.",
@@ -349,6 +336,7 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
         "Configures payer-specific billing rules: which documentation is required per payer type.",
         "Tracks flag reasons and resolution status.",
         "Shows compliance metrics: total flags, resolved, pending.",
+        "All QA data is scoped to your company only.",
       ],
       doesNot: [
         "Does not auto-correct documentation — it only flags issues for manual review.",
@@ -368,12 +356,13 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
     title: "Facilities",
     content: {
       does: [
-        "Stores facility records: dialysis centers, hospitals, SNFs, and other locations.",
+        "Stores facility records for your company: dialysis centers, hospitals, SNFs, and other locations.",
         "Tracks facility type, address, phone, contact name, and notes.",
         "Shows how many patients are associated with each facility.",
         "Lets you add, edit, and deactivate facilities.",
         "Stores contract payer type, rate type, and invoice preference per facility.",
         "Search and filter facilities by name and type.",
+        "Facilities are company-scoped — other companies cannot see yours.",
       ],
       doesNot: [
         "Does not store facility-specific billing rates — use the Charge Master for that.",
@@ -393,7 +382,7 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
     title: "Reports & Metrics",
     content: {
       does: [
-        "Shows operational metrics: total trips, completed, cancelled, on-time percentage.",
+        "Shows operational metrics for your company: total trips, completed, cancelled, on-time percentage.",
         "Shows financial metrics: revenue collected, revenue pending, denial count.",
         "Breaks down trip volume by truck to identify utilization patterns.",
         "Shows top denial reasons to target billing improvements.",
@@ -446,10 +435,11 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
     title: "Runs",
     content: {
       does: [
-        "Shows all runs for a selected date with patient, truck, crew, and status.",
+        "Shows all runs for your company for a selected date with patient, truck, crew, and status.",
         "Lets you create new runs: assign patient, truck, crew, pickup time, and trip type.",
         "Displays run status progression: Pending → En Route → Arrived → With Patient → Transporting → Completed.",
         "Filters runs by date.",
+        "All run data is scoped to your company only.",
       ],
       doesNot: [
         "Does not support drag-and-drop reordering — use Scheduling for that.",
@@ -464,23 +454,129 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
     },
   },
 
-  "/system": {
-    title: "System Dashboard",
+  "/account": {
+    title: "Account Settings",
     content: {
       does: [
-        "Shows system-wide metrics: total companies, users, trucks, trips, and claims.",
-        "Displays clean claim rate and dispatch efficiency across all companies.",
+        "Lets you change your own login email address (triggers a confirmation email to the new address).",
+        "Lets you change your own password securely.",
+        "Shows your current email on file.",
+        "These actions apply only to YOUR account — you cannot change other users' credentials from here.",
+      ],
+      doesNot: [
+        "Does not let you change other employees' passwords or emails.",
+        "Does not show your current password — passwords are never displayed.",
+        "Does not manage company settings, billing, or subscription.",
+        "Does not delete your account.",
+      ],
+      tips: [
+        "Use a strong, unique password. Minimum 6 characters.",
+        "If you forget your password, use the 'Forgot password?' link on the login page.",
+        "After changing your email, you may need to confirm the new address before it takes effect.",
+      ],
+    },
+  },
+
+  "/forgot-password": {
+    title: "Forgot Password",
+    content: {
+      does: [
+        "Sends a password reset email to the address you enter.",
+        "Always shows a generic success message to protect privacy — it never reveals whether the email exists in the system.",
+        "The reset link in the email takes you to a secure page to set a new password.",
+      ],
+      doesNot: [
+        "Does not reveal whether an email is registered — this is intentional for security.",
+        "Does not reset your password instantly — you must click the link in the email.",
+        "Does not recover forgotten email addresses — contact your company owner or admin for that.",
+      ],
+      tips: [
+        "Check your spam/junk folder if you don't see the reset email within a few minutes.",
+        "The reset link expires — use it promptly after receiving it.",
+        "If you forgot which email you used, contact your company administrator.",
+      ],
+    },
+  },
+
+  "/reset-password": {
+    title: "Reset Password",
+    content: {
+      does: [
+        "Lets you set a new password after clicking the reset link from your email.",
+        "Validates that your new password meets minimum requirements.",
+        "Redirects you to the login page after successful reset.",
+      ],
+      doesNot: [
+        "Does not work without a valid reset token from the email link.",
+        "Does not show your old password.",
+        "Does not change your email address.",
+      ],
+      tips: [
+        "Use a strong, unique password that you don't use on other sites.",
+        "If the link expired, go back to the login page and request a new reset email.",
+      ],
+    },
+  },
+
+  "/suspended": {
+    title: "Account Suspended",
+    content: {
+      does: [
+        "Informs you that your company's access has been suspended by a system administrator.",
+        "Shows the reason for suspension if one was provided.",
+        "Provides guidance on how to contact support or the system administrator.",
+      ],
+      doesNot: [
+        "Does not allow access to any other pages while suspended.",
+        "Does not let you unsuspend your own company — only a system administrator can do that.",
+        "Does not delete your data — all company data is preserved during suspension.",
+      ],
+      tips: [
+        "Contact your system administrator to understand why your account was suspended and how to resolve it.",
+        "Your data is safe — suspension is temporary and reversible by an administrator.",
+      ],
+    },
+  },
+
+  "/pending-approval": {
+    title: "Pending Approval",
+    content: {
+      does: [
+        "Shows that your company registration has been received and is awaiting administrator review.",
+        "Confirms your signup was successful.",
+      ],
+      doesNot: [
+        "Does not allow access to the app until your company is approved.",
+        "Does not guarantee approval — the system administrator reviews each application.",
+        "Does not let you speed up the approval process from this page.",
+      ],
+      tips: [
+        "Approval is typically completed within 1-2 business days.",
+        "You will be able to log in and access all features once approved.",
+      ],
+    },
+  },
+
+  "/system": {
+    title: "System Creator Dashboard",
+    content: {
+      does: [
+        "Shows system-wide metrics: total companies, users, trucks, trips, and claims across all tenants.",
+        "Displays clean claim rate and dispatch efficiency aggregated across all companies.",
         "Provides a high-level health overview of the entire platform.",
-        "Links to Company Console for managing individual companies.",
+        "Dev Mode toggle exposes routes, feature flags, permissions, and schema for debugging.",
+        "Feature Usage Heatmap shows which modules are being used (populates as companies use the platform).",
       ],
       doesNot: [
         "Does not show per-company breakdowns — use Company Console for that.",
-        "Does not allow editing company data directly.",
-        "Does not show individual trip or patient details.",
+        "Does not allow editing company data directly from here.",
+        "Does not show individual trip, patient, or employee details.",
+        "Does not show data from any single company — all metrics are aggregated.",
       ],
       tips: [
         "Check the system dashboard daily for anomalies in claim rates or efficiency.",
         "A drop in clean claim rate may indicate a documentation training issue across companies.",
+        "Use Dev Mode to verify feature flags and route configurations during development.",
       ],
     },
   },
@@ -489,23 +585,70 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
     title: "Company Console",
     content: {
       does: [
-        "Lists all registered companies with their onboarding status.",
-        "Lets you approve, reject, or suspend companies.",
-        "Shows company details: name, owner email, creation date, approval status.",
-        "Tracks subscription and payment status per company.",
-        "Lets you search and filter companies by name or status.",
-        "Provides actions to resend welcome emails or reset company status.",
+        "Lists all registered companies organized by status tabs: Pending, Active, Suspended, Rejected.",
+        "Lets you approve pending companies (transitions them to active).",
+        "Lets you suspend active companies with a required reason and confirmation override.",
+        "Lets you unsuspend suspended companies to restore their access.",
+        "Shows company details: name, owner email, creation date, and current status.",
+        "Lets you trigger a password reset email to a company owner (no password is ever visible).",
+        "Lets you edit company profile information (name, contact details).",
+        "Lets you delete companies that are in pending or rejected status only.",
       ],
       doesNot: [
-        "Does not manage individual users within a company — that's done in Employees.",
-        "Does not show company-level operational data (trips, runs, etc.).",
-        "Does not process payments or manage subscriptions directly.",
-        "Does not delete companies — suspend instead to preserve data.",
+        "Does not let you view or set passwords for any user — only triggers reset emails.",
+        "Does not manage individual employees within a company — that's done in the company's Employees page.",
+        "Does not show company-level operational data (trips, runs, patients, etc.).",
+        "Does not allow deleting active or suspended companies — suspend first, or the company must be pending/rejected.",
       ],
       tips: [
         "Review pending companies promptly — they cannot operate until approved.",
-        "Use the suspend action for companies with payment issues rather than rejecting.",
-        "Check subscription status before investigating why a company can't access features.",
+        "Suspending a company immediately blocks all non-creator access — the company sees a suspension notice.",
+        "Use 'Force Password Reset' if a company owner is locked out — it sends a reset email to their address.",
+        "The suspend action requires typing 'OVERRIDE' to confirm — this prevents accidental suspension.",
+      ],
+    },
+  },
+
+  "/creator-settings": {
+    title: "System Settings",
+    content: {
+      does: [
+        "Shows platform-wide configuration options for the system creator.",
+        "Displays approval and onboarding settings: manual approval required, training mode for pending companies.",
+        "Shows notification settings (email on new signup — coming soon).",
+        "Shows platform settings: signup enabled, maintenance mode (coming soon).",
+        "These settings are separate from individual company settings.",
+      ],
+      doesNot: [
+        "Does not manage individual company configurations — those are inside each company's Settings page.",
+        "Does not currently allow toggling settings (they are display-only in this version).",
+        "Does not control user authentication or password policies.",
+      ],
+      tips: [
+        "These settings will become editable in a future release.",
+        "Company-level settings (grace windows, load times, etc.) are managed inside each tenant's app.",
+      ],
+    },
+  },
+
+  "/simulation-lab": {
+    title: "Simulation Lab",
+    content: {
+      does: [
+        "Lets you create and run simulated scenarios to test dispatch and scheduling workflows.",
+        "Generates simulated data (patients, trucks, crews, trips) that is isolated from real company data.",
+        "Allows testing of different operational configurations without affecting live operations.",
+        "Tracks simulation runs with scenario names and status.",
+      ],
+      doesNot: [
+        "Does not modify real company data — all simulation data is tagged and isolated.",
+        "Does not generate real claims or billing records.",
+        "Does not affect live dispatch or crew schedules.",
+        "Does not persist simulation results as permanent records.",
+      ],
+      tips: [
+        "Use simulations to test new scheduling templates before applying them to real operations.",
+        "Simulation data is clearly marked with an 'is_simulated' flag and never mixes with production data.",
       ],
     },
   },
