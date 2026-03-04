@@ -230,12 +230,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
 
   const autoGenerateLegs = useCallback(async (): Promise<number> => {
     // Resolve company_id for RLS
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("company_id")
-      .limit(1)
-      .single();
-    const companyId = (profileData as any)?.company_id ?? null;
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
 
     // Get active patients with recurring transport whose schedule matches selectedDate
     const eligible = patients.filter((p) => {

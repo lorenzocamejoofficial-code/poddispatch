@@ -418,6 +418,7 @@ export default function TrucksCrews() {
         .from("crews").select("active_date, truck_id")
         .gte("active_date", targetDates[0]).lte("active_date", targetDates[6]);
       const existingKeys = new Set((existingCrews ?? []).map((c) => `${c.active_date}_${c.truck_id}`));
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
       const newCrews: any[] = [];
       for (const crew of crews) {
         const srcIdx = weekDates.indexOf(crew.active_date);
@@ -425,7 +426,7 @@ export default function TrucksCrews() {
         const targetDate = targetDates[srcIdx];
         const key = `${targetDate}_${crew.truck_id}`;
         if (existingKeys.has(key)) continue;
-        newCrews.push({ truck_id: crew.truck_id, member1_id: crew.member1_id, member2_id: crew.member2_id, active_date: targetDate });
+        newCrews.push({ truck_id: crew.truck_id, member1_id: crew.member1_id, member2_id: crew.member2_id, active_date: targetDate, company_id: companyId });
       }
       if (newCrews.length > 0) await supabase.from("crews").insert(newCrews);
       toast.success(`Copied ${newCrews.length} crew assignment(s) to target week.`);

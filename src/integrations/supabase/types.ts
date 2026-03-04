@@ -543,6 +543,7 @@ export type Database = {
       }
       company_settings: {
         Row: {
+          company_id: string | null
           company_name: string
           dialysis_b_leg_buffer_minutes: number
           discharge_buffer_minutes: number
@@ -556,6 +557,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          company_id?: string | null
           company_name?: string
           dialysis_b_leg_buffer_minutes?: number
           discharge_buffer_minutes?: number
@@ -569,6 +571,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          company_id?: string | null
           company_name?: string
           dialysis_b_leg_buffer_minutes?: number
           discharge_buffer_minutes?: number
@@ -581,7 +584,15 @@ export type Database = {
           unload_time_minutes?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "company_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       crew_share_tokens: {
         Row: {

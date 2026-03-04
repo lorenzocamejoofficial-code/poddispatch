@@ -83,8 +83,7 @@ export default function FacilitiesPage() {
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Facility name required"); return; }
     setSaving(true);
-    const { data: profileData } = await supabase.from("profiles").select("company_id").limit(1).single();
-    const companyId = (profileData as any)?.company_id ?? null;
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
     const payload = {
       name: form.name.trim(), facility_type: form.facility_type, address: form.address || null,
       phone: form.phone || null, contact_name: form.contact_name || null, notes: form.notes || null,
