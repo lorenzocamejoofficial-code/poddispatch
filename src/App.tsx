@@ -55,12 +55,16 @@ function SessionWarningBanner() {
 }
 
 function AppRoutes() {
-  const { user, role, loading, isSystemCreator, onboardingStatus, activeCompanyId } = useAuth();
+  const { user, role, loading, membershipLoaded, isSystemCreator, onboardingStatus, activeCompanyId } = useAuth();
 
-  if (loading) {
+  // Show loading while auth session OR membership data is still resolving
+  if (loading || (user && !membershipLoaded)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-muted-foreground">Loading...</p>
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground">Loading your workspace...</p>
+        </div>
       </div>
     );
   }
