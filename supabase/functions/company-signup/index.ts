@@ -57,8 +57,15 @@ serve(async (req) => {
       });
 
     if (authError) {
+      const msg = authError.message.toLowerCase();
+      const isExisting = msg.includes("already") || msg.includes("exists") || msg.includes("registered");
       return new Response(
-        JSON.stringify({ error: authError.message }),
+        JSON.stringify({
+          error: isExisting
+            ? "An account with this email already exists. Please sign in instead."
+            : authError.message,
+          code: isExisting ? "email_exists" : "auth_error",
+        }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -110,15 +117,7 @@ serve(async (req) => {
       console.error("Profile creation error:", profileError);
     }
 
-    // 5. Also create user_roles for backward compatibility
-    const { error: roleError } = await supabaseAdmin.from("user_roles").insert({
-      user_id: userId,
-      role: "admin",
-    });
-
-    if (roleError) {
-      console.error("Role assignment error:", roleError);
-    }
+    // user_roles table removed — roles are managed via company_memberships
 
     // 6. Create company_settings
     const { error: settingsError } = await supabaseAdmin

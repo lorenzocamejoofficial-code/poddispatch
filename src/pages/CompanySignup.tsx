@@ -37,6 +37,7 @@ export default function CompanySignup() {
   const [step, setStep] = useState<"info" | "agreements" | "confirm">("info");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [emailExists, setEmailExists] = useState(false);
 
   // Form fields
   const [companyName, setCompanyName] = useState("");
@@ -55,10 +56,7 @@ export default function CompanySignup() {
 
   const allAccepted = AGREEMENTS.every((a) => accepted[a.key]);
 
-  const [validating, setValidating] = useState(false);
-  const [emailExists, setEmailExists] = useState(false);
-
-  const validateInfo = async () => {
+  const validateInfo = () => {
     setError("");
     setEmailExists(false);
     if (!companyName.trim()) return setError("Company name is required.");
@@ -67,47 +65,12 @@ export default function CompanySignup() {
     if (!password || password.length < 8)
       return setError("Password must be at least 8 characters.");
     if (password !== confirmPassword) return setError("Passwords do not match.");
-
-    // Check if email already exists by attempting a signUp dry-run
-    setValidating(true);
-    try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: { data: { dry_run: true } },
-      });
-
-      // Supabase returns a fake user with no identities if email is taken
-      if (
-        data?.user &&
-        (!data.user.identities || data.user.identities.length === 0)
-      ) {
-        setEmailExists(true);
-        setValidating(false);
-        return;
-      }
-
-      if (signUpError) {
-        // Some Supabase configs return an explicit error for existing users
-        const msg = signUpError.message.toLowerCase();
-        if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("already exists")) {
-          setEmailExists(true);
-          setValidating(false);
-          return;
-        }
-        throw signUpError;
-      }
-    } catch (err: any) {
-      setError(err.message || "Could not verify email. Please try again.");
-      setValidating(false);
-      return;
-    }
-    setValidating(false);
     setStep("agreements");
   };
 
   const handleSubmit = async () => {
     setError("");
+    setEmailExists(false);
     setLoading(true);
 
     try {
@@ -121,15 +84,40 @@ export default function CompanySignup() {
             companyName: companyName.trim(),
             phone: phone.trim() || null,
             agreements: accepted,
-            clientIp: null, // Could fetch from external service
+            clientIp: null,
           },
         }
       );
 
-      if (fnError) throw new Error(fnError.message);
-      if (data?.error) throw new Error(data.error);
+      // Handle edge function non-2xx (FunctionsHttpError wraps the body)
+      if (fnError) {
+        // Try to parse the error body for structured error codes
+        try {
+          const body = JSON.parse(fnError.message);
+          if (body?.code === "email_exists") {
+            setEmailExists(true);
+            setStep("info");
+            setLoading(false);
+            return;
+          }
+          throw new Error(body?.error || fnError.message);
+        } catch {
+          throw new Error(fnError.message);
+        }
+      }
 
-      // Auto-login the newly created user so they don't have to sign in manually
+      // Handle structured error in successful response
+      if (data?.error) {
+        if (data?.code === "email_exists") {
+          setEmailExists(true);
+          setStep("info");
+          setLoading(false);
+          return;
+        }
+        throw new Error(data.error);
+      }
+
+      // Auto-login the newly created user
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
@@ -137,10 +125,16 @@ export default function CompanySignup() {
 
       if (signInError) throw new Error(signInError.message);
 
-      // Auth state change will trigger useAuth which routes pending companies to /pending-approval
+      // Auth state change triggers useAuth → routes based on onboarding status
       navigate("/pending-approval");
     } catch (err: any) {
-      setError(err.message || "Something went wrong. Please try again.");
+      const msg = (err.message || "").toLowerCase();
+      if (msg.includes("already") && (msg.includes("exist") || msg.includes("register"))) {
+        setEmailExists(true);
+        setStep("info");
+      } else {
+        setError(err.message || "Something went wrong. Please try again.");
+      }
     }
     setLoading(false);
   };
@@ -234,8 +228,8 @@ export default function CompanySignup() {
                 placeholder="Re-enter password"
               />
             </div>
-            <Button className="w-full" onClick={validateInfo} disabled={validating}>
-              {validating ? "Checking..." : "Continue to Agreements"}
+            <Button className="w-full" onClick={validateInfo}>
+              Continue to Agreements
             </Button>
             <p className="text-center text-xs text-muted-foreground">
               Already have an account?{" "}
