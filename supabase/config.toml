@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.dispatch-intelligence]
 verify_jwt = false
+
+[functions.accept-invite]
+verify_jwt = false
+
+[functions.create-company]
+verify_jwt = false

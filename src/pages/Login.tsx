@@ -8,6 +8,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { Truck } from "lucide-react";
 
+function getRoleLanding(role: string | null, isSystemCreator: boolean): string {
+  if (isSystemCreator) return "/system";
+  switch (role) {
+    case "owner": return "/";
+    case "dispatcher": return "/";
+    case "biller": return "/billing";
+    case "crew": return "/";
+    default: return "/";
+  }
+}
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,12 +26,21 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [companyName, setCompanyName] = useState("PodDispatch");
-  const { user, signIn } = useAuth();
+  const { user, role, isSystemCreator, activeCompanyId, loading: authLoading, signIn } = useAuth();
   const navigate = useNavigate();
 
+  // Redirect when authenticated and role is resolved
   useEffect(() => {
-    if (user) navigate("/");
-  }, [user, navigate]);
+    if (authLoading || !user) return;
+
+    // User has no company — send to create-company
+    if (!isSystemCreator && !activeCompanyId) {
+      navigate("/create-company", { replace: true });
+      return;
+    }
+
+    navigate(getRoleLanding(role, isSystemCreator), { replace: true });
+  }, [user, role, isSystemCreator, activeCompanyId, authLoading, navigate]);
 
   useEffect(() => {
     supabase

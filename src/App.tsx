@@ -33,6 +33,8 @@ import SandboxPage from "./pages/SandboxPage";
 import PendingCompaniesAdmin from "./pages/PendingCompaniesAdmin";
 import CreatorSettings from "./pages/CreatorSettings";
 import SimulationLab from "./pages/SimulationLab";
+import AcceptInvite from "./pages/AcceptInvite";
+import CreateCompany from "./pages/CreateCompany";
 // SandboxModeProvider and PreviewRoleProvider removed — no role-based view filtering
 const queryClient = new QueryClient();
 
@@ -53,7 +55,7 @@ function SessionWarningBanner() {
 }
 
 function AppRoutes() {
-  const { user, role, loading, isSystemCreator, onboardingStatus } = useAuth();
+  const { user, role, loading, isSystemCreator, onboardingStatus, activeCompanyId } = useAuth();
 
   if (loading) {
     return (
@@ -69,8 +71,20 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<CompanySignup />} />
+        <Route path="/invite" element={<AcceptInvite />} />
         <Route path="/crew/:token" element={<DailyRunSheet />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
+  // Authenticated but no company membership — must create or accept invite
+  if (!isSystemCreator && !activeCompanyId) {
+    return (
+      <Routes>
+        <Route path="/create-company" element={<CreateCompany />} />
+        <Route path="/invite" element={<AcceptInvite />} />
+        <Route path="*" element={<Navigate to="/create-company" replace />} />
       </Routes>
     );
   }
