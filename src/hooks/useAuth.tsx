@@ -17,6 +17,7 @@ interface AuthContextType {
   activeCompanyId: string | null;
   profileId: string | null;
   loading: boolean;
+  membershipLoaded: boolean;
   sessionWarning: boolean;
   isSystemCreator: boolean;
   onboardingStatus: OnboardingStatus | null;
@@ -44,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [membershipLoaded, setMembershipLoaded] = useState(false);
   const [sessionWarning, setSessionWarning] = useState(false);
   const [isSystemCreator, setIsSystemCreator] = useState(false);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
@@ -74,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (profileData) setProfileId(profileData.id);
     setIsSystemCreator(!!scData);
+    setMembershipLoaded(true);
   };
 
   const refreshOnboardingStatus = useCallback(async () => {
@@ -97,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfileId(null);
       setIsSystemCreator(false);
       setOnboardingStatus(null);
+      setMembershipLoaded(false);
     }, []);
 
   // HIPAA: reset inactivity timers on user activity
@@ -192,7 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, session, role, activeCompanyId, profileId, loading, sessionWarning, isSystemCreator, onboardingStatus, signIn, signOut, refreshOnboardingStatus,
+      user, session, role, activeCompanyId, profileId, loading, membershipLoaded, sessionWarning, isSystemCreator, onboardingStatus, signIn, signOut, refreshOnboardingStatus,
       isAdmin, isOwner, isDispatcher, isBilling, isCrew, isCreator,
       canManageTrips, canManageBilling, canManagePatients,
     }}>
