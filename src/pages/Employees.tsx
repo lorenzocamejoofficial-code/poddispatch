@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Mail, Copy, Check, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface Employee {
@@ -23,7 +24,17 @@ interface Employee {
   role?: string;
 }
 
+interface Invite {
+  id: string;
+  email: string;
+  role: string;
+  token: string;
+  status: string;
+  created_at: string;
+}
+
 export default function Employees() {
+  const { activeCompanyId, role: userRole } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
@@ -44,6 +55,14 @@ export default function Employees() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
+  // Invite state
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<string>("dispatcher");
+  const [inviting, setInviting] = useState(false);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
   const [form, setForm] = useState({
     full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew",
     sex: "M" as "M" | "F", cert_level: "EMT-B", phone_number: "",
@@ -57,10 +76,10 @@ export default function Employees() {
 
   const fetchEmployees = async () => {
     const { data: profiles } = await supabase.from("profiles").select("*").order("full_name");
-    const { data: roles } = await supabase.from("user_roles").select("*");
+    const { data: memberships } = await supabase.from("company_memberships").select("user_id, role");
 
     const empList: Employee[] = (profiles ?? []).map((p: any) => {
-      const userRole = roles?.find((r) => r.user_id === p.user_id);
+      const membership = memberships?.find((m) => m.user_id === p.user_id);
       return {
         id: p.id,
         full_name: p.full_name,
@@ -69,14 +88,24 @@ export default function Employees() {
         user_id: p.user_id,
         phone_number: p.phone_number ?? null,
         active: p.active ?? true,
-        role: userRole?.role ?? "crew",
+        role: membership?.role ?? "crew",
       };
     });
 
     setEmployees(empList);
   };
 
-  useEffect(() => { fetchEmployees(); }, []);
+  const fetchInvites = async () => {
+    if (!activeCompanyId) return;
+    const { data } = await supabase
+      .from("company_invites")
+      .select("*")
+      .eq("company_id", activeCompanyId)
+      .order("created_at", { ascending: false });
+    setInvites((data as any[]) ?? []);
+  };
+
+  useEffect(() => { fetchEmployees(); fetchInvites(); }, [activeCompanyId]);
 
   const handleCreate = async () => {
     if (!form.full_name.trim() || !form.email.trim() || !form.password.trim()) {
@@ -110,6 +139,44 @@ export default function Employees() {
       fetchEmployees();
     }
     setCreating(false);
+  };
+
+  // ── Invite handler ──
+  const handleInvite = async () => {
+    if (!inviteEmail.trim() || !activeCompanyId) {
+      toast.error("Email is required");
+      return;
+    }
+    setInviting(true);
+    const { error } = await supabase.from("company_invites").insert({
+      company_id: activeCompanyId,
+      email: inviteEmail.trim().toLowerCase(),
+      role: inviteRole,
+      invited_by: (await supabase.auth.getUser()).data.user?.id,
+    } as any);
+    if (error) {
+      toast.error(error.message.includes("duplicate") ? "This email already has a pending invite" : "Failed to create invite");
+    } else {
+      toast.success(`Invite created for ${inviteEmail}`);
+      setInviteEmail("");
+      setInviteDialogOpen(false);
+      fetchInvites();
+    }
+    setInviting(false);
+  };
+
+  const copyInviteLink = (token: string) => {
+    const link = `${window.location.origin}/invite?token=${token}`;
+    navigator.clipboard.writeText(link);
+    setCopiedToken(token);
+    toast.success("Invite link copied!");
+    setTimeout(() => setCopiedToken(null), 2000);
+  };
+
+  const revokeInvite = async (id: string) => {
+    await supabase.from("company_invites").update({ status: "revoked" } as any).eq("id", id);
+    toast.success("Invite revoked");
+    fetchInvites();
   };
 
   const openEdit = (emp: Employee) => {
@@ -384,7 +451,101 @@ export default function Employees() {
           </div>
         </div>
 
-        {/* Edit Employee Dialog */}
+        {/* ── Pending Invites Section ── */}
+        {(userRole === "owner" || userRole === "creator") && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Mail className="h-4 w-4" /> Pending Invites
+              </h3>
+              <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm"><Mail className="mr-1.5 h-3.5 w-3.5" /> Invite User</Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Invite Team Member</DialogTitle>
+                    <DialogDescription>Send an invite link. They'll create their own account.</DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-3 py-2">
+                    <div>
+                      <Label>Email *</Label>
+                      <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="jane@example.com" />
+                    </div>
+                    <div>
+                      <Label>Role</Label>
+                      <Select value={inviteRole} onValueChange={setInviteRole}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="dispatcher">Dispatcher</SelectItem>
+                          <SelectItem value="biller">Billing</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button onClick={handleInvite} disabled={inviting}>
+                      {inviting ? "Creating..." : "Create Invite"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {invites.filter(i => i.status === "pending").length > 0 ? (
+              <div className="rounded-lg border bg-card">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs font-medium uppercase text-muted-foreground">
+                      <th className="px-4 py-3">Email</th>
+                      <th className="px-4 py-3">Role</th>
+                      <th className="px-4 py-3">Sent</th>
+                      <th className="px-4 py-3 w-32"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invites.filter(i => i.status === "pending").map((inv) => (
+                      <tr key={inv.id} className="border-b last:border-0">
+                        <td className="px-4 py-3 font-medium">{inv.email}</td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold bg-secondary text-secondary-foreground capitalize">
+                            {inv.role === "biller" ? "Billing" : inv.role}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground text-xs">
+                          {new Date(inv.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title="Copy invite link"
+                              onClick={() => copyInviteLink(inv.token)}
+                            >
+                              {copiedToken === inv.token ? <Check className="h-3.5 w-3.5 text-[hsl(var(--status-green))]" /> : <Copy className="h-3.5 w-3.5" />}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              title="Revoke invite"
+                              onClick={() => revokeInvite(inv.id)}
+                            >
+                              <XCircle className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">No pending invites. Click "Invite User" to add team members.</p>
+            )}
+          </div>
+        )}
+
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Edit Employee</DialogTitle><DialogDescription>Update employee information. Deactivate instead of deleting.</DialogDescription></DialogHeader>
