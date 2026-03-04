@@ -2,16 +2,19 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  Building2, Search, CheckCircle2, XCircle, Ban, RefreshCw,
+  Building2, Search, CheckCircle2, Ban, RefreshCw, Loader2, Trash2, KeyRound, Pencil,
 } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import { CreatorLayout } from "@/components/layout/CreatorLayout";
 
 interface CompanyRecord {
@@ -21,25 +24,29 @@ interface CompanyRecord {
   owner_email: string | null;
   created_at: string;
   approved_at: string | null;
-  rejected_reason: string | null;
   suspended_reason: string | null;
+  suspended_at: string | null;
+  rejected_reason: string | null;
 }
 
-interface SubscriptionRecord {
-  company_id: string;
-  provider_subscription_id: string | null;
-  subscription_status: string;
-  last_payment_status: string | null;
-  plan_id: string;
-}
+type ModalAction = 
+  | { type: "suspend"; company: CompanyRecord }
+  | { type: "delete"; company: CompanyRecord }
+  | { type: "edit"; company: CompanyRecord }
+  | { type: "reset_password"; company: CompanyRecord }
+  | null;
 
 export default function CreatorConsole() {
   const { user, isSystemCreator } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [companies, setCompanies] = useState<CompanyRecord[]>([]);
-  const [subscriptions, setSubscriptions] = useState<Record<string, SubscriptionRecord>>({});
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [modal, setModal] = useState<ModalAction>(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [reasonText, setReasonText] = useState("");
+  const [editName, setEditName] = useState("");
 
   useEffect(() => {
     if (!isSystemCreator) { navigate("/"); return; }
@@ -48,138 +55,277 @@ export default function CreatorConsole() {
 
   const loadCompanies = async () => {
     setLoading(true);
-    const { data: companiesData } = await supabase
+    const { data } = await supabase
       .from("companies")
-      .select("id, name, onboarding_status, owner_email, created_at, approved_at, rejected_reason, suspended_reason")
-      .in("onboarding_status", ["active", "suspended"])
+      .select("id, name, onboarding_status, owner_email, created_at, approved_at, suspended_reason, suspended_at, rejected_reason")
       .order("created_at", { ascending: false });
-
-    const { data: subsData } = await supabase
-      .from("subscription_records")
-      .select("company_id, provider_subscription_id, subscription_status, last_payment_status, plan_id");
-
-    setCompanies((companiesData as any[]) ?? []);
-    const subsMap: Record<string, SubscriptionRecord> = {};
-    (subsData ?? []).forEach((s: any) => { subsMap[s.company_id] = s; });
-    setSubscriptions(subsMap);
+    setCompanies((data as CompanyRecord[]) ?? []);
     setLoading(false);
   };
 
-  const filtered = companies.filter((c) => {
-    const q = search.toLowerCase();
-    return !q || c.name.toLowerCase().includes(q) || (c.owner_email ?? "").toLowerCase().includes(q) || c.id.includes(q);
-  });
+  const invokeAction = async (action: string, extra: Record<string, unknown> = {}) => {
+    if (!modal) return;
+    setActionLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-company", {
+        body: { companyId: modal.company.id, action, ...extra },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-  const updateCompanyStatus = async (
-    companyId: string, status: string, extra: Record<string, any> = {}, eventType: string, reason?: string
-  ) => {
-    const { error } = await supabase.from("companies").update({ onboarding_status: status, ...extra } as any).eq("id", companyId);
-    if (error) { toast.error("Failed: " + error.message); return; }
-    await supabase.from("onboarding_events").insert({
-      company_id: companyId, event_type: eventType, actor_user_id: user?.id, actor_email: user?.email, reason, details: { new_status: status },
-    } as any);
-    toast.success(`Company ${status === "active" ? "approved" : status}`);
-    loadCompanies();
+      if (action === "force_password_reset" && data?.reset_link) {
+        toast.success("Password reset link generated. Check audit logs.");
+      } else {
+        toast.success("Action completed successfully.");
+      }
+      setModal(null);
+      setConfirmText("");
+      setReasonText("");
+      await loadCompanies();
+    } catch (err: any) {
+      toast.error(err.message || "Action failed");
+    }
+    setActionLoading(false);
   };
 
-  const statusColor = (s: string) => {
-    switch (s) {
-      case "active": return "bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))]";
-      case "pending_approval": return "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]";
-      case "rejected": case "suspended": case "payment_issue": return "bg-[hsl(var(--status-red-bg))] text-[hsl(var(--status-red))]";
-      default: return "bg-[hsl(var(--status-pending-bg))] text-[hsl(var(--status-pending))]";
+  const filtered = (status: string) =>
+    companies.filter((c) => {
+      if (c.onboarding_status !== status) return false;
+      const q = search.toLowerCase();
+      return !q || c.name.toLowerCase().includes(q) || (c.owner_email ?? "").toLowerCase().includes(q);
+    });
+
+  const statusBadge = (s: string) => {
+    const colors: Record<string, string> = {
+      active: "bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))]",
+      pending_approval: "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]",
+      suspended: "bg-destructive/15 text-destructive",
+      rejected: "bg-destructive/15 text-destructive",
+    };
+    return colors[s] || "bg-muted text-muted-foreground";
+  };
+
+  const CompanyTable = ({ items }: { items: CompanyRecord[] }) => {
+    if (items.length === 0) {
+      return <p className="text-sm text-muted-foreground text-center py-8">No companies in this category.</p>;
     }
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Company</TableHead>
+            <TableHead>Owner Email</TableHead>
+            <TableHead>Created</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((c) => (
+            <TableRow key={c.id}>
+              <TableCell className="font-medium">{c.name}</TableCell>
+              <TableCell className="text-xs text-muted-foreground">{c.owner_email || "—"}</TableCell>
+              <TableCell className="text-xs text-muted-foreground">{format(new Date(c.created_at), "MMM d, yyyy")}</TableCell>
+              <TableCell>
+                <Badge variant="outline" className={statusBadge(c.onboarding_status)}>
+                  {c.onboarding_status.replace(/_/g, " ")}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                  {/* Pending actions */}
+                  {c.onboarding_status === "pending_approval" && (
+                    <Button size="sm" variant="default" className="gap-1 text-xs" onClick={() => invokeDirectApprove(c.id)}>
+                      <CheckCircle2 className="h-3 w-3" /> Approve
+                    </Button>
+                  )}
+
+                  {/* Active actions */}
+                  {c.onboarding_status === "active" && (
+                    <Button size="sm" variant="outline" className="gap-1 text-xs text-destructive" onClick={() => { setModal({ type: "suspend", company: c }); setReasonText(""); setConfirmText(""); }}>
+                      <Ban className="h-3 w-3" /> Suspend
+                    </Button>
+                  )}
+
+                  {/* Suspended actions */}
+                  {c.onboarding_status === "suspended" && (
+                    <Button size="sm" variant="default" className="gap-1 text-xs" onClick={() => invokeDirectUnsuspend(c.id)}>
+                      <RefreshCw className="h-3 w-3" /> Unsuspend
+                    </Button>
+                  )}
+
+                  {/* Common actions for active/suspended */}
+                  {(c.onboarding_status === "active" || c.onboarding_status === "suspended") && (
+                    <>
+                      <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => { setModal({ type: "reset_password", company: c }); setConfirmText(""); }}>
+                        <KeyRound className="h-3 w-3" /> Reset PW
+                      </Button>
+                      <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => { setModal({ type: "edit", company: c }); setEditName(c.name); }}>
+                        <Pencil className="h-3 w-3" /> Edit
+                      </Button>
+                    </>
+                  )}
+
+                  {/* Delete for pending/rejected only */}
+                  {(c.onboarding_status === "pending_approval" || c.onboarding_status === "rejected") && (
+                    <Button size="sm" variant="ghost" className="gap-1 text-xs text-destructive hover:text-destructive" onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); }}>
+                      <Trash2 className="h-3 w-3" /> Delete
+                    </Button>
+                  )}
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  };
+
+  const invokeDirectApprove = async (id: string) => {
+    setActionLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-company", { body: { companyId: id, action: "approve" } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success("Company approved!");
+      await loadCompanies();
+    } catch (err: any) { toast.error(err.message); }
+    setActionLoading(false);
+  };
+
+  const invokeDirectUnsuspend = async (id: string) => {
+    setActionLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-company", { body: { companyId: id, action: "unsuspend" } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success("Company reactivated!");
+      await loadCompanies();
+    } catch (err: any) { toast.error(err.message); }
+    setActionLoading(false);
   };
 
   return (
     <CreatorLayout title="Company Console">
-      <Collapsible className="mb-4">
-        <CollapsibleTrigger className="text-xs text-primary hover:underline">ℹ️ How this works</CollapsibleTrigger>
-        <CollapsibleContent className="mt-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
-          <p>Manage approved companies here — view status, suspend access, or reactivate accounts.</p>
-          <p>Pending companies are handled separately in the <strong>Pending Companies</strong> page.</p>
-          <p>All override actions require typing OVERRIDE and a reason. Actions are logged for audit.</p>
-        </CollapsibleContent>
-      </Collapsible>
-
       <div className="relative max-w-md mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by company name, owner email, or ID..." className="pl-10" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by company name or email..." className="pl-10" />
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground text-sm">Loading companies...</p>
-      ) : filtered.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No companies found.</p>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map((company) => {
-            const sub = subscriptions[company.id];
-            return (
-              <Card key={company.id}>
-                <CardContent className="pt-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="font-semibold text-foreground">{company.name}</span>
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColor(company.onboarding_status)}`}>
-                          {company.onboarding_status.replace(/_/g, " ").toUpperCase()}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {company.owner_email ?? "No owner email"} · Created {new Date(company.created_at).toLocaleDateString()}
-                      </p>
-                      {sub && (
-                        <p className="text-xs text-muted-foreground">
-                          Plan: {sub.plan_id} · Payment: {sub.subscription_status}
-                          {sub.last_payment_status ? ` (${sub.last_payment_status})` : ""}
-                        </p>
-                      )}
-                      {company.rejected_reason && <p className="text-xs text-destructive">Rejected: {company.rejected_reason}</p>}
-                      {company.suspended_reason && <p className="text-xs text-destructive">Suspended: {company.suspended_reason}</p>}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {company.onboarding_status === "pending_approval" && (
-                        <>
-                          <ConfirmActionDialog
-                            trigger={<Button size="sm" variant="default" className="gap-1 text-xs"><CheckCircle2 className="h-3.5 w-3.5" /> Approve</Button>}
-                            title="Approve Company" description={`Activate "${company.name}" and grant full access?`}
-                            confirmWord="OVERRIDE" requireReason destructive={false}
-                            onConfirm={(reason) => updateCompanyStatus(company.id, "active", { approved_at: new Date().toISOString(), approved_by: user?.id }, "approved", reason)}
-                          />
-                          <ConfirmActionDialog
-                            trigger={<Button size="sm" variant="destructive" className="gap-1 text-xs"><XCircle className="h-3.5 w-3.5" /> Reject</Button>}
-                            title="Reject Company" description={`Reject "${company.name}"?`}
-                            confirmWord="OVERRIDE" requireReason
-                            onConfirm={(reason) => updateCompanyStatus(company.id, "rejected", { rejected_at: new Date().toISOString(), rejected_reason: reason }, "rejected", reason)}
-                          />
-                        </>
-                      )}
-                      {company.onboarding_status === "active" && (
-                        <ConfirmActionDialog
-                          trigger={<Button size="sm" variant="outline" className="gap-1 text-xs text-destructive"><Ban className="h-3.5 w-3.5" /> Suspend</Button>}
-                          title="Suspend Company" description={`Lock access for "${company.name}"?`}
-                          confirmWord="OVERRIDE" requireReason
-                          onConfirm={(reason) => updateCompanyStatus(company.id, "suspended", { suspended_reason: reason }, "suspended", reason)}
-                        />
-                      )}
-                      {(company.onboarding_status === "rejected" || company.onboarding_status === "suspended") && (
-                        <ConfirmActionDialog
-                          trigger={<Button size="sm" variant="default" className="gap-1 text-xs"><RefreshCw className="h-3.5 w-3.5" /> Reactivate</Button>}
-                          title="Reactivate Company" description={`Re-activate "${company.name}"?`}
-                          confirmWord="OVERRIDE" requireReason destructive={false}
-                          onConfirm={(reason) => updateCompanyStatus(company.id, "active", { approved_at: new Date().toISOString(), approved_by: user?.id, suspended_reason: null, rejected_reason: null }, "reactivated", reason)}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <div className="flex items-center gap-2 text-muted-foreground py-12 justify-center">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading companies...
         </div>
+      ) : (
+        <Tabs defaultValue="active" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="pending">
+              Pending {filtered("pending_approval").length > 0 && <Badge variant="secondary" className="ml-1.5 text-[10px]">{filtered("pending_approval").length}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="active">Active ({filtered("active").length})</TabsTrigger>
+            <TabsTrigger value="suspended">
+              Suspended {filtered("suspended").length > 0 && <Badge variant="destructive" className="ml-1.5 text-[10px]">{filtered("suspended").length}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="rejected">Rejected ({filtered("rejected").length})</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="pending">
+            <Card><CardContent className="pt-4"><CompanyTable items={filtered("pending_approval")} /></CardContent></Card>
+          </TabsContent>
+          <TabsContent value="active">
+            <Card><CardContent className="pt-4"><CompanyTable items={filtered("active")} /></CardContent></Card>
+          </TabsContent>
+          <TabsContent value="suspended">
+            <Card><CardContent className="pt-4"><CompanyTable items={filtered("suspended")} /></CardContent></Card>
+          </TabsContent>
+          <TabsContent value="rejected">
+            <Card><CardContent className="pt-4"><CompanyTable items={filtered("rejected")} /></CardContent></Card>
+          </TabsContent>
+        </Tabs>
       )}
+
+      {/* Suspend Modal */}
+      <Dialog open={modal?.type === "suspend"} onOpenChange={(open) => { if (!open) setModal(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Suspend Company</DialogTitle>
+            <DialogDescription>Suspend "{modal?.company.name}" — all users will be locked out until unsuspended.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea placeholder="Reason for suspension (required)..." value={reasonText} onChange={(e) => setReasonText(e.target.value)} className="h-20" />
+            <p className="text-xs text-muted-foreground">Type <strong>OVERRIDE</strong> to confirm:</p>
+            <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="OVERRIDE" />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={confirmText !== "OVERRIDE" || !reasonText.trim() || actionLoading} onClick={() => invokeAction("suspend", { reason: reasonText.trim() })}>
+              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Suspend
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Modal */}
+      <Dialog open={modal?.type === "delete"} onOpenChange={(open) => { if (!open) setModal(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Company Permanently</DialogTitle>
+            <DialogDescription>This will permanently delete "{modal?.company.name}" and all associated data. This cannot be undone.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Type <strong>CONFIRM</strong> to proceed:</p>
+            <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="CONFIRM" />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={confirmText !== "CONFIRM" || actionLoading} onClick={() => invokeAction("delete", { reason: "Deleted by system creator" })}>
+              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Delete Forever
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Modal */}
+      <Dialog open={modal?.type === "reset_password"} onOpenChange={(open) => { if (!open) setModal(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Force Owner Password Reset</DialogTitle>
+            <DialogDescription>Generate a password reset link for the owner of "{modal?.company.name}" ({modal?.company.owner_email}). A reset email will be triggered.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Type <strong>OVERRIDE</strong> to confirm:</p>
+            <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="OVERRIDE" />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
+            <Button disabled={confirmText !== "OVERRIDE" || actionLoading} onClick={() => invokeAction("force_password_reset")}>
+              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Send Reset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Company Modal */}
+      <Dialog open={modal?.type === "edit"} onOpenChange={(open) => { if (!open) setModal(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Company Profile</DialogTitle>
+            <DialogDescription>Update company details for "{modal?.company.name}".</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Company Name</label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
+            <Button disabled={!editName.trim() || actionLoading} onClick={() => invokeAction("update_profile", { patch: { name: editName.trim() } })}>
+              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </CreatorLayout>
   );
 }

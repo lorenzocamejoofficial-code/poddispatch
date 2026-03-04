@@ -131,7 +131,10 @@ export default function Login() {
             {loading ? "Signing in..." : "Sign In"}
           </Button>
 
-          <div className="text-center space-y-1">
+          <div className="text-center space-y-2">
+            <a href="/forgot-password" className="text-xs text-primary hover:underline font-medium">
+              Forgot password?
+            </a>
             <p className="text-xs text-muted-foreground">
               Accounts are created by your company admin.
             </p>

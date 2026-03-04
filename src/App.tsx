@@ -35,6 +35,10 @@ import CreatorSettings from "./pages/CreatorSettings";
 import SimulationLab from "./pages/SimulationLab";
 import AcceptInvite from "./pages/AcceptInvite";
 import CreateCompany from "./pages/CreateCompany";
+import AccountSettings from "./pages/AccountSettings";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import SuspendedPage from "./pages/SuspendedPage";
 // SandboxModeProvider and PreviewRoleProvider removed — no role-based view filtering
 const queryClient = new QueryClient();
 
@@ -77,6 +81,8 @@ function AppRoutes() {
         <Route path="/signup" element={<CompanySignup />} />
         <Route path="/invite" element={<AcceptInvite />} />
         <Route path="/crew/:token" element={<DailyRunSheet />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -93,12 +99,23 @@ function AppRoutes() {
     );
   }
 
+  // Suspended — company exists but suspended
+  if (!isSystemCreator && onboardingStatus === "suspended") {
+    return (
+      <Routes>
+        <Route path="/suspended" element={<SuspendedPage />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="*" element={<Navigate to="/suspended" replace />} />
+      </Routes>
+    );
+  }
+
   // Pending approval — company created but not yet activated
-  // Non-creator users whose company is not active get locked to PendingApproval
   if (!isSystemCreator && onboardingStatus && onboardingStatus !== "active") {
     return (
       <Routes>
         <Route path="/pending-approval" element={<PendingApproval />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/pending-approval" replace />} />
       </Routes>
     );
@@ -216,6 +233,7 @@ function AppRoutes() {
         <Route path="/employees" element={<Employees />} />
         <Route path="/trucks" element={<TrucksCrews />} />
         <Route path="/settings" element={<AdminSettings />} />
+        <Route path="/account" element={<AccountSettings />} />
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
