@@ -122,7 +122,7 @@ serve(async (req) => {
     // 6. Create company_settings
     const { error: settingsError } = await supabaseAdmin
       .from("company_settings")
-      .insert({ company_name: companyName.trim() });
+      .insert({ company_name: companyName.trim(), company_id: companyId });
 
     if (settingsError) {
       console.error("Settings creation error:", settingsError);

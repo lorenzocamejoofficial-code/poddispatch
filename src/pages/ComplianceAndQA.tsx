@@ -93,8 +93,7 @@ export default function ComplianceAndQA() {
 
     const { data: existing } = await supabase.from("qa_reviews" as any).select("trip_id");
     const flagged = new Set((existing ?? []).map((e: any) => e.trip_id));
-    const { data: profileData } = await supabase.from("profiles").select("company_id").limit(1).single();
-    const companyId = (profileData as any)?.company_id ?? null;
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
 
     const newFlags: any[] = [];
     (trips as any[]).forEach(t => {
@@ -136,8 +135,7 @@ export default function ComplianceAndQA() {
 
   const saveRule = async () => {
     setSavingRule(true);
-    const { data: profileData } = await supabase.from("profiles").select("company_id").limit(1).single();
-    const companyId = (profileData as any)?.company_id ?? null;
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
     const payload = { ...ruleForm, company_id: companyId };
 
     if (editingRule) {

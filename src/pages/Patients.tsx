@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,7 @@ const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string; description
 ];
 
 export default function Patients() {
+  const { activeCompanyId } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -180,6 +182,7 @@ export default function Patients() {
       await supabase.from("patients").update(payload).eq("id", editing.id);
       toast.success("Patient updated");
     } else {
+      payload.company_id = activeCompanyId;
       await supabase.from("patients").insert(payload);
       toast.success("Patient added");
     }

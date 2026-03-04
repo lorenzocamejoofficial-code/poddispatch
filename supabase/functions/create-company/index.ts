@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
     // Create company_settings
     await supabaseAdmin
       .from("company_settings")
-      .insert({ company_name: companyName.trim() });
+      .insert({ company_name: companyName.trim(), company_id: companyId });
 
     console.log(`Company ${companyName} created by ${userEmail} (${userId})`);
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ interface TruckOption { id: string; name: string; }
 interface CrewOption { id: string; label: string; truck_id: string; }
 
 export default function Runs() {
+  const { activeCompanyId } = useAuth();
   const [runs, setRuns] = useState<RunDisplay[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [trucks, setTrucks] = useState<TruckOption[]>([]);
@@ -103,6 +105,7 @@ export default function Runs() {
       notes: form.notes || null,
       run_date: form.run_date,
       sort_order: runs.length,
+      company_id: activeCompanyId,
     });
     setDialogOpen(false);
     setForm({ patient_id: "", truck_id: "", crew_id: "", pickup_time: "", trip_type: "dialysis", notes: "", run_date: selectedDate });
