@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
       .from("companies")
       .insert({
         name: companyName.trim(),
-        onboarding_status: "active",
+        onboarding_status: "pending_approval",
         owner_user_id: userId,
         owner_email: userEmail,
       })
