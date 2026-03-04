@@ -70,7 +70,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
   // System creator gets full access to all nav items
   // Regular users need admin, dispatcher, or billing role
-  if (!isSystemCreator && (!role || !["admin", "dispatcher", "billing"].includes(role))) {
+  // Map actual DB roles to nav role categories
+  const effectiveNavRole = role === "owner" ? "admin" : role === "biller" ? "billing" : role;
+  if (!isSystemCreator && (!effectiveNavRole || !["admin", "dispatcher", "billing"].includes(effectiveNavRole))) {
     return null;
   }
 
@@ -78,7 +80,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   // For creators, remap "/" to "/simulation" since "/" redirects to /system
   const visibleNav = isSystemCreator
     ? navItems.map(item => item.path === "/" ? { ...item, path: "/simulation" } : item)
-    : navItems.filter(item => role && item.roles.includes(role));
+    : navItems.filter(item => effectiveNavRole && item.roles.includes(effectiveNavRole));
 
   return (
     <div className="flex h-screen overflow-hidden bg-dispatch-surface">
