@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,16 @@ import { Truck } from "lucide-react";
 import { toast } from "sonner";
 
 export default function CreateCompany() {
-  const { user } = useAuth();
+  const { user, activeCompanyId } = useAuth();
   const navigate = useNavigate();
   const [companyName, setCompanyName] = useState("");
   const [fullName, setFullName] = useState("");
   const [creating, setCreating] = useState(false);
+
+  // Guard: if user already has a company, redirect to home
+  if (activeCompanyId) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
