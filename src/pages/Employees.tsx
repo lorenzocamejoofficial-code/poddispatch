@@ -74,12 +74,42 @@ export default function Employees() {
     bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false,
   });
 
+  const ensureOwnerProfile = async () => {
+    if (!activeCompanyId) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    // Check if current user already has a profile for this company
+    const { data: existing } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("company_id", activeCompanyId)
+      .maybeSingle();
+    if (!existing) {
+      // Upsert owner profile
+      await supabase.from("profiles").upsert({
+        user_id: user.id,
+        company_id: activeCompanyId,
+        full_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "Owner",
+      } as any, { onConflict: "user_id" });
+    }
+  };
+
   const fetchEmployees = async () => {
-    const { data: profiles } = await supabase.from("profiles").select("*").order("full_name");
-    const { data: memberships } = await supabase.from("company_memberships").select("user_id, role");
+    if (!activeCompanyId) return;
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("company_id", activeCompanyId)
+      .order("full_name");
+    const { data: memberships } = await supabase
+      .from("company_memberships")
+      .select("user_id, role")
+      .eq("company_id", activeCompanyId);
 
     const empList: Employee[] = (profiles ?? []).map((p: any) => {
       const membership = memberships?.find((m) => m.user_id === p.user_id);
+      const roleLabel = membership?.role === "owner" ? "Owner" : membership?.role ?? "crew";
       return {
         id: p.id,
         full_name: p.full_name,
@@ -88,11 +118,39 @@ export default function Employees() {
         user_id: p.user_id,
         phone_number: p.phone_number ?? null,
         active: p.active ?? true,
-        role: membership?.role ?? "crew",
+        role: roleLabel,
       };
     });
 
     setEmployees(empList);
+  };
+
+  const [clearing, setClearing] = useState(false);
+  const handleClearTestEmployees = async () => {
+    if (!activeCompanyId) return;
+    setClearing(true);
+    // Get owner user_id to protect their profile
+    const { data: ownerMembership } = await supabase
+      .from("company_memberships")
+      .select("user_id")
+      .eq("company_id", activeCompanyId)
+      .eq("role", "owner")
+      .maybeSingle();
+    const ownerUserId = ownerMembership?.user_id;
+    // Delete all non-owner profiles for this company
+    let query = supabase.from("profiles").delete().eq("company_id", activeCompanyId);
+    if (ownerUserId) {
+      query = query.neq("user_id", ownerUserId);
+    }
+    const { error } = await query;
+    if (error) {
+      toast.error("Failed to clear test employees: " + error.message);
+    } else {
+      toast.success("Test employees cleared. Only the Owner remains.");
+      setSelected(new Set());
+      fetchEmployees();
+    }
+    setClearing(false);
   };
 
   const fetchInvites = async () => {
@@ -105,7 +163,13 @@ export default function Employees() {
     setInvites((data as any[]) ?? []);
   };
 
-  useEffect(() => { fetchEmployees(); fetchInvites(); }, [activeCompanyId]);
+  useEffect(() => {
+    if (!activeCompanyId) return;
+    ensureOwnerProfile().then(() => {
+      fetchEmployees();
+      fetchInvites();
+    });
+  }, [activeCompanyId]);
 
   const handleCreate = async () => {
     if (!form.full_name.trim() || !form.email.trim() || !form.password.trim()) {
@@ -301,6 +365,18 @@ export default function Employees() {
             <Input placeholder="Search by name or phone..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
           <div className="flex items-center gap-3">
+            {(userRole === "owner" || userRole === "creator") && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                onClick={handleClearTestEmployees}
+                disabled={clearing}
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                {clearing ? "Clearing..." : "Clear Test Company Employees"}
+              </Button>
+            )}
             <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
               <Switch checked={showInactive} onCheckedChange={setShowInactive} />
               Show inactive
@@ -408,13 +484,15 @@ export default function Employees() {
                       <td className="px-4 py-3 text-muted-foreground">{e.phone_number || "—"}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          e.role === "admin"
+                          e.role === "Owner"
+                            ? "bg-primary/10 text-primary"
+                            : e.role === "admin" || e.role === "owner"
                             ? "bg-primary/10 text-primary"
                             : e.role === "dispatcher"
                             ? "bg-secondary text-secondary-foreground"
                             : "bg-accent text-accent-foreground"
                         }`}>
-                          {e.role === "admin" ? "Admin" : e.role === "dispatcher" ? "Dispatcher" : "Crew"}
+                          {e.role === "Owner" ? "Owner" : e.role === "owner" ? "Owner" : e.role === "admin" ? "Admin" : e.role === "dispatcher" ? "Dispatcher" : e.role === "biller" ? "Billing" : "Crew"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{e.cert_level}</td>
