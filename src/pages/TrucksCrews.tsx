@@ -350,6 +350,28 @@ export default function TrucksCrews() {
   const assignCrew = async (truckId: string, date: string, m1: string, m2: string) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
+
+    // Prevent assigning the same person to both slots
+    if (m1Val && m2Val && m1Val === m2Val) {
+      toast.error("Cannot assign the same employee to both crew slots");
+      return;
+    }
+
+    // Prevent assigning someone already on another truck for this date
+    const membersToCheck = [m1Val, m2Val].filter(Boolean) as string[];
+    for (const memberId of membersToCheck) {
+      const existing = crews.find(
+        (c) => c.active_date === date && c.truck_id !== truckId &&
+          (c.member1_id === memberId || c.member2_id === memberId)
+      );
+      if (existing) {
+        const memberName = profiles.find((p) => p.id === memberId)?.full_name ?? "This employee";
+        const otherTruck = trucks.find((t) => t.id === existing.truck_id)?.name ?? "another truck";
+        toast.error(`${memberName} is already assigned to ${otherTruck} on this date`);
+        return;
+      }
+    }
+
     const { data: companyId } = await supabase.rpc("get_my_company_id");
     const { error } = await supabase.from("crews").insert({
       truck_id: truckId,
@@ -365,6 +387,31 @@ export default function TrucksCrews() {
   const editCrew = async (crewId: string, m1: string, m2: string) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
+
+    // Prevent assigning the same person to both slots
+    if (m1Val && m2Val && m1Val === m2Val) {
+      toast.error("Cannot assign the same employee to both crew slots");
+      return;
+    }
+
+    // Prevent assigning someone already on another truck for this date
+    const crew = crews.find((c) => c.id === crewId);
+    if (crew) {
+      const membersToCheck = [m1Val, m2Val].filter(Boolean) as string[];
+      for (const memberId of membersToCheck) {
+        const existing = crews.find(
+          (c) => c.active_date === crew.active_date && c.id !== crewId &&
+            (c.member1_id === memberId || c.member2_id === memberId)
+        );
+        if (existing) {
+          const memberName = profiles.find((p) => p.id === memberId)?.full_name ?? "This employee";
+          const otherTruck = trucks.find((t) => t.id === existing.truck_id)?.name ?? "another truck";
+          toast.error(`${memberName} is already assigned to ${otherTruck} on this date`);
+          return;
+        }
+      }
+    }
+
     const { error } = await supabase.from("crews").update({
       member1_id: m1Val,
       member2_id: m2Val,
