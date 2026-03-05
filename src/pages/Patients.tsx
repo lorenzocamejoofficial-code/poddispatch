@@ -31,6 +31,15 @@ const SCHEDULE_DAY_OPTIONS = [
   { value: "TTS", label: "Tue / Thu / Sat", days: [2, 4, 6] },
 ];
 
+const CUSTOM_DAY_OPTIONS = [
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+];
+
 type TransportType = "dialysis" | "outpatient" | "adhoc";
 
 const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string; description: string }[] = [
@@ -74,6 +83,8 @@ export default function Patients() {
     stairs_required: "unknown", stair_chair_required: false,
     oxygen_lpm: "", special_equipment_required: "none",
     dialysis_window_minutes: "45", must_arrive_by: "",
+    // Custom recurrence days for outpatient/wound care
+    recurrence_days: [] as number[],
   });
 
   const fetchPatients = async () => {
@@ -99,6 +110,7 @@ export default function Patients() {
       stairs_required: "unknown", stair_chair_required: false,
       oxygen_lpm: "", special_equipment_required: "none",
       dialysis_window_minutes: "45", must_arrive_by: "",
+      recurrence_days: [],
     });
     setEditing(null);
   };
@@ -134,6 +146,7 @@ export default function Patients() {
       special_equipment_required: (p as any).special_equipment_required ?? "none",
       dialysis_window_minutes: (p as any).dialysis_window_minutes?.toString() ?? "45",
       must_arrive_by: (p as any).must_arrive_by ?? "",
+      recurrence_days: (p as any).recurrence_days ?? [],
     });
     setDialogOpen(true);
   };
@@ -174,6 +187,7 @@ export default function Patients() {
       special_equipment_required: form.special_equipment_required,
       dialysis_window_minutes: form.dialysis_window_minutes ? parseInt(form.dialysis_window_minutes) : 45,
       must_arrive_by: form.must_arrive_by || null,
+      recurrence_days: form.recurrence_days.length > 0 ? form.recurrence_days : null,
     };
 
     if (!payload.first_name || !payload.last_name) return;
@@ -319,7 +333,14 @@ export default function Patients() {
                   <div><Label>Pickup Address</Label><Input value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} /></div>
                   <div><Label>Dropoff Facility</Label><Input value={form.dropoff_facility} onChange={(e) => setForm({ ...form, dropoff_facility: e.target.value })} /></div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Weight (lbs)</Label><Input type="number" value={form.weight_lbs} onChange={(e) => setForm({ ...form, weight_lbs: e.target.value })} /></div>
+                    <div><Label>Weight (lbs)</Label><Input type="number" value={form.weight_lbs} onChange={(e) => {
+                      const w = e.target.value;
+                      const wNum = w ? parseInt(w) : 0;
+                      setForm({ ...form, weight_lbs: w, bariatric: wNum >= 300 ? true : form.bariatric });
+                      if (wNum >= 300 && !form.bariatric) {
+                        // Auto-select bariatric will be reflected via the checkbox below
+                      }
+                    }} /></div>
                     <div>
                       <Label>Status</Label>
                       <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as PatientStatus })}>
@@ -366,18 +387,44 @@ export default function Patients() {
 
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <Label>Schedule Days</Label>
-                            <Select value={form.schedule_days} onValueChange={(v) => setForm({ ...form, schedule_days: v })}>
-                              <SelectTrigger><SelectValue placeholder="Select days" /></SelectTrigger>
-                              <SelectContent>
-                                {SCHEDULE_DAY_OPTIONS.map((d) => (
-                                  <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            {form.transport_type === "dialysis" ? (
+                              <>
+                                <Label>Schedule Days</Label>
+                                <Select value={form.schedule_days} onValueChange={(v) => setForm({ ...form, schedule_days: v })}>
+                                  <SelectTrigger><SelectValue placeholder="Select days" /></SelectTrigger>
+                                  <SelectContent>
+                                    {SCHEDULE_DAY_OPTIONS.map((d) => (
+                                      <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </>
+                            ) : (
+                              <>
+                                <Label>Schedule Days</Label>
+                                <div className="flex flex-wrap gap-2 mt-1.5">
+                                  {CUSTOM_DAY_OPTIONS.map((d) => (
+                                    <label key={d.value} className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs cursor-pointer transition-colors ${form.recurrence_days.includes(d.value) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                                      <input
+                                        type="checkbox"
+                                        checked={form.recurrence_days.includes(d.value)}
+                                        onChange={(e) => {
+                                          const days = e.target.checked
+                                            ? [...form.recurrence_days, d.value].sort()
+                                            : form.recurrence_days.filter((x) => x !== d.value);
+                                          setForm({ ...form, recurrence_days: days });
+                                        }}
+                                        className="accent-primary h-3 w-3"
+                                      />
+                                      {d.label}
+                                    </label>
+                                  ))}
+                                </div>
+                              </>
+                            )}
                           </div>
                           <div>
-                            <Label>Chair Time</Label>
+                            <Label>Appointment Time</Label>
                             <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
                           </div>
                         </div>
@@ -488,10 +535,12 @@ export default function Patients() {
                           <Label>O₂ LPM</Label>
                           <Input type="number" step="0.5" value={form.oxygen_lpm} onChange={e => setForm({ ...form, oxygen_lpm: e.target.value })} placeholder="—" />
                         </div>
-                        <div>
-                          <Label>Dialysis Window (min)</Label>
-                          <Input type="number" value={form.dialysis_window_minutes} onChange={e => setForm({ ...form, dialysis_window_minutes: e.target.value })} />
-                        </div>
+                        {form.transport_type === "dialysis" && (
+                          <div>
+                            <Label>Dialysis Window (min)</Label>
+                            <Input type="number" value={form.dialysis_window_minutes} onChange={e => setForm({ ...form, dialysis_window_minutes: e.target.value })} />
+                          </div>
+                        )}
                         <div>
                           <Label>Must Arrive By</Label>
                           <Input type="time" value={form.must_arrive_by} onChange={e => setForm({ ...form, must_arrive_by: e.target.value })} />

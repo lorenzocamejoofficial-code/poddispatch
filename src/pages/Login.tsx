@@ -132,9 +132,15 @@ export default function Login() {
           </Button>
 
           <div className="text-center space-y-2">
-            <a href="/forgot-password" className="text-xs text-primary hover:underline font-medium">
-              Forgot password?
-            </a>
+            <div className="flex items-center justify-center gap-3">
+              <a href="/forgot-password" className="text-xs text-primary hover:underline font-medium">
+                Forgot password?
+              </a>
+              <span className="text-xs text-muted-foreground">·</span>
+              <a href="/forgot-email" className="text-xs text-primary hover:underline font-medium">
+                Forgot email?
+              </a>
+            </div>
             <p className="text-xs text-muted-foreground">
               Accounts are created by your company admin.
             </p>
