@@ -1242,6 +1242,7 @@ export type Database = {
           phone: string | null
           pickup_address: string | null
           primary_payer: string | null
+          recurrence_days: number[] | null
           recurrence_end_date: string | null
           recurrence_start_date: string | null
           run_duration_minutes: number | null
@@ -1282,6 +1283,7 @@ export type Database = {
           phone?: string | null
           pickup_address?: string | null
           primary_payer?: string | null
+          recurrence_days?: number[] | null
           recurrence_end_date?: string | null
           recurrence_start_date?: string | null
           run_duration_minutes?: number | null
@@ -1322,6 +1324,7 @@ export type Database = {
           phone?: string | null
           pickup_address?: string | null
           primary_payer?: string | null
+          recurrence_days?: number[] | null
           recurrence_end_date?: string | null
           recurrence_start_date?: string | null
           run_duration_minutes?: number | null

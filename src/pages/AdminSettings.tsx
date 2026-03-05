@@ -170,31 +170,33 @@ export default function AdminSettings() {
         <section className="space-y-3">
           <div>
             <h3 className="text-lg font-semibold text-foreground">Session Security</h3>
-            <p className="text-sm text-muted-foreground">HIPAA-compliant session timeout settings for all users.</p>
+            <p className="text-sm text-muted-foreground">HIPAA-compliant session timeout for all users.</p>
           </div>
-          <div>
-            <Label>Auto-Logout Timer</Label>
-            <Select value={sessionTimeout} onValueChange={setSessionTimeout}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">Manual logout only</SelectItem>
-                <SelectItem value="15">15 minutes</SelectItem>
-                <SelectItem value="30">30 minutes</SelectItem>
-                <SelectItem value="45">45 minutes</SelectItem>
-                <SelectItem value="60">60 minutes</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex items-center justify-between rounded-lg border bg-card p-4">
+            <div>
+              <p className="text-sm font-medium text-foreground">Session Timeout</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {sessionWarningEnabled
+                  ? "Auto-logout after 30 minutes of inactivity with a 5-minute warning"
+                  : "Disabled — users stay logged in until they sign out manually (not recommended)"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{sessionWarningEnabled ? "ON" : "OFF"}</span>
+              <Checkbox
+                id="sessionToggle"
+                checked={sessionWarningEnabled}
+                onCheckedChange={(v) => {
+                  const enabled = v === true;
+                  setSessionWarningEnabled(enabled);
+                  setSessionTimeout(enabled ? "30" : "0");
+                }}
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="sessionWarning"
-              checked={sessionWarningEnabled}
-              onCheckedChange={(v) => setSessionWarningEnabled(v === true)}
-            />
-            <Label htmlFor="sessionWarning" className="text-sm font-normal text-muted-foreground">
-              Show warning popup 2 minutes before auto-logout
-            </Label>
-          </div>
+          {!sessionWarningEnabled && (
+            <p className="text-xs text-destructive font-medium">⚠️ Disabling session timeout may violate HIPAA compliance requirements.</p>
+          )}
         </section>
 
         {/* Limits info */}

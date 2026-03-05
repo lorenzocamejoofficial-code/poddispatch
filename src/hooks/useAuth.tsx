@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 // HIPAA: Session automatically expires after this many milliseconds of inactivity.
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
-const WARNING_BEFORE_MS = 2 * 60 * 1000;       // warn 2 min before expiry
+const WARNING_BEFORE_MS = 5 * 60 * 1000;       // warn 5 min before expiry
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"] as const;
 
 export type MembershipRole = "creator" | "owner" | "dispatcher" | "biller" | "crew";

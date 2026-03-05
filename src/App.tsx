@@ -38,6 +38,7 @@ import CreateCompany from "./pages/CreateCompany";
 import AccountSettings from "./pages/AccountSettings";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import ForgotEmail from "./pages/ForgotEmail";
 import SuspendedPage from "./pages/SuspendedPage";
 // SandboxModeProvider and PreviewRoleProvider removed — no role-based view filtering
 const queryClient = new QueryClient();
@@ -47,7 +48,7 @@ function SessionWarningBanner() {
   if (!sessionWarning) return null;
   return (
     <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-between gap-4 bg-destructive px-4 py-2 text-sm text-destructive-foreground shadow-lg">
-      <span>⚠️ Your session will expire in 2 minutes due to inactivity. Move your mouse or press a key to stay logged in.</span>
+      <span>⚠️ Your session will expire in 5 minutes due to inactivity. Move your mouse or press a key to stay logged in.</span>
       <button
         onClick={signOut}
         className="rounded border border-destructive-foreground/40 px-3 py-1 text-xs font-medium hover:bg-destructive-foreground/10 transition-colors"
@@ -82,6 +83,7 @@ function AppRoutes() {
         <Route path="/invite" element={<AcceptInvite />} />
         <Route path="/crew/:token" element={<DailyRunSheet />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/forgot-email" element={<ForgotEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
@@ -151,6 +153,7 @@ function AppRoutes() {
           <Route path="/employees" element={<Employees />} />
           <Route path="/trucks" element={<TrucksCrews />} />
           <Route path="/settings" element={<AdminSettings />} />
+          <Route path="/account" element={<AccountSettings />} />
           {/* Default: creator lands on System Dashboard */}
           <Route path="/" element={<Navigate to="/system" replace />} />
           <Route path="/login" element={<Navigate to="/system" replace />} />
@@ -170,6 +173,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<CrewView />} />
         <Route path="/crew/:token" element={<DailyRunSheet />} />
+        <Route path="/account" element={<AccountSettings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
@@ -188,6 +192,7 @@ function AppRoutes() {
           <Route path="/trips" element={<TripsAndClinical />} />
           <Route path="/facilities" element={<FacilitiesPage />} />
           <Route path="/trucks" element={<TrucksCrews />} />
+          <Route path="/account" element={<AccountSettings />} />
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
@@ -205,6 +210,7 @@ function AppRoutes() {
           <Route path="/billing" element={<BillingAndClaims />} />
           <Route path="/compliance" element={<ComplianceAndQA />} />
           <Route path="/facilities" element={<FacilitiesPage />} />
+          <Route path="/account" element={<AccountSettings />} />
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -40,6 +40,7 @@ export interface PatientOption {
   transport_type: string;
   recurrence_start_date: string | null;
   recurrence_end_date: string | null;
+  recurrence_days: number[] | null;
 }
 
 export interface TruckOption { id: string; name: string; }
@@ -70,10 +71,14 @@ const emptyForm: LegFormState = {
 };
 
 /* ── Helper: check if a weekday matches schedule_days ── */
-export function matchesScheduleDay(date: string, scheduleDays: string | null): boolean {
-  if (!scheduleDays) return false;
+export function matchesScheduleDay(date: string, scheduleDays: string | null, recurrenceDays?: number[] | null): boolean {
   const d = new Date(date + "T12:00:00");
   const dayOfWeek = d.getDay();
+  // Check custom recurrence_days first (array of day numbers 1-6)
+  if (recurrenceDays && recurrenceDays.length > 0) {
+    return recurrenceDays.includes(dayOfWeek);
+  }
+  if (!scheduleDays) return false;
   if (scheduleDays === "MWF") return [1, 3, 5].includes(dayOfWeek);
   if (scheduleDays === "TTS") return [2, 4, 6].includes(dayOfWeek);
   return false;
@@ -185,7 +190,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
 
   const fetchOptions = useCallback(async () => {
     const [{ data: p }, { data: t }] = await Promise.all([
-      supabase.from("patients").select("id, first_name, last_name, weight_lbs, status, pickup_address, dropoff_facility, chair_time, run_duration_minutes, schedule_days, notes, transport_type, recurrence_start_date, recurrence_end_date").order("last_name"),
+      supabase.from("patients").select("id, first_name, last_name, weight_lbs, status, pickup_address, dropoff_facility, chair_time, run_duration_minutes, schedule_days, notes, transport_type, recurrence_start_date, recurrence_end_date, recurrence_days").order("last_name"),
       supabase.from("trucks").select("id, name").eq("active", true).order("name"),
     ]);
     setPatients((p ?? []).map((x: any) => ({
@@ -202,6 +207,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
       transport_type: x.transport_type ?? "dialysis",
       recurrence_start_date: x.recurrence_start_date,
       recurrence_end_date: x.recurrence_end_date,
+      recurrence_days: x.recurrence_days ?? null,
     })));
     setTrucks((t ?? []).map((x: any) => ({ id: x.id, name: x.name })));
   }, []);
@@ -236,7 +242,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     const eligible = patients.filter((p) => {
       if (p.status !== "active") return false;
       if (p.transport_type === "adhoc") return false;
-      if (!matchesScheduleDay(selectedDate, p.schedule_days)) return false;
+      if (!matchesScheduleDay(selectedDate, p.schedule_days, p.recurrence_days)) return false;
       if (!p.pickup_address || !p.dropoff_facility) return false;
       if (p.recurrence_start_date && selectedDate < p.recurrence_start_date) return false;
       if (p.recurrence_end_date && selectedDate > p.recurrence_end_date) return false;
