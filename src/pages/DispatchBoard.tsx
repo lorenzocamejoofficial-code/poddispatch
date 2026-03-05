@@ -277,6 +277,7 @@ export default function DispatchBoard() {
   const dateLabel = new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric", year: "numeric",
   });
+  const isToday = selectedDate === new Date().toISOString().split("T")[0];
 
   return (
     <AdminLayout>
@@ -286,9 +287,18 @@ export default function DispatchBoard() {
         </div>
       ) : (
         <div className="space-y-6">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Dispatch Board</p>
-            <h2 className="text-lg font-bold text-foreground">{dateLabel}</h2>
+          <div className="flex items-center gap-3">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Dispatch Board</p>
+              <h2 className="text-lg font-bold text-foreground">
+                {dateLabel}
+                {isToday && (
+                  <span className="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                    Today
+                  </span>
+                )}
+              </h2>
+            </div>
           </div>
 
           {/* Alerts */}

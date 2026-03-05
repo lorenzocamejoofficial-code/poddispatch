@@ -230,7 +230,8 @@ export default function Scheduling() {
 
   const navigateWeek = (direction: number) => {
     const d = new Date(selectedDate + "T12:00:00");
-    d.setDate(d.getDate() + direction * 7);
+    // In day view, move by day; in week view, move by week
+    d.setDate(d.getDate() + direction * (weekView ? 7 : 1));
     setSelectedDate(d.toISOString().split("T")[0]);
   };
 
@@ -258,9 +259,8 @@ export default function Scheduling() {
       toast.warning(`Warning: ${patient.name} is ${patient.status.replace("_", " ")}. Scheduling anyway.`);
     }
 
-    // Resolve company_id for RLS
-    const { data: profileData } = await supabase.from("profiles").select("company_id").limit(1).single();
-    const companyId = (profileData as any)?.company_id ?? null;
+    // Resolve company_id for RLS via secure RPC
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
 
     const { error } = await supabase.from("scheduling_legs").insert({
       patient_id: legForm.patient_id,
@@ -514,8 +514,7 @@ export default function Scheduling() {
       }
     } else {
       toast.success(`Run assigned to ${truckName}`);
-      const { data: profileData } = await supabase.from("profiles").select("company_id").limit(1).single();
-      const companyId = (profileData as any)?.company_id ?? null;
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
       const { error } = await supabase.from("truck_run_slots").insert({
         truck_id: targetTruckId,
         leg_id: activeId,
@@ -527,7 +526,8 @@ export default function Scheduling() {
         if (error.code === "23505") {
           toast.error("This leg is already assigned to a truck");
         } else {
-          toast.error("Assignment failed — reverting");
+          console.error("Assignment error:", error);
+          toast.error(`Assignment failed: ${error.message}`);
         }
         refresh();
       }

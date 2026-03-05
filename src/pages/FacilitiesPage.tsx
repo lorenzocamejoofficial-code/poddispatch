@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Plus, Search, Users, Pencil } from "lucide-react";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
+import { Building2, Plus, Search, Users, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Facility {
@@ -44,6 +45,8 @@ export default function FacilitiesPage() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Facility | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Facility | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     name: "", facility_type: "dialysis", address: "", phone: "", contact_name: "", notes: "", active: true,
     contract_payer_type: "", rate_type: "medicare", invoice_preference: "per_trip",
@@ -143,6 +146,9 @@ export default function FacilitiesPage() {
                     </span>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(f)}>
                       <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(f)}>
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -244,6 +250,37 @@ export default function FacilitiesPage() {
             </div>
             <Button className="w-full" onClick={handleSave} disabled={saving}>
               {saving ? "Saving…" : editing ? "Save Changes" : "Add Facility"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Facility</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleting}
+              onClick={async () => {
+                if (!deleteTarget) return;
+                setDeleting(true);
+                const { error } = await supabase.from("facilities" as any).delete().eq("id", deleteTarget.id);
+                if (error) { toast.error("Failed to delete facility"); }
+                else { toast.success("Facility deleted"); }
+                setDeleting(false);
+                setDeleteTarget(null);
+                fetchData();
+              }}
+            >
+              {deleting ? "Deleting…" : "Delete"}
             </Button>
           </div>
         </DialogContent>
