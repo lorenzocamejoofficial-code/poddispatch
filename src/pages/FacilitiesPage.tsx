@@ -201,47 +201,49 @@ export default function FacilitiesPage() {
               <div><Label>Contact Name</Label><Input value={form.contact_name} onChange={e => setForm({ ...form, contact_name: e.target.value })} /></div>
             </div>
 
-            {/* Contract fields */}
-            <div className="border-t pt-3 space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contract Details</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Contract Payer Type</Label>
-                  <Select value={form.contract_payer_type || ""} onValueChange={v => setForm({ ...form, contract_payer_type: v })}>
-                    <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="medicare">Medicare</SelectItem>
-                      <SelectItem value="medicaid">Medicaid</SelectItem>
-                      <SelectItem value="facility">Facility Contract</SelectItem>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="mixed">Mixed</SelectItem>
-                    </SelectContent>
-                  </Select>
+            {/* Contract fields — hidden for dialysis facilities */}
+            {form.facility_type !== "dialysis" && (
+              <div className="border-t pt-3 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contract Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Contract Payer Type</Label>
+                    <Select value={form.contract_payer_type || ""} onValueChange={v => setForm({ ...form, contract_payer_type: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="medicare">Medicare</SelectItem>
+                        <SelectItem value="medicaid">Medicaid</SelectItem>
+                        <SelectItem value="facility">Facility Contract</SelectItem>
+                        <SelectItem value="cash">Cash</SelectItem>
+                        <SelectItem value="mixed">Mixed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Rate Type</Label>
+                    <Select value={form.rate_type} onValueChange={v => setForm({ ...form, rate_type: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="medicare">Medicare</SelectItem>
+                        <SelectItem value="contract">Contract</SelectItem>
+                        <SelectItem value="mixed">Mixed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div>
-                  <Label>Rate Type</Label>
-                  <Select value={form.rate_type} onValueChange={v => setForm({ ...form, rate_type: v })}>
+                  <Label>Invoice Preference</Label>
+                  <Select value={form.invoice_preference} onValueChange={v => setForm({ ...form, invoice_preference: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="medicare">Medicare</SelectItem>
-                      <SelectItem value="contract">Contract</SelectItem>
-                      <SelectItem value="mixed">Mixed</SelectItem>
+                      <SelectItem value="per_trip">Per Trip</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              <div>
-                <Label>Invoice Preference</Label>
-                <Select value={form.invoice_preference} onValueChange={v => setForm({ ...form, invoice_preference: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="per_trip">Per Trip</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            )}
 
             <div><Label>Notes</Label><Textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
             <div className="flex items-center justify-between">

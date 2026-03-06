@@ -228,8 +228,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       toast.error("Truck is full (10 run slots max)");
       return;
     }
-    const { data: profileData } = await supabase.from("profiles").select("company_id").limit(1).single();
-    const companyId = (profileData as any)?.company_id ?? null;
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
     const { error } = await supabase.from("truck_run_slots").insert({
       truck_id: truckId,
       leg_id: legId,

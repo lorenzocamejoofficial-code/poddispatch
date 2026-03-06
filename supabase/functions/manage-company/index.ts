@@ -216,18 +216,95 @@ Deno.serve(async (req) => {
       return json({ success: true });
     }
 
-    // ── DELETE ────────────────────────────────────────────────
+    // ── SOFT DELETE (for active companies) ─────────────────────
+    if (action === "soft_delete") {
+      if (!reason) return json({ error: "Deletion reason required" }, 400);
+
+      const { data: company } = await supabaseAdmin
+        .from("companies")
+        .select("id, onboarding_status")
+        .eq("id", companyId)
+        .maybeSingle();
+
+      if (!company) return json({ error: "Company not found" }, 404);
+
+      // Mark as soft-deleted — hide from login and active lists
+      const { error: updateError } = await supabaseAdmin
+        .from("companies")
+        .update({
+          onboarding_status: "suspended",
+          suspended_reason: `SOFT_DELETED: ${reason}`,
+          suspended_at: new Date().toISOString(),
+          suspended_by: user.id,
+          deleted_at: new Date().toISOString(),
+          deleted_by: user.id,
+        })
+        .eq("id", companyId);
+
+      if (updateError) return json({ error: updateError.message }, 500);
+
+      await supabaseAdmin.from("onboarding_events").insert({
+        company_id: companyId,
+        event_type: "company_soft_deleted",
+        actor_user_id: user.id,
+        actor_email: user.email,
+        details: { reason },
+      });
+
+      await supabaseAdmin.from("audit_logs").insert({
+        action: "company_soft_deleted",
+        actor_user_id: user.id,
+        actor_email: user.email,
+        record_id: companyId,
+        table_name: "companies",
+        notes: `Soft-deleted: ${reason}. Recovery window: 30 days.`,
+      });
+
+      return json({ success: true, status: "soft_deleted" });
+    }
+
+    // ── RESTORE (undo soft delete) ───────────────────────────
+    if (action === "restore") {
+      const { error: updateError } = await supabaseAdmin
+        .from("companies")
+        .update({
+          onboarding_status: "active",
+          suspended_reason: null,
+          suspended_at: null,
+          suspended_by: null,
+          deleted_at: null,
+          deleted_by: null,
+        })
+        .eq("id", companyId);
+
+      if (updateError) return json({ error: updateError.message }, 500);
+
+      await supabaseAdmin.from("onboarding_events").insert({
+        company_id: companyId,
+        event_type: "company_restored",
+        actor_user_id: user.id,
+        actor_email: user.email,
+        details: { reason: reason || "Restored by system creator" },
+      });
+
+      return json({ success: true, status: "active" });
+    }
+
+    // ── DELETE (hard delete — pending/rejected/soft-deleted) ──
     if (action === "delete") {
       const { data: company, error: fetchErr } = await supabaseAdmin
         .from("companies")
-        .select("id, onboarding_status, owner_user_id")
+        .select("id, onboarding_status, owner_user_id, deleted_at")
         .eq("id", companyId)
         .maybeSingle();
 
       if (fetchErr || !company) return json({ error: "Company not found" }, 404);
 
-      if (company.onboarding_status !== "pending_approval" && company.onboarding_status !== "rejected") {
-        return json({ error: "Only pending or rejected companies can be deleted" }, 400);
+      const allowedStatuses = ["pending_approval", "rejected"];
+      const isSoftDeleted = !!company.deleted_at;
+
+      if (!allowedStatuses.includes(company.onboarding_status) && !isSoftDeleted) {
+        return json({ error: "Only pending, rejected, or soft-deleted companies can be permanently deleted. Use soft_delete first for active companies." }, 400);
       }
 
       const cid = companyId;
@@ -280,7 +357,7 @@ Deno.serve(async (req) => {
         actor_email: user.email,
         record_id: cid,
         table_name: "companies",
-        notes: reason || "Pending company deleted by system creator",
+        notes: reason || "Company permanently deleted by system creator",
       });
 
       return json({ success: true, deleted: true });

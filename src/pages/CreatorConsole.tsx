@@ -27,10 +27,16 @@ interface CompanyRecord {
   suspended_reason: string | null;
   suspended_at: string | null;
   rejected_reason: string | null;
+  deleted_at: string | null;
 }
+
+const isSoftDeleted = (c: CompanyRecord) =>
+  !!c.deleted_at && c.suspended_reason?.startsWith("SOFT_DELETED:");
+
 
 type ModalAction = 
   | { type: "suspend"; company: CompanyRecord }
+  | { type: "soft_delete"; company: CompanyRecord }
   | { type: "delete"; company: CompanyRecord }
   | { type: "edit"; company: CompanyRecord }
   | { type: "reset_password"; company: CompanyRecord }
@@ -57,9 +63,9 @@ export default function CreatorConsole() {
     setLoading(true);
     const { data } = await supabase
       .from("companies")
-      .select("id, name, onboarding_status, owner_email, created_at, approved_at, suspended_reason, suspended_at, rejected_reason")
+      .select("id, name, onboarding_status, owner_email, created_at, approved_at, suspended_reason, suspended_at, rejected_reason, deleted_at")
       .order("created_at", { ascending: false });
-    setCompanies((data as CompanyRecord[]) ?? []);
+    setCompanies((data as unknown as CompanyRecord[]) ?? []);
     setLoading(false);
   };
 
@@ -142,20 +148,40 @@ export default function CreatorConsole() {
 
                   {/* Active actions */}
                   {c.onboarding_status === "active" && (
-                    <Button size="sm" variant="outline" className="gap-1 text-xs text-destructive" onClick={() => { setModal({ type: "suspend", company: c }); setReasonText(""); setConfirmText(""); }}>
-                      <Ban className="h-3 w-3" /> Suspend
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" className="gap-1 text-xs text-destructive" onClick={() => { setModal({ type: "suspend", company: c }); setReasonText(""); setConfirmText(""); }}>
+                        <Ban className="h-3 w-3" /> Suspend
+                      </Button>
+                      <Button size="sm" variant="ghost" className="gap-1 text-xs text-destructive hover:text-destructive" onClick={() => { setModal({ type: "soft_delete", company: c }); setReasonText(""); setConfirmText(""); }}>
+                        <Trash2 className="h-3 w-3" /> Delete
+                      </Button>
+                    </>
                   )}
 
                   {/* Suspended actions */}
-                  {c.onboarding_status === "suspended" && (
+                  {c.onboarding_status === "suspended" && !isSoftDeleted(c) && (
                     <Button size="sm" variant="default" className="gap-1 text-xs" onClick={() => invokeDirectUnsuspend(c.id)}>
                       <RefreshCw className="h-3 w-3" /> Unsuspend
                     </Button>
                   )}
 
-                  {/* Common actions for active/suspended */}
-                  {(c.onboarding_status === "active" || c.onboarding_status === "suspended") && (
+                  {/* Soft-deleted actions */}
+                  {isSoftDeleted(c) && (
+                    <>
+                      <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/30">
+                        Marked for deletion
+                      </Badge>
+                      <Button size="sm" variant="default" className="gap-1 text-xs" onClick={() => invokeDirectRestore(c.id)}>
+                        <RefreshCw className="h-3 w-3" /> Restore
+                      </Button>
+                      <Button size="sm" variant="ghost" className="gap-1 text-xs text-destructive hover:text-destructive" onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); }}>
+                        <Trash2 className="h-3 w-3" /> Delete Forever
+                      </Button>
+                    </>
+                  )}
+
+                  {/* Common actions for active/suspended (not soft-deleted) */}
+                  {(c.onboarding_status === "active" || (c.onboarding_status === "suspended" && !isSoftDeleted(c))) && (
                     <>
                       <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => { setModal({ type: "reset_password", company: c }); setConfirmText(""); }}>
                         <KeyRound className="h-3 w-3" /> Reset PW
@@ -200,6 +226,18 @@ export default function CreatorConsole() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success("Company reactivated!");
+      await loadCompanies();
+    } catch (err: any) { toast.error(err.message); }
+    setActionLoading(false);
+  };
+
+  const invokeDirectRestore = async (id: string) => {
+    setActionLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-company", { body: { companyId: id, action: "restore" } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success("Company restored from deletion!");
       await loadCompanies();
     } catch (err: any) { toast.error(err.message); }
     setActionLoading(false);
@@ -260,6 +298,29 @@ export default function CreatorConsole() {
             <Button variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
             <Button variant="destructive" disabled={confirmText !== "OVERRIDE" || !reasonText.trim() || actionLoading} onClick={() => invokeAction("suspend", { reason: reasonText.trim() })}>
               {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Suspend
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Soft Delete Modal */}
+      <Dialog open={modal?.type === "soft_delete"} onOpenChange={(open) => { if (!open) setModal(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Company</DialogTitle>
+            <DialogDescription>
+              "{modal?.company.name}" will be marked for deletion and hidden from login. You have a 30-day recovery window to restore it before permanent deletion.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea placeholder="Reason for deletion (required)..." value={reasonText} onChange={(e) => setReasonText(e.target.value)} className="h-20" />
+            <p className="text-xs text-muted-foreground">Type <strong>OVERRIDE</strong> to confirm:</p>
+            <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="OVERRIDE" />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={confirmText !== "OVERRIDE" || !reasonText.trim() || actionLoading} onClick={() => invokeAction("soft_delete", { reason: reasonText.trim() })}>
+              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Mark for Deletion
             </Button>
           </DialogFooter>
         </DialogContent>
