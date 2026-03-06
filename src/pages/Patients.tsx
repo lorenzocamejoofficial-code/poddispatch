@@ -14,6 +14,7 @@ import { Plus, Search, Pencil, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables, Database } from "@/integrations/supabase/types";
 import { PatientStatusBadge } from "@/components/patients/PatientStatusBadge";
+import { FacilityDropdown } from "@/components/patients/FacilityDropdown";
 
 type Patient = Tables<"patients">;
 type PatientStatus = Database["public"]["Enums"]["patient_status"];
@@ -331,7 +332,13 @@ export default function Patients() {
                     <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
                   </div>
                   <div><Label>Pickup Address</Label><Input value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} /></div>
-                  <div><Label>Dropoff Facility</Label><Input value={form.dropoff_facility} onChange={(e) => setForm({ ...form, dropoff_facility: e.target.value })} /></div>
+                  <div>
+                    <Label>Dropoff Facility</Label>
+                    <FacilityDropdown
+                      value={form.dropoff_facility}
+                      onChange={(v) => setForm({ ...form, dropoff_facility: v })}
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Weight (lbs)</Label><Input type="number" value={form.weight_lbs} onChange={(e) => {
                       const w = e.target.value;

@@ -416,6 +416,8 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           is_sandbox: boolean
           name: string
@@ -432,6 +434,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           is_sandbox?: boolean
           name: string
@@ -448,6 +452,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           is_sandbox?: boolean
           name?: string

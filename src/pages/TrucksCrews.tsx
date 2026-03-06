@@ -253,9 +253,12 @@ export default function TrucksCrews() {
     const startDate = weekDates[0];
     const endDate = weekDates[6];
 
+    // Get company_id first to scope employee dropdown
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
+
     const [{ data: t }, { data: p }, { data: c }, { data: av }] = await Promise.all([
       supabase.from("trucks").select("*").order("name"),
-      supabase.from("profiles").select("id, full_name").eq("active", true).order("full_name"),
+      supabase.from("profiles").select("id, full_name").eq("active", true).eq("company_id", companyId).order("full_name"),
       supabase.from("crews")
         .select("*, member1:profiles!crews_member1_id_fkey(full_name, id), member2:profiles!crews_member2_id_fkey(full_name, id)")
         .gte("active_date", startDate)
@@ -599,8 +602,9 @@ export default function TrucksCrews() {
                     {weekDates.map((date) => {
                       const crew = getCrewForDate(truck.id, date);
                       const downRecord = getDownRecord(truck.id, date);
+                      const isToday = date === today;
                       return (
-                        <td key={date} className="px-1.5 py-1.5 min-w-[110px]">
+                        <td key={date} className={`px-1.5 py-1.5 min-w-[110px] ${isToday ? "bg-primary/5" : ""}`}>
                           <TruckDayCell
                             truck={truck}
                             date={date}
@@ -671,17 +675,29 @@ export default function TrucksCrews() {
         <Dialog open={copyDialog} onOpenChange={setCopyDialog}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle>Copy Week Forward</DialogTitle>
+              <DialogTitle>Copy Week Schedule</DialogTitle>
               <DialogDescription>
-                Copies crew assignments from <strong>{getWeekLabel(weekDates)}</strong> to the target week. Existing assignments will not be overwritten.
+                Duplicate crew assignments from one week to another. Existing assignments on the target week will not be overwritten.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-2">
-              <div>
-                <Label>Target Week (any date in the week)</Label>
-                <Input type="date" value={copyTargetWeek} onChange={(e) => setCopyTargetWeek(e.target.value)} />
+              <div className="rounded-md border bg-muted/30 p-3">
+                <Label className="text-xs text-muted-foreground">Source Week (copying from)</Label>
+                <p className="text-sm font-semibold text-foreground mt-1">{getWeekLabel(weekDates)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {crews.length} crew assignment{crews.length !== 1 ? "s" : ""} on this week
+                </p>
               </div>
-              <Button onClick={copyWeekForward} disabled={copying} className="w-full">
+              <div>
+                <Label>Destination Week (pick any date in the target week)</Label>
+                <Input type="date" value={copyTargetWeek} onChange={(e) => setCopyTargetWeek(e.target.value)} />
+                {copyTargetWeek && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Target: <strong>{getWeekLabel(getWeekDates(copyTargetWeek))}</strong>
+                  </p>
+                )}
+              </div>
+              <Button onClick={copyWeekForward} disabled={copying || !copyTargetWeek} className="w-full">
                 <Copy className="mr-1.5 h-4 w-4" /> {copying ? "Copying..." : "Copy Assignments"}
               </Button>
             </div>
