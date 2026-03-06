@@ -209,9 +209,10 @@ export default function Scheduling() {
     const startDate = weekDates[0];
     const endDate = weekDates[6];
 
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
     const [{ data: legData }, { data: slotData }] = await Promise.all([
-      supabase.from("scheduling_legs").select("id, run_date").gte("run_date", startDate).lte("run_date", endDate),
-      supabase.from("truck_run_slots").select("id, run_date, truck_id").gte("run_date", startDate).lte("run_date", endDate),
+      supabase.from("scheduling_legs").select("id, run_date").eq("company_id", companyId).gte("run_date", startDate).lte("run_date", endDate),
+      supabase.from("truck_run_slots").select("id, run_date, truck_id").eq("company_id", companyId).gte("run_date", startDate).lte("run_date", endDate),
     ]);
 
     const summaries: DaySummary[] = weekDates.map((date) => {
@@ -365,6 +366,7 @@ export default function Scheduling() {
         .from("crews").select("active_date, truck_id")
         .gte("active_date", targetWeekDates[0]).lte("active_date", targetWeekDates[6]);
       const existingKeys = new Set((existingCrews ?? []).map((c) => `${c.active_date}_${c.truck_id}`));
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
       const newCrews: any[] = [];
       for (const crew of srcCrews ?? []) {
         const srcDayIdx = weekDates.indexOf(crew.active_date);
@@ -372,7 +374,7 @@ export default function Scheduling() {
         const targetDate = targetWeekDates[srcDayIdx];
         const key = `${targetDate}_${crew.truck_id}`;
         if (existingKeys.has(key)) continue;
-        newCrews.push({ truck_id: crew.truck_id, member1_id: crew.member1_id, member2_id: crew.member2_id, active_date: targetDate });
+        newCrews.push({ truck_id: crew.truck_id, member1_id: crew.member1_id, member2_id: crew.member2_id, active_date: targetDate, company_id: companyId });
       }
       if (newCrews.length > 0) await supabase.from("crews").insert(newCrews);
       toast.success(`Copied ${newCrews.length} crew assignment(s). Use "Auto-Fill" on each day to generate runs.`);

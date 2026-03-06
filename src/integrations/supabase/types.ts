@@ -2601,6 +2601,25 @@ export type Database = {
       }
       is_dispatcher: { Args: never; Returns: boolean }
       is_system_creator: { Args: never; Returns: boolean }
+      safe_assign_crew: {
+        Args: {
+          p_active_date: string
+          p_member1_id?: string
+          p_member2_id?: string
+          p_truck_id: string
+        }
+        Returns: Json
+      }
+      safe_update_slot_order: {
+        Args: {
+          p_expected_updated_at?: string
+          p_leg_id: string
+          p_run_date: string
+          p_slot_order: number
+          p_truck_id: string
+        }
+        Returns: Json
+      }
       write_audit_log: {
         Args: {
           _action: string
