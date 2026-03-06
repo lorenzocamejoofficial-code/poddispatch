@@ -257,14 +257,16 @@ export default function TrucksCrews() {
     const { data: companyId } = await supabase.rpc("get_my_company_id");
 
     const [{ data: t }, { data: p }, { data: c }, { data: av }] = await Promise.all([
-      supabase.from("trucks").select("*").order("name"),
+      supabase.from("trucks").select("*").eq("company_id", companyId).order("name"),
       supabase.from("profiles").select("id, full_name").eq("active", true).eq("company_id", companyId).order("full_name"),
       supabase.from("crews")
         .select("*, member1:profiles!crews_member1_id_fkey(full_name, id), member2:profiles!crews_member2_id_fkey(full_name, id)")
+        .eq("company_id", companyId)
         .gte("active_date", startDate)
         .lte("active_date", endDate),
       supabase.from("truck_availability" as any)
         .select("*")
+        .eq("company_id", companyId)
         .or(`start_date.lte.${endDate},end_date.gte.${startDate}`),
     ]);
 
@@ -354,36 +356,26 @@ export default function TrucksCrews() {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
 
-    // Prevent assigning the same person to both slots
-    if (m1Val && m2Val && m1Val === m2Val) {
-      toast.error("Cannot assign the same employee to both crew slots");
+    if (!m1Val && !m2Val) {
+      toast.error("Select at least one crew member");
       return;
     }
 
-    // Prevent assigning someone already on another truck for this date
-    const membersToCheck = [m1Val, m2Val].filter(Boolean) as string[];
-    for (const memberId of membersToCheck) {
-      const existing = crews.find(
-        (c) => c.active_date === date && c.truck_id !== truckId &&
-          (c.member1_id === memberId || c.member2_id === memberId)
-      );
-      if (existing) {
-        const memberName = profiles.find((p) => p.id === memberId)?.full_name ?? "This employee";
-        const otherTruck = trucks.find((t) => t.id === existing.truck_id)?.name ?? "another truck";
-        toast.error(`${memberName} is already assigned to ${otherTruck} on this date`);
-        return;
-      }
-    }
-
-    const { data: companyId } = await supabase.rpc("get_my_company_id");
-    const { error } = await supabase.from("crews").insert({
-      truck_id: truckId,
-      member1_id: m1Val,
-      member2_id: m2Val,
-      active_date: date,
-      company_id: companyId,
+    // Use server-side atomic crew assignment with conflict detection
+    const { data: result, error } = await supabase.rpc("safe_assign_crew", {
+      p_truck_id: truckId,
+      p_active_date: date,
+      p_member1_id: m1Val,
+      p_member2_id: m2Val,
     });
+
     if (error) { toast.error("Failed to assign crew"); return; }
+    const res = result as any;
+    if (!res?.ok) {
+      toast.error(res?.error ?? "Crew assignment conflict detected. Refresh and try again.");
+      fetchAll();
+      return;
+    }
     toast.success("Crew assigned"); fetchAll();
   };
 

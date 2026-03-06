@@ -91,7 +91,7 @@ export default function DispatchBoard() {
       { data: payerRules },
       { data: crewCapRows },
     ] = await Promise.all([
-      supabase.from("trucks").select("*").eq("active", true),
+      supabase.from("trucks").select("*").eq("active", true).order("name"),
       supabase
         .from("truck_run_slots")
         .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, trip_type, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, auth_required, auth_expiration, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric))")
