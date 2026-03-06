@@ -92,6 +92,27 @@ export function HelpButton({ routeKey }: HelpButtonProps) {
                 </section>
               </>
             )}
+
+            {content.symbols && content.symbols.length > 0 && (
+              <>
+                <div className="border-t" />
+                <section>
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent-foreground">
+                    Symbols & icons guide
+                  </h4>
+                  <div className="space-y-1.5">
+                    {content.symbols.map((item, i) => (
+                      <div key={i} className="flex items-start gap-2 text-foreground">
+                        <span className="text-xs font-semibold shrink-0 min-w-[140px] text-primary">
+                          {item.symbol}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{item.meaning}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
