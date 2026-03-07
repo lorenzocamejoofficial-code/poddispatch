@@ -33,6 +33,8 @@ import SandboxPage from "./pages/SandboxPage";
 import PendingCompaniesAdmin from "./pages/PendingCompaniesAdmin";
 import CreatorSettings from "./pages/CreatorSettings";
 import SimulationLab from "./pages/SimulationLab";
+import CrewUIPreview from "./pages/CrewUIPreview";
+import OverrideMonitor from "./pages/OverrideMonitor";
 import AcceptInvite from "./pages/AcceptInvite";
 import CreateCompany from "./pages/CreateCompany";
 import AccountSettings from "./pages/AccountSettings";
@@ -137,6 +139,8 @@ function AppRoutes() {
           <Route path="/pending-companies" element={<PendingCompaniesAdmin />} />
           <Route path="/creator-settings" element={<CreatorSettings />} />
           <Route path="/simulation-lab" element={<SimulationLab />} />
+          <Route path="/crew-preview" element={<CrewUIPreview />} />
+          <Route path="/override-monitor" element={<OverrideMonitor />} />
           {/* App Simulation — all operational pages */}
           <Route path="/simulation" element={<DispatchBoard />} />
           <Route path="/scheduling" element={<Scheduling />} />
@@ -239,6 +243,7 @@ function AppRoutes() {
         <Route path="/employees" element={<Employees />} />
         <Route path="/trucks" element={<TrucksCrews />} />
         <Route path="/settings" element={<AdminSettings />} />
+        <Route path="/override-monitor" element={<OverrideMonitor />} />
         <Route path="/account" element={<AccountSettings />} />
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
