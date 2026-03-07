@@ -191,6 +191,14 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           exception_destination_location: exc?.destination_location ?? null,
           exception_notes: exc?.notes ?? null,
           has_exception: !!exc,
+          // Safety-relevant patient fields
+          patient_mobility: l.patient?.mobility ?? null,
+          patient_stairs_required: l.patient?.stairs_required ?? null,
+          patient_stair_chair_required: l.patient?.stair_chair_required ?? null,
+          patient_oxygen_required: l.patient?.oxygen_required ?? null,
+          patient_oxygen_lpm: l.patient?.oxygen_lpm ?? null,
+          patient_special_equipment: l.patient?.special_equipment_required ?? null,
+          patient_bariatric: l.patient?.bariatric ?? null,
         };
       })
     );
