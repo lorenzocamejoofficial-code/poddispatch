@@ -465,15 +465,35 @@ const TruckCard = memo(function TruckCard({
         {tLegs.length > 0 ? (
           <div className={`space-y-1.5 rounded-md transition-colors duration-150 ${isOver && !isDown ? "bg-primary/3" : ""}`}>
             <SortableContext items={tLegs.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-              {tLegs.map((leg) => (
-                <SortableLegItem
-                  key={leg.id}
-                  leg={leg}
-                  hasAlert={legAlertIds.has(leg.id)}
-                  onRemove={() => onRemoveLeg(leg.id)}
-                  onEditException={() => onEditException(leg)}
-                />
-              ))}
+              {tLegs.map((leg) => {
+                const patientNeeds: PatientNeeds = {
+                  weight_lbs: leg.patient_weight,
+                  mobility: leg.patient_mobility ?? null,
+                  stairs_required: leg.patient_stairs_required ?? null,
+                  stair_chair_required: leg.patient_stair_chair_required ?? null,
+                  oxygen_required: leg.patient_oxygen_required ?? null,
+                  oxygen_lpm: leg.patient_oxygen_lpm ?? null,
+                  special_equipment_required: leg.patient_special_equipment ?? null,
+                  bariatric: leg.patient_bariatric ?? null,
+                };
+                const safetyResult = crewCapability && truckEquipment
+                  ? evaluateSafetyRules(patientNeeds, crewCapability, truckEquipment)
+                  : { status: "OK" as const, reasons: [] };
+                const needsCheck = hasCompletePatientNeeds(patientNeeds);
+                return (
+                  <SortableLegItem
+                    key={leg.id}
+                    leg={leg}
+                    hasAlert={legAlertIds.has(leg.id)}
+                    safetyStatus={safetyResult.status}
+                    safetyReasons={safetyResult.reasons}
+                    missingFields={needsCheck.missing}
+                    onRemove={() => onRemoveLeg(leg.id)}
+                    onEditException={() => onEditException(leg)}
+                    onCancel={onCancelLeg ? () => onCancelLeg(leg.id) : undefined}
+                  />
+                );
+              })}
             </SortableContext>
             {isOver && !isDown && (
               <div className="rounded-md border-2 border-dashed border-primary/40 px-2 py-1.5 text-center text-[10px] text-primary/70">
