@@ -354,15 +354,19 @@ interface TruckCardProps {
   onAssignLeg: (truckId: string, legId: string) => void;
   onRemoveLeg: (legId: string) => void;
   onEditException: (leg: LegDisplay) => void;
+  onCancelLeg?: (legId: string) => void;
   truckAlertCount?: number;
   legAlertIds?: Set<string>;
   riskData?: TruckRiskData;
+  crewCapability?: CrewCapability;
+  truckEquipment?: TruckEquipment;
 }
 
 const TruckCard = memo(function TruckCard({
   truck, tLegs, crew, downRecord, isDown, hasRunsWhileDown, hasHeavy,
   first, last, hasActiveLink, utilizationColor, unassigned, addingLeg, setAddingLeg,
-  onAssignLeg, onRemoveLeg, onEditException, truckAlertCount = 0, legAlertIds = new Set(), riskData,
+  onAssignLeg, onRemoveLeg, onEditException, onCancelLeg, truckAlertCount = 0, legAlertIds = new Set(), riskData,
+  crewCapability, truckEquipment,
 }: TruckCardProps) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `truck-drop-${truck.id}`,
