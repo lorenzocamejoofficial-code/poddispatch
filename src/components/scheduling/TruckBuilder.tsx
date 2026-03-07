@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle, Clock, Link2, AlertCircle, XCircle } from "lucide-react";
+import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle, Clock, Link2, AlertCircle, XCircle, ShieldX, ShieldAlert } from "lucide-react";
 import { TruckRiskBadge } from "@/components/dispatch/TruckRiskBadge";
 import { HoldTimerIndicator } from "@/components/dispatch/HoldTimerIndicator";
 import { SafetyClassificationBadge } from "@/components/scheduling/SafetyClassificationBadge";
@@ -413,9 +413,12 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
               onAssignLeg={assignLeg}
               onRemoveLeg={removeLeg}
               onEditException={onEditException}
+              onCancelLeg={cancelLeg}
               truckAlertCount={truckAlerts.length}
               legAlertIds={truckLegAlertIds}
               riskData={riskData}
+              crewCapability={getCrewCapability(truck.id)}
+              truckEquipment={truckEquipmentMap.get(truck.id)}
             />
           );
         })}
@@ -493,6 +496,36 @@ const TruckCard = memo(function TruckCard({
               <Zap className="h-3.5 w-3.5" />
             </span>
           )}
+          {/* Truck-level safety summary */}
+          {(() => {
+            if (isDown || tLegs.length === 0 || !crewCapability || !truckEquipment) return null;
+            let worstStatus: "OK" | "WARNING" | "BLOCKED" = "OK";
+            let totalIssues = 0;
+            for (const leg of tLegs) {
+              const needs = {
+                weight_lbs: leg.patient_weight,
+                mobility: leg.patient_mobility ?? null,
+                stairs_required: leg.patient_stairs_required ?? null,
+                stair_chair_required: leg.patient_stair_chair_required ?? null,
+                oxygen_required: leg.patient_oxygen_required ?? null,
+                oxygen_lpm: leg.patient_oxygen_lpm ?? null,
+                special_equipment_required: leg.patient_special_equipment ?? null,
+                bariatric: leg.patient_bariatric ?? null,
+              };
+              const result = evaluateSafetyRules(needs, crewCapability, truckEquipment);
+              if (result.status === "BLOCKED") worstStatus = "BLOCKED";
+              else if (result.status === "WARNING" && worstStatus !== "BLOCKED") worstStatus = "WARNING";
+              totalIssues += result.reasons.length;
+            }
+            if (worstStatus === "OK") return null;
+            const Icon = worstStatus === "BLOCKED" ? ShieldX : ShieldAlert;
+            const color = worstStatus === "BLOCKED" ? "text-destructive" : "text-[hsl(var(--status-yellow))]";
+            return (
+              <span className={`inline-flex items-center gap-0.5 shrink-0 ${color}`} title={`${worstStatus}: ${totalIssues} safety concern(s) on this truck`}>
+                <Icon className="h-3 w-3" />
+              </span>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {hasActiveLink && (
