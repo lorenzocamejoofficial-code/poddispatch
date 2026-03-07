@@ -83,11 +83,20 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
           </span>
         )}
         {leg.pickup_time && <span className="text-muted-foreground shrink-0">{leg.pickup_time}</span>}
+        {/* Safety classification badge */}
+        {safetyStatus && (
+          <SafetyClassificationBadge status={safetyStatus} reasons={safetyReasons ?? []} missingFields={missingFields ?? []} />
+        )}
       </div>
       <div className="flex items-center gap-0.5 shrink-0">
         <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEditException} title="Edit this run only">
           <Pencil className="h-2.5 w-2.5" />
         </Button>
+        {onCancel && (
+          <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:text-destructive" onClick={onCancel} title="Cancel this run">
+            <XCircle className="h-2.5 w-2.5" />
+          </Button>
+        )}
         <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onRemove}>
           <Trash2 className="h-2.5 w-2.5" />
         </Button>
