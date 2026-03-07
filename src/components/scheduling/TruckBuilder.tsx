@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle, Clock, Link2, AlertCircle, XCircle } from "lucide-react";
+import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle, Clock, Link2, AlertCircle, XCircle, ShieldX, ShieldAlert } from "lucide-react";
 import { TruckRiskBadge } from "@/components/dispatch/TruckRiskBadge";
 import { HoldTimerIndicator } from "@/components/dispatch/HoldTimerIndicator";
 import { SafetyClassificationBadge } from "@/components/scheduling/SafetyClassificationBadge";
