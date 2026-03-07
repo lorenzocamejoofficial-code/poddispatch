@@ -167,8 +167,10 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   const [availability, setAvailability] = useState<AvailabilityRecord[]>([]);
   const [truckRisks, setTruckRisks] = useState<Map<string, TruckRiskData>>(new Map());
   const [holdTimers, setHoldTimers] = useState<HoldTimerData[]>([]);
+  const [crewProfiles, setCrewProfiles] = useState<Map<string, { member1: any; member2: any }>>(new Map());
+  const [truckEquipmentMap, setTruckEquipmentMap] = useState<Map<string, TruckEquipment>>(new Map());
 
-  // Fetch truck risk states
+  // Fetch truck risk states + crew capabilities + truck equipment
   useEffect(() => {
     const loadRisks = async () => {
       const { data } = await supabase.from("truck_risk_state" as any).select("*");
@@ -181,8 +183,33 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       const { data } = await supabase.from("hold_timers" as any).select("*").eq("is_active", true);
       setHoldTimers((data as any[]) ?? []);
     };
+    const loadCrewCaps = async () => {
+      const { data } = await supabase.from("crews")
+        .select("truck_id, member1:profiles!crews_member1_id_fkey(max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
+        .eq("active_date", selectedDate);
+      const map = new Map<string, { member1: any; member2: any }>();
+      for (const c of (data ?? []) as any[]) {
+        map.set(c.truck_id, { member1: c.member1, member2: c.member2 });
+      }
+      setCrewProfiles(map);
+    };
+    const loadTruckEquip = async () => {
+      const { data } = await supabase.from("trucks").select("id, has_power_stretcher, has_stair_chair, has_bariatric_kit, has_oxygen_mount").eq("active", true);
+      const map = new Map<string, TruckEquipment>();
+      for (const t of (data ?? []) as any[]) {
+        map.set(t.id, {
+          has_power_stretcher: t.has_power_stretcher ?? false,
+          has_stair_chair: t.has_stair_chair ?? false,
+          has_bariatric_kit: t.has_bariatric_kit ?? false,
+          has_oxygen_mount: t.has_oxygen_mount ?? false,
+        });
+      }
+      setTruckEquipmentMap(map);
+    };
     loadRisks();
     loadTimers();
+    loadCrewCaps();
+    loadTruckEquip();
 
     const channel = supabase
       .channel("truck-risk-realtime")
@@ -269,6 +296,71 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     toast.success("Leg removed from truck");
     onRefresh();
   }, [selectedDate, onRefresh]);
+
+  const cancelLeg = useCallback(async (legId: string) => {
+    // Find linked B-leg if this is an A-leg
+    const leg = legs.find(l => l.id === legId);
+    if (!leg) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Delete the slot assignment (keeps leg history)
+    await supabase.from("truck_run_slots").delete().eq("leg_id", legId).eq("run_date", selectedDate);
+
+    // Log cancellation to audit
+    await supabase.from("audit_logs").insert({
+      action: "run_cancelled",
+      actor_user_id: user?.id,
+      actor_email: user?.email,
+      table_name: "scheduling_legs",
+      record_id: legId,
+      notes: `Cancelled ${leg.leg_type}-Leg for ${leg.patient_name} on ${selectedDate}`,
+      new_data: { leg_type: leg.leg_type, patient_name: leg.patient_name, run_date: selectedDate },
+    } as any);
+
+    // If A-leg, auto-cancel linked B-leg
+    if (leg.leg_type === "A") {
+      const linkedB = legs.find(l => l.patient_id === leg.patient_id && l.leg_type === "B" && l.assigned_truck_id);
+      if (linkedB) {
+        await supabase.from("truck_run_slots").delete().eq("leg_id", linkedB.id).eq("run_date", selectedDate);
+        await supabase.from("audit_logs").insert({
+          action: "run_cancelled",
+          actor_user_id: user?.id,
+          actor_email: user?.email,
+          table_name: "scheduling_legs",
+          record_id: linkedB.id,
+          notes: `Auto-cancelled B-Leg (linked A-Leg cancelled) for ${linkedB.patient_name} on ${selectedDate}`,
+          new_data: { leg_type: "B", patient_name: linkedB.patient_name, run_date: selectedDate, auto_cancelled: true },
+        } as any);
+        toast.success("A-Leg cancelled — linked B-Leg also cancelled");
+      } else {
+        toast.success("Run cancelled");
+      }
+    } else {
+      toast.success("Run cancelled");
+    }
+    onRefresh();
+  }, [legs, selectedDate, onRefresh]);
+
+  const getCrewCapability = useCallback((truckId: string): CrewCapability => {
+    const cp = crewProfiles.get(truckId);
+    return {
+      member1: cp?.member1 ? {
+        max_safe_team_lift_lbs: cp.member1.max_safe_team_lift_lbs ?? 250,
+        stair_chair_trained: cp.member1.stair_chair_trained ?? false,
+        bariatric_trained: cp.member1.bariatric_trained ?? false,
+        oxygen_handling_trained: cp.member1.oxygen_handling_trained ?? false,
+        lift_assist_ok: cp.member1.lift_assist_ok ?? false,
+      } : null,
+      member2: cp?.member2 ? {
+        max_safe_team_lift_lbs: cp.member2.max_safe_team_lift_lbs ?? 250,
+        stair_chair_trained: cp.member2.stair_chair_trained ?? false,
+        bariatric_trained: cp.member2.bariatric_trained ?? false,
+        oxygen_handling_trained: cp.member2.oxygen_handling_trained ?? false,
+        lift_assist_ok: cp.member2.lift_assist_ok ?? false,
+      } : null,
+    };
+  }, [crewProfiles]);
 
   const utilizationColor = useCallback((count: number) => {
     if (count >= 6 && count <= 8) return "bg-[hsl(var(--status-green))]/20 text-[hsl(var(--status-green))] border-[hsl(var(--status-green))]/30";
