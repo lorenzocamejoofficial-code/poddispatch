@@ -31,11 +31,15 @@ interface AvailabilityRecord {
 interface SortableLegItemProps {
   leg: LegDisplay;
   hasAlert?: boolean;
+  safetyStatus?: import("@/lib/safety-rules").SafetyStatus;
+  safetyReasons?: string[];
+  missingFields?: string[];
   onRemove: () => void;
   onEditException: () => void;
+  onCancel?: () => void;
 }
 
-const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, onRemove, onEditException }: SortableLegItemProps) {
+const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, onRemove, onEditException, onCancel }: SortableLegItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: leg.id,
     data: { type: "assigned-leg", leg },
