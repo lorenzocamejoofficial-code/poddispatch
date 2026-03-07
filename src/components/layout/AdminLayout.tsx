@@ -21,6 +21,7 @@ import {
   ArrowRightLeft,
   FlaskConical,
   AlertTriangle,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,7 @@ const navItems: NavItem[] = [
   { path: "/employees", label: "Employees", icon: UserPlus, roles: ["admin"] },
   { path: "/trucks", label: "Trucks & Crews", icon: Truck, roles: ["admin", "dispatcher"] },
   { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft, roles: ["admin"] },
+  { path: "/override-monitor", label: "Override Monitor", icon: Eye, roles: ["admin"] },
   { path: "/settings", label: "Settings", icon: Settings, roles: ["admin"] },
 ];
 

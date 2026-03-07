@@ -24,6 +24,14 @@ export interface LegDisplay {
   exception_destination_location?: string | null;
   exception_notes?: string | null;
   has_exception?: boolean;
+  // safety fields
+  patient_mobility?: string | null;
+  patient_stairs_required?: string | null;
+  patient_stair_chair_required?: boolean | null;
+  patient_oxygen_required?: boolean | null;
+  patient_oxygen_lpm?: number | null;
+  patient_special_equipment?: string | null;
+  patient_bariatric?: boolean | null;
 }
 
 export interface PatientOption {
@@ -142,7 +150,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     const [{ data }, { data: slots }, { data: exceptions }] = await Promise.all([
       supabase
         .from("scheduling_legs")
-        .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, status)")
+        .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, status, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric)")
         .eq("run_date", selectedDate)
         .order("pickup_time"),
       supabase
@@ -183,6 +191,14 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           exception_destination_location: exc?.destination_location ?? null,
           exception_notes: exc?.notes ?? null,
           has_exception: !!exc,
+          // Safety-relevant patient fields
+          patient_mobility: l.patient?.mobility ?? null,
+          patient_stairs_required: l.patient?.stairs_required ?? null,
+          patient_stair_chair_required: l.patient?.stair_chair_required ?? null,
+          patient_oxygen_required: l.patient?.oxygen_required ?? null,
+          patient_oxygen_lpm: l.patient?.oxygen_lpm ?? null,
+          patient_special_equipment: l.patient?.special_equipment_required ?? null,
+          patient_bariatric: l.patient?.bariatric ?? null,
         };
       })
     );

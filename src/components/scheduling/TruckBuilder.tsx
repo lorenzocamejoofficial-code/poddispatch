@@ -3,9 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle, Clock, Link2, AlertCircle } from "lucide-react";
+import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle, Clock, Link2, AlertCircle, XCircle } from "lucide-react";
 import { TruckRiskBadge } from "@/components/dispatch/TruckRiskBadge";
 import { HoldTimerIndicator } from "@/components/dispatch/HoldTimerIndicator";
+import { SafetyClassificationBadge } from "@/components/scheduling/SafetyClassificationBadge";
+import { evaluateSafetyRules, hasCompletePatientNeeds, type PatientNeeds, type CrewCapability, type TruckEquipment } from "@/lib/safety-rules";
 import { toast } from "sonner";
 import { useSchedulingStore, type LegDisplay, type TruckOption, type CrewDisplay } from "@/hooks/useSchedulingStore";
 import {
@@ -29,11 +31,15 @@ interface AvailabilityRecord {
 interface SortableLegItemProps {
   leg: LegDisplay;
   hasAlert?: boolean;
+  safetyStatus?: import("@/lib/safety-rules").SafetyStatus;
+  safetyReasons?: string[];
+  missingFields?: string[];
   onRemove: () => void;
   onEditException: () => void;
+  onCancel?: () => void;
 }
 
-const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, onRemove, onEditException }: SortableLegItemProps) {
+const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, onRemove, onEditException, onCancel }: SortableLegItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: leg.id,
     data: { type: "assigned-leg", leg },
@@ -77,11 +83,20 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, onRemove,
           </span>
         )}
         {leg.pickup_time && <span className="text-muted-foreground shrink-0">{leg.pickup_time}</span>}
+        {/* Safety classification badge */}
+        {safetyStatus && (
+          <SafetyClassificationBadge status={safetyStatus} reasons={safetyReasons ?? []} missingFields={missingFields ?? []} />
+        )}
       </div>
       <div className="flex items-center gap-0.5 shrink-0">
         <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEditException} title="Edit this run only">
           <Pencil className="h-2.5 w-2.5" />
         </Button>
+        {onCancel && (
+          <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:text-destructive" onClick={onCancel} title="Cancel this run">
+            <XCircle className="h-2.5 w-2.5" />
+          </Button>
+        )}
         <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onRemove}>
           <Trash2 className="h-2.5 w-2.5" />
         </Button>
@@ -152,8 +167,10 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   const [availability, setAvailability] = useState<AvailabilityRecord[]>([]);
   const [truckRisks, setTruckRisks] = useState<Map<string, TruckRiskData>>(new Map());
   const [holdTimers, setHoldTimers] = useState<HoldTimerData[]>([]);
+  const [crewProfiles, setCrewProfiles] = useState<Map<string, { member1: any; member2: any }>>(new Map());
+  const [truckEquipmentMap, setTruckEquipmentMap] = useState<Map<string, TruckEquipment>>(new Map());
 
-  // Fetch truck risk states
+  // Fetch truck risk states + crew capabilities + truck equipment
   useEffect(() => {
     const loadRisks = async () => {
       const { data } = await supabase.from("truck_risk_state" as any).select("*");
@@ -166,8 +183,33 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       const { data } = await supabase.from("hold_timers" as any).select("*").eq("is_active", true);
       setHoldTimers((data as any[]) ?? []);
     };
+    const loadCrewCaps = async () => {
+      const { data } = await supabase.from("crews")
+        .select("truck_id, member1:profiles!crews_member1_id_fkey(max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
+        .eq("active_date", selectedDate);
+      const map = new Map<string, { member1: any; member2: any }>();
+      for (const c of (data ?? []) as any[]) {
+        map.set(c.truck_id, { member1: c.member1, member2: c.member2 });
+      }
+      setCrewProfiles(map);
+    };
+    const loadTruckEquip = async () => {
+      const { data } = await supabase.from("trucks").select("id, has_power_stretcher, has_stair_chair, has_bariatric_kit, has_oxygen_mount").eq("active", true);
+      const map = new Map<string, TruckEquipment>();
+      for (const t of (data ?? []) as any[]) {
+        map.set(t.id, {
+          has_power_stretcher: t.has_power_stretcher ?? false,
+          has_stair_chair: t.has_stair_chair ?? false,
+          has_bariatric_kit: t.has_bariatric_kit ?? false,
+          has_oxygen_mount: t.has_oxygen_mount ?? false,
+        });
+      }
+      setTruckEquipmentMap(map);
+    };
     loadRisks();
     loadTimers();
+    loadCrewCaps();
+    loadTruckEquip();
 
     const channel = supabase
       .channel("truck-risk-realtime")
@@ -255,6 +297,71 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     onRefresh();
   }, [selectedDate, onRefresh]);
 
+  const cancelLeg = useCallback(async (legId: string) => {
+    // Find linked B-leg if this is an A-leg
+    const leg = legs.find(l => l.id === legId);
+    if (!leg) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Delete the slot assignment (keeps leg history)
+    await supabase.from("truck_run_slots").delete().eq("leg_id", legId).eq("run_date", selectedDate);
+
+    // Log cancellation to audit
+    await supabase.from("audit_logs").insert({
+      action: "run_cancelled",
+      actor_user_id: user?.id,
+      actor_email: user?.email,
+      table_name: "scheduling_legs",
+      record_id: legId,
+      notes: `Cancelled ${leg.leg_type}-Leg for ${leg.patient_name} on ${selectedDate}`,
+      new_data: { leg_type: leg.leg_type, patient_name: leg.patient_name, run_date: selectedDate },
+    } as any);
+
+    // If A-leg, auto-cancel linked B-leg
+    if (leg.leg_type === "A") {
+      const linkedB = legs.find(l => l.patient_id === leg.patient_id && l.leg_type === "B" && l.assigned_truck_id);
+      if (linkedB) {
+        await supabase.from("truck_run_slots").delete().eq("leg_id", linkedB.id).eq("run_date", selectedDate);
+        await supabase.from("audit_logs").insert({
+          action: "run_cancelled",
+          actor_user_id: user?.id,
+          actor_email: user?.email,
+          table_name: "scheduling_legs",
+          record_id: linkedB.id,
+          notes: `Auto-cancelled B-Leg (linked A-Leg cancelled) for ${linkedB.patient_name} on ${selectedDate}`,
+          new_data: { leg_type: "B", patient_name: linkedB.patient_name, run_date: selectedDate, auto_cancelled: true },
+        } as any);
+        toast.success("A-Leg cancelled — linked B-Leg also cancelled");
+      } else {
+        toast.success("Run cancelled");
+      }
+    } else {
+      toast.success("Run cancelled");
+    }
+    onRefresh();
+  }, [legs, selectedDate, onRefresh]);
+
+  const getCrewCapability = useCallback((truckId: string): CrewCapability => {
+    const cp = crewProfiles.get(truckId);
+    return {
+      member1: cp?.member1 ? {
+        max_safe_team_lift_lbs: cp.member1.max_safe_team_lift_lbs ?? 250,
+        stair_chair_trained: cp.member1.stair_chair_trained ?? false,
+        bariatric_trained: cp.member1.bariatric_trained ?? false,
+        oxygen_handling_trained: cp.member1.oxygen_handling_trained ?? false,
+        lift_assist_ok: cp.member1.lift_assist_ok ?? false,
+      } : null,
+      member2: cp?.member2 ? {
+        max_safe_team_lift_lbs: cp.member2.max_safe_team_lift_lbs ?? 250,
+        stair_chair_trained: cp.member2.stair_chair_trained ?? false,
+        bariatric_trained: cp.member2.bariatric_trained ?? false,
+        oxygen_handling_trained: cp.member2.oxygen_handling_trained ?? false,
+        lift_assist_ok: cp.member2.lift_assist_ok ?? false,
+      } : null,
+    };
+  }, [crewProfiles]);
+
   const utilizationColor = useCallback((count: number) => {
     if (count >= 6 && count <= 8) return "bg-[hsl(var(--status-green))]/20 text-[hsl(var(--status-green))] border-[hsl(var(--status-green))]/30";
     if (count >= 3 && count <= 5) return "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] border-[hsl(var(--status-yellow))]/30";
@@ -339,15 +446,19 @@ interface TruckCardProps {
   onAssignLeg: (truckId: string, legId: string) => void;
   onRemoveLeg: (legId: string) => void;
   onEditException: (leg: LegDisplay) => void;
+  onCancelLeg?: (legId: string) => void;
   truckAlertCount?: number;
   legAlertIds?: Set<string>;
   riskData?: TruckRiskData;
+  crewCapability?: CrewCapability;
+  truckEquipment?: TruckEquipment;
 }
 
 const TruckCard = memo(function TruckCard({
   truck, tLegs, crew, downRecord, isDown, hasRunsWhileDown, hasHeavy,
   first, last, hasActiveLink, utilizationColor, unassigned, addingLeg, setAddingLeg,
-  onAssignLeg, onRemoveLeg, onEditException, truckAlertCount = 0, legAlertIds = new Set(), riskData,
+  onAssignLeg, onRemoveLeg, onEditException, onCancelLeg, truckAlertCount = 0, legAlertIds = new Set(), riskData,
+  crewCapability, truckEquipment,
 }: TruckCardProps) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `truck-drop-${truck.id}`,
@@ -446,15 +557,35 @@ const TruckCard = memo(function TruckCard({
         {tLegs.length > 0 ? (
           <div className={`space-y-1.5 rounded-md transition-colors duration-150 ${isOver && !isDown ? "bg-primary/3" : ""}`}>
             <SortableContext items={tLegs.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-              {tLegs.map((leg) => (
-                <SortableLegItem
-                  key={leg.id}
-                  leg={leg}
-                  hasAlert={legAlertIds.has(leg.id)}
-                  onRemove={() => onRemoveLeg(leg.id)}
-                  onEditException={() => onEditException(leg)}
-                />
-              ))}
+              {tLegs.map((leg) => {
+                const patientNeeds: PatientNeeds = {
+                  weight_lbs: leg.patient_weight,
+                  mobility: leg.patient_mobility ?? null,
+                  stairs_required: leg.patient_stairs_required ?? null,
+                  stair_chair_required: leg.patient_stair_chair_required ?? null,
+                  oxygen_required: leg.patient_oxygen_required ?? null,
+                  oxygen_lpm: leg.patient_oxygen_lpm ?? null,
+                  special_equipment_required: leg.patient_special_equipment ?? null,
+                  bariatric: leg.patient_bariatric ?? null,
+                };
+                const safetyResult = crewCapability && truckEquipment
+                  ? evaluateSafetyRules(patientNeeds, crewCapability, truckEquipment)
+                  : { status: "OK" as const, reasons: [] };
+                const needsCheck = hasCompletePatientNeeds(patientNeeds);
+                return (
+                  <SortableLegItem
+                    key={leg.id}
+                    leg={leg}
+                    hasAlert={legAlertIds.has(leg.id)}
+                    safetyStatus={safetyResult.status}
+                    safetyReasons={safetyResult.reasons}
+                    missingFields={needsCheck.missing}
+                    onRemove={() => onRemoveLeg(leg.id)}
+                    onEditException={() => onEditException(leg)}
+                    onCancel={onCancelLeg ? () => onCancelLeg(leg.id) : undefined}
+                  />
+                );
+              })}
             </SortableContext>
             {isOver && !isDown && (
               <div className="rounded-md border-2 border-dashed border-primary/40 px-2 py-1.5 text-center text-[10px] text-primary/70">
