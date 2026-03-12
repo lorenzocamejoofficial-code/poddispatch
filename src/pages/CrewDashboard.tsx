@@ -158,6 +158,7 @@ export default function CrewDashboard() {
         tripId: trip?.id ?? null,
         truckId,
         crewId,
+        companyId: trip?.company_id ?? null,
       };
     });
 
