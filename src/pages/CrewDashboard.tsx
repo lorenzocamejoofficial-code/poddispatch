@@ -2,22 +2,47 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LogOut, Truck, Users } from "lucide-react";
+import { LogOut, Truck, Users, ChevronRight, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
 
 type TripStatus = Database["public"]["Enums"]["trip_status"];
 
+// Forward-only crew progression
+const STATUS_FLOW: TripStatus[] = [
+  "scheduled",
+  "assigned",
+  "en_route",
+  "arrived_pickup",
+  "loaded",
+  "arrived_dropoff",
+  "completed",
+];
+
 const STATUS_LABEL: Record<string, string> = {
   scheduled: "Scheduled",
-  dispatched: "Dispatched",
-  en_route_pickup: "En Route",
-  on_scene: "On Scene",
-  transporting: "Transporting",
-  at_destination: "At Destination",
+  assigned: "Assigned",
+  en_route: "En Route",
+  arrived_pickup: "Arrived at Pickup",
+  loaded: "Patient Loaded",
+  arrived_dropoff: "Arrived at Dropoff",
   completed: "Completed",
   cancelled: "Cancelled",
   no_show: "No Show",
+  ready_for_billing: "Ready for Billing",
+  patient_not_ready: "Patient Not Ready",
+  facility_delay: "Facility Delay",
+};
+
+// Label for the "advance" button based on what's next
+const NEXT_ACTION_LABEL: Record<string, string> = {
+  scheduled: "Start Trip",
+  assigned: "Mark En Route",
+  en_route: "Arrived at Pickup",
+  arrived_pickup: "Patient Loaded",
+  loaded: "Arrived at Dropoff",
+  arrived_dropoff: "Complete Trip",
 };
 
 interface RunCard {
@@ -30,6 +55,8 @@ interface RunCard {
   pickupTime: string | null;
   tripStatus: TripStatus;
   tripId: string | null;
+  truckId: string;
+  crewId: string;
 }
 
 export default function CrewDashboard() {
@@ -39,13 +66,13 @@ export default function CrewDashboard() {
   const [partnerName, setPartnerName] = useState("");
   const [runs, setRuns] = useState<RunCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingTripId, setUpdatingTripId] = useState<string | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
 
   const fetchData = useCallback(async () => {
     if (!profileId) return;
 
-    // 1. Find crew assignment for today
     const { data: crewRow } = await supabase
       .from("crews")
       .select(
@@ -70,8 +97,8 @@ export default function CrewDashboard() {
     setPartnerName(partner ?? "");
 
     const truckId = crewRow.truck_id;
+    const crewId = crewRow.id;
 
-    // 2. Fetch truck_run_slots for this truck today, ordered
     const { data: slots } = await supabase
       .from("truck_run_slots")
       .select("id, leg_id, slot_order")
@@ -87,7 +114,6 @@ export default function CrewDashboard() {
 
     const legIds = slots.map((s) => s.leg_id);
 
-    // 3. Fetch scheduling_legs + patient info
     const { data: legs } = await supabase
       .from("scheduling_legs")
       .select(
@@ -95,7 +121,6 @@ export default function CrewDashboard() {
       )
       .in("id", legIds);
 
-    // 4. Fetch trip_records for these legs today
     const { data: trips } = await supabase
       .from("trip_records")
       .select("id, leg_id, status")
@@ -103,13 +128,8 @@ export default function CrewDashboard() {
       .eq("truck_id", truckId)
       .in("leg_id", legIds);
 
-    // Build lookup maps
-    const legMap = new Map(
-      (legs ?? []).map((l) => [l.id, l])
-    );
-    const tripMap = new Map(
-      (trips ?? []).map((t) => [t.leg_id, t])
-    );
+    const legMap = new Map((legs ?? []).map((l) => [l.id, l]));
+    const tripMap = new Map((trips ?? []).map((t) => [t.leg_id, t]));
 
     const cards: RunCard[] = slots.map((slot) => {
       const leg = legMap.get(slot.leg_id);
@@ -127,6 +147,8 @@ export default function CrewDashboard() {
         pickupTime: leg?.pickup_time ?? null,
         tripStatus: (trip?.status as TripStatus) ?? "scheduled",
         tripId: trip?.id ?? null,
+        truckId,
+        crewId,
       };
     });
 
@@ -137,7 +159,6 @@ export default function CrewDashboard() {
   useEffect(() => {
     fetchData();
 
-    // Realtime: refresh on trip_records changes
     const channel = supabase
       .channel("crew-dashboard-trips")
       .on(
@@ -152,6 +173,58 @@ export default function CrewDashboard() {
     };
   }, [fetchData]);
 
+  const advanceStatus = async (run: RunCard) => {
+    const currentIdx = STATUS_FLOW.indexOf(run.tripStatus);
+    if (currentIdx < 0 || currentIdx >= STATUS_FLOW.length - 1) return;
+
+    const nextStatus = STATUS_FLOW[currentIdx + 1];
+    setUpdatingTripId(run.tripId);
+
+    try {
+      if (run.tripId) {
+        // Update existing trip_record
+        const updateFields: Record<string, any> = { status: nextStatus, updated_at: new Date().toISOString() };
+
+        // Set timestamps for key milestones
+        const now = new Date().toISOString();
+        if (nextStatus === "en_route") updateFields.dispatch_time = now;
+        if (nextStatus === "arrived_pickup") updateFields.arrived_pickup_at = now;
+        if (nextStatus === "loaded") updateFields.loaded_at = now;
+        if (nextStatus === "arrived_dropoff") updateFields.arrived_dropoff_at = now;
+        if (nextStatus === "completed") updateFields.dropped_at = now;
+
+        const { error } = await supabase
+          .from("trip_records")
+          .update(updateFields)
+          .eq("id", run.tripId);
+
+        if (error) throw error;
+      } else {
+        // No trip_record yet — create one
+        const { error } = await supabase.from("trip_records").insert({
+          leg_id: run.legId,
+          truck_id: run.truckId,
+          crew_id: run.crewId,
+          run_date: today,
+          status: nextStatus,
+          pickup_location: run.pickupLocation,
+          destination_location: run.destinationLocation,
+          scheduled_pickup_time: run.pickupTime,
+          dispatch_time: nextStatus === "en_route" ? new Date().toISOString() : undefined,
+        });
+
+        if (error) throw error;
+      }
+
+      toast({ title: `Status → ${STATUS_LABEL[nextStatus]}` });
+      await fetchData();
+    } catch (err: any) {
+      toast({ title: "Update failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUpdatingTripId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -159,6 +232,14 @@ export default function CrewDashboard() {
       </div>
     );
   }
+
+  const firstActiveIdx = runs.findIndex(
+    (r) =>
+      r.tripStatus !== "completed" &&
+      r.tripStatus !== "cancelled" &&
+      r.tripStatus !== "no_show" &&
+      r.tripStatus !== "ready_for_billing"
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -193,7 +274,7 @@ export default function CrewDashboard() {
       </header>
 
       {/* Run cards */}
-      <div className="p-4 space-y-2">
+      <div className="p-4 space-y-3">
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Today's Runs · {runs.length}
         </p>
@@ -204,27 +285,29 @@ export default function CrewDashboard() {
           </p>
         ) : (
           runs.map((run, idx) => {
-            const isActive =
-              run.tripStatus !== "completed" &&
-              run.tripStatus !== "cancelled" &&
-              run.tripStatus !== "no_show";
-            const isFirst = idx === runs.findIndex(
-              (r) =>
-                r.tripStatus !== "completed" &&
-                r.tripStatus !== "cancelled" &&
-                r.tripStatus !== "no_show"
-            );
+            const isTerminal =
+              run.tripStatus === "completed" ||
+              run.tripStatus === "cancelled" ||
+              run.tripStatus === "no_show" ||
+              run.tripStatus === "ready_for_billing";
+            const isCurrent = idx === firstActiveIdx;
+            const statusIdx = STATUS_FLOW.indexOf(run.tripStatus);
+            const canAdvance = !isTerminal && statusIdx < STATUS_FLOW.length - 1;
+            const nextLabel = NEXT_ACTION_LABEL[run.tripStatus];
+            const isUpdating = updatingTripId === run.tripId;
 
             return (
               <div
                 key={run.slotId}
-                className={`rounded-lg border bg-card p-4 ${
-                  isFirst && isActive
+                className={`rounded-lg border bg-card p-4 transition-all ${
+                  isCurrent
                     ? "border-primary/40 ring-1 ring-primary/20"
+                    : isTerminal
+                    ? "opacity-60"
                     : ""
                 }`}
               >
-                {isFirst && isActive && (
+                {isCurrent && (
                   <span className="mb-1 inline-block text-[10px] font-bold uppercase tracking-wider text-primary">
                     CURRENT
                   </span>
@@ -235,12 +318,10 @@ export default function CrewDashboard() {
                       {run.slotOrder + 1}. {run.patientName}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground truncate">
-                      <span className="font-medium">PU:</span>{" "}
-                      {run.pickupLocation}
+                      <span className="font-medium">PU:</span> {run.pickupLocation}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
-                      <span className="font-medium">DO:</span>{" "}
-                      {run.destinationLocation}
+                      <span className="font-medium">DO:</span> {run.destinationLocation}
                     </p>
                     {run.pickupTime && (
                       <p className="mt-1 text-xs text-muted-foreground">
@@ -250,9 +331,9 @@ export default function CrewDashboard() {
                   </div>
                   <span
                     className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                      run.tripStatus === "completed"
+                      isTerminal
                         ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
-                        : run.tripStatus === "scheduled"
+                        : run.tripStatus === "scheduled" || run.tripStatus === "assigned"
                         ? "bg-muted text-muted-foreground"
                         : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
                     }`}
@@ -260,6 +341,23 @@ export default function CrewDashboard() {
                     {STATUS_LABEL[run.tripStatus] ?? run.tripStatus}
                   </span>
                 </div>
+
+                {/* Status progression button */}
+                {canAdvance && (
+                  <Button
+                    className="mt-3 w-full"
+                    size="sm"
+                    disabled={isUpdating}
+                    onClick={() => advanceStatus(run)}
+                  >
+                    {isUpdating ? (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <ChevronRight className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    {nextLabel ?? "Next"}
+                  </Button>
+                )}
               </div>
             );
           })
