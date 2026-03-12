@@ -165,6 +165,28 @@ export default function CrewDashboard() {
     });
 
     setRuns(cards);
+
+    // Fetch active hold timers for these trips
+    const tripIds = cards.map((c) => c.tripId).filter(Boolean) as string[];
+    if (tripIds.length > 0) {
+      const { data: timers } = await supabase
+        .from("hold_timers")
+        .select("id, trip_id, hold_type, started_at, is_active")
+        .in("trip_id", tripIds)
+        .eq("is_active", true);
+      setHoldTimers(
+        (timers ?? []).map((t) => ({
+          id: t.id,
+          tripId: t.trip_id,
+          holdType: t.hold_type,
+          startedAt: t.started_at,
+          isActive: t.is_active,
+        }))
+      );
+    } else {
+      setHoldTimers([]);
+    }
+
     setLoading(false);
   }, [profileId, today]);
 
@@ -176,6 +198,11 @@ export default function CrewDashboard() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "trip_records" },
+        () => fetchData()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hold_timers" },
         () => fetchData()
       )
       .subscribe();
@@ -194,10 +221,7 @@ export default function CrewDashboard() {
 
     try {
       if (run.tripId) {
-        // Update existing trip_record
         const updateFields: Record<string, any> = { status: nextStatus, updated_at: new Date().toISOString() };
-
-        // Set timestamps for key milestones
         const now = new Date().toISOString();
         if (nextStatus === "en_route") updateFields.dispatch_time = now;
         if (nextStatus === "arrived_pickup") updateFields.arrived_pickup_at = now;
@@ -209,10 +233,8 @@ export default function CrewDashboard() {
           .from("trip_records")
           .update(updateFields)
           .eq("id", run.tripId);
-
         if (error) throw error;
       } else {
-        // No trip_record yet — create one
         const { error } = await supabase.from("trip_records").insert({
           leg_id: run.legId,
           truck_id: run.truckId,
@@ -224,8 +246,16 @@ export default function CrewDashboard() {
           scheduled_pickup_time: run.pickupTime,
           dispatch_time: nextStatus === "en_route" ? new Date().toISOString() : undefined,
         });
-
         if (error) throw error;
+      }
+
+      // Resolve any active hold timers when advancing
+      if (run.tripId) {
+        await supabase
+          .from("hold_timers")
+          .update({ is_active: false, resolved_at: new Date().toISOString() })
+          .eq("trip_id", run.tripId)
+          .eq("is_active", true);
       }
 
       toast({ title: `Status → ${STATUS_LABEL[nextStatus]}` });
@@ -235,6 +265,56 @@ export default function CrewDashboard() {
     } finally {
       setUpdatingTripId(null);
     }
+  };
+
+  const startHold = async (run: RunCard, holdType: "patient_not_ready" | "facility_delay") => {
+    if (!run.tripId || !run.companyId) return;
+    setHoldLoading(`${run.tripId}-${holdType}`);
+    try {
+      const { error } = await supabase.from("hold_timers").insert({
+        trip_id: run.tripId,
+        company_id: run.companyId,
+        hold_type: holdType,
+        started_at: new Date().toISOString(),
+        is_active: true,
+        current_level: "crew",
+        slot_id: run.slotId,
+      });
+      if (error) throw error;
+      toast({ title: holdType === "patient_not_ready" ? "Patient Not Ready — timer started" : "Facility Delay — timer started" });
+      await fetchData();
+    } catch (err: any) {
+      toast({ title: "Failed to start hold", description: err.message, variant: "destructive" });
+    } finally {
+      setHoldLoading(null);
+    }
+  };
+
+  const resolveHold = async (timerId: string) => {
+    setHoldLoading(timerId);
+    try {
+      const { error } = await supabase
+        .from("hold_timers")
+        .update({ is_active: false, resolved_at: new Date().toISOString() })
+        .eq("id", timerId);
+      if (error) throw error;
+      toast({ title: "Hold resolved" });
+      await fetchData();
+    } catch (err: any) {
+      toast({ title: "Failed to resolve hold", description: err.message, variant: "destructive" });
+    } finally {
+      setHoldLoading(null);
+    }
+  };
+
+  const getActiveHold = (tripId: string | null) =>
+    tripId ? holdTimers.find((h) => h.tripId === tripId) : undefined;
+
+  const formatElapsed = (startedAt: string) => {
+    const diff = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+    const mins = Math.floor(diff / 60);
+    const secs = diff % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   if (loading) {
