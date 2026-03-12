@@ -45,6 +45,14 @@ const NEXT_ACTION_LABEL: Record<string, string> = {
   arrived_dropoff: "Complete Trip",
 };
 
+interface HoldTimer {
+  id: string;
+  tripId: string;
+  holdType: string; // "patient_not_ready" | "facility_delay"
+  startedAt: string;
+  isActive: boolean;
+}
+
 interface RunCard {
   slotId: string;
   slotOrder: number;
@@ -57,6 +65,7 @@ interface RunCard {
   tripId: string | null;
   truckId: string;
   crewId: string;
+  companyId: string | null;
 }
 
 export default function CrewDashboard() {
