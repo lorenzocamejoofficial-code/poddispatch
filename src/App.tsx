@@ -176,7 +176,8 @@ function AppRoutes() {
   if (role === "crew") {
     return (
       <Routes>
-        <Route path="/" element={<CrewView />} />
+        <Route path="/" element={<CrewDashboard />} />
+        <Route path="/crew-dashboard" element={<CrewDashboard />} />
         <Route path="/crew/:token" element={<DailyRunSheet />} />
         <Route path="/account" element={<AccountSettings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
