@@ -76,6 +76,8 @@ export default function CrewDashboard() {
   const [runs, setRuns] = useState<RunCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingTripId, setUpdatingTripId] = useState<string | null>(null);
+  const [holdTimers, setHoldTimers] = useState<HoldTimer[]>([]);
+  const [holdLoading, setHoldLoading] = useState<string | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
 
