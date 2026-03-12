@@ -42,6 +42,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import ForgotEmail from "./pages/ForgotEmail";
 import SuspendedPage from "./pages/SuspendedPage";
+import CrewDashboard from "./pages/CrewDashboard";
 // SandboxModeProvider and PreviewRoleProvider removed — no role-based view filtering
 const queryClient = new QueryClient();
 
@@ -141,6 +142,7 @@ function AppRoutes() {
           <Route path="/simulation-lab" element={<SimulationLab />} />
           <Route path="/crew-preview" element={<CrewUIPreview />} />
           <Route path="/override-monitor" element={<OverrideMonitor />} />
+          <Route path="/crew-dashboard" element={<CrewDashboard />} />
           {/* App Simulation — all operational pages */}
           <Route path="/simulation" element={<DispatchBoard />} />
           <Route path="/scheduling" element={<Scheduling />} />
@@ -175,7 +177,8 @@ function AppRoutes() {
   if (role === "crew") {
     return (
       <Routes>
-        <Route path="/" element={<CrewView />} />
+        <Route path="/" element={<CrewDashboard />} />
+        <Route path="/crew-dashboard" element={<CrewDashboard />} />
         <Route path="/crew/:token" element={<DailyRunSheet />} />
         <Route path="/account" element={<AccountSettings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
