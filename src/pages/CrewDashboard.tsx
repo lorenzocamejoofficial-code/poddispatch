@@ -132,7 +132,7 @@ export default function CrewDashboard() {
 
     const { data: trips } = await supabase
       .from("trip_records")
-      .select("id, leg_id, status")
+      .select("id, leg_id, status, company_id")
       .eq("run_date", today)
       .eq("truck_id", truckId)
       .in("leg_id", legIds);
