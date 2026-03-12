@@ -434,6 +434,30 @@ export default function CrewDashboard() {
                   </span>
                 </div>
 
+                {/* Active hold timer display */}
+                {(() => {
+                  const activeHold = getActiveHold(run.tripId);
+                  if (!activeHold) return null;
+                  return (
+                    <div className="mt-2 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+                      <div className="flex items-center gap-2 text-xs font-medium text-destructive">
+                        <Clock className="h-3.5 w-3.5 animate-pulse" />
+                        {activeHold.holdType === "patient_not_ready" ? "Patient Not Ready" : "Facility Delay"}
+                        <span className="font-mono">{formatElapsed(activeHold.startedAt)}</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        disabled={holdLoading === activeHold.id}
+                        onClick={() => resolveHold(activeHold.id)}
+                      >
+                        {holdLoading === activeHold.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Resolve"}
+                      </Button>
+                    </div>
+                  );
+                })()}
+
                 {/* Status progression button */}
                 {canAdvance && (
                   <Button
@@ -449,6 +473,44 @@ export default function CrewDashboard() {
                     )}
                     {nextLabel ?? "Next"}
                   </Button>
+                )}
+
+                {/* Wait / hold buttons — visible when trip is active and at pickup or dropoff */}
+                {run.tripId && !isTerminal && !getActiveHold(run.tripId) && (
+                  <div className="mt-2 flex gap-2">
+                    {(run.tripStatus === "arrived_pickup" || run.tripStatus === "en_route") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                        disabled={holdLoading === `${run.tripId}-patient_not_ready`}
+                        onClick={() => startHold(run, "patient_not_ready")}
+                      >
+                        {holdLoading === `${run.tripId}-patient_not_ready` ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <AlertTriangle className="mr-1 h-3 w-3" />
+                        )}
+                        Patient Not Ready
+                      </Button>
+                    )}
+                    {(run.tripStatus === "arrived_dropoff" || run.tripStatus === "loaded") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                        disabled={holdLoading === `${run.tripId}-facility_delay`}
+                        onClick={() => startHold(run, "facility_delay")}
+                      >
+                        {holdLoading === `${run.tripId}-facility_delay` ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <Clock className="mr-1 h-3 w-3" />
+                        )}
+                        Facility Delay
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
             );
