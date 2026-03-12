@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LogOut, Truck, Users, ChevronRight, Loader2 } from "lucide-react";
+import { LogOut, Truck, Users, ChevronRight, Loader2, Clock, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
