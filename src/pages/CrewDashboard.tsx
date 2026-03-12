@@ -317,7 +317,14 @@ export default function CrewDashboard() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  if (loading) {
+  // Tick every second when there are active hold timers so elapsed time updates
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (holdTimers.length === 0) return;
+    const iv = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(iv);
+  }, [holdTimers.length]);
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-sm text-muted-foreground">Loading your shift...</p>
