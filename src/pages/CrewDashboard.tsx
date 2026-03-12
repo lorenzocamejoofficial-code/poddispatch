@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LogOut, Truck, Users, ChevronRight, Loader2 } from "lucide-react";
+import { LogOut, Truck, Users, ChevronRight, Loader2, Clock, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
@@ -45,6 +45,14 @@ const NEXT_ACTION_LABEL: Record<string, string> = {
   arrived_dropoff: "Complete Trip",
 };
 
+interface HoldTimer {
+  id: string;
+  tripId: string;
+  holdType: string; // "patient_not_ready" | "facility_delay"
+  startedAt: string;
+  isActive: boolean;
+}
+
 interface RunCard {
   slotId: string;
   slotOrder: number;
@@ -57,6 +65,7 @@ interface RunCard {
   tripId: string | null;
   truckId: string;
   crewId: string;
+  companyId: string | null;
 }
 
 export default function CrewDashboard() {
@@ -67,6 +76,8 @@ export default function CrewDashboard() {
   const [runs, setRuns] = useState<RunCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingTripId, setUpdatingTripId] = useState<string | null>(null);
+  const [holdTimers, setHoldTimers] = useState<HoldTimer[]>([]);
+  const [holdLoading, setHoldLoading] = useState<string | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -123,7 +134,7 @@ export default function CrewDashboard() {
 
     const { data: trips } = await supabase
       .from("trip_records")
-      .select("id, leg_id, status")
+      .select("id, leg_id, status, company_id")
       .eq("run_date", today)
       .eq("truck_id", truckId)
       .in("leg_id", legIds);
@@ -149,10 +160,33 @@ export default function CrewDashboard() {
         tripId: trip?.id ?? null,
         truckId,
         crewId,
+        companyId: trip?.company_id ?? null,
       };
     });
 
     setRuns(cards);
+
+    // Fetch active hold timers for these trips
+    const tripIds = cards.map((c) => c.tripId).filter(Boolean) as string[];
+    if (tripIds.length > 0) {
+      const { data: timers } = await supabase
+        .from("hold_timers")
+        .select("id, trip_id, hold_type, started_at, is_active")
+        .in("trip_id", tripIds)
+        .eq("is_active", true);
+      setHoldTimers(
+        (timers ?? []).map((t) => ({
+          id: t.id,
+          tripId: t.trip_id,
+          holdType: t.hold_type,
+          startedAt: t.started_at,
+          isActive: t.is_active,
+        }))
+      );
+    } else {
+      setHoldTimers([]);
+    }
+
     setLoading(false);
   }, [profileId, today]);
 
@@ -164,6 +198,11 @@ export default function CrewDashboard() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "trip_records" },
+        () => fetchData()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hold_timers" },
         () => fetchData()
       )
       .subscribe();
@@ -182,10 +221,7 @@ export default function CrewDashboard() {
 
     try {
       if (run.tripId) {
-        // Update existing trip_record
         const updateFields: Record<string, any> = { status: nextStatus, updated_at: new Date().toISOString() };
-
-        // Set timestamps for key milestones
         const now = new Date().toISOString();
         if (nextStatus === "en_route") updateFields.dispatch_time = now;
         if (nextStatus === "arrived_pickup") updateFields.arrived_pickup_at = now;
@@ -197,10 +233,8 @@ export default function CrewDashboard() {
           .from("trip_records")
           .update(updateFields)
           .eq("id", run.tripId);
-
         if (error) throw error;
       } else {
-        // No trip_record yet — create one
         const { error } = await supabase.from("trip_records").insert({
           leg_id: run.legId,
           truck_id: run.truckId,
@@ -212,8 +246,16 @@ export default function CrewDashboard() {
           scheduled_pickup_time: run.pickupTime,
           dispatch_time: nextStatus === "en_route" ? new Date().toISOString() : undefined,
         });
-
         if (error) throw error;
+      }
+
+      // Resolve any active hold timers when advancing
+      if (run.tripId) {
+        await supabase
+          .from("hold_timers")
+          .update({ is_active: false, resolved_at: new Date().toISOString() })
+          .eq("trip_id", run.tripId)
+          .eq("is_active", true);
       }
 
       toast({ title: `Status → ${STATUS_LABEL[nextStatus]}` });
@@ -224,6 +266,64 @@ export default function CrewDashboard() {
       setUpdatingTripId(null);
     }
   };
+
+  const startHold = async (run: RunCard, holdType: "patient_not_ready" | "facility_delay") => {
+    if (!run.tripId || !run.companyId) return;
+    setHoldLoading(`${run.tripId}-${holdType}`);
+    try {
+      const { error } = await supabase.from("hold_timers").insert({
+        trip_id: run.tripId,
+        company_id: run.companyId,
+        hold_type: holdType,
+        started_at: new Date().toISOString(),
+        is_active: true,
+        current_level: "crew",
+        slot_id: run.slotId,
+      });
+      if (error) throw error;
+      toast({ title: holdType === "patient_not_ready" ? "Patient Not Ready — timer started" : "Facility Delay — timer started" });
+      await fetchData();
+    } catch (err: any) {
+      toast({ title: "Failed to start hold", description: err.message, variant: "destructive" });
+    } finally {
+      setHoldLoading(null);
+    }
+  };
+
+  const resolveHold = async (timerId: string) => {
+    setHoldLoading(timerId);
+    try {
+      const { error } = await supabase
+        .from("hold_timers")
+        .update({ is_active: false, resolved_at: new Date().toISOString() })
+        .eq("id", timerId);
+      if (error) throw error;
+      toast({ title: "Hold resolved" });
+      await fetchData();
+    } catch (err: any) {
+      toast({ title: "Failed to resolve hold", description: err.message, variant: "destructive" });
+    } finally {
+      setHoldLoading(null);
+    }
+  };
+
+  const getActiveHold = (tripId: string | null) =>
+    tripId ? holdTimers.find((h) => h.tripId === tripId) : undefined;
+
+  const formatElapsed = (startedAt: string) => {
+    const diff = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+    const mins = Math.floor(diff / 60);
+    const secs = diff % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // Tick every second when there are active hold timers so elapsed time updates
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (holdTimers.length === 0) return;
+    const iv = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(iv);
+  }, [holdTimers.length]);
 
   if (loading) {
     return (
@@ -342,6 +442,30 @@ export default function CrewDashboard() {
                   </span>
                 </div>
 
+                {/* Active hold timer display */}
+                {(() => {
+                  const activeHold = getActiveHold(run.tripId);
+                  if (!activeHold) return null;
+                  return (
+                    <div className="mt-2 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+                      <div className="flex items-center gap-2 text-xs font-medium text-destructive">
+                        <Clock className="h-3.5 w-3.5 animate-pulse" />
+                        {activeHold.holdType === "patient_not_ready" ? "Patient Not Ready" : "Facility Delay"}
+                        <span className="font-mono">{formatElapsed(activeHold.startedAt)}</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        disabled={holdLoading === activeHold.id}
+                        onClick={() => resolveHold(activeHold.id)}
+                      >
+                        {holdLoading === activeHold.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Resolve"}
+                      </Button>
+                    </div>
+                  );
+                })()}
+
                 {/* Status progression button */}
                 {canAdvance && (
                   <Button
@@ -357,6 +481,44 @@ export default function CrewDashboard() {
                     )}
                     {nextLabel ?? "Next"}
                   </Button>
+                )}
+
+                {/* Wait / hold buttons — visible when trip is active and at pickup or dropoff */}
+                {run.tripId && !isTerminal && !getActiveHold(run.tripId) && (
+                  <div className="mt-2 flex gap-2">
+                    {(run.tripStatus === "arrived_pickup" || run.tripStatus === "en_route") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                        disabled={holdLoading === `${run.tripId}-patient_not_ready`}
+                        onClick={() => startHold(run, "patient_not_ready")}
+                      >
+                        {holdLoading === `${run.tripId}-patient_not_ready` ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <AlertTriangle className="mr-1 h-3 w-3" />
+                        )}
+                        Patient Not Ready
+                      </Button>
+                    )}
+                    {(run.tripStatus === "arrived_dropoff" || run.tripStatus === "loaded") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                        disabled={holdLoading === `${run.tripId}-facility_delay`}
+                        onClick={() => startHold(run, "facility_delay")}
+                      >
+                        {holdLoading === `${run.tripId}-facility_delay` ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <Clock className="mr-1 h-3 w-3" />
+                        )}
+                        Facility Delay
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
             );
