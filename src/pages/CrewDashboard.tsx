@@ -325,6 +325,7 @@ export default function CrewDashboard() {
     return () => clearInterval(iv);
   }, [holdTimers.length]);
 
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-sm text-muted-foreground">Loading your shift...</p>
