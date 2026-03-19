@@ -37,11 +37,14 @@ export interface CrewCapability {
 }
 
 export interface TruckEquipment {
+  /** Combined Power Stretcher / Bariatric Stretcher — GA ground ambulance standard */
   has_power_stretcher?: boolean;
   has_stair_chair?: boolean;
-  has_bariatric_kit?: boolean;
-  has_bariatric_stretcher?: boolean;
   has_oxygen_mount?: boolean;
+  /** @deprecated kept for backward compat — use has_power_stretcher instead */
+  has_bariatric_kit?: boolean;
+  /** @deprecated kept for backward compat — use has_power_stretcher instead */
+  has_bariatric_stretcher?: boolean;
 }
 
 export function deriveWeightClass(weight: number | null | undefined): string {
