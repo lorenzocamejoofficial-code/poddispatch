@@ -589,7 +589,7 @@ export default function Patients() {
         {/* Table */}
         <div className="rounded-lg border bg-card">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[800px]">
               <thead>
                 <tr className="border-b text-left text-xs font-medium uppercase text-muted-foreground">
                   <th className="px-4 py-3 w-10">
