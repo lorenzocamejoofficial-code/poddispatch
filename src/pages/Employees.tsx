@@ -275,12 +275,21 @@ export default function Employees() {
       sex: editForm.sex,
       cert_level: editForm.cert_level,
       active: editForm.active,
+      employment_type: editForm.employment_type,
       max_safe_team_lift_lbs: editForm.max_safe_team_lift_lbs ? parseInt(editForm.max_safe_team_lift_lbs) : 250,
       stair_chair_trained: editForm.stair_chair_trained,
       bariatric_trained: editForm.bariatric_trained,
       oxygen_handling_trained: editForm.oxygen_handling_trained,
       lift_assist_ok: editForm.lift_assist_ok,
     } as any).eq("id", editingEmployee.id);
+
+    // Update role in company_memberships if changed and not owner
+    if (editForm.role !== "owner" && editForm.role !== "Owner") {
+      await supabase.from("company_memberships")
+        .update({ role: editForm.role } as any)
+        .eq("user_id", editingEmployee.user_id)
+        .eq("company_id", activeCompanyId!);
+    }
 
     if (error) {
       toast.error("Failed to update employee");
