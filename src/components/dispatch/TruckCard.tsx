@@ -230,6 +230,9 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                     <span className={`truncate font-medium ${isCancelled ? "line-through text-muted-foreground" : "text-card-foreground"}`}>
                       {run.patient_name}
                     </span>
+                    {run.is_oneoff && (
+                      <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
+                    )}
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
                     {run.pickup_time && <span>{run.pickup_time}</span>}
