@@ -447,6 +447,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
               onRemoveLeg={removeLeg}
               onEditException={onEditException}
               onCancelLeg={cancelLeg}
+              onRestoreLeg={restoreLeg}
               truckAlertCount={truckAlerts.length}
               legAlertIds={truckLegAlertIds}
               riskData={riskData}
@@ -483,6 +484,7 @@ interface TruckCardProps {
   onRemoveLeg: (legId: string) => void;
   onEditException: (leg: LegDisplay) => void;
   onCancelLeg?: (legId: string) => void;
+  onRestoreLeg?: (legId: string) => void;
   truckAlertCount?: number;
   legAlertIds?: Set<string>;
   riskData?: TruckRiskData;
@@ -493,7 +495,7 @@ interface TruckCardProps {
 const TruckCard = memo(function TruckCard({
   truck, tLegs, crew, downRecord, isDown, hasRunsWhileDown, hasHeavy,
   first, last, hasActiveLink, utilizationColor, unassigned, addingLeg, setAddingLeg,
-  onAssignLeg, onRemoveLeg, onEditException, onCancelLeg, truckAlertCount = 0, legAlertIds = new Set(), riskData,
+  onAssignLeg, onRemoveLeg, onEditException, onCancelLeg, onRestoreLeg, truckAlertCount = 0, legAlertIds = new Set(), riskData,
   crewCapability, truckEquipment,
 }: TruckCardProps) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({
@@ -649,6 +651,7 @@ const TruckCard = memo(function TruckCard({
                     onRemove={() => onRemoveLeg(leg.id)}
                     onEditException={() => onEditException(leg)}
                     onCancel={onCancelLeg ? () => onCancelLeg(leg.id) : undefined}
+                    onRestore={onRestoreLeg ? () => onRestoreLeg(leg.id) : undefined}
                   />
                 );
               })}

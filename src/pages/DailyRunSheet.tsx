@@ -509,6 +509,7 @@ export default function DailyRunSheet() {
           data.legs.map((leg, idx) => {
             const isHeavy = (leg.patient_weight ?? 0) > 200;
             const isCompleted = leg.slot_status === "completed";
+            const isCancelled = leg.slot_status === "cancelled";
             const StatusIcon = STATUS_ICONS[leg.slot_status] ?? Clock;
             const currentIdx = STATUS_FLOW.indexOf(leg.slot_status as any);
             const nextStatus = currentIdx < STATUS_FLOW.length - 1 ? STATUS_FLOW[currentIdx + 1] : null;
@@ -518,6 +519,8 @@ export default function DailyRunSheet() {
               <div
                 key={leg.id}
                 className={`rounded-lg border bg-card p-3 ${isCompleted ? "opacity-60" : ""} ${
+                  isCancelled ? "border-destructive/40 bg-destructive/5 opacity-70" : ""
+                } ${
                   hasNotReady ? "border-[hsl(var(--status-red))]/50" : ""
                 }`}
               >
@@ -539,14 +542,16 @@ export default function DailyRunSheet() {
                     {isHeavy && <Zap className="h-3.5 w-3.5 text-[hsl(var(--status-yellow))]" />}
                   </div>
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0 ${
-                    isCompleted
+                    isCancelled
+                      ? "bg-destructive/15 text-destructive"
+                      : isCompleted
                       ? "bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))]"
                       : leg.slot_status === "pending"
                       ? "bg-[hsl(var(--status-pending-bg))] text-[hsl(var(--status-pending))]"
                       : "bg-primary/10 text-primary"
                   }`}>
-                    <StatusIcon className="h-3 w-3" />
-                    {STATUS_LABELS[leg.slot_status] ?? leg.slot_status}
+                    {isCancelled ? <X className="h-3 w-3" /> : <StatusIcon className="h-3 w-3" />}
+                    {isCancelled ? "Cancelled" : (STATUS_LABELS[leg.slot_status] ?? leg.slot_status)}
                   </span>
                 </div>
 
@@ -654,7 +659,13 @@ export default function DailyRunSheet() {
                   </div>
                 )}
 
-                {/* Action buttons */}
+                {/* Action buttons — hide for cancelled runs */}
+                {isCancelled && (
+                  <div className="mt-2 text-center">
+                    <p className="text-[10px] text-destructive font-semibold">This run has been cancelled by dispatch</p>
+                  </div>
+                )}
+                {!isCancelled && (
                 <div className="mt-3 flex flex-col gap-2">
                   {nextStatus && (
                     <Button
@@ -728,6 +739,7 @@ export default function DailyRunSheet() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             );
           })

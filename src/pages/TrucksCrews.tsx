@@ -515,30 +515,57 @@ export default function TrucksCrews() {
               </DialogContent>
             </Dialog>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {trucks.map((t) => (
-              <div key={t.id} className="flex items-center gap-2 rounded-lg border bg-card p-3">
-                <Truck className="h-4 w-4 text-primary shrink-0" />
-                {editingTruckId === t.id ? (
-                  <>
-                    <Input className="h-7 text-sm flex-1" value={editingTruckName}
-                      onChange={(e) => setEditingTruckName(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") saveTruckName(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
-                      autoFocus />
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveTruckName(t.id)}><Check className="h-3 w-3 text-[hsl(var(--status-green))]" /></Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingTruckId(null)}><X className="h-3 w-3" /></Button>
-                  </>
-                ) : (
-                  <>
-                    <span className="font-medium text-card-foreground flex-1 truncate">{t.name}</span>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); }}>
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => confirmDeleteTruck(t.id)}>
-                      <Trash2 className="h-3 w-3 text-destructive" />
-                    </Button>
-                  </>
-                )}
+              <div key={t.id} className="rounded-lg border bg-card p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-primary shrink-0" />
+                  {editingTruckId === t.id ? (
+                    <>
+                      <Input className="h-7 text-sm flex-1" value={editingTruckName}
+                        onChange={(e) => setEditingTruckName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveTruckName(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
+                        autoFocus />
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveTruckName(t.id)}><Check className="h-3 w-3 text-[hsl(var(--status-green))]" /></Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingTruckId(null)}><X className="h-3 w-3" /></Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium text-card-foreground flex-1 truncate">{t.name}</span>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); }}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => confirmDeleteTruck(t.id)}>
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+                {/* Equipment flags */}
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-muted-foreground pl-6">
+                  {[
+                    { key: "has_power_stretcher", label: "Power Stretcher" },
+                    { key: "has_stair_chair", label: "Stair Chair" },
+                    { key: "has_bariatric_kit", label: "Bariatric Kit" },
+                    { key: "has_bariatric_stretcher", label: "Bariatric Stretcher" },
+                    { key: "has_oxygen_mount", label: "Oxygen Mount" },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors">
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 rounded border-border accent-primary"
+                        checked={(t as any)[key] ?? false}
+                        onChange={async (e) => {
+                          const { error } = await supabase.from("trucks").update({ [key]: e.target.checked } as any).eq("id", t.id);
+                          if (error) { toast.error("Failed to update equipment"); return; }
+                          fetchAll();
+                          refreshTrucks();
+                        }}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
               </div>
             ))}
             {trucks.length === 0 && <p className="text-sm text-muted-foreground col-span-full">No trucks yet</p>}
