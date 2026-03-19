@@ -659,7 +659,13 @@ export default function DailyRunSheet() {
                   </div>
                 )}
 
-                {/* Action buttons */}
+                {/* Action buttons — hide for cancelled runs */}
+                {isCancelled && (
+                  <div className="mt-2 text-center">
+                    <p className="text-[10px] text-destructive font-semibold">This run has been cancelled by dispatch</p>
+                  </div>
+                )}
+                {!isCancelled && (
                 <div className="mt-3 flex flex-col gap-2">
                   {nextStatus && (
                     <Button
