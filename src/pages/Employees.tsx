@@ -679,6 +679,18 @@ export default function Employees() {
               <div><Label>Phone Number</Label><Input type="tel" value={editForm.phone_number} onChange={(e) => setEditForm({ ...editForm, phone_number: e.target.value })} placeholder="(555) 123-4567" /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <Label>Role</Label>
+                  <Select value={editForm.role} onValueChange={(v) => setEditForm({ ...editForm, role: v })} disabled={editForm.role === "owner" || editForm.role === "Owner"}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="crew">Crew</SelectItem>
+                      <SelectItem value="dispatcher">Dispatcher</SelectItem>
+                      <SelectItem value="biller">Biller</SelectItem>
+                      <SelectItem value="owner">Owner</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label>Sex</Label>
                   <Select value={editForm.sex} onValueChange={(v) => setEditForm({ ...editForm, sex: v as "M" | "F" })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -688,6 +700,8 @@ export default function Employees() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Cert Level</Label>
                   <Select value={editForm.cert_level} onValueChange={(v) => setEditForm({ ...editForm, cert_level: v })}>
@@ -698,6 +712,17 @@ export default function Employees() {
                       <SelectItem value="EMT-P">EMT-P</SelectItem>
                       <SelectItem value="AEMT">AEMT</SelectItem>
                       <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Employment Type</Label>
+                  <Select value={editForm.employment_type} onValueChange={(v) => setEditForm({ ...editForm, employment_type: v as "full_time" | "part_time" | "prn" })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full_time">Full Time</SelectItem>
+                      <SelectItem value="part_time">Part Time</SelectItem>
+                      <SelectItem value="prn">PRN</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
