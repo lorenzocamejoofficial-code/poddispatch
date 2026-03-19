@@ -234,8 +234,8 @@ export default function ReportsAndMetrics() {
               {truckMetrics.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Trips by Truck</p>
-                  <div className="rounded-lg border bg-card overflow-hidden">
-                    <table className="w-full text-sm">
+                  <div className="rounded-lg border bg-card overflow-x-auto">
+                    <table className="w-full text-sm min-w-[500px]">
                       <thead>
                         <tr className="border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                           <th className="px-4 py-3 text-left">Truck</th>
