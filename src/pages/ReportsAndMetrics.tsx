@@ -332,8 +332,8 @@ export default function ReportsAndMetrics() {
               </div>
 
               {/* Per-truck OTP table */}
-              <div className="rounded-lg border bg-card overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="rounded-lg border bg-card overflow-x-auto">
+                <table className="w-full text-sm min-w-[700px]">
                   <thead>
                     <tr className="border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       <th className="px-4 py-3 text-left">Truck</th>
