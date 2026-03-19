@@ -1,5 +1,6 @@
 import { StatusBadge, StatusDot } from "./StatusBadge";
 import { Truck, Users, Zap, WrenchIcon, AlertTriangle, CheckCircle, XCircle, Eye } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
