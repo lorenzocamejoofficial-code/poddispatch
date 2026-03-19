@@ -123,20 +123,21 @@ Deno.serve(async (req) => {
           const alert = alertMap.get(l.id) ?? null;
           const trip = tripMap.get(l.id) ?? null;
           const activeTimer = trip ? timerByTripId.get(trip.id) ?? null : null;
+          const isOneoff = l.is_oneoff ?? false;
           return {
             id: l.id,
             leg_type: l.leg_type,
-            patient_name: l.patient ? `${l.patient.first_name} ${l.patient.last_name}` : "Unknown",
+            patient_name: isOneoff ? (l.oneoff_name ?? "One-Off") : (l.patient ? `${l.patient.first_name} ${l.patient.last_name}` : "Unknown"),
             patient_dob: l.patient?.dob ?? null,
             patient_phone: l.patient?.phone ?? null,
-            patient_notes: l.patient?.notes ?? null,
+            patient_notes: isOneoff ? (l.oneoff_notes ?? null) : (l.patient?.notes ?? null),
             pickup_time: l.pickup_time,
             chair_time: l.chair_time,
             pickup_location: l.pickup_location,
             destination_location: l.destination_location,
             estimated_duration_minutes: l.estimated_duration_minutes,
             notes: l.notes ?? null,
-            patient_weight: l.patient?.weight_lbs ?? null,
+            patient_weight: isOneoff ? (l.oneoff_weight_lbs ?? null) : (l.patient?.weight_lbs ?? null),
             slot_id: slotInfo?.slotId ?? null,
             slot_status: slotInfo?.status ?? "pending",
             not_ready_alert: alert && alert.status === "open" ? alert : null,
