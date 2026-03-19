@@ -45,6 +45,7 @@ interface LegRow {
   trip_pcs: boolean;
   trip_status: string | null;
   trip_doc_complete: boolean;
+  is_oneoff?: boolean;
   active_timer: {
     id: string;
     hold_type: string;
@@ -539,6 +540,9 @@ export default function DailyRunSheet() {
                     >
                       {leg.patient_name}
                     </button>
+                    {leg.is_oneoff && (
+                      <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
+                    )}
                     {isHeavy && <Zap className="h-3.5 w-3.5 text-[hsl(var(--status-yellow))]" />}
                   </div>
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0 ${

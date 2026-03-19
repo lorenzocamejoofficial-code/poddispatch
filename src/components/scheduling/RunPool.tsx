@@ -73,8 +73,11 @@ const PoolCard = memo(function PoolCard({
         {leg.leg_type}
       </span>
 
-      {/* patient name */}
+      {/* patient name + one-off badge */}
       <span className="font-medium text-card-foreground truncate min-w-0 flex-1">{leg.patient_name}</span>
+      {leg.is_oneoff && (
+        <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
+      )}
 
       {/* time */}
       {leg.pickup_time && (

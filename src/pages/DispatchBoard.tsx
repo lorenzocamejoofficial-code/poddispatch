@@ -94,7 +94,7 @@ export default function DispatchBoard() {
       supabase.from("trucks").select("*").eq("active", true).order("name"),
       supabase
         .from("truck_run_slots")
-        .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, trip_type, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, auth_required, auth_expiration, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric))")
+        .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, trip_type, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, auth_required, auth_expiration, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric))")
         .eq("run_date", selectedDate)
         .order("slot_order"),
       supabase.from("alerts").select("*").eq("dismissed", false).order("created_at", { ascending: false }),
@@ -158,9 +158,10 @@ export default function DispatchBoard() {
       const truckRuns = truckSlots.map((s) => {
         const leg = s.leg as any;
         const patient = leg?.patient;
-        const patientName = patient
-          ? `${patient.first_name} ${patient.last_name}`
-          : "Unknown";
+        const isOneoff = leg?.is_oneoff ?? false;
+        const patientName = isOneoff
+          ? (leg?.oneoff_name ?? "One-Off")
+          : (patient ? `${patient.first_name} ${patient.last_name}` : "Unknown");
 
         // Lookup trip record for billing data
         const tripRecord = tripBySlot.get(s.id);
@@ -170,7 +171,16 @@ export default function DispatchBoard() {
         );
 
         // Evaluate safety
-        const patientNeeds = {
+        const patientNeeds = isOneoff ? {
+          weight_lbs: leg?.oneoff_weight_lbs ?? null,
+          mobility: leg?.oneoff_mobility ?? null,
+          stairs_required: null,
+          stair_chair_required: null,
+          oxygen_required: leg?.oneoff_oxygen ?? null,
+          oxygen_lpm: null,
+          special_equipment_required: null,
+          bariatric: null,
+        } : {
           weight_lbs: patient?.weight_lbs ?? null,
           mobility: patient?.mobility ?? null,
           stairs_required: patient?.stairs_required ?? null,
@@ -190,7 +200,7 @@ export default function DispatchBoard() {
           status: (s.status ?? "pending") as RunStatus,
           trip_type: leg?.trip_type ?? "dialysis",
           is_current: false,
-          patient_weight: patient?.weight_lbs ?? null,
+          patient_weight: isOneoff ? (leg?.oneoff_weight_lbs ?? null) : (patient?.weight_lbs ?? null),
           billing_status: billingData.status,
           billing_issues: billingData.issues,
           hcpcs_codes: tripRecord?.hcpcs_codes ?? [],
@@ -201,6 +211,7 @@ export default function DispatchBoard() {
           safety_status: safetyResult.status as SafetyStatus,
           safety_reasons: safetyResult.reasons,
           needs_missing: needsCheck.missing,
+          is_oneoff: isOneoff,
         };
       });
 

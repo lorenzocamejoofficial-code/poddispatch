@@ -243,13 +243,62 @@ export default function Scheduling() {
     setWeekView(false);
   };
 
+  // One-off form state
+  const [isOneOff, setIsOneOff] = useState(false);
+  const [oneoffForm, setOneoffForm] = useState({
+    name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
+    pickup_time: "", estimated_duration_minutes: "", notes: "",
+    weight: "", mobility: "ambulatory", oxygen: false,
+  });
+  const resetOneoffForm = () => setOneoffForm({
+    name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
+    pickup_time: "", estimated_duration_minutes: "", notes: "",
+    weight: "", mobility: "ambulatory", oxygen: false,
+  });
+
   const openCreateDialog = (type: "A" | "B") => {
     setPendingLegType(type);
     resetLegForm();
+    resetOneoffForm();
+    setIsOneOff(false);
     setDialogOpen(true);
   };
 
   const handleCreate = async () => {
+    if (isOneOff) {
+      if (!oneoffForm.name || !oneoffForm.pickup_location || !oneoffForm.destination_location) {
+        toast.error("Name, pickup location, and destination are required");
+        return;
+      }
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      const { error } = await supabase.from("scheduling_legs").insert({
+        patient_id: null,
+        leg_type: pendingLegType!,
+        pickup_time: oneoffForm.pickup_time || null,
+        chair_time: null,
+        pickup_location: oneoffForm.pickup_location,
+        destination_location: oneoffForm.destination_location,
+        trip_type: oneoffForm.trip_type as any,
+        estimated_duration_minutes: oneoffForm.estimated_duration_minutes ? parseInt(oneoffForm.estimated_duration_minutes) : null,
+        notes: oneoffForm.notes || null,
+        run_date: selectedDate,
+        company_id: companyId,
+        is_oneoff: true,
+        oneoff_name: oneoffForm.name,
+        oneoff_pickup_address: oneoffForm.pickup_location,
+        oneoff_dropoff_address: oneoffForm.destination_location,
+        oneoff_weight_lbs: oneoffForm.weight ? parseInt(oneoffForm.weight) : null,
+        oneoff_mobility: oneoffForm.mobility,
+        oneoff_oxygen: oneoffForm.oxygen,
+        oneoff_notes: oneoffForm.notes || null,
+      } as any);
+      if (error) { toast.error("Failed to create one-off leg"); return; }
+      toast.success(`One-off ${pendingLegType}-Leg created`);
+      setDialogOpen(false);
+      refresh();
+      return;
+    }
+
     if (!legForm.patient_id || !legForm.pickup_location || !legForm.destination_location) {
       toast.error("Patient, pickup location, and destination are required");
       return;
@@ -777,7 +826,79 @@ export default function Scheduling() {
                 Schedule a {pendingLegType === "A" ? "pickup" : "return"} transport leg for {selectedDate}.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-3 py-2">
+
+            {/* Toggle: Existing Patient vs One-Off */}
+            <div className="flex rounded-md border overflow-hidden text-xs font-medium mb-1">
+              <button
+                className={`flex-1 px-3 py-2 transition-colors ${!isOneOff ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}
+                onClick={() => setIsOneOff(false)}
+              >
+                Existing Patient
+              </button>
+              <button
+                className={`flex-1 px-3 py-2 transition-colors ${isOneOff ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}
+                onClick={() => setIsOneOff(true)}
+              >
+                One-Off Run
+              </button>
+            </div>
+
+            {isOneOff ? (
+              /* ── ONE-OFF FORM ── */
+              <div className="grid gap-3 py-2">
+                <div className="rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] px-3 py-2 text-xs text-[hsl(var(--status-yellow))]">
+                  This run will NOT create a permanent patient record. It's for same-day dispatch only.
+                </div>
+                <div><Label>Patient Name *</Label><Input value={oneoffForm.name} onChange={(e) => setOneoffForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. John Smith" /></div>
+                <div><Label>Pickup Address *</Label><Input value={oneoffForm.pickup_location} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="123 Main St, Atlanta GA" /></div>
+                <div><Label>Drop-off Address *</Label><Input value={oneoffForm.destination_location} onChange={(e) => setOneoffForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Transport Type</Label>
+                    <Select value={oneoffForm.trip_type} onValueChange={(v) => setOneoffForm(f => ({ ...f, trip_type: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="dialysis">Dialysis</SelectItem>
+                        <SelectItem value="discharge">IFT Discharge</SelectItem>
+                        <SelectItem value="outpatient">Outpatient</SelectItem>
+                        <SelectItem value="private_pay">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Pickup Time</Label><Input type="time" value={oneoffForm.pickup_time} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
+                </div>
+                <div><Label>Est. Duration (min)</Label><Input type="number" value={oneoffForm.estimated_duration_minutes} onChange={(e) => setOneoffForm(f => ({ ...f, estimated_duration_minutes: e.target.value }))} /></div>
+
+                {/* Safety notes */}
+                <div className="border-t pt-3">
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">Safety Info (optional)</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Weight (lbs)</Label><Input type="number" value={oneoffForm.weight} onChange={(e) => setOneoffForm(f => ({ ...f, weight: e.target.value }))} placeholder="e.g. 250" /></div>
+                    <div>
+                      <Label>Mobility</Label>
+                      <Select value={oneoffForm.mobility} onValueChange={(v) => setOneoffForm(f => ({ ...f, mobility: v }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ambulatory">Ambulatory</SelectItem>
+                          <SelectItem value="wheelchair">Wheelchair</SelectItem>
+                          <SelectItem value="stretcher">Stretcher</SelectItem>
+                          <SelectItem value="bedbound">Bedbound</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <input type="checkbox" id="oneoff-oxygen" checked={oneoffForm.oxygen} onChange={(e) => setOneoffForm(f => ({ ...f, oxygen: e.target.checked }))} className="rounded" />
+                    <Label htmlFor="oneoff-oxygen" className="cursor-pointer">Requires Oxygen</Label>
+                  </div>
+                </div>
+
+                <div><Label>Notes</Label><Textarea value={oneoffForm.notes} onChange={(e) => setOneoffForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any special instructions for crew" /></div>
+                <Button onClick={handleCreate}>Create One-Off {pendingLegType}-Leg</Button>
+              </div>
+            ) : (
+              /* ── EXISTING PATIENT FORM ── */
+              <div className="grid gap-3 py-2">
               <div>
                 <Label>Patient *</Label>
                 <Select value={legForm.patient_id} onValueChange={(v) => {
@@ -831,7 +952,8 @@ export default function Scheduling() {
               </div>
               <div><Label>Notes</Label><Textarea value={legForm.notes} onChange={(e) => setLegForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
               <Button onClick={handleCreate}>Create {pendingLegType}-Leg</Button>
-            </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
 

@@ -33,6 +33,8 @@ export interface LegDisplay {
   patient_oxygen_lpm?: number | null;
   patient_special_equipment?: string | null;
   patient_bariatric?: boolean | null;
+  // one-off fields
+  is_oneoff?: boolean;
 }
 
 export interface PatientOption {
@@ -151,7 +153,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     const [{ data }, { data: slots }, { data: exceptions }] = await Promise.all([
       supabase
         .from("scheduling_legs")
-        .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, status, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric)")
+        .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, status, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric), is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes")
         .eq("run_date", selectedDate)
         .order("pickup_time"),
       supabase
@@ -171,12 +173,13 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
       (data ?? []).map((l: any) => {
         const exc = exceptionMap.get(l.id);
         const slot = slotMap.get(l.id);
+        const isOneoff = l.is_oneoff ?? false;
         return {
           id: l.id,
-          patient_name: l.patient ? `${l.patient.first_name} ${l.patient.last_name}` : "Unknown",
-          patient_id: l.patient_id,
-          patient_weight: l.patient?.weight_lbs ?? null,
-          patient_status: l.patient?.status ?? "active",
+          patient_name: isOneoff ? (l.oneoff_name ?? "One-Off") : (l.patient ? `${l.patient.first_name} ${l.patient.last_name}` : "Unknown"),
+          patient_id: l.patient_id ?? "",
+          patient_weight: isOneoff ? (l.oneoff_weight_lbs ?? null) : (l.patient?.weight_lbs ?? null),
+          patient_status: isOneoff ? "active" : (l.patient?.status ?? "active"),
           leg_type: l.leg_type,
           pickup_time: exc?.pickup_time ?? l.pickup_time,
           chair_time: l.chair_time,
@@ -194,13 +197,14 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           exception_notes: exc?.notes ?? null,
           has_exception: !!exc,
           // Safety-relevant patient fields
-          patient_mobility: l.patient?.mobility ?? null,
+          patient_mobility: isOneoff ? (l.oneoff_mobility ?? null) : (l.patient?.mobility ?? null),
           patient_stairs_required: l.patient?.stairs_required ?? null,
           patient_stair_chair_required: l.patient?.stair_chair_required ?? null,
-          patient_oxygen_required: l.patient?.oxygen_required ?? null,
+          patient_oxygen_required: isOneoff ? (l.oneoff_oxygen ?? null) : (l.patient?.oxygen_required ?? null),
           patient_oxygen_lpm: l.patient?.oxygen_lpm ?? null,
           patient_special_equipment: l.patient?.special_equipment_required ?? null,
           patient_bariatric: l.patient?.bariatric ?? null,
+          is_oneoff: isOneoff,
         };
       })
     );
