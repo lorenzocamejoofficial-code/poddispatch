@@ -133,6 +133,12 @@ export default function Employees() {
         phone_number: p.phone_number ?? null,
         active: p.active ?? true,
         role: roleLabel,
+        employment_type: p.employment_type ?? "full_time",
+        max_safe_team_lift_lbs: p.max_safe_team_lift_lbs ?? 250,
+        stair_chair_trained: p.stair_chair_trained ?? false,
+        bariatric_trained: p.bariatric_trained ?? false,
+        oxygen_handling_trained: p.oxygen_handling_trained ?? false,
+        lift_assist_ok: p.lift_assist_ok ?? false,
       };
     });
 
