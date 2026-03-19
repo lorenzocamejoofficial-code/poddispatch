@@ -22,6 +22,12 @@ interface Employee {
   phone_number: string | null;
   active: boolean;
   role?: string;
+  employment_type?: string;
+  max_safe_team_lift_lbs?: number;
+  stair_chair_trained?: boolean;
+  bariatric_trained?: boolean;
+  oxygen_handling_trained?: boolean;
+  lift_assist_ok?: boolean;
 }
 
 interface Invite {
@@ -76,6 +82,8 @@ export default function Employees() {
   const [editForm, setEditForm] = useState({
     full_name: "", phone_number: "", sex: "M" as "M" | "F",
     cert_level: "EMT-B", active: true,
+    employment_type: "full_time" as "full_time" | "part_time" | "prn",
+    role: "crew" as string,
     max_safe_team_lift_lbs: "250", stair_chair_trained: false,
     bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false,
   });
@@ -125,6 +133,12 @@ export default function Employees() {
         phone_number: p.phone_number ?? null,
         active: p.active ?? true,
         role: roleLabel,
+        employment_type: p.employment_type ?? "full_time",
+        max_safe_team_lift_lbs: p.max_safe_team_lift_lbs ?? 250,
+        stair_chair_trained: p.stair_chair_trained ?? false,
+        bariatric_trained: p.bariatric_trained ?? false,
+        oxygen_handling_trained: p.oxygen_handling_trained ?? false,
+        lift_assist_ok: p.lift_assist_ok ?? false,
       };
     });
 
@@ -237,11 +251,13 @@ export default function Employees() {
       sex: emp.sex as "M" | "F",
       cert_level: emp.cert_level,
       active: emp.active,
-      max_safe_team_lift_lbs: (emp as any).max_safe_team_lift_lbs?.toString() ?? "250",
-      stair_chair_trained: (emp as any).stair_chair_trained ?? false,
-      bariatric_trained: (emp as any).bariatric_trained ?? false,
-      oxygen_handling_trained: (emp as any).oxygen_handling_trained ?? false,
-      lift_assist_ok: (emp as any).lift_assist_ok ?? false,
+      employment_type: (emp.employment_type ?? "full_time") as "full_time" | "part_time" | "prn",
+      role: emp.role === "Owner" ? "owner" : (emp.role ?? "crew"),
+      max_safe_team_lift_lbs: (emp.max_safe_team_lift_lbs ?? 250).toString(),
+      stair_chair_trained: emp.stair_chair_trained ?? false,
+      bariatric_trained: emp.bariatric_trained ?? false,
+      oxygen_handling_trained: emp.oxygen_handling_trained ?? false,
+      lift_assist_ok: emp.lift_assist_ok ?? false,
     });
     setEditDialogOpen(true);
   };
@@ -259,12 +275,21 @@ export default function Employees() {
       sex: editForm.sex,
       cert_level: editForm.cert_level,
       active: editForm.active,
+      employment_type: editForm.employment_type,
       max_safe_team_lift_lbs: editForm.max_safe_team_lift_lbs ? parseInt(editForm.max_safe_team_lift_lbs) : 250,
       stair_chair_trained: editForm.stair_chair_trained,
       bariatric_trained: editForm.bariatric_trained,
       oxygen_handling_trained: editForm.oxygen_handling_trained,
       lift_assist_ok: editForm.lift_assist_ok,
     } as any).eq("id", editingEmployee.id);
+
+    // Update role in company_memberships if changed and not owner
+    if (editForm.role !== "owner" && editForm.role !== "Owner") {
+      await supabase.from("company_memberships")
+        .update({ role: editForm.role } as any)
+        .eq("user_id", editingEmployee.user_id)
+        .eq("company_id", activeCompanyId!);
+    }
 
     if (error) {
       toast.error("Failed to update employee");
@@ -654,6 +679,18 @@ export default function Employees() {
               <div><Label>Phone Number</Label><Input type="tel" value={editForm.phone_number} onChange={(e) => setEditForm({ ...editForm, phone_number: e.target.value })} placeholder="(555) 123-4567" /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <Label>Role</Label>
+                  <Select value={editForm.role} onValueChange={(v) => setEditForm({ ...editForm, role: v })} disabled={editForm.role === "owner" || editForm.role === "Owner"}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="crew">Crew</SelectItem>
+                      <SelectItem value="dispatcher">Dispatcher</SelectItem>
+                      <SelectItem value="biller">Biller</SelectItem>
+                      <SelectItem value="owner">Owner</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label>Sex</Label>
                   <Select value={editForm.sex} onValueChange={(v) => setEditForm({ ...editForm, sex: v as "M" | "F" })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -663,6 +700,8 @@ export default function Employees() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Cert Level</Label>
                   <Select value={editForm.cert_level} onValueChange={(v) => setEditForm({ ...editForm, cert_level: v })}>
@@ -673,6 +712,17 @@ export default function Employees() {
                       <SelectItem value="EMT-P">EMT-P</SelectItem>
                       <SelectItem value="AEMT">AEMT</SelectItem>
                       <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Employment Type</Label>
+                  <Select value={editForm.employment_type} onValueChange={(v) => setEditForm({ ...editForm, employment_type: v as "full_time" | "part_time" | "prn" })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full_time">Full Time</SelectItem>
+                      <SelectItem value="part_time">Part Time</SelectItem>
+                      <SelectItem value="prn">PRN</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
