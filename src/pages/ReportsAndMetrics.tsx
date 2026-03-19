@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
+import { PageLoader } from "@/components/ui/page-loader";
+import { EmptyState } from "@/components/ui/empty-state";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -213,7 +215,7 @@ export default function ReportsAndMetrics() {
 
         <TabsContent value="overview" className="m-0 space-y-6">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-muted-foreground">Loading metrics…</div>
+            <PageLoader label="Loading metrics…" />
           ) : (
             <>
               {/* KPI grid */}
@@ -232,8 +234,8 @@ export default function ReportsAndMetrics() {
               {truckMetrics.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Trips by Truck</p>
-                  <div className="rounded-lg border bg-card overflow-hidden">
-                    <table className="w-full text-sm">
+                  <div className="rounded-lg border bg-card overflow-x-auto">
+                    <table className="w-full text-sm min-w-[500px]">
                       <thead>
                         <tr className="border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                           <th className="px-4 py-3 text-left">Truck</th>
@@ -286,13 +288,13 @@ export default function ReportsAndMetrics() {
         {/* OTP & Operational Risk */}
         <TabsContent value="otp" className="m-0 space-y-6">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-muted-foreground">Loading…</div>
+            <PageLoader label="Loading performance data…" />
           ) : dailyTruckMetrics.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-              <AlertTriangle className="h-6 w-6" />
-              <p className="text-sm">No on-time performance data for this period.</p>
-              <p className="text-xs">Run a simulation full_cycle or wait for live data.</p>
-            </div>
+            <EmptyState
+              icon={AlertTriangle}
+              title="No performance data"
+              description="No on-time performance data for this period. Run a simulation to populate metrics."
+            />
           ) : (
             <>
               {/* OTP Summary KPIs */}
@@ -330,8 +332,8 @@ export default function ReportsAndMetrics() {
               </div>
 
               {/* Per-truck OTP table */}
-              <div className="rounded-lg border bg-card overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="rounded-lg border bg-card overflow-x-auto">
+                <table className="w-full text-sm min-w-[700px]">
                   <thead>
                     <tr className="border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       <th className="px-4 py-3 text-left">Truck</th>
@@ -403,7 +405,7 @@ export default function ReportsAndMetrics() {
         {/* AR Aging Dashboard */}
         <TabsContent value="ar-aging" className="m-0 space-y-6">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-muted-foreground">Loading…</div>
+            <PageLoader label="Loading AR aging…" />
           ) : (
             <>
               {/* Hero metric */}

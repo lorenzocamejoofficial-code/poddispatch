@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
+import { PageLoader } from "@/components/ui/page-loader";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,7 +90,9 @@ export default function BillingAndClaims() {
   const [addingRate, setAddingRate] = useState(false);
   const [queueTrips, setQueueTrips] = useState<any[]>([]);
   const [payerRulesMap, setPayerRulesMap] = useState<Map<string, any>>(new Map());
-  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split("T")[0]);
+  const { selectedDate: sharedDate, setSelectedDate: setSharedDate } = useSchedulingStore();
+  const dateFilter = sharedDate;
+  const setDateFilter = setSharedDate;
   const [overrideLogs, setOverrideLogs] = useState<any[]>([]);
   const [overrideLogSort, setOverrideLogSort] = useState<"date" | "user" | "reason">("date");
   const { simulationRunId, refreshToken } = useSimulationSession();
@@ -427,7 +431,7 @@ export default function BillingAndClaims() {
         {/* Claims Board */}
         <TabsContent value="claims" className="m-0">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-muted-foreground">Loading claims…</div>
+            <PageLoader label="Loading claims…" />
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
               {CLAIM_COLUMNS.map(col => {
@@ -508,8 +512,8 @@ export default function BillingAndClaims() {
               <p className="text-sm text-muted-foreground">No billing overrides recorded yet</p>
             </div>
           ) : (
-            <div className="rounded-lg border bg-card overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="rounded-lg border bg-card overflow-x-auto">
+              <table className="w-full text-sm min-w-[800px]">
                 <thead>
                   <tr className="border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     <th className="px-4 py-3 text-left">Date</th>
@@ -565,8 +569,8 @@ export default function BillingAndClaims() {
               setAddingRate(true);
             }}>+ Add Rate</Button>
           </div>
-          <div className="rounded-lg border bg-card overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="rounded-lg border bg-card overflow-x-auto">
+            <table className="w-full text-sm min-w-[600px]">
               <thead>
                 <tr className="border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   <th className="px-4 py-3 text-left">Payer</th>

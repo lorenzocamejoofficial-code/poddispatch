@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { useSchedulingStore } from "@/hooks/useSchedulingStore";
+import { PageLoader } from "@/components/ui/page-loader";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useAuth } from "@/hooks/useAuth";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 import { Button } from "@/components/ui/button";
@@ -116,7 +119,9 @@ export default function TripsAndClinical() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split("T")[0]);
+  const { selectedDate: sharedDate, setSelectedDate: setSharedDate } = useSchedulingStore();
+  const dateFilter = sharedDate;
+  const setDateFilter = setSharedDate;
   const [selectedTrip, setSelectedTrip] = useState<TripRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [facilityMap, setFacilityMap] = useState<Map<string, string>>(new Map());
@@ -444,15 +449,16 @@ export default function TripsAndClinical() {
 
         {/* Trip list */}
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-muted-foreground">Loading trips…</div>
+          <PageLoader label="Loading trips…" />
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-            <FileText className="h-8 w-8 opacity-30" />
-            <p className="text-sm">No trips for this date. Run "Sync from Dispatch" after assigning runs.</p>
-          </div>
+          <EmptyState
+            icon={FileText}
+            title="No trips found"
+            description='No trips for this date. Run "Sync from Dispatch" after assigning runs, or adjust your filters.'
+          />
         ) : (
-          <div className="rounded-lg border bg-card overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="rounded-lg border bg-card overflow-x-auto">
+            <table className="w-full text-sm min-w-[700px]">
               <thead>
                 <tr className="border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   <th className="px-4 py-3 text-left">Patient</th>

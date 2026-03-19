@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { PageLoader } from "@/components/ui/page-loader";
+import { EmptyState } from "@/components/ui/empty-state";
 import { supabase } from "@/integrations/supabase/client";
 import { TruckCard } from "@/components/dispatch/TruckCard";
 import { AlertsPanel } from "@/components/dispatch/AlertsPanel";
@@ -292,9 +294,7 @@ export default function DispatchBoard() {
   return (
     <AdminLayout>
       {loading ? (
-        <div className="flex items-center justify-center py-20 text-muted-foreground">
-          Loading dispatch board...
-        </div>
+        <PageLoader label="Loading dispatch board…" />
       ) : (
         <div className="space-y-6">
           <div className="flex items-center gap-3">
