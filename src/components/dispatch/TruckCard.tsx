@@ -47,6 +47,7 @@ interface TruckCardProps {
   revenueStrength?: RevenueStrength;
   medicareCount?: number;
   facilityContractCount?: number;
+  onRestoreRun?: (slotId: string) => void;
 }
 
 function BillingStatusDot({ status, issues }: { status: BillingStatus; issues?: string[] }) {
