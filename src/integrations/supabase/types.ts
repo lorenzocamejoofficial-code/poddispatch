@@ -1412,6 +1412,7 @@ export type Database = {
           cert_level: Database["public"]["Enums"]["cert_level"]
           company_id: string | null
           created_at: string
+          employment_type: string
           full_name: string
           id: string
           is_simulated: boolean
@@ -1431,6 +1432,7 @@ export type Database = {
           cert_level?: Database["public"]["Enums"]["cert_level"]
           company_id?: string | null
           created_at?: string
+          employment_type?: string
           full_name: string
           id?: string
           is_simulated?: boolean
@@ -1450,6 +1452,7 @@ export type Database = {
           cert_level?: Database["public"]["Enums"]["cert_level"]
           company_id?: string | null
           created_at?: string
+          employment_type?: string
           full_name?: string
           id?: string
           is_simulated?: boolean
@@ -2513,6 +2516,7 @@ export type Database = {
           company_id: string | null
           created_at: string
           has_bariatric_kit: boolean
+          has_bariatric_stretcher: boolean
           has_oxygen_mount: boolean
           has_power_stretcher: boolean
           has_stair_chair: boolean
@@ -2526,6 +2530,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           has_bariatric_kit?: boolean
+          has_bariatric_stretcher?: boolean
           has_oxygen_mount?: boolean
           has_power_stretcher?: boolean
           has_stair_chair?: boolean
@@ -2539,6 +2544,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           has_bariatric_kit?: boolean
+          has_bariatric_stretcher?: boolean
           has_oxygen_mount?: boolean
           has_power_stretcher?: boolean
           has_stair_chair?: boolean
@@ -2668,6 +2674,7 @@ export type Database = {
         | "with_patient"
         | "transporting"
         | "completed"
+        | "cancelled"
       schedule_days: "MWF" | "TTS"
       sex_type: "M" | "F"
       transport_type: "dialysis" | "outpatient" | "adhoc"
@@ -2853,6 +2860,7 @@ export const Constants = {
         "with_patient",
         "transporting",
         "completed",
+        "cancelled",
       ],
       schedule_days: ["MWF", "TTS"],
       sex_type: ["M", "F"],
