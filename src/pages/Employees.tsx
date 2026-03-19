@@ -82,6 +82,8 @@ export default function Employees() {
   const [editForm, setEditForm] = useState({
     full_name: "", phone_number: "", sex: "M" as "M" | "F",
     cert_level: "EMT-B", active: true,
+    employment_type: "full_time" as "full_time" | "part_time" | "prn",
+    role: "crew" as string,
     max_safe_team_lift_lbs: "250", stair_chair_trained: false,
     bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false,
   });
