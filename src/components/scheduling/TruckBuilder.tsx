@@ -650,7 +650,7 @@ const TruckCard = memo(function TruckCard({
                     onRemove={() => onRemoveLeg(leg.id)}
                     onEditException={() => onEditException(leg)}
                     onCancel={onCancelLeg ? () => onCancelLeg(leg.id) : undefined}
-                    onRestore={() => restoreLeg(leg.id)}
+                    onRestore={onRestoreLeg ? () => onRestoreLeg(leg.id) : undefined}
                   />
                 );
               })}
