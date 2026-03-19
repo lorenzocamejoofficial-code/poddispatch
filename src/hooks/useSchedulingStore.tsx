@@ -18,6 +18,7 @@ export interface LegDisplay {
   notes: string | null;
   assigned_truck_id: string | null;
   slot_order: number | null;
+  slot_status: string;
   // exception override fields
   exception_pickup_time?: string | null;
   exception_pickup_location?: string | null;
