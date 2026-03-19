@@ -251,9 +251,10 @@ export default function CrewScheduleAdmin() {
   const [companyName, setCompanyName] = useState("Dispatch");
   const [downTruckIds, setDownTruckIds] = useState<Set<string>>(new Set());
 
-  // ── Schedule date: independent from the scheduling-store selected date ──
+  // ── Schedule date: synced with global scheduling store ──
   const today = new Date().toISOString().split("T")[0];
-  const [scheduleDate, setScheduleDate] = useState<string>(today);
+  const { selectedDate: scheduleDate, setSelectedDate: setScheduleDate } = useGlobalSchedulingStore();
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   // Send panel state
