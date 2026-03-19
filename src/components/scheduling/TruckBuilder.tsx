@@ -53,14 +53,18 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
   };
 
   const isHeavy = (leg.patient_weight ?? 0) > 200;
+  const isCancelled = leg.slot_status === "cancelled";
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs bg-card ${
-        hasAlert ? "border-[hsl(var(--status-red))]/50 bg-[hsl(var(--status-red))]/5" :
-        leg.has_exception ? "border-primary/40" : ""
+      className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs ${
+        isCancelled ? "bg-destructive/10 border-destructive/40 opacity-75" :
+        "bg-card"
+      } ${
+        !isCancelled && hasAlert ? "border-[hsl(var(--status-red))]/50 bg-[hsl(var(--status-red))]/5" :
+        !isCancelled && leg.has_exception ? "border-primary/40" : ""
       } ${isDragging ? "shadow-md ring-1 ring-primary/30" : ""}`}
     >
       <div className="flex items-center gap-1.5 min-w-0 flex-1">
