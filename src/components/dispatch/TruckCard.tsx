@@ -35,6 +35,7 @@ interface RunInfo {
   safety_status?: SafetyStatus;
   safety_reasons?: string[];
   needs_missing?: string[];
+  is_oneoff?: boolean;
 }
 
 interface TruckCardProps {
