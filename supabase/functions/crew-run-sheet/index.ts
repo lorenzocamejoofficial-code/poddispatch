@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
     if (legIds.length > 0) {
       const { data: legData } = await supabaseAdmin
         .from("scheduling_legs")
-        .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, dob, phone, weight_lbs, notes)")
+        .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, dob, phone, weight_lbs, notes), is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_notes")
         .in("id", legIds);
 
       const { data: alertData } = await supabaseAdmin
