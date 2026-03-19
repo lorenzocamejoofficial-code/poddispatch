@@ -45,6 +45,7 @@ interface LegRow {
   trip_pcs: boolean;
   trip_status: string | null;
   trip_doc_complete: boolean;
+  is_oneoff?: boolean;
   active_timer: {
     id: string;
     hold_type: string;
