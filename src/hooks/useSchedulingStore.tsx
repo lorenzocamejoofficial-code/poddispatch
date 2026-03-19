@@ -153,7 +153,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     const [{ data }, { data: slots }, { data: exceptions }] = await Promise.all([
       supabase
         .from("scheduling_legs")
-        .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, status, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric)")
+        .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, status, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric), is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes")
         .eq("run_date", selectedDate)
         .order("pickup_time"),
       supabase
