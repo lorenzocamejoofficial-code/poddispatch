@@ -22,6 +22,12 @@ interface Employee {
   phone_number: string | null;
   active: boolean;
   role?: string;
+  employment_type?: string;
+  max_safe_team_lift_lbs?: number;
+  stair_chair_trained?: boolean;
+  bariatric_trained?: boolean;
+  oxygen_handling_trained?: boolean;
+  lift_assist_ok?: boolean;
 }
 
 interface Invite {
