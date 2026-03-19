@@ -483,6 +483,7 @@ interface TruckCardProps {
   onRemoveLeg: (legId: string) => void;
   onEditException: (leg: LegDisplay) => void;
   onCancelLeg?: (legId: string) => void;
+  onRestoreLeg?: (legId: string) => void;
   truckAlertCount?: number;
   legAlertIds?: Set<string>;
   riskData?: TruckRiskData;
