@@ -509,6 +509,7 @@ export default function DailyRunSheet() {
           data.legs.map((leg, idx) => {
             const isHeavy = (leg.patient_weight ?? 0) > 200;
             const isCompleted = leg.slot_status === "completed";
+            const isCancelled = leg.slot_status === "cancelled";
             const StatusIcon = STATUS_ICONS[leg.slot_status] ?? Clock;
             const currentIdx = STATUS_FLOW.indexOf(leg.slot_status as any);
             const nextStatus = currentIdx < STATUS_FLOW.length - 1 ? STATUS_FLOW[currentIdx + 1] : null;
@@ -518,6 +519,8 @@ export default function DailyRunSheet() {
               <div
                 key={leg.id}
                 className={`rounded-lg border bg-card p-3 ${isCompleted ? "opacity-60" : ""} ${
+                  isCancelled ? "border-destructive/40 bg-destructive/5 opacity-70" : ""
+                } ${
                   hasNotReady ? "border-[hsl(var(--status-red))]/50" : ""
                 }`}
               >
