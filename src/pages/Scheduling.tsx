@@ -243,13 +243,62 @@ export default function Scheduling() {
     setWeekView(false);
   };
 
+  // One-off form state
+  const [isOneOff, setIsOneOff] = useState(false);
+  const [oneoffForm, setOneoffForm] = useState({
+    name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
+    pickup_time: "", estimated_duration_minutes: "", notes: "",
+    weight: "", mobility: "ambulatory", oxygen: false,
+  });
+  const resetOneoffForm = () => setOneoffForm({
+    name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
+    pickup_time: "", estimated_duration_minutes: "", notes: "",
+    weight: "", mobility: "ambulatory", oxygen: false,
+  });
+
   const openCreateDialog = (type: "A" | "B") => {
     setPendingLegType(type);
     resetLegForm();
+    resetOneoffForm();
+    setIsOneOff(false);
     setDialogOpen(true);
   };
 
   const handleCreate = async () => {
+    if (isOneOff) {
+      if (!oneoffForm.name || !oneoffForm.pickup_location || !oneoffForm.destination_location) {
+        toast.error("Name, pickup location, and destination are required");
+        return;
+      }
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      const { error } = await supabase.from("scheduling_legs").insert({
+        patient_id: null,
+        leg_type: pendingLegType!,
+        pickup_time: oneoffForm.pickup_time || null,
+        chair_time: null,
+        pickup_location: oneoffForm.pickup_location,
+        destination_location: oneoffForm.destination_location,
+        trip_type: oneoffForm.trip_type as any,
+        estimated_duration_minutes: oneoffForm.estimated_duration_minutes ? parseInt(oneoffForm.estimated_duration_minutes) : null,
+        notes: oneoffForm.notes || null,
+        run_date: selectedDate,
+        company_id: companyId,
+        is_oneoff: true,
+        oneoff_name: oneoffForm.name,
+        oneoff_pickup_address: oneoffForm.pickup_location,
+        oneoff_dropoff_address: oneoffForm.destination_location,
+        oneoff_weight_lbs: oneoffForm.weight ? parseInt(oneoffForm.weight) : null,
+        oneoff_mobility: oneoffForm.mobility,
+        oneoff_oxygen: oneoffForm.oxygen,
+        oneoff_notes: oneoffForm.notes || null,
+      } as any);
+      if (error) { toast.error("Failed to create one-off leg"); return; }
+      toast.success(`One-off ${pendingLegType}-Leg created`);
+      setDialogOpen(false);
+      refresh();
+      return;
+    }
+
     if (!legForm.patient_id || !legForm.pickup_location || !legForm.destination_location) {
       toast.error("Patient, pickup location, and destination are required");
       return;
