@@ -255,7 +255,6 @@ export default function CrewScheduleAdmin() {
   const today = new Date().toISOString().split("T")[0];
   const { selectedDate: scheduleDate, setSelectedDate: setScheduleDate } = useGlobalSchedulingStore();
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [calendarOpen, setCalendarOpen] = useState(false);
 
   // Send panel state
   const [sendMode, setSendMode] = useState<"individual" | "collective">("individual");
