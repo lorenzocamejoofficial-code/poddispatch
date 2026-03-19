@@ -544,10 +544,8 @@ export default function TrucksCrews() {
                 {/* Equipment flags */}
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-muted-foreground pl-6">
                   {[
-                    { key: "has_power_stretcher", label: "Power Stretcher" },
+                    { key: "has_power_stretcher", label: "Power Stretcher / Bariatric" },
                     { key: "has_stair_chair", label: "Stair Chair" },
-                    { key: "has_bariatric_kit", label: "Bariatric Kit" },
-                    { key: "has_bariatric_stretcher", label: "Bariatric Stretcher" },
                     { key: "has_oxygen_mount", label: "Oxygen Mount" },
                   ].map(({ key, label }) => (
                     <label key={key} className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors">
