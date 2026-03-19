@@ -127,12 +127,13 @@ export default function FacilitiesPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-muted-foreground">Loading…</div>
+          <PageLoader label="Loading facilities…" />
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
-            <Building2 className="h-8 w-8 opacity-30" />
-            <p className="text-sm">No facilities yet. Add your dialysis centers, hospitals, and SNFs.</p>
-          </div>
+          <EmptyState
+            icon={Building2}
+            title="No facilities yet"
+            description="Add your dialysis centers, hospitals, and SNFs to get started."
+          />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map(f => (

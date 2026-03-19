@@ -406,7 +406,7 @@ export default function ReportsAndMetrics() {
         {/* AR Aging Dashboard */}
         <TabsContent value="ar-aging" className="m-0 space-y-6">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-muted-foreground">Loading…</div>
+            <PageLoader label="Loading AR aging…" />
           ) : (
             <>
               {/* Hero metric */}

@@ -177,12 +177,13 @@ export default function ComplianceAndQA() {
 
         <TabsContent value="qa" className="m-0 space-y-4">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-muted-foreground">Loading…</div>
+            <PageLoader label="Loading QA reviews…" />
           ) : pending.length === 0 && reviewed.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
-              <ShieldCheck className="h-8 w-8 opacity-30" />
-              <p className="text-sm">No QA items. Run Auto-Flag to check for suspicious trips.</p>
-            </div>
+            <EmptyState
+              icon={ShieldCheck}
+              title="No QA items"
+              description="Run Auto-Flag to check for suspicious trips."
+            />
           ) : (
             <>
               {pending.length > 0 && (
