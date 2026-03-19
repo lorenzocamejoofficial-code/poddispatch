@@ -164,7 +164,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         .eq("run_date", selectedDate),
     ]);
 
-    const slotMap = new Map((slots ?? []).map((s) => [s.leg_id, { truck_id: s.truck_id, slot_order: s.slot_order }]));
+    const slotMap = new Map((slots ?? []).map((s) => [s.leg_id, { truck_id: s.truck_id, slot_order: s.slot_order, status: (s as any).status ?? "pending" }]));
     const exceptionMap = new Map((exceptions ?? []).map((e: any) => [e.scheduling_leg_id, e]));
 
     setLegs(
