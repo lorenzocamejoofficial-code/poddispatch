@@ -156,7 +156,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         .order("pickup_time"),
       supabase
         .from("truck_run_slots")
-        .select("leg_id, truck_id, slot_order")
+        .select("leg_id, truck_id, slot_order, status")
         .eq("run_date", selectedDate),
       supabase
         .from("leg_exceptions")
