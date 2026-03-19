@@ -542,14 +542,16 @@ export default function DailyRunSheet() {
                     {isHeavy && <Zap className="h-3.5 w-3.5 text-[hsl(var(--status-yellow))]" />}
                   </div>
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0 ${
-                    isCompleted
+                    isCancelled
+                      ? "bg-destructive/15 text-destructive"
+                      : isCompleted
                       ? "bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))]"
                       : leg.slot_status === "pending"
                       ? "bg-[hsl(var(--status-pending-bg))] text-[hsl(var(--status-pending))]"
                       : "bg-primary/10 text-primary"
                   }`}>
-                    <StatusIcon className="h-3 w-3" />
-                    {STATUS_LABELS[leg.slot_status] ?? leg.slot_status}
+                    {isCancelled ? <X className="h-3 w-3" /> : <StatusIcon className="h-3 w-3" />}
+                    {isCancelled ? "Cancelled" : (STATUS_LABELS[leg.slot_status] ?? leg.slot_status)}
                   </span>
                 </div>
 
