@@ -299,14 +299,16 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   }, [selectedDate, onRefresh]);
 
   const cancelLeg = useCallback(async (legId: string) => {
-    // Find linked B-leg if this is an A-leg
     const leg = legs.find(l => l.id === legId);
     if (!leg) return;
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Delete the slot assignment (keeps leg history)
-    await supabase.from("truck_run_slots").delete().eq("leg_id", legId).eq("run_date", selectedDate);
+    // Set slot status to 'cancelled' instead of deleting
+    await supabase.from("truck_run_slots")
+      .update({ status: "cancelled" } as any)
+      .eq("leg_id", legId)
+      .eq("run_date", selectedDate);
 
     // Log cancellation to audit
     await supabase.from("audit_logs").insert({
@@ -323,7 +325,10 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     if (leg.leg_type === "A") {
       const linkedB = legs.find(l => l.patient_id === leg.patient_id && l.leg_type === "B" && l.assigned_truck_id);
       if (linkedB) {
-        await supabase.from("truck_run_slots").delete().eq("leg_id", linkedB.id).eq("run_date", selectedDate);
+        await supabase.from("truck_run_slots")
+          .update({ status: "cancelled" } as any)
+          .eq("leg_id", linkedB.id)
+          .eq("run_date", selectedDate);
         await supabase.from("audit_logs").insert({
           action: "run_cancelled",
           actor_user_id: user?.id,
@@ -342,6 +347,15 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     }
     onRefresh();
   }, [legs, selectedDate, onRefresh]);
+
+  const restoreLeg = useCallback(async (legId: string) => {
+    await supabase.from("truck_run_slots")
+      .update({ status: "pending" } as any)
+      .eq("leg_id", legId)
+      .eq("run_date", selectedDate);
+    toast.success("Run restored");
+    onRefresh();
+  }, [selectedDate, onRefresh]);
 
   const getCrewCapability = useCallback((truckId: string): CrewCapability => {
     const cp = crewProfiles.get(truckId);
