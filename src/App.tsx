@@ -44,7 +44,14 @@ import ForgotEmail from "./pages/ForgotEmail";
 import SuspendedPage from "./pages/SuspendedPage";
 import CrewDashboard from "./pages/CrewDashboard";
 // SandboxModeProvider and PreviewRoleProvider removed — no role-based view filtering
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000, // 30s — prevent unnecessary re-fetches on navigation
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function SessionWarningBanner() {
   const { sessionWarning, signOut } = useAuth();
