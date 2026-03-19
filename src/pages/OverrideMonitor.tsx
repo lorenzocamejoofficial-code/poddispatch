@@ -223,7 +223,7 @@ export default function OverrideMonitor() {
             {loading ? (
               <PageLoader label="Loading safety overrides…" />
             ) : safetyOverrides.length === 0 ? (
-              <EmptyState icon={ShieldCheck} title="No safety overrides" description="No safety overrides have been recorded yet." />
+              <EmptyState title="No safety overrides" description="No safety overrides have been recorded yet." />
             ) : (
               <div className="rounded-lg border">
                 <Table>
