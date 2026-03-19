@@ -149,6 +149,7 @@ export default function DispatchBoard() {
         has_power_stretcher: t.has_power_stretcher ?? false,
         has_stair_chair: t.has_stair_chair ?? false,
         has_bariatric_kit: t.has_bariatric_kit ?? false,
+        has_bariatric_stretcher: t.has_bariatric_stretcher ?? false,
         has_oxygen_mount: t.has_oxygen_mount ?? false,
       };
 
