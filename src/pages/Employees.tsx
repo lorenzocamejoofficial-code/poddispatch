@@ -251,11 +251,13 @@ export default function Employees() {
       sex: emp.sex as "M" | "F",
       cert_level: emp.cert_level,
       active: emp.active,
-      max_safe_team_lift_lbs: (emp as any).max_safe_team_lift_lbs?.toString() ?? "250",
-      stair_chair_trained: (emp as any).stair_chair_trained ?? false,
-      bariatric_trained: (emp as any).bariatric_trained ?? false,
-      oxygen_handling_trained: (emp as any).oxygen_handling_trained ?? false,
-      lift_assist_ok: (emp as any).lift_assist_ok ?? false,
+      employment_type: (emp.employment_type ?? "full_time") as "full_time" | "part_time" | "prn",
+      role: emp.role === "Owner" ? "owner" : (emp.role ?? "crew"),
+      max_safe_team_lift_lbs: (emp.max_safe_team_lift_lbs ?? 250).toString(),
+      stair_chair_trained: emp.stair_chair_trained ?? false,
+      bariatric_trained: emp.bariatric_trained ?? false,
+      oxygen_handling_trained: emp.oxygen_handling_trained ?? false,
+      lift_assist_ok: emp.lift_assist_ok ?? false,
     });
     setEditDialogOpen(true);
   };
