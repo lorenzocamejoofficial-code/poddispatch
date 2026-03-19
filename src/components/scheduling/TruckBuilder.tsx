@@ -79,7 +79,10 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
         <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
           leg.leg_type === "A" ? "bg-primary/10 text-primary" : "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]"
         }`}>{leg.leg_type}</span>
-        <span className="truncate font-medium text-card-foreground">{leg.patient_name}</span>
+        <span className={`truncate font-medium ${isCancelled ? "line-through text-muted-foreground" : "text-card-foreground"}`}>{leg.patient_name}</span>
+        {isCancelled && (
+          <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[9px] font-bold text-destructive shrink-0">CANCELLED</span>
+        )}
         {isHeavy && <Zap className="h-3 w-3 text-[hsl(var(--status-yellow))] shrink-0" aria-label="Electric stretcher required" />}
         {leg.has_exception && <GitBranch className="h-3 w-3 text-primary shrink-0" aria-label="Exception override active" />}
         {hasAlert && (
