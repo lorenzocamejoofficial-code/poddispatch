@@ -89,7 +89,9 @@ export default function BillingAndClaims() {
   const [addingRate, setAddingRate] = useState(false);
   const [queueTrips, setQueueTrips] = useState<any[]>([]);
   const [payerRulesMap, setPayerRulesMap] = useState<Map<string, any>>(new Map());
-  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split("T")[0]);
+  const { selectedDate: sharedDate, setSelectedDate: setSharedDate } = useSchedulingStore();
+  const dateFilter = sharedDate;
+  const setDateFilter = setSharedDate;
   const [overrideLogs, setOverrideLogs] = useState<any[]>([]);
   const [overrideLogSort, setOverrideLogSort] = useState<"date" | "user" | "reason">("date");
   const { simulationRunId, refreshToken } = useSimulationSession();

@@ -120,7 +120,9 @@ export default function TripsAndClinical() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split("T")[0]);
+  const { selectedDate: sharedDate, setSelectedDate: setSharedDate } = useSchedulingStore();
+  const dateFilter = sharedDate;
+  const setDateFilter = setSharedDate;
   const [selectedTrip, setSelectedTrip] = useState<TripRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [facilityMap, setFacilityMap] = useState<Map<string, string>>(new Map());
