@@ -219,9 +219,9 @@ export default function OverrideMonitor() {
 
           <TabsContent value="safety">
             {loading ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>
+              <PageLoader label="Loading safety overrides…" />
             ) : safetyOverrides.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">No safety overrides found.</p>
+              <EmptyState icon={ShieldCheck} title="No safety overrides" description="No safety overrides have been recorded yet." />
             ) : (
               <div className="rounded-lg border">
                 <Table>
