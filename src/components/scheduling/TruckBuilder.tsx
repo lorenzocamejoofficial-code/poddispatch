@@ -212,14 +212,12 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       setCrewProfiles(map);
     };
     const loadTruckEquip = async () => {
-      const { data } = await supabase.from("trucks").select("id, has_power_stretcher, has_stair_chair, has_bariatric_kit, has_bariatric_stretcher, has_oxygen_mount").eq("active", true);
+      const { data } = await supabase.from("trucks").select("id, has_power_stretcher, has_stair_chair, has_oxygen_mount").eq("active", true);
       const map = new Map<string, TruckEquipment>();
       for (const t of (data ?? []) as any[]) {
         map.set(t.id, {
           has_power_stretcher: t.has_power_stretcher ?? false,
           has_stair_chair: t.has_stair_chair ?? false,
-          has_bariatric_kit: t.has_bariatric_kit ?? false,
-          has_bariatric_stretcher: t.has_bariatric_stretcher ?? false,
           has_oxygen_mount: t.has_oxygen_mount ?? false,
         });
       }
