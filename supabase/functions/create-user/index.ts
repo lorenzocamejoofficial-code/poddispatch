@@ -129,6 +129,13 @@ Deno.serve(async (req) => {
       cert_level: cert_level || "EMT-B",
       phone_number: phone_number || null,
       company_id,
+      employment_type: employment_type || "full_time",
+      max_safe_team_lift_lbs: max_safe_team_lift_lbs ?? 250,
+      stair_chair_trained: stair_chair_trained ?? false,
+      bariatric_trained: bariatric_trained ?? false,
+      oxygen_handling_trained: oxygen_handling_trained ?? false,
+      lift_assist_ok: lift_assist_ok ?? false,
+      active: active ?? true,
     });
 
     if (profileError) {
