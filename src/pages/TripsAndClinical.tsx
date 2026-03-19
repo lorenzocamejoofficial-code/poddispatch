@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { PageLoader } from "@/components/ui/page-loader";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FileText } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 import { Button } from "@/components/ui/button";
