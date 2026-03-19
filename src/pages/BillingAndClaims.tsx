@@ -430,7 +430,7 @@ export default function BillingAndClaims() {
         {/* Claims Board */}
         <TabsContent value="claims" className="m-0">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-muted-foreground">Loading claims…</div>
+            <PageLoader label="Loading claims…" />
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
               {CLAIM_COLUMNS.map(col => {
