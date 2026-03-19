@@ -97,17 +97,27 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
         )}
       </div>
       <div className="flex items-center gap-0.5 shrink-0">
-        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEditException} title="Edit this run only">
-          <Pencil className="h-2.5 w-2.5" />
-        </Button>
-        {onCancel && (
-          <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:text-destructive" onClick={onCancel} title="Cancel this run">
-            <XCircle className="h-2.5 w-2.5" />
-          </Button>
+        {isCancelled ? (
+          onRestore && (
+            <Button variant="ghost" size="sm" className="h-5 text-[10px] text-primary hover:text-primary px-1.5" onClick={onRestore} title="Restore this run">
+              Undo
+            </Button>
+          )
+        ) : (
+          <>
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEditException} title="Edit this run only">
+              <Pencil className="h-2.5 w-2.5" />
+            </Button>
+            {onCancel && (
+              <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:text-destructive" onClick={onCancel} title="Cancel this run">
+                <XCircle className="h-2.5 w-2.5" />
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onRemove}>
+              <Trash2 className="h-2.5 w-2.5" />
+            </Button>
+          </>
         )}
-        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onRemove}>
-          <Trash2 className="h-2.5 w-2.5" />
-        </Button>
       </div>
     </div>
   );
