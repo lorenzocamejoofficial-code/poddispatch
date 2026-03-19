@@ -215,7 +215,7 @@ export default function ReportsAndMetrics() {
 
         <TabsContent value="overview" className="m-0 space-y-6">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-muted-foreground">Loading metrics…</div>
+            <PageLoader label="Loading metrics…" />
           ) : (
             <>
               {/* KPI grid */}
