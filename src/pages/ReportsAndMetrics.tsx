@@ -288,11 +288,12 @@ export default function ReportsAndMetrics() {
         {/* OTP & Operational Risk */}
         <TabsContent value="otp" className="m-0 space-y-6">
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-muted-foreground">Loading…</div>
+            <PageLoader label="Loading performance data…" />
           ) : dailyTruckMetrics.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-              <AlertTriangle className="h-6 w-6" />
-              <p className="text-sm">No on-time performance data for this period.</p>
+            <EmptyState
+              icon={AlertTriangle}
+              title="No performance data"
+              description="No on-time performance data for this period. Run a simulation to populate metrics."
               <p className="text-xs">Run a simulation full_cycle or wait for live data.</p>
             </div>
           ) : (
