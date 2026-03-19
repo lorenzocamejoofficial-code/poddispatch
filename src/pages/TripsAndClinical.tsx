@@ -451,10 +451,11 @@ export default function TripsAndClinical() {
         {loading ? (
           <PageLoader label="Loading trips…" />
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-            <FileText className="h-8 w-8 opacity-30" />
-            <p className="text-sm">No trips for this date. Run "Sync from Dispatch" after assigning runs.</p>
-          </div>
+          <EmptyState
+            icon={FileText}
+            title="No trips found"
+            description='No trips for this date. Run "Sync from Dispatch" after assigning runs, or adjust your filters.'
+          />
         ) : (
           <div className="rounded-lg border bg-card overflow-hidden">
             <table className="w-full text-sm">
