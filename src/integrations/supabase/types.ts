@@ -1747,10 +1747,18 @@ export type Database = {
           destination_location: string
           estimated_duration_minutes: number | null
           id: string
+          is_oneoff: boolean
           is_simulated: boolean
           leg_type: Database["public"]["Enums"]["leg_type"]
           notes: string | null
-          patient_id: string
+          oneoff_dropoff_address: string | null
+          oneoff_mobility: string | null
+          oneoff_name: string | null
+          oneoff_notes: string | null
+          oneoff_oxygen: boolean | null
+          oneoff_pickup_address: string | null
+          oneoff_weight_lbs: number | null
+          patient_id: string | null
           pickup_location: string
           pickup_time: string | null
           run_date: string
@@ -1765,10 +1773,18 @@ export type Database = {
           destination_location: string
           estimated_duration_minutes?: number | null
           id?: string
+          is_oneoff?: boolean
           is_simulated?: boolean
           leg_type: Database["public"]["Enums"]["leg_type"]
           notes?: string | null
-          patient_id: string
+          oneoff_dropoff_address?: string | null
+          oneoff_mobility?: string | null
+          oneoff_name?: string | null
+          oneoff_notes?: string | null
+          oneoff_oxygen?: boolean | null
+          oneoff_pickup_address?: string | null
+          oneoff_weight_lbs?: number | null
+          patient_id?: string | null
           pickup_location: string
           pickup_time?: string | null
           run_date?: string
@@ -1783,10 +1799,18 @@ export type Database = {
           destination_location?: string
           estimated_duration_minutes?: number | null
           id?: string
+          is_oneoff?: boolean
           is_simulated?: boolean
           leg_type?: Database["public"]["Enums"]["leg_type"]
           notes?: string | null
-          patient_id?: string
+          oneoff_dropoff_address?: string | null
+          oneoff_mobility?: string | null
+          oneoff_name?: string | null
+          oneoff_notes?: string | null
+          oneoff_oxygen?: boolean | null
+          oneoff_pickup_address?: string | null
+          oneoff_weight_lbs?: number | null
+          patient_id?: string | null
           pickup_location?: string
           pickup_time?: string | null
           run_date?: string
