@@ -153,6 +153,7 @@ Deno.serve(async (req) => {
               started_at: activeTimer.started_at,
               current_level: activeTimer.current_level,
             } : null,
+            is_oneoff: isOneoff,
           };
         })
         .sort((a: any, b: any) => {
