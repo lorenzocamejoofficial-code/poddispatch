@@ -449,7 +449,7 @@ export default function TripsAndClinical() {
 
         {/* Trip list */}
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-muted-foreground">Loading trips…</div>
+          <PageLoader label="Loading trips…" />
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
             <FileText className="h-8 w-8 opacity-30" />
