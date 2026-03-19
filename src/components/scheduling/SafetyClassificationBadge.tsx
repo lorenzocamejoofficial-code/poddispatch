@@ -1,4 +1,4 @@
-import { ShieldCheck, ShieldAlert, ShieldX, AlertTriangle } from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldX, AlertTriangle, UserCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SafetyStatus } from "@/lib/safety-rules";
 
@@ -6,6 +6,7 @@ interface SafetyClassificationBadgeProps {
   status: SafetyStatus;
   reasons: string[];
   missingFields: string[];
+  isOneoff?: boolean;
 }
 
 const STATUS_CONFIG = {
@@ -14,8 +15,27 @@ const STATUS_CONFIG = {
   BLOCKED: { icon: ShieldX, color: "text-destructive", label: "BLOCKED", bg: "bg-destructive/10 border-destructive/30" },
 };
 
-export function SafetyClassificationBadge({ status, reasons, missingFields }: SafetyClassificationBadgeProps) {
-  // If missing fields, show INCOMPLETE status
+export function SafetyClassificationBadge({ status, reasons, missingFields, isOneoff }: SafetyClassificationBadgeProps) {
+  // One-off runs with no safety concerns: show neutral indicator instead of INCOMPLETE
+  if (isOneoff && status === "OK" && missingFields.length > 0) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold bg-accent/60 border-accent text-accent-foreground">
+              <UserCircle className="h-2.5 w-2.5" /> ONE-OFF
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="left" className="max-w-xs">
+            <p className="text-xs font-semibold mb-0.5">One-Off — No Safety Data</p>
+            <p className="text-[10px] text-muted-foreground">This is a one-off run. Safety fields are optional.</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  // If missing fields on a regular patient, show INCOMPLETE status
   if (missingFields.length > 0 && status === "OK") {
     return (
       <TooltipProvider>

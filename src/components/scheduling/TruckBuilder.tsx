@@ -96,7 +96,7 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
         {leg.pickup_time && <span className="text-muted-foreground shrink-0">{leg.pickup_time}</span>}
         {/* Safety classification badge */}
         {safetyStatus && (
-          <SafetyClassificationBadge status={safetyStatus} reasons={safetyReasons ?? []} missingFields={missingFields ?? []} />
+          <SafetyClassificationBadge status={safetyStatus} reasons={safetyReasons ?? []} missingFields={missingFields ?? []} isOneoff={leg.is_oneoff} />
         )}
       </div>
       <div className="flex items-center gap-0.5 shrink-0">
