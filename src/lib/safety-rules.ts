@@ -40,6 +40,7 @@ export interface TruckEquipment {
   has_power_stretcher?: boolean;
   has_stair_chair?: boolean;
   has_bariatric_kit?: boolean;
+  has_bariatric_stretcher?: boolean;
   has_oxygen_mount?: boolean;
 }
 
