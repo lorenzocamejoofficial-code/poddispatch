@@ -187,6 +187,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           notes: exc?.notes !== undefined ? exc.notes : l.notes,
           assigned_truck_id: slot?.truck_id ?? null,
           slot_order: slot?.slot_order ?? null,
+          slot_status: slot?.status ?? "pending",
           exception_pickup_time: exc?.pickup_time ?? null,
           exception_pickup_location: exc?.pickup_location ?? null,
           exception_destination_location: exc?.destination_location ?? null,
