@@ -544,10 +544,8 @@ export default function TrucksCrews() {
                 {/* Equipment flags */}
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-muted-foreground pl-6">
                   {[
-                    { key: "has_power_stretcher", label: "Power Stretcher" },
+                    { key: "has_power_stretcher", label: "Power Stretcher / Bariatric" },
                     { key: "has_stair_chair", label: "Stair Chair" },
-                    { key: "has_bariatric_kit", label: "Bariatric Kit" },
-                    { key: "has_bariatric_stretcher", label: "Bariatric Stretcher" },
                     { key: "has_oxygen_mount", label: "Oxygen Mount" },
                   ].map(({ key, label }) => (
                     <label key={key} className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors">
@@ -556,7 +554,13 @@ export default function TrucksCrews() {
                         className="h-3.5 w-3.5 rounded border-border accent-primary"
                         checked={(t as any)[key] ?? false}
                         onChange={async (e) => {
-                          const { error } = await supabase.from("trucks").update({ [key]: e.target.checked } as any).eq("id", t.id);
+                          // Power stretcher = bariatric capable; sync all related flags
+                          const updates: Record<string, boolean> = { [key]: e.target.checked };
+                          if (key === "has_power_stretcher") {
+                            updates.has_bariatric_kit = e.target.checked;
+                            updates.has_bariatric_stretcher = e.target.checked;
+                          }
+                          const { error } = await supabase.from("trucks").update(updates as any).eq("id", t.id);
                           if (error) { toast.error("Failed to update equipment"); return; }
                           fetchAll();
                           refreshTrucks();

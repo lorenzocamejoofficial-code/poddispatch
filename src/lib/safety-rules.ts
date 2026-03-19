@@ -37,11 +37,14 @@ export interface CrewCapability {
 }
 
 export interface TruckEquipment {
+  /** Combined Power Stretcher / Bariatric Stretcher — GA ground ambulance standard */
   has_power_stretcher?: boolean;
   has_stair_chair?: boolean;
-  has_bariatric_kit?: boolean;
-  has_bariatric_stretcher?: boolean;
   has_oxygen_mount?: boolean;
+  /** @deprecated kept for backward compat — use has_power_stretcher instead */
+  has_bariatric_kit?: boolean;
+  /** @deprecated kept for backward compat — use has_power_stretcher instead */
+  has_bariatric_stretcher?: boolean;
 }
 
 export function deriveWeightClass(weight: number | null | undefined): string {
@@ -67,10 +70,13 @@ export function evaluateSafetyRules(
     crew.member2?.max_safe_team_lift_lbs ?? 250
   );
 
+  // Power Stretcher = bariatric-capable in GA ground ambulance
+  const hasBariCapable = truck.has_power_stretcher ?? false;
+
   // ── Weight-based checks ──
   if (weightClass === "350+" || (patient.weight_lbs && patient.weight_lbs >= 350)) {
-    if (!truck.has_bariatric_kit) {
-      reasons.push("Weight 350+ lbs without bariatric kit on truck");
+    if (!hasBariCapable) {
+      reasons.push("Weight 350+ lbs — power stretcher (bariatric-capable) required");
       status = "BLOCKED";
     }
     if (!crew.member1?.bariatric_trained && !crew.member2?.bariatric_trained) {
@@ -78,8 +84,8 @@ export function evaluateSafetyRules(
       status = "BLOCKED";
     }
   } else if (weightClass === "300-349" || (patient.weight_lbs && patient.weight_lbs >= 300)) {
-    if (!truck.has_bariatric_kit) {
-      reasons.push("Weight 300+ lbs — bariatric kit recommended");
+    if (!hasBariCapable) {
+      reasons.push("Weight 300+ lbs — power stretcher recommended");
       if (status === "OK") status = "WARNING";
     }
   }
@@ -133,20 +139,9 @@ export function evaluateSafetyRules(
 
   // ── Special equipment checks ──
   if (patient.special_equipment_required === "bariatric_stretcher") {
-    if (!truck.has_bariatric_stretcher && !truck.has_bariatric_kit) {
-      reasons.push("Bariatric stretcher required but truck lacks bariatric stretcher");
+    if (!hasBariCapable) {
+      reasons.push("Bariatric stretcher required — truck needs power stretcher");
       status = "BLOCKED";
-    }
-  }
-  // ── Bariatric patient with bariatric stretcher available clears weight-based blocks ──
-  if ((patient.bariatric || (patient.weight_lbs && patient.weight_lbs >= 300)) && truck.has_bariatric_stretcher) {
-    // Remove weight-related BLOCKED reasons if bariatric stretcher is available
-    const weightBlockIdx = reasons.findIndex(r => r.includes("bariatric kit"));
-    if (weightBlockIdx >= 0) {
-      reasons.splice(weightBlockIdx, 1);
-      // Recalculate status
-      if (reasons.length === 0) status = "OK";
-      else if (!reasons.some(r => status === "BLOCKED")) status = "WARNING";
     }
   }
   if (patient.special_equipment_required === "extra_crew") {
