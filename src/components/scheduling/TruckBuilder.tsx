@@ -80,6 +80,9 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
           leg.leg_type === "A" ? "bg-primary/10 text-primary" : "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]"
         }`}>{leg.leg_type}</span>
         <span className={`truncate font-medium ${isCancelled ? "line-through text-muted-foreground" : "text-card-foreground"}`}>{leg.patient_name}</span>
+        {leg.is_oneoff && (
+          <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
+        )}
         {isCancelled && (
           <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[9px] font-bold text-destructive shrink-0">CANCELLED</span>
         )}
