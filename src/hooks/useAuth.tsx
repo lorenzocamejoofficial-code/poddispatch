@@ -24,7 +24,6 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshOnboardingStatus: () => Promise<void>;
-  // Role convenience checks
   isAdmin: boolean;
   isOwner: boolean;
   isDispatcher: boolean;
@@ -54,6 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const warningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userRef = useRef<User | null>(null);
+  // Guard to prevent onAuthStateChange from running before getSession completes
+  const sessionInitialized = useRef(false);
 
   const loadUserData = async (userId: string) => {
     const [{ data: membershipData }, { data: profileData }, { data: scData }] = await Promise.all([
@@ -64,7 +65,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (membershipData) {
       setRole(membershipData.role as MembershipRole);
       setActiveCompanyId(membershipData.company_id);
-      // Load company onboarding status
       const { data: companyData } = await supabase
         .from("companies")
         .select("onboarding_status")
@@ -89,21 +89,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data) setOnboardingStatus(data.onboarding_status as OnboardingStatus);
   }, [activeCompanyId]);
 
-  // HIPAA: sign out and clear all session data
   const doSignOut = useCallback(async () => {
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
     if (warningTimer.current) clearTimeout(warningTimer.current);
     setSessionWarning(false);
     await supabase.auth.signOut();
-      setRole(null);
-      setActiveCompanyId(null);
-      setProfileId(null);
-      setIsSystemCreator(false);
-      setOnboardingStatus(null);
-      setMembershipLoaded(false);
-    }, []);
+    setRole(null);
+    setActiveCompanyId(null);
+    setProfileId(null);
+    setIsSystemCreator(false);
+    setOnboardingStatus(null);
+    setMembershipLoaded(false);
+  }, []);
 
-  // HIPAA: reset inactivity timers on user activity
   const resetInactivityTimer = useCallback(() => {
     if (!userRef.current) return;
 
@@ -144,28 +142,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, resetInactivityTimer]);
 
   useEffect(() => {
+    // CRITICAL: Set up onAuthStateChange FIRST (as required by Supabase docs),
+    // but gate it so it only processes events AFTER getSession has completed.
+    // This prevents the INITIAL_SESSION event from clearing state before
+    // the persisted session is restored from storage.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
+      (_event, newSession) => {
+        // Skip events until getSession has initialized the baseline
+        if (!sessionInitialized.current) return;
+
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+        if (newSession?.user) {
+          // Use setTimeout to avoid calling Supabase inside the callback (deadlock prevention)
           setTimeout(() => {
-            loadUserData(session.user.id).finally(() => setLoading(false));
+            loadUserData(newSession.user.id).finally(() => setLoading(false));
           }, 0);
         } else {
           setRole(null);
           setActiveCompanyId(null);
           setProfileId(null);
+          setIsSystemCreator(false);
+          setOnboardingStatus(null);
+          setMembershipLoaded(false);
           setLoading(false);
         }
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadUserData(session.user.id).finally(() => setLoading(false));
+    // THEN call getSession to restore the persisted session from storage.
+    // This is the source of truth for the initial auth state.
+    supabase.auth.getSession().then(({ data: { session: restoredSession } }) => {
+      // Mark initialization complete so future onAuthStateChange events process normally
+      sessionInitialized.current = true;
+
+      setSession(restoredSession);
+      setUser(restoredSession?.user ?? null);
+      if (restoredSession?.user) {
+        loadUserData(restoredSession.user.id).finally(() => setLoading(false));
       } else {
         setLoading(false);
       }
