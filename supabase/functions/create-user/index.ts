@@ -57,7 +57,9 @@ Deno.serve(async (req) => {
 
     const company_id = callerMembership.company_id;
 
-    const { email, password, full_name, role, sex, cert_level, phone_number } = await req.json();
+    const { email, password, full_name, role, sex, cert_level, phone_number,
+      employment_type, max_safe_team_lift_lbs, stair_chair_trained,
+      bariatric_trained, oxygen_handling_trained, lift_assist_ok, active } = await req.json();
 
     if (!email || !password || !full_name || !role) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -127,6 +129,13 @@ Deno.serve(async (req) => {
       cert_level: cert_level || "EMT-B",
       phone_number: phone_number || null,
       company_id,
+      employment_type: employment_type || "full_time",
+      max_safe_team_lift_lbs: max_safe_team_lift_lbs ?? 250,
+      stair_chair_trained: stair_chair_trained ?? false,
+      bariatric_trained: bariatric_trained ?? false,
+      oxygen_handling_trained: oxygen_handling_trained ?? false,
+      lift_assist_ok: lift_assist_ok ?? false,
+      active: active ?? true,
     });
 
     if (profileError) {

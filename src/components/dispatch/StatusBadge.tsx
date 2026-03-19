@@ -10,6 +10,7 @@ const statusConfig: Record<RunStatus, { label: string; className: string }> = {
   with_patient: { label: "With Patient", className: "status-yellow" },
   transporting: { label: "Transporting", className: "status-yellow" },
   completed: { label: "Completed", className: "status-green" },
+  cancelled: { label: "Cancelled", className: "bg-destructive/15 text-destructive" },
 };
 
 export function StatusBadge({ status }: { status: RunStatus }) {

@@ -40,6 +40,7 @@ export interface TruckEquipment {
   has_power_stretcher?: boolean;
   has_stair_chair?: boolean;
   has_bariatric_kit?: boolean;
+  has_bariatric_stretcher?: boolean;
   has_oxygen_mount?: boolean;
 }
 
@@ -132,9 +133,20 @@ export function evaluateSafetyRules(
 
   // ── Special equipment checks ──
   if (patient.special_equipment_required === "bariatric_stretcher") {
-    if (!truck.has_bariatric_kit) {
-      reasons.push("Bariatric stretcher required but truck lacks bariatric kit");
+    if (!truck.has_bariatric_stretcher && !truck.has_bariatric_kit) {
+      reasons.push("Bariatric stretcher required but truck lacks bariatric stretcher");
       status = "BLOCKED";
+    }
+  }
+  // ── Bariatric patient with bariatric stretcher available clears weight-based blocks ──
+  if ((patient.bariatric || (patient.weight_lbs && patient.weight_lbs >= 300)) && truck.has_bariatric_stretcher) {
+    // Remove weight-related BLOCKED reasons if bariatric stretcher is available
+    const weightBlockIdx = reasons.findIndex(r => r.includes("bariatric kit"));
+    if (weightBlockIdx >= 0) {
+      reasons.splice(weightBlockIdx, 1);
+      // Recalculate status
+      if (reasons.length === 0) status = "OK";
+      else if (!reasons.some(r => status === "BLOCKED")) status = "WARNING";
     }
   }
   if (patient.special_equipment_required === "extra_crew") {

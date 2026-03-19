@@ -18,6 +18,7 @@ export interface LegDisplay {
   notes: string | null;
   assigned_truck_id: string | null;
   slot_order: number | null;
+  slot_status: string;
   // exception override fields
   exception_pickup_time?: string | null;
   exception_pickup_location?: string | null;
@@ -155,7 +156,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         .order("pickup_time"),
       supabase
         .from("truck_run_slots")
-        .select("leg_id, truck_id, slot_order")
+        .select("leg_id, truck_id, slot_order, status")
         .eq("run_date", selectedDate),
       supabase
         .from("leg_exceptions")
@@ -163,7 +164,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         .eq("run_date", selectedDate),
     ]);
 
-    const slotMap = new Map((slots ?? []).map((s) => [s.leg_id, { truck_id: s.truck_id, slot_order: s.slot_order }]));
+    const slotMap = new Map((slots ?? []).map((s) => [s.leg_id, { truck_id: s.truck_id, slot_order: s.slot_order, status: (s as any).status ?? "pending" }]));
     const exceptionMap = new Map((exceptions ?? []).map((e: any) => [e.scheduling_leg_id, e]));
 
     setLegs(
@@ -186,6 +187,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           notes: exc?.notes !== undefined ? exc.notes : l.notes,
           assigned_truck_id: slot?.truck_id ?? null,
           slot_order: slot?.slot_order ?? null,
+          slot_status: slot?.status ?? "pending",
           exception_pickup_time: exc?.pickup_time ?? null,
           exception_pickup_location: exc?.pickup_location ?? null,
           exception_destination_location: exc?.destination_location ?? null,

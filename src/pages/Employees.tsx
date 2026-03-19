@@ -63,9 +63,15 @@ export default function Employees() {
   const [inviting, setInviting] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
+  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
-    full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew",
+    full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew" | "biller",
     sex: "M" as "M" | "F", cert_level: "EMT-B", phone_number: "",
+    employment_type: "full_time" as "full_time" | "part_time" | "prn",
+    max_safe_team_lift_lbs: "250",
+    stair_chair_trained: false, bariatric_trained: false,
+    oxygen_handling_trained: false, lift_assist_ok: false,
+    active: true,
   });
   const [editForm, setEditForm] = useState({
     full_name: "", phone_number: "", sex: "M" as "M" | "F",
@@ -164,6 +170,13 @@ export default function Employees() {
         sex: form.sex,
         cert_level: form.cert_level,
         phone_number: form.phone_number.trim() || null,
+        employment_type: form.employment_type,
+        max_safe_team_lift_lbs: parseInt(form.max_safe_team_lift_lbs) || 250,
+        stair_chair_trained: form.stair_chair_trained,
+        bariatric_trained: form.bariatric_trained,
+        oxygen_handling_trained: form.oxygen_handling_trained,
+        lift_assist_ok: form.lift_assist_ok,
+        active: form.active,
       },
     });
 
@@ -172,7 +185,7 @@ export default function Employees() {
     } else {
       toast.success(`${form.full_name} created successfully`);
       setDialogOpen(false);
-      setForm({ full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew", sex: "M", cert_level: "EMT-B", phone_number: "" });
+      setForm({ full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew" | "biller", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time" as "full_time" | "part_time" | "prn", max_safe_team_lift_lbs: "250", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
       fetchEmployees();
     }
     setCreating(false);
@@ -357,21 +370,30 @@ export default function Employees() {
               <DialogTrigger asChild>
                 <Button><Plus className="mr-1.5 h-4 w-4" /> Add Employee</Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
+              <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>Create Employee Account</DialogTitle><DialogDescription>Add a new employee with credentials and role.</DialogDescription></DialogHeader>
                 <div className="grid gap-3 py-2">
                   <div><Label>Full Name *</Label><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></div>
                   <div><Label>Phone Number</Label><Input type="tel" value={form.phone_number} onChange={(e) => setForm({ ...form, phone_number: e.target.value })} placeholder="(555) 123-4567" /></div>
                   <div><Label>Email * <span className="text-xs text-muted-foreground">(for login)</span></Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-                  <div><Label>Temporary Password *</Label><Input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 6 characters" /></div>
+                  <div>
+                    <Label>Temporary Password *</Label>
+                    <div className="relative">
+                      <Input type={showPassword ? "text" : "password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 6 characters" />
+                      <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(p => !p)}>
+                        {showPassword ? "Hide" : "Show"}
+                      </button>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <Label>Role</Label>
-                      <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as "admin" | "dispatcher" | "crew" })}>
+                      <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as any })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="dispatcher">Dispatcher</SelectItem>
+                          <SelectItem value="biller">Billing</SelectItem>
                           <SelectItem value="crew">Crew</SelectItem>
                         </SelectContent>
                       </Select>
@@ -399,6 +421,45 @@ export default function Employees() {
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  <div>
+                    <Label>Employment Type</Label>
+                    <Select value={form.employment_type} onValueChange={(v) => setForm({ ...form, employment_type: v as any })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="full_time">Full Time</SelectItem>
+                        <SelectItem value="part_time">Part Time</SelectItem>
+                        <SelectItem value="prn">PRN</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* Crew Capability Toggles */}
+                  <div className="border-t pt-3 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Crew Capabilities</p>
+                    <div>
+                      <Label>Max Safe Team Lift (lbs)</Label>
+                      <Input type="number" value={form.max_safe_team_lift_lbs} onChange={e => setForm({ ...form, max_safe_team_lift_lbs: e.target.value })} placeholder="250" />
+                    </div>
+                    <div className="flex flex-wrap gap-4">
+                      {[
+                        { key: "stair_chair_trained" as const, label: "Stair Chair Trained" },
+                        { key: "bariatric_trained" as const, label: "Bariatric Trained" },
+                        { key: "oxygen_handling_trained" as const, label: "Oxygen Handling" },
+                        { key: "lift_assist_ok" as const, label: "Lift Assist OK" },
+                      ].map(f => (
+                        <label key={f.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input type="checkbox" checked={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.checked })} className="accent-primary" />
+                          {f.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <Label className="text-sm font-medium">Active Status</Label>
+                      <p className="text-xs text-muted-foreground">Inactive employees won't appear in crew assignments</p>
+                    </div>
+                    <Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} />
                   </div>
                   <Button onClick={handleCreate} disabled={creating}>
                     {creating ? "Creating..." : "Create Account"}

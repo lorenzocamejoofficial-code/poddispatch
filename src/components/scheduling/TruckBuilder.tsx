@@ -37,9 +37,10 @@ interface SortableLegItemProps {
   onRemove: () => void;
   onEditException: () => void;
   onCancel?: () => void;
+  onRestore?: () => void;
 }
 
-const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, onRemove, onEditException, onCancel }: SortableLegItemProps) {
+const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, onRemove, onEditException, onCancel, onRestore }: SortableLegItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: leg.id,
     data: { type: "assigned-leg", leg },
@@ -52,14 +53,18 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
   };
 
   const isHeavy = (leg.patient_weight ?? 0) > 200;
+  const isCancelled = leg.slot_status === "cancelled";
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs bg-card ${
-        hasAlert ? "border-[hsl(var(--status-red))]/50 bg-[hsl(var(--status-red))]/5" :
-        leg.has_exception ? "border-primary/40" : ""
+      className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs ${
+        isCancelled ? "bg-destructive/10 border-destructive/40 opacity-75" :
+        "bg-card"
+      } ${
+        !isCancelled && hasAlert ? "border-[hsl(var(--status-red))]/50 bg-[hsl(var(--status-red))]/5" :
+        !isCancelled && leg.has_exception ? "border-primary/40" : ""
       } ${isDragging ? "shadow-md ring-1 ring-primary/30" : ""}`}
     >
       <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -74,7 +79,10 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
         <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
           leg.leg_type === "A" ? "bg-primary/10 text-primary" : "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]"
         }`}>{leg.leg_type}</span>
-        <span className="truncate font-medium text-card-foreground">{leg.patient_name}</span>
+        <span className={`truncate font-medium ${isCancelled ? "line-through text-muted-foreground" : "text-card-foreground"}`}>{leg.patient_name}</span>
+        {isCancelled && (
+          <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[9px] font-bold text-destructive shrink-0">CANCELLED</span>
+        )}
         {isHeavy && <Zap className="h-3 w-3 text-[hsl(var(--status-yellow))] shrink-0" aria-label="Electric stretcher required" />}
         {leg.has_exception && <GitBranch className="h-3 w-3 text-primary shrink-0" aria-label="Exception override active" />}
         {hasAlert && (
@@ -89,17 +97,27 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
         )}
       </div>
       <div className="flex items-center gap-0.5 shrink-0">
-        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEditException} title="Edit this run only">
-          <Pencil className="h-2.5 w-2.5" />
-        </Button>
-        {onCancel && (
-          <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:text-destructive" onClick={onCancel} title="Cancel this run">
-            <XCircle className="h-2.5 w-2.5" />
-          </Button>
+        {isCancelled ? (
+          onRestore && (
+            <Button variant="ghost" size="sm" className="h-5 text-[10px] text-primary hover:text-primary px-1.5" onClick={onRestore} title="Restore this run">
+              Undo
+            </Button>
+          )
+        ) : (
+          <>
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEditException} title="Edit this run only">
+              <Pencil className="h-2.5 w-2.5" />
+            </Button>
+            {onCancel && (
+              <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:text-destructive" onClick={onCancel} title="Cancel this run">
+                <XCircle className="h-2.5 w-2.5" />
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onRemove}>
+              <Trash2 className="h-2.5 w-2.5" />
+            </Button>
+          </>
         )}
-        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onRemove}>
-          <Trash2 className="h-2.5 w-2.5" />
-        </Button>
       </div>
     </div>
   );
@@ -194,13 +212,14 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       setCrewProfiles(map);
     };
     const loadTruckEquip = async () => {
-      const { data } = await supabase.from("trucks").select("id, has_power_stretcher, has_stair_chair, has_bariatric_kit, has_oxygen_mount").eq("active", true);
+      const { data } = await supabase.from("trucks").select("id, has_power_stretcher, has_stair_chair, has_bariatric_kit, has_bariatric_stretcher, has_oxygen_mount").eq("active", true);
       const map = new Map<string, TruckEquipment>();
       for (const t of (data ?? []) as any[]) {
         map.set(t.id, {
           has_power_stretcher: t.has_power_stretcher ?? false,
           has_stair_chair: t.has_stair_chair ?? false,
           has_bariatric_kit: t.has_bariatric_kit ?? false,
+          has_bariatric_stretcher: t.has_bariatric_stretcher ?? false,
           has_oxygen_mount: t.has_oxygen_mount ?? false,
         });
       }
@@ -298,14 +317,16 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   }, [selectedDate, onRefresh]);
 
   const cancelLeg = useCallback(async (legId: string) => {
-    // Find linked B-leg if this is an A-leg
     const leg = legs.find(l => l.id === legId);
     if (!leg) return;
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Delete the slot assignment (keeps leg history)
-    await supabase.from("truck_run_slots").delete().eq("leg_id", legId).eq("run_date", selectedDate);
+    // Set slot status to 'cancelled' instead of deleting
+    await supabase.from("truck_run_slots")
+      .update({ status: "cancelled" } as any)
+      .eq("leg_id", legId)
+      .eq("run_date", selectedDate);
 
     // Log cancellation to audit
     await supabase.from("audit_logs").insert({
@@ -322,7 +343,10 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     if (leg.leg_type === "A") {
       const linkedB = legs.find(l => l.patient_id === leg.patient_id && l.leg_type === "B" && l.assigned_truck_id);
       if (linkedB) {
-        await supabase.from("truck_run_slots").delete().eq("leg_id", linkedB.id).eq("run_date", selectedDate);
+        await supabase.from("truck_run_slots")
+          .update({ status: "cancelled" } as any)
+          .eq("leg_id", linkedB.id)
+          .eq("run_date", selectedDate);
         await supabase.from("audit_logs").insert({
           action: "run_cancelled",
           actor_user_id: user?.id,
@@ -341,6 +365,15 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     }
     onRefresh();
   }, [legs, selectedDate, onRefresh]);
+
+  const restoreLeg = useCallback(async (legId: string) => {
+    await supabase.from("truck_run_slots")
+      .update({ status: "pending" } as any)
+      .eq("leg_id", legId)
+      .eq("run_date", selectedDate);
+    toast.success("Run restored");
+    onRefresh();
+  }, [selectedDate, onRefresh]);
 
   const getCrewCapability = useCallback((truckId: string): CrewCapability => {
     const cp = crewProfiles.get(truckId);
