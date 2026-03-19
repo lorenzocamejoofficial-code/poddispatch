@@ -272,9 +272,9 @@ export default function OverrideMonitor() {
 
           <TabsContent value="billing">
             {loading ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>
+              <PageLoader label="Loading billing overrides…" />
             ) : billingOverrides.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">No billing overrides found.</p>
+              <EmptyState icon={DollarSign} title="No billing overrides" description="No billing overrides have been recorded yet." />
             ) : (
               <div className="rounded-lg border">
                 <Table>
