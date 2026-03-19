@@ -512,8 +512,8 @@ export default function BillingAndClaims() {
               <p className="text-sm text-muted-foreground">No billing overrides recorded yet</p>
             </div>
           ) : (
-            <div className="rounded-lg border bg-card overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="rounded-lg border bg-card overflow-x-auto">
+              <table className="w-full text-sm min-w-[800px]">
                 <thead>
                   <tr className="border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     <th className="px-4 py-3 text-left">Date</th>
