@@ -205,21 +205,27 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
           <p className="text-sm text-muted-foreground italic">{isDown ? "Truck is down — no runs" : "No runs scheduled"}</p>
         ) : (
           <div className="space-y-2">
-            {runs.map((run) => (
+            {runs.map((run) => {
+              const isCancelled = run.status === "cancelled";
+              return (
               <div
                 key={run.id}
                 className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${
+                  isCancelled ? "border-destructive/40 bg-destructive/5 opacity-75" :
                   run.is_current ? "border-primary/30 bg-primary/5" : ""
                 }`}
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    {run.is_current && (
+                    {run.is_current && !isCancelled && (
                       <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
                         CURRENT
                       </span>
                     )}
-                    <span className="truncate font-medium text-card-foreground">
+                    {isCancelled && (
+                      <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[9px] font-bold text-destructive">CANCELLED</span>
+                    )}
+                    <span className={`truncate font-medium ${isCancelled ? "line-through text-muted-foreground" : "text-card-foreground"}`}>
                       {run.patient_name}
                     </span>
                   </div>
@@ -229,31 +235,42 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {/* Safety badge */}
-                  {run.safety_status && run.safety_status !== "OK" && (
-                    <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
-                  )}
-                  {run.safety_status === "OK" && run.needs_missing && run.needs_missing.length > 0 && (
-                    <PatientNeedsWarning missing={run.needs_missing} />
-                  )}
-                  {run.trip_type === "dialysis" && run.pickup_time && run.status !== "completed" && (() => {
-                    const risk = computeTimingRisk(run.pickup_time, run.status);
-                    return risk ? <TimingRiskBadge risk={risk} pickupTime={run.pickup_time} /> : null;
-                  })()}
-                  <BillingStatusDot status={run.billing_status ?? null} issues={run.billing_issues} />
-                  {run.billing_status && run.billing_status !== "not_ready" && (
-                    <button
-                      onClick={() => setPreviewRun(run)}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                      title="View Billing Preview"
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                    </button>
+                  {isCancelled ? (
+                    onRestoreRun && (
+                      <Button variant="ghost" size="sm" className="h-5 text-[10px] text-primary hover:text-primary px-1.5" onClick={() => onRestoreRun(run.id)} title="Restore this run">
+                        Undo
+                      </Button>
+                    )
+                  ) : (
+                    <>
+                      {/* Safety badge */}
+                      {run.safety_status && run.safety_status !== "OK" && (
+                        <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
+                      )}
+                      {run.safety_status === "OK" && run.needs_missing && run.needs_missing.length > 0 && (
+                        <PatientNeedsWarning missing={run.needs_missing} />
+                      )}
+                      {run.trip_type === "dialysis" && run.pickup_time && run.status !== "completed" && (() => {
+                        const risk = computeTimingRisk(run.pickup_time, run.status);
+                        return risk ? <TimingRiskBadge risk={risk} pickupTime={run.pickup_time} /> : null;
+                      })()}
+                      <BillingStatusDot status={run.billing_status ?? null} issues={run.billing_issues} />
+                      {run.billing_status && run.billing_status !== "not_ready" && (
+                        <button
+                          onClick={() => setPreviewRun(run)}
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                          title="View Billing Preview"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </>
                   )}
                   <StatusBadge status={run.status} />
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
