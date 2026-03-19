@@ -447,6 +447,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
               onRemoveLeg={removeLeg}
               onEditException={onEditException}
               onCancelLeg={cancelLeg}
+              onRestoreLeg={restoreLeg}
               truckAlertCount={truckAlerts.length}
               legAlertIds={truckLegAlertIds}
               riskData={riskData}
