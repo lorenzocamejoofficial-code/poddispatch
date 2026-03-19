@@ -248,12 +248,31 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                     )
                   ) : (
                     <>
-                      {/* Safety badge */}
-                      {run.safety_status && run.safety_status !== "OK" && (
-                        <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
-                      )}
-                      {run.safety_status === "OK" && run.needs_missing && run.needs_missing.length > 0 && (
-                        <PatientNeedsWarning missing={run.needs_missing} />
+                      {/* Safety badge — one-off runs never show missing-data warnings */}
+                      {run.is_oneoff ? (
+                        run.safety_status && run.safety_status !== "OK" ? (
+                          <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
+                        ) : run.needs_missing && run.needs_missing.length > 0 ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex items-center gap-0.5 rounded-full bg-accent/60 border border-accent text-accent-foreground px-1.5 py-0.5 text-[9px] font-semibold">
+                                  One-Off Run
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="text-xs">Safety fields optional for one-off runs</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : null
+                      ) : (
+                        <>
+                          {run.safety_status && run.safety_status !== "OK" && (
+                            <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
+                          )}
+                          {run.safety_status === "OK" && run.needs_missing && run.needs_missing.length > 0 && (
+                            <PatientNeedsWarning missing={run.needs_missing} />
+                          )}
+                        </>
                       )}
                       {run.trip_type === "dialysis" && run.pickup_time && run.status !== "completed" && (() => {
                         const risk = computeTimingRisk(run.pickup_time, run.status);
