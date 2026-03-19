@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { PageLoader } from "@/components/ui/page-loader";
+import { EmptyState } from "@/components/ui/empty-state";
 import { supabase } from "@/integrations/supabase/client";
 import { TruckCard } from "@/components/dispatch/TruckCard";
 import { AlertsPanel } from "@/components/dispatch/AlertsPanel";
