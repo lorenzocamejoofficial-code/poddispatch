@@ -294,8 +294,7 @@ export default function ReportsAndMetrics() {
               icon={AlertTriangle}
               title="No performance data"
               description="No on-time performance data for this period. Run a simulation to populate metrics."
-              <p className="text-xs">Run a simulation full_cycle or wait for live data.</p>
-            </div>
+            />
           ) : (
             <>
               {/* OTP Summary KPIs */}
