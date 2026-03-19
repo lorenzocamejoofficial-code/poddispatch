@@ -33,6 +33,8 @@ export interface LegDisplay {
   patient_oxygen_lpm?: number | null;
   patient_special_equipment?: string | null;
   patient_bariatric?: boolean | null;
+  // one-off fields
+  is_oneoff?: boolean;
 }
 
 export interface PatientOption {
