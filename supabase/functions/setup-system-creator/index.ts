@@ -12,6 +12,17 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Require bootstrap secret to prevent unauthenticated access
+    const setupSecret = Deno.env.get("SETUP_SECRET");
+    const providedSecret = req.headers.get("X-Setup-Secret");
+
+    if (!setupSecret || !providedSecret || providedSecret !== setupSecret) {
+      return new Response(JSON.stringify({ error: "Unauthorized — invalid or missing setup secret" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!

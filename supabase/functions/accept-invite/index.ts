@@ -26,6 +26,25 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Validate that userId matches the authenticated caller (if auth header present)
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const anonClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const { data: claimsData, error: claimsErr } = await anonClient.auth.getClaims(
+        authHeader.replace("Bearer ", "")
+      );
+      if (!claimsErr && claimsData?.claims?.sub && claimsData.claims.sub !== userId) {
+        return new Response(JSON.stringify({ error: "userId does not match authenticated user" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // Look up the invite
     const { data: invite, error: inviteErr } = await supabaseAdmin
       .from("company_invites")
