@@ -34,27 +34,19 @@ export default function AcceptInvite() {
     }
 
     (async () => {
-      const { data, error: fetchErr } = await supabase
-        .from("company_invites")
-        .select("*")
-        .eq("token", token)
-        .eq("status", "pending")
-        .maybeSingle();
+      // Use server-side validation to look up invite (no public RLS needed)
+      const { data, error: fetchErr } = await supabase.functions.invoke("validate-invite", {
+        body: { token },
+      });
 
-      if (fetchErr || !data) {
+      if (fetchErr || !data?.invite) {
         setError("This invite is invalid or has already been used.");
         setLoading(false);
         return;
       }
 
-      setInvite(data);
-      // Fetch company name
-      const { data: company } = await supabase
-        .from("companies")
-        .select("name")
-        .eq("id", (data as any).company_id)
-        .maybeSingle();
-      setCompanyName(company?.name ?? "Unknown Company");
+      setInvite(data.invite);
+      setCompanyName(data.invite.company_name ?? "Unknown Company");
       setLoading(false);
     })();
   }, [token]);

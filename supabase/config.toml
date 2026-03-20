@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.create-company]
 verify_jwt = false
+
+[functions.validate-invite]
+verify_jwt = false
