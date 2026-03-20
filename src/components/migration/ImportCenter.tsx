@@ -30,12 +30,29 @@ export function ImportCenter({ onFilesParsed }: ImportCenterProps) {
 
     setParsing(true);
     try {
-      const XLSX = await import("xlsx");
+      const ExcelJS = await import("exceljs");
       const buffer = await file.arrayBuffer();
-      const wb = XLSX.read(buffer, { type: "array" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "" });
-      const headers = jsonData.length > 0 ? Object.keys(jsonData[0]) : [];
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet || worksheet.rowCount === 0) throw new Error("Empty workbook");
+      
+      const headers: string[] = [];
+      const headerRow = worksheet.getRow(1);
+      headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+        headers.push(String(cell.value ?? `Column${colNumber}`));
+      });
+      
+      const jsonData: Record<string, string>[] = [];
+      for (let r = 2; r <= worksheet.rowCount; r++) {
+        const row = worksheet.getRow(r);
+        const record: Record<string, string> = {};
+        headers.forEach((h, i) => {
+          const cell = row.getCell(i + 1);
+          record[h] = cell.value != null ? String(cell.value) : "";
+        });
+        jsonData.push(record);
+      }
 
       onFilesParsed({
         headers,
