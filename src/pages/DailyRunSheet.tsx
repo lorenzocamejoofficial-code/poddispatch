@@ -260,8 +260,8 @@ export default function DailyRunSheet() {
 
       setData(json);
       setLastUpdated(new Date());
-    } catch {
-      if (!silent) setError("Network error. Please try again.");
+    } catch (err: any) {
+      if (!silent) setError(err?.message ? `Connection error: ${err.message}` : "Network error. Please try again.");
     }
     setLoading(false);
   }, [token]);
