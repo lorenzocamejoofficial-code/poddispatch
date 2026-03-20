@@ -55,8 +55,20 @@ Deno.serve(async (req) => {
 
     const scheduleDate = getScheduleDate(tokenRow);
 
-    const [{ data: truck }, { data: crew }, { data: slots }, { data: companySettings }, { data: activeTimers }] = await Promise.all([
-      supabaseAdmin.from("trucks").select("name, company_id").eq("id", tokenRow.truck_id).single(),
+    // Fetch truck first to get company_id (needed by hold_timers query)
+    const { data: truck, error: truckErr } = await supabaseAdmin
+      .from("trucks")
+      .select("name, company_id")
+      .eq("id", tokenRow.truck_id)
+      .single();
+
+    if (truckErr || !truck) {
+      return new Response(JSON.stringify({ error: "Truck not found for token" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const [{ data: crew }, { data: slots }, { data: companySettings }, { data: activeTimers }] = await Promise.all([
       supabaseAdmin
         .from("crews")
         .select("member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
@@ -69,10 +81,10 @@ Deno.serve(async (req) => {
         .eq("truck_id", tokenRow.truck_id)
         .eq("run_date", scheduleDate)
         .order("slot_order"),
-      supabaseAdmin.from("company_settings").select("company_name").limit(1).maybeSingle(),
+      supabaseAdmin.from("company_settings").select("company_name").eq("company_id", truck.company_id).limit(1).maybeSingle(),
       supabaseAdmin.from("hold_timers").select("id, trip_id, hold_type, started_at, current_level")
         .eq("is_active", true)
-        .eq("company_id", truck?.company_id ?? ""),
+        .eq("company_id", truck.company_id),
     ]);
 
     const legIds = (slots ?? []).map((s) => s.leg_id);
