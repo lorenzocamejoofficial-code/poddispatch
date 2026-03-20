@@ -178,9 +178,7 @@ Deno.serve(async (req) => {
 
       return json({
         success: true,
-        message: `Password reset link generated for ${ownerEmail}`,
-        // In production this would be emailed; for demo return the link
-        reset_link: linkData?.properties?.action_link || null,
+        message: `Password reset email sent to ${ownerEmail}`,
       });
     }
 
