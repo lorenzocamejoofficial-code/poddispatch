@@ -79,7 +79,7 @@ export default function CrewDashboard() {
   const [holdTimers, setHoldTimers] = useState<HoldTimer[]>([]);
   const [holdLoading, setHoldLoading] = useState<string | null>(null);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
   const fetchData = useCallback(async () => {
     if (!profileId) return;

@@ -212,86 +212,88 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
               return (
               <div
                 key={run.id}
-                className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${
+                className={`rounded-md border px-3 py-2 text-sm ${
                   isCancelled ? "border-destructive/40 bg-destructive/5 opacity-75" :
                   run.is_current ? "border-primary/30 bg-primary/5" : ""
                 }`}
               >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                {/* Row 1: name + status */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     {run.is_current && !isCancelled && (
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary shrink-0">
                         CURRENT
                       </span>
                     )}
                     {isCancelled && (
-                      <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[9px] font-bold text-destructive">CANCELLED</span>
+                      <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[9px] font-bold text-destructive shrink-0">CANCELLED</span>
                     )}
                     <span className={`truncate font-medium ${isCancelled ? "line-through text-muted-foreground" : "text-card-foreground"}`}>
                       {run.patient_name}
                     </span>
-                    {run.is_oneoff && (
-                      <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
-                    )}
                   </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                    {run.pickup_time && <span>{run.pickup_time}</span>}
-                    <span className="capitalize">{run.trip_type}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {isCancelled ? (
-                    onRestoreRun && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    {isCancelled && onRestoreRun && (
                       <Button variant="ghost" size="sm" className="h-5 text-[10px] text-primary hover:text-primary px-1.5" onClick={() => onRestoreRun(run.id)} title="Restore this run">
                         Undo
                       </Button>
-                    )
-                  ) : (
-                    <>
-                      {/* Safety badge — one-off runs never show missing-data warnings */}
-                      {run.is_oneoff ? (
-                        run.safety_status && run.safety_status !== "OK" ? (
-                          <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
-                        ) : run.needs_missing && run.needs_missing.length > 0 ? (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="inline-flex items-center gap-0.5 rounded-full bg-accent/60 border border-accent text-accent-foreground px-1.5 py-0.5 text-[9px] font-semibold">
-                                  One-Off Run
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="left" className="text-xs">Safety fields optional for one-off runs</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : null
-                      ) : (
-                        <>
-                          {run.safety_status && run.safety_status !== "OK" && (
-                            <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
-                          )}
-                          {run.safety_status === "OK" && run.needs_missing && run.needs_missing.length > 0 && (
-                            <PatientNeedsWarning missing={run.needs_missing} />
-                          )}
-                        </>
-                      )}
-                      {run.trip_type === "dialysis" && run.pickup_time && run.status !== "completed" && (() => {
-                        const risk = computeTimingRisk(run.pickup_time, run.status);
-                        return risk ? <TimingRiskBadge risk={risk} pickupTime={run.pickup_time} /> : null;
-                      })()}
-                      <BillingStatusDot status={run.billing_status ?? null} issues={run.billing_issues} />
-                      {run.billing_status && run.billing_status !== "not_ready" && (
-                        <button
-                          onClick={() => setPreviewRun(run)}
-                          className="text-muted-foreground hover:text-foreground transition-colors"
-                          title="View Billing Preview"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </>
-                  )}
-                  <StatusBadge status={run.status} />
+                    )}
+                    <StatusBadge status={run.status} />
+                  </div>
                 </div>
+                {/* Row 2: time + type */}
+                <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                  {run.pickup_time && <span>{run.pickup_time}</span>}
+                  <span className="capitalize">{run.trip_type}</span>
+                </div>
+                {/* Row 3: badges — stacked to prevent overlap (issue #5) */}
+                {!isCancelled && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    {run.is_oneoff && (
+                      <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
+                    )}
+                    {/* Safety badge */}
+                    {run.is_oneoff ? (
+                      run.safety_status && run.safety_status !== "OK" ? (
+                        <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
+                      ) : run.needs_missing && run.needs_missing.length > 0 ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-accent/60 border border-accent text-accent-foreground px-1.5 py-0.5 text-[9px] font-semibold">
+                                One-Off Run
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="text-xs">Safety fields optional for one-off runs</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : null
+                    ) : (
+                      <>
+                        {run.safety_status && run.safety_status !== "OK" && (
+                          <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
+                        )}
+                        {run.safety_status === "OK" && run.needs_missing && run.needs_missing.length > 0 && (
+                          <PatientNeedsWarning missing={run.needs_missing} />
+                        )}
+                      </>
+                    )}
+                    {run.trip_type === "dialysis" && run.pickup_time && run.status !== "completed" && (() => {
+                      const risk = computeTimingRisk(run.pickup_time, run.status);
+                      return risk ? <TimingRiskBadge risk={risk} pickupTime={run.pickup_time} /> : null;
+                    })()}
+                    <BillingStatusDot status={run.billing_status ?? null} issues={run.billing_issues} />
+                    {run.billing_status && run.billing_status !== "not_ready" && (
+                      <button
+                        onClick={() => setPreviewRun(run)}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                        title="View Billing Preview"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               );
             })}

@@ -44,7 +44,7 @@ export default function CrewUIPreview() {
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [trucks, setTrucks] = useState<TruckOption[]>([]);
   const [selectedTruckId, setSelectedTruckId] = useState("");
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; });
   const [crews, setCrews] = useState<CrewOption[]>([]);
   const [tokens, setTokens] = useState<TokenOption[]>([]);
   const [selectedToken, setSelectedToken] = useState("");

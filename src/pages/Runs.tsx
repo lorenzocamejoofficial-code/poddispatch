@@ -37,12 +37,12 @@ export default function Runs() {
   const [trucks, setTrucks] = useState<TruckOption[]>([]);
   const [crews, setCrews] = useState<CrewOption[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; });
 
   const [form, setForm] = useState({
     patient_id: "", truck_id: "", crew_id: "",
     pickup_time: "", trip_type: "dialysis" as TripType,
-    notes: "", run_date: new Date().toISOString().split("T")[0],
+    notes: "", run_date: (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })(),
   });
 
   const fetchRuns = async () => {

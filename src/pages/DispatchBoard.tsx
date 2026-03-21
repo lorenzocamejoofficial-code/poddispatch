@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { PageLoader } from "@/components/ui/page-loader";
+import { getLocalToday } from "@/lib/local-date";
 import { EmptyState } from "@/components/ui/empty-state";
 import { supabase } from "@/integrations/supabase/client";
 import { TruckCard } from "@/components/dispatch/TruckCard";
@@ -289,7 +290,7 @@ export default function DispatchBoard() {
   const dateLabel = new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric", year: "numeric",
   });
-  const isToday = selectedDate === new Date().toISOString().split("T")[0];
+  const isToday = selectedDate === getLocalToday();
 
   return (
     <AdminLayout>

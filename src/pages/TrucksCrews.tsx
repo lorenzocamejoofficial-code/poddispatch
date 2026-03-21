@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { getLocalToday } from "@/lib/local-date";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -217,7 +218,7 @@ function TruckDayCell({
 
 export default function TrucksCrews() {
   const { refreshTrucks } = useSchedulingStore();
-  const today = new Date().toISOString().split("T")[0];
+  const today = getLocalToday();
 
   const [trucks, setTrucks] = useState<TruckRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileOption[]>([]);
