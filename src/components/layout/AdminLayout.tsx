@@ -1,6 +1,7 @@
 import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useSidebarBadges, getBadgeForPath } from "@/hooks/useSidebarBadges";
 import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutDashboard,
@@ -39,21 +40,22 @@ const navItems: NavItem[] = [
   { path: "/", label: "Dispatch Command", icon: LayoutDashboard, roles: ["admin", "dispatcher"] },
   { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList, roles: ["admin", "dispatcher"] },
   { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send, roles: ["admin", "dispatcher"] },
-  { path: "/patients", label: "Patients", icon: Users, roles: ["admin", "dispatcher"] },
-  { path: "/trips", label: "Trips & Clinical", icon: FileText, roles: ["admin", "dispatcher", "billing"] },
+  { path: "/patients", label: "Patients", icon: Users, roles: ["admin", "dispatcher", "billing"] },
+  { path: "/trips", label: "Trips & Clinical", icon: FileText, roles: ["admin", "billing"] },
   { path: "/billing", label: "Billing & Claims", icon: DollarSign, roles: ["admin", "billing"] },
   { path: "/compliance", label: "Compliance & QA", icon: ShieldCheck, roles: ["admin", "billing"] },
   { path: "/facilities", label: "Facilities", icon: Building2, roles: ["admin", "dispatcher", "billing"] },
-  { path: "/reports", label: "Reports & Metrics", icon: BarChart3, roles: ["admin"] },
-  { path: "/employees", label: "Employees", icon: UserPlus, roles: ["admin"] },
+  { path: "/reports", label: "Reports & Metrics", icon: BarChart3, roles: ["admin", "billing"] },
+  { path: "/employees", label: "Employees", icon: UserPlus, roles: ["admin", "dispatcher"] },
   { path: "/trucks", label: "Trucks & Crews", icon: Truck, roles: ["admin", "dispatcher"] },
-  { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft, roles: ["admin"] },
+  { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft, roles: ["admin", "dispatcher"] },
   { path: "/override-monitor", label: "Override Monitor", icon: Eye, roles: ["admin"] },
-  { path: "/settings", label: "Settings", icon: Settings, roles: ["admin"] },
+  { path: "/settings", label: "Settings", icon: Settings, roles: ["admin", "dispatcher"] },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { user, signOut, role, isSystemCreator } = useAuth();
+  const badgeCounts = useSidebarBadges(role);
   const location = useLocation();
   const navigate = useNavigate();
   const [companyName, setCompanyName] = useState("PodDispatch");
@@ -144,6 +146,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           )}
           {visibleNav.map((item) => {
             const active = location.pathname === item.path;
+            const badgeCount = getBadgeForPath(item.path, badgeCounts);
             return (
               <Link
                 key={item.path}
@@ -157,7 +160,12 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 )}
               >
                 <item.icon className="h-4 w-4" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {badgeCount > 0 && (
+                  <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
+                    {badgeCount > 99 ? "99+" : badgeCount}
+                  </span>
+                )}
               </Link>
             );
           })}

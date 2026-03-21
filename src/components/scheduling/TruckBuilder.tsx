@@ -3,6 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle, Clock, Link2, AlertCircle, XCircle, ShieldX, ShieldAlert } from "lucide-react";
 import { TruckRiskBadge } from "@/components/dispatch/TruckRiskBadge";
 import { HoldTimerIndicator } from "@/components/dispatch/HoldTimerIndicator";
@@ -194,6 +197,11 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   const [crewProfiles, setCrewProfiles] = useState<Map<string, { member1: any; member2: any }>>(new Map());
   const [truckEquipmentMap, setTruckEquipmentMap] = useState<Map<string, TruckEquipment>>(new Map());
 
+  // Safety override dialog state
+  const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
+  const [pendingAssign, setPendingAssign] = useState<{ truckId: string; legId: string; reasons: string[] } | null>(null);
+
   // Fetch truck risk states + crew capabilities + truck equipment
   useEffect(() => {
     const loadRisks = async () => {
@@ -287,12 +295,65 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     [crews]
   );
 
+  const getCrewCapability = useCallback((truckId: string): CrewCapability => {
+    const cp = crewProfiles.get(truckId);
+    return {
+      member1: cp?.member1 ? {
+        sex: cp.member1.sex ?? null,
+        stair_chair_trained: cp.member1.stair_chair_trained ?? false,
+        bariatric_trained: cp.member1.bariatric_trained ?? false,
+        oxygen_handling_trained: cp.member1.oxygen_handling_trained ?? false,
+        lift_assist_ok: cp.member1.lift_assist_ok ?? false,
+      } : null,
+      member2: cp?.member2 ? {
+        sex: cp.member2.sex ?? null,
+        stair_chair_trained: cp.member2.stair_chair_trained ?? false,
+        bariatric_trained: cp.member2.bariatric_trained ?? false,
+        oxygen_handling_trained: cp.member2.oxygen_handling_trained ?? false,
+        lift_assist_ok: cp.member2.lift_assist_ok ?? false,
+      } : null,
+    };
+  }, [crewProfiles]);
+
   const assignLeg = useCallback(async (truckId: string, legId: string) => {
     const currentSlots = truckLegs(truckId);
     if (currentSlots.length >= 10) {
       toast.error("Truck is full (10 run slots max)");
       return;
     }
+
+    // Check safety: BLOCKED requires override before assignment
+    const leg = legs.find(l => l.id === legId);
+    if (leg) {
+      const crewCap = getCrewCapability(truckId);
+      const equip = truckEquipmentMap.get(truckId);
+      if (equip) {
+        const patientNeeds: PatientNeeds = {
+          weight_lbs: leg.patient_weight,
+          mobility: leg.patient_mobility ?? null,
+          stairs_required: leg.patient_stairs_required ?? null,
+          stair_chair_required: leg.patient_stair_chair_required ?? null,
+          oxygen_required: leg.patient_oxygen_required ?? null,
+          oxygen_lpm: leg.patient_oxygen_lpm ?? null,
+          special_equipment_required: leg.patient_special_equipment ?? null,
+          bariatric: leg.patient_bariatric ?? null,
+        };
+        const safetyResult = evaluateSafetyRules(patientNeeds, crewCap, equip);
+        if (safetyResult.status === "BLOCKED") {
+          // Show override dialog instead of assigning
+          setPendingAssign({ truckId, legId, reasons: safetyResult.reasons });
+          setOverrideReason("");
+          setOverrideDialogOpen(true);
+          return;
+        }
+      }
+    }
+
+    await doAssignLeg(truckId, legId);
+  }, [truckLegs, legs, getCrewCapability, truckEquipmentMap]);
+
+  const doAssignLeg = useCallback(async (truckId: string, legId: string) => {
+    const currentSlots = truckLegs(truckId);
     const { data: companyId } = await supabase.rpc("get_my_company_id");
     const { error } = await supabase.from("truck_run_slots").insert({
       truck_id: truckId,
@@ -313,6 +374,33 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     setAddingLeg(null);
     onRefresh();
   }, [truckLegs, selectedDate, onRefresh, setAddingLeg]);
+
+  const confirmBlockedOverride = useCallback(async () => {
+    if (!pendingAssign || !overrideReason.trim()) {
+      toast.error("Override reason is required");
+      return;
+    }
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
+
+    // Log override to safety_overrides table
+    await supabase.from("safety_overrides").insert({
+      leg_id: pendingAssign.legId,
+      overridden_by: user?.id,
+      override_reason: overrideReason.trim(),
+      override_status: "BLOCKED",
+      reasons: pendingAssign.reasons,
+      company_id: companyId,
+    } as any);
+
+    setOverrideDialogOpen(false);
+    setPendingAssign(null);
+    setOverrideReason("");
+
+    // Now proceed with assignment
+    await doAssignLeg(pendingAssign.truckId, pendingAssign.legId);
+    toast.success("Safety override logged — leg assigned");
+  }, [pendingAssign, overrideReason, doAssignLeg]);
 
   const removeLeg = useCallback(async (legId: string) => {
     await supabase.from("truck_run_slots").delete().eq("leg_id", legId).eq("run_date", selectedDate);
@@ -379,25 +467,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     onRefresh();
   }, [selectedDate, onRefresh]);
 
-  const getCrewCapability = useCallback((truckId: string): CrewCapability => {
-    const cp = crewProfiles.get(truckId);
-    return {
-      member1: cp?.member1 ? {
-        sex: cp.member1.sex ?? null,
-        stair_chair_trained: cp.member1.stair_chair_trained ?? false,
-        bariatric_trained: cp.member1.bariatric_trained ?? false,
-        oxygen_handling_trained: cp.member1.oxygen_handling_trained ?? false,
-        lift_assist_ok: cp.member1.lift_assist_ok ?? false,
-      } : null,
-      member2: cp?.member2 ? {
-        sex: cp.member2.sex ?? null,
-        stair_chair_trained: cp.member2.stair_chair_trained ?? false,
-        bariatric_trained: cp.member2.bariatric_trained ?? false,
-        oxygen_handling_trained: cp.member2.oxygen_handling_trained ?? false,
-        lift_assist_ok: cp.member2.lift_assist_ok ?? false,
-      } : null,
-    };
-  }, [crewProfiles]);
+  // getCrewCapability moved above assignLeg
 
   const utilizationColor = useCallback((count: number) => {
     if (count >= 6 && count <= 8) return "bg-[hsl(var(--status-green))]/20 text-[hsl(var(--status-green))] border-[hsl(var(--status-green))]/30";
@@ -464,6 +534,49 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       {trucks.length === 0 && (
         <p className="text-sm text-muted-foreground">No trucks configured. Add trucks in the Trucks & Crews section.</p>
       )}
+
+      {/* Safety Override Dialog for BLOCKED assignments */}
+      <Dialog open={overrideDialogOpen} onOpenChange={setOverrideDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <ShieldX className="h-5 w-5" /> Safety Block — Override Required
+            </DialogTitle>
+            <DialogDescription>
+              This run has been blocked due to safety concerns. You must provide a reason to override.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {pendingAssign?.reasons.map((r, i) => (
+              <div key={i} className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                • {r}
+              </div>
+            ))}
+            <div className="space-y-1.5">
+              <Label htmlFor="override-reason">Override Reason (required)</Label>
+              <Textarea
+                id="override-reason"
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                placeholder="Explain why this assignment is safe to proceed…"
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setOverrideDialogOpen(false); setPendingAssign(null); }}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={!overrideReason.trim()}
+                onClick={confirmBlockedOverride}
+              >
+                Override & Assign
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
