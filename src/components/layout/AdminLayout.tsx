@@ -1,6 +1,7 @@
 import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useSidebarBadges, getBadgeForPath } from "@/hooks/useSidebarBadges";
 import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutDashboard,
