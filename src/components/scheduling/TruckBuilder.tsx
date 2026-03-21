@@ -197,6 +197,11 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   const [crewProfiles, setCrewProfiles] = useState<Map<string, { member1: any; member2: any }>>(new Map());
   const [truckEquipmentMap, setTruckEquipmentMap] = useState<Map<string, TruckEquipment>>(new Map());
 
+  // Safety override dialog state
+  const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
+  const [pendingAssign, setPendingAssign] = useState<{ truckId: string; legId: string; reasons: string[] } | null>(null);
+
   // Fetch truck risk states + crew capabilities + truck equipment
   useEffect(() => {
     const loadRisks = async () => {
