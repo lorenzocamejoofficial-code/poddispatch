@@ -222,10 +222,12 @@ function AppRoutes() {
       <SchedulingProvider>
         <Routes>
           <Route path="/" element={<BillingAndClaims />} />
+          <Route path="/patients" element={<Patients />} />
           <Route path="/trips" element={<TripsAndClinical />} />
           <Route path="/billing" element={<BillingAndClaims />} />
           <Route path="/compliance" element={<ComplianceAndQA />} />
           <Route path="/facilities" element={<FacilitiesPage />} />
+          <Route path="/reports" element={<ReportsAndMetrics />} />
           <Route path="/account" element={<AccountSettings />} />
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
