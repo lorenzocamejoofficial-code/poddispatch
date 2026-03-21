@@ -19,7 +19,7 @@ export function useSidebarBadges(role: string | null) {
 
     const effectiveRole = role === "owner" ? "admin" : role === "biller" ? "billing" : role;
 
-    const promises: Promise<any>[] = [];
+    const promises: Promise<{ key: string; count: number }>[] = [];
 
     // Dispatch Command badge: active operational alerts
     if (["admin", "dispatcher"].includes(effectiveRole)) {
