@@ -383,14 +383,14 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     const cp = crewProfiles.get(truckId);
     return {
       member1: cp?.member1 ? {
-        max_safe_team_lift_lbs: cp.member1.max_safe_team_lift_lbs ?? 250,
+        sex: cp.member1.sex ?? null,
         stair_chair_trained: cp.member1.stair_chair_trained ?? false,
         bariatric_trained: cp.member1.bariatric_trained ?? false,
         oxygen_handling_trained: cp.member1.oxygen_handling_trained ?? false,
         lift_assist_ok: cp.member1.lift_assist_ok ?? false,
       } : null,
       member2: cp?.member2 ? {
-        max_safe_team_lift_lbs: cp.member2.max_safe_team_lift_lbs ?? 250,
+        sex: cp.member2.sex ?? null,
         stair_chair_trained: cp.member2.stair_chair_trained ?? false,
         bariatric_trained: cp.member2.bariatric_trained ?? false,
         oxygen_handling_trained: cp.member2.oxygen_handling_trained ?? false,

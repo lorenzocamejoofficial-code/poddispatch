@@ -134,14 +134,14 @@ export default function DispatchBoard() {
       // Build crew capability + truck equipment for safety checks
       const crewCapability = {
         member1: crew?.member1 ? {
-          max_safe_team_lift_lbs: crew.member1.max_safe_team_lift_lbs ?? 250,
+          sex: crew.member1.sex ?? null,
           stair_chair_trained: crew.member1.stair_chair_trained ?? false,
           bariatric_trained: crew.member1.bariatric_trained ?? false,
           oxygen_handling_trained: crew.member1.oxygen_handling_trained ?? false,
           lift_assist_ok: crew.member1.lift_assist_ok ?? false,
         } : null,
         member2: crew?.member2 ? {
-          max_safe_team_lift_lbs: crew.member2.max_safe_team_lift_lbs ?? 250,
+          sex: crew.member2.sex ?? null,
           stair_chair_trained: crew.member2.stair_chair_trained ?? false,
           bariatric_trained: crew.member2.bariatric_trained ?? false,
           oxygen_handling_trained: crew.member2.oxygen_handling_trained ?? false,
