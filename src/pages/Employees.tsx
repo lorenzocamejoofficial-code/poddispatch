@@ -209,7 +209,7 @@ export default function Employees() {
     } else {
       toast.success(`${form.full_name} created successfully`);
       setDialogOpen(false);
-      setForm({ full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew" | "biller", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time" as "full_time" | "part_time" | "prn", max_safe_team_lift_lbs: "250", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
+      setForm({ full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew" | "biller", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time" as "full_time" | "part_time" | "prn", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
       fetchEmployees();
     }
     setCreating(false);
