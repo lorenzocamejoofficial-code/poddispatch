@@ -2,8 +2,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, PATCH, OPTIONS",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type, accept, origin, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Max-Age": "86400",
+  Vary: "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
 };
 
 const supabaseAdmin = createClient(
@@ -29,27 +32,41 @@ function getScheduleDate(tokenRow: { valid_from: string }) {
   return tokenRow.valid_from;
 }
 
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function dbErrorResponse(message: string, error: { message?: string; details?: string; code?: string } | null | undefined) {
+  return jsonResponse(
+    {
+      error: message,
+      details: error?.details ?? error?.message ?? null,
+      code: error?.code ?? null,
+    },
+    500,
+  );
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { status: 200, headers: corsHeaders });
   }
 
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
 
   if (!token) {
-    return new Response(JSON.stringify({ error: "Missing token" }), {
-      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ error: "Missing token" }, 400);
   }
 
   // ── GET: fetch run sheet ──
   if (req.method === "GET") {
     const tokenRow = await validateToken(token);
     if (!tokenRow) {
-      return new Response(JSON.stringify({ error: "Invalid or expired link." }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Invalid or expired link." }, 403);
     }
 
     const scheduleDate = getScheduleDate(tokenRow);
@@ -62,9 +79,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (truckErr || !truck) {
-      return new Response(JSON.stringify({ error: "Truck not found for token" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Truck not found for token" }, 404);
     }
 
     const [{ data: crew }, { data: slots }, { data: companySettings }, { data: activeTimers }] = await Promise.all([
@@ -174,8 +189,7 @@ Deno.serve(async (req) => {
         });
     }
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse({
         companyName: (companySettings as any)?.company_name ?? "",
         truckName: truck?.name ?? "Unknown Truck",
         companyId: (truck as any)?.company_id ?? null,
@@ -184,30 +198,30 @@ Deno.serve(async (req) => {
         member1: (crew as any)?.member1?.full_name ?? null,
         member2: (crew as any)?.member2?.full_name ?? null,
         legs,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+      });
   }
 
   // ── PATCH: actions ──
   if (req.method === "PATCH") {
     const tokenRow = await validateToken(token);
     if (!tokenRow) {
-      return new Response(JSON.stringify({ error: "Invalid or expired link." }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Invalid or expired link." }, 403);
     }
 
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
+
     const scheduleDate = getScheduleDate(tokenRow);
 
     // ── Submit full documentation ──
     if (body.action === "submit_documentation") {
       const { trip_id } = body;
       if (!trip_id) {
-        return new Response(JSON.stringify({ error: "Missing trip_id" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Missing trip_id" }, 400);
       }
 
       const { data: trip } = await supabaseAdmin
@@ -219,9 +233,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!trip) {
-        return new Response(JSON.stringify({ error: "Trip not found or access denied" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Trip not found or access denied" }, 403);
       }
 
       const updates: any = {
@@ -254,23 +266,17 @@ Deno.serve(async (req) => {
         .eq("id", trip_id);
 
       if (updateErr) {
-        return new Response(JSON.stringify({ error: "Failed to submit documentation" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return dbErrorResponse("Failed to submit documentation", updateErr);
       }
 
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: true });
     }
 
     // ── Trip capture: update loaded miles ──
     if (body.action === "update_trip") {
       const { trip_id, loaded_miles, signature_obtained, pcs_attached, complete } = body;
       if (!trip_id) {
-        return new Response(JSON.stringify({ error: "Missing trip_id" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Missing trip_id" }, 400);
       }
 
       const { data: trip } = await supabaseAdmin
@@ -282,9 +288,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!trip) {
-        return new Response(JSON.stringify({ error: "Trip not found or access denied" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Trip not found or access denied" }, 403);
       }
 
       const updates: any = {};
@@ -306,23 +310,17 @@ Deno.serve(async (req) => {
         .eq("id", trip_id);
 
       if (updateErr) {
-        return new Response(JSON.stringify({ error: "Failed to update trip" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return dbErrorResponse("Failed to update trip", updateErr);
       }
 
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: true });
     }
 
     // ── Patient not ready ──
     if (body.action === "not_ready") {
       const { leg_id, note, company_id } = body;
       if (!leg_id) {
-        return new Response(JSON.stringify({ error: "Missing leg_id" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Missing leg_id" }, 400);
       }
 
       const { data: slot } = await supabaseAdmin
@@ -334,9 +332,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!slot) {
-        return new Response(JSON.stringify({ error: "Leg not found or access denied" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Leg not found or access denied" }, 403);
       }
 
       const { data: inserted, error: insertErr } = await supabaseAdmin
@@ -355,24 +351,17 @@ Deno.serve(async (req) => {
         .single();
 
       if (insertErr) {
-        return new Response(JSON.stringify({ error: "Failed to create alert" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return dbErrorResponse("Failed to create alert", insertErr);
       }
 
-      return new Response(
-        JSON.stringify({ success: true, alert_id: inserted.id, created_at: inserted.created_at }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ success: true, alert_id: inserted.id, created_at: inserted.created_at });
     }
 
     // ── Start Wait Timer ──
     if (body.action === "start_wait") {
       const { trip_id, slot_id, hold_type, note } = body;
       if (!trip_id || !hold_type) {
-        return new Response(JSON.stringify({ error: "Missing trip_id or hold_type" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Missing trip_id or hold_type" }, 400);
       }
 
       // Verify trip belongs to this truck
@@ -384,9 +373,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!trip) {
-        return new Response(JSON.stringify({ error: "Trip not found or access denied" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Trip not found or access denied" }, 403);
       }
 
       const now = new Date().toISOString();
@@ -408,9 +395,7 @@ Deno.serve(async (req) => {
         .single();
 
       if (timerErr) {
-        return new Response(JSON.stringify({ error: "Failed to start timer" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return dbErrorResponse("Failed to start timer", timerErr);
       }
 
       // Insert trip_event
@@ -426,18 +411,14 @@ Deno.serve(async (req) => {
         meta: note ? { note } : null,
       });
 
-      return new Response(JSON.stringify({ success: true, timer_id: timer.id }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: true, timer_id: timer.id });
     }
 
     // ── End Wait Timer ──
     if (body.action === "end_wait") {
       const { timer_id, note } = body;
       if (!timer_id) {
-        return new Response(JSON.stringify({ error: "Missing timer_id" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Missing timer_id" }, 400);
       }
 
       const { data: timer } = await supabaseAdmin
@@ -448,17 +429,19 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!timer) {
-        return new Response(JSON.stringify({ error: "Timer not found or already resolved" }), {
-          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Timer not found or already resolved" }, 404);
       }
 
       const now = new Date().toISOString();
 
-      await supabaseAdmin
+      const { error: resolveErr } = await supabaseAdmin
         .from("hold_timers")
         .update({ resolved_at: now, is_active: false })
         .eq("id", timer_id);
+
+      if (resolveErr) {
+        return dbErrorResponse("Failed to resolve timer", resolveErr);
+      }
 
       // Insert end event
       await supabaseAdmin.from("trip_events").insert({
@@ -473,18 +456,14 @@ Deno.serve(async (req) => {
         meta: note ? { note } : null,
       });
 
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: true });
     }
 
     // ── Clear not ready ──
     if (body.action === "clear_not_ready") {
       const { alert_id } = body;
       if (!alert_id) {
-        return new Response(JSON.stringify({ error: "Missing alert_id" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Missing alert_id" }, 400);
       }
 
       const { error: updateErr } = await supabaseAdmin
@@ -493,30 +472,22 @@ Deno.serve(async (req) => {
         .eq("id", alert_id);
 
       if (updateErr) {
-        return new Response(JSON.stringify({ error: "Failed to resolve alert" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return dbErrorResponse("Failed to resolve alert", updateErr);
       }
 
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: true });
     }
 
     // ── Advance slot status ──
     const { slot_id, next_status } = body;
 
     if (!slot_id || !next_status) {
-      return new Response(JSON.stringify({ error: "Missing slot_id or next_status" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Missing slot_id or next_status" }, 400);
     }
 
     const STATUS_FLOW = ["pending", "en_route", "arrived", "with_patient", "transporting", "completed"];
     if (!STATUS_FLOW.includes(next_status)) {
-      return new Response(JSON.stringify({ error: "Invalid status" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Invalid status" }, 400);
     }
 
     const { data: slot } = await supabaseAdmin
@@ -528,18 +499,13 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!slot) {
-      return new Response(JSON.stringify({ error: "Slot not found or access denied" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Slot not found or access denied" }, 403);
     }
 
     const currentIdx = STATUS_FLOW.indexOf(slot.status);
     const nextIdx = STATUS_FLOW.indexOf(next_status);
     if (nextIdx !== currentIdx + 1) {
-      return new Response(
-        JSON.stringify({ error: "Status can only advance one step at a time" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: "Status can only advance one step at a time" }, 400);
     }
 
     const { error: updateError } = await supabaseAdmin
@@ -548,17 +514,11 @@ Deno.serve(async (req) => {
       .eq("id", slot_id);
 
     if (updateError) {
-      return new Response(JSON.stringify({ error: "Failed to update status" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return dbErrorResponse("Failed to update status", updateError);
     }
 
-    return new Response(JSON.stringify({ success: true, status: next_status }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ success: true, status: next_status });
   }
 
-  return new Response(JSON.stringify({ error: "Method not allowed" }), {
-    status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  return jsonResponse({ error: "Method not allowed" }, 405);
 });
