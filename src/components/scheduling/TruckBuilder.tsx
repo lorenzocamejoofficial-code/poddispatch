@@ -534,6 +534,49 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       {trucks.length === 0 && (
         <p className="text-sm text-muted-foreground">No trucks configured. Add trucks in the Trucks & Crews section.</p>
       )}
+
+      {/* Safety Override Dialog for BLOCKED assignments */}
+      <Dialog open={overrideDialogOpen} onOpenChange={setOverrideDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <ShieldX className="h-5 w-5" /> Safety Block — Override Required
+            </DialogTitle>
+            <DialogDescription>
+              This run has been blocked due to safety concerns. You must provide a reason to override.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {pendingAssign?.reasons.map((r, i) => (
+              <div key={i} className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                • {r}
+              </div>
+            ))}
+            <div className="space-y-1.5">
+              <Label htmlFor="override-reason">Override Reason (required)</Label>
+              <Textarea
+                id="override-reason"
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                placeholder="Explain why this assignment is safe to proceed…"
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setOverrideDialogOpen(false); setPendingAssign(null); }}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={!overrideReason.trim()}
+                onClick={confirmBlockedOverride}
+              >
+                Override & Assign
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
