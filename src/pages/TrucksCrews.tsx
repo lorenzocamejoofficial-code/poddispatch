@@ -218,7 +218,7 @@ function TruckDayCell({
 
 export default function TrucksCrews() {
   const { refreshTrucks } = useSchedulingStore();
-  const today = new Date().toISOString().split("T")[0];
+  const today = getLocalToday();
 
   const [trucks, setTrucks] = useState<TruckRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileOption[]>([]);

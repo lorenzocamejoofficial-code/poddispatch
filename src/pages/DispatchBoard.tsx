@@ -290,7 +290,7 @@ export default function DispatchBoard() {
   const dateLabel = new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric", year: "numeric",
   });
-  const isToday = selectedDate === new Date().toISOString().split("T")[0];
+  const isToday = selectedDate === getLocalToday();
 
   return (
     <AdminLayout>

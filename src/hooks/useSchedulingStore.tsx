@@ -315,22 +315,45 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         addedAny = true;
       }
 
-      if (isDialysis && !existingLegTypes.has("B")) {
-        const treatmentMinutes = 210;
-        const bPickupTime = chairTime ? subtractMinutes(chairTime, -treatmentMinutes) : null;
-        newLegs.push({
-          patient_id: p.id,
-          leg_type: "B",
-          pickup_time: bPickupTime,
-          chair_time: null,
-          pickup_location: p.dropoff_facility!,
-          destination_location: p.pickup_address!,
-          trip_type: "dialysis",
-          estimated_duration_minutes: duration,
-          notes: p.notes || null,
-          run_date: selectedDate,
-          company_id: companyId,
-        });
+      // Issue #8: Auto B-leg for ALL transport types (not just dialysis)
+      if (!existingLegTypes.has("B")) {
+        if (isDialysis) {
+          const treatmentMinutes = 210;
+          const bPickupTime = chairTime ? subtractMinutes(chairTime, -treatmentMinutes) : null;
+          newLegs.push({
+            patient_id: p.id,
+            leg_type: "B",
+            pickup_time: bPickupTime,
+            chair_time: null,
+            pickup_location: p.dropoff_facility!,
+            destination_location: p.pickup_address!,
+            trip_type: "dialysis",
+            estimated_duration_minutes: duration,
+            notes: p.notes || null,
+            run_date: selectedDate,
+            company_id: companyId,
+          });
+        } else {
+          // Non-dialysis: B-leg returns patient from facility to home
+          // Estimate B pickup = A pickup + duration + appointment duration (default 60 min)
+          const appointmentMinutes = 60;
+          const bPickupTime = chairTime
+            ? subtractMinutes(chairTime, -(appointmentMinutes))
+            : null;
+          newLegs.push({
+            patient_id: p.id,
+            leg_type: "B",
+            pickup_time: bPickupTime,
+            chair_time: null,
+            pickup_location: p.dropoff_facility!,
+            destination_location: p.pickup_address!,
+            trip_type: tripType,
+            estimated_duration_minutes: duration,
+            notes: p.notes || null,
+            run_date: selectedDate,
+            company_id: companyId,
+          });
+        }
         addedAny = true;
       }
 

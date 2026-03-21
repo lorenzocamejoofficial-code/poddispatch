@@ -204,7 +204,7 @@ export default function Scheduling() {
   const [savingException, setSavingException] = useState(false);
 
   const weekDates = getWeekDates(selectedDate);
-  const today = new Date().toISOString().split("T")[0];
+  const today = getLocalToday();
 
   const fetchWeekSummaries = useCallback(async () => {
     const startDate = weekDates[0];
