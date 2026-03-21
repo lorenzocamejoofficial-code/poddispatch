@@ -59,7 +59,7 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-xs ${
+      className={`rounded-md border px-2 py-1.5 text-xs ${
         isCancelled ? "bg-destructive/10 border-destructive/40 opacity-75" :
         "bg-card"
       } ${
@@ -67,7 +67,8 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
         !isCancelled && leg.has_exception ? "border-primary/40" : ""
       } ${isDragging ? "shadow-md ring-1 ring-primary/30" : ""}`}
     >
-      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+      {/* Top row: drag handle, leg badge, name, time */}
+      <div className="flex items-center gap-1.5 min-w-0">
         <button
           {...attributes}
           {...listeners}
@@ -80,6 +81,33 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
           leg.leg_type === "A" ? "bg-primary/10 text-primary" : "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]"
         }`}>{leg.leg_type}</span>
         <span className={`truncate font-medium ${isCancelled ? "line-through text-muted-foreground" : "text-card-foreground"}`}>{leg.patient_name}</span>
+        {leg.pickup_time && <span className="text-muted-foreground shrink-0 ml-auto">{leg.pickup_time}</span>}
+        <div className="flex items-center gap-0.5 shrink-0">
+          {isCancelled ? (
+            onRestore && (
+              <Button variant="ghost" size="sm" className="h-5 text-[10px] text-primary hover:text-primary px-1.5" onClick={onRestore} title="Restore this run">
+                Undo
+              </Button>
+            )
+          ) : (
+            <>
+              <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEditException} title="Edit this run only">
+                <Pencil className="h-2.5 w-2.5" />
+              </Button>
+              {onCancel && (
+                <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:text-destructive" onClick={onCancel} title="Cancel this run">
+                  <XCircle className="h-2.5 w-2.5" />
+                </Button>
+              )}
+              <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onRemove}>
+                <Trash2 className="h-2.5 w-2.5" />
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+      {/* Second row: badges — stacked below for spacing (issue #5) */}
+      <div className="flex flex-wrap items-center gap-1 mt-1 pl-5">
         {leg.is_oneoff && (
           <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
         )}
@@ -93,33 +121,8 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
             NOT READY
           </span>
         )}
-        {leg.pickup_time && <span className="text-muted-foreground shrink-0">{leg.pickup_time}</span>}
-        {/* Safety classification badge */}
         {safetyStatus && (
           <SafetyClassificationBadge status={safetyStatus} reasons={safetyReasons ?? []} missingFields={missingFields ?? []} isOneoff={leg.is_oneoff} />
-        )}
-      </div>
-      <div className="flex items-center gap-0.5 shrink-0">
-        {isCancelled ? (
-          onRestore && (
-            <Button variant="ghost" size="sm" className="h-5 text-[10px] text-primary hover:text-primary px-1.5" onClick={onRestore} title="Restore this run">
-              Undo
-            </Button>
-          )
-        ) : (
-          <>
-            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEditException} title="Edit this run only">
-              <Pencil className="h-2.5 w-2.5" />
-            </Button>
-            {onCancel && (
-              <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:text-destructive" onClick={onCancel} title="Cancel this run">
-                <XCircle className="h-2.5 w-2.5" />
-              </Button>
-            )}
-            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onRemove}>
-              <Trash2 className="h-2.5 w-2.5" />
-            </Button>
-          </>
         )}
       </div>
     </div>

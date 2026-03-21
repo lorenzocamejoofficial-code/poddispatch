@@ -646,7 +646,18 @@ export default function Patients() {
                           {tType === "dialysis" ? "Dialysis" : tType === "outpatient" ? "Outpatient" : "Ad-hoc"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{p.schedule_days ?? "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {(() => {
+                          const rd = (p as any).recurrence_days;
+                          const sd = p.schedule_days;
+                          const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+                          if (rd && rd.length > 0) return rd.sort((a:number,b:number)=>a-b).map((d:number) => DAY_NAMES[d] ?? `Day${d}`).join(", ");
+                          if (sd === "MWF") return "Mon, Wed, Fri";
+                          if (sd === "TTS") return "Tue, Thu, Sat";
+                          if (sd) return sd;
+                          return "No schedule";
+                        })()}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">{p.phone ?? "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {p.weight_lbs ? (
