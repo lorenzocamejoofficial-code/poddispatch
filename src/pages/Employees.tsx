@@ -263,7 +263,7 @@ export default function Employees() {
       active: emp.active,
       employment_type: (emp.employment_type ?? "full_time") as "full_time" | "part_time" | "prn",
       role: emp.role === "Owner" ? "owner" : (emp.role ?? "crew"),
-      max_safe_team_lift_lbs: (emp.max_safe_team_lift_lbs ?? 250).toString(),
+      
       stair_chair_trained: emp.stair_chair_trained ?? false,
       bariatric_trained: emp.bariatric_trained ?? false,
       oxygen_handling_trained: emp.oxygen_handling_trained ?? false,
