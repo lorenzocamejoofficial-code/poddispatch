@@ -195,7 +195,7 @@ export default function Employees() {
         cert_level: form.cert_level,
         phone_number: form.phone_number.trim() || null,
         employment_type: form.employment_type,
-        max_safe_team_lift_lbs: parseInt(form.max_safe_team_lift_lbs) || 250,
+        
         stair_chair_trained: form.stair_chair_trained,
         bariatric_trained: form.bariatric_trained,
         oxygen_handling_trained: form.oxygen_handling_trained,
