@@ -11,7 +11,7 @@ interface SafetyClassificationBadgeProps {
 
 const STATUS_CONFIG = {
   OK: { icon: ShieldCheck, color: "text-[hsl(var(--status-green))]", label: "SAFE", bg: "bg-[hsl(var(--status-green))]/10 border-[hsl(var(--status-green))]/30" },
-  WARNING: { icon: ShieldAlert, color: "text-[hsl(var(--status-yellow))]", label: "WARNING", bg: "bg-[hsl(var(--status-yellow-bg))] border-[hsl(var(--status-yellow))]/30" },
+  WARNING: { icon: ShieldAlert, color: "text-[hsl(var(--status-yellow))]", label: "CAUTION", bg: "bg-[hsl(var(--status-yellow-bg))] border-[hsl(var(--status-yellow))]/30" },
   BLOCKED: { icon: ShieldX, color: "text-destructive", label: "BLOCKED", bg: "bg-destructive/10 border-destructive/30" },
 };
 
