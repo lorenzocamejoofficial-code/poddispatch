@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { PageLoader } from "@/components/ui/page-loader";
+import { getLocalToday } from "@/lib/local-date";
 import { EmptyState } from "@/components/ui/empty-state";
 import { supabase } from "@/integrations/supabase/client";
 import { TruckCard } from "@/components/dispatch/TruckCard";
