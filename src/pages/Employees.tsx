@@ -174,6 +174,17 @@ export default function Employees() {
       return;
     }
 
+    // Issue #1: Duplicate phone check
+    if (form.phone_number.trim()) {
+      const existingPhone = employees.find(
+        (e) => e.phone_number && e.phone_number === form.phone_number.trim()
+      );
+      if (existingPhone) {
+        toast.error(`Phone number already in use by ${existingPhone.full_name}`);
+        return;
+      }
+    }
+
     setCreating(true);
     const { data, error } = await supabase.functions.invoke("create-user", {
       body: {
