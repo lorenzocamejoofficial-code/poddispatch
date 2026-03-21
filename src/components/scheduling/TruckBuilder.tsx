@@ -447,25 +447,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     onRefresh();
   }, [selectedDate, onRefresh]);
 
-  const getCrewCapability = useCallback((truckId: string): CrewCapability => {
-    const cp = crewProfiles.get(truckId);
-    return {
-      member1: cp?.member1 ? {
-        sex: cp.member1.sex ?? null,
-        stair_chair_trained: cp.member1.stair_chair_trained ?? false,
-        bariatric_trained: cp.member1.bariatric_trained ?? false,
-        oxygen_handling_trained: cp.member1.oxygen_handling_trained ?? false,
-        lift_assist_ok: cp.member1.lift_assist_ok ?? false,
-      } : null,
-      member2: cp?.member2 ? {
-        sex: cp.member2.sex ?? null,
-        stair_chair_trained: cp.member2.stair_chair_trained ?? false,
-        bariatric_trained: cp.member2.bariatric_trained ?? false,
-        oxygen_handling_trained: cp.member2.oxygen_handling_trained ?? false,
-        lift_assist_ok: cp.member2.lift_assist_ok ?? false,
-      } : null,
-    };
-  }, [crewProfiles]);
+  // getCrewCapability moved above assignLeg
 
   const utilizationColor = useCallback((count: number) => {
     if (count >= 6 && count <= 8) return "bg-[hsl(var(--status-green))]/20 text-[hsl(var(--status-green))] border-[hsl(var(--status-green))]/30";
