@@ -209,7 +209,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     };
     const loadCrewCaps = async () => {
       const { data } = await supabase.from("crews")
-        .select("truck_id, member1:profiles!crews_member1_id_fkey(max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
+        .select("truck_id, member1:profiles!crews_member1_id_fkey(sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
         .eq("active_date", selectedDate);
       const map = new Map<string, { member1: any; member2: any }>();
       for (const c of (data ?? []) as any[]) {
@@ -383,14 +383,14 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     const cp = crewProfiles.get(truckId);
     return {
       member1: cp?.member1 ? {
-        max_safe_team_lift_lbs: cp.member1.max_safe_team_lift_lbs ?? 250,
+        sex: cp.member1.sex ?? null,
         stair_chair_trained: cp.member1.stair_chair_trained ?? false,
         bariatric_trained: cp.member1.bariatric_trained ?? false,
         oxygen_handling_trained: cp.member1.oxygen_handling_trained ?? false,
         lift_assist_ok: cp.member1.lift_assist_ok ?? false,
       } : null,
       member2: cp?.member2 ? {
-        max_safe_team_lift_lbs: cp.member2.max_safe_team_lift_lbs ?? 250,
+        sex: cp.member2.sex ?? null,
         stair_chair_trained: cp.member2.stair_chair_trained ?? false,
         bariatric_trained: cp.member2.bariatric_trained ?? false,
         oxygen_handling_trained: cp.member2.oxygen_handling_trained ?? false,

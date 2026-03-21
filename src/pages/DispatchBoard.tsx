@@ -105,7 +105,7 @@ export default function DispatchBoard() {
       supabase.from("trip_records" as any).select("*").eq("run_date", selectedDate),
       supabase.from("payer_billing_rules" as any).select("*"),
       supabase.from("crews")
-        .select("*, member1:profiles!crews_member1_id_fkey(id, full_name, max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(id, full_name, max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
+        .select("*, member1:profiles!crews_member1_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
         .eq("active_date", selectedDate),
     ]);
 
@@ -134,14 +134,14 @@ export default function DispatchBoard() {
       // Build crew capability + truck equipment for safety checks
       const crewCapability = {
         member1: crew?.member1 ? {
-          max_safe_team_lift_lbs: crew.member1.max_safe_team_lift_lbs ?? 250,
+          sex: crew.member1.sex ?? null,
           stair_chair_trained: crew.member1.stair_chair_trained ?? false,
           bariatric_trained: crew.member1.bariatric_trained ?? false,
           oxygen_handling_trained: crew.member1.oxygen_handling_trained ?? false,
           lift_assist_ok: crew.member1.lift_assist_ok ?? false,
         } : null,
         member2: crew?.member2 ? {
-          max_safe_team_lift_lbs: crew.member2.max_safe_team_lift_lbs ?? 250,
+          sex: crew.member2.sex ?? null,
           stair_chair_trained: crew.member2.stair_chair_trained ?? false,
           bariatric_trained: crew.member2.bariatric_trained ?? false,
           oxygen_handling_trained: crew.member2.oxygen_handling_trained ?? false,

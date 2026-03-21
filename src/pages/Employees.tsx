@@ -23,7 +23,7 @@ interface Employee {
   active: boolean;
   role?: string;
   employment_type?: string;
-  max_safe_team_lift_lbs?: number;
+  
   stair_chair_trained?: boolean;
   bariatric_trained?: boolean;
   oxygen_handling_trained?: boolean;
@@ -74,7 +74,6 @@ export default function Employees() {
     full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew" | "biller",
     sex: "M" as "M" | "F", cert_level: "EMT-B", phone_number: "",
     employment_type: "full_time" as "full_time" | "part_time" | "prn",
-    max_safe_team_lift_lbs: "250",
     stair_chair_trained: false, bariatric_trained: false,
     oxygen_handling_trained: false, lift_assist_ok: false,
     active: true,
@@ -84,7 +83,7 @@ export default function Employees() {
     cert_level: "EMT-B", active: true,
     employment_type: "full_time" as "full_time" | "part_time" | "prn",
     role: "crew" as string,
-    max_safe_team_lift_lbs: "250", stair_chair_trained: false,
+    stair_chair_trained: false,
     bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false,
   });
 
@@ -134,7 +133,7 @@ export default function Employees() {
         active: p.active ?? true,
         role: roleLabel,
         employment_type: p.employment_type ?? "full_time",
-        max_safe_team_lift_lbs: p.max_safe_team_lift_lbs ?? 250,
+        
         stair_chair_trained: p.stair_chair_trained ?? false,
         bariatric_trained: p.bariatric_trained ?? false,
         oxygen_handling_trained: p.oxygen_handling_trained ?? false,
@@ -196,7 +195,7 @@ export default function Employees() {
         cert_level: form.cert_level,
         phone_number: form.phone_number.trim() || null,
         employment_type: form.employment_type,
-        max_safe_team_lift_lbs: parseInt(form.max_safe_team_lift_lbs) || 250,
+        
         stair_chair_trained: form.stair_chair_trained,
         bariatric_trained: form.bariatric_trained,
         oxygen_handling_trained: form.oxygen_handling_trained,
@@ -210,7 +209,7 @@ export default function Employees() {
     } else {
       toast.success(`${form.full_name} created successfully`);
       setDialogOpen(false);
-      setForm({ full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew" | "biller", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time" as "full_time" | "part_time" | "prn", max_safe_team_lift_lbs: "250", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
+      setForm({ full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew" | "biller", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time" as "full_time" | "part_time" | "prn", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
       fetchEmployees();
     }
     setCreating(false);
@@ -264,7 +263,7 @@ export default function Employees() {
       active: emp.active,
       employment_type: (emp.employment_type ?? "full_time") as "full_time" | "part_time" | "prn",
       role: emp.role === "Owner" ? "owner" : (emp.role ?? "crew"),
-      max_safe_team_lift_lbs: (emp.max_safe_team_lift_lbs ?? 250).toString(),
+      
       stair_chair_trained: emp.stair_chair_trained ?? false,
       bariatric_trained: emp.bariatric_trained ?? false,
       oxygen_handling_trained: emp.oxygen_handling_trained ?? false,
@@ -298,7 +297,7 @@ export default function Employees() {
       cert_level: editForm.cert_level,
       active: editForm.active,
       employment_type: editForm.employment_type,
-      max_safe_team_lift_lbs: editForm.max_safe_team_lift_lbs ? parseInt(editForm.max_safe_team_lift_lbs) : 250,
+      
       stair_chair_trained: editForm.stair_chair_trained,
       bariatric_trained: editForm.bariatric_trained,
       oxygen_handling_trained: editForm.oxygen_handling_trained,
@@ -483,10 +482,6 @@ export default function Employees() {
                   {/* Crew Capability Toggles */}
                   <div className="border-t pt-3 space-y-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Crew Capabilities</p>
-                    <div>
-                      <Label>Max Safe Team Lift (lbs)</Label>
-                      <Input type="number" value={form.max_safe_team_lift_lbs} onChange={e => setForm({ ...form, max_safe_team_lift_lbs: e.target.value })} placeholder="250" />
-                    </div>
                     <div className="flex flex-wrap gap-4">
                       {[
                         { key: "stair_chair_trained" as const, label: "Stair Chair Trained" },
@@ -752,10 +747,6 @@ export default function Employees() {
               {/* Crew Capability Toggles */}
               <div className="border-t pt-3 space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Crew Capabilities</p>
-                <div>
-                  <Label>Max Safe Team Lift (lbs)</Label>
-                  <Input type="number" value={editForm.max_safe_team_lift_lbs} onChange={e => setEditForm({ ...editForm, max_safe_team_lift_lbs: e.target.value })} placeholder="250" />
-                </div>
                 <div className="flex flex-wrap gap-4">
                   {[
                     { key: "stair_chair_trained" as const, label: "Stair Chair Trained" },
