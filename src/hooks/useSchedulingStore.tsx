@@ -376,12 +376,13 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     Promise.all([fetchLegs(), fetchOptions(), fetchCrews()]).finally(() => setLoading(false));
 
-    // Realtime: re-fetch when any scheduling or crew data changes
+    // Realtime: re-fetch when any scheduling, crew, or trip status data changes
     const channel = supabase
       .channel("scheduling-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs" }, () => fetchLegs())
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => fetchLegs())
       .on("postgres_changes", { event: "*", schema: "public", table: "leg_exceptions" }, () => fetchLegs())
+      .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, () => fetchLegs())
       .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => fetchCrews())
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => fetchCrews())
       .on("postgres_changes", { event: "*", schema: "public", table: "trucks" }, () => fetchOptions())
