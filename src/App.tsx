@@ -203,9 +203,11 @@ function AppRoutes() {
           <Route path="/crew-schedule" element={<CrewScheduleAdmin />} />
           <Route path="/crew/:token" element={<DailyRunSheet />} />
           <Route path="/patients" element={<Patients />} />
-          <Route path="/trips" element={<TripsAndClinical />} />
           <Route path="/facilities" element={<FacilitiesPage />} />
+          <Route path="/employees" element={<Employees />} />
           <Route path="/trucks" element={<TrucksCrews />} />
+          <Route path="/migration" element={<MigrationOnboarding />} />
+          <Route path="/settings" element={<AdminSettings />} />
           <Route path="/account" element={<AccountSettings />} />
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
