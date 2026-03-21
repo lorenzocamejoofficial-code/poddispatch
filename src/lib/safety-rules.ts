@@ -1,5 +1,5 @@
-// Safe Handling & Readiness Engine — Deterministic Rules Engine
-// Evaluates patient needs vs crew capabilities + truck equipment
+// Safe Handling & Readiness Engine — Crew-Sex-Based Safety Matrix
+// Evaluates bariatric patient status against crew sex composition + truck equipment
 
 export type SafetyStatus = "OK" | "WARNING" | "BLOCKED";
 
@@ -10,25 +10,25 @@ export interface SafetyEvaluation {
 
 export interface PatientNeeds {
   weight_lbs?: number | null;
-  mobility?: string | null; // ambulatory | wheelchair | stretcher | bedbound
-  stairs_required?: string | null; // none | few_steps | full_flight | unknown
+  mobility?: string | null;
+  stairs_required?: string | null;
   stair_chair_required?: boolean | null;
   oxygen_required?: boolean | null;
   oxygen_lpm?: number | null;
-  special_equipment_required?: string | null; // none | bariatric_stretcher | extra_crew | lift_assist | other
+  special_equipment_required?: string | null;
   bariatric?: boolean | null;
 }
 
 export interface CrewCapability {
   member1?: {
-    max_safe_team_lift_lbs?: number;
+    sex?: string | null; // "M" | "F"
     stair_chair_trained?: boolean;
     bariatric_trained?: boolean;
     oxygen_handling_trained?: boolean;
     lift_assist_ok?: boolean;
   } | null;
   member2?: {
-    max_safe_team_lift_lbs?: number;
+    sex?: string | null;
     stair_chair_trained?: boolean;
     bariatric_trained?: boolean;
     oxygen_handling_trained?: boolean;
@@ -56,6 +56,29 @@ export function deriveWeightClass(weight: number | null | undefined): string {
   return "350+";
 }
 
+/**
+ * Derive crew sex composition: "MM" | "MF" | "FF" | "unknown"
+ */
+function getCrewSexComposition(crew: CrewCapability): "MM" | "MF" | "FF" | "unknown" {
+  const s1 = crew.member1?.sex?.toUpperCase() ?? null;
+  const s2 = crew.member2?.sex?.toUpperCase() ?? null;
+
+  // If no crew assigned at all, return unknown
+  if (!s1 && !s2) return "unknown";
+
+  // Single-member crew: treat the solo member's sex as the composition
+  const sexes = [s1, s2].filter(Boolean).sort() as string[];
+  if (sexes.length === 0) return "unknown";
+  if (sexes.length === 1) {
+    // Solo crew: treat as same-sex pair for safety purposes
+    return sexes[0] === "M" ? "MM" : "FF";
+  }
+
+  if (sexes[0] === "F" && sexes[1] === "F") return "FF";
+  if (sexes[0] === "M" && sexes[1] === "M") return "MM";
+  return "MF"; // one M one F
+}
+
 export function evaluateSafetyRules(
   patient: PatientNeeds,
   crew: CrewCapability,
@@ -64,97 +87,63 @@ export function evaluateSafetyRules(
   const reasons: string[] = [];
   let status: SafetyStatus = "OK";
 
-  const weightClass = deriveWeightClass(patient.weight_lbs);
-  const crewMaxLift = Math.min(
-    crew.member1?.max_safe_team_lift_lbs ?? 250,
-    crew.member2?.max_safe_team_lift_lbs ?? 250
-  );
+  const hasPowerStretcher = truck.has_power_stretcher ?? false;
+  const isBariatric = patient.bariatric === true || (patient.weight_lbs != null && patient.weight_lbs >= 300);
 
-  // Power Stretcher = bariatric-capable in GA ground ambulance
-  const hasBariCapable = truck.has_power_stretcher ?? false;
+  // ── PRIMARY MATRIX: Bariatric patient safety ──
+  if (isBariatric) {
+    const sexComp = getCrewSexComposition(crew);
 
-  // ── Weight-based checks ──
-  if (weightClass === "350+" || (patient.weight_lbs && patient.weight_lbs >= 350)) {
-    if (!hasBariCapable) {
-      reasons.push("Weight 350+ lbs — power stretcher (bariatric-capable) required");
-      status = "BLOCKED";
-    }
-    if (!crew.member1?.bariatric_trained && !crew.member2?.bariatric_trained) {
-      reasons.push("Weight 350+ lbs but crew not bariatric trained");
-      status = "BLOCKED";
-    }
-  } else if (weightClass === "300-349" || (patient.weight_lbs && patient.weight_lbs >= 300)) {
-    if (!hasBariCapable) {
-      reasons.push("Weight 300+ lbs — power stretcher recommended");
-      if (status === "OK") status = "WARNING";
-    }
-  }
+    switch (sexComp) {
+      case "MM":
+        if (hasPowerStretcher) {
+          // SAFE — no issues
+        } else {
+          reasons.push("Bariatric patient, power stretcher recommended");
+          status = "WARNING";
+        }
+        break;
 
-  if (patient.weight_lbs && patient.weight_lbs > crewMaxLift) {
-    reasons.push(`Patient ${patient.weight_lbs} lbs exceeds crew safe lift limit (${crewMaxLift} lbs)`);
-    if (status === "OK") status = "WARNING";
-  }
+      case "MF":
+        if (hasPowerStretcher) {
+          reasons.push("Mixed crew with bariatric patient, monitor");
+          status = "WARNING";
+        } else {
+          reasons.push("Bariatric patient requires power stretcher with mixed crew");
+          status = "BLOCKED";
+        }
+        break;
 
-  // ── Mobility checks ──
-  if (patient.mobility === "stretcher" || patient.mobility === "bedbound") {
-    if (!truck.has_power_stretcher) {
-      reasons.push("Stretcher/bedbound patient without power stretcher on truck");
-      if (status === "OK") status = "WARNING";
-    }
-  }
+      case "FF":
+        if (hasPowerStretcher) {
+          reasons.push("Bariatric patient, manual rescue risk with all-female crew");
+          status = "WARNING";
+        } else {
+          reasons.push("Bariatric patient cannot be safely transported by all-female crew without power stretcher");
+          status = "BLOCKED";
+        }
+        break;
 
-  if (patient.mobility === "bedbound" && !truck.has_power_stretcher) {
-    reasons.push("Bedbound patient — power stretcher required");
-    status = "BLOCKED";
-  }
-
-  // ── Stairs checks ──
-  if (patient.stairs_required === "full_flight" || patient.stair_chair_required) {
-    if (!truck.has_stair_chair) {
-      reasons.push("Stairs required but no stair chair on truck");
-      if (status === "OK") status = "WARNING";
-    }
-    if (!crew.member1?.stair_chair_trained && !crew.member2?.stair_chair_trained) {
-      reasons.push("Stairs required but crew not stair-chair trained");
-      status = "BLOCKED";
-    }
-  } else if (patient.stairs_required === "few_steps") {
-    if (!crew.member1?.stair_chair_trained && !crew.member2?.stair_chair_trained) {
-      reasons.push("Steps at location — crew stair-chair training recommended");
-      if (status === "OK") status = "WARNING";
+      case "unknown":
+        // No crew assigned yet — warn that crew is needed for bariatric eval
+        reasons.push("Bariatric patient — assign crew to evaluate safety");
+        if (status === "OK") status = "WARNING";
+        break;
     }
   }
 
-  // ── Oxygen checks ──
+  // ── Oxygen checks (kept from original — not crew-sex dependent) ──
   if (patient.oxygen_required) {
     if (!truck.has_oxygen_mount) {
       reasons.push("Patient requires oxygen but truck has no oxygen mount");
       status = "BLOCKED";
     }
-    if (!crew.member1?.oxygen_handling_trained && !crew.member2?.oxygen_handling_trained) {
-      reasons.push("Patient requires oxygen but crew not oxygen-handling trained");
-      if (status === "OK") status = "WARNING";
-    }
   }
 
-  // ── Special equipment checks ──
-  if (patient.special_equipment_required === "bariatric_stretcher") {
-    if (!hasBariCapable) {
-      reasons.push("Bariatric stretcher required — truck needs power stretcher");
-      status = "BLOCKED";
-    }
-  }
-  if (patient.special_equipment_required === "extra_crew") {
-    const hasLiftAssist = crew.member1?.lift_assist_ok || crew.member2?.lift_assist_ok;
-    if (!hasLiftAssist) {
-      reasons.push("Extra crew needed — no lift-assist capable member assigned");
-      if (status === "OK") status = "WARNING";
-    }
-  }
-  if (patient.special_equipment_required === "lift_assist") {
-    const hasLiftAssist = crew.member1?.lift_assist_ok || crew.member2?.lift_assist_ok;
-    if (!hasLiftAssist) {
-      reasons.push("Lift assist required — no lift-assist capable member assigned");
+  // ── Stair chair checks (kept — equipment-based) ──
+  if (patient.stairs_required === "full_flight" || patient.stair_chair_required) {
+    if (!truck.has_stair_chair) {
+      reasons.push("Stairs required but no stair chair on truck");
       if (status === "OK") status = "WARNING";
     }
   }
