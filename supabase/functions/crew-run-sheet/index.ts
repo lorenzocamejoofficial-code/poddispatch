@@ -12,22 +12,21 @@ const supabaseAdmin = createClient(
 );
 
 async function validateToken(token: string) {
-  const today = new Date().toISOString().split("T")[0];
+  // Don't filter by server UTC date — just check token is active.
+  // The token's valid_from is the authoritative schedule date.
   const { data: tokenRow, error } = await supabaseAdmin
     .from("crew_share_tokens")
     .select("truck_id, valid_from, valid_until")
     .eq("token", token)
     .eq("active", true)
-    .lte("valid_from", today)
-    .gte("valid_until", today)
     .maybeSingle();
   if (error || !tokenRow) return null;
   return tokenRow;
 }
 
-function getScheduleDate(tokenRow: { valid_from: string; valid_until: string }) {
-  const today = new Date().toISOString().split("T")[0];
-  return today >= tokenRow.valid_from && today <= tokenRow.valid_until ? today : tokenRow.valid_from;
+function getScheduleDate(tokenRow: { valid_from: string }) {
+  // Use the date stored on the token record — never recalculate from server UTC
+  return tokenRow.valid_from;
 }
 
 Deno.serve(async (req) => {
