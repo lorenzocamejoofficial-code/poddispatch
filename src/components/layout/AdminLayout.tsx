@@ -146,6 +146,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           )}
           {visibleNav.map((item) => {
             const active = location.pathname === item.path;
+            const badgeCount = getBadgeForPath(item.path, badgeCounts);
             return (
               <Link
                 key={item.path}
@@ -159,7 +160,12 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 )}
               >
                 <item.icon className="h-4 w-4" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {badgeCount > 0 && (
+                  <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
+                    {badgeCount > 99 ? "99+" : badgeCount}
+                  </span>
+                )}
               </Link>
             );
           })}
