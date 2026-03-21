@@ -747,10 +747,6 @@ export default function Employees() {
               {/* Crew Capability Toggles */}
               <div className="border-t pt-3 space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Crew Capabilities</p>
-                <div>
-                  <Label>Max Safe Team Lift (lbs)</Label>
-                  <Input type="number" value={editForm.max_safe_team_lift_lbs} onChange={e => setEditForm({ ...editForm, max_safe_team_lift_lbs: e.target.value })} placeholder="250" />
-                </div>
                 <div className="flex flex-wrap gap-4">
                   {[
                     { key: "stair_chair_trained" as const, label: "Stair Chair Trained" },
