@@ -136,7 +136,7 @@ interface SchedulingStore {
 const SchedulingContext = createContext<SchedulingStore | undefined>(undefined);
 
 export function SchedulingProvider({ children }: { children: ReactNode }) {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(getLocalToday());
   const [legs, setLegs] = useState<LegDisplay[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [trucks, setTrucks] = useState<TruckOption[]>([]);
