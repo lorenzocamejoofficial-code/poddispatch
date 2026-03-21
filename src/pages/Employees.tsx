@@ -279,6 +279,17 @@ export default function Employees() {
       toast.error("Name is required");
       return;
     }
+
+    // Issue #1: Duplicate phone check on edit
+    if (editForm.phone_number.trim()) {
+      const existingPhone = employees.find(
+        (e) => e.id !== editingEmployee.id && e.phone_number && e.phone_number === editForm.phone_number.trim()
+      );
+      if (existingPhone) {
+        toast.error(`Phone number already in use by ${existingPhone.full_name}`);
+        return;
+      }
+    }
     setSaving(true);
     const { error } = await supabase.from("profiles").update({
       full_name: editForm.full_name.trim(),
