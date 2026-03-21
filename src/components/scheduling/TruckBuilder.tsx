@@ -301,6 +301,39 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       toast.error("Truck is full (10 run slots max)");
       return;
     }
+
+    // Check safety: BLOCKED requires override before assignment
+    const leg = legs.find(l => l.id === legId);
+    if (leg) {
+      const crewCap = getCrewCapability(truckId);
+      const equip = truckEquipmentMap.get(truckId);
+      if (equip) {
+        const patientNeeds: PatientNeeds = {
+          weight_lbs: leg.patient_weight,
+          mobility: leg.patient_mobility ?? null,
+          stairs_required: leg.patient_stairs_required ?? null,
+          stair_chair_required: leg.patient_stair_chair_required ?? null,
+          oxygen_required: leg.patient_oxygen_required ?? null,
+          oxygen_lpm: leg.patient_oxygen_lpm ?? null,
+          special_equipment_required: leg.patient_special_equipment ?? null,
+          bariatric: leg.patient_bariatric ?? null,
+        };
+        const safetyResult = evaluateSafetyRules(patientNeeds, crewCap, equip);
+        if (safetyResult.status === "BLOCKED") {
+          // Show override dialog instead of assigning
+          setPendingAssign({ truckId, legId, reasons: safetyResult.reasons });
+          setOverrideReason("");
+          setOverrideDialogOpen(true);
+          return;
+        }
+      }
+    }
+
+    await doAssignLeg(truckId, legId);
+  }, [truckLegs, legs, getCrewCapability, truckEquipmentMap]);
+
+  const doAssignLeg = useCallback(async (truckId: string, legId: string) => {
+    const currentSlots = truckLegs(truckId);
     const { data: companyId } = await supabase.rpc("get_my_company_id");
     const { error } = await supabase.from("truck_run_slots").insert({
       truck_id: truckId,
@@ -321,6 +354,33 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     setAddingLeg(null);
     onRefresh();
   }, [truckLegs, selectedDate, onRefresh, setAddingLeg]);
+
+  const confirmBlockedOverride = useCallback(async () => {
+    if (!pendingAssign || !overrideReason.trim()) {
+      toast.error("Override reason is required");
+      return;
+    }
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
+
+    // Log override to safety_overrides table
+    await supabase.from("safety_overrides").insert({
+      leg_id: pendingAssign.legId,
+      overridden_by: user?.id,
+      override_reason: overrideReason.trim(),
+      override_status: "BLOCKED",
+      reasons: pendingAssign.reasons,
+      company_id: companyId,
+    } as any);
+
+    setOverrideDialogOpen(false);
+    setPendingAssign(null);
+    setOverrideReason("");
+
+    // Now proceed with assignment
+    await doAssignLeg(pendingAssign.truckId, pendingAssign.legId);
+    toast.success("Safety override logged — leg assigned");
+  }, [pendingAssign, overrideReason, doAssignLeg]);
 
   const removeLeg = useCallback(async (legId: string) => {
     await supabase.from("truck_run_slots").delete().eq("leg_id", legId).eq("run_date", selectedDate);
