@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useSchedulingStore as useGlobalSchedulingStore } from "@/hooks/useSchedulingStore";
 import { supabase } from "@/integrations/supabase/client";
+import { evaluateSafetyRules, type PatientNeeds, type CrewCapability, type TruckEquipment } from "@/lib/safety-rules";
 import { useAuth } from "@/hooks/useAuth";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { Button } from "@/components/ui/button";
