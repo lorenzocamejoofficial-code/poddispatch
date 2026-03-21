@@ -55,6 +55,7 @@ const navItems: NavItem[] = [
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { user, signOut, role, isSystemCreator } = useAuth();
+  const badgeCounts = useSidebarBadges(role);
   const location = useLocation();
   const navigate = useNavigate();
   const [companyName, setCompanyName] = useState("PodDispatch");
