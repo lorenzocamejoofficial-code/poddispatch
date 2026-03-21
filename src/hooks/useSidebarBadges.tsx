@@ -2,101 +2,59 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface SidebarBadgeCounts {
-  dispatch: number;     // active unread operational_alerts
-  billing: number;      // trip_records ready_for_billing without matching claim
-  overrides: number;    // safety + billing overrides in last 24h
-  compliance: number;   // qa_reviews with status pending
-  trips: number;        // completed trips missing PCR fields
+  dispatch: number;
+  billing: number;
+  overrides: number;
+  compliance: number;
+  trips: number;
 }
 
 const EMPTY: SidebarBadgeCounts = { dispatch: 0, billing: 0, overrides: 0, compliance: 0, trips: 0 };
+
+async function countQuery(table: string, filters: Record<string, any>): Promise<number> {
+  let q = supabase.from(table as any).select("id", { count: "exact", head: true });
+  for (const [k, v] of Object.entries(filters)) {
+    q = q.eq(k, v);
+  }
+  const { count } = await q;
+  return count ?? 0;
+}
 
 export function useSidebarBadges(role: string | null) {
   const [counts, setCounts] = useState<SidebarBadgeCounts>(EMPTY);
 
   const fetchCounts = useCallback(async () => {
     if (!role) return;
+    const r = role === "owner" ? "admin" : role === "biller" ? "billing" : role;
+    const next = { ...EMPTY };
 
-    const effectiveRole = role === "owner" ? "admin" : role === "biller" ? "billing" : role;
+    const jobs: Promise<void>[] = [];
 
-    const promises: Promise<{ key: string; count: number }>[] = [];
-
-    // Dispatch Command badge: active operational alerts
-    if (["admin", "dispatcher"].includes(effectiveRole)) {
-      promises.push(
-        supabase
-          .from("operational_alerts" as any)
-          .select("id", { count: "exact", head: true })
-          .eq("status", "open")
-          .then(({ count }) => ({ key: "dispatch", count: count ?? 0 }))
-      );
-    } else {
-      promises.push(Promise.resolve({ key: "dispatch", count: 0 }));
+    if (["admin", "dispatcher"].includes(r)) {
+      jobs.push(countQuery("operational_alerts", { status: "open" }).then(c => { next.dispatch = c; }));
     }
-
-    // Billing badge: trip_records ready_for_billing
-    if (["admin", "billing"].includes(effectiveRole)) {
-      promises.push(
-        supabase
-          .from("trip_records" as any)
-          .select("id", { count: "exact", head: true })
-          .eq("status", "ready_for_billing")
-          .then(({ count }) => ({ key: "billing", count: count ?? 0 }))
-      );
-    } else {
-      promises.push(Promise.resolve({ key: "billing", count: 0 }));
+    if (["admin", "billing"].includes(r)) {
+      jobs.push(countQuery("trip_records", { status: "ready_for_billing" }).then(c => { next.billing = c; }));
+      jobs.push(countQuery("qa_reviews", { status: "pending" }).then(c => { next.compliance = c; }));
+      jobs.push(countQuery("trip_records", { status: "completed", documentation_complete: false }).then(c => { next.trips = c; }));
     }
-
-    // Override Monitor badge: overrides in last 24h
-    if (effectiveRole === "admin") {
+    if (r === "admin") {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const [{ count: safetyCount }, { count: billingCount }] = await Promise.all([
-        supabase.from("safety_overrides").select("id", { count: "exact", head: true }).gte("created_at", since),
-        supabase.from("billing_overrides").select("id", { count: "exact", head: true }).gte("created_at", since),
-      ]);
-      promises.push(Promise.resolve({ key: "overrides", count: (safetyCount ?? 0) + (billingCount ?? 0) }));
-    } else {
-      promises.push(Promise.resolve({ key: "overrides", count: 0 }));
+      jobs.push((async () => {
+        const [{ count: sc }, { count: bc }] = await Promise.all([
+          supabase.from("safety_overrides").select("id", { count: "exact", head: true }).gte("created_at", since),
+          supabase.from("billing_overrides").select("id", { count: "exact", head: true }).gte("created_at", since),
+        ]);
+        next.overrides = (sc ?? 0) + (bc ?? 0);
+      })());
     }
 
-    // Compliance badge: pending qa_reviews
-    if (["admin", "billing"].includes(effectiveRole)) {
-      promises.push(
-        supabase
-          .from("qa_reviews")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending")
-          .then(({ count }) => ({ key: "compliance", count: count ?? 0 }))
-      );
-    } else {
-      promises.push(Promise.resolve({ key: "compliance", count: 0 }));
-    }
-
-    // Trips badge: completed trips missing PCR fields
-    if (["admin", "billing"].includes(effectiveRole)) {
-      promises.push(
-        supabase
-          .from("trip_records" as any)
-          .select("id", { count: "exact", head: true })
-          .eq("status", "completed")
-          .eq("documentation_complete", false)
-          .then(({ count }) => ({ key: "trips", count: count ?? 0 }))
-      );
-    } else {
-      promises.push(Promise.resolve({ key: "trips", count: 0 }));
-    }
-
-    const results = await Promise.all(promises);
-    const newCounts = { ...EMPTY };
-    for (const r of results) {
-      (newCounts as any)[r.key] = r.count;
-    }
-    setCounts(newCounts);
+    await Promise.all(jobs);
+    setCounts(next);
   }, [role]);
 
   useEffect(() => {
     fetchCounts();
-
     const channel = supabase
       .channel("sidebar-badges")
       .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => fetchCounts())
@@ -105,14 +63,12 @@ export function useSidebarBadges(role: string | null) {
       .on("postgres_changes", { event: "*", schema: "public", table: "billing_overrides" }, () => fetchCounts())
       .on("postgres_changes", { event: "*", schema: "public", table: "qa_reviews" }, () => fetchCounts())
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [fetchCounts]);
 
   return counts;
 }
 
-// Map nav paths to badge keys
 export function getBadgeForPath(path: string, counts: SidebarBadgeCounts): number {
   switch (path) {
     case "/":
