@@ -297,7 +297,7 @@ export default function Employees() {
       cert_level: editForm.cert_level,
       active: editForm.active,
       employment_type: editForm.employment_type,
-      max_safe_team_lift_lbs: editForm.max_safe_team_lift_lbs ? parseInt(editForm.max_safe_team_lift_lbs) : 250,
+      
       stair_chair_trained: editForm.stair_chair_trained,
       bariatric_trained: editForm.bariatric_trained,
       oxygen_handling_trained: editForm.oxygen_handling_trained,
