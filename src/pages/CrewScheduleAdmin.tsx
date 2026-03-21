@@ -366,6 +366,66 @@ export default function CrewScheduleAdmin() {
     const tid = truckId ?? selectedTruck;
     if (!tid) { toast.error("Select a truck"); return; }
 
+    // Check for unoverridden BLOCKED runs on this truck
+    const { data: slots } = await supabase
+      .from("truck_run_slots")
+      .select("leg_id, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, patient:patients!scheduling_legs_patient_id_fkey(bariatric, weight_lbs, oxygen_required, oxygen_lpm, stairs_required, stair_chair_required, mobility, special_equipment_required), is_oneoff, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen)")
+      .eq("truck_id", tid)
+      .eq("run_date", scheduleDate);
+    const { data: crewRow } = await supabase
+      .from("crews")
+      .select("*, member1:profiles!crews_member1_id_fkey(sex), member2:profiles!crews_member2_id_fkey(sex)")
+      .eq("truck_id", tid)
+      .eq("active_date", scheduleDate)
+      .maybeSingle();
+    const { data: truckRow } = await supabase
+      .from("trucks")
+      .select("has_power_stretcher, has_stair_chair, has_oxygen_mount")
+      .eq("id", tid)
+      .single();
+    const { data: existingOverrides } = await supabase
+      .from("safety_overrides")
+      .select("leg_id")
+      .eq("override_status", "BLOCKED");
+
+    const overriddenLegIds = new Set((existingOverrides ?? []).map((o: any) => o.leg_id));
+    const crewCap: CrewCapability = {
+      member1: crewRow?.member1 ? { sex: (crewRow.member1 as any).sex } : null,
+      member2: crewRow?.member2 ? { sex: (crewRow.member2 as any).sex } : null,
+    };
+    const truckEquip: TruckEquipment = {
+      has_power_stretcher: truckRow?.has_power_stretcher ?? false,
+      has_stair_chair: truckRow?.has_stair_chair ?? false,
+      has_oxygen_mount: truckRow?.has_oxygen_mount ?? false,
+    };
+
+    const blockedLegs: string[] = [];
+    for (const slot of (slots ?? []) as any[]) {
+      const leg = slot.leg;
+      if (!leg) continue;
+      const patient = leg.patient;
+      const isOneoff = leg.is_oneoff;
+      const needs: PatientNeeds = isOneoff ? {
+        weight_lbs: leg.oneoff_weight_lbs, mobility: leg.oneoff_mobility, oxygen_required: leg.oneoff_oxygen,
+        bariatric: null, stairs_required: null, stair_chair_required: null, oxygen_lpm: null, special_equipment_required: null,
+      } : {
+        weight_lbs: patient?.weight_lbs, mobility: patient?.mobility, stairs_required: patient?.stairs_required,
+        stair_chair_required: patient?.stair_chair_required, oxygen_required: patient?.oxygen_required,
+        oxygen_lpm: patient?.oxygen_lpm, special_equipment_required: patient?.special_equipment_required,
+        bariatric: patient?.bariatric,
+      };
+      const result = evaluateSafetyRules(needs, crewCap, truckEquip);
+      if (result.status === "BLOCKED" && !overriddenLegIds.has(leg.id)) {
+        const name = isOneoff ? "One-off run" : `${patient?.first_name ?? ""} ${patient?.last_name ?? ""}`.trim();
+        blockedLegs.push(name || "Unknown patient");
+      }
+    }
+
+    if (blockedLegs.length > 0) {
+      toast.error(`Cannot generate share link — ${blockedLegs.length} run(s) have BLOCKED safety status requiring dispatcher override: ${blockedLegs.join(", ")}`);
+      return;
+    }
+
     const existing = tokens.find((t) =>
       t.truck_id === tid && scheduleDate >= t.valid_from && scheduleDate <= t.valid_until
     );
