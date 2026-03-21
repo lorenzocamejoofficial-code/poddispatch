@@ -209,7 +209,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     };
     const loadCrewCaps = async () => {
       const { data } = await supabase.from("crews")
-        .select("truck_id, member1:profiles!crews_member1_id_fkey(max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
+        .select("truck_id, member1:profiles!crews_member1_id_fkey(sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
         .eq("active_date", selectedDate);
       const map = new Map<string, { member1: any; member2: any }>();
       for (const c of (data ?? []) as any[]) {
