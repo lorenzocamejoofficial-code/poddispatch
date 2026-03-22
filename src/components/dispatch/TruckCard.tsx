@@ -1,4 +1,5 @@
 import { StatusBadge, StatusDot } from "./StatusBadge";
+import { Shield } from "lucide-react";
 import { Truck, Users, Zap, WrenchIcon, AlertTriangle, CheckCircle, XCircle, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
