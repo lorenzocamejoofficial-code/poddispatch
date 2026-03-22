@@ -255,7 +255,22 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                       <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
                     )}
                     {/* Safety badge */}
-                    {run.is_oneoff ? (
+                    {readOnly && run.safety_status === "BLOCKED" ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[9px] font-bold text-destructive cursor-default">
+                              BLOCKED
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="text-xs max-w-xs">
+                            <p className="font-semibold mb-1">Safety Block</p>
+                            {(run.safety_reasons ?? []).map((r, i) => <p key={i}>• {r}</p>)}
+                            <p className="mt-1 text-muted-foreground italic">Go to Patient Runs/Scheduling to resolve this.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : run.is_oneoff ? (
                       run.safety_status && run.safety_status !== "OK" ? (
                         <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
                       ) : run.needs_missing && run.needs_missing.length > 0 ? (
@@ -284,8 +299,8 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                       const risk = computeTimingRisk(run.pickup_time, run.status);
                       return risk ? <TimingRiskBadge risk={risk} pickupTime={run.pickup_time} /> : null;
                     })()}
-                    <BillingStatusDot status={run.billing_status ?? null} issues={run.billing_issues} />
-                    {run.billing_status && run.billing_status !== "not_ready" && (
+                    {!readOnly && <BillingStatusDot status={run.billing_status ?? null} issues={run.billing_issues} />}
+                    {!readOnly && run.billing_status && run.billing_status !== "not_ready" && (
                       <button
                         onClick={() => setPreviewRun(run)}
                         className="text-muted-foreground hover:text-foreground transition-colors"
