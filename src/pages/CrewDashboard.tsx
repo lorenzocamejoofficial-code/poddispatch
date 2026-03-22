@@ -56,7 +56,7 @@ export default function CrewDashboard() {
 
     const { data: crewRow } = await supabase
       .from("crews")
-      .select("id, truck_id, member1_id, member2_id, truck:trucks!crews_truck_id_fkey(name), member1:profiles!crews_member1_id_fkey(id, full_name), member2:profiles!crews_member2_id_fkey(id, full_name)")
+      .select("id, truck_id, company_id, member1_id, member2_id, truck:trucks!crews_truck_id_fkey(name), member1:profiles!crews_member1_id_fkey(id, full_name), member2:profiles!crews_member2_id_fkey(id, full_name)")
       .eq("active_date", today)
       .or(`member1_id.eq.${profileId},member2_id.eq.${profileId}`)
       .maybeSingle();
