@@ -34,6 +34,7 @@ interface TruckData {
     hcpcs_modifiers?: string[];
     loaded_miles?: number | null;
     estimated_charge?: number | null;
+    destination_name?: string | null;
   }[];
   overallStatus: "green" | "yellow" | "red";
   downStatus: "down_maintenance" | "down_out_of_service" | null;
