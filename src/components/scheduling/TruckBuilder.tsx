@@ -820,11 +820,12 @@ const TruckCard = memo(function TruckCard({
                     safetyStatus={safetyResult.status}
                     safetyReasons={safetyResult.reasons}
                     missingFields={needsCheck.missing}
+                    overridden={overriddenLegIds.has(leg.id)}
                     onRemove={() => onRemoveLeg(leg.id)}
                     onEditException={() => onEditException(leg)}
                     onCancel={onCancelLeg ? () => onCancelLeg(leg.id) : undefined}
                     onRestore={onRestoreLeg ? () => onRestoreLeg(leg.id) : undefined}
-                    onSafetyOverride={safetyResult.status === "BLOCKED" && onSafetyOverride ? () => onSafetyOverride(leg.id, safetyResult.reasons) : undefined}
+                    onSafetyOverride={safetyResult.status === "BLOCKED" && !overriddenLegIds.has(leg.id) && onSafetyOverride ? () => onSafetyOverride(leg.id, safetyResult.reasons) : undefined}
                   />
                 );
               })}
