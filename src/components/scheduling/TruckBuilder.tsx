@@ -142,7 +142,8 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
             reasons={safetyReasons ?? []}
             missingFields={missingFields ?? []}
             isOneoff={leg.is_oneoff}
-            onOverride={safetyStatus === "BLOCKED" && onSafetyOverride ? onSafetyOverride : undefined}
+            overridden={overridden}
+            onOverride={safetyStatus === "BLOCKED" && !overridden && onSafetyOverride ? onSafetyOverride : undefined}
           />
         )}
       </div>
