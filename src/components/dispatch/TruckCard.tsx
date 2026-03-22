@@ -52,6 +52,7 @@ interface TruckCardProps {
   facilityContractCount?: number;
   onRestoreRun?: (slotId: string) => void;
   readOnly?: boolean;
+  overriddenLegIds?: Set<string>;
 }
 
 function BillingStatusDot({ status, issues }: { status: BillingStatus; issues?: string[] }) {
