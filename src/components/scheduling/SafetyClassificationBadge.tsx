@@ -60,11 +60,17 @@ export function SafetyClassificationBadge({ status, reasons, missingFields, isOn
   const config = STATUS_CONFIG[status];
   const Icon = config.icon;
 
+  const isClickable = status === "BLOCKED" && !!onOverride;
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${config.bg} ${config.color}`}>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${config.bg} ${config.color} ${isClickable ? "cursor-pointer hover:opacity-80" : ""}`}
+            onClick={isClickable ? (e) => { e.stopPropagation(); onOverride(); } : undefined}
+            role={isClickable ? "button" : undefined}
+          >
             <Icon className="h-2.5 w-2.5" /> {config.label}
           </span>
         </TooltipTrigger>
@@ -76,6 +82,9 @@ export function SafetyClassificationBadge({ status, reasons, missingFields, isOn
             </ul>
           ) : (
             <p className="text-[10px] text-muted-foreground">No safety concerns detected</p>
+          )}
+          {isClickable && (
+            <p className="text-[10px] font-medium text-primary mt-1">Click to override</p>
           )}
         </TooltipContent>
       </Tooltip>
