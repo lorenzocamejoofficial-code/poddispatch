@@ -87,7 +87,7 @@ export default function CrewDashboard() {
     const legIds = slots.map(s => s.leg_id);
 
     const [{ data: legs }, { data: trips }] = await Promise.all([
-      supabase.from("scheduling_legs").select("id, pickup_location, destination_location, pickup_time, trip_type, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)").in("id", legIds),
+      supabase.from("scheduling_legs").select("id, pickup_location, destination_location, pickup_time, trip_type, patient_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)").in("id", legIds),
       supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type").eq("run_date", today).eq("truck_id", truckId).in("leg_id", legIds),
     ]);
 
