@@ -213,11 +213,23 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   const [holdTimers, setHoldTimers] = useState<HoldTimerData[]>([]);
   const [crewProfiles, setCrewProfiles] = useState<Map<string, { member1: any; member2: any }>>(new Map());
   const [truckEquipmentMap, setTruckEquipmentMap] = useState<Map<string, TruckEquipment>>(new Map());
+  const [overriddenLegIds, setOverriddenLegIds] = useState<Set<string>>(new Set());
 
   // Safety override dialog state
   const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
   const [pendingAssign, setPendingAssign] = useState<{ truckId: string; legId: string; reasons: string[] } | null>(null);
+
+  // Fetch overridden leg IDs for this date
+  const loadOverrides = useCallback(async () => {
+    const { data } = await supabase
+      .from("safety_overrides")
+      .select("leg_id")
+      .not("leg_id", "is", null);
+    if (data) {
+      setOverriddenLegIds(new Set((data as any[]).map(r => r.leg_id).filter(Boolean)));
+    }
+  }, []);
 
   // Fetch truck risk states + crew capabilities + truck equipment
   useEffect(() => {
@@ -258,14 +270,16 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     loadTimers();
     loadCrewCaps();
     loadTruckEquip();
+    loadOverrides();
 
     const channel = supabase
       .channel("truck-risk-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_risk_state" }, () => loadRisks())
       .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => loadTimers())
+      .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides" }, () => loadOverrides())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [selectedDate]);
+  }, [selectedDate, loadOverrides]);
 
   const hasActiveLinkForDate = useCallback((truckId: string): boolean =>
     activeTokens.some(t => t.truck_id === truckId && selectedDate >= t.valid_from && selectedDate <= t.valid_until),
