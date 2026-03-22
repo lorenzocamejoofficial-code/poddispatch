@@ -257,46 +257,84 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                       <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
                     )}
                     {/* Safety badge */}
-                    {readOnly && run.safety_status === "BLOCKED" ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex items-center gap-0.5 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[9px] font-bold text-destructive cursor-default">
-                              BLOCKED
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="left" className="text-xs max-w-xs">
-                            <p className="font-semibold mb-1">Safety Block</p>
-                            {(run.safety_reasons ?? []).map((r, i) => <p key={i}>• {r}</p>)}
-                            <p className="mt-1 text-muted-foreground italic">Go to Patient Runs/Scheduling to resolve this.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : run.is_oneoff ? (
-                      run.safety_status && run.safety_status !== "OK" ? (
-                        <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
-                      ) : run.needs_missing && run.needs_missing.length > 0 ? (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="inline-flex items-center gap-0.5 rounded-full bg-accent/60 border border-accent text-accent-foreground px-1.5 py-0.5 text-[9px] font-semibold">
-                                One-Off Run
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent side="left" className="text-xs">Safety fields optional for one-off runs</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ) : null
-                    ) : (
-                      <>
-                        {run.safety_status && run.safety_status !== "OK" && (
-                          <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
-                        )}
-                        {run.safety_status === "OK" && run.needs_missing && run.needs_missing.length > 0 && (
-                          <PatientNeedsWarning missing={run.needs_missing} />
-                        )}
-                      </>
-                    )}
+                    {(() => {
+                      const legId = (run as any).leg_id;
+                      const isOverridden = legId && overriddenLegIds.has(legId);
+
+                      // Overridden BLOCKED → show CAUTION · Overridden
+                      if (run.safety_status === "BLOCKED" && isOverridden) {
+                        return (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex items-center gap-0.5 rounded-full bg-[hsl(var(--status-yellow-bg))] border border-[hsl(var(--status-yellow))]/30 px-1.5 py-0.5 text-[9px] font-bold text-[hsl(var(--status-yellow))] cursor-default">
+                                  <Shield className="h-2.5 w-2.5" /> CAUTION · Overridden
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="text-xs max-w-xs">
+                                <p className="font-semibold mb-1">CAUTION — Dispatcher Override</p>
+                                <p className="text-muted-foreground mb-1">A dispatcher reviewed and approved this blocked run.</p>
+                                {(run.safety_reasons ?? []).map((r, i) => <p key={i}>• {r}</p>)}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      }
+
+                      // Read-only BLOCKED (not overridden)
+                      if (readOnly && run.safety_status === "BLOCKED") {
+                        return (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex items-center gap-0.5 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[9px] font-bold text-destructive cursor-default">
+                                  BLOCKED
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="text-xs max-w-xs">
+                                <p className="font-semibold mb-1">Safety Block</p>
+                                {(run.safety_reasons ?? []).map((r, i) => <p key={i}>• {r}</p>)}
+                                <p className="mt-1 text-muted-foreground italic">Go to Patient Runs/Scheduling to resolve this.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      }
+
+                      // One-off runs
+                      if (run.is_oneoff) {
+                        if (run.safety_status && run.safety_status !== "OK") {
+                          return <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />;
+                        }
+                        if (run.needs_missing && run.needs_missing.length > 0) {
+                          return (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center gap-0.5 rounded-full bg-accent/60 border border-accent text-accent-foreground px-1.5 py-0.5 text-[9px] font-semibold">
+                                    One-Off Run
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="text-xs">Safety fields optional for one-off runs</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        }
+                        return null;
+                      }
+
+                      // Regular patients
+                      return (
+                        <>
+                          {run.safety_status && run.safety_status !== "OK" && (
+                            <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
+                          )}
+                          {run.safety_status === "OK" && run.needs_missing && run.needs_missing.length > 0 && (
+                            <PatientNeedsWarning missing={run.needs_missing} />
+                          )}
+                        </>
+                      );
+                    })()}
                     {run.trip_type === "dialysis" && run.pickup_time && run.status !== "completed" && (() => {
                       const risk = computeTimingRisk(run.pickup_time, run.status);
                       return risk ? <TimingRiskBadge risk={risk} pickupTime={run.pickup_time} /> : null;
