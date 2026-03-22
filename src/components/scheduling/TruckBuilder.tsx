@@ -492,6 +492,17 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     return "bg-[hsl(var(--status-red))]/10 text-[hsl(var(--status-red))] border-[hsl(var(--status-red))]/30";
   }, []);
 
+  // Handle override from clicking BLOCKED badge on already-assigned legs
+  const handleBadgeOverride = useCallback((legId: string, reasons: string[]) => {
+    // Find which truck this leg is on
+    const leg = legs.find(l => l.id === legId);
+    const truckId = leg?.assigned_truck_id;
+    if (!truckId) return;
+    setPendingAssign({ truckId, legId, reasons });
+    setOverrideReason("");
+    setOverrideDialogOpen(true);
+  }, [legs]);
+
   return (
     <section>
       <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
