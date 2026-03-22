@@ -91,7 +91,8 @@ function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<CompanySignup />} />
         <Route path="/invite" element={<AcceptInvite />} />
-        <Route path="/crew/:token" element={<DailyRunSheet />} />
+        {/* Token links redirect to login with crew mode pre-selected */}
+        <Route path="/crew/:token" element={<TokenLoginRedirect />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/forgot-email" element={<ForgotEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
