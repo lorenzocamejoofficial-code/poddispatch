@@ -7,6 +7,7 @@ interface SafetyClassificationBadgeProps {
   reasons: string[];
   missingFields: string[];
   isOneoff?: boolean;
+  onOverride?: () => void;
 }
 
 const STATUS_CONFIG = {
