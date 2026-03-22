@@ -428,16 +428,15 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
 
     setOverrideDialogOpen(false);
     const wasAlreadyAssigned = legs.find(l => l.id === pendingAssign.legId)?.assigned_truck_id;
+    const savedAssign = { ...pendingAssign };
     setPendingAssign(null);
     setOverrideReason("");
 
     if (wasAlreadyAssigned) {
-      // Already assigned — just log override, no re-assignment needed
       toast.success("Safety override logged");
       onRefresh();
     } else {
-      // Proceed with assignment
-      await doAssignLeg(pendingAssign.truckId, pendingAssign.legId);
+      await doAssignLeg(savedAssign.truckId, savedAssign.legId);
       toast.success("Safety override logged — leg assigned");
     }
   }, [pendingAssign, overrideReason, doAssignLeg, legs, onRefresh]);
