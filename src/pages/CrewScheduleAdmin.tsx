@@ -847,6 +847,9 @@ export default function CrewScheduleAdmin() {
             })}
           </div>
         </section>
+
+        {/* ── CREW LOGIN INVITES ── */}
+        <CrewInviteSection scheduleDate={scheduleDate} employees={employees} />
       </div>
 
       {/* ── READY TO SEND MODAL ── */}
