@@ -1,4 +1,4 @@
-import { ShieldCheck, ShieldAlert, ShieldX, AlertTriangle, UserCircle } from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldX, AlertTriangle, UserCircle, Shield } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SafetyStatus } from "@/lib/safety-rules";
 
@@ -8,6 +8,7 @@ interface SafetyClassificationBadgeProps {
   missingFields: string[];
   isOneoff?: boolean;
   onOverride?: () => void;
+  overridden?: boolean;
 }
 
 const STATUS_CONFIG = {
@@ -16,7 +17,7 @@ const STATUS_CONFIG = {
   BLOCKED: { icon: ShieldX, color: "text-destructive", label: "BLOCKED", bg: "bg-destructive/10 border-destructive/30" },
 };
 
-export function SafetyClassificationBadge({ status, reasons, missingFields, isOneoff, onOverride }: SafetyClassificationBadgeProps) {
+export function SafetyClassificationBadge({ status, reasons, missingFields, isOneoff, onOverride, overridden }: SafetyClassificationBadgeProps) {
   // One-off runs with no safety concerns: show neutral indicator instead of INCOMPLETE
   if (isOneoff && status === "OK" && missingFields.length > 0) {
     return (
@@ -51,6 +52,31 @@ export function SafetyClassificationBadge({ status, reasons, missingFields, isOn
             <ul className="text-[10px] space-y-0.5">
               {missingFields.map((m, i) => <li key={i}>• {m}</li>)}
             </ul>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  // If overridden, show as CAUTION with "Overridden" indicator instead of BLOCKED
+  if (overridden && status === "BLOCKED") {
+    const cautionConfig = STATUS_CONFIG.WARNING;
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${cautionConfig.bg} ${cautionConfig.color}`}>
+              <Shield className="h-2.5 w-2.5" /> CAUTION · Overridden
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="left" className="max-w-xs">
+            <p className="text-xs font-semibold mb-0.5">CAUTION — Dispatcher Override</p>
+            <p className="text-[10px] text-muted-foreground mb-1">A dispatcher reviewed and approved this blocked run.</p>
+            {reasons.length > 0 && (
+              <ul className="text-[10px] space-y-0.5">
+                {reasons.map((r, i) => <li key={i}>• {r}</li>)}
+              </ul>
+            )}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

@@ -37,6 +37,7 @@ interface SortableLegItemProps {
   safetyStatus?: import("@/lib/safety-rules").SafetyStatus;
   safetyReasons?: string[];
   missingFields?: string[];
+  overridden?: boolean;
   onRemove: () => void;
   onEditException: () => void;
   onCancel?: () => void;
@@ -44,7 +45,7 @@ interface SortableLegItemProps {
   onSafetyOverride?: () => void;
 }
 
-const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, onRemove, onEditException, onCancel, onRestore, onSafetyOverride }: SortableLegItemProps) {
+const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, overridden, onRemove, onEditException, onCancel, onRestore, onSafetyOverride }: SortableLegItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: leg.id,
     data: { type: "assigned-leg", leg },
@@ -141,7 +142,8 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
             reasons={safetyReasons ?? []}
             missingFields={missingFields ?? []}
             isOneoff={leg.is_oneoff}
-            onOverride={safetyStatus === "BLOCKED" && onSafetyOverride ? onSafetyOverride : undefined}
+            overridden={overridden}
+            onOverride={safetyStatus === "BLOCKED" && !overridden && onSafetyOverride ? onSafetyOverride : undefined}
           />
         )}
       </div>
@@ -213,11 +215,23 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   const [holdTimers, setHoldTimers] = useState<HoldTimerData[]>([]);
   const [crewProfiles, setCrewProfiles] = useState<Map<string, { member1: any; member2: any }>>(new Map());
   const [truckEquipmentMap, setTruckEquipmentMap] = useState<Map<string, TruckEquipment>>(new Map());
+  const [overriddenLegIds, setOverriddenLegIds] = useState<Set<string>>(new Set());
 
   // Safety override dialog state
   const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
   const [pendingAssign, setPendingAssign] = useState<{ truckId: string; legId: string; reasons: string[] } | null>(null);
+
+  // Fetch overridden leg IDs for this date
+  const loadOverrides = useCallback(async () => {
+    const { data } = await supabase
+      .from("safety_overrides")
+      .select("leg_id")
+      .not("leg_id", "is", null);
+    if (data) {
+      setOverriddenLegIds(new Set((data as any[]).map(r => r.leg_id).filter(Boolean)));
+    }
+  }, []);
 
   // Fetch truck risk states + crew capabilities + truck equipment
   useEffect(() => {
@@ -258,14 +272,16 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     loadTimers();
     loadCrewCaps();
     loadTruckEquip();
+    loadOverrides();
 
     const channel = supabase
       .channel("truck-risk-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_risk_state" }, () => loadRisks())
       .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => loadTimers())
+      .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides" }, () => loadOverrides())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [selectedDate]);
+  }, [selectedDate, loadOverrides]);
 
   const hasActiveLinkForDate = useCallback((truckId: string): boolean =>
     activeTokens.some(t => t.truck_id === truckId && selectedDate >= t.valid_from && selectedDate <= t.valid_until),
@@ -412,16 +428,15 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
 
     setOverrideDialogOpen(false);
     const wasAlreadyAssigned = legs.find(l => l.id === pendingAssign.legId)?.assigned_truck_id;
+    const savedAssign = { ...pendingAssign };
     setPendingAssign(null);
     setOverrideReason("");
 
     if (wasAlreadyAssigned) {
-      // Already assigned — just log override, no re-assignment needed
       toast.success("Safety override logged");
       onRefresh();
     } else {
-      // Proceed with assignment
-      await doAssignLeg(pendingAssign.truckId, pendingAssign.legId);
+      await doAssignLeg(savedAssign.truckId, savedAssign.legId);
       toast.success("Safety override logged — leg assigned");
     }
   }, [pendingAssign, overrideReason, doAssignLeg, legs, onRefresh]);
@@ -563,6 +578,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
               crewCapability={getCrewCapability(truck.id)}
               truckEquipment={truckEquipmentMap.get(truck.id)}
               onSafetyOverride={handleBadgeOverride}
+              overriddenLegIds={overriddenLegIds}
             />
           );
         })}
@@ -644,13 +660,14 @@ interface TruckCardProps {
   crewCapability?: CrewCapability;
   truckEquipment?: TruckEquipment;
   onSafetyOverride?: (legId: string, reasons: string[]) => void;
+  overriddenLegIds?: Set<string>;
 }
 
 const TruckCard = memo(function TruckCard({
   truck, tLegs, crew, downRecord, isDown, hasRunsWhileDown, hasHeavy,
   first, last, hasActiveLink, utilizationColor, unassigned, addingLeg, setAddingLeg,
   onAssignLeg, onRemoveLeg, onEditException, onCancelLeg, onRestoreLeg, truckAlertCount = 0, legAlertIds = new Set(), riskData,
-  crewCapability, truckEquipment, onSafetyOverride,
+  crewCapability, truckEquipment, onSafetyOverride, overriddenLegIds = new Set(),
 }: TruckCardProps) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `truck-drop-${truck.id}`,
@@ -702,8 +719,9 @@ const TruckCard = memo(function TruckCard({
                 bariatric: leg.patient_bariatric ?? null,
               };
               const result = evaluateSafetyRules(needs, crewCapability, truckEquipment);
-              if (result.status === "BLOCKED") worstStatus = "BLOCKED";
-              else if (result.status === "WARNING" && worstStatus !== "BLOCKED") worstStatus = "WARNING";
+              const effectiveStatus = result.status === "BLOCKED" && overriddenLegIds.has(leg.id) ? "WARNING" : result.status;
+              if (effectiveStatus === "BLOCKED") worstStatus = "BLOCKED";
+              else if (effectiveStatus === "WARNING" && worstStatus !== "BLOCKED") worstStatus = "WARNING";
               totalIssues += result.reasons.length;
             }
             if (worstStatus === "OK") return null;
@@ -802,11 +820,12 @@ const TruckCard = memo(function TruckCard({
                     safetyStatus={safetyResult.status}
                     safetyReasons={safetyResult.reasons}
                     missingFields={needsCheck.missing}
+                    overridden={overriddenLegIds.has(leg.id)}
                     onRemove={() => onRemoveLeg(leg.id)}
                     onEditException={() => onEditException(leg)}
                     onCancel={onCancelLeg ? () => onCancelLeg(leg.id) : undefined}
                     onRestore={onRestoreLeg ? () => onRestoreLeg(leg.id) : undefined}
-                    onSafetyOverride={safetyResult.status === "BLOCKED" && onSafetyOverride ? () => onSafetyOverride(leg.id, safetyResult.reasons) : undefined}
+                    onSafetyOverride={safetyResult.status === "BLOCKED" && !overriddenLegIds.has(leg.id) && onSafetyOverride ? () => onSafetyOverride(leg.id, safetyResult.reasons) : undefined}
                   />
                 );
               })}
