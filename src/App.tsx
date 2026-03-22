@@ -43,6 +43,7 @@ import ResetPassword from "./pages/ResetPassword";
 import ForgotEmail from "./pages/ForgotEmail";
 import SuspendedPage from "./pages/SuspendedPage";
 import CrewDashboard from "./pages/CrewDashboard";
+import PCRPage from "./pages/PCRPage";
 // Token links redirect to login with crew mode when unauthenticated
 function TokenLoginRedirect() {
   const { token } = useParams<{ token: string }>();
@@ -156,6 +157,7 @@ function AppRoutes() {
           <Route path="/crew-preview" element={<CrewUIPreview />} />
           <Route path="/override-monitor" element={<OverrideMonitor />} />
           <Route path="/crew-dashboard" element={<CrewDashboard />} />
+          <Route path="/pcr" element={<PCRPage />} />
           {/* App Simulation — all operational pages */}
           <Route path="/simulation" element={<DispatchBoard />} />
           <Route path="/scheduling" element={<Scheduling />} />
@@ -192,6 +194,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<CrewDashboard />} />
         <Route path="/crew-dashboard" element={<CrewDashboard />} />
+        <Route path="/pcr" element={<PCRPage />} />
         <Route path="/crew/:token" element={<DailyRunSheet />} />
         <Route path="/account" element={<AccountSettings />} />
         <Route path="*" element={<Navigate to="/" replace />} />

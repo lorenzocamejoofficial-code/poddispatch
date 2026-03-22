@@ -2133,25 +2133,36 @@ export type Database = {
       }
       trip_records: {
         Row: {
+          airway_json: Json | null
           arrived_dropoff_at: string | null
           arrived_pickup_at: string | null
+          assessment_json: Json | null
+          at_scene_time: string | null
+          attending_medic_cert: string | null
+          attending_medic_id: string | null
+          attending_medic_name: string | null
           bed_confined: boolean | null
           billing_blocked_reason: string | null
           blockers: string[] | null
           blood_pressure: string | null
           cannot_transfer_safely: boolean | null
+          chief_complaint: string | null
           claim_ready: boolean | null
           clinical_note: string | null
           company_id: string | null
+          condition_on_arrival: Json | null
           created_at: string
           crew_id: string | null
           crew_ids: string[] | null
           crew_names: string | null
+          crew_updated_fields: Json | null
           destination_location: string | null
           destination_type: string | null
           dispatch_time: string | null
+          disposition: string | null
           documentation_complete: boolean | null
           dropped_at: string | null
+          equipment_used_json: Json | null
           esrd_dialysis: boolean | null
           expected_revenue: number | null
           fall_risk: boolean | null
@@ -2159,58 +2170,91 @@ export type Database = {
           hcpcs_codes: string[] | null
           hcpcs_modifiers: string[] | null
           heart_rate: number | null
+          hospital_outcome_json: Json | null
           id: string
+          in_service_time: string | null
           is_simulated: boolean
+          iv_access_json: Json | null
+          left_scene_time: string | null
           leg_id: string | null
+          level_of_consciousness: string | null
           loaded_at: string | null
           loaded_miles: number | null
+          medical_necessity_reason: string | null
+          medications_json: Json | null
           mobility_method: string | null
+          narrative: string | null
           necessity_notes: string | null
           origin_type: string | null
           oxygen_during_transport: boolean | null
           oxygen_saturation: number | null
+          patient_contact_time: string | null
           patient_id: string | null
+          patient_position: string | null
+          pcr_completed_at: string | null
+          pcr_status: string
+          pcr_submitted_by: string | null
           pcr_type: string | null
           pcs_attached: boolean | null
+          physical_exam_json: Json | null
           pickup_location: string | null
+          primary_impression: string | null
+          procedures_json: Json | null
           requires_monitoring: boolean | null
           respiration_rate: number | null
           revenue_risk_score: number | null
           run_date: string
           scheduled_dropoff_time: string | null
           scheduled_pickup_time: string | null
+          secondary_impressions: Json | null
+          sending_facility_json: Json | null
           service_level: string | null
           signature_obtained: boolean | null
+          signatures_json: Json | null
           simulation_run_id: string | null
+          skin_condition: string | null
           slot_id: string | null
           status: Database["public"]["Enums"]["trip_status"]
           stretcher_required: boolean | null
+          transport_condition: string | null
           trip_type: Database["public"]["Enums"]["trip_type"] | null
           truck_id: string | null
           updated_at: string
+          vitals_json: Json | null
           vitals_taken_at: string | null
           wait_time_minutes: number | null
         }
         Insert: {
+          airway_json?: Json | null
           arrived_dropoff_at?: string | null
           arrived_pickup_at?: string | null
+          assessment_json?: Json | null
+          at_scene_time?: string | null
+          attending_medic_cert?: string | null
+          attending_medic_id?: string | null
+          attending_medic_name?: string | null
           bed_confined?: boolean | null
           billing_blocked_reason?: string | null
           blockers?: string[] | null
           blood_pressure?: string | null
           cannot_transfer_safely?: boolean | null
+          chief_complaint?: string | null
           claim_ready?: boolean | null
           clinical_note?: string | null
           company_id?: string | null
+          condition_on_arrival?: Json | null
           created_at?: string
           crew_id?: string | null
           crew_ids?: string[] | null
           crew_names?: string | null
+          crew_updated_fields?: Json | null
           destination_location?: string | null
           destination_type?: string | null
           dispatch_time?: string | null
+          disposition?: string | null
           documentation_complete?: boolean | null
           dropped_at?: string | null
+          equipment_used_json?: Json | null
           esrd_dialysis?: boolean | null
           expected_revenue?: number | null
           fall_risk?: boolean | null
@@ -2218,58 +2262,91 @@ export type Database = {
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
           heart_rate?: number | null
+          hospital_outcome_json?: Json | null
           id?: string
+          in_service_time?: string | null
           is_simulated?: boolean
+          iv_access_json?: Json | null
+          left_scene_time?: string | null
           leg_id?: string | null
+          level_of_consciousness?: string | null
           loaded_at?: string | null
           loaded_miles?: number | null
+          medical_necessity_reason?: string | null
+          medications_json?: Json | null
           mobility_method?: string | null
+          narrative?: string | null
           necessity_notes?: string | null
           origin_type?: string | null
           oxygen_during_transport?: boolean | null
           oxygen_saturation?: number | null
+          patient_contact_time?: string | null
           patient_id?: string | null
+          patient_position?: string | null
+          pcr_completed_at?: string | null
+          pcr_status?: string
+          pcr_submitted_by?: string | null
           pcr_type?: string | null
           pcs_attached?: boolean | null
+          physical_exam_json?: Json | null
           pickup_location?: string | null
+          primary_impression?: string | null
+          procedures_json?: Json | null
           requires_monitoring?: boolean | null
           respiration_rate?: number | null
           revenue_risk_score?: number | null
           run_date?: string
           scheduled_dropoff_time?: string | null
           scheduled_pickup_time?: string | null
+          secondary_impressions?: Json | null
+          sending_facility_json?: Json | null
           service_level?: string | null
           signature_obtained?: boolean | null
+          signatures_json?: Json | null
           simulation_run_id?: string | null
+          skin_condition?: string | null
           slot_id?: string | null
           status?: Database["public"]["Enums"]["trip_status"]
           stretcher_required?: boolean | null
+          transport_condition?: string | null
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
           updated_at?: string
+          vitals_json?: Json | null
           vitals_taken_at?: string | null
           wait_time_minutes?: number | null
         }
         Update: {
+          airway_json?: Json | null
           arrived_dropoff_at?: string | null
           arrived_pickup_at?: string | null
+          assessment_json?: Json | null
+          at_scene_time?: string | null
+          attending_medic_cert?: string | null
+          attending_medic_id?: string | null
+          attending_medic_name?: string | null
           bed_confined?: boolean | null
           billing_blocked_reason?: string | null
           blockers?: string[] | null
           blood_pressure?: string | null
           cannot_transfer_safely?: boolean | null
+          chief_complaint?: string | null
           claim_ready?: boolean | null
           clinical_note?: string | null
           company_id?: string | null
+          condition_on_arrival?: Json | null
           created_at?: string
           crew_id?: string | null
           crew_ids?: string[] | null
           crew_names?: string | null
+          crew_updated_fields?: Json | null
           destination_location?: string | null
           destination_type?: string | null
           dispatch_time?: string | null
+          disposition?: string | null
           documentation_complete?: boolean | null
           dropped_at?: string | null
+          equipment_used_json?: Json | null
           esrd_dialysis?: boolean | null
           expected_revenue?: number | null
           fall_risk?: boolean | null
@@ -2277,39 +2354,68 @@ export type Database = {
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
           heart_rate?: number | null
+          hospital_outcome_json?: Json | null
           id?: string
+          in_service_time?: string | null
           is_simulated?: boolean
+          iv_access_json?: Json | null
+          left_scene_time?: string | null
           leg_id?: string | null
+          level_of_consciousness?: string | null
           loaded_at?: string | null
           loaded_miles?: number | null
+          medical_necessity_reason?: string | null
+          medications_json?: Json | null
           mobility_method?: string | null
+          narrative?: string | null
           necessity_notes?: string | null
           origin_type?: string | null
           oxygen_during_transport?: boolean | null
           oxygen_saturation?: number | null
+          patient_contact_time?: string | null
           patient_id?: string | null
+          patient_position?: string | null
+          pcr_completed_at?: string | null
+          pcr_status?: string
+          pcr_submitted_by?: string | null
           pcr_type?: string | null
           pcs_attached?: boolean | null
+          physical_exam_json?: Json | null
           pickup_location?: string | null
+          primary_impression?: string | null
+          procedures_json?: Json | null
           requires_monitoring?: boolean | null
           respiration_rate?: number | null
           revenue_risk_score?: number | null
           run_date?: string
           scheduled_dropoff_time?: string | null
           scheduled_pickup_time?: string | null
+          secondary_impressions?: Json | null
+          sending_facility_json?: Json | null
           service_level?: string | null
           signature_obtained?: boolean | null
+          signatures_json?: Json | null
           simulation_run_id?: string | null
+          skin_condition?: string | null
           slot_id?: string | null
           status?: Database["public"]["Enums"]["trip_status"]
           stretcher_required?: boolean | null
+          transport_condition?: string | null
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
           updated_at?: string
+          vitals_json?: Json | null
           vitals_taken_at?: string | null
           wait_time_minutes?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "trip_records_attending_medic_id_fkey"
+            columns: ["attending_medic_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "trip_records_company_id_fkey"
             columns: ["company_id"]
@@ -2336,6 +2442,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_records_pcr_submitted_by_fkey"
+            columns: ["pcr_submitted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
