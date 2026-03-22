@@ -15,6 +15,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CrewInviteSection } from "@/components/crew/CrewInviteSection";
 import { Copy, RefreshCw, Link2, Trash2, Truck, AlertCircle, CalendarIcon, Search, X, ChevronDown, ChevronUp, Users } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
