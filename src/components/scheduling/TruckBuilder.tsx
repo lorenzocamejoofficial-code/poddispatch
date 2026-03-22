@@ -668,7 +668,7 @@ const TruckCard = memo(function TruckCard({
   truck, tLegs, crew, downRecord, isDown, hasRunsWhileDown, hasHeavy,
   first, last, hasActiveLink, utilizationColor, unassigned, addingLeg, setAddingLeg,
   onAssignLeg, onRemoveLeg, onEditException, onCancelLeg, onRestoreLeg, truckAlertCount = 0, legAlertIds = new Set(), riskData,
-  crewCapability, truckEquipment, onSafetyOverride,
+  crewCapability, truckEquipment, onSafetyOverride, overriddenLegIds = new Set(),
 }: TruckCardProps) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `truck-drop-${truck.id}`,
