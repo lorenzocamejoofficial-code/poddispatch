@@ -291,6 +291,7 @@ export default function DispatchBoard() {
       .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides" }, () => fetchData())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
