@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Plus, Zap, AlertTriangle, ArrowRight,
   Wand2, ChevronLeft, ChevronRight, CalendarDays, ArrowLeft,
-  GitBranch, GripVertical, AlertCircle,
+  GitBranch, GripVertical, AlertCircle, BellRing, X, Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
