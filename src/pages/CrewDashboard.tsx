@@ -108,8 +108,9 @@ export default function CrewDashboard() {
         tripStatus: trip?.status ?? "scheduled",
         tripId: trip?.id ?? null,
         truckId, crewId,
-        companyId: trip?.company_id ?? null,
+        companyId: trip?.company_id ?? crewCompanyId ?? null,
         pcrStatus: (trip as any)?.pcr_status ?? "not_started",
+        patientId: (leg as any)?.patient_id ?? null,
       };
     });
     setRuns(cards);
