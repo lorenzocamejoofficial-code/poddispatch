@@ -787,6 +787,7 @@ const TruckCard = memo(function TruckCard({
                     onEditException={() => onEditException(leg)}
                     onCancel={onCancelLeg ? () => onCancelLeg(leg.id) : undefined}
                     onRestore={onRestoreLeg ? () => onRestoreLeg(leg.id) : undefined}
+                    onSafetyOverride={safetyResult.status === "BLOCKED" && onSafetyOverride ? () => onSafetyOverride(leg.id, safetyResult.reasons) : undefined}
                   />
                 );
               })}
