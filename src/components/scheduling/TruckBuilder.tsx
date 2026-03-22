@@ -45,7 +45,7 @@ interface SortableLegItemProps {
   onSafetyOverride?: () => void;
 }
 
-const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, onRemove, onEditException, onCancel, onRestore, onSafetyOverride }: SortableLegItemProps) {
+const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, overridden, onRemove, onEditException, onCancel, onRestore, onSafetyOverride }: SortableLegItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: leg.id,
     data: { type: "assigned-leg", leg },
