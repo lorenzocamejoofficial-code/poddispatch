@@ -226,6 +226,7 @@ export default function DispatchBoard() {
           needs_missing: needsCheck.missing,
           is_oneoff: isOneoff,
           destination_name: leg?.destination_location ?? null,
+          leg_id: leg?.id ?? null,
         };
       });
 
