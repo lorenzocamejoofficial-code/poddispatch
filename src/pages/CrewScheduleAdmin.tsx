@@ -86,21 +86,29 @@ export default function CrewScheduleAdmin() {
   }, []);
 
   const fetchEmployees = useCallback(async () => {
-    const [{ data: profiles }, { data: crewRows }] = await Promise.all([
-      supabase.from("profiles").select("id, full_name, phone_number, user_id").eq("active", true).order("full_name"),
+    const [{ data: profiles }, { data: memberships }, { data: crewRows }] = await Promise.all([
+      supabase.from("profiles").select("id, full_name, phone_number, user_id, active, company_id").order("full_name"),
+      supabase.from("company_memberships").select("user_id, role"),
       supabase.from("crews")
         .select("member1_id, member2_id, truck_id, truck:trucks!crews_truck_id_fkey(name)")
         .eq("active_date", scheduleDate),
     ]);
+    // Build a set of user_ids that have an active crew membership
+    const crewMemberUserIds = new Set(
+      (memberships ?? []).filter((m: any) => m.role === "crew").map((m: any) => m.user_id)
+    );
+    // Only include profiles that are active AND have a crew membership
+    const validProfiles = (profiles ?? []).filter((p: any) => p.active && crewMemberUserIds.has(p.user_id));
+
     const crewMap = new Map<string, { truck_id: string; truck_name: string }>();
     for (const c of (crewRows ?? []) as any[]) {
       const info = { truck_id: c.truck_id, truck_name: c.truck?.name ?? "" };
       if (c.member1_id) crewMap.set(c.member1_id, info);
       if (c.member2_id) crewMap.set(c.member2_id, info);
     }
-    setEmployees((profiles ?? []).map((p: any) => ({
+    setEmployees(validProfiles.map((p: any) => ({
       id: p.id, full_name: p.full_name, phone_number: p.phone_number,
-      email: null, // email is on auth.users, not accessible; we'll use the login URL approach
+      email: null,
       truck_id: crewMap.get(p.id)?.truck_id ?? null,
       truck_name: crewMap.get(p.id)?.truck_name ?? null,
     })));
