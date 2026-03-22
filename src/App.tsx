@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SchedulingProvider } from "@/hooks/useSchedulingStore";
 import { SimulationSessionProvider } from "@/hooks/useSimulationSession";
@@ -43,6 +43,11 @@ import ResetPassword from "./pages/ResetPassword";
 import ForgotEmail from "./pages/ForgotEmail";
 import SuspendedPage from "./pages/SuspendedPage";
 import CrewDashboard from "./pages/CrewDashboard";
+// Token links redirect to login with crew mode when unauthenticated
+function TokenLoginRedirect() {
+  const { token } = useParams<{ token: string }>();
+  return <Navigate to={`/login?mode=crew&token_redirect=${token}`} replace />;
+}
 // SandboxModeProvider and PreviewRoleProvider removed — no role-based view filtering
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -91,7 +96,8 @@ function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<CompanySignup />} />
         <Route path="/invite" element={<AcceptInvite />} />
-        <Route path="/crew/:token" element={<DailyRunSheet />} />
+        {/* Token links redirect to login with crew mode pre-selected */}
+        <Route path="/crew/:token" element={<TokenLoginRedirect />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/forgot-email" element={<ForgotEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
@@ -221,7 +227,7 @@ function AppRoutes() {
     return (
       <SchedulingProvider>
         <Routes>
-          <Route path="/" element={<BillingAndClaims />} />
+          <Route path="/" element={<Navigate to="/trips" replace />} />
           <Route path="/patients" element={<Patients />} />
           <Route path="/trips" element={<TripsAndClinical />} />
           <Route path="/billing" element={<BillingAndClaims />} />
