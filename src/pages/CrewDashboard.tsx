@@ -23,6 +23,7 @@ interface RunCard {
   crewId: string;
   companyId: string | null;
   pcrStatus: string;
+  patientId: string | null;
 }
 
 interface HoldTimer {
@@ -56,7 +57,7 @@ export default function CrewDashboard() {
 
     const { data: crewRow } = await supabase
       .from("crews")
-      .select("id, truck_id, member1_id, member2_id, truck:trucks!crews_truck_id_fkey(name), member1:profiles!crews_member1_id_fkey(id, full_name), member2:profiles!crews_member2_id_fkey(id, full_name)")
+      .select("id, truck_id, company_id, member1_id, member2_id, truck:trucks!crews_truck_id_fkey(name), member1:profiles!crews_member1_id_fkey(id, full_name), member2:profiles!crews_member2_id_fkey(id, full_name)")
       .eq("active_date", today)
       .or(`member1_id.eq.${profileId},member2_id.eq.${profileId}`)
       .maybeSingle();
@@ -72,6 +73,7 @@ export default function CrewDashboard() {
 
     const truckId = crewRow.truck_id;
     const crewId = crewRow.id;
+    const crewCompanyId = crewRow.company_id;
 
     const { data: slots } = await supabase
       .from("truck_run_slots")
@@ -85,7 +87,7 @@ export default function CrewDashboard() {
     const legIds = slots.map(s => s.leg_id);
 
     const [{ data: legs }, { data: trips }] = await Promise.all([
-      supabase.from("scheduling_legs").select("id, pickup_location, destination_location, pickup_time, trip_type, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)").in("id", legIds),
+      supabase.from("scheduling_legs").select("id, pickup_location, destination_location, pickup_time, trip_type, patient_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)").in("id", legIds),
       supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type").eq("run_date", today).eq("truck_id", truckId).in("leg_id", legIds),
     ]);
 
@@ -106,8 +108,9 @@ export default function CrewDashboard() {
         tripStatus: trip?.status ?? "scheduled",
         tripId: trip?.id ?? null,
         truckId, crewId,
-        companyId: trip?.company_id ?? null,
+        companyId: trip?.company_id ?? crewCompanyId ?? null,
         pcrStatus: (trip as any)?.pcr_status ?? "not_started",
+        patientId: (leg as any)?.patient_id ?? null,
       };
     });
     setRuns(cards);
@@ -174,15 +177,22 @@ export default function CrewDashboard() {
     let tripId = run.tripId;
     // If no trip_record exists yet, create one
     if (!tripId) {
+      const companyId = run.companyId;
+      if (!companyId) {
+        toast({ title: "Cannot create trip record", description: "No company association found for this crew.", variant: "destructive" });
+        return;
+      }
       const { data: newTrip, error } = await supabase.from("trip_records").insert({
         leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
-        run_date: today, status: "scheduled",
+        company_id: companyId,
+        patient_id: run.patientId,
+        run_date: today, status: "scheduled" as any,
         pickup_location: run.pickupLocation, destination_location: run.destinationLocation,
         scheduled_pickup_time: run.pickupTime, trip_type: run.tripType as any,
         pcr_status: "not_started",
       }).select("id").single();
       if (error || !newTrip) {
-        toast({ title: "Failed to create trip record", variant: "destructive" });
+        toast({ title: "Failed to create trip record", description: error?.message ?? "Unknown error", variant: "destructive" });
         return;
       }
       tripId = newTrip.id;
