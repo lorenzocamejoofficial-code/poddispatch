@@ -660,6 +660,7 @@ interface TruckCardProps {
   crewCapability?: CrewCapability;
   truckEquipment?: TruckEquipment;
   onSafetyOverride?: (legId: string, reasons: string[]) => void;
+  overriddenLegIds?: Set<string>;
 }
 
 const TruckCard = memo(function TruckCard({
