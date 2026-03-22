@@ -16,7 +16,7 @@ const STATUS_CONFIG = {
   BLOCKED: { icon: ShieldX, color: "text-destructive", label: "BLOCKED", bg: "bg-destructive/10 border-destructive/30" },
 };
 
-export function SafetyClassificationBadge({ status, reasons, missingFields, isOneoff }: SafetyClassificationBadgeProps) {
+export function SafetyClassificationBadge({ status, reasons, missingFields, isOneoff, onOverride }: SafetyClassificationBadgeProps) {
   // One-off runs with no safety concerns: show neutral indicator instead of INCOMPLETE
   if (isOneoff && status === "OK" && missingFields.length > 0) {
     return (
