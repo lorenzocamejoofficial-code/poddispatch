@@ -177,15 +177,22 @@ export default function CrewDashboard() {
     let tripId = run.tripId;
     // If no trip_record exists yet, create one
     if (!tripId) {
+      const companyId = run.companyId;
+      if (!companyId) {
+        toast({ title: "Cannot create trip record", description: "No company association found for this crew.", variant: "destructive" });
+        return;
+      }
       const { data: newTrip, error } = await supabase.from("trip_records").insert({
         leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
-        run_date: today, status: "scheduled",
+        company_id: companyId,
+        patient_id: run.patientId,
+        run_date: today, status: "scheduled" as any,
         pickup_location: run.pickupLocation, destination_location: run.destinationLocation,
         scheduled_pickup_time: run.pickupTime, trip_type: run.tripType as any,
         pcr_status: "not_started",
       }).select("id").single();
       if (error || !newTrip) {
-        toast({ title: "Failed to create trip record", variant: "destructive" });
+        toast({ title: "Failed to create trip record", description: error?.message ?? "Unknown error", variant: "destructive" });
         return;
       }
       tripId = newTrip.id;
