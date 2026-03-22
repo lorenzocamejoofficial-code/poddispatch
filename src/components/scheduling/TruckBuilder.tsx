@@ -37,6 +37,7 @@ interface SortableLegItemProps {
   safetyStatus?: import("@/lib/safety-rules").SafetyStatus;
   safetyReasons?: string[];
   missingFields?: string[];
+  overridden?: boolean;
   onRemove: () => void;
   onEditException: () => void;
   onCancel?: () => void;
