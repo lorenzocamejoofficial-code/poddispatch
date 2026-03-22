@@ -34,6 +34,7 @@ interface TruckData {
     hcpcs_modifiers?: string[];
     loaded_miles?: number | null;
     estimated_charge?: number | null;
+    destination_name?: string | null;
   }[];
   overallStatus: "green" | "yellow" | "red";
   downStatus: "down_maintenance" | "down_out_of_service" | null;
@@ -97,7 +98,7 @@ export default function DispatchBoard() {
       supabase.from("trucks").select("*").eq("active", true).order("name"),
       supabase
         .from("truck_run_slots")
-        .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, trip_type, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, auth_required, auth_expiration, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric))")
+        .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, trip_type, destination_location, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, auth_required, auth_expiration, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric))")
         .eq("run_date", selectedDate)
         .order("slot_order"),
       supabase.from("alerts").select("*").eq("dismissed", false).order("created_at", { ascending: false }),
@@ -215,6 +216,7 @@ export default function DispatchBoard() {
           safety_reasons: safetyResult.reasons,
           needs_missing: needsCheck.missing,
           is_oneoff: isOneoff,
+          destination_name: leg?.destination_location ?? null,
         };
       });
 
@@ -346,10 +348,7 @@ export default function DispatchBoard() {
                     revenueStrength={t.revenueStrength}
                     medicareCount={t.medicareCount}
                     facilityContractCount={t.facilityContractCount}
-                    onRestoreRun={async (slotId) => {
-                      await supabase.from("truck_run_slots").update({ status: "pending" } as any).eq("id", slotId);
-                      fetchData();
-                    }}
+                    readOnly
                   />
                 ))}
               </div>

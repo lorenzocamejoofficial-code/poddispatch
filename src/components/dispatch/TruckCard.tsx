@@ -50,6 +50,7 @@ interface TruckCardProps {
   medicareCount?: number;
   facilityContractCount?: number;
   onRestoreRun?: (slotId: string) => void;
+  readOnly?: boolean;
 }
 
 function BillingStatusDot({ status, issues }: { status: BillingStatus; issues?: string[] }) {
@@ -141,7 +142,7 @@ function BillingPreviewDialog({ run, open, onOpenChange }: { run: RunInfo; open:
   );
 }
 
-export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, overallStatus, downStatus, downReason, revenueStrength, medicareCount = 0, facilityContractCount = 0, onRestoreRun }: TruckCardProps) {
+export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, overallStatus, downStatus, downReason, revenueStrength, medicareCount = 0, facilityContractCount = 0, onRestoreRun, readOnly = false }: TruckCardProps) {
   const hasHeavy = runs.some((r) => (r.patient_weight ?? 0) > 200);
   const isDown = !!downStatus;
   const hasRunsWhileDown = isDown && runs.length > 0;
@@ -233,7 +234,7 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                     </span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    {isCancelled && onRestoreRun && (
+                    {isCancelled && onRestoreRun && !readOnly && (
                       <Button variant="ghost" size="sm" className="h-5 text-[10px] text-primary hover:text-primary px-1.5" onClick={() => onRestoreRun(run.id)} title="Restore this run">
                         Undo
                       </Button>
@@ -244,6 +245,7 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                 {/* Row 2: time + type */}
                 <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
                   {run.pickup_time && <span>{run.pickup_time}</span>}
+                  {(run as any).destination_name && <span className="truncate">→ {(run as any).destination_name}</span>}
                   <span className="capitalize">{run.trip_type}</span>
                 </div>
                 {/* Row 3: badges — stacked to prevent overlap (issue #5) */}
@@ -253,7 +255,22 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                       <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
                     )}
                     {/* Safety badge */}
-                    {run.is_oneoff ? (
+                    {readOnly && run.safety_status === "BLOCKED" ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[9px] font-bold text-destructive cursor-default">
+                              BLOCKED
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="text-xs max-w-xs">
+                            <p className="font-semibold mb-1">Safety Block</p>
+                            {(run.safety_reasons ?? []).map((r, i) => <p key={i}>• {r}</p>)}
+                            <p className="mt-1 text-muted-foreground italic">Go to Patient Runs/Scheduling to resolve this.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : run.is_oneoff ? (
                       run.safety_status && run.safety_status !== "OK" ? (
                         <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
                       ) : run.needs_missing && run.needs_missing.length > 0 ? (
@@ -282,8 +299,8 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                       const risk = computeTimingRisk(run.pickup_time, run.status);
                       return risk ? <TimingRiskBadge risk={risk} pickupTime={run.pickup_time} /> : null;
                     })()}
-                    <BillingStatusDot status={run.billing_status ?? null} issues={run.billing_issues} />
-                    {run.billing_status && run.billing_status !== "not_ready" && (
+                    {!readOnly && <BillingStatusDot status={run.billing_status ?? null} issues={run.billing_issues} />}
+                    {!readOnly && run.billing_status && run.billing_status !== "not_ready" && (
                       <button
                         onClick={() => setPreviewRun(run)}
                         className="text-muted-foreground hover:text-foreground transition-colors"

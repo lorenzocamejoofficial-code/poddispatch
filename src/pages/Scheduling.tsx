@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { getLocalToday } from "@/lib/local-date";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Plus, Zap, AlertTriangle, ArrowRight,
   Wand2, ChevronLeft, ChevronRight, CalendarDays, ArrowLeft,
-  GitBranch, GripVertical, AlertCircle,
+  GitBranch, GripVertical, AlertCircle, BellRing, X, Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
@@ -98,6 +98,62 @@ export default function Scheduling() {
 
   // Operational alerts (Patient Not Ready signals from crew)
   const [operationalAlerts, setOperationalAlerts] = useState<OperationalAlert[]>([]);
+
+  // Schedule change notification tracking
+  const [scheduleChanges, setScheduleChanges] = useState<{ truckName: string; change: string }[]>([]);
+  const [notifyBannerVisible, setNotifyBannerVisible] = useState(false);
+  const legsSnapshotRef = useRef<string>("");
+
+  // Track schedule changes by comparing leg assignments
+  useEffect(() => {
+    const currentSnapshot = legs
+      .filter(l => l.assigned_truck_id)
+      .map(l => `${l.id}:${l.assigned_truck_id}:${l.slot_order}:${l.slot_status}:${l.pickup_time}`)
+      .sort()
+      .join("|");
+
+    if (legsSnapshotRef.current && legsSnapshotRef.current !== currentSnapshot) {
+      // Something changed — show the notify banner
+      setNotifyBannerVisible(true);
+    }
+    legsSnapshotRef.current = currentSnapshot;
+  }, [legs]);
+
+  const generateNotifyMessage = useCallback(() => {
+    // Group current assignments by truck
+    const truckAssignments = new Map<string, { name: string; runs: string[] }>();
+    for (const t of trucks) {
+      const tLegs = legs
+        .filter(l => l.assigned_truck_id === t.id && l.slot_status !== "cancelled")
+        .sort((a, b) => (a.slot_order ?? 0) - (b.slot_order ?? 0));
+      if (tLegs.length > 0) {
+        truckAssignments.set(t.id, {
+          name: t.name,
+          runs: tLegs.map(l => `${l.pickup_time ?? "TBD"} - ${l.leg_type} ${l.patient_name} (${l.pickup_location} → ${l.destination_location})`),
+        });
+      }
+    }
+
+    const dateLabel = new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", {
+      weekday: "short", month: "short", day: "numeric",
+    });
+
+    let message = `📋 Schedule Update — ${dateLabel}\n\n`;
+    for (const [, info] of truckAssignments) {
+      message += `🚑 ${info.name}:\n`;
+      info.runs.forEach((r, i) => { message += `  ${i + 1}. ${r}\n`; });
+      message += "\n";
+    }
+    message += "— PodDispatch";
+    return message;
+  }, [trucks, legs, selectedDate]);
+
+  const handleNotifyCrew = useCallback(() => {
+    const message = generateNotifyMessage();
+    navigator.clipboard.writeText(message);
+    toast.success("Schedule update copied to clipboard — paste into your SMS app");
+    setNotifyBannerVisible(false);
+  }, [generateNotifyMessage]);
 
   const fetchOperationalAlerts = useCallback(async () => {
     const { data: alertRows } = await supabase
@@ -696,6 +752,23 @@ export default function Scheduling() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
+            {/* ── SCHEDULE CHANGE NOTIFY BANNER ── */}
+            {notifyBannerVisible && (
+              <div className="rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3 mb-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                  <BellRing className="h-4 w-4 shrink-0" />
+                  Schedule changed — Notify Crew?
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button size="sm" variant="default" className="h-7 text-xs gap-1.5" onClick={handleNotifyCrew}>
+                    <Copy className="h-3 w-3" /> Copy & Notify
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setNotifyBannerVisible(false)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
             {/* ── DAILY OPS SNAPSHOT ── */}
             <section className="rounded-lg border bg-card p-3">
               <div className="mb-2 flex items-center gap-2">
