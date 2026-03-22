@@ -23,6 +23,7 @@ interface RunCard {
   crewId: string;
   companyId: string | null;
   pcrStatus: string;
+  patientId: string | null;
 }
 
 interface HoldTimer {
