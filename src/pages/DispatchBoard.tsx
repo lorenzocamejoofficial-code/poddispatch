@@ -360,6 +360,7 @@ export default function DispatchBoard() {
                     medicareCount={t.medicareCount}
                     facilityContractCount={t.facilityContractCount}
                     readOnly
+                    overriddenLegIds={overriddenLegIds}
                   />
                 ))}
               </div>
