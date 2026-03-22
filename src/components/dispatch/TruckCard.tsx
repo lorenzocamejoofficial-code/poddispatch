@@ -234,7 +234,7 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                     </span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    {isCancelled && onRestoreRun && (
+                    {isCancelled && onRestoreRun && !readOnly && (
                       <Button variant="ghost" size="sm" className="h-5 text-[10px] text-primary hover:text-primary px-1.5" onClick={() => onRestoreRun(run.id)} title="Restore this run">
                         Undo
                       </Button>
