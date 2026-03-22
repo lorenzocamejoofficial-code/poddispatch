@@ -35,6 +35,7 @@ interface TruckData {
     loaded_miles?: number | null;
     estimated_charge?: number | null;
     destination_name?: string | null;
+    leg_id?: string | null;
   }[];
   overallStatus: "green" | "yellow" | "red";
   downStatus: "down_maintenance" | "down_out_of_service" | null;
@@ -84,6 +85,7 @@ export default function DispatchBoard() {
   const [trucks, setTrucks] = useState<TruckData[]>([]);
   const [alerts, setAlerts] = useState<AlertData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [overriddenLegIds, setOverriddenLegIds] = useState<Set<string>>(new Set());
 
   const fetchData = async () => {
     const [
@@ -94,6 +96,7 @@ export default function DispatchBoard() {
       { data: tripRows },
       { data: payerRules },
       { data: crewCapRows },
+      { data: overrideRows },
     ] = await Promise.all([
       supabase.from("trucks").select("*").eq("active", true).order("name"),
       supabase
@@ -108,7 +111,13 @@ export default function DispatchBoard() {
       supabase.from("crews")
         .select("*, member1:profiles!crews_member1_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
         .eq("active_date", selectedDate),
+      supabase.from("safety_overrides").select("leg_id").not("leg_id", "is", null),
     ]);
+
+    const overriddenIds = new Set<string>(
+      ((overrideRows ?? []) as any[]).map((r: any) => r.leg_id).filter(Boolean)
+    );
+    setOverriddenLegIds(overriddenIds);
 
     const availMap = new Map<string, { status: string; reason: string | null }>(
       ((availRows ?? []) as any[]).map((a: any) => [a.truck_id, { status: a.status, reason: a.reason ?? null }])
@@ -217,6 +226,7 @@ export default function DispatchBoard() {
           needs_missing: needsCheck.missing,
           is_oneoff: isOneoff,
           destination_name: leg?.destination_location ?? null,
+          leg_id: leg?.id ?? null,
         };
       });
 
@@ -281,6 +291,7 @@ export default function DispatchBoard() {
       .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides" }, () => fetchData())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -349,6 +360,7 @@ export default function DispatchBoard() {
                     medicareCount={t.medicareCount}
                     facilityContractCount={t.facilityContractCount}
                     readOnly
+                    overriddenLegIds={overriddenLegIds}
                   />
                 ))}
               </div>
