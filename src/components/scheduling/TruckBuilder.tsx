@@ -411,13 +411,20 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     } as any);
 
     setOverrideDialogOpen(false);
+    const wasAlreadyAssigned = legs.find(l => l.id === pendingAssign.legId)?.assigned_truck_id;
     setPendingAssign(null);
     setOverrideReason("");
 
-    // Now proceed with assignment
-    await doAssignLeg(pendingAssign.truckId, pendingAssign.legId);
-    toast.success("Safety override logged — leg assigned");
-  }, [pendingAssign, overrideReason, doAssignLeg]);
+    if (wasAlreadyAssigned) {
+      // Already assigned — just log override, no re-assignment needed
+      toast.success("Safety override logged");
+      onRefresh();
+    } else {
+      // Proceed with assignment
+      await doAssignLeg(pendingAssign.truckId, pendingAssign.legId);
+      toast.success("Safety override logged — leg assigned");
+    }
+  }, [pendingAssign, overrideReason, doAssignLeg, legs, onRefresh]);
 
   const removeLeg = useCallback(async (legId: string) => {
     await supabase.from("truck_run_slots").delete().eq("leg_id", legId).eq("run_date", selectedDate);
