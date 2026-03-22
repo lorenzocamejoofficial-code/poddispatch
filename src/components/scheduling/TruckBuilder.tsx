@@ -109,7 +109,17 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
           )}
         </div>
       </div>
-      {/* Second row: badges — stacked below for spacing (issue #5) */}
+      {/* Second row: pickup address → destination, transport type, chair time */}
+      {!isCancelled && (
+        <div className="flex items-center gap-1 mt-0.5 pl-5 text-[10px] text-muted-foreground min-w-0">
+          <span className="truncate">{leg.pickup_location}</span>
+          <ArrowRight className="h-2.5 w-2.5 shrink-0" />
+          <span className="truncate">{leg.destination_location}</span>
+          <span className="shrink-0 capitalize">· {leg.trip_type}</span>
+          {leg.chair_time && <span className="shrink-0">· Chair {leg.chair_time}</span>}
+        </div>
+      )}
+      {/* Third row: badges */}
       <div className="flex flex-wrap items-center gap-1 mt-1 pl-5">
         {leg.is_oneoff && (
           <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
