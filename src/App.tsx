@@ -43,6 +43,11 @@ import ResetPassword from "./pages/ResetPassword";
 import ForgotEmail from "./pages/ForgotEmail";
 import SuspendedPage from "./pages/SuspendedPage";
 import CrewDashboard from "./pages/CrewDashboard";
+// Token links redirect to login with crew mode when unauthenticated
+function TokenLoginRedirect() {
+  const { token } = useParams<{ token: string }>();
+  return <Navigate to={`/login?mode=crew&token_redirect=${token}`} replace />;
+}
 // SandboxModeProvider and PreviewRoleProvider removed — no role-based view filtering
 const queryClient = new QueryClient({
   defaultOptions: {
