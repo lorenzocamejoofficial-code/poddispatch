@@ -348,10 +348,7 @@ export default function DispatchBoard() {
                     revenueStrength={t.revenueStrength}
                     medicareCount={t.medicareCount}
                     facilityContractCount={t.facilityContractCount}
-                    onRestoreRun={async (slotId) => {
-                      await supabase.from("truck_run_slots").update({ status: "pending" } as any).eq("id", slotId);
-                      fetchData();
-                    }}
+                    readOnly
                   />
                 ))}
               </div>
