@@ -227,7 +227,7 @@ function AppRoutes() {
     return (
       <SchedulingProvider>
         <Routes>
-          <Route path="/" element={<BillingAndClaims />} />
+          <Route path="/" element={<Navigate to="/trips" replace />} />
           <Route path="/patients" element={<Patients />} />
           <Route path="/trips" element={<TripsAndClinical />} />
           <Route path="/billing" element={<BillingAndClaims />} />
