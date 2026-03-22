@@ -96,6 +96,7 @@ export default function DispatchBoard() {
       { data: tripRows },
       { data: payerRules },
       { data: crewCapRows },
+      { data: overrideRows },
     ] = await Promise.all([
       supabase.from("trucks").select("*").eq("active", true).order("name"),
       supabase
@@ -110,7 +111,13 @@ export default function DispatchBoard() {
       supabase.from("crews")
         .select("*, member1:profiles!crews_member1_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
         .eq("active_date", selectedDate),
+      supabase.from("safety_overrides").select("leg_id").not("leg_id", "is", null),
     ]);
+
+    const overriddenIds = new Set<string>(
+      ((overrideRows ?? []) as any[]).map((r: any) => r.leg_id).filter(Boolean)
+    );
+    setOverriddenLegIds(overriddenIds);
 
     const availMap = new Map<string, { status: string; reason: string | null }>(
       ((availRows ?? []) as any[]).map((a: any) => [a.truck_id, { status: a.status, reason: a.reason ?? null }])
