@@ -41,6 +41,7 @@ interface SortableLegItemProps {
   onEditException: () => void;
   onCancel?: () => void;
   onRestore?: () => void;
+  onSafetyOverride?: () => void;
 }
 
 const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, onRemove, onEditException, onCancel, onRestore }: SortableLegItemProps) {
