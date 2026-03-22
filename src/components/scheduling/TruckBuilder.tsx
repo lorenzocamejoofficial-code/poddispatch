@@ -579,6 +579,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
               crewCapability={getCrewCapability(truck.id)}
               truckEquipment={truckEquipmentMap.get(truck.id)}
               onSafetyOverride={handleBadgeOverride}
+              overriddenLegIds={overriddenLegIds}
             />
           );
         })}
