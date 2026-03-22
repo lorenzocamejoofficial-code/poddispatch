@@ -73,6 +73,7 @@ export default function CrewDashboard() {
 
     const truckId = crewRow.truck_id;
     const crewId = crewRow.id;
+    const crewCompanyId = crewRow.company_id;
 
     const { data: slots } = await supabase
       .from("truck_run_slots")
