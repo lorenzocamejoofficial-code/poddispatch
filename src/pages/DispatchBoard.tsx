@@ -85,6 +85,7 @@ export default function DispatchBoard() {
   const [trucks, setTrucks] = useState<TruckData[]>([]);
   const [alerts, setAlerts] = useState<AlertData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [overriddenLegIds, setOverriddenLegIds] = useState<Set<string>>(new Set());
 
   const fetchData = async () => {
     const [
