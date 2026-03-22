@@ -50,6 +50,7 @@ interface TruckCardProps {
   medicareCount?: number;
   facilityContractCount?: number;
   onRestoreRun?: (slotId: string) => void;
+  readOnly?: boolean;
 }
 
 function BillingStatusDot({ status, issues }: { status: BillingStatus; issues?: string[] }) {
