@@ -216,6 +216,7 @@ export default function DispatchBoard() {
           safety_reasons: safetyResult.reasons,
           needs_missing: needsCheck.missing,
           is_oneoff: isOneoff,
+          destination_name: leg?.destination_location ?? null,
         };
       });
 
