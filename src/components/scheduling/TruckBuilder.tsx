@@ -720,8 +720,9 @@ const TruckCard = memo(function TruckCard({
                 bariatric: leg.patient_bariatric ?? null,
               };
               const result = evaluateSafetyRules(needs, crewCapability, truckEquipment);
-              if (result.status === "BLOCKED") worstStatus = "BLOCKED";
-              else if (result.status === "WARNING" && worstStatus !== "BLOCKED") worstStatus = "WARNING";
+              const effectiveStatus = result.status === "BLOCKED" && overriddenLegIds.has(leg.id) ? "WARNING" : result.status;
+              if (effectiveStatus === "BLOCKED") worstStatus = "BLOCKED";
+              else if (effectiveStatus === "WARNING" && worstStatus !== "BLOCKED") worstStatus = "WARNING";
               totalIssues += result.reasons.length;
             }
             if (worstStatus === "OK") return null;
