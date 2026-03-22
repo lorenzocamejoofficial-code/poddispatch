@@ -386,7 +386,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => fetchCrews())
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => fetchCrews())
       .on("postgres_changes", { event: "*", schema: "public", table: "trucks" }, () => fetchOptions())
-      .on("postgres_changes", { event: "*", schema: "public", table: "patients" }, () => fetchOptions())
+      .on("postgres_changes", { event: "*", schema: "public", table: "patients" }, () => { fetchOptions(); fetchLegs(); })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };

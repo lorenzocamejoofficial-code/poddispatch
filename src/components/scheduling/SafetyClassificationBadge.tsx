@@ -7,6 +7,7 @@ interface SafetyClassificationBadgeProps {
   reasons: string[];
   missingFields: string[];
   isOneoff?: boolean;
+  onOverride?: () => void;
 }
 
 const STATUS_CONFIG = {
@@ -15,7 +16,7 @@ const STATUS_CONFIG = {
   BLOCKED: { icon: ShieldX, color: "text-destructive", label: "BLOCKED", bg: "bg-destructive/10 border-destructive/30" },
 };
 
-export function SafetyClassificationBadge({ status, reasons, missingFields, isOneoff }: SafetyClassificationBadgeProps) {
+export function SafetyClassificationBadge({ status, reasons, missingFields, isOneoff, onOverride }: SafetyClassificationBadgeProps) {
   // One-off runs with no safety concerns: show neutral indicator instead of INCOMPLETE
   if (isOneoff && status === "OK" && missingFields.length > 0) {
     return (
@@ -59,11 +60,17 @@ export function SafetyClassificationBadge({ status, reasons, missingFields, isOn
   const config = STATUS_CONFIG[status];
   const Icon = config.icon;
 
+  const isClickable = status === "BLOCKED" && !!onOverride;
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${config.bg} ${config.color}`}>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${config.bg} ${config.color} ${isClickable ? "cursor-pointer hover:opacity-80" : ""}`}
+            onClick={isClickable ? (e) => { e.stopPropagation(); onOverride(); } : undefined}
+            role={isClickable ? "button" : undefined}
+          >
             <Icon className="h-2.5 w-2.5" /> {config.label}
           </span>
         </TooltipTrigger>
@@ -75,6 +82,9 @@ export function SafetyClassificationBadge({ status, reasons, missingFields, isOn
             </ul>
           ) : (
             <p className="text-[10px] text-muted-foreground">No safety concerns detected</p>
+          )}
+          {isClickable && (
+            <p className="text-[10px] font-medium text-primary mt-1">Click to override</p>
           )}
         </TooltipContent>
       </Tooltip>

@@ -41,9 +41,10 @@ interface SortableLegItemProps {
   onEditException: () => void;
   onCancel?: () => void;
   onRestore?: () => void;
+  onSafetyOverride?: () => void;
 }
 
-const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, onRemove, onEditException, onCancel, onRestore }: SortableLegItemProps) {
+const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, onRemove, onEditException, onCancel, onRestore, onSafetyOverride }: SortableLegItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: leg.id,
     data: { type: "assigned-leg", leg },
@@ -135,7 +136,13 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
           </span>
         )}
         {safetyStatus && (
-          <SafetyClassificationBadge status={safetyStatus} reasons={safetyReasons ?? []} missingFields={missingFields ?? []} isOneoff={leg.is_oneoff} />
+          <SafetyClassificationBadge
+            status={safetyStatus}
+            reasons={safetyReasons ?? []}
+            missingFields={missingFields ?? []}
+            isOneoff={leg.is_oneoff}
+            onOverride={safetyStatus === "BLOCKED" && onSafetyOverride ? onSafetyOverride : undefined}
+          />
         )}
       </div>
     </div>
@@ -404,13 +411,20 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     } as any);
 
     setOverrideDialogOpen(false);
+    const wasAlreadyAssigned = legs.find(l => l.id === pendingAssign.legId)?.assigned_truck_id;
     setPendingAssign(null);
     setOverrideReason("");
 
-    // Now proceed with assignment
-    await doAssignLeg(pendingAssign.truckId, pendingAssign.legId);
-    toast.success("Safety override logged — leg assigned");
-  }, [pendingAssign, overrideReason, doAssignLeg]);
+    if (wasAlreadyAssigned) {
+      // Already assigned — just log override, no re-assignment needed
+      toast.success("Safety override logged");
+      onRefresh();
+    } else {
+      // Proceed with assignment
+      await doAssignLeg(pendingAssign.truckId, pendingAssign.legId);
+      toast.success("Safety override logged — leg assigned");
+    }
+  }, [pendingAssign, overrideReason, doAssignLeg, legs, onRefresh]);
 
   const removeLeg = useCallback(async (legId: string) => {
     await supabase.from("truck_run_slots").delete().eq("leg_id", legId).eq("run_date", selectedDate);
@@ -485,6 +499,17 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     return "bg-[hsl(var(--status-red))]/10 text-[hsl(var(--status-red))] border-[hsl(var(--status-red))]/30";
   }, []);
 
+  // Handle override from clicking BLOCKED badge on already-assigned legs
+  const handleBadgeOverride = useCallback((legId: string, reasons: string[]) => {
+    // Find which truck this leg is on
+    const leg = legs.find(l => l.id === legId);
+    const truckId = leg?.assigned_truck_id;
+    if (!truckId) return;
+    setPendingAssign({ truckId, legId, reasons });
+    setOverrideReason("");
+    setOverrideDialogOpen(true);
+  }, [legs]);
+
   return (
     <section>
       <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -537,6 +562,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
               riskData={riskData}
               crewCapability={getCrewCapability(truck.id)}
               truckEquipment={truckEquipmentMap.get(truck.id)}
+              onSafetyOverride={handleBadgeOverride}
             />
           );
         })}
@@ -617,13 +643,14 @@ interface TruckCardProps {
   riskData?: TruckRiskData;
   crewCapability?: CrewCapability;
   truckEquipment?: TruckEquipment;
+  onSafetyOverride?: (legId: string, reasons: string[]) => void;
 }
 
 const TruckCard = memo(function TruckCard({
   truck, tLegs, crew, downRecord, isDown, hasRunsWhileDown, hasHeavy,
   first, last, hasActiveLink, utilizationColor, unassigned, addingLeg, setAddingLeg,
   onAssignLeg, onRemoveLeg, onEditException, onCancelLeg, onRestoreLeg, truckAlertCount = 0, legAlertIds = new Set(), riskData,
-  crewCapability, truckEquipment,
+  crewCapability, truckEquipment, onSafetyOverride,
 }: TruckCardProps) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `truck-drop-${truck.id}`,
@@ -779,6 +806,7 @@ const TruckCard = memo(function TruckCard({
                     onEditException={() => onEditException(leg)}
                     onCancel={onCancelLeg ? () => onCancelLeg(leg.id) : undefined}
                     onRestore={onRestoreLeg ? () => onRestoreLeg(leg.id) : undefined}
+                    onSafetyOverride={safetyResult.status === "BLOCKED" && onSafetyOverride ? () => onSafetyOverride(leg.id, safetyResult.reasons) : undefined}
                   />
                 );
               })}
