@@ -144,7 +144,7 @@ function BillingPreviewDialog({ run, open, onOpenChange }: { run: RunInfo; open:
   );
 }
 
-export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, overallStatus, downStatus, downReason, revenueStrength, medicareCount = 0, facilityContractCount = 0, onRestoreRun, readOnly = false }: TruckCardProps) {
+export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, overallStatus, downStatus, downReason, revenueStrength, medicareCount = 0, facilityContractCount = 0, onRestoreRun, readOnly = false, overriddenLegIds = new Set() }: TruckCardProps) {
   const hasHeavy = runs.some((r) => (r.patient_weight ?? 0) > 200);
   const isDown = !!downStatus;
   const hasRunsWhileDown = isDown && runs.length > 0;
