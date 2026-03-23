@@ -2,21 +2,37 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Truck, Users, Loader2, Clock, AlertTriangle, FileText, Check, Eye } from "lucide-react";
+import { Truck, Users, Loader2, Clock, AlertTriangle, FileText, Check, Eye, Ban } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { cn } from "@/lib/utils";
 
+const TRANSPORT_LABELS: Record<string, string> = {
+  dialysis: "Dialysis Transport",
+  ift: "Interfacility Transfer",
+  discharge: "Discharge Transport",
+  outpatient_specialty: "Outpatient Specialty",
+  private_pay: "Private Pay",
+  emergency: "Emergency Transport",
+};
+
 interface RunCard {
   slotId: string;
   slotOrder: number;
   legId: string;
-  patientName: string;
+  legType: string; // "A" | "B" | "—"
+  patientName: string; // formatted as "J. Doe"
+  patientHasRecord: boolean;
   pickupLocation: string;
   destinationLocation: string;
   pickupTime: string | null;
+  originType: string | null;
+  patientPickupAddress: string | null;
+  patientDropoffFacility: string | null;
+  dispatchTime: string | null;
   tripType: string | null;
+  pcrType: string | null;
   tripStatus: string;
   tripId: string | null;
   truckId: string;
@@ -24,6 +40,7 @@ interface RunCard {
   companyId: string | null;
   pcrStatus: string;
   patientId: string | null;
+  cancellationReason: string | null;
 }
 
 interface HoldTimer {
