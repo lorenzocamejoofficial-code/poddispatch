@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText } from "lucide-react";
+import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -16,6 +16,7 @@ import {
   computeBillingQueueStatus,
   type BillingOverrideLike,
 } from "@/lib/billing-utils";
+import { BillerPCROverridePanel } from "@/components/billing/BillerPCROverridePanel";
 
 interface TripForQueue {
   id: string;
@@ -139,6 +140,7 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
   const [overrideHistoryLoaded, setOverrideHistoryLoaded] = useState(false);
   const [tripAuditLog, setTripAuditLog] = useState<any[] | null>(null);
   const [showAuditLog, setShowAuditLog] = useState(false);
+  const [correctTrip, setCorrectTrip] = useState<TripForQueue | null>(null);
 
   const fetchOverrideHistory = useCallback(async () => {
     const tripIds = trips.map(t => t.id);
@@ -509,6 +511,19 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                   View Override Log
                 </Button>
               )}
+              {/* Correct PCR button */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-1.5"
+                onClick={() => {
+                  setCorrectTrip(selectedTrip);
+                  setSelectedTrip(null);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Correct PCR
+              </Button>
             </div>
           )}
         </DialogContent>
@@ -559,6 +574,35 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Biller PCR Correction Panel */}
+      {correctTrip && (
+        <BillerPCROverridePanel
+          trip={{
+            id: correctTrip.id,
+            loaded_miles: correctTrip.loaded_miles,
+            origin_type: correctTrip.origin_type,
+            destination_type: correctTrip.destination_type,
+            service_level: (correctTrip as any).service_level ?? null,
+            stretcher_placement: (correctTrip as any).stretcher_placement ?? null,
+            patient_mobility: (correctTrip as any).patient_mobility ?? null,
+            odometer_at_scene: (correctTrip as any).odometer_at_scene ?? null,
+            odometer_at_destination: (correctTrip as any).odometer_at_destination ?? null,
+            odometer_in_service: (correctTrip as any).odometer_in_service ?? null,
+            dispatch_time: correctTrip.dispatch_time,
+            at_scene_time: (correctTrip as any).at_scene_time ?? null,
+            left_scene_time: (correctTrip as any).left_scene_time ?? null,
+            arrived_dropoff_at: (correctTrip as any).arrived_dropoff_at ?? null,
+            in_service_time: (correctTrip as any).in_service_time ?? null,
+            hcpcs_codes: (correctTrip as any).hcpcs_codes ?? null,
+            vehicle_id: (correctTrip as any).vehicle_id ?? null,
+            patient_name: correctTrip.patient_name,
+          }}
+          open={!!correctTrip}
+          onOpenChange={(open) => { if (!open) setCorrectTrip(null); }}
+          onSaved={() => { setCorrectTrip(null); onRefresh(); }}
+        />
+      )}
     </div>
   );
 }
