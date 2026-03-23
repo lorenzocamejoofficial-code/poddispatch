@@ -67,6 +67,7 @@ const CLAIM_COLUMNS: { status: ClaimStatus; label: string; icon: React.ReactNode
   { status: "paid", label: "Paid", icon: <CheckCircle className="h-4 w-4" />, color: "border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5" },
   { status: "denied", label: "Denied", icon: <XCircle className="h-4 w-4" />, color: "border-destructive/30 bg-destructive/5" },
   { status: "needs_correction", label: "Needs Correction", icon: <AlertTriangle className="h-4 w-4" />, color: "border-orange-400/30 bg-orange-50 dark:bg-orange-950/20" },
+  { status: "needs_review", label: "Needs Review", icon: <ShieldAlert className="h-4 w-4" />, color: "border-amber-500/30 bg-amber-50 dark:bg-amber-950/20" },
 ];
 
 const PAYER_TYPES = ["default", "medicare", "medicaid", "facility", "cash"];
