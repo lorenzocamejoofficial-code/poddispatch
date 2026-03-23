@@ -17,10 +17,13 @@ import { SendingFacilityCard, HospitalOutcomeCard } from "@/components/pcr/Facil
 import { SignaturesCard } from "@/components/pcr/SignaturesCard";
 import { NarrativeCard } from "@/components/pcr/NarrativeCard";
 import { BillingCard } from "@/components/pcr/BillingCard";
+import { StretcherMobilityCard } from "@/components/pcr/StretcherMobilityCard";
+import { IsolationPrecautionsCard } from "@/components/pcr/IsolationPrecautionsCard";
 import { LockedSectionOverlay } from "@/components/pcr/LockedSectionOverlay";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Check, Loader2, Send, AlertCircle, Lock } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { ChevronLeft, Check, Loader2, Send, AlertCircle, Lock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
