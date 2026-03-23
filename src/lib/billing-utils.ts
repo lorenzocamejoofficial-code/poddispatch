@@ -263,6 +263,9 @@ export function computeCleanTripStatus(trip: {
   cannot_transfer_safely?: boolean;
   requires_monitoring?: boolean;
   oxygen_during_transport?: boolean;
+  stretcher_placement?: string | null;
+  patient_mobility?: string | null;
+  odometer_at_destination?: number | null;
 }, payerRules?: {
   requires_pcs?: boolean;
   requires_signature?: boolean;
@@ -306,6 +309,23 @@ export function computeCleanTripStatus(trip: {
     // Default checks without payer rules
     if (!trip.signature_obtained) structured.push({ field: "signature_obtained", message: "No signature", severity: "warning" });
     if (!trip.pcs_attached) structured.push({ field: "pcs_attached", message: "No PCS", severity: "warning" });
+  }
+
+  // New field checks
+  if (!trip.loaded_miles || trip.loaded_miles <= 0) {
+    // Only add if not already present from the check above
+    if (!structured.some(s => s.field === "loaded_miles")) {
+      structured.push({ field: "loaded_miles", message: "Loaded miles not recorded", severity: "blocker" });
+    }
+  }
+  if (!trip.stretcher_placement) {
+    structured.push({ field: "stretcher_placement", message: "Stretcher placement not documented", severity: "warning" });
+  }
+  if (!trip.patient_mobility) {
+    structured.push({ field: "patient_mobility", message: "Patient mobility not documented", severity: "warning" });
+  }
+  if (!trip.odometer_at_destination || trip.odometer_at_destination <= 0) {
+    structured.push({ field: "odometer_at_destination", message: "Destination odometer not recorded", severity: "warning" });
   }
 
   const blockers = structured.filter(i => i.severity === "blocker");
