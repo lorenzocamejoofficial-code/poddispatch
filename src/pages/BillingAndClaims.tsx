@@ -14,7 +14,7 @@ import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, 
 import { toast } from "sonner";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
-import { computeHcpcsCodes } from "@/lib/billing-utils";
+import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 
 type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction";
