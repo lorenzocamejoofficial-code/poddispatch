@@ -255,7 +255,7 @@ export default function BillingAndClaims() {
   const syncClaimsFromTrips = async () => {
     const { data: trips } = await supabase
       .from("trip_records" as any)
-      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required)")
+      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration)")
       .eq("status", "ready_for_billing");
 
     if (!trips?.length) { toast.info("No new trips ready for billing"); return; }
@@ -263,49 +263,104 @@ export default function BillingAndClaims() {
     const { data: existing } = await supabase.from("claim_records" as any).select("trip_id");
     const existingTripIds = new Set((existing ?? []).map((e: any) => e.trip_id));
 
-    const newClaims = (trips as any[])
-      .filter(t => !existingTripIds.has(t.id))
-      .map(t => {
-        const payerType = t.patient?.primary_payer ?? "default";
-        const rate = chargeMaster.find(r => r.payer_type === payerType) ?? chargeMaster.find(r => r.payer_type === "default");
-        const base = rate?.base_rate ?? 0;
-        const miles = Number(t.loaded_miles ?? 0) * Number(rate?.mileage_rate ?? 0);
-        const wait = Number(t.wait_time_minutes ?? 0) * Number(rate?.wait_rate_per_min ?? 0);
-        const extras = (t.patient?.oxygen_required ? Number(rate?.oxygen_fee ?? 0) : 0)
-          + (t.patient?.bariatric ? Number(rate?.bariatric_fee ?? 0) : 0);
+    const newTrips = (trips as any[]).filter(t => !existingTripIds.has(t.id));
+    if (!newTrips.length) { toast.info("All billing trips already have claims"); return; }
 
-        // Derive HCPCS
-        const { codes, modifiers: mods } = computeHcpcsCodes({
-          service_level: t.service_level,
-          loaded_miles: t.loaded_miles,
-          wait_time_minutes: t.wait_time_minutes,
-          oxygen_required: t.patient?.oxygen_required,
-          bariatric: t.patient?.bariatric,
-        });
+    const cleanClaims: any[] = [];
+    const reviewClaims: any[] = [];
+    const blockedTrips: { id: string; issues: string[] }[] = [];
 
-        return {
-          trip_id: t.id,
-          patient_id: t.patient_id,
-          run_date: t.run_date,
-          company_id: t.company_id,
-          payer_type: payerType,
-          payer_name: payerType,
-          member_id: t.patient?.member_id ?? null,
-          base_charge: base,
-          mileage_charge: miles,
-          extras_charge: extras + wait,
-          total_charge: base + miles + extras + wait,
-          status: "ready_to_bill",
-          origin_type: t.origin_type,
-          destination_type: t.destination_type,
-          hcpcs_codes: codes,
-          hcpcs_modifiers: mods,
-        };
+    for (const t of newTrips) {
+      const payerType = t.patient?.primary_payer ?? "default";
+      const payerRules = payerRulesMap.get(payerType) ?? null;
+      const authInfo = t.patient ? { auth_required: t.patient.auth_required, auth_expiration: t.patient.auth_expiration } : null;
+
+      // Run clean trip gate
+      const gateResult = computeCleanTripStatus(t, payerRules, authInfo);
+
+      if (gateResult.level === "blocked") {
+        blockedTrips.push({ id: t.id, issues: gateResult.issues });
+        continue;
+      }
+
+      const rate = chargeMaster.find(r => r.payer_type === payerType) ?? chargeMaster.find(r => r.payer_type === "default");
+      const base = rate?.base_rate ?? 0;
+      const miles = Number(t.loaded_miles ?? 0) * Number(rate?.mileage_rate ?? 0);
+      const wait = Number(t.wait_time_minutes ?? 0) * Number(rate?.wait_rate_per_min ?? 0);
+      const extras = (t.patient?.oxygen_required ? Number(rate?.oxygen_fee ?? 0) : 0)
+        + (t.patient?.bariatric ? Number(rate?.bariatric_fee ?? 0) : 0);
+
+      // Derive HCPCS with full trip data
+      const { codes, modifiers: mods } = computeHcpcsCodes({
+        pcr_type: t.pcr_type,
+        service_level: t.service_level,
+        loaded_miles: t.loaded_miles,
+        wait_time_minutes: t.wait_time_minutes,
+        oxygen_required: t.patient?.oxygen_required,
+        bariatric: t.patient?.bariatric,
+        equipment_used_json: t.equipment_used_json,
+        destination_type: t.destination_type,
+        origin_type: t.origin_type,
+        assessment_json: t.assessment_json,
       });
 
-    if (!newClaims.length) { toast.info("All billing trips already have claims"); return; }
-    await supabase.from("claim_records" as any).insert(newClaims);
-    toast.success(`Created ${newClaims.length} claim(s)`);
+      const claimStatus = gateResult.level === "review" ? "needs_review" : "ready_to_bill";
+      const claimNotes = gateResult.level === "review" ? JSON.stringify(gateResult.issues) : null;
+
+      const claim = {
+        trip_id: t.id,
+        patient_id: t.patient_id,
+        run_date: t.run_date,
+        company_id: t.company_id,
+        payer_type: payerType,
+        payer_name: payerType,
+        member_id: t.patient?.member_id ?? null,
+        base_charge: base,
+        mileage_charge: miles,
+        extras_charge: extras + wait,
+        total_charge: base + miles + extras + wait,
+        status: claimStatus,
+        origin_type: t.origin_type,
+        destination_type: t.destination_type,
+        hcpcs_codes: codes,
+        hcpcs_modifiers: mods,
+        notes: claimNotes,
+      };
+
+      if (gateResult.level === "review") {
+        reviewClaims.push(claim);
+      } else {
+        cleanClaims.push(claim);
+      }
+    }
+
+    const allClaims = [...cleanClaims, ...reviewClaims];
+    if (allClaims.length > 0) {
+      await supabase.from("claim_records" as any).insert(allClaims);
+    }
+
+    // Summary toast
+    const parts: string[] = [];
+    if (cleanClaims.length > 0) parts.push(`${cleanClaims.length} claim(s) created and ready to bill`);
+    if (reviewClaims.length > 0) parts.push(`${reviewClaims.length} claim(s) created with review flags`);
+    if (blockedTrips.length > 0) parts.push(`${blockedTrips.length} trip(s) blocked — documentation incomplete`);
+
+    if (blockedTrips.length > 0) {
+      const blockedDetail = blockedTrips
+        .map(b => `Trip ${b.id.slice(0, 8)}: ${b.issues.join(", ")}`)
+        .join("\n");
+      toast.warning(parts.join(" · "), {
+        description: blockedDetail,
+        duration: 12000,
+      });
+    } else if (reviewClaims.length > 0) {
+      toast.info(parts.join(" · "), { duration: 6000 });
+    } else if (cleanClaims.length > 0) {
+      toast.success(parts.join(" · "));
+    } else {
+      toast.info("No new claims to create");
+    }
+
     fetchData();
   };
 
