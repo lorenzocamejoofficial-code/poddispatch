@@ -263,6 +263,9 @@ export function computeCleanTripStatus(trip: {
   cannot_transfer_safely?: boolean;
   requires_monitoring?: boolean;
   oxygen_during_transport?: boolean;
+  stretcher_placement?: string | null;
+  patient_mobility?: string | null;
+  odometer_at_destination?: number | null;
 }, payerRules?: {
   requires_pcs?: boolean;
   requires_signature?: boolean;
