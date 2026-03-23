@@ -574,6 +574,35 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Biller PCR Correction Panel */}
+      {correctTrip && (
+        <BillerPCROverridePanel
+          trip={{
+            id: correctTrip.id,
+            loaded_miles: correctTrip.loaded_miles,
+            origin_type: correctTrip.origin_type,
+            destination_type: correctTrip.destination_type,
+            service_level: (correctTrip as any).service_level ?? null,
+            stretcher_placement: (correctTrip as any).stretcher_placement ?? null,
+            patient_mobility: (correctTrip as any).patient_mobility ?? null,
+            odometer_at_scene: (correctTrip as any).odometer_at_scene ?? null,
+            odometer_at_destination: (correctTrip as any).odometer_at_destination ?? null,
+            odometer_in_service: (correctTrip as any).odometer_in_service ?? null,
+            dispatch_time: correctTrip.dispatch_time,
+            at_scene_time: (correctTrip as any).at_scene_time ?? null,
+            left_scene_time: (correctTrip as any).left_scene_time ?? null,
+            arrived_dropoff_at: (correctTrip as any).arrived_dropoff_at ?? null,
+            in_service_time: (correctTrip as any).in_service_time ?? null,
+            hcpcs_codes: (correctTrip as any).hcpcs_codes ?? null,
+            vehicle_id: (correctTrip as any).vehicle_id ?? null,
+            patient_name: correctTrip.patient_name,
+          }}
+          open={!!correctTrip}
+          onOpenChange={(open) => { if (!open) setCorrectTrip(null); }}
+          onSaved={() => { setCorrectTrip(null); onRefresh(); }}
+        />
+      )}
     </div>
   );
 }
