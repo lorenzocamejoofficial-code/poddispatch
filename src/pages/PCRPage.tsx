@@ -221,7 +221,7 @@ export default function PCRPage() {
   const getMissingItems = (): string[] => {
     const missing: string[] = [];
     for (const card of cards) {
-      const rule = sectionRules.getCardRule(card.type);
+      const rule = getEffectiveCardRule(card.type);
       if (rule.state === "required" && !isCardComplete(card)) {
         missing.push(card.label);
       }
