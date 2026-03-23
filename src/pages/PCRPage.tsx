@@ -180,8 +180,29 @@ export default function PCRPage() {
       case "assessment": case "chief_complaint": return <AssessmentCard trip={trip} updateField={updateField} />;
       case "physical_exam": return <PhysicalExamCard trip={trip} updateField={updateField} />;
       case "hospital_outcome": return <HospitalOutcomeCard trip={trip} updateField={updateField} />;
+      case "stretcher_mobility": return <StretcherMobilityCard trip={trip} updateField={updateField} />;
+      case "isolation_precautions": return <IsolationPrecautionsCard trip={trip} updateField={updateField} />;
       default: return <p className="text-sm text-muted-foreground">Coming soon.</p>;
     }
+  };
+
+  const handleEmergencyUpgrade = async () => {
+    setUpgrading(true);
+    try {
+      const note = `EMERGENCY UPGRADE — ${new Date().toISOString()}`;
+      const existingNotes = trip.necessity_notes || "";
+      await supabase.from("trip_records").update({
+        pcr_type: "emergency",
+        necessity_notes: existingNotes ? `${existingNotes}\n${note}` : note,
+        updated_at: new Date().toISOString(),
+      }).eq("id", trip.id);
+      toast.success("PCR upgraded to Emergency");
+      setShowUpgradeDialog(false);
+      refetch();
+    } catch {
+      toast.error("Failed to upgrade PCR");
+    }
+    setUpgrading(false);
   };
 
   // Only require completion of sections marked "required" by rules
