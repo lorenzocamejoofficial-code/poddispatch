@@ -159,7 +159,7 @@ export default function PCRPage() {
   };
 
   const getCardStateLabel = (card: PCRCardConfig): React.ReactNode => {
-    const rule = sectionRules.getCardRule(card.type);
+    const rule = getEffectiveCardRule(card.type);
     if (rule.state === "locked") {
       return <Lock className="h-4 w-4 text-muted-foreground/40" />;
     }
