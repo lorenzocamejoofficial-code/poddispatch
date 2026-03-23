@@ -141,7 +141,7 @@ export default function PCRPage() {
   };
 
   const getCardColor = (card: PCRCardConfig): string => {
-    const rule = sectionRules.getCardRule(card.type);
+    const rule = getEffectiveCardRule(card.type);
     if (rule.state === "locked") return "border-muted bg-muted/20 opacity-60";
     const complete = isCardComplete(card);
     if (complete) return "border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/10";
