@@ -14,30 +14,95 @@ export const LOCATION_TYPES = [
 
 export type LocationType = (typeof LOCATION_TYPES)[number];
 
-// HCPCS codes for BLS non-emergency ambulance
+// HCPCS codes for ambulance transport
 export const HCPCS = {
   BLS_NON_EMERGENCY: "A0428",
+  BLS_EMERGENCY: "A0427",
+  ALS1_NON_EMERGENCY: "A0426",
+  ALS2_NON_EMERGENCY: "A0433",
   MILEAGE: "A0425",
 } as const;
 
+export const HCPCS_CODE_DESCRIPTIONS: Record<string, string> = {
+  A0427: "BLS Emergency Transport",
+  A0428: "BLS Non-Emergency Transport",
+  A0426: "ALS1 Non-Emergency Transport",
+  A0433: "ALS2 Non-Emergency Transport",
+  A0425: "Ground Mileage per Statute Mile",
+};
+
 // Auto-derive HCPCS codes from trip data
 export function computeHcpcsCodes(trip: {
-  service_level?: string;
+  pcr_type?: string | null;
+  service_level?: string | null;
   loaded_miles?: number | null;
   wait_time_minutes?: number | null;
   oxygen_required?: boolean;
   bariatric?: boolean;
+  equipment_used_json?: any;
+  destination_type?: string | null;
+  origin_type?: string | null;
+  assessment_json?: any;
 }): { codes: string[]; modifiers: string[] } {
-  const codes: string[] = [HCPCS.BLS_NON_EMERGENCY];
-  const modifiers: string[] = [];
+  // 1. Determine base transport code
+  let baseCode: string;
+  const pcrType = (trip.pcr_type ?? "").toLowerCase();
+  const serviceLevel = (trip.service_level ?? "").toUpperCase();
 
+  if (pcrType === "emergency") {
+    baseCode = HCPCS.BLS_EMERGENCY;
+  } else if (serviceLevel === "ALS2") {
+    baseCode = HCPCS.ALS2_NON_EMERGENCY;
+  } else if (serviceLevel === "ALS1" || serviceLevel.includes("ALS")) {
+    baseCode = HCPCS.ALS1_NON_EMERGENCY;
+  } else {
+    baseCode = HCPCS.BLS_NON_EMERGENCY;
+  }
+
+  const codes: string[] = [baseCode];
+
+  // 2. Mileage code
   if ((trip.loaded_miles ?? 0) > 0) {
     codes.push(HCPCS.MILEAGE);
   }
 
-  if (trip.oxygen_required) modifiers.push("QM"); // oxygen
-  if (trip.bariatric) modifiers.push("QL"); // bariatric
-  if ((trip.wait_time_minutes ?? 0) > 0) modifiers.push("TP"); // wait time
+  // 3. Modifiers
+  const modifiers: string[] = [];
+
+  // QM — oxygen: check equipment_used_json for oxygen/O2 entries
+  let hasOxygen = !!trip.oxygen_required;
+  if (!hasOxygen && trip.equipment_used_json) {
+    const eq = trip.equipment_used_json;
+    if (typeof eq === "object") {
+      // Check if it's an object with oxygen-related keys/values
+      const eqStr = JSON.stringify(eq).toLowerCase();
+      if (eqStr.includes("oxygen") || eqStr.includes("o2")) {
+        hasOxygen = true;
+      }
+    }
+  }
+  if (hasOxygen) modifiers.push("QM");
+
+  // QL — bariatric
+  let isBariatric = !!trip.bariatric;
+  if (!isBariatric && serviceLevel.includes("BARIATRIC")) isBariatric = true;
+  if (!isBariatric && trip.assessment_json) {
+    const assessStr = JSON.stringify(trip.assessment_json).toLowerCase();
+    if (assessStr.includes("bariatric")) isBariatric = true;
+  }
+  if (isBariatric) modifiers.push("QL");
+
+  // TP — wait time
+  if ((trip.wait_time_minutes ?? 0) > 0) modifiers.push("TP");
+
+  // 4. QN — non-emergency dialysis transport
+  if (pcrType !== "emergency") {
+    const destType = (trip.destination_type ?? "").toLowerCase();
+    const origType = (trip.origin_type ?? "").toLowerCase();
+    if (destType.includes("dialysis") || origType.includes("dialysis")) {
+      modifiers.push("QN");
+    }
+  }
 
   return { codes, modifiers };
 }
