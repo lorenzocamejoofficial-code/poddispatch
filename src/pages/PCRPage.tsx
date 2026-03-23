@@ -103,6 +103,18 @@ export default function PCRPage() {
   const transportKey = getPCRTransportKey(trip.trip_type || trip.pcr_type);
   const cards = PCR_CARDS_BY_TRANSPORT[transportKey] || PCR_CARDS_BY_TRANSPORT.dialysis;
 
+  // Helper to get card rule — handles combined stretcher_mobility card
+  const getEffectiveCardRule = (cardType: string) => {
+    if (cardType === "stretcher_mobility") {
+      const sp = sectionRules.getRule("stretcher_placement");
+      const pm = sectionRules.getRule("patient_mobility");
+      // If either is required, the combined card is required
+      if (sp.state === "required" || pm.state === "required") return { state: "required" as const, lockedReason: "" };
+      if (sp.state === "locked" && pm.state === "locked") return sp;
+      return { state: "optional" as const, lockedReason: "" };
+    }
+    return sectionRules.getCardRule(cardType);
+  };
   // Determine card completion status
   const isCardComplete = (card: PCRCardConfig): boolean => {
     switch (card.type) {
