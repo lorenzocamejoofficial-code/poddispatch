@@ -326,6 +326,13 @@ export default function BillingAndClaims() {
         hcpcs_codes: codes,
         hcpcs_modifiers: mods,
         notes: claimNotes,
+        vehicle_id: t.vehicle_id ?? null,
+        odometer_at_scene: t.odometer_at_scene ?? null,
+        odometer_at_destination: t.odometer_at_destination ?? null,
+        odometer_in_service: t.odometer_in_service ?? null,
+        stretcher_placement: t.stretcher_placement ?? null,
+        patient_mobility: t.patient_mobility ?? null,
+        isolation_precautions: t.isolation_precautions ?? null,
       };
 
       if (gateResult.level === "review") {
