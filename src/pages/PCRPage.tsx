@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePCRData } from "@/hooks/usePCRData";
+import { usePCRSectionRules } from "@/hooks/usePCRSectionRules";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { MedicSelector } from "@/components/pcr/MedicSelector";
 import { TimesCard } from "@/components/pcr/TimesCard";
@@ -16,9 +17,10 @@ import { SendingFacilityCard, HospitalOutcomeCard } from "@/components/pcr/Facil
 import { SignaturesCard } from "@/components/pcr/SignaturesCard";
 import { NarrativeCard } from "@/components/pcr/NarrativeCard";
 import { BillingCard } from "@/components/pcr/BillingCard";
+import { LockedSectionOverlay } from "@/components/pcr/LockedSectionOverlay";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Check, Loader2, Send, AlertCircle } from "lucide-react";
+import { ChevronLeft, Check, Loader2, Send, AlertCircle, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +38,9 @@ export default function PCRPage() {
   const [truckName, setTruckName] = useState("");
   const [crewMembers, setCrewMembers] = useState<{ m1: CrewMember | null; m2: CrewMember | null }>({ m1: null, m2: null });
   const [submitting, setSubmitting] = useState(false);
+
+  // Central section rules driven by pcr_type
+  const sectionRules = usePCRSectionRules(trip?.pcr_type || trip?.trip_type);
 
   // Fetch crew info for medic selection
   useEffect(() => {
@@ -104,9 +109,9 @@ export default function PCRPage() {
       case "equipment": return Object.keys(trip.equipment_used_json || {}).length > 0;
       case "signatures": return (trip.signatures_json || []).length > 0;
       case "narrative": return !!trip.narrative;
-      case "billing": return true; // always auto-calculated
+      case "billing": return true;
       case "sending_facility": return !!(trip.sending_facility_json?.facility_name);
-      case "assessment": return !!(trip.chief_complaint || trip.primary_impression);
+      case "assessment": case "chief_complaint": return !!(trip.chief_complaint || trip.primary_impression);
       case "physical_exam": return Object.keys(trip.physical_exam_json || {}).some((k: string) => (trip.physical_exam_json[k]?.findings || []).length > 0);
       case "hospital_outcome": return !!(trip.hospital_outcome_json?.chief_complaint || trip.disposition);
       default: return false;
@@ -114,21 +119,43 @@ export default function PCRPage() {
   };
 
   const getCardColor = (card: PCRCardConfig): string => {
+    const rule = sectionRules.getCardRule(card.type);
+    if (rule.state === "locked") return "border-muted bg-muted/20 opacity-60";
     const complete = isCardComplete(card);
     if (complete) return "border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/10";
-    if (card.required) return "border-destructive/50 bg-destructive/5";
+    if (rule.state === "required") return "border-destructive/50 bg-destructive/5";
     return "border-muted";
   };
 
   const getCardDot = (card: PCRCardConfig): string => {
+    const rule = sectionRules.getCardRule(card.type);
+    if (rule.state === "locked") return "bg-muted-foreground/20";
     const complete = isCardComplete(card);
     if (complete) return "bg-emerald-500";
-    if (card.required) return "bg-destructive";
+    if (rule.state === "required") return "bg-destructive";
     return "bg-muted-foreground/30";
   };
 
-  // Render card content
+  const getCardStateLabel = (card: PCRCardConfig): React.ReactNode => {
+    const rule = sectionRules.getCardRule(card.type);
+    if (rule.state === "locked") {
+      return <Lock className="h-4 w-4 text-muted-foreground/40" />;
+    }
+    if (isCardComplete(card)) {
+      return <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />;
+    }
+    if (rule.state === "required") {
+      return <span className="text-[10px] font-bold uppercase text-destructive">Required</span>;
+    }
+    return <span className="text-[10px] font-medium uppercase text-muted-foreground">Optional</span>;
+  };
+
+  // Render card content — locked cards show overlay instead
   const renderCard = (type: PCRCardType) => {
+    const rule = sectionRules.getCardRule(type);
+    if (rule.state === "locked") {
+      return <LockedSectionOverlay reason={rule.lockedReason} />;
+    }
     switch (type) {
       case "times": return <TimesCard trip={trip} recordTime={recordTime} updateField={updateField} />;
       case "patient_info": return <PatientInfoCard trip={trip} updateField={updateField} />;
@@ -147,11 +174,14 @@ export default function PCRPage() {
     }
   };
 
-  // Check what's missing for submission
+  // Only require completion of sections marked "required" by rules
   const getMissingItems = (): string[] => {
     const missing: string[] = [];
     for (const card of cards) {
-      if (card.required && !isCardComplete(card)) missing.push(card.label);
+      const rule = sectionRules.getCardRule(card.type);
+      if (rule.state === "required" && !isCardComplete(card)) {
+        missing.push(card.label);
+      }
     }
     return missing;
   };
@@ -211,8 +241,9 @@ export default function PCRPage() {
 
   // Card overview
   const patient = trip.patient;
-  const completedRequired = cards.filter(c => c.required && isCardComplete(c)).length;
-  const totalRequired = cards.filter(c => c.required).length;
+  const requiredCards = cards.filter(c => sectionRules.getCardRule(c.type).state === "required");
+  const completedRequired = requiredCards.filter(c => isCardComplete(c)).length;
+  const totalRequired = requiredCards.length;
 
   return (
     <CrewLayout>
@@ -222,7 +253,7 @@ export default function PCRPage() {
           <h2 className="text-lg font-bold text-foreground">
             {patient ? `${patient.first_name} ${patient.last_name}` : "PCR"}
           </h2>
-          <p className="text-sm text-muted-foreground capitalize">{transportKey.replace("_", " ")} Transport</p>
+          <p className="text-sm text-muted-foreground capitalize">{sectionRules.type.replace(/_/g, " ")} Transport</p>
           <p className="text-xs text-muted-foreground mt-1">
             Attending: {trip.attending_medic_name} ({trip.attending_medic_cert})
           </p>
@@ -235,25 +266,34 @@ export default function PCRPage() {
         </div>
 
         <div className="space-y-2">
-          {cards.map((card) => (
-            <button
-              key={card.type}
-              onClick={() => setActiveCard(card.type)}
-              className={cn(
-                "w-full rounded-lg border-2 p-4 text-left transition-all active:scale-[0.98]",
-                getCardColor(card)
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <div className={cn("h-3 w-3 rounded-full shrink-0", getCardDot(card))} />
-                <span className="flex-1 text-sm font-semibold text-foreground">{card.label}</span>
-                {isCardComplete(card) && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
-                {card.required && !isCardComplete(card) && (
-                  <span className="text-[10px] font-bold uppercase text-destructive">Required</span>
+          {cards.map((card) => {
+            const rule = sectionRules.getCardRule(card.type);
+            const isLockedCard = rule.state === "locked";
+
+            return (
+              <button
+                key={card.type}
+                onClick={() => !isLockedCard && setActiveCard(card.type)}
+                disabled={isLockedCard}
+                className={cn(
+                  "w-full rounded-lg border-2 p-4 text-left transition-all",
+                  isLockedCard ? "cursor-not-allowed" : "active:scale-[0.98]",
+                  getCardColor(card)
                 )}
-              </div>
-            </button>
-          ))}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={cn("h-3 w-3 rounded-full shrink-0", getCardDot(card))} />
+                  <span className={cn("flex-1 text-sm font-semibold", isLockedCard ? "text-muted-foreground/50" : "text-foreground")}>
+                    {card.label}
+                  </span>
+                  {getCardStateLabel(card)}
+                </div>
+                {isLockedCard && (
+                  <p className="text-[10px] text-muted-foreground/40 mt-1 ml-6">{rule.lockedReason}</p>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Submit */}
