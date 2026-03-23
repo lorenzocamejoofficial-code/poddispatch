@@ -57,6 +57,15 @@ export interface PCRTripData {
   disposition: string | null;
   crew_updated_fields: any[];
   loaded_miles: number | null;
+  // New PCR fields
+  vehicle_id: string | null;
+  odometer_at_scene: number | null;
+  odometer_at_destination: number | null;
+  odometer_in_service: number | null;
+  stretcher_placement: string | null;
+  patient_mobility: string | null;
+  isolation_precautions: any;
+  necessity_notes: string | null;
   // Patient info (joined)
   patient?: any;
 }
