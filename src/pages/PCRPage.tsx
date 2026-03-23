@@ -302,23 +302,50 @@ export default function PCRPage() {
   return (
     <CrewLayout>
       <div className="p-4 pb-24 min-h-screen">
+        {/* Read-only submitted banner */}
+        {isReadOnly && (
+          <div className="mb-4 rounded-lg border-2 border-emerald-400 bg-emerald-50 dark:bg-emerald-900/10 p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-800/30 flex items-center justify-center">
+                <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">PCR Submitted</p>
+                <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80">
+                  {trip.pcr_completed_at ? new Date(trip.pcr_completed_at).toLocaleString() : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Attending: {trip.attending_medic_name} ({trip.attending_medic_cert})
+                </p>
+              </div>
+            </div>
+            <p className="mt-2 text-xs font-medium text-emerald-700/60 dark:text-emerald-400/60 flex items-center gap-1">
+              <Eye className="h-3.5 w-3.5" /> View Only — Submitted PCR
+            </p>
+          </div>
+        )}
+
         <div className="mb-4">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{truckName}</p>
           <h2 className="text-lg font-bold text-foreground">
             {patient ? `${patient.first_name} ${patient.last_name}` : "PCR"}
           </h2>
           <p className="text-sm text-muted-foreground capitalize">{sectionRules.type.replace(/_/g, " ")} Transport</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Attending: {trip.attending_medic_name} ({trip.attending_medic_cert})
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-              <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${totalRequired > 0 ? (completedRequired / totalRequired) * 100 : 0}%` }} />
+          {!isReadOnly && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Attending: {trip.attending_medic_name} ({trip.attending_medic_cert})
+            </p>
+          )}
+          {!isReadOnly && (
+            <div className="mt-2 flex items-center gap-2">
+              <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${totalRequired > 0 ? (completedRequired / totalRequired) * 100 : 0}%` }} />
+              </div>
+              <span className="text-xs font-medium text-muted-foreground">{completedRequired}/{totalRequired}</span>
             </div>
-            <span className="text-xs font-medium text-muted-foreground">{completedRequired}/{totalRequired}</span>
-          </div>
-          {/* Emergency Upgrade Button */}
-          {sectionRules.type !== "emergency" && (
+          )}
+          {/* Emergency Upgrade Button — only when not read-only */}
+          {!isReadOnly && sectionRules.type !== "emergency" && (
             <Button
               variant="destructive"
               size="sm"
@@ -362,28 +389,30 @@ export default function PCRPage() {
           })}
         </div>
 
-        {/* Submit */}
-        <div className="mt-6">
-          {getMissingItems().length > 0 && (
-            <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-xs font-medium text-destructive">Missing sections:</p>
-                  <p className="text-xs text-destructive/80">{getMissingItems().join(", ")}</p>
+        {/* Submit — only when not read-only */}
+        {!isReadOnly && (
+          <div className="mt-6">
+            {getMissingItems().length > 0 && (
+              <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-destructive">Missing sections:</p>
+                    <p className="text-xs text-destructive/80">{getMissingItems().join(", ")}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-          <Button
-            className="w-full h-14 text-base font-bold"
-            disabled={submitting || getMissingItems().length > 0}
-            onClick={handleSubmit}
-          >
-            {submitting ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Send className="h-5 w-5 mr-2" />}
-            Submit PCR
-          </Button>
-        </div>
+            )}
+            <Button
+              className="w-full h-14 text-base font-bold"
+              disabled={submitting || getMissingItems().length > 0}
+              onClick={handleSubmit}
+            >
+              {submitting ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Send className="h-5 w-5 mr-2" />}
+              Submit PCR
+            </Button>
+          </div>
+        )}
 
         {/* Emergency Upgrade Dialog */}
         <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
