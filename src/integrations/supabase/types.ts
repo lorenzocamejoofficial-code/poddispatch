@@ -232,23 +232,30 @@ export type Database = {
           icd10_codes: string[] | null
           id: string
           is_simulated: boolean
+          isolation_precautions: Json | null
           member_id: string | null
           mileage_charge: number | null
           notes: string | null
+          odometer_at_destination: number | null
+          odometer_at_scene: number | null
+          odometer_in_service: number | null
           origin_type: string | null
           origin_zip: string | null
           paid_at: string | null
           patient_id: string | null
+          patient_mobility: string | null
           payer_name: string | null
           payer_type: string | null
           resubmitted_at: string | null
           run_date: string
           simulation_run_id: string | null
           status: Database["public"]["Enums"]["claim_status"]
+          stretcher_placement: string | null
           submitted_at: string | null
           total_charge: number | null
           trip_id: string | null
           updated_at: string
+          vehicle_id: string | null
         }
         Insert: {
           amount_paid?: number | null
@@ -270,23 +277,30 @@ export type Database = {
           icd10_codes?: string[] | null
           id?: string
           is_simulated?: boolean
+          isolation_precautions?: Json | null
           member_id?: string | null
           mileage_charge?: number | null
           notes?: string | null
+          odometer_at_destination?: number | null
+          odometer_at_scene?: number | null
+          odometer_in_service?: number | null
           origin_type?: string | null
           origin_zip?: string | null
           paid_at?: string | null
           patient_id?: string | null
+          patient_mobility?: string | null
           payer_name?: string | null
           payer_type?: string | null
           resubmitted_at?: string | null
           run_date: string
           simulation_run_id?: string | null
           status?: Database["public"]["Enums"]["claim_status"]
+          stretcher_placement?: string | null
           submitted_at?: string | null
           total_charge?: number | null
           trip_id?: string | null
           updated_at?: string
+          vehicle_id?: string | null
         }
         Update: {
           amount_paid?: number | null
@@ -308,23 +322,30 @@ export type Database = {
           icd10_codes?: string[] | null
           id?: string
           is_simulated?: boolean
+          isolation_precautions?: Json | null
           member_id?: string | null
           mileage_charge?: number | null
           notes?: string | null
+          odometer_at_destination?: number | null
+          odometer_at_scene?: number | null
+          odometer_in_service?: number | null
           origin_type?: string | null
           origin_zip?: string | null
           paid_at?: string | null
           patient_id?: string | null
+          patient_mobility?: string | null
           payer_name?: string | null
           payer_type?: string | null
           resubmitted_at?: string | null
           run_date?: string
           simulation_run_id?: string | null
           status?: Database["public"]["Enums"]["claim_status"]
+          stretcher_placement?: string | null
           submitted_at?: string | null
           total_charge?: number | null
           trip_id?: string | null
           updated_at?: string
+          vehicle_id?: string | null
         }
         Relationships: [
           {
@@ -2807,6 +2828,7 @@ export type Database = {
         | "paid"
         | "denied"
         | "needs_correction"
+        | "needs_review"
       leg_type: "A" | "B"
       membership_role: "creator" | "owner" | "dispatcher" | "biller" | "crew"
       onboarding_status:
@@ -2990,6 +3012,7 @@ export const Constants = {
         "paid",
         "denied",
         "needs_correction",
+        "needs_review",
       ],
       leg_type: ["A", "B"],
       membership_role: ["creator", "owner", "dispatcher", "biller", "crew"],

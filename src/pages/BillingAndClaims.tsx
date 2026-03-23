@@ -17,7 +17,7 @@ import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 
-type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction";
+type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction" | "needs_review";
 
 interface ClaimRecord {
   id: string;
@@ -67,6 +67,7 @@ const CLAIM_COLUMNS: { status: ClaimStatus; label: string; icon: React.ReactNode
   { status: "paid", label: "Paid", icon: <CheckCircle className="h-4 w-4" />, color: "border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5" },
   { status: "denied", label: "Denied", icon: <XCircle className="h-4 w-4" />, color: "border-destructive/30 bg-destructive/5" },
   { status: "needs_correction", label: "Needs Correction", icon: <AlertTriangle className="h-4 w-4" />, color: "border-orange-400/30 bg-orange-50 dark:bg-orange-950/20" },
+  { status: "needs_review", label: "Needs Review", icon: <ShieldAlert className="h-4 w-4" />, color: "border-amber-500/30 bg-amber-50 dark:bg-amber-950/20" },
 ];
 
 const PAYER_TYPES = ["default", "medicare", "medicaid", "facility", "cash"];
@@ -255,7 +256,7 @@ export default function BillingAndClaims() {
   const syncClaimsFromTrips = async () => {
     const { data: trips } = await supabase
       .from("trip_records" as any)
-      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration)")
+      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions")
       .eq("status", "ready_for_billing");
 
     if (!trips?.length) { toast.info("No new trips ready for billing"); return; }
@@ -325,6 +326,13 @@ export default function BillingAndClaims() {
         hcpcs_codes: codes,
         hcpcs_modifiers: mods,
         notes: claimNotes,
+        vehicle_id: t.vehicle_id ?? null,
+        odometer_at_scene: t.odometer_at_scene ?? null,
+        odometer_at_destination: t.odometer_at_destination ?? null,
+        odometer_in_service: t.odometer_in_service ?? null,
+        stretcher_placement: t.stretcher_placement ?? null,
+        patient_mobility: t.patient_mobility ?? null,
+        isolation_precautions: t.isolation_precautions ?? null,
       };
 
       if (gateResult.level === "review") {
