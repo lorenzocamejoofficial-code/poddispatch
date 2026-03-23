@@ -2174,6 +2174,7 @@ export type Database = {
           id: string
           in_service_time: string | null
           is_simulated: boolean
+          isolation_precautions: Json | null
           iv_access_json: Json | null
           left_scene_time: string | null
           leg_id: string | null
@@ -2185,11 +2186,15 @@ export type Database = {
           mobility_method: string | null
           narrative: string | null
           necessity_notes: string | null
+          odometer_at_destination: number | null
+          odometer_at_scene: number | null
+          odometer_in_service: number | null
           origin_type: string | null
           oxygen_during_transport: boolean | null
           oxygen_saturation: number | null
           patient_contact_time: string | null
           patient_id: string | null
+          patient_mobility: string | null
           patient_position: string | null
           pcr_completed_at: string | null
           pcr_status: string
@@ -2215,11 +2220,13 @@ export type Database = {
           skin_condition: string | null
           slot_id: string | null
           status: Database["public"]["Enums"]["trip_status"]
+          stretcher_placement: string | null
           stretcher_required: boolean | null
           transport_condition: string | null
           trip_type: Database["public"]["Enums"]["trip_type"] | null
           truck_id: string | null
           updated_at: string
+          vehicle_id: string | null
           vitals_json: Json | null
           vitals_taken_at: string | null
           wait_time_minutes: number | null
@@ -2266,6 +2273,7 @@ export type Database = {
           id?: string
           in_service_time?: string | null
           is_simulated?: boolean
+          isolation_precautions?: Json | null
           iv_access_json?: Json | null
           left_scene_time?: string | null
           leg_id?: string | null
@@ -2277,11 +2285,15 @@ export type Database = {
           mobility_method?: string | null
           narrative?: string | null
           necessity_notes?: string | null
+          odometer_at_destination?: number | null
+          odometer_at_scene?: number | null
+          odometer_in_service?: number | null
           origin_type?: string | null
           oxygen_during_transport?: boolean | null
           oxygen_saturation?: number | null
           patient_contact_time?: string | null
           patient_id?: string | null
+          patient_mobility?: string | null
           patient_position?: string | null
           pcr_completed_at?: string | null
           pcr_status?: string
@@ -2307,11 +2319,13 @@ export type Database = {
           skin_condition?: string | null
           slot_id?: string | null
           status?: Database["public"]["Enums"]["trip_status"]
+          stretcher_placement?: string | null
           stretcher_required?: boolean | null
           transport_condition?: string | null
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
           updated_at?: string
+          vehicle_id?: string | null
           vitals_json?: Json | null
           vitals_taken_at?: string | null
           wait_time_minutes?: number | null
@@ -2358,6 +2372,7 @@ export type Database = {
           id?: string
           in_service_time?: string | null
           is_simulated?: boolean
+          isolation_precautions?: Json | null
           iv_access_json?: Json | null
           left_scene_time?: string | null
           leg_id?: string | null
@@ -2369,11 +2384,15 @@ export type Database = {
           mobility_method?: string | null
           narrative?: string | null
           necessity_notes?: string | null
+          odometer_at_destination?: number | null
+          odometer_at_scene?: number | null
+          odometer_in_service?: number | null
           origin_type?: string | null
           oxygen_during_transport?: boolean | null
           oxygen_saturation?: number | null
           patient_contact_time?: string | null
           patient_id?: string | null
+          patient_mobility?: string | null
           patient_position?: string | null
           pcr_completed_at?: string | null
           pcr_status?: string
@@ -2399,11 +2418,13 @@ export type Database = {
           skin_condition?: string | null
           slot_id?: string | null
           status?: Database["public"]["Enums"]["trip_status"]
+          stretcher_placement?: string | null
           stretcher_required?: boolean | null
           transport_condition?: string | null
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
           updated_at?: string
+          vehicle_id?: string | null
           vitals_json?: Json | null
           vitals_taken_at?: string | null
           wait_time_minutes?: number | null
