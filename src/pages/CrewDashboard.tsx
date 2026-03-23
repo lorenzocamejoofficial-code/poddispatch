@@ -272,9 +272,21 @@ export default function CrewDashboard() {
 
                 {/* Action buttons */}
                 <div className="flex gap-2">
-                  <Button className="flex-1 h-12 text-sm font-semibold gap-2" onClick={() => openPCR(run)}>
-                    <FileText className="h-4 w-4" />
-                    {run.pcrStatus === "not_started" ? "Start PCR" : run.pcrStatus === "in_progress" ? "Continue PCR" : "View PCR"}
+                  <Button
+                    className={cn(
+                      "flex-1 h-12 text-sm font-semibold gap-2",
+                      run.pcrStatus === "completed" && "bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-800",
+                      run.pcrStatus === "in_progress" && "bg-amber-600 hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-800",
+                    )}
+                    onClick={() => openPCR(run)}
+                  >
+                    {run.pcrStatus === "completed" ? (
+                      <><Eye className="h-4 w-4" />View PCR</>
+                    ) : run.pcrStatus === "in_progress" ? (
+                      <><FileText className="h-4 w-4" />Continue PCR</>
+                    ) : (
+                      <><FileText className="h-4 w-4" />Start PCR</>
+                    )}
                   </Button>
 
                   {run.tripId && !isTerminal && !activeHold && (
