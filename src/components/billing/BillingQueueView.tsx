@@ -511,6 +511,19 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                   View Override Log
                 </Button>
               )}
+              {/* Correct PCR button */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-1.5"
+                onClick={() => {
+                  setCorrectTrip(selectedTrip);
+                  setSelectedTrip(null);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Correct PCR
+              </Button>
             </div>
           )}
         </DialogContent>
