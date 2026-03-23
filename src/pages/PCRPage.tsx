@@ -150,7 +150,7 @@ export default function PCRPage() {
   };
 
   const getCardDot = (card: PCRCardConfig): string => {
-    const rule = sectionRules.getCardRule(card.type);
+    const rule = getEffectiveCardRule(card.type);
     if (rule.state === "locked") return "bg-muted-foreground/20";
     const complete = isCardComplete(card);
     if (complete) return "bg-emerald-500";
