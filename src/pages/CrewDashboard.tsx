@@ -104,30 +104,47 @@ export default function CrewDashboard() {
     const legIds = slots.map(s => s.leg_id);
 
     const [{ data: legs }, { data: trips }] = await Promise.all([
-      supabase.from("scheduling_legs").select("id, pickup_location, destination_location, pickup_time, trip_type, patient_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)").in("id", legIds),
-      supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type").eq("run_date", today).eq("truck_id", truckId).in("leg_id", legIds),
+      supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, pickup_address, dropoff_facility)").in("id", legIds),
+      supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, scheduled_pickup_time, billing_blocked_reason").eq("run_date", today).eq("truck_id", truckId).in("leg_id", legIds),
     ]);
 
     const legMap = new Map((legs ?? []).map(l => [l.id, l]));
     const tripMap = new Map((trips ?? []).map(t => [t.leg_id, t]));
 
+    const formatPatientName = (patient: any): { name: string; hasRecord: boolean } => {
+      if (!patient?.first_name) return { name: "Unassigned", hasRecord: false };
+      const firstInitial = patient.first_name.charAt(0).toUpperCase();
+      return { name: `${firstInitial}. ${patient.last_name}`, hasRecord: true };
+    };
+
     const cards: RunCard[] = slots.map(slot => {
       const leg = legMap.get(slot.leg_id);
       const trip = tripMap.get(slot.leg_id);
       const patient = leg?.patient as any;
+      const { name: patientName, hasRecord } = formatPatientName(patient);
+      const legTypeRaw = (leg as any)?.leg_type;
+      const legType = legTypeRaw === "a_leg" ? "A" : legTypeRaw === "b_leg" ? "B" : "—";
       return {
         slotId: slot.id, slotOrder: slot.slot_order, legId: slot.leg_id,
-        patientName: patient ? `${patient.first_name} ${patient.last_name}` : "Unknown",
-        pickupLocation: leg?.pickup_location ?? "—",
-        destinationLocation: leg?.destination_location ?? "—",
+        legType,
+        patientName,
+        patientHasRecord: hasRecord,
+        pickupLocation: trip?.pickup_location ?? leg?.pickup_location ?? "—",
+        destinationLocation: trip?.destination_location ?? leg?.destination_location ?? "—",
         pickupTime: leg?.pickup_time ?? null,
+        originType: trip?.origin_type ?? null,
+        patientPickupAddress: patient?.pickup_address ?? null,
+        patientDropoffFacility: patient?.dropoff_facility ?? null,
+        dispatchTime: trip?.dispatch_time ?? null,
         tripType: trip?.trip_type ?? leg?.trip_type ?? null,
+        pcrType: (trip as any)?.pcr_type ?? null,
         tripStatus: trip?.status ?? "scheduled",
         tripId: trip?.id ?? null,
         truckId, crewId,
         companyId: trip?.company_id ?? crewCompanyId ?? null,
         pcrStatus: (trip as any)?.pcr_status ?? "not_started",
         patientId: (leg as any)?.patient_id ?? null,
+        cancellationReason: (trip as any)?.billing_blocked_reason ?? null,
       };
     });
     setRuns(cards);
