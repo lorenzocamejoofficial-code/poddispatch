@@ -174,7 +174,7 @@ export default function PCRPage() {
 
   // Render card content — locked cards show overlay instead
   const renderCard = (type: PCRCardType) => {
-    const rule = sectionRules.getCardRule(type);
+    const rule = getEffectiveCardRule(type);
     if (rule.state === "locked") {
       return <LockedSectionOverlay reason={rule.lockedReason} />;
     }
