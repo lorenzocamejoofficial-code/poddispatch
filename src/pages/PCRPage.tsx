@@ -322,7 +322,7 @@ export default function PCRPage() {
 
         <div className="space-y-2">
           {cards.map((card) => {
-            const rule = sectionRules.getCardRule(card.type);
+            const rule = getEffectiveCardRule(card.type);
             const isLockedCard = rule.state === "locked";
 
             return (
