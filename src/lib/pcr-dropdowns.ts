@@ -167,7 +167,8 @@ export type PCRCardType =
   | "times" | "patient_info" | "vitals" | "condition_on_arrival" | "equipment"
   | "signatures" | "narrative" | "billing" | "sending_facility" | "assessment"
   | "physical_exam" | "hospital_outcome" | "chief_complaint" | "airway"
-  | "procedures" | "medications" | "iv_access" | "medical_necessity";
+  | "procedures" | "medications" | "iv_access" | "medical_necessity"
+  | "stretcher_mobility" | "isolation_precautions";
 
 export interface PCRCardConfig {
   type: PCRCardType;
