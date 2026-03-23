@@ -294,6 +294,18 @@ export default function PCRPage() {
             </div>
             <span className="text-xs font-medium text-muted-foreground">{completedRequired}/{totalRequired}</span>
           </div>
+          {/* Emergency Upgrade Button */}
+          {sectionRules.type !== "emergency" && (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="mt-2 w-full"
+              onClick={() => setShowUpgradeDialog(true)}
+            >
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              Upgrade to Emergency
+            </Button>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -349,6 +361,28 @@ export default function PCRPage() {
             Submit PCR
           </Button>
         </div>
+
+        {/* Emergency Upgrade Dialog */}
+        <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                Upgrade to Emergency
+              </DialogTitle>
+              <DialogDescription>
+                This will upgrade the PCR to Emergency type, unlocking all clinical sections. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setShowUpgradeDialog(false)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleEmergencyUpgrade} disabled={upgrading}>
+                {upgrading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Confirm Upgrade
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </CrewLayout>
   );
