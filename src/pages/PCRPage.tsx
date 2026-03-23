@@ -41,6 +41,8 @@ export default function PCRPage() {
   const [truckName, setTruckName] = useState("");
   const [crewMembers, setCrewMembers] = useState<{ m1: CrewMember | null; m2: CrewMember | null }>({ m1: null, m2: null });
   const [submitting, setSubmitting] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
 
   // Central section rules driven by pcr_type
   const sectionRules = usePCRSectionRules(trip?.pcr_type || trip?.trip_type);
