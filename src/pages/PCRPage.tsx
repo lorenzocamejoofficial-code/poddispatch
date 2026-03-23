@@ -284,7 +284,7 @@ export default function PCRPage() {
 
   // Card overview
   const patient = trip.patient;
-  const requiredCards = cards.filter(c => sectionRules.getCardRule(c.type).state === "required");
+  const requiredCards = cards.filter(c => getEffectiveCardRule(c.type).state === "required");
   const completedRequired = requiredCards.filter(c => isCardComplete(c)).length;
   const totalRequired = requiredCards.length;
 
