@@ -276,9 +276,18 @@ export default function PCRPage() {
           <button onClick={() => setActiveCard(null)} className="mb-3 flex items-center gap-1 text-sm text-muted-foreground">
             <ChevronLeft className="h-4 w-4" /> Back to PCR
           </button>
+          {isReadOnly && (
+            <div className="mb-3 rounded-lg border border-emerald-400 bg-emerald-50 dark:bg-emerald-900/10 p-2 text-center">
+              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center justify-center gap-1">
+                <Eye className="h-3.5 w-3.5" /> View Only — Submitted PCR
+              </p>
+            </div>
+          )}
           <h2 className="text-lg font-bold text-foreground mb-4">{cardConfig?.label}</h2>
-          {saving && <p className="text-xs text-muted-foreground mb-2">Saving...</p>}
-          {renderCard(activeCard)}
+          {saving && !isReadOnly && <p className="text-xs text-muted-foreground mb-2">Saving...</p>}
+          <fieldset disabled={isReadOnly} className={isReadOnly ? "pointer-events-none opacity-80" : ""}>
+            {renderCard(activeCard)}
+          </fieldset>
         </div>
       </CrewLayout>
     );
