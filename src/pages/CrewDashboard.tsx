@@ -2,21 +2,37 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Truck, Users, Loader2, Clock, AlertTriangle, FileText, Check, Eye } from "lucide-react";
+import { Truck, Users, Loader2, Clock, AlertTriangle, FileText, Check, Eye, Ban } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { cn } from "@/lib/utils";
 
+const TRANSPORT_LABELS: Record<string, string> = {
+  dialysis: "Dialysis Transport",
+  ift: "Interfacility Transfer",
+  discharge: "Discharge Transport",
+  outpatient_specialty: "Outpatient Specialty",
+  private_pay: "Private Pay",
+  emergency: "Emergency Transport",
+};
+
 interface RunCard {
   slotId: string;
   slotOrder: number;
   legId: string;
-  patientName: string;
+  legType: string; // "A" | "B" | "—"
+  patientName: string; // formatted as "J. Doe"
+  patientHasRecord: boolean;
   pickupLocation: string;
   destinationLocation: string;
   pickupTime: string | null;
+  originType: string | null;
+  patientPickupAddress: string | null;
+  patientDropoffFacility: string | null;
+  dispatchTime: string | null;
   tripType: string | null;
+  pcrType: string | null;
   tripStatus: string;
   tripId: string | null;
   truckId: string;
@@ -24,6 +40,7 @@ interface RunCard {
   companyId: string | null;
   pcrStatus: string;
   patientId: string | null;
+  cancellationReason: string | null;
 }
 
 interface HoldTimer {
@@ -87,30 +104,47 @@ export default function CrewDashboard() {
     const legIds = slots.map(s => s.leg_id);
 
     const [{ data: legs }, { data: trips }] = await Promise.all([
-      supabase.from("scheduling_legs").select("id, pickup_location, destination_location, pickup_time, trip_type, patient_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)").in("id", legIds),
-      supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type").eq("run_date", today).eq("truck_id", truckId).in("leg_id", legIds),
+      supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, pickup_address, dropoff_facility)").in("id", legIds),
+      supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, scheduled_pickup_time, billing_blocked_reason").eq("run_date", today).eq("truck_id", truckId).in("leg_id", legIds),
     ]);
 
     const legMap = new Map((legs ?? []).map(l => [l.id, l]));
     const tripMap = new Map((trips ?? []).map(t => [t.leg_id, t]));
 
+    const formatPatientName = (patient: any): { name: string; hasRecord: boolean } => {
+      if (!patient?.first_name) return { name: "Unassigned", hasRecord: false };
+      const firstInitial = patient.first_name.charAt(0).toUpperCase();
+      return { name: `${firstInitial}. ${patient.last_name}`, hasRecord: true };
+    };
+
     const cards: RunCard[] = slots.map(slot => {
       const leg = legMap.get(slot.leg_id);
       const trip = tripMap.get(slot.leg_id);
       const patient = leg?.patient as any;
+      const { name: patientName, hasRecord } = formatPatientName(patient);
+      const legTypeRaw = (leg as any)?.leg_type;
+      const legType = legTypeRaw === "a_leg" ? "A" : legTypeRaw === "b_leg" ? "B" : "—";
       return {
         slotId: slot.id, slotOrder: slot.slot_order, legId: slot.leg_id,
-        patientName: patient ? `${patient.first_name} ${patient.last_name}` : "Unknown",
-        pickupLocation: leg?.pickup_location ?? "—",
-        destinationLocation: leg?.destination_location ?? "—",
+        legType,
+        patientName,
+        patientHasRecord: hasRecord,
+        pickupLocation: trip?.pickup_location ?? leg?.pickup_location ?? "—",
+        destinationLocation: trip?.destination_location ?? leg?.destination_location ?? "—",
         pickupTime: leg?.pickup_time ?? null,
+        originType: trip?.origin_type ?? null,
+        patientPickupAddress: patient?.pickup_address ?? null,
+        patientDropoffFacility: patient?.dropoff_facility ?? null,
+        dispatchTime: trip?.dispatch_time ?? null,
         tripType: trip?.trip_type ?? leg?.trip_type ?? null,
+        pcrType: (trip as any)?.pcr_type ?? null,
         tripStatus: trip?.status ?? "scheduled",
         tripId: trip?.id ?? null,
         truckId, crewId,
         companyId: trip?.company_id ?? crewCompanyId ?? null,
         pcrStatus: (trip as any)?.pcr_status ?? "not_started",
         patientId: (leg as any)?.patient_id ?? null,
+        cancellationReason: (trip as any)?.billing_blocked_reason ?? null,
       };
     });
     setRuns(cards);
@@ -234,28 +268,88 @@ export default function CrewDashboard() {
         ) : (
           runs.map((run) => {
             const pcr = PCR_STATUS_CONFIG[run.pcrStatus] || PCR_STATUS_CONFIG.not_started;
-            const isTerminal = ["completed", "cancelled", "no_show", "ready_for_billing"].includes(run.tripStatus);
+            const isCancelled = ["cancelled", "pending_cancellation"].includes(run.tripStatus);
+            const isTerminal = ["completed", "cancelled", "no_show", "ready_for_billing", "pending_cancellation"].includes(run.tripStatus);
             const activeHold = getActiveHold(run.tripId);
+
+            // Time display
+            const resolveTime = (): string | null => {
+              if (run.dispatchTime) {
+                const d = new Date(run.dispatchTime);
+                return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+              }
+              if (run.pickupTime) return run.pickupTime.substring(0, 5);
+              return null;
+            };
+            const resolvePickup = (): string => {
+              if (run.originType && run.originType.toLowerCase().includes("residence")) return "Residence";
+              if (run.pickupLocation && run.pickupLocation !== "—") return run.pickupLocation;
+              if (run.patientPickupAddress) return "Residence";
+              return "—";
+            };
+            const resolveDropoff = (): string => {
+              if (run.destinationLocation && run.destinationLocation !== "—") return run.destinationLocation;
+              if (run.patientDropoffFacility) return run.patientDropoffFacility;
+              return "—";
+            };
+
+            const timeStr = resolveTime();
+            const transportLabel = TRANSPORT_LABELS[run.pcrType ?? run.tripType ?? ""] ?? "Transport";
+
+            if (isCancelled) {
+              return (
+                <div key={run.slotId} className="rounded-lg border bg-muted/40 p-4 space-y-3 opacity-70">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground text-xs font-bold">
+                      {run.legType}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-muted-foreground">{run.patientName}</p>
+                        {!run.patientHasRecord && <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {timeStr && <><span className="font-medium">@ {timeStr}</span> · </>}
+                        {resolvePickup()} → {resolveDropoff()}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{transportLabel}</p>
+                    </div>
+                    <span className="shrink-0 inline-flex items-center rounded-full border border-muted-foreground/30 bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+                      {run.tripStatus === "pending_cancellation" ? "Cancelled — Pending Review" : "Cancelled"}
+                    </span>
+                  </div>
+                  {run.cancellationReason && (
+                    <p className="text-xs text-muted-foreground italic pl-10">Reason: {run.cancellationReason}</p>
+                  )}
+                  <Button variant="outline" className="w-full h-10 text-sm text-muted-foreground" disabled>
+                    <Ban className="h-4 w-4 mr-1.5" /> View Details
+                  </Button>
+                </div>
+              );
+            }
 
             return (
               <div key={run.slotId} className={cn("rounded-lg border bg-card p-4 space-y-3", isTerminal && "opacity-60")}>
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary text-xs font-bold">
+                    {run.legType}
+                  </span>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-foreground">
-                      {run.slotOrder + 1}. {run.patientName}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-foreground">{run.patientName}</p>
+                      {!run.patientHasRecord && <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+                    </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {run.pickupTime && <span className="font-medium">{run.pickupTime} · </span>}
-                      {run.destinationLocation}
+                      {timeStr && <><span className="font-medium">@ {timeStr}</span> · </>}
+                      {resolvePickup()} → {resolveDropoff()}
                     </p>
-                    <p className="text-xs text-muted-foreground capitalize">{(run.tripType || "transport").replace("_", " ")}</p>
+                    <p className="text-xs text-muted-foreground">{transportLabel}</p>
                   </div>
                   <span className={cn("shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold", pcr.color)}>
                     {pcr.label}
                   </span>
                 </div>
 
-                {/* Active hold */}
                 {activeHold && (
                   <div className="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
                     <div className="flex items-center gap-2 text-xs font-medium text-destructive">
@@ -270,7 +364,6 @@ export default function CrewDashboard() {
                   </div>
                 )}
 
-                {/* Action buttons */}
                 <div className="flex gap-2">
                   <Button
                     className={cn(
