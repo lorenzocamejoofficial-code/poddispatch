@@ -17,10 +17,13 @@ import { SendingFacilityCard, HospitalOutcomeCard } from "@/components/pcr/Facil
 import { SignaturesCard } from "@/components/pcr/SignaturesCard";
 import { NarrativeCard } from "@/components/pcr/NarrativeCard";
 import { BillingCard } from "@/components/pcr/BillingCard";
+import { StretcherMobilityCard } from "@/components/pcr/StretcherMobilityCard";
+import { IsolationPrecautionsCard } from "@/components/pcr/IsolationPrecautionsCard";
 import { LockedSectionOverlay } from "@/components/pcr/LockedSectionOverlay";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Check, Loader2, Send, AlertCircle, Lock } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { ChevronLeft, Check, Loader2, Send, AlertCircle, Lock, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +41,8 @@ export default function PCRPage() {
   const [truckName, setTruckName] = useState("");
   const [crewMembers, setCrewMembers] = useState<{ m1: CrewMember | null; m2: CrewMember | null }>({ m1: null, m2: null });
   const [submitting, setSubmitting] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
 
   // Central section rules driven by pcr_type
   const sectionRules = usePCRSectionRules(trip?.pcr_type || trip?.trip_type);
@@ -98,6 +103,18 @@ export default function PCRPage() {
   const transportKey = getPCRTransportKey(trip.trip_type || trip.pcr_type);
   const cards = PCR_CARDS_BY_TRANSPORT[transportKey] || PCR_CARDS_BY_TRANSPORT.dialysis;
 
+  // Helper to get card rule — handles combined stretcher_mobility card
+  const getEffectiveCardRule = (cardType: string) => {
+    if (cardType === "stretcher_mobility") {
+      const sp = sectionRules.getRule("stretcher_placement");
+      const pm = sectionRules.getRule("patient_mobility");
+      // If either is required, the combined card is required
+      if (sp.state === "required" || pm.state === "required") return { state: "required" as const, lockedReason: "" };
+      if (sp.state === "locked" && pm.state === "locked") return sp;
+      return { state: "optional" as const, lockedReason: "" };
+    }
+    return sectionRules.getCardRule(cardType);
+  };
   // Determine card completion status
   const isCardComplete = (card: PCRCardConfig): boolean => {
     switch (card.type) {
@@ -114,12 +131,17 @@ export default function PCRPage() {
       case "assessment": case "chief_complaint": return !!(trip.chief_complaint || trip.primary_impression);
       case "physical_exam": return Object.keys(trip.physical_exam_json || {}).some((k: string) => (trip.physical_exam_json[k]?.findings || []).length > 0);
       case "hospital_outcome": return !!(trip.hospital_outcome_json?.chief_complaint || trip.disposition);
+      case "stretcher_mobility": return !!(trip.stretcher_placement && trip.patient_mobility);
+      case "isolation_precautions": {
+        const iso = trip.isolation_precautions || {};
+        return iso.required === true ? ((iso.types || []).length > 0) : (iso.required === false);
+      }
       default: return false;
     }
   };
 
   const getCardColor = (card: PCRCardConfig): string => {
-    const rule = sectionRules.getCardRule(card.type);
+    const rule = getEffectiveCardRule(card.type);
     if (rule.state === "locked") return "border-muted bg-muted/20 opacity-60";
     const complete = isCardComplete(card);
     if (complete) return "border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/10";
@@ -128,7 +150,7 @@ export default function PCRPage() {
   };
 
   const getCardDot = (card: PCRCardConfig): string => {
-    const rule = sectionRules.getCardRule(card.type);
+    const rule = getEffectiveCardRule(card.type);
     if (rule.state === "locked") return "bg-muted-foreground/20";
     const complete = isCardComplete(card);
     if (complete) return "bg-emerald-500";
@@ -137,7 +159,7 @@ export default function PCRPage() {
   };
 
   const getCardStateLabel = (card: PCRCardConfig): React.ReactNode => {
-    const rule = sectionRules.getCardRule(card.type);
+    const rule = getEffectiveCardRule(card.type);
     if (rule.state === "locked") {
       return <Lock className="h-4 w-4 text-muted-foreground/40" />;
     }
@@ -152,7 +174,7 @@ export default function PCRPage() {
 
   // Render card content — locked cards show overlay instead
   const renderCard = (type: PCRCardType) => {
-    const rule = sectionRules.getCardRule(type);
+    const rule = getEffectiveCardRule(type);
     if (rule.state === "locked") {
       return <LockedSectionOverlay reason={rule.lockedReason} />;
     }
@@ -170,15 +192,36 @@ export default function PCRPage() {
       case "assessment": case "chief_complaint": return <AssessmentCard trip={trip} updateField={updateField} />;
       case "physical_exam": return <PhysicalExamCard trip={trip} updateField={updateField} />;
       case "hospital_outcome": return <HospitalOutcomeCard trip={trip} updateField={updateField} />;
+      case "stretcher_mobility": return <StretcherMobilityCard trip={trip} updateField={updateField} />;
+      case "isolation_precautions": return <IsolationPrecautionsCard trip={trip} updateField={updateField} />;
       default: return <p className="text-sm text-muted-foreground">Coming soon.</p>;
     }
+  };
+
+  const handleEmergencyUpgrade = async () => {
+    setUpgrading(true);
+    try {
+      const note = `EMERGENCY UPGRADE — ${new Date().toISOString()}`;
+      const existingNotes = trip.necessity_notes || "";
+      await supabase.from("trip_records").update({
+        pcr_type: "emergency",
+        necessity_notes: existingNotes ? `${existingNotes}\n${note}` : note,
+        updated_at: new Date().toISOString(),
+      }).eq("id", trip.id);
+      toast.success("PCR upgraded to Emergency");
+      setShowUpgradeDialog(false);
+      refetch();
+    } catch {
+      toast.error("Failed to upgrade PCR");
+    }
+    setUpgrading(false);
   };
 
   // Only require completion of sections marked "required" by rules
   const getMissingItems = (): string[] => {
     const missing: string[] = [];
     for (const card of cards) {
-      const rule = sectionRules.getCardRule(card.type);
+      const rule = getEffectiveCardRule(card.type);
       if (rule.state === "required" && !isCardComplete(card)) {
         missing.push(card.label);
       }
@@ -241,7 +284,7 @@ export default function PCRPage() {
 
   // Card overview
   const patient = trip.patient;
-  const requiredCards = cards.filter(c => sectionRules.getCardRule(c.type).state === "required");
+  const requiredCards = cards.filter(c => getEffectiveCardRule(c.type).state === "required");
   const completedRequired = requiredCards.filter(c => isCardComplete(c)).length;
   const totalRequired = requiredCards.length;
 
@@ -263,11 +306,23 @@ export default function PCRPage() {
             </div>
             <span className="text-xs font-medium text-muted-foreground">{completedRequired}/{totalRequired}</span>
           </div>
+          {/* Emergency Upgrade Button */}
+          {sectionRules.type !== "emergency" && (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="mt-2 w-full"
+              onClick={() => setShowUpgradeDialog(true)}
+            >
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              Upgrade to Emergency
+            </Button>
+          )}
         </div>
 
         <div className="space-y-2">
           {cards.map((card) => {
-            const rule = sectionRules.getCardRule(card.type);
+            const rule = getEffectiveCardRule(card.type);
             const isLockedCard = rule.state === "locked";
 
             return (
@@ -318,6 +373,28 @@ export default function PCRPage() {
             Submit PCR
           </Button>
         </div>
+
+        {/* Emergency Upgrade Dialog */}
+        <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                Upgrade to Emergency
+              </DialogTitle>
+              <DialogDescription>
+                This will upgrade the PCR to Emergency type, unlocking all clinical sections. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setShowUpgradeDialog(false)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleEmergencyUpgrade} disabled={upgrading}>
+                {upgrading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Confirm Upgrade
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </CrewLayout>
   );

@@ -57,6 +57,15 @@ export interface PCRTripData {
   disposition: string | null;
   crew_updated_fields: any[];
   loaded_miles: number | null;
+  // New PCR fields
+  vehicle_id: string | null;
+  odometer_at_scene: number | null;
+  odometer_at_destination: number | null;
+  odometer_in_service: number | null;
+  stretcher_placement: string | null;
+  patient_mobility: string | null;
+  isolation_precautions: any;
+  necessity_notes: string | null;
   // Patient info (joined)
   patient?: any;
 }
@@ -105,6 +114,7 @@ export function usePCRData(tripId: string | null) {
         airway_json: data.airway_json || {},
         secondary_impressions: Array.isArray(data.secondary_impressions) ? data.secondary_impressions : [],
         crew_updated_fields: Array.isArray(data.crew_updated_fields) ? data.crew_updated_fields : [],
+        isolation_precautions: data.isolation_precautions || {},
         patient,
       } as PCRTripData);
     }
