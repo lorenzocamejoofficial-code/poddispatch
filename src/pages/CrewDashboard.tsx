@@ -268,28 +268,88 @@ export default function CrewDashboard() {
         ) : (
           runs.map((run) => {
             const pcr = PCR_STATUS_CONFIG[run.pcrStatus] || PCR_STATUS_CONFIG.not_started;
-            const isTerminal = ["completed", "cancelled", "no_show", "ready_for_billing"].includes(run.tripStatus);
+            const isCancelled = ["cancelled", "pending_cancellation"].includes(run.tripStatus);
+            const isTerminal = ["completed", "cancelled", "no_show", "ready_for_billing", "pending_cancellation"].includes(run.tripStatus);
             const activeHold = getActiveHold(run.tripId);
+
+            // Time display
+            const resolveTime = (): string | null => {
+              if (run.dispatchTime) {
+                const d = new Date(run.dispatchTime);
+                return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+              }
+              if (run.pickupTime) return run.pickupTime.substring(0, 5);
+              return null;
+            };
+            const resolvePickup = (): string => {
+              if (run.originType && run.originType.toLowerCase().includes("residence")) return "Residence";
+              if (run.pickupLocation && run.pickupLocation !== "—") return run.pickupLocation;
+              if (run.patientPickupAddress) return "Residence";
+              return "—";
+            };
+            const resolveDropoff = (): string => {
+              if (run.destinationLocation && run.destinationLocation !== "—") return run.destinationLocation;
+              if (run.patientDropoffFacility) return run.patientDropoffFacility;
+              return "—";
+            };
+
+            const timeStr = resolveTime();
+            const transportLabel = TRANSPORT_LABELS[run.pcrType ?? run.tripType ?? ""] ?? "Transport";
+
+            if (isCancelled) {
+              return (
+                <div key={run.slotId} className="rounded-lg border bg-muted/40 p-4 space-y-3 opacity-70">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground text-xs font-bold">
+                      {run.legType}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-muted-foreground">{run.patientName}</p>
+                        {!run.patientHasRecord && <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {timeStr && <><span className="font-medium">@ {timeStr}</span> · </>}
+                        {resolvePickup()} → {resolveDropoff()}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{transportLabel}</p>
+                    </div>
+                    <span className="shrink-0 inline-flex items-center rounded-full border border-muted-foreground/30 bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+                      {run.tripStatus === "pending_cancellation" ? "Cancelled — Pending Review" : "Cancelled"}
+                    </span>
+                  </div>
+                  {run.cancellationReason && (
+                    <p className="text-xs text-muted-foreground italic pl-10">Reason: {run.cancellationReason}</p>
+                  )}
+                  <Button variant="outline" className="w-full h-10 text-sm text-muted-foreground" disabled>
+                    <Ban className="h-4 w-4 mr-1.5" /> View Details
+                  </Button>
+                </div>
+              );
+            }
 
             return (
               <div key={run.slotId} className={cn("rounded-lg border bg-card p-4 space-y-3", isTerminal && "opacity-60")}>
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary text-xs font-bold">
+                    {run.legType}
+                  </span>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-foreground">
-                      {run.slotOrder + 1}. {run.patientName}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-foreground">{run.patientName}</p>
+                      {!run.patientHasRecord && <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+                    </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {run.pickupTime && <span className="font-medium">{run.pickupTime} · </span>}
-                      {run.destinationLocation}
+                      {timeStr && <><span className="font-medium">@ {timeStr}</span> · </>}
+                      {resolvePickup()} → {resolveDropoff()}
                     </p>
-                    <p className="text-xs text-muted-foreground capitalize">{(run.tripType || "transport").replace("_", " ")}</p>
+                    <p className="text-xs text-muted-foreground">{transportLabel}</p>
                   </div>
                   <span className={cn("shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold", pcr.color)}>
                     {pcr.label}
                   </span>
                 </div>
 
-                {/* Active hold */}
                 {activeHold && (
                   <div className="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
                     <div className="flex items-center gap-2 text-xs font-medium text-destructive">
@@ -304,7 +364,6 @@ export default function CrewDashboard() {
                   </div>
                 )}
 
-                {/* Action buttons */}
                 <div className="flex gap-2">
                   <Button
                     className={cn(
