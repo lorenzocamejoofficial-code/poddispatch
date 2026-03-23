@@ -119,6 +119,11 @@ export default function PCRPage() {
       case "assessment": case "chief_complaint": return !!(trip.chief_complaint || trip.primary_impression);
       case "physical_exam": return Object.keys(trip.physical_exam_json || {}).some((k: string) => (trip.physical_exam_json[k]?.findings || []).length > 0);
       case "hospital_outcome": return !!(trip.hospital_outcome_json?.chief_complaint || trip.disposition);
+      case "stretcher_mobility": return !!(trip.stretcher_placement && trip.patient_mobility);
+      case "isolation_precautions": {
+        const iso = trip.isolation_precautions || {};
+        return iso.required === true ? ((iso.types || []).length > 0) : (iso.required === false);
+      }
       default: return false;
     }
   };
