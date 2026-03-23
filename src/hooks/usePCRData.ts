@@ -114,6 +114,7 @@ export function usePCRData(tripId: string | null) {
         airway_json: data.airway_json || {},
         secondary_impressions: Array.isArray(data.secondary_impressions) ? data.secondary_impressions : [],
         crew_updated_fields: Array.isArray(data.crew_updated_fields) ? data.crew_updated_fields : [],
+        isolation_precautions: data.isolation_precautions || {},
         patient,
       } as PCRTripData);
     }
