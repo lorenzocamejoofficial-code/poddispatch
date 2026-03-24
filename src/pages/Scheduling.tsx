@@ -1078,7 +1078,27 @@ export default function Scheduling() {
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Pickup Time</Label><Input type="time" value={legForm.pickup_time} onChange={(e) => setLegForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
+                <div>
+                  <Label>Pickup Time</Label>
+                  <Input type="time" value={legForm.pickup_time} onChange={async (e) => {
+                    const time = e.target.value;
+                    setLegForm(f => ({ ...f, pickup_time: time }));
+                    if (pendingLegType === "B" && legForm.patient_id) {
+                      const result = await checkBLegTime(legForm.patient_id, time);
+                      setCreateBLegEarliest(result.earliest);
+                      setCreateBLegTooEarly(result.tooEarly);
+                    }
+                  }} />
+                  {pendingLegType === "B" && createBLegEarliest && (
+                    <p className="text-[11px] text-muted-foreground mt-1">Earliest valid pickup: {createBLegEarliest}</p>
+                  )}
+                  {pendingLegType === "B" && createBLegTooEarly && createBLegEarliest && (
+                    <p className="text-[11px] text-[hsl(var(--status-yellow))] mt-0.5">
+                      <AlertTriangle className="inline h-3 w-3 mr-1" />
+                      Too early — treatment ends at approximately {createBLegEarliest}. Override required.
+                    </p>
+                  )}
+                </div>
                 <div><Label>Appointment Time</Label><Input type="time" value={legForm.chair_time} onChange={(e) => setLegForm(f => ({ ...f, chair_time: e.target.value }))} /></div>
               </div>
               <div><Label>Pickup Location *</Label><Input value={legForm.pickup_location} onChange={(e) => setLegForm(f => ({ ...f, pickup_location: e.target.value }))} /></div>
