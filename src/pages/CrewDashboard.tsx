@@ -289,23 +289,42 @@ export default function CrewDashboard() {
           .eq("company_id", cancelTarget.companyId)
           .in("role", ["dispatcher", "owner"] as any);
         for (const d of (dispatchers ?? [])) {
-          await supabase.from("notifications").insert({
-            user_id: d.user_id,
-            message: `Trip cancellation requested by crew: ${cancelTarget.patientName} — ${cancelReason.trim()}`,
-            acknowledged: false,
-          });
+          try {
+            const { error: notifErr } = await supabase.from("notifications").insert({
+              user_id: d.user_id,
+              message: `Trip cancellation requested by crew: ${cancelTarget.patientName} — ${cancelReason.trim()}`,
+              acknowledged: false,
+            });
+            if (notifErr) {
+              console.error("Notification insert failed for user", d.user_id, notifErr);
+              toast({ title: "Warning", description: `Failed to notify dispatcher (${d.user_id})`, variant: "destructive" });
+            }
+          } catch (notifCatch: any) {
+            console.error("Notification insert exception for user", d.user_id, notifCatch);
+          }
         }
       }
 
       // Insert alert
-      await supabase.from("alerts").insert({
-        message: `Crew cancellation pending review: ${cancelTarget.patientName}`,
-        severity: "yellow",
-        truck_id: cancelTarget.truckId,
-        run_id: tripId,
-        company_id: cancelTarget.companyId,
-        dismissed: false,
-      });
+      try {
+        const { data: alertData, error: alertErr } = await supabase.from("alerts").insert({
+          message: `Crew cancellation pending review: ${cancelTarget.patientName}`,
+          severity: "yellow",
+          truck_id: cancelTarget.truckId,
+          run_id: tripId,
+          company_id: cancelTarget.companyId,
+          dismissed: false,
+        }).select("id").maybeSingle();
+        if (alertErr) {
+          console.error("Alert insert failed:", alertErr);
+          toast({ title: "Warning", description: "Failed to create dispatch alert — notify dispatch manually", variant: "destructive" });
+        } else {
+          console.log("Alert insert success, id:", alertData?.id);
+        }
+      } catch (alertCatch: any) {
+        console.error("Alert insert exception:", alertCatch);
+        toast({ title: "Warning", description: "Failed to create dispatch alert", variant: "destructive" });
+      }
 
       toast({ title: "Cancellation requested", description: "Dispatcher will review your request." });
       setCancelTarget(null);
