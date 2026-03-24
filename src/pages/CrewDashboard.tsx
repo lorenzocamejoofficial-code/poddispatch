@@ -150,7 +150,9 @@ export default function CrewDashboard() {
         companyId: trip?.company_id ?? crewCompanyId ?? null,
         pcrStatus: (trip as any)?.pcr_status ?? "not_started",
         patientId: (leg as any)?.patient_id ?? null,
-        cancellationReason: (trip as any)?.billing_blocked_reason ?? null,
+        cancellationReason: (trip as any)?.cancellation_reason ?? null,
+        cancellationDisputed: (trip as any)?.cancellation_disputed ?? false,
+        cancellationDispatcherNote: (trip as any)?.cancellation_dispatcher_note ?? null,
       };
     });
     setRuns(cards);
