@@ -196,6 +196,8 @@ export default function Patients() {
       dialysis_window_minutes: form.dialysis_window_minutes ? parseInt(form.dialysis_window_minutes) : 45,
       must_arrive_by: form.must_arrive_by || null,
       recurrence_days: form.recurrence_days.length > 0 ? form.recurrence_days : null,
+      location_type: form.location_type || null,
+      facility_id: form.facility_id || null,
     };
 
     if (!payload.first_name || !payload.last_name) return;
