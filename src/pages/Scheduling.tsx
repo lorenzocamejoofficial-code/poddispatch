@@ -472,6 +472,28 @@ export default function Scheduling() {
         .upsert(payload, { onConflict: "scheduling_leg_id,run_date" });
 
       if (error) { toast.error("Failed to save exception"); return; }
+
+      // Log time change
+      if (exceptionForm.pickup_time && exceptionForm.pickup_time !== (editingExceptionLeg.pickup_time ?? "")) {
+        await logScheduleChange({
+          change_type: "time_changed",
+          change_summary: `Pickup time changed from ${editingExceptionLeg.pickup_time ?? "none"} to ${exceptionForm.pickup_time} for ${editingExceptionLeg.patient_name}`,
+          old_value: editingExceptionLeg.pickup_time ?? null,
+          new_value: exceptionForm.pickup_time,
+          truck_id: editingExceptionLeg.assigned_truck_id ?? null,
+          leg_id: editingExceptionLeg.id,
+        });
+      }
+      // Log location change
+      if (exceptionForm.pickup_location !== editingExceptionLeg.pickup_location || exceptionForm.destination_location !== editingExceptionLeg.destination_location) {
+        await logScheduleChange({
+          change_type: "location_changed",
+          change_summary: `Pickup location updated for ${editingExceptionLeg.patient_name}`,
+          truck_id: editingExceptionLeg.assigned_truck_id ?? null,
+          leg_id: editingExceptionLeg.id,
+        });
+      }
+
       toast.success("Run exception saved for this date only");
       setExceptionDialogOpen(false);
       refresh();
