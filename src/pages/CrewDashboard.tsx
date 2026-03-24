@@ -250,6 +250,73 @@ export default function CrewDashboard() {
     navigate(`/pcr?tripId=${tripId}`);
   };
 
+  const handleCancelTrip = async () => {
+    if (!cancelTarget || cancelReason.trim().length < 10) return;
+    setCancelLoading(true);
+    try {
+      let tripId = cancelTarget.tripId;
+      // Create trip record if it doesn't exist yet
+      if (!tripId) {
+        const companyId = cancelTarget.companyId;
+        if (!companyId) throw new Error("No company association");
+        const { data: newTrip, error } = await supabase.from("trip_records").insert({
+          leg_id: cancelTarget.legId, truck_id: cancelTarget.truckId, crew_id: cancelTarget.crewId,
+          company_id: companyId, patient_id: cancelTarget.patientId,
+          run_date: today, status: "pending_cancellation" as any,
+          pickup_location: cancelTarget.pickupLocation, destination_location: cancelTarget.destinationLocation,
+          scheduled_pickup_time: cancelTarget.pickupTime, trip_type: cancelTarget.tripType as any,
+          pcr_status: "not_started",
+          cancellation_reason: cancelReason.trim(),
+          cancelled_by: profileId,
+          cancelled_at: new Date().toISOString(),
+        } as any).select("id").single();
+        if (error || !newTrip) throw new Error(error?.message ?? "Failed to create trip record");
+        tripId = newTrip.id;
+      } else {
+        await supabase.from("trip_records").update({
+          status: "pending_cancellation" as any,
+          cancellation_reason: cancelReason.trim(),
+          cancelled_by: profileId,
+          cancelled_at: new Date().toISOString(),
+        } as any).eq("id", tripId);
+      }
+
+      // Find dispatchers/owners for notification
+      if (cancelTarget.companyId) {
+        const { data: dispatchers } = await supabase
+          .from("company_memberships")
+          .select("user_id")
+          .eq("company_id", cancelTarget.companyId)
+          .in("role", ["dispatcher", "owner"] as any);
+        for (const d of (dispatchers ?? [])) {
+          await supabase.from("notifications").insert({
+            user_id: d.user_id,
+            message: `Trip cancellation requested by crew: ${cancelTarget.patientName} — ${cancelReason.trim()}`,
+            acknowledged: false,
+          });
+        }
+      }
+
+      // Insert alert
+      await supabase.from("alerts").insert({
+        message: `Crew cancellation pending review: ${cancelTarget.patientName}`,
+        severity: "yellow",
+        truck_id: cancelTarget.truckId,
+        run_id: tripId,
+        company_id: cancelTarget.companyId,
+        dismissed: false,
+      });
+
+      toast({ title: "Cancellation requested", description: "Dispatcher will review your request." });
+      setCancelTarget(null);
+      setCancelReason("");
+      await fetchData();
+    } catch (err: any) {
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
+    }
+    setCancelLoading(false);
+  };
+
   if (loading) {
     return <CrewLayout><div className="flex min-h-screen items-center justify-center"><p className="text-sm text-muted-foreground">Loading your shift...</p></div></CrewLayout>;
   }
