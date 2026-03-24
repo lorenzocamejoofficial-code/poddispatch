@@ -197,6 +197,7 @@ interface TruckBuilderProps {
   onDownCountChange?: (count: number) => void;
   activeTokens?: ActiveShareToken[];
   operationalAlerts?: OperationalAlert[];
+  onLogChange?: (params: { change_type: string; change_summary: string; old_value?: string | null; new_value?: string | null; truck_id?: string | null; leg_id?: string | null }) => Promise<void>;
 }
 
 interface TruckRiskData {
