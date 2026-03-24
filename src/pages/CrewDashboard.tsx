@@ -180,8 +180,23 @@ export default function CrewDashboard() {
     } else {
       setHoldTimers([]);
     }
+    // Fetch notifications
+    if (user?.id) {
+      const { data: notifData } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("acknowledged", false)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      setNotifications((notifData ?? []).map((n: any) => ({
+        id: n.id, message: n.message, notification_type: n.notification_type ?? "general",
+        created_at: n.created_at, acknowledged: n.acknowledged,
+      })));
+    }
+
     setLoading(false);
-  }, [profileId, today]);
+  }, [profileId, today, user?.id]);
 
   useEffect(() => {
     fetchData();
