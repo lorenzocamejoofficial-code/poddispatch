@@ -3,6 +3,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 
 const PRECAUTION_TYPES = ["MRSA", "VRE", "C-Diff", "Hepatitis", "COVID-19", "HIV", "Other"];
 
@@ -40,7 +42,9 @@ export function IsolationPrecautionsCard({ trip, updateField }: IsolationPrecaut
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium text-foreground">Isolation Required?</Label>
+        <Label className="text-sm font-medium text-foreground flex items-center">
+          Isolation Required? <PCRTooltip text={PCR_TOOLTIPS.isolation_required} />
+        </Label>
         <Switch
           checked={required}
           onCheckedChange={(val) => {
@@ -51,9 +55,11 @@ export function IsolationPrecautionsCard({ trip, updateField }: IsolationPrecaut
       </div>
 
       {required && (
-        <div className="space-y-4 pl-1 border-l-2 border-primary/20 ml-1 pl-4">
+        <div className="space-y-4 border-l-2 border-primary/20 ml-1 pl-4">
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-2 block">Precaution Type</Label>
+            <Label className="text-xs font-medium text-muted-foreground mb-2 flex items-center">
+              Precaution Type <PCRTooltip text={PCR_TOOLTIPS.isolation_type} />
+            </Label>
             <div className="grid grid-cols-2 gap-3">
               {PRECAUTION_TYPES.map((type) => (
                 <label key={type} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -68,7 +74,9 @@ export function IsolationPrecautionsCard({ trip, updateField }: IsolationPrecaut
           </div>
 
           <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium text-foreground">Active?</Label>
+            <Label className="text-sm font-medium text-foreground flex items-center">
+              Active? <PCRTooltip text={PCR_TOOLTIPS.isolation_active} />
+            </Label>
             <Switch
               checked={active}
               onCheckedChange={(val) => {

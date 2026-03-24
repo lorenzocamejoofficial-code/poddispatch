@@ -1,6 +1,8 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { LEVEL_OF_CONSCIOUSNESS, SKIN_CONDITIONS, TRANSPORT_CONDITIONS } from "@/lib/pcr-dropdowns";
+import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 
 interface ConditionCardProps {
   trip: any;
@@ -18,7 +20,9 @@ export function ConditionOnArrivalCard({ trip, updateField }: ConditionCardProps
   return (
     <div className="space-y-4">
       <div>
-        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Level of Consciousness</label>
+        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 flex items-center">
+          Level of Consciousness <PCRTooltip text={PCR_TOOLTIPS.level_of_consciousness} />
+        </label>
         <Select value={trip.level_of_consciousness || ""} onValueChange={(v) => updateField("level_of_consciousness", v)}>
           <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select..." /></SelectTrigger>
           <SelectContent>
@@ -28,7 +32,9 @@ export function ConditionOnArrivalCard({ trip, updateField }: ConditionCardProps
       </div>
 
       <div>
-        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Skin Condition</label>
+        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 flex items-center">
+          Skin Condition <PCRTooltip text={PCR_TOOLTIPS.skin_condition} />
+        </label>
         <Select value={trip.skin_condition || ""} onValueChange={(v) => updateField("skin_condition", v)}>
           <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select..." /></SelectTrigger>
           <SelectContent>
