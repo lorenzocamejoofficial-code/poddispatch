@@ -374,6 +374,16 @@ export default function DispatchBoard() {
             </div>
           </div>
 
+          {/* Pending Cancellations */}
+          {pendingCancellations.length > 0 && (
+            <section>
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                Pending Crew Cancellations · {pendingCancellations.length}
+              </h3>
+              <PendingCancellationPanel cancellations={pendingCancellations} onResolved={fetchData} />
+            </section>
+          )}
+
           {/* Alerts */}
           <section>
             <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
