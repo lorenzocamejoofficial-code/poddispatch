@@ -436,6 +436,15 @@ export default function CrewDashboard() {
                   </span>
                 </div>
 
+                {/* Disputed banner */}
+                {run.cancellationDisputed && run.cancellationDispatcherNote && (
+                  <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 px-3 py-2">
+                    <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                      Cancellation disputed by dispatch: {run.cancellationDispatcherNote}
+                    </p>
+                  </div>
+                )}
+
                 {activeHold && (
                   <div className="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
                     <div className="flex items-center gap-2 text-xs font-medium text-destructive">
@@ -468,6 +477,19 @@ export default function CrewDashboard() {
                     )}
                   </Button>
 
+                  {/* Cancel Trip button — only for non-terminal, non-completed PCR runs */}
+                  {!isTerminal && ["not_started", "in_progress"].includes(run.pcrStatus) && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-12 w-12 border-destructive/50 text-destructive hover:bg-destructive/5"
+                      onClick={() => { setCancelTarget(run); setCancelReason(""); }}
+                      title="Cancel Trip"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  )}
+
                   {run.tripId && !isTerminal && !activeHold && (
                     <>
                       {["arrived_pickup", "en_route"].includes(run.tripStatus) && (
@@ -492,6 +514,42 @@ export default function CrewDashboard() {
           })
         )}
       </div>
+
+      {/* Cancel Trip Dialog */}
+      <Dialog open={!!cancelTarget} onOpenChange={(open) => { if (!open) { setCancelTarget(null); setCancelReason(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Trip — {cancelTarget?.patientName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              This will send a cancellation request to dispatch for review. Please provide a reason.
+            </p>
+            <Textarea
+              placeholder="Reason for cancellation (minimum 10 characters)…"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              className="min-h-[80px]"
+            />
+            {cancelReason.length > 0 && cancelReason.trim().length < 10 && (
+              <p className="text-xs text-destructive">Minimum 10 characters required</p>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setCancelTarget(null); setCancelReason(""); }}>
+              Back
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={cancelReason.trim().length < 10 || cancelLoading}
+              onClick={handleCancelTrip}
+            >
+              {cancelLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+              Request Cancellation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </CrewLayout>
   );
 }
