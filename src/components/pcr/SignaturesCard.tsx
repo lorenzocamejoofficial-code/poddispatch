@@ -420,7 +420,7 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
             {addingType}
             {SIG_TOOLTIPS[addingType] && <PCRTooltip text={SIG_TOOLTIPS[addingType]} />}
           </p>
-          <p className="text-[11px] text-muted-foreground">{getExplanation(addingType, legType)}</p>
+          <p className="text-[11px] text-muted-foreground">{getExplanation(addingType, legType, companyName)}</p>
 
           {needsRoleSelector && (
             <RoleSelector
