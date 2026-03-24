@@ -37,6 +37,9 @@ export default function PCRPage() {
   const tripId = searchParams.get("tripId");
   const { trip, loading, saving, updateField, updateMultipleFields, recordTime, refetch } = usePCRData(tripId);
 
+  // Resolve leg type from joined data or sessionStorage fallback
+  const activeLegType = trip?.leg_type ?? sessionStorage.getItem("pcr_leg_type") ?? null;
+
   const [activeCard, setActiveCard] = useState<PCRCardType | null>(null);
   const [truckName, setTruckName] = useState("");
   const [crewMembers, setCrewMembers] = useState<{ m1: CrewMember | null; m2: CrewMember | null }>({ m1: null, m2: null });
