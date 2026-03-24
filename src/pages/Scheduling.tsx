@@ -393,6 +393,12 @@ export default function Scheduling() {
 
     if (error) { toast.error("Failed to create leg"); return; }
 
+    const patientName = patient?.name ?? "Unknown";
+    await logScheduleChange({
+      change_type: "run_added",
+      change_summary: `New ${pendingLegType}-leg run added for ${patientName} at ${legForm.pickup_time || "TBD"}`,
+    });
+
     toast.success(`${pendingLegType}-Leg created`);
     setDialogOpen(false);
     refresh();
