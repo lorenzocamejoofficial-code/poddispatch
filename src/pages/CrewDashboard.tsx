@@ -24,6 +24,7 @@ interface RunCard {
   slotOrder: number;
   legId: string;
   legType: string; // "A" | "B" | "—"
+  legTypeRaw: string | null; // raw enum: "a_leg" | "b_leg" | null
   patientName: string; // formatted as "J. Doe"
   patientHasRecord: boolean;
   pickupLocation: string;
@@ -131,11 +132,12 @@ export default function CrewDashboard() {
       const trip = tripMap.get(slot.leg_id);
       const patient = leg?.patient as any;
       const { name: patientName, hasRecord } = formatPatientName(patient);
-      const legTypeRaw = (leg as any)?.leg_type;
+      const legTypeRaw = (leg as any)?.leg_type ?? null;
       const legType = legTypeRaw === "a_leg" ? "A" : legTypeRaw === "b_leg" ? "B" : "—";
       return {
         slotId: slot.id, slotOrder: slot.slot_order, legId: slot.leg_id,
         legType,
+        legTypeRaw,
         patientName,
         patientHasRecord: hasRecord,
         pickupLocation: trip?.pickup_location ?? leg?.pickup_location ?? "—",
@@ -225,8 +227,15 @@ export default function CrewDashboard() {
 
   const openPCR = async (run: RunCard) => {
     let tripId = run.tripId;
+    // Store leg type in sessionStorage for PCR fallback
+    if (run.legTypeRaw) {
+      sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
+    }
     // If no trip_record exists yet, create one
     if (!tripId) {
+      if (!run.patientId) {
+        console.warn("openPCR: run.patientId is null — trip record will have no patient linked", { legId: run.legId });
+      }
       const companyId = run.companyId;
       if (!companyId) {
         toast({ title: "Cannot create trip record", description: "No company association found for this crew.", variant: "destructive" });

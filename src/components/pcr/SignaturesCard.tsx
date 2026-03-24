@@ -8,7 +8,7 @@ import { Trash2, PenTool, Maximize2, X } from "lucide-react";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 
-interface Props { trip: any; updateField: (f: string, v: any) => Promise<void>; }
+interface Props { trip: any; updateField: (f: string, v: any) => Promise<void>; legType?: string | null; }
 
 interface Signature {
   id: string;
@@ -305,7 +305,7 @@ function PaymentAuthRoleSelector({
 }
 
 /* ─── Main component ─── */
-export function SignaturesCard({ trip, updateField }: Props) {
+export function SignaturesCard({ trip, updateField, legType }: Props) {
   const sigs: Signature[] = trip.signatures_json || [];
   const [addingType, setAddingType] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
