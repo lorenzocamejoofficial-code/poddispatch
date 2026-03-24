@@ -30,6 +30,8 @@ interface RunCard {
   originType: string | null;
   patientPickupAddress: string | null;
   patientDropoffFacility: string | null;
+  patientLocationType: string | null;
+  patientFacilityName: string | null;
   dispatchTime: string | null;
   tripType: string | null;
   pcrType: string | null;
