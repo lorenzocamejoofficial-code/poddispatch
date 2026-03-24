@@ -122,8 +122,11 @@ export default function Patients() {
       recurrence_days: [],
       location_type: "",
       facility_id: "",
+      chair_time_duration_hours: "0",
+      chair_time_duration_minutes: "0",
     });
     setEditing(null);
+    setBLegWarnings([]);
   };
 
   const openEdit = (p: Patient) => {
