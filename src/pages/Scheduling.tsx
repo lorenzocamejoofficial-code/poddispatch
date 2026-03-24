@@ -15,6 +15,8 @@ import {
   GitBranch, GripVertical, AlertCircle, BellRing, X, Copy,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
+import { useAuth } from "@/hooks/useAuth";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
 import { RunPool } from "@/components/scheduling/RunPool";
 import { TemplateControls } from "@/components/scheduling/TemplateControls";
