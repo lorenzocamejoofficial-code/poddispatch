@@ -125,7 +125,10 @@ export default function PCRPage() {
       case "vitals": return (trip.vitals_json || []).length > 0 && !!(trip.vitals_json[0]?.bp_systolic);
       case "condition_on_arrival": return !!(trip.level_of_consciousness && trip.skin_condition);
       case "medical_necessity": return !!trip.medical_necessity_reason;
-      case "equipment": return Object.keys(trip.equipment_used_json || {}).length > 0;
+      case "equipment": {
+        const eq = trip.equipment_used_json || {};
+        return Object.values(eq).some((v: any) => !!v);
+      }
       case "signatures": return (trip.signatures_json || []).length > 0;
       case "narrative": return !!trip.narrative;
       case "billing": return true;
