@@ -40,7 +40,7 @@ export function IsolationPrecautionsCard({ trip, updateField }: IsolationPrecaut
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 p-4">
       <div className="flex items-center justify-between">
         <Label className="text-sm font-medium text-foreground flex items-center">
           Isolation Required? <PCRTooltip text={PCR_TOOLTIPS.isolation_required} />
