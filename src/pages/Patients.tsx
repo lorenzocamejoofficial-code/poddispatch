@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import type { Tables, Database } from "@/integrations/supabase/types";
 import { PatientStatusBadge } from "@/components/patients/PatientStatusBadge";
 import { FacilityDropdown } from "@/components/patients/FacilityDropdown";
+import { FacilitySelect } from "@/components/patients/FacilitySelect";
 
 type Patient = Tables<"patients">;
 type PatientStatus = Database["public"]["Enums"]["patient_status"];
@@ -86,6 +87,9 @@ export default function Patients() {
     dialysis_window_minutes: "45", must_arrive_by: "",
     // Custom recurrence days for outpatient/wound care
     recurrence_days: [] as number[],
+    // Location type & facility link
+    location_type: "",
+    facility_id: "",
   });
 
   const fetchPatients = async () => {
@@ -112,6 +116,8 @@ export default function Patients() {
       oxygen_lpm: "", special_equipment_required: "none",
       dialysis_window_minutes: "45", must_arrive_by: "",
       recurrence_days: [],
+      location_type: "",
+      facility_id: "",
     });
     setEditing(null);
   };
@@ -148,6 +154,8 @@ export default function Patients() {
       dialysis_window_minutes: (p as any).dialysis_window_minutes?.toString() ?? "45",
       must_arrive_by: (p as any).must_arrive_by ?? "",
       recurrence_days: (p as any).recurrence_days ?? [],
+      location_type: (p as any).location_type ?? "",
+      facility_id: (p as any).facility_id ?? "",
     });
     setDialogOpen(true);
   };
@@ -189,6 +197,8 @@ export default function Patients() {
       dialysis_window_minutes: form.dialysis_window_minutes ? parseInt(form.dialysis_window_minutes) : 45,
       must_arrive_by: form.must_arrive_by || null,
       recurrence_days: form.recurrence_days.length > 0 ? form.recurrence_days : null,
+      location_type: form.location_type || null,
+      facility_id: form.facility_id || null,
     };
 
     if (!payload.first_name || !payload.last_name) return;
@@ -332,6 +342,31 @@ export default function Patients() {
                     <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
                   </div>
                   <div><Label>Pickup Address</Label><Input value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} /></div>
+
+                  {/* Home Location Type */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Home Location Type</Label>
+                      <Select value={form.location_type || "none"} onValueChange={v => setForm({ ...form, location_type: v === "none" ? "" : v, facility_id: v === "Residence" ? "" : form.facility_id })}>
+                        <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— Select —</SelectItem>
+                          <SelectItem value="Residence">Residence</SelectItem>
+                          <SelectItem value="SNF">SNF (Skilled Nursing Facility)</SelectItem>
+                          <SelectItem value="Assisted Living">Assisted Living</SelectItem>
+                          <SelectItem value="Group Home">Group Home</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {form.location_type && form.location_type !== "Residence" && (
+                      <div>
+                        <Label>Facility (if applicable)</Label>
+                        <FacilitySelect value={form.facility_id} onChange={(v) => setForm({ ...form, facility_id: v })} />
+                      </div>
+                    )}
+                  </div>
+
                   <div>
                     <Label>Dropoff Facility</Label>
                     <FacilityDropdown

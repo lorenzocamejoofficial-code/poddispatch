@@ -30,6 +30,8 @@ interface RunCard {
   originType: string | null;
   patientPickupAddress: string | null;
   patientDropoffFacility: string | null;
+  patientLocationType: string | null;
+  patientFacilityName: string | null;
   dispatchTime: string | null;
   tripType: string | null;
   pcrType: string | null;
@@ -104,7 +106,7 @@ export default function CrewDashboard() {
     const legIds = slots.map(s => s.leg_id);
 
     const [{ data: legs }, { data: trips }] = await Promise.all([
-      supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, pickup_address, dropoff_facility)").in("id", legIds),
+      supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, pickup_address, dropoff_facility, location_type, facility_id, facility:facilities!patients_facility_id_fkey(name))").in("id", legIds),
       supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, scheduled_pickup_time, billing_blocked_reason").eq("run_date", today).eq("truck_id", truckId).in("leg_id", legIds),
     ]);
 
@@ -135,6 +137,8 @@ export default function CrewDashboard() {
         originType: trip?.origin_type ?? null,
         patientPickupAddress: patient?.pickup_address ?? null,
         patientDropoffFacility: patient?.dropoff_facility ?? null,
+        patientLocationType: patient?.location_type ?? null,
+        patientFacilityName: (patient?.facility as any)?.name ?? null,
         dispatchTime: trip?.dispatch_time ?? null,
         tripType: trip?.trip_type ?? leg?.trip_type ?? null,
         pcrType: (trip as any)?.pcr_type ?? null,
@@ -284,6 +288,9 @@ export default function CrewDashboard() {
             const resolvePickup = (): string => {
               if (run.originType && run.originType.toLowerCase().includes("residence")) return "Residence";
               if (run.pickupLocation && run.pickupLocation !== "—") return run.pickupLocation;
+              // Use patient location_type / facility link
+              if (run.patientLocationType === "Residence") return "Residence";
+              if (run.patientFacilityName) return run.patientFacilityName;
               if (run.patientPickupAddress) return "Residence";
               return "—";
             };
