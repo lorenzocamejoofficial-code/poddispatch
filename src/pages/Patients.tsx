@@ -16,6 +16,7 @@ import type { Tables, Database } from "@/integrations/supabase/types";
 import { PatientStatusBadge } from "@/components/patients/PatientStatusBadge";
 import { FacilityDropdown } from "@/components/patients/FacilityDropdown";
 import { FacilitySelect } from "@/components/patients/FacilitySelect";
+import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
 
 type Patient = Tables<"patients">;
 type PatientStatus = Database["public"]["Enums"]["patient_status"];
