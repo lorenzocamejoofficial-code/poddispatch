@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Trash2, PenTool, Maximize2, X } from "lucide-react";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
+import { useCompanyName } from "@/hooks/useCompanyName";
 
 interface Props { trip: any; updateField: (f: string, v: any) => Promise<void>; legType?: string | null; }
 
