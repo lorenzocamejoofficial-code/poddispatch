@@ -38,7 +38,7 @@ export function NotifyCrewModal({ open, onOpenChange, selectedDate, onNotified }
         .is("notified_at", null)
         .order("created_at", { ascending: false });
 
-      const rows = (data ?? []) as ChangeLog[];
+      const rows = (data ?? []) as unknown as ChangeLog[];
       setChanges(rows);
 
       // Fetch truck names
