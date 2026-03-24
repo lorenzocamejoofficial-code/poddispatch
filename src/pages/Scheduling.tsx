@@ -106,8 +106,8 @@ export default function Scheduling() {
   const [operationalAlerts, setOperationalAlerts] = useState<OperationalAlert[]>([]);
 
   // Schedule change notification tracking
-  const [scheduleChanges, setScheduleChanges] = useState<{ truckName: string; change: string }[]>([]);
   const [notifyBannerVisible, setNotifyBannerVisible] = useState(false);
+  const [notifyModalOpen, setNotifyModalOpen] = useState(false);
   const legsSnapshotRef = useRef<string>("");
 
   // Track schedule changes by comparing leg assignments
@@ -119,47 +119,33 @@ export default function Scheduling() {
       .join("|");
 
     if (legsSnapshotRef.current && legsSnapshotRef.current !== currentSnapshot) {
-      // Something changed — show the notify banner
       setNotifyBannerVisible(true);
     }
     legsSnapshotRef.current = currentSnapshot;
   }, [legs]);
 
-  const generateNotifyMessage = useCallback(() => {
-    // Group current assignments by truck
-    const truckAssignments = new Map<string, { name: string; runs: string[] }>();
-    for (const t of trucks) {
-      const tLegs = legs
-        .filter(l => l.assigned_truck_id === t.id && l.slot_status !== "cancelled")
-        .sort((a, b) => (a.slot_order ?? 0) - (b.slot_order ?? 0));
-      if (tLegs.length > 0) {
-        truckAssignments.set(t.id, {
-          name: t.name,
-          runs: tLegs.map(l => `${l.pickup_time ?? "TBD"} - ${l.leg_type} ${l.patient_name} (${l.pickup_location} → ${l.destination_location})`),
-        });
-      }
-    }
-
-    const dateLabel = new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", {
-      weekday: "short", month: "short", day: "numeric",
+  // Helper: log a schedule change
+  const logScheduleChange = useCallback(async (params: {
+    change_type: string;
+    change_summary: string;
+    old_value?: string | null;
+    new_value?: string | null;
+    truck_id?: string | null;
+    leg_id?: string | null;
+  }) => {
+    if (!profileId) return;
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
+    await supabase.from("schedule_change_log" as any).insert({
+      company_id: companyId,
+      truck_id: params.truck_id ?? null,
+      leg_id: params.leg_id ?? null,
+      change_type: params.change_type,
+      change_summary: params.change_summary,
+      old_value: params.old_value ?? null,
+      new_value: params.new_value ?? null,
+      changed_by: profileId,
     });
-
-    let message = `📋 Schedule Update — ${dateLabel}\n\n`;
-    for (const [, info] of truckAssignments) {
-      message += `🚑 ${info.name}:\n`;
-      info.runs.forEach((r, i) => { message += `  ${i + 1}. ${r}\n`; });
-      message += "\n";
-    }
-    message += "— PodDispatch";
-    return message;
-  }, [trucks, legs, selectedDate]);
-
-  const handleNotifyCrew = useCallback(() => {
-    const message = generateNotifyMessage();
-    navigator.clipboard.writeText(message);
-    toast.success("Schedule update copied to clipboard — paste into your SMS app");
-    setNotifyBannerVisible(false);
-  }, [generateNotifyMessage]);
+  }, [profileId]);
 
   const fetchOperationalAlerts = useCallback(async () => {
     const { data: alertRows } = await supabase
