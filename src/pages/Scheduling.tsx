@@ -341,9 +341,10 @@ export default function Scheduling() {
         return;
       }
       const { data: companyId } = await supabase.rpc("get_my_company_id");
+      const mappedLegType = pendingLegType === "A" ? "a_leg" : pendingLegType === "B" ? "b_leg" : pendingLegType!;
       const { error } = await supabase.from("scheduling_legs").insert({
         patient_id: null,
-        leg_type: pendingLegType!,
+        leg_type: mappedLegType as any,
         pickup_time: oneoffForm.pickup_time || null,
         chair_time: null,
         pickup_location: oneoffForm.pickup_location,
