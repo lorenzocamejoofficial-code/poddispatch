@@ -512,6 +512,14 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     } else {
       toast.success("Run cancelled");
     }
+    if (onLogChange) {
+      onLogChange({
+        change_type: "run_cancelled",
+        change_summary: `Run cancelled for ${leg.patient_name}`,
+        truck_id: leg.assigned_truck_id ?? null,
+        leg_id: legId,
+      });
+    }
     onRefresh();
   }, [legs, selectedDate, onRefresh]);
 
