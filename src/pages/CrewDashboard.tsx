@@ -45,6 +45,8 @@ interface RunCard {
   pcrStatus: string;
   patientId: string | null;
   cancellationReason: string | null;
+  cancellationDisputed: boolean;
+  cancellationDispatcherNote: string | null;
 }
 
 interface HoldTimer {
