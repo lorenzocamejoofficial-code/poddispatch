@@ -406,7 +406,7 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
               <Trash2 className="h-3 w-3 text-destructive" />
             </Button>
           </div>
-          <p className="text-[11px] text-muted-foreground mb-2">{getExplanation(sig.type, legType)}</p>
+          <p className="text-[11px] text-muted-foreground mb-2">{getExplanation(sig.type, legType, companyName)}</p>
           <p className="text-sm">{sig.name} — {sig.role}{sig.relationship ? ` (${sig.relationship})` : ""}</p>
           {sig.unableToSignReason && <p className="text-xs text-muted-foreground mt-0.5">Reason: {sig.unableToSignReason}</p>}
           <p className="text-[10px] text-muted-foreground">{new Date(sig.timestamp).toLocaleString()}</p>
