@@ -91,6 +91,9 @@ export default function Patients() {
     // Location type & facility link
     location_type: "",
     facility_id: "",
+    // Chair time duration (hours + minutes)
+    chair_time_duration_hours: "0",
+    chair_time_duration_minutes: "0",
   });
 
   const fetchPatients = async () => {
