@@ -11,7 +11,6 @@ import { CheckCircle2, ClipboardList } from "lucide-react";
 
 export default function AdminSettings() {
   const [settingsId, setSettingsId] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [graceWindow, setGraceWindow] = useState("15");
   const [loadTime, setLoadTime] = useState("10");
   const [unloadTime, setUnloadTime] = useState("10");
