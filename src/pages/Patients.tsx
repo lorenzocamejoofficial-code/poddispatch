@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,7 @@ import type { Tables, Database } from "@/integrations/supabase/types";
 import { PatientStatusBadge } from "@/components/patients/PatientStatusBadge";
 import { FacilityDropdown } from "@/components/patients/FacilityDropdown";
 import { FacilitySelect } from "@/components/patients/FacilitySelect";
+import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
 
 type Patient = Tables<"patients">;
 type PatientStatus = Database["public"]["Enums"]["patient_status"];
@@ -68,6 +69,7 @@ export default function Patients() {
   // Bulk-delete state
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bLegWarnings, setBLegWarnings] = useState<{ pickup_time: string; run_date: string; earliest: string }[]>([]);
 
   const [form, setForm] = useState({
     first_name: "", last_name: "", dob: "", phone: "",
@@ -90,6 +92,9 @@ export default function Patients() {
     // Location type & facility link
     location_type: "",
     facility_id: "",
+    // Chair time duration (hours + minutes)
+    chair_time_duration_hours: "0",
+    chair_time_duration_minutes: "0",
   });
 
   const fetchPatients = async () => {
@@ -118,13 +123,23 @@ export default function Patients() {
       recurrence_days: [],
       location_type: "",
       facility_id: "",
+      chair_time_duration_hours: "0",
+      chair_time_duration_minutes: "0",
     });
     setEditing(null);
+    setBLegWarnings([]);
   };
 
   const openEdit = (p: Patient) => {
     setEditing(p);
     const endDate = (p as any).recurrence_end_date ?? "";
+    // Auto-convert legacy dialysis_window_minutes to hours+minutes
+    const legacyDwm = (p as any).dialysis_window_minutes ?? 45;
+    const existingH = (p as any).chair_time_duration_hours;
+    const existingM = (p as any).chair_time_duration_minutes;
+    const hasNewFields = (existingH != null && existingH > 0) || (existingM != null && existingM > 0);
+    const durH = hasNewFields ? String(existingH ?? 0) : String(Math.floor(legacyDwm / 60));
+    const durM = hasNewFields ? String(existingM ?? 0) : String(legacyDwm % 60);
     setForm({
       first_name: p.first_name, last_name: p.last_name,
       dob: p.dob ?? "", phone: p.phone ?? "",
@@ -156,7 +171,10 @@ export default function Patients() {
       recurrence_days: (p as any).recurrence_days ?? [],
       location_type: (p as any).location_type ?? "",
       facility_id: (p as any).facility_id ?? "",
+      chair_time_duration_hours: durH,
+      chair_time_duration_minutes: durM,
     });
+    setBLegWarnings([]);
     setDialogOpen(true);
   };
 
@@ -199,6 +217,8 @@ export default function Patients() {
       recurrence_days: form.recurrence_days.length > 0 ? form.recurrence_days : null,
       location_type: form.location_type || null,
       facility_id: form.facility_id || null,
+      chair_time_duration_hours: parseInt(form.chair_time_duration_hours) || 0,
+      chair_time_duration_minutes: parseInt(form.chair_time_duration_minutes) || 0,
     };
 
     if (!payload.first_name || !payload.last_name) return;
@@ -206,6 +226,29 @@ export default function Patients() {
     if (editing) {
       await supabase.from("patients").update(payload).eq("id", editing.id);
       toast.success("Patient updated");
+
+      // Check for B-leg conflicts after saving chair time changes
+      if (form.transport_type === "dialysis" && form.chair_time) {
+        const durH = parseInt(form.chair_time_duration_hours) || 0;
+        const durM = parseInt(form.chair_time_duration_minutes) || 0;
+        if (durH > 0 || durM > 0) {
+          const today = new Date().toISOString().split("T")[0];
+          const { data: bLegs } = await supabase
+            .from("scheduling_legs")
+            .select("pickup_time, run_date")
+            .eq("patient_id", editing.id)
+            .eq("leg_type", "b_leg" as any)
+            .gte("run_date", today);
+          const warnings: typeof bLegWarnings = [];
+          for (const leg of bLegs ?? []) {
+            if (leg.pickup_time && isBLegTooEarly(leg.pickup_time, form.chair_time, durH, durM)) {
+              const earliest = getEarliestBLegPickup(form.chair_time, durH, durM);
+              if (earliest) warnings.push({ pickup_time: leg.pickup_time, run_date: leg.run_date, earliest });
+            }
+          }
+          setBLegWarnings(warnings);
+        }
+      }
     } else {
       payload.company_id = activeCompanyId;
       await supabase.from("patients").insert(payload);
@@ -577,10 +620,35 @@ export default function Patients() {
                           <Label>O₂ LPM</Label>
                           <Input type="number" step="0.5" value={form.oxygen_lpm} onChange={e => setForm({ ...form, oxygen_lpm: e.target.value })} placeholder="—" />
                         </div>
-                        {form.transport_type === "dialysis" && (
+                        {form.transport_type === "dialysis" ? (
+                          <>
+                            <div className="col-span-2">
+                              <Label>Chair Time Duration</Label>
+                              <div className="grid grid-cols-2 gap-2 mt-1">
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">Hours</Label>
+                                  <Input type="number" min={0} max={8} value={form.chair_time_duration_hours} onChange={e => setForm({ ...form, chair_time_duration_hours: e.target.value })} />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">Minutes</Label>
+                                  <Input type="number" min={0} max={59} value={form.chair_time_duration_minutes} onChange={e => setForm({ ...form, chair_time_duration_minutes: e.target.value })} />
+                                </div>
+                              </div>
+                              {bLegWarnings.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {bLegWarnings.map((w, i) => (
+                                    <p key={i} className="text-[11px] text-[hsl(var(--status-yellow))]">
+                                      ⚠️ Warning: Existing B-leg pickup time {w.pickup_time} on {w.run_date} may be too early based on this chair time duration. Earliest valid pickup: {w.earliest}. A dispatcher override will be required.
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        ) : (
                           <div>
-                            <Label>Dialysis Window (min)</Label>
-                            <Input type="number" value={form.dialysis_window_minutes} onChange={e => setForm({ ...form, dialysis_window_minutes: e.target.value })} />
+                            <Label>Appointment Duration (minutes)</Label>
+                            <Input type="number" value={form.run_duration_minutes} onChange={e => setForm({ ...form, run_duration_minutes: e.target.value })} placeholder="e.g. 60" />
                           </div>
                         )}
                         <div>

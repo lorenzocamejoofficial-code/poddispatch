@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,6 +16,8 @@ import {
   GitBranch, GripVertical, AlertCircle, BellRing, X, Copy,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
+import { useAuth } from "@/hooks/useAuth";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
 import { RunPool } from "@/components/scheduling/RunPool";
 import { TemplateControls } from "@/components/scheduling/TemplateControls";
@@ -259,6 +262,16 @@ export default function Scheduling() {
   });
   const [savingException, setSavingException] = useState(false);
 
+  // B-leg validation state
+  const [bLegEarliest, setBLegEarliest] = useState<string | null>(null);
+  const [bLegTooEarly, setBLegTooEarly] = useState(false);
+  const [bLegOverrideOpen, setBLegOverrideOpen] = useState(false);
+  const [bLegOverrideReason, setBLegOverrideReason] = useState("");
+  const [bLegPendingSave, setBLegPendingSave] = useState<(() => Promise<void>) | null>(null);
+  // B-leg validation for create dialog
+  const [createBLegEarliest, setCreateBLegEarliest] = useState<string | null>(null);
+  const [createBLegTooEarly, setCreateBLegTooEarly] = useState(false);
+
   const weekDates = getWeekDates(selectedDate);
   const today = getLocalToday();
 
@@ -410,6 +423,23 @@ export default function Scheduling() {
     }
   };
 
+  // ── B-leg validation helper ──
+  const checkBLegTime = async (patientId: string | null, pickupTime: string | null): Promise<{ tooEarly: boolean; earliest: string | null }> => {
+    if (!patientId || !pickupTime) return { tooEarly: false, earliest: null };
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("chair_time, chair_time_duration_hours, chair_time_duration_minutes")
+      .eq("id", patientId)
+      .maybeSingle();
+    if (!patient) return { tooEarly: false, earliest: null };
+    const durH = (patient as any).chair_time_duration_hours ?? 0;
+    const durM = (patient as any).chair_time_duration_minutes ?? 0;
+    if (durH === 0 && durM === 0) return { tooEarly: false, earliest: null };
+    const earliest = getEarliestBLegPickup(patient.chair_time, durH, durM);
+    const tooEarly = isBLegTooEarly(pickupTime, patient.chair_time, durH, durM);
+    return { tooEarly, earliest };
+  };
+
   // Open exception edit dialog
   const openExceptionEdit = (leg: LegDisplay) => {
     setEditingExceptionLeg(leg);
@@ -419,10 +449,22 @@ export default function Scheduling() {
       destination_location: leg.destination_location,
       notes: leg.notes ?? "",
     });
+    setBLegEarliest(null);
+    setBLegTooEarly(false);
     setExceptionDialogOpen(true);
   };
 
-  const handleSaveException = async () => {
+  // Check B-leg time when exception pickup_time changes
+  const handleExceptionPickupTimeChange = async (time: string) => {
+    setExceptionForm(f => ({ ...f, pickup_time: time }));
+    if (editingExceptionLeg?.leg_type === "b_leg" && editingExceptionLeg.patient_id) {
+      const result = await checkBLegTime(editingExceptionLeg.patient_id, time);
+      setBLegEarliest(result.earliest);
+      setBLegTooEarly(result.tooEarly);
+    }
+  };
+
+  const doSaveException = async () => {
     if (!editingExceptionLeg) return;
     setSavingException(true);
     try {
@@ -434,7 +476,6 @@ export default function Scheduling() {
         destination_location: exceptionForm.destination_location || null,
         notes: exceptionForm.notes || null,
       };
-      // Upsert: if exception exists for this leg+date, update it; else insert
       const { error } = await supabase
         .from("leg_exceptions" as any)
         .upsert(payload, { onConflict: "scheduling_leg_id,run_date" });
@@ -446,6 +487,41 @@ export default function Scheduling() {
     } finally {
       setSavingException(false);
     }
+  };
+
+  const handleSaveException = async () => {
+    // If B-leg and too early, require override
+    if (editingExceptionLeg?.leg_type === "b_leg" && bLegTooEarly && exceptionForm.pickup_time) {
+      setBLegOverrideReason("");
+      setBLegPendingSave(() => async () => {
+        // Save the exception first
+        await doSaveException();
+        // Then log the override
+        const { data: companyId } = await supabase.rpc("get_my_company_id");
+        await supabase.from("billing_overrides").insert({
+          trip_id: editingExceptionLeg!.id, // leg_id as reference
+          override_reason: `Dispatcher overrode B-leg early pickup: ${bLegOverrideReason}`,
+          is_active: false,
+          snapshot: {
+            action: "b_leg_early_override",
+            patient_id: editingExceptionLeg!.patient_id,
+            chair_time: null,
+            b_leg_pickup_time: exceptionForm.pickup_time,
+            override_reason: bLegOverrideReason,
+          },
+        } as any);
+        await supabase.from("audit_logs").insert({
+          action: "b_leg_time_override",
+          actor_user_id: (await supabase.auth.getUser()).data.user?.id,
+          table_name: "scheduling_legs",
+          record_id: editingExceptionLeg!.id,
+          notes: `B-leg pickup time ${exceptionForm.pickup_time} is before treatment end. Override reason: ${bLegOverrideReason}`,
+        });
+      });
+      setBLegOverrideOpen(true);
+      return;
+    }
+    await doSaveException();
   };
 
   const handleDeleteException = async () => {
@@ -1003,7 +1079,27 @@ export default function Scheduling() {
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Pickup Time</Label><Input type="time" value={legForm.pickup_time} onChange={(e) => setLegForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
+                <div>
+                  <Label>Pickup Time</Label>
+                  <Input type="time" value={legForm.pickup_time} onChange={async (e) => {
+                    const time = e.target.value;
+                    setLegForm(f => ({ ...f, pickup_time: time }));
+                    if (pendingLegType === "B" && legForm.patient_id) {
+                      const result = await checkBLegTime(legForm.patient_id, time);
+                      setCreateBLegEarliest(result.earliest);
+                      setCreateBLegTooEarly(result.tooEarly);
+                    }
+                  }} />
+                  {pendingLegType === "B" && createBLegEarliest && (
+                    <p className="text-[11px] text-muted-foreground mt-1">Earliest valid pickup: {createBLegEarliest}</p>
+                  )}
+                  {pendingLegType === "B" && createBLegTooEarly && createBLegEarliest && (
+                    <p className="text-[11px] text-[hsl(var(--status-yellow))] mt-0.5">
+                      <AlertTriangle className="inline h-3 w-3 mr-1" />
+                      Too early — treatment ends at approximately {createBLegEarliest}. Override required.
+                    </p>
+                  )}
+                </div>
                 <div><Label>Appointment Time</Label><Input type="time" value={legForm.chair_time} onChange={(e) => setLegForm(f => ({ ...f, chair_time: e.target.value }))} /></div>
               </div>
               <div><Label>Pickup Location *</Label><Input value={legForm.pickup_location} onChange={(e) => setLegForm(f => ({ ...f, pickup_location: e.target.value }))} /></div>
@@ -1047,7 +1143,16 @@ export default function Scheduling() {
             <div className="grid gap-3 py-2">
               <div>
                 <Label>Pickup Time</Label>
-                <Input type="time" value={exceptionForm.pickup_time} onChange={(e) => setExceptionForm(f => ({ ...f, pickup_time: e.target.value }))} />
+                <Input type="time" value={exceptionForm.pickup_time} onChange={(e) => handleExceptionPickupTimeChange(e.target.value)} />
+                {editingExceptionLeg?.leg_type === "b_leg" && bLegEarliest && (
+                  <p className="text-[11px] text-muted-foreground mt-1">Earliest valid pickup: {bLegEarliest}</p>
+                )}
+                {editingExceptionLeg?.leg_type === "b_leg" && bLegTooEarly && bLegEarliest && (
+                  <p className="text-[11px] text-[hsl(var(--status-yellow))] mt-0.5">
+                    <AlertTriangle className="inline h-3 w-3 mr-1" />
+                    Too early — patient's treatment ends at approximately {bLegEarliest}. Override required.
+                  </p>
+                )}
               </div>
               <div>
                 <Label>Pickup Location</Label>
@@ -1096,6 +1201,35 @@ export default function Scheduling() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* B-Leg Override Confirmation Dialog */}
+        <AlertDialog open={bLegOverrideOpen} onOpenChange={setBLegOverrideOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>B-Leg Early Pickup Override</AlertDialogTitle>
+              <AlertDialogDescription>
+                This pickup time is before the patient's treatment is expected to end ({bLegEarliest}). Enter an override reason to proceed.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-2">
+              <Label>Override Reason (min 10 characters)</Label>
+              <Textarea value={bLegOverrideReason} onChange={(e) => setBLegOverrideReason(e.target.value)} rows={2} placeholder="Why is this early pickup necessary?" />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={bLegOverrideReason.trim().length < 10}
+                onClick={async () => {
+                  if (bLegPendingSave) await bLegPendingSave();
+                  setBLegOverrideOpen(false);
+                  setBLegPendingSave(null);
+                }}
+              >
+                Override & Save
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AdminLayout>
   );

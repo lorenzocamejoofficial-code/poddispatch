@@ -1251,6 +1251,8 @@ export type Database = {
           auth_required: boolean | null
           bariatric: boolean | null
           chair_time: string | null
+          chair_time_duration_hours: number | null
+          chair_time_duration_minutes: number | null
           company_id: string | null
           created_at: string
           dialysis_window_minutes: number
@@ -1294,6 +1296,8 @@ export type Database = {
           auth_required?: boolean | null
           bariatric?: boolean | null
           chair_time?: string | null
+          chair_time_duration_hours?: number | null
+          chair_time_duration_minutes?: number | null
           company_id?: string | null
           created_at?: string
           dialysis_window_minutes?: number
@@ -1337,6 +1341,8 @@ export type Database = {
           auth_required?: boolean | null
           bariatric?: boolean | null
           chair_time?: string | null
+          chair_time_duration_hours?: number | null
+          chair_time_duration_minutes?: number | null
           company_id?: string | null
           created_at?: string
           dialysis_window_minutes?: number
