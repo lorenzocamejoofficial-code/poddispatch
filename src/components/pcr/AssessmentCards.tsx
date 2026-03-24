@@ -2,6 +2,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CHIEF_COMPLAINTS, PHYSICAL_EXAM_SYSTEMS } from "@/lib/pcr-dropdowns";
+import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 
 interface AssessmentCardProps {
   trip: any;
@@ -14,7 +16,9 @@ export function AssessmentCard({ trip, updateField }: AssessmentCardProps) {
   return (
     <div className="space-y-4">
       <div>
-        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Chief Complaint</label>
+        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 flex items-center">
+          Chief Complaint <PCRTooltip text={PCR_TOOLTIPS.chief_complaint} />
+        </label>
         <Select value={trip.chief_complaint || ""} onValueChange={(v) => updateField("chief_complaint", v)}>
           <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select..." /></SelectTrigger>
           <SelectContent>
@@ -28,7 +32,9 @@ export function AssessmentCard({ trip, updateField }: AssessmentCardProps) {
       </div>
 
       <div>
-        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Primary Impression</label>
+        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 flex items-center">
+          Primary Impression <PCRTooltip text={PCR_TOOLTIPS.primary_impression} />
+        </label>
         <Select value={trip.primary_impression || ""} onValueChange={(v) => updateField("primary_impression", v)}>
           <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select..." /></SelectTrigger>
           <SelectContent>
@@ -38,7 +44,9 @@ export function AssessmentCard({ trip, updateField }: AssessmentCardProps) {
       </div>
 
       <div>
-        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Acute Symptoms</label>
+        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 flex items-center">
+          Acute Symptoms <PCRTooltip text={PCR_TOOLTIPS.acute_symptoms} />
+        </label>
         <Textarea placeholder="Describe acute symptoms..." value={assessment.acute_symptoms || ""}
           onChange={(e) => updateField("assessment_json", { ...assessment, acute_symptoms: e.target.value })} rows={2} />
       </div>

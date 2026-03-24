@@ -2,22 +2,14 @@ import { Button } from "@/components/ui/button";
 import { Clock, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 
 interface TimesCardProps {
   trip: any;
   recordTime: (field: string, status?: string) => Promise<void>;
   updateField: (field: string, value: any) => Promise<void>;
 }
-
-const TIME_BUTTONS = [
-  { field: "dispatch_time", label: "Dispatched", status: undefined, auto: true },
-  { field: "dispatch_time", label: "En Route", status: "en_route", auto: false },
-  { field: "at_scene_time", label: "At Scene", status: "arrived_pickup", auto: false },
-  { field: "patient_contact_time", label: "Patient Contact", status: undefined, auto: false },
-  { field: "left_scene_time", label: "Left Scene", status: "loaded", auto: false },
-  { field: "arrived_dropoff_at", label: "At Destination", status: "arrived_dropoff", auto: false },
-  { field: "in_service_time", label: "In Service", status: "completed", auto: false },
-];
 
 function fmtTime(ts: string | null): string {
   if (!ts) return "";
@@ -26,12 +18,21 @@ function fmtTime(ts: string | null): string {
   } catch { return ""; }
 }
 
+const TOOLTIP_MAP: Record<string, string> = {
+  dispatch_time: "dispatch_time",
+  at_scene_time: "at_scene_time",
+  patient_contact_time: "patient_contact_time",
+  left_scene_time: "left_scene_time",
+  arrived_dropoff_at: "arrived_destination_time",
+  in_service_time: "in_service_time",
+};
+
 export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
   const [editingField, setEditingField] = useState<string | null>(null);
 
   const buttons = [
     { field: "dispatch_time", label: "Dispatched", status: undefined },
-    { field: "dispatch_time", label: "En Route", status: "en_route", displayField: "dispatch_time" },
+    { field: "dispatch_time", label: "En Route", status: "en_route", displayField: "dispatch_time", tooltipKey: "enroute_time" },
     { field: "at_scene_time", label: "At Scene", status: "arrived_pickup" },
     { field: "patient_contact_time", label: "Patient Contact", status: undefined },
     { field: "left_scene_time", label: "Left Scene", status: "loaded" },
@@ -46,6 +47,8 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
           const value = trip[btn.field];
           const recorded = !!value;
           const isEditing = editingField === `${btn.field}-${idx}`;
+          const ttKey = (btn as any).tooltipKey || TOOLTIP_MAP[btn.field];
+          const tooltipText = ttKey ? PCR_TOOLTIPS[ttKey] : undefined;
 
           return (
             <div key={`${btn.field}-${idx}`} className="flex items-center gap-3">
@@ -58,7 +61,10 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
                 disabled={recorded}
               >
                 {recorded ? <Check className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
-                <span className="flex-1 text-left">{btn.label}</span>
+                <span className="flex-1 text-left flex items-center">
+                  {btn.label}
+                  {tooltipText && <PCRTooltip text={tooltipText} />}
+                </span>
                 {recorded && <span className="text-sm font-mono">{fmtTime(value)}</span>}
               </Button>
               {recorded && (
@@ -97,7 +103,9 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
         <h4 className="text-sm font-semibold text-foreground mb-3">Mileage & Vehicle</h4>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Vehicle / Unit #</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center">
+              Vehicle / Unit # <PCRTooltip text={PCR_TOOLTIPS.vehicle_id} />
+            </label>
             <Input
               defaultValue={trip.vehicle_id || ""}
               placeholder="Unit #"
@@ -105,7 +113,9 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Odometer at Scene</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center">
+              Odometer at Scene <PCRTooltip text={PCR_TOOLTIPS.odometer_at_scene} />
+            </label>
             <Input
               type="number"
               step="0.1"
@@ -115,7 +125,9 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Odometer at Destination</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center">
+              Odometer at Destination <PCRTooltip text={PCR_TOOLTIPS.odometer_at_destination} />
+            </label>
             <Input
               type="number"
               step="0.1"
@@ -125,7 +137,9 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Odometer at In Service</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center">
+              Odometer at In Service <PCRTooltip text={PCR_TOOLTIPS.odometer_in_service} />
+            </label>
             <Input
               type="number"
               step="0.1"

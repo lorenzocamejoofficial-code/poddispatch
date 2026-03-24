@@ -1,5 +1,7 @@
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 
 const STRETCHER_OPTIONS = [
   "Draw Sheet",
@@ -25,7 +27,9 @@ export function StretcherMobilityCard({ trip, updateField }: StretcherMobilityCa
   return (
     <div className="space-y-5">
       <div>
-        <Label className="text-sm font-medium text-foreground">How Was Patient Placed on Stretcher?</Label>
+        <Label className="text-sm font-medium text-foreground flex items-center">
+          How Was Patient Placed on Stretcher? <PCRTooltip text={PCR_TOOLTIPS.stretcher_placement} />
+        </Label>
         <Select
           value={trip.stretcher_placement || ""}
           onValueChange={(val) => updateField("stretcher_placement", val)}
@@ -42,7 +46,9 @@ export function StretcherMobilityCard({ trip, updateField }: StretcherMobilityCa
       </div>
 
       <div>
-        <Label className="text-sm font-medium text-foreground">How Does the Patient Get Around?</Label>
+        <Label className="text-sm font-medium text-foreground flex items-center">
+          How Does the Patient Get Around? <PCRTooltip text={PCR_TOOLTIPS.patient_mobility} />
+        </Label>
         <Select
           value={trip.patient_mobility || ""}
           onValueChange={(val) => updateField("patient_mobility", val)}

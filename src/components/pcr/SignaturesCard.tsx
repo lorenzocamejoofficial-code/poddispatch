@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2, Plus, PenTool } from "lucide-react";
+import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 
 interface Props { trip: any; updateField: (f: string, v: any) => Promise<void>; }
 
@@ -21,6 +23,13 @@ const SIG_TYPES = [
   "ABN / Non-covered Destination",
   "Crew Attestation",
 ];
+
+const SIG_TOOLTIPS: Record<string, string> = {
+  "Payment Authorization": PCR_TOOLTIPS.payment_authorization,
+  "Receiving Facility / Transfer of Care": PCR_TOOLTIPS.receiving_facility_signature,
+  "Patient Refusal": PCR_TOOLTIPS.patient_refusal,
+  "Crew Attestation": PCR_TOOLTIPS.crew_attestation,
+};
 
 function SignaturePad({ onComplete }: { onComplete: (dataUrl: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -118,7 +127,10 @@ export function SignaturesCard({ trip, updateField }: Props) {
       {sigs.map((sig) => (
         <div key={sig.id} className="rounded-lg border border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/20 p-3">
           <div className="flex items-center justify-between mb-1">
-            <p className="text-xs font-bold text-emerald-800 dark:text-emerald-400">{sig.type}</p>
+            <p className="text-xs font-bold text-emerald-800 dark:text-emerald-400 flex items-center">
+              {sig.type}
+              {SIG_TOOLTIPS[sig.type] && <PCRTooltip text={SIG_TOOLTIPS[sig.type]} />}
+            </p>
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeSig(sig.id)}>
               <Trash2 className="h-3 w-3 text-destructive" />
             </Button>
@@ -131,7 +143,10 @@ export function SignaturesCard({ trip, updateField }: Props) {
 
       {addingType ? (
         <div className="rounded-lg border p-3 space-y-3">
-          <p className="text-xs font-bold text-primary uppercase">{addingType}</p>
+          <p className="text-xs font-bold text-primary uppercase flex items-center">
+            {addingType}
+            {SIG_TOOLTIPS[addingType] && <PCRTooltip text={SIG_TOOLTIPS[addingType]} />}
+          </p>
           <Input placeholder="Signer name" value={newName} onChange={(e) => setNewName(e.target.value)} className="h-10" />
           <Input placeholder="Role (e.g., Patient, Nurse, Medic)" value={newRole} onChange={(e) => setNewRole(e.target.value)} className="h-10" />
           <SignaturePad onComplete={setPendingDataUrl} />
@@ -144,7 +159,11 @@ export function SignaturesCard({ trip, updateField }: Props) {
         <div className="space-y-2">
           {SIG_TYPES.filter(t => !sigs.some(s => s.type === t)).map(type => (
             <Button key={type} variant="outline" className="w-full justify-start gap-2" onClick={() => setAddingType(type)}>
-              <PenTool className="h-4 w-4" /> {type}
+              <PenTool className="h-4 w-4" />
+              <span className="flex items-center">
+                {type}
+                {SIG_TOOLTIPS[type] && <PCRTooltip text={SIG_TOOLTIPS[type]} />}
+              </span>
             </Button>
           ))}
         </div>
