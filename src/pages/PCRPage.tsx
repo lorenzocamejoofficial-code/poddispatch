@@ -368,7 +368,7 @@ export default function PCRPage() {
           </div>
         )}
 
-        <div className="space-y-2">
+        <div className="space-y-3">
           {cards.map((card) => {
             const rule = getEffectiveCardRule(card.type);
             const isLockedCard = rule.state === "locked";

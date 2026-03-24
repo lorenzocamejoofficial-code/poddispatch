@@ -490,7 +490,7 @@ export default function CrewDashboard() {
                 <div className="flex gap-2">
                   <Button
                     className={cn(
-                      "flex-1 h-12 text-sm font-semibold gap-2",
+                      "flex-1 h-12 text-sm font-semibold gap-2 w-full sm:w-auto",
                       run.pcrStatus === "completed" && "bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-800",
                       run.pcrStatus === "in_progress" && "bg-amber-600 hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-800",
                     )}
