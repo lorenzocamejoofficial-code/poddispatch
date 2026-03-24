@@ -327,6 +327,7 @@ function RoleSelector({
 
 /* ─── Main component ─── */
 export function SignaturesCard({ trip, updateField, legType }: Props) {
+  const { companyName } = useCompanyName();
   const sigs: Signature[] = trip.signatures_json || [];
   const [addingType, setAddingType] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
