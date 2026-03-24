@@ -344,28 +344,31 @@ export default function PCRPage() {
             </p>
           )}
           {!isReadOnly && (
-            <div className="mt-2 flex items-center gap-2">
-              <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+            <div className="mt-2 flex items-center gap-2 min-w-0 overflow-hidden">
+              <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden min-w-0">
                 <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${totalRequired > 0 ? (completedRequired / totalRequired) * 100 : 0}%` }} />
               </div>
-              <span className="text-xs font-medium text-muted-foreground">{completedRequired}/{totalRequired}</span>
+              <span className="text-xs font-medium text-muted-foreground shrink-0">{completedRequired}/{totalRequired}</span>
             </div>
-          )}
-          {/* Emergency Upgrade Button — only when not read-only */}
-          {!isReadOnly && sectionRules.type !== "emergency" && (
-            <Button
-              variant="destructive"
-              size="sm"
-              className="mt-2 w-full"
-              onClick={() => setShowUpgradeDialog(true)}
-            >
-              <AlertTriangle className="h-4 w-4 mr-2" />
-              Upgrade to Emergency
-            </Button>
           )}
         </div>
 
-        <div className="space-y-2">
+        {/* Emergency Upgrade — compact right-aligned button */}
+        {!isReadOnly && sectionRules.type !== "emergency" && (
+          <div className="flex justify-end mb-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs border-destructive/40 text-destructive hover:bg-destructive/5"
+              onClick={() => setShowUpgradeDialog(true)}
+            >
+              <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+              Emergency Upgrade
+            </Button>
+          </div>
+        )}
+
+        <div className="space-y-3">
           {cards.map((card) => {
             const rule = getEffectiveCardRule(card.type);
             const isLockedCard = rule.state === "locked";

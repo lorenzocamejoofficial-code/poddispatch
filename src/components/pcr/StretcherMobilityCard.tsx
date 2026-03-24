@@ -25,7 +25,7 @@ interface StretcherMobilityCardProps {
 
 export function StretcherMobilityCard({ trip, updateField }: StretcherMobilityCardProps) {
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 p-4">
       <div>
         <Label className="text-sm font-medium text-foreground flex items-center">
           How Was Patient Placed on Stretcher? <PCRTooltip text={PCR_TOOLTIPS.stretcher_placement} />
@@ -34,7 +34,7 @@ export function StretcherMobilityCard({ trip, updateField }: StretcherMobilityCa
           value={trip.stretcher_placement || ""}
           onValueChange={(val) => updateField("stretcher_placement", val)}
         >
-          <SelectTrigger className="mt-1.5 h-12 text-base">
+          <SelectTrigger className="mt-1.5 h-11 text-base w-full">
             <SelectValue placeholder="Select placement method" />
           </SelectTrigger>
           <SelectContent>
@@ -53,7 +53,7 @@ export function StretcherMobilityCard({ trip, updateField }: StretcherMobilityCa
           value={trip.patient_mobility || ""}
           onValueChange={(val) => updateField("patient_mobility", val)}
         >
-          <SelectTrigger className="mt-1.5 h-12 text-base">
+          <SelectTrigger className="mt-1.5 h-11 text-base w-full">
             <SelectValue placeholder="Select mobility level" />
           </SelectTrigger>
           <SelectContent>

@@ -16,7 +16,7 @@ export function EquipmentCard({ trip, updateField }: Props) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4">
       {/* Oxygen */}
       <div className="space-y-2">
         <label className="flex items-center gap-3 text-sm cursor-pointer">
@@ -24,16 +24,16 @@ export function EquipmentCard({ trip, updateField }: Props) {
           Oxygen in Use
         </label>
         {eq.oxygen && (
-          <div className="ml-7 grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] font-medium text-muted-foreground block">Flow Rate (LPM)</label>
+          <div className="ml-7 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="min-w-0">
+              <label className="text-sm font-medium text-muted-foreground block">Flow Rate (LPM)</label>
               <Input type="number" inputMode="decimal" placeholder="2" value={eq.oxygen_flow_rate || ""}
-                onChange={(e) => update("oxygen_flow_rate", e.target.value)} className="h-10" />
+                onChange={(e) => update("oxygen_flow_rate", e.target.value)} className="h-11" />
             </div>
-            <div>
-              <label className="text-[10px] font-medium text-muted-foreground block">Delivery Method</label>
+            <div className="min-w-0">
+              <label className="text-sm font-medium text-muted-foreground block">Delivery Method</label>
               <Select value={eq.oxygen_delivery_method || ""} onValueChange={(v) => update("oxygen_delivery_method", v)}>
-                <SelectTrigger className="h-10"><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectTrigger className="h-11 w-full"><SelectValue placeholder="Select..." /></SelectTrigger>
                 <SelectContent>
                   {OXYGEN_DELIVERY.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                 </SelectContent>
@@ -45,9 +45,9 @@ export function EquipmentCard({ trip, updateField }: Props) {
 
       {/* Stretcher */}
       <div>
-        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Stretcher Type</label>
+        <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider block mb-1">Stretcher Type</label>
         <Select value={eq.stretcher_type || ""} onValueChange={(v) => update("stretcher_type", v)}>
-          <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select..." /></SelectTrigger>
+          <SelectTrigger className="h-11 text-base w-full"><SelectValue placeholder="Select..." /></SelectTrigger>
           <SelectContent>
             {STRETCHER_TYPES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
@@ -65,9 +65,9 @@ export function EquipmentCard({ trip, updateField }: Props) {
       </label>
 
       <div>
-        <label className="text-[10px] font-medium text-muted-foreground block mb-1">Other Equipment</label>
+        <label className="text-sm font-medium text-muted-foreground block mb-1">Other Equipment</label>
         <Input placeholder="Other equipment used..." value={eq.other || ""}
-          onChange={(e) => update("other", e.target.value)} className="h-10" />
+          onChange={(e) => update("other", e.target.value)} className="h-11" />
       </div>
     </div>
   );
