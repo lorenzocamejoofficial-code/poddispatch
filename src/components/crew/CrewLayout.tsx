@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { LayoutDashboard, FileText, LogOut, Menu, X, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useCompanyName } from "@/hooks/useCompanyName";
 
 const crewNav = [
   { path: "/crew-dashboard", label: "Crew Dashboard", icon: LayoutDashboard },
