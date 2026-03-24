@@ -11,7 +11,6 @@ import { CheckCircle2, ClipboardList } from "lucide-react";
 
 export default function AdminSettings() {
   const [settingsId, setSettingsId] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [graceWindow, setGraceWindow] = useState("15");
   const [loadTime, setLoadTime] = useState("10");
   const [unloadTime, setUnloadTime] = useState("10");
@@ -26,7 +25,6 @@ export default function AdminSettings() {
     supabase.from("company_settings").select("*").limit(1).maybeSingle().then(({ data }) => {
       if (data) {
         setSettingsId(data.id);
-        setCompanyName(data.company_name);
         setGraceWindow(String((data as any).grace_window_minutes ?? 15));
         setLoadTime(String((data as any).load_time_minutes ?? 10));
         setUnloadTime(String((data as any).unload_time_minutes ?? 10));
@@ -40,10 +38,8 @@ export default function AdminSettings() {
   }, []);
 
   const save = async () => {
-    if (!companyName.trim()) return;
     setSaving(true);
     await supabase.from("company_settings").update({
-      company_name: companyName.trim(),
       grace_window_minutes: parseInt(graceWindow),
       load_time_minutes: parseInt(loadTime),
       unload_time_minutes: parseInt(unloadTime),
@@ -109,11 +105,7 @@ export default function AdminSettings() {
         <section className="space-y-3">
           <div>
             <h3 className="text-lg font-semibold text-foreground">Company Settings</h3>
-            <p className="text-sm text-muted-foreground">Manage company name and operational parameters.</p>
-          </div>
-          <div>
-            <Label>Company Display Name</Label>
-            <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+           <p className="text-sm text-muted-foreground">Manage operational parameters.</p>
           </div>
         </section>
 

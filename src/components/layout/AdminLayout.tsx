@@ -1,8 +1,7 @@
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSidebarBadges, getBadgeForPath } from "@/hooks/useSidebarBadges";
-import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutDashboard,
   Users,
@@ -28,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { HelpButton } from "@/components/help/HelpButton";
+import { useCompanyName } from "@/hooks/useCompanyName";
 
 interface NavItem {
   path: string;
@@ -58,19 +58,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const badgeCounts = useSidebarBadges(role);
   const location = useLocation();
   const navigate = useNavigate();
-  const [companyName, setCompanyName] = useState("PodDispatch");
+  const { companyName } = useCompanyName();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  useEffect(() => {
-    supabase
-      .from("company_settings")
-      .select("company_name")
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.company_name) setCompanyName(data.company_name);
-      });
-  }, []);
 
   // System creator gets full access to all nav items
   // Regular users need admin, dispatcher, or billing role

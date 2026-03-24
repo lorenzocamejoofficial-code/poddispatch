@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Trash2, PenTool, Maximize2, X } from "lucide-react";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
+import { useCompanyName } from "@/hooks/useCompanyName";
 
 interface Props { trip: any; updateField: (f: string, v: any) => Promise<void>; legType?: string | null; }
 
@@ -29,7 +30,7 @@ const SIG_TYPES = [
 ];
 
 const SIG_EXPLANATIONS: Record<string, string> = {
-  "Payment Authorization": "By signing, the patient, their representative, or crew authorizes Genesis 7 Transport to bill Medicare, Medicaid, or any applicable insurance on their behalf. This also authorizes assessment and treatment provided during transport. Required on every transport for insurance reimbursement.",
+  "Payment Authorization": "",
   "Patient Refusal": "Documents that the patient was informed of the medical risks of refusing transport or treatment and chose to refuse. Crew witness signature is required.",
   "ABN / Non-covered Destination": "Advance Beneficiary Notice — informs the patient that Medicare may not cover this transport. Patient acknowledges they may be responsible for payment.",
 };
@@ -63,8 +64,12 @@ function getReceivingExplanation(legType: string | null | undefined): string {
   return RECEIVING_FACILITY_EXPLANATIONS.default;
 }
 
-function getExplanation(sigType: string, legType: string | null | undefined): string {
+function getExplanation(sigType: string, legType: string | null | undefined, companyName?: string): string {
   if (sigType === "Receiving Facility / Transfer of Care") return getReceivingExplanation(legType);
+  if (sigType === "Payment Authorization") {
+    const name = companyName || "PodDispatch";
+    return `By signing, the patient, their representative, or crew authorizes ${name} to bill Medicare, Medicaid, or any applicable insurance on their behalf. This also authorizes assessment and treatment provided during transport. Required on every transport for insurance reimbursement.`;
+  }
   return SIG_EXPLANATIONS[sigType] ?? "";
 }
 
@@ -326,6 +331,7 @@ function RoleSelector({
 
 /* ─── Main component ─── */
 export function SignaturesCard({ trip, updateField, legType }: Props) {
+  const { companyName } = useCompanyName();
   const sigs: Signature[] = trip.signatures_json || [];
   const [addingType, setAddingType] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
@@ -400,7 +406,7 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
               <Trash2 className="h-3 w-3 text-destructive" />
             </Button>
           </div>
-          <p className="text-[11px] text-muted-foreground mb-2">{getExplanation(sig.type, legType)}</p>
+          <p className="text-[11px] text-muted-foreground mb-2">{getExplanation(sig.type, legType, companyName)}</p>
           <p className="text-sm">{sig.name} — {sig.role}{sig.relationship ? ` (${sig.relationship})` : ""}</p>
           {sig.unableToSignReason && <p className="text-xs text-muted-foreground mt-0.5">Reason: {sig.unableToSignReason}</p>}
           <p className="text-[10px] text-muted-foreground">{new Date(sig.timestamp).toLocaleString()}</p>
@@ -414,7 +420,7 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
             {addingType}
             {SIG_TOOLTIPS[addingType] && <PCRTooltip text={SIG_TOOLTIPS[addingType]} />}
           </p>
-          <p className="text-[11px] text-muted-foreground">{getExplanation(addingType, legType)}</p>
+          <p className="text-[11px] text-muted-foreground">{getExplanation(addingType, legType, companyName)}</p>
 
           {needsRoleSelector && (
             <RoleSelector
@@ -451,7 +457,7 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
                   {SIG_TOOLTIPS[type] && <PCRTooltip text={SIG_TOOLTIPS[type]} />}
                 </span>
               </Button>
-              <p className="text-[10px] text-muted-foreground px-2">{getExplanation(type, legType)}</p>
+              <p className="text-[10px] text-muted-foreground px-2">{getExplanation(type, legType, companyName)}</p>
             </div>
           ))}
         </div>
