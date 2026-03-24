@@ -16,6 +16,7 @@ export function CrewLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { companyName } = useCompanyName();
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
