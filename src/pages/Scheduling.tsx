@@ -81,6 +81,8 @@ interface DaySummary {
 }
 
 export default function Scheduling() {
+  const { profileId } = useAuth();
+  
   const {
     selectedDate, setSelectedDate,
     legs, patients, trucks, crews,
