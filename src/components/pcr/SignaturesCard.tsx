@@ -457,7 +457,7 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
                   {SIG_TOOLTIPS[type] && <PCRTooltip text={SIG_TOOLTIPS[type]} />}
                 </span>
               </Button>
-              <p className="text-[10px] text-muted-foreground px-2">{getExplanation(type, legType)}</p>
+              <p className="text-[10px] text-muted-foreground px-2">{getExplanation(type, legType, companyName)}</p>
             </div>
           ))}
         </div>
