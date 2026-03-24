@@ -30,7 +30,7 @@ export function CrewLayout({ children }: { children: ReactNode }) {
       )}>
         <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
           <Truck className="h-5 w-5 text-sidebar-primary" />
-          <span className="font-bold text-sidebar-primary">PodDispatch</span>
+          <span className="font-bold text-sidebar-primary">{companyName}</span>
           <Button variant="ghost" size="icon" className="ml-auto lg:hidden text-sidebar-foreground" onClick={() => setSidebarOpen(false)}>
             <X className="h-4 w-4" />
           </Button>

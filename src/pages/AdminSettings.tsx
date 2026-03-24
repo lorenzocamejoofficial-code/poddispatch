@@ -105,11 +105,7 @@ export default function AdminSettings() {
         <section className="space-y-3">
           <div>
             <h3 className="text-lg font-semibold text-foreground">Company Settings</h3>
-            <p className="text-sm text-muted-foreground">Manage company name and operational parameters.</p>
-          </div>
-          <div>
-            <Label>Company Display Name</Label>
-            <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+           <p className="text-sm text-muted-foreground">Manage operational parameters.</p>
           </div>
         </section>
 

@@ -59,19 +59,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const badgeCounts = useSidebarBadges(role);
   const location = useLocation();
   const navigate = useNavigate();
-  const [companyName, setCompanyName] = useState("PodDispatch");
+  const { companyName } = useCompanyName();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  useEffect(() => {
-    supabase
-      .from("company_settings")
-      .select("company_name")
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.company_name) setCompanyName(data.company_name);
-      });
-  }, []);
 
   // System creator gets full access to all nav items
   // Regular users need admin, dispatcher, or billing role
