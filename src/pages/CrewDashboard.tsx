@@ -487,23 +487,37 @@ export default function CrewDashboard() {
                   </div>
                 )}
 
-                <div className="flex gap-2">
-                  <Button
-                    className={cn(
-                      "flex-1 h-12 text-sm font-semibold gap-2 w-full sm:w-auto",
-                      run.pcrStatus === "completed" && "bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-800",
-                      run.pcrStatus === "in_progress" && "bg-amber-600 hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-800",
-                    )}
-                    onClick={() => openPCR(run)}
-                  >
-                    {run.pcrStatus === "completed" ? (
-                      <><Eye className="h-4 w-4" />View PCR</>
-                    ) : run.pcrStatus === "in_progress" ? (
-                      <><FileText className="h-4 w-4" />Continue PCR</>
-                    ) : (
-                      <><FileText className="h-4 w-4" />Start PCR</>
-                    )}
-                  </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {run.pcrStatus === "not_started" && (
+                    <Button
+                      className="flex-1 h-12 text-sm font-semibold gap-2 w-full"
+                      onClick={() => openPCR(run)}
+                    >
+                      <FileText className="h-4 w-4" />Start PCR
+                    </Button>
+                  )}
+
+                  {run.pcrStatus === "in_progress" && (
+                    <>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 dark:bg-amber-900/20 dark:border-amber-700 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-400">
+                        <FileText className="h-3 w-3" /> PCR In Progress
+                      </span>
+                      <Button variant="link" size="sm" className="text-xs text-amber-700 dark:text-amber-400 px-1" onClick={() => openPCR(run)}>
+                        Continue →
+                      </Button>
+                    </>
+                  )}
+
+                  {run.pcrStatus === "completed" && (
+                    <>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-400">
+                        <Check className="h-3 w-3" /> PCR Submitted
+                      </span>
+                      <Button variant="link" size="sm" className="text-xs text-emerald-700 dark:text-emerald-400 px-1" onClick={() => openPCR(run)}>
+                        View →
+                      </Button>
+                    </>
+                  )}
 
                   {/* Cancel Trip button — only for non-terminal, non-completed PCR runs */}
                   {!isTerminal && ["not_started", "in_progress"].includes(run.pcrStatus) && (
