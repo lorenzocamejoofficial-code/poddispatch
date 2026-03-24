@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Plus, Zap, AlertTriangle, ArrowRight,
   Wand2, ChevronLeft, ChevronRight, CalendarDays, ArrowLeft,
-  GitBranch, GripVertical, AlertCircle, BellRing, X, Copy,
+  GitBranch, GripVertical, AlertCircle, BellRing, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
@@ -22,6 +22,7 @@ import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
 import { RunPool } from "@/components/scheduling/RunPool";
 import { TemplateControls } from "@/components/scheduling/TemplateControls";
 import { UpcomingNonDialysisPanel } from "@/components/scheduling/UpcomingNonDialysisPanel";
+import { NotifyCrewModal } from "@/components/scheduling/NotifyCrewModal";
 import { OperationalAlertsPanel, type OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
 import { CommsOutbox } from "@/components/dispatch/CommsOutbox";
 import { useSchedulingStore, type LegDisplay } from "@/hooks/useSchedulingStore";
@@ -80,6 +81,8 @@ interface DaySummary {
 }
 
 export default function Scheduling() {
+  const { profileId } = useAuth();
+  
   const {
     selectedDate, setSelectedDate,
     legs, patients, trucks, crews,
@@ -103,8 +106,8 @@ export default function Scheduling() {
   const [operationalAlerts, setOperationalAlerts] = useState<OperationalAlert[]>([]);
 
   // Schedule change notification tracking
-  const [scheduleChanges, setScheduleChanges] = useState<{ truckName: string; change: string }[]>([]);
   const [notifyBannerVisible, setNotifyBannerVisible] = useState(false);
+  const [notifyModalOpen, setNotifyModalOpen] = useState(false);
   const legsSnapshotRef = useRef<string>("");
 
   // Track schedule changes by comparing leg assignments
@@ -116,47 +119,33 @@ export default function Scheduling() {
       .join("|");
 
     if (legsSnapshotRef.current && legsSnapshotRef.current !== currentSnapshot) {
-      // Something changed — show the notify banner
       setNotifyBannerVisible(true);
     }
     legsSnapshotRef.current = currentSnapshot;
   }, [legs]);
 
-  const generateNotifyMessage = useCallback(() => {
-    // Group current assignments by truck
-    const truckAssignments = new Map<string, { name: string; runs: string[] }>();
-    for (const t of trucks) {
-      const tLegs = legs
-        .filter(l => l.assigned_truck_id === t.id && l.slot_status !== "cancelled")
-        .sort((a, b) => (a.slot_order ?? 0) - (b.slot_order ?? 0));
-      if (tLegs.length > 0) {
-        truckAssignments.set(t.id, {
-          name: t.name,
-          runs: tLegs.map(l => `${l.pickup_time ?? "TBD"} - ${l.leg_type} ${l.patient_name} (${l.pickup_location} → ${l.destination_location})`),
-        });
-      }
-    }
-
-    const dateLabel = new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", {
-      weekday: "short", month: "short", day: "numeric",
+  // Helper: log a schedule change
+  const logScheduleChange = useCallback(async (params: {
+    change_type: string;
+    change_summary: string;
+    old_value?: string | null;
+    new_value?: string | null;
+    truck_id?: string | null;
+    leg_id?: string | null;
+  }) => {
+    if (!profileId) return;
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
+    await supabase.from("schedule_change_log" as any).insert({
+      company_id: companyId,
+      truck_id: params.truck_id ?? null,
+      leg_id: params.leg_id ?? null,
+      change_type: params.change_type,
+      change_summary: params.change_summary,
+      old_value: params.old_value ?? null,
+      new_value: params.new_value ?? null,
+      changed_by: profileId,
     });
-
-    let message = `📋 Schedule Update — ${dateLabel}\n\n`;
-    for (const [, info] of truckAssignments) {
-      message += `🚑 ${info.name}:\n`;
-      info.runs.forEach((r, i) => { message += `  ${i + 1}. ${r}\n`; });
-      message += "\n";
-    }
-    message += "— PodDispatch";
-    return message;
-  }, [trucks, legs, selectedDate]);
-
-  const handleNotifyCrew = useCallback(() => {
-    const message = generateNotifyMessage();
-    navigator.clipboard.writeText(message);
-    toast.success("Schedule update copied to clipboard — paste into your SMS app");
-    setNotifyBannerVisible(false);
-  }, [generateNotifyMessage]);
+  }, [profileId]);
 
   const fetchOperationalAlerts = useCallback(async () => {
     const { data: alertRows } = await supabase
@@ -364,6 +353,10 @@ export default function Scheduling() {
         oneoff_notes: oneoffForm.notes || null,
       } as any);
       if (error) { toast.error("Failed to create one-off leg"); return; }
+      await logScheduleChange({
+        change_type: "run_added",
+        change_summary: `New ${pendingLegType}-leg run added for ${oneoffForm.name} at ${oneoffForm.pickup_time || "TBD"}`,
+      });
       toast.success(`One-off ${pendingLegType}-Leg created`);
       setDialogOpen(false);
       refresh();
@@ -399,6 +392,12 @@ export default function Scheduling() {
     } as any);
 
     if (error) { toast.error("Failed to create leg"); return; }
+
+    const patientName = patient?.name ?? "Unknown";
+    await logScheduleChange({
+      change_type: "run_added",
+      change_summary: `New ${pendingLegType}-leg run added for ${patientName} at ${legForm.pickup_time || "TBD"}`,
+    });
 
     toast.success(`${pendingLegType}-Leg created`);
     setDialogOpen(false);
@@ -483,6 +482,28 @@ export default function Scheduling() {
         .upsert(payload, { onConflict: "scheduling_leg_id,run_date" });
 
       if (error) { toast.error("Failed to save exception"); return; }
+
+      // Log time change
+      if (exceptionForm.pickup_time && exceptionForm.pickup_time !== (editingExceptionLeg.pickup_time ?? "")) {
+        await logScheduleChange({
+          change_type: "time_changed",
+          change_summary: `Pickup time changed from ${editingExceptionLeg.pickup_time ?? "none"} to ${exceptionForm.pickup_time} for ${editingExceptionLeg.patient_name}`,
+          old_value: editingExceptionLeg.pickup_time ?? null,
+          new_value: exceptionForm.pickup_time,
+          truck_id: editingExceptionLeg.assigned_truck_id ?? null,
+          leg_id: editingExceptionLeg.id,
+        });
+      }
+      // Log location change
+      if (exceptionForm.pickup_location !== editingExceptionLeg.pickup_location || exceptionForm.destination_location !== editingExceptionLeg.destination_location) {
+        await logScheduleChange({
+          change_type: "location_changed",
+          change_summary: `Pickup location updated for ${editingExceptionLeg.patient_name}`,
+          truck_id: editingExceptionLeg.assigned_truck_id ?? null,
+          leg_id: editingExceptionLeg.id,
+        });
+      }
+
       toast.success("Run exception saved for this date only");
       setExceptionDialogOpen(false);
       refresh();
@@ -836,11 +857,11 @@ export default function Scheduling() {
               <div className="rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-primary">
                   <BellRing className="h-4 w-4 shrink-0" />
-                  Schedule changed — Notify Crew?
+                  Schedule has been updated
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Button size="sm" variant="default" className="h-7 text-xs gap-1.5" onClick={handleNotifyCrew}>
-                    <Copy className="h-3 w-3" /> Copy & Notify
+                  <Button size="sm" variant="default" className="h-7 text-xs gap-1.5" onClick={() => setNotifyModalOpen(true)}>
+                    <BellRing className="h-3 w-3" /> Preview & Notify Crew
                   </Button>
                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setNotifyBannerVisible(false)}>
                     <X className="h-3.5 w-3.5" />
@@ -937,6 +958,7 @@ export default function Scheduling() {
               onDownCountChange={setDownTruckCount}
               activeTokens={activeShareTokens}
               operationalAlerts={operationalAlerts}
+              onLogChange={logScheduleChange}
             />
 
             {/* ── TEMPLATE CONTROLS (bottom of truck builder area) ── */}
@@ -1233,6 +1255,14 @@ export default function Scheduling() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Notify Crew Modal */}
+        <NotifyCrewModal
+          open={notifyModalOpen}
+          onOpenChange={setNotifyModalOpen}
+          selectedDate={selectedDate}
+          onNotified={() => setNotifyBannerVisible(false)}
+        />
       </div>
     </AdminLayout>
   );

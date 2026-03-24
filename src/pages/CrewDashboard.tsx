@@ -64,6 +64,14 @@ const PCR_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   completed: { label: "Completed", color: "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-700" },
 };
 
+interface NotificationRow {
+  id: string;
+  message: string;
+  notification_type: string | null;
+  created_at: string;
+  acknowledged: boolean;
+}
+
 export default function CrewDashboard() {
   const { user, signOut, profileId } = useAuth();
   const navigate = useNavigate();
@@ -76,6 +84,7 @@ export default function CrewDashboard() {
   const [cancelTarget, setCancelTarget] = useState<RunCard | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
@@ -171,8 +180,23 @@ export default function CrewDashboard() {
     } else {
       setHoldTimers([]);
     }
+    // Fetch notifications
+    if (user?.id) {
+      const { data: notifData } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("acknowledged", false)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      setNotifications((notifData ?? []).map((n: any) => ({
+        id: n.id, message: n.message, notification_type: n.notification_type ?? "general",
+        created_at: n.created_at, acknowledged: n.acknowledged,
+      })));
+    }
+
     setLoading(false);
-  }, [profileId, today]);
+  }, [profileId, today, user?.id]);
 
   useEffect(() => {
     fetchData();
@@ -369,6 +393,50 @@ export default function CrewDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Notification Banners */}
+        {notifications.length > 0 && (
+          <div className="space-y-2">
+            {notifications.map((notif) => {
+              const borderColor = notif.notification_type === "schedule_change"
+                ? "border-l-amber-500"
+                : notif.message.toLowerCase().includes("cancel")
+                ? "border-l-destructive"
+                : "border-l-primary";
+              const formatNotifTime = (iso: string) => {
+                const d = new Date(iso);
+                const now = new Date();
+                const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                if (d.toDateString() === now.toDateString()) return `Today at ${timeStr}`;
+                return `${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} at ${timeStr}`;
+              };
+              return (
+                <div key={notif.id} className={cn("rounded-lg border border-l-4 bg-card p-3", borderColor)}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-foreground whitespace-pre-line">{notif.message}</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">{formatNotifTime(notif.created_at)}</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 h-7 text-xs"
+                      onClick={async () => {
+                        await supabase.from("notifications").update({
+                          acknowledged: true,
+                          acknowledged_at: new Date().toISOString(),
+                        } as any).eq("id", notif.id);
+                        setNotifications(prev => prev.filter(n => n.id !== notif.id));
+                      }}
+                    >
+                      Got it
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Runs */}
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">

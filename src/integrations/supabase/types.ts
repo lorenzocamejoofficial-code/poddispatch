@@ -1128,6 +1128,8 @@ export type Database = {
           created_at: string
           id: string
           message: string
+          notification_type: string | null
+          related_run_id: string | null
           user_id: string
         }
         Insert: {
@@ -1136,6 +1138,8 @@ export type Database = {
           created_at?: string
           id?: string
           message: string
+          notification_type?: string | null
+          related_run_id?: string | null
           user_id: string
         }
         Update: {
@@ -1144,6 +1148,8 @@ export type Database = {
           created_at?: string
           id?: string
           message?: string
+          notification_type?: string | null
+          related_run_id?: string | null
           user_id?: string
         }
         Relationships: []
@@ -1759,6 +1765,77 @@ export type Database = {
             columns: ["trip_record_id"]
             isOneToOne: false
             referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schedule_change_log: {
+        Row: {
+          change_summary: string
+          change_type: string
+          changed_by: string
+          company_id: string
+          created_at: string
+          id: string
+          leg_id: string | null
+          new_value: string | null
+          notified_at: string | null
+          old_value: string | null
+          truck_id: string | null
+        }
+        Insert: {
+          change_summary: string
+          change_type: string
+          changed_by: string
+          company_id: string
+          created_at?: string
+          id?: string
+          leg_id?: string | null
+          new_value?: string | null
+          notified_at?: string | null
+          old_value?: string | null
+          truck_id?: string | null
+        }
+        Update: {
+          change_summary?: string
+          change_type?: string
+          changed_by?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          leg_id?: string | null
+          new_value?: string | null
+          notified_at?: string | null
+          old_value?: string | null
+          truck_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_change_log_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_change_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_change_log_leg_id_fkey"
+            columns: ["leg_id"]
+            isOneToOne: false
+            referencedRelation: "scheduling_legs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_change_log_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
             referencedColumns: ["id"]
           },
         ]
