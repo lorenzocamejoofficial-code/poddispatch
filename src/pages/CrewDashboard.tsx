@@ -64,6 +64,14 @@ const PCR_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   completed: { label: "Completed", color: "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-700" },
 };
 
+interface NotificationRow {
+  id: string;
+  message: string;
+  notification_type: string | null;
+  created_at: string;
+  acknowledged: boolean;
+}
+
 export default function CrewDashboard() {
   const { user, signOut, profileId } = useAuth();
   const navigate = useNavigate();
@@ -76,6 +84,7 @@ export default function CrewDashboard() {
   const [cancelTarget, setCancelTarget] = useState<RunCard | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
