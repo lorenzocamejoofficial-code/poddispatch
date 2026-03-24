@@ -261,6 +261,16 @@ export default function Scheduling() {
   });
   const [savingException, setSavingException] = useState(false);
 
+  // B-leg validation state
+  const [bLegEarliest, setBLegEarliest] = useState<string | null>(null);
+  const [bLegTooEarly, setBLegTooEarly] = useState(false);
+  const [bLegOverrideOpen, setBLegOverrideOpen] = useState(false);
+  const [bLegOverrideReason, setBLegOverrideReason] = useState("");
+  const [bLegPendingSave, setBLegPendingSave] = useState<(() => Promise<void>) | null>(null);
+  // B-leg validation for create dialog
+  const [createBLegEarliest, setCreateBLegEarliest] = useState<string | null>(null);
+  const [createBLegTooEarly, setCreateBLegTooEarly] = useState(false);
+
   const weekDates = getWeekDates(selectedDate);
   const today = getLocalToday();
 
