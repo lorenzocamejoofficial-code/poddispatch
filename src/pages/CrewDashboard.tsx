@@ -394,6 +394,50 @@ export default function CrewDashboard() {
           </div>
         </div>
 
+        {/* Notification Banners */}
+        {notifications.length > 0 && (
+          <div className="space-y-2">
+            {notifications.map((notif) => {
+              const borderColor = notif.notification_type === "schedule_change"
+                ? "border-l-amber-500"
+                : notif.message.toLowerCase().includes("cancel")
+                ? "border-l-destructive"
+                : "border-l-primary";
+              const formatNotifTime = (iso: string) => {
+                const d = new Date(iso);
+                const now = new Date();
+                const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                if (d.toDateString() === now.toDateString()) return `Today at ${timeStr}`;
+                return `${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} at ${timeStr}`;
+              };
+              return (
+                <div key={notif.id} className={cn("rounded-lg border border-l-4 bg-card p-3", borderColor)}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-foreground whitespace-pre-line">{notif.message}</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">{formatNotifTime(notif.created_at)}</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 h-7 text-xs"
+                      onClick={async () => {
+                        await supabase.from("notifications").update({
+                          acknowledged: true,
+                          acknowledged_at: new Date().toISOString(),
+                        } as any).eq("id", notif.id);
+                        setNotifications(prev => prev.filter(n => n.id !== notif.id));
+                      }}
+                    >
+                      Got it
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Runs */}
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Today's Runs · {runs.length}
