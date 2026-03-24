@@ -1222,6 +1222,14 @@ export default function Scheduling() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Notify Crew Modal */}
+        <NotifyCrewModal
+          open={notifyModalOpen}
+          onOpenChange={setNotifyModalOpen}
+          selectedDate={selectedDate}
+          onNotified={() => setNotifyBannerVisible(false)}
+        />
       </div>
     </AdminLayout>
   );
