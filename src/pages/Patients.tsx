@@ -153,6 +153,8 @@ export default function Patients() {
       dialysis_window_minutes: (p as any).dialysis_window_minutes?.toString() ?? "45",
       must_arrive_by: (p as any).must_arrive_by ?? "",
       recurrence_days: (p as any).recurrence_days ?? [],
+      location_type: (p as any).location_type ?? "",
+      facility_id: (p as any).facility_id ?? "",
     });
     setDialogOpen(true);
   };
