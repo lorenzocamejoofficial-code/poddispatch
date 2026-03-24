@@ -86,6 +86,9 @@ export default function Patients() {
     dialysis_window_minutes: "45", must_arrive_by: "",
     // Custom recurrence days for outpatient/wound care
     recurrence_days: [] as number[],
+    // Location type & facility link
+    location_type: "",
+    facility_id: "",
   });
 
   const fetchPatients = async () => {
