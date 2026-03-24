@@ -64,8 +64,12 @@ function getReceivingExplanation(legType: string | null | undefined): string {
   return RECEIVING_FACILITY_EXPLANATIONS.default;
 }
 
-function getExplanation(sigType: string, legType: string | null | undefined): string {
+function getExplanation(sigType: string, legType: string | null | undefined, companyName?: string): string {
   if (sigType === "Receiving Facility / Transfer of Care") return getReceivingExplanation(legType);
+  if (sigType === "Payment Authorization") {
+    const name = companyName || "PodDispatch";
+    return `By signing, the patient, their representative, or crew authorizes ${name} to bill Medicare, Medicaid, or any applicable insurance on their behalf. This also authorizes assessment and treatment provided during transport. Required on every transport for insurance reimbursement.`;
+  }
   return SIG_EXPLANATIONS[sigType] ?? "";
 }
 
