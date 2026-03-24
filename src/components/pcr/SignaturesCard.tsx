@@ -305,7 +305,7 @@ function PaymentAuthRoleSelector({
 }
 
 /* ─── Main component ─── */
-export function SignaturesCard({ trip, updateField }: Props) {
+export function SignaturesCard({ trip, updateField, legType }: Props) {
   const sigs: Signature[] = trip.signatures_json || [];
   const [addingType, setAddingType] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
