@@ -239,14 +239,15 @@ export default function Patients() {
           ? (payload.chair_time_duration_hours ?? 0) * 60 + (payload.chair_time_duration_minutes ?? 0)
           : payload.run_duration_minutes ?? null,
       };
-      const { count: aCount } = await supabase
+      const { data: aData } = await supabase
         .from("scheduling_legs")
         .update(aLegPayload)
         .eq("patient_id", editing.id)
         .eq("is_oneoff", false)
         .eq("leg_type", "a_leg" as any)
         .gte("run_date", today)
-        .select("id", { count: "exact", head: true });
+        .select("id");
+      const aCount = aData?.length ?? 0;
       propagatedCount += aCount ?? 0;
 
       // B-leg propagation
