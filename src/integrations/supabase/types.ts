@@ -74,6 +74,7 @@ export type Database = {
           action: string
           actor_email: string | null
           actor_user_id: string | null
+          company_id: string | null
           created_at: string
           id: string
           ip_address: string | null
@@ -87,6 +88,7 @@ export type Database = {
           action: string
           actor_email?: string | null
           actor_user_id?: string | null
+          company_id?: string | null
           created_at?: string
           id?: string
           ip_address?: string | null
@@ -100,6 +102,7 @@ export type Database = {
           action?: string
           actor_email?: string | null
           actor_user_id?: string | null
+          company_id?: string | null
           created_at?: string
           id?: string
           ip_address?: string | null
@@ -109,7 +112,15 @@ export type Database = {
           record_id?: string | null
           table_name?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       billing_overrides: {
         Row: {
