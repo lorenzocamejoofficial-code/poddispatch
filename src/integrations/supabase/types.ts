@@ -1256,10 +1256,12 @@ export type Database = {
           dialysis_window_minutes: number
           dob: string | null
           dropoff_facility: string | null
+          facility_id: string | null
           first_name: string
           id: string
           is_simulated: boolean
           last_name: string
+          location_type: string | null
           member_id: string | null
           mobility: string | null
           must_arrive_by: string | null
@@ -1297,10 +1299,12 @@ export type Database = {
           dialysis_window_minutes?: number
           dob?: string | null
           dropoff_facility?: string | null
+          facility_id?: string | null
           first_name: string
           id?: string
           is_simulated?: boolean
           last_name: string
+          location_type?: string | null
           member_id?: string | null
           mobility?: string | null
           must_arrive_by?: string | null
@@ -1338,10 +1342,12 @@ export type Database = {
           dialysis_window_minutes?: number
           dob?: string | null
           dropoff_facility?: string | null
+          facility_id?: string | null
           first_name?: string
           id?: string
           is_simulated?: boolean
           last_name?: string
+          location_type?: string | null
           member_id?: string | null
           mobility?: string | null
           must_arrive_by?: string | null
@@ -1375,6 +1381,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patients_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
             referencedColumns: ["id"]
           },
         ]
