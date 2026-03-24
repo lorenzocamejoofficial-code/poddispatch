@@ -958,6 +958,7 @@ export default function Scheduling() {
               onDownCountChange={setDownTruckCount}
               activeTokens={activeShareTokens}
               operationalAlerts={operationalAlerts}
+              onLogChange={logScheduleChange}
             />
 
             {/* ── TEMPLATE CONTROLS (bottom of truck builder area) ── */}
