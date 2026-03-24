@@ -1,7 +1,19 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { generateNarrative } from "@/lib/pcr-narrative";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Props {
   trip: any;
@@ -54,9 +66,30 @@ export function NarrativeCard({ trip, truckName, updateField }: Props) {
         <p className="text-xs text-muted-foreground">
           Auto-generated from your PCR entries. You can edit below.
         </p>
-        <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={regenerate}>
-          <RefreshCw className="h-3.5 w-3.5" /> Generate
-        </Button>
+        <div className="flex gap-1.5">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs" disabled={!trip.narrative}>
+                <Trash2 className="h-3.5 w-3.5" /> Clear
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear Narrative</AlertDialogTitle>
+                <AlertDialogDescription>Clear the narrative? This cannot be undone.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => updateField("narrative", "")} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Clear
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={regenerate}>
+            <RefreshCw className="h-3.5 w-3.5" /> Generate
+          </Button>
+        </div>
       </div>
       <Textarea
         value={trip.narrative || ""}
