@@ -524,13 +524,22 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   }, [legs, selectedDate, onRefresh]);
 
   const restoreLeg = useCallback(async (legId: string) => {
+    const leg = legs.find(l => l.id === legId);
     await supabase.from("truck_run_slots")
       .update({ status: "pending" } as any)
       .eq("leg_id", legId)
       .eq("run_date", selectedDate);
     toast.success("Run restored");
+    if (onLogChange && leg) {
+      onLogChange({
+        change_type: "run_restored",
+        change_summary: `Run restored for ${leg.patient_name}`,
+        truck_id: leg.assigned_truck_id ?? null,
+        leg_id: legId,
+      });
+    }
     onRefresh();
-  }, [selectedDate, onRefresh]);
+  }, [legs, selectedDate, onRefresh, onLogChange]);
 
   // getCrewCapability moved above assignLeg
 
