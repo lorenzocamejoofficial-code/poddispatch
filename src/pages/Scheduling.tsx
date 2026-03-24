@@ -518,6 +518,7 @@ export default function Scheduling() {
           table_name: "scheduling_legs",
           record_id: editingExceptionLeg!.id,
           notes: `B-leg pickup time ${exceptionForm.pickup_time} is before treatment end. Override reason: ${bLegOverrideReason}`,
+          company_id: companyId,
         });
       });
       setBLegOverrideOpen(true);
