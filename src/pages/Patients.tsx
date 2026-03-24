@@ -341,6 +341,31 @@ export default function Patients() {
                     <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
                   </div>
                   <div><Label>Pickup Address</Label><Input value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} /></div>
+
+                  {/* Home Location Type */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Home Location Type</Label>
+                      <Select value={form.location_type || "none"} onValueChange={v => setForm({ ...form, location_type: v === "none" ? "" : v, facility_id: v === "Residence" ? "" : form.facility_id })}>
+                        <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— Select —</SelectItem>
+                          <SelectItem value="Residence">Residence</SelectItem>
+                          <SelectItem value="SNF">SNF (Skilled Nursing Facility)</SelectItem>
+                          <SelectItem value="Assisted Living">Assisted Living</SelectItem>
+                          <SelectItem value="Group Home">Group Home</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {form.location_type && form.location_type !== "Residence" && (
+                      <div>
+                        <Label>Facility (if applicable)</Label>
+                        <FacilitySelect value={form.facility_id} onChange={(v) => setForm({ ...form, facility_id: v })} />
+                      </div>
+                    )}
+                  </div>
+
                   <div>
                     <Label>Dropoff Facility</Label>
                     <FacilityDropdown
