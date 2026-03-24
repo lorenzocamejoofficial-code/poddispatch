@@ -128,7 +128,14 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
           <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
         )}
         {isCancelled && (
-          <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[9px] font-bold text-destructive shrink-0">CANCELLED</span>
+          <span className={cn(
+            "rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0",
+            isPendingCancel
+              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+              : "bg-destructive/15 text-destructive"
+          )}>
+            {isPendingCancel ? "PENDING CANCEL" : "CANCELLED"}
+          </span>
         )}
         {isHeavy && <Zap className="h-3 w-3 text-[hsl(var(--status-yellow))] shrink-0" aria-label="Electric stretcher required" />}
         {leg.has_exception && <GitBranch className="h-3 w-3 text-primary shrink-0" aria-label="Exception override active" />}
