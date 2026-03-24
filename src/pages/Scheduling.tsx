@@ -1200,6 +1200,35 @@ export default function Scheduling() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* B-Leg Override Confirmation Dialog */}
+        <AlertDialog open={bLegOverrideOpen} onOpenChange={setBLegOverrideOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>B-Leg Early Pickup Override</AlertDialogTitle>
+              <AlertDialogDescription>
+                This pickup time is before the patient's treatment is expected to end ({bLegEarliest}). Enter an override reason to proceed.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-2">
+              <Label>Override Reason (min 10 characters)</Label>
+              <Textarea value={bLegOverrideReason} onChange={(e) => setBLegOverrideReason(e.target.value)} rows={2} placeholder="Why is this early pickup necessary?" />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={bLegOverrideReason.trim().length < 10}
+                onClick={async () => {
+                  if (bLegPendingSave) await bLegPendingSave();
+                  setBLegOverrideOpen(false);
+                  setBLegPendingSave(null);
+                }}
+              >
+                Override & Save
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AdminLayout>
   );
