@@ -2179,6 +2179,13 @@ export type Database = {
           billing_blocked_reason: string | null
           blockers: string[] | null
           blood_pressure: string | null
+          cancellation_dispatcher_note: string | null
+          cancellation_disputed: boolean | null
+          cancellation_reason: string | null
+          cancellation_verified_at: string | null
+          cancellation_verified_by: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           cannot_transfer_safely: boolean | null
           chief_complaint: string | null
           claim_ready: boolean | null
@@ -2278,6 +2285,13 @@ export type Database = {
           billing_blocked_reason?: string | null
           blockers?: string[] | null
           blood_pressure?: string | null
+          cancellation_dispatcher_note?: string | null
+          cancellation_disputed?: boolean | null
+          cancellation_reason?: string | null
+          cancellation_verified_at?: string | null
+          cancellation_verified_by?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           cannot_transfer_safely?: boolean | null
           chief_complaint?: string | null
           claim_ready?: boolean | null
@@ -2377,6 +2391,13 @@ export type Database = {
           billing_blocked_reason?: string | null
           blockers?: string[] | null
           blood_pressure?: string | null
+          cancellation_dispatcher_note?: string | null
+          cancellation_disputed?: boolean | null
+          cancellation_reason?: string | null
+          cancellation_verified_at?: string | null
+          cancellation_verified_by?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           cannot_transfer_safely?: boolean | null
           chief_complaint?: string | null
           claim_ready?: boolean | null
@@ -2884,6 +2905,7 @@ export type Database = {
         | "no_show"
         | "patient_not_ready"
         | "facility_delay"
+        | "pending_cancellation"
       trip_type:
         | "dialysis"
         | "discharge"
@@ -3072,6 +3094,7 @@ export const Constants = {
         "no_show",
         "patient_not_ready",
         "facility_delay",
+        "pending_cancellation",
       ],
       trip_type: [
         "dialysis",
