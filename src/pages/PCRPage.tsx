@@ -151,7 +151,8 @@ export default function PCRPage() {
     const complete = isCardComplete(card);
     if (complete) return "border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/10";
     if (rule.state === "required") return "border-destructive/50 bg-destructive/5";
-    return "border-muted";
+    // Optional and incomplete → neutral
+    return "border-border";
   };
 
   const getCardDot = (card: PCRCardConfig): string => {
