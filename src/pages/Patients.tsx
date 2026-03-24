@@ -69,6 +69,7 @@ export default function Patients() {
   // Bulk-delete state
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bLegWarnings, setBLegWarnings] = useState<{ pickup_time: string; run_date: string; earliest: string }[]>([]);
 
   const [form, setForm] = useState({
     first_name: "", last_name: "", dob: "", phone: "",
