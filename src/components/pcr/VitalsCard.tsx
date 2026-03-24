@@ -101,7 +101,7 @@ function newVitalSet(): VitalSet {
 function VitalChips({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const activeChip = isChipValue(value) ? value : null;
   return (
-    <div className="flex gap-1 mt-1">
+    <div className="flex flex-wrap gap-1 mt-1">
       {CHIP_VALUES.map(chip => (
         <button
           key={chip}
@@ -136,7 +136,6 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
   const updateSet = (idx: number, field: string, value: string) => {
     const updated = [...sets];
     (updated[idx] as any)[field] = value;
-    // Auto-calc GCS total
     if (["gcs_eyes", "gcs_verbal", "gcs_motor"].includes(field)) {
       const total = getGCSTotal(updated[idx].gcs_eyes, updated[idx].gcs_verbal, updated[idx].gcs_motor);
       updated[idx].gcs_total = total !== null ? String(total) : "";
@@ -154,7 +153,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
         const gcsSeverity = gcsTotal !== null ? getGCSSeverity(gcsTotal) : null;
 
         return (
-          <div key={vs.id} className="rounded-lg border p-3 space-y-3">
+          <div key={vs.id} className="rounded-lg border p-4 space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold text-primary uppercase tracking-wider">
                 {idx === 0 ? "Initial Vitals" : `Repeat Vitals #${idx + 1}`}
@@ -166,61 +165,64 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="text-[10px] font-medium text-muted-foreground flex items-center">Systolic <PCRTooltip text={PCR_TOOLTIPS.systolic} /></label>
+            {/* BP / Pulse — 1 col mobile, 3 col tablet+ */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 py-3">
+              <div className="min-w-0">
+                <label className="text-sm font-medium text-muted-foreground flex items-center">Systolic <PCRTooltip text={PCR_TOOLTIPS.systolic} /></label>
                 <Input type="number" inputMode="numeric" placeholder="120" value={isChipValue(vs.bp_systolic) ? "" : vs.bp_systolic}
                   disabled={isChipValue(vs.bp_systolic)}
-                  onChange={(e) => updateSet(idx, "bp_systolic", e.target.value)} className={cn("h-10", getFieldBorder("bp_systolic", vs.bp_systolic))} />
+                  onChange={(e) => updateSet(idx, "bp_systolic", e.target.value)} className={cn("h-11", getFieldBorder("bp_systolic", vs.bp_systolic))} />
                 <VitalChips value={vs.bp_systolic} onChange={(v) => updateSet(idx, "bp_systolic", v)} />
               </div>
-              <div>
-                <label className="text-[10px] font-medium text-muted-foreground flex items-center">Diastolic <PCRTooltip text={PCR_TOOLTIPS.diastolic} /></label>
+              <div className="min-w-0">
+                <label className="text-sm font-medium text-muted-foreground flex items-center">Diastolic <PCRTooltip text={PCR_TOOLTIPS.diastolic} /></label>
                 <Input type="number" inputMode="numeric" placeholder="80" value={isChipValue(vs.bp_diastolic) ? "" : vs.bp_diastolic}
                   disabled={isChipValue(vs.bp_diastolic)}
-                  onChange={(e) => updateSet(idx, "bp_diastolic", e.target.value)} className={cn("h-10", getFieldBorder("bp_diastolic", vs.bp_diastolic))} />
+                  onChange={(e) => updateSet(idx, "bp_diastolic", e.target.value)} className={cn("h-11", getFieldBorder("bp_diastolic", vs.bp_diastolic))} />
                 <VitalChips value={vs.bp_diastolic} onChange={(v) => updateSet(idx, "bp_diastolic", v)} />
               </div>
-              <div>
-                <label className="text-[10px] font-medium text-muted-foreground flex items-center">Pulse <PCRTooltip text={PCR_TOOLTIPS.pulse} /></label>
+              <div className="min-w-0">
+                <label className="text-sm font-medium text-muted-foreground flex items-center">Pulse <PCRTooltip text={PCR_TOOLTIPS.pulse} /></label>
                 <Input type="number" inputMode="numeric" placeholder="72" value={isChipValue(vs.pulse) ? "" : vs.pulse}
                   disabled={isChipValue(vs.pulse)}
-                  onChange={(e) => updateSet(idx, "pulse", e.target.value)} className={cn("h-10", getFieldBorder("pulse", vs.pulse))} />
+                  onChange={(e) => updateSet(idx, "pulse", e.target.value)} className={cn("h-11", getFieldBorder("pulse", vs.pulse))} />
                 <VitalChips value={vs.pulse} onChange={(v) => updateSet(idx, "pulse", v)} />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] font-medium text-muted-foreground flex items-center">Pulse Quality <PCRTooltip text={PCR_TOOLTIPS.pulse_quality} /></label>
+            {/* Pulse Quality / SpO2 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-3">
+              <div className="min-w-0">
+                <label className="text-sm font-medium text-muted-foreground flex items-center">Pulse Quality <PCRTooltip text={PCR_TOOLTIPS.pulse_quality} /></label>
                 <Select value={vs.pulse_quality} onValueChange={(v) => updateSet(idx, "pulse_quality", v)}>
-                  <SelectTrigger className="h-10"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectTrigger className="h-11"><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
                     {PULSE_QUALITY.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <label className="text-[10px] font-medium text-muted-foreground flex items-center">SpO2 % <PCRTooltip text={PCR_TOOLTIPS.spo2} /></label>
+              <div className="min-w-0">
+                <label className="text-sm font-medium text-muted-foreground flex items-center">SpO2 % <PCRTooltip text={PCR_TOOLTIPS.spo2} /></label>
                 <Input type="number" inputMode="numeric" placeholder="98" value={isChipValue(vs.spo2) ? "" : vs.spo2}
                   disabled={isChipValue(vs.spo2)}
-                  onChange={(e) => updateSet(idx, "spo2", e.target.value)} className={cn("h-10", getFieldBorder("spo2", vs.spo2))} />
+                  onChange={(e) => updateSet(idx, "spo2", e.target.value)} className={cn("h-11", getFieldBorder("spo2", vs.spo2))} />
                 <VitalChips value={vs.spo2} onChange={(v) => updateSet(idx, "spo2", v)} />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] font-medium text-muted-foreground flex items-center">Resp Rate <PCRTooltip text={PCR_TOOLTIPS.resp_rate} /></label>
+            {/* Resp Rate / Resp Quality */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-3">
+              <div className="min-w-0">
+                <label className="text-sm font-medium text-muted-foreground flex items-center">Resp Rate <PCRTooltip text={PCR_TOOLTIPS.resp_rate} /></label>
                 <Input type="number" inputMode="numeric" placeholder="16" value={isChipValue(vs.respiratory_rate) ? "" : vs.respiratory_rate}
                   disabled={isChipValue(vs.respiratory_rate)}
-                  onChange={(e) => updateSet(idx, "respiratory_rate", e.target.value)} className={cn("h-10", getFieldBorder("respiratory_rate", vs.respiratory_rate))} />
+                  onChange={(e) => updateSet(idx, "respiratory_rate", e.target.value)} className={cn("h-11", getFieldBorder("respiratory_rate", vs.respiratory_rate))} />
                 <VitalChips value={vs.respiratory_rate} onChange={(v) => updateSet(idx, "respiratory_rate", v)} />
               </div>
-              <div>
-                <label className="text-[10px] font-medium text-muted-foreground flex items-center">Resp Quality <PCRTooltip text={PCR_TOOLTIPS.resp_quality} /></label>
+              <div className="min-w-0">
+                <label className="text-sm font-medium text-muted-foreground flex items-center">Resp Quality <PCRTooltip text={PCR_TOOLTIPS.resp_quality} /></label>
                 <Select value={vs.respiratory_quality} onValueChange={(v) => updateSet(idx, "respiratory_quality", v)}>
-                  <SelectTrigger className="h-10"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectTrigger className="h-11"><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
                     {RESPIRATORY_QUALITY.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
                   </SelectContent>
@@ -228,34 +230,35 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="text-[10px] font-medium text-muted-foreground flex items-center">Temp °F <PCRTooltip text={PCR_TOOLTIPS.temp} /></label>
+            {/* Temp / BGL / Pain — 1 col mobile, 3 col tablet+ */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 py-3">
+              <div className="min-w-0">
+                <label className="text-sm font-medium text-muted-foreground flex items-center">Temp °F <PCRTooltip text={PCR_TOOLTIPS.temp} /></label>
                 <Input type="number" inputMode="decimal" placeholder="98.6" value={isChipValue(vs.temperature) ? "" : vs.temperature}
                   disabled={isChipValue(vs.temperature)}
-                  onChange={(e) => updateSet(idx, "temperature", e.target.value)} className={cn("h-10", getFieldBorder("temperature", vs.temperature))} />
+                  onChange={(e) => updateSet(idx, "temperature", e.target.value)} className={cn("h-11", getFieldBorder("temperature", vs.temperature))} />
                 <VitalChips value={vs.temperature} onChange={(v) => updateSet(idx, "temperature", v)} />
               </div>
-              <div>
-                <label className="text-[10px] font-medium text-muted-foreground flex items-center">BGL <PCRTooltip text={PCR_TOOLTIPS.bgl} /></label>
+              <div className="min-w-0">
+                <label className="text-sm font-medium text-muted-foreground flex items-center">BGL <PCRTooltip text={PCR_TOOLTIPS.bgl} /></label>
                 <Input type="number" inputMode="numeric" placeholder="100" value={isChipValue(vs.blood_glucose) ? "" : vs.blood_glucose}
                   disabled={isChipValue(vs.blood_glucose)}
-                  onChange={(e) => updateSet(idx, "blood_glucose", e.target.value)} className={cn("h-10", getFieldBorder("blood_glucose", vs.blood_glucose))} />
+                  onChange={(e) => updateSet(idx, "blood_glucose", e.target.value)} className={cn("h-11", getFieldBorder("blood_glucose", vs.blood_glucose))} />
                 <VitalChips value={vs.blood_glucose} onChange={(v) => updateSet(idx, "blood_glucose", v)} />
               </div>
-              <div>
-                <label className="text-[10px] font-medium text-muted-foreground flex items-center">Pain (0-10) <PCRTooltip text={PCR_TOOLTIPS.pain} /></label>
+              <div className="min-w-0">
+                <label className="text-sm font-medium text-muted-foreground flex items-center">Pain (0-10) <PCRTooltip text={PCR_TOOLTIPS.pain} /></label>
                 <Input type="number" inputMode="numeric" placeholder="0" min="0" max="10" value={isChipValue(vs.pain_scale) ? "" : vs.pain_scale}
                   disabled={isChipValue(vs.pain_scale)}
-                  onChange={(e) => updateSet(idx, "pain_scale", e.target.value)} className={cn("h-10", getFieldBorder("pain_scale", vs.pain_scale))} />
+                  onChange={(e) => updateSet(idx, "pain_scale", e.target.value)} className={cn("h-11", getFieldBorder("pain_scale", vs.pain_scale))} />
                 <VitalChips value={vs.pain_scale} onChange={(v) => updateSet(idx, "pain_scale", v)} />
               </div>
             </div>
 
-            {/* GCS Section */}
-            <div className="border-t border-border pt-3">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-[10px] font-medium text-muted-foreground flex items-center">
+            {/* GCS Section — 1 col mobile, 3 col tablet+ */}
+            <div className="border-t border-border pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-medium text-muted-foreground flex items-center">
                   Glasgow Coma Scale <PCRTooltip text={PCR_TOOLTIPS.gcs} />
                 </label>
                 {gcsTotal !== null && gcsSeverity && (
@@ -264,29 +267,29 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-[10px] font-medium text-muted-foreground flex items-center">Eye (E) <PCRTooltip text={PCR_TOOLTIPS.gcs_eye} /></label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="min-w-0">
+                  <label className="text-sm font-medium text-muted-foreground flex items-center">Eye (E) <PCRTooltip text={PCR_TOOLTIPS.gcs_eye} /></label>
                   <Select value={vs.gcs_eyes} onValueChange={(v) => updateSet(idx, "gcs_eyes", v)}>
-                    <SelectTrigger className="h-10"><SelectValue placeholder="E" /></SelectTrigger>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="E" /></SelectTrigger>
                     <SelectContent>
                       {GCS_EYE.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <label className="text-[10px] font-medium text-muted-foreground flex items-center">Verbal (V) <PCRTooltip text={PCR_TOOLTIPS.gcs_verbal} /></label>
+                <div className="min-w-0">
+                  <label className="text-sm font-medium text-muted-foreground flex items-center">Verbal (V) <PCRTooltip text={PCR_TOOLTIPS.gcs_verbal} /></label>
                   <Select value={vs.gcs_verbal} onValueChange={(v) => updateSet(idx, "gcs_verbal", v)}>
-                    <SelectTrigger className="h-10"><SelectValue placeholder="V" /></SelectTrigger>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="V" /></SelectTrigger>
                     <SelectContent>
                       {GCS_VERBAL.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <label className="text-[10px] font-medium text-muted-foreground flex items-center">Motor (M) <PCRTooltip text={PCR_TOOLTIPS.gcs_motor} /></label>
+                <div className="min-w-0">
+                  <label className="text-sm font-medium text-muted-foreground flex items-center">Motor (M) <PCRTooltip text={PCR_TOOLTIPS.gcs_motor} /></label>
                   <Select value={vs.gcs_motor} onValueChange={(v) => updateSet(idx, "gcs_motor", v)}>
-                    <SelectTrigger className="h-10"><SelectValue placeholder="M" /></SelectTrigger>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="M" /></SelectTrigger>
                     <SelectContent>
                       {GCS_MOTOR.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
                     </SelectContent>

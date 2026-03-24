@@ -101,19 +101,20 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
       {/* Mileage & Vehicle Section */}
       <div className="border-t border-border pt-4">
         <h4 className="text-sm font-semibold text-foreground mb-3">Mileage & Vehicle</h4>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="min-w-0">
+            <label className="text-sm font-medium text-muted-foreground mb-1 block flex items-center">
               Vehicle / Unit # <PCRTooltip text={PCR_TOOLTIPS.vehicle_id} />
             </label>
             <Input
               defaultValue={trip.vehicle_id || ""}
               placeholder="Unit #"
+              className="h-11"
               onBlur={(e) => updateField("vehicle_id", e.target.value || null)}
             />
           </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center">
+          <div className="min-w-0">
+            <label className="text-sm font-medium text-muted-foreground mb-1 block flex items-center">
               Odometer at Scene <PCRTooltip text={PCR_TOOLTIPS.odometer_at_scene} />
             </label>
             <Input
@@ -121,11 +122,12 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
               step="0.1"
               defaultValue={trip.odometer_at_scene ?? ""}
               placeholder="0.0"
+              className="h-11"
               onBlur={(e) => updateField("odometer_at_scene", e.target.value ? parseFloat(e.target.value) : null)}
             />
           </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center">
+          <div className="min-w-0">
+            <label className="text-sm font-medium text-muted-foreground mb-1 block flex items-center">
               Odometer at Destination <PCRTooltip text={PCR_TOOLTIPS.odometer_at_destination} />
             </label>
             <Input
@@ -133,11 +135,12 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
               step="0.1"
               defaultValue={trip.odometer_at_destination ?? ""}
               placeholder="0.0"
+              className="h-11"
               onBlur={(e) => updateField("odometer_at_destination", e.target.value ? parseFloat(e.target.value) : null)}
             />
           </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center">
+          <div className="min-w-0">
+            <label className="text-sm font-medium text-muted-foreground mb-1 block flex items-center">
               Odometer at In Service <PCRTooltip text={PCR_TOOLTIPS.odometer_in_service} />
             </label>
             <Input
@@ -145,6 +148,7 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
               step="0.1"
               defaultValue={trip.odometer_in_service ?? ""}
               placeholder="0.0"
+              className="h-11"
               onBlur={(e) => updateField("odometer_in_service", e.target.value ? parseFloat(e.target.value) : null)}
             />
           </div>
