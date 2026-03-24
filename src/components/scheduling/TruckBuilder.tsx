@@ -412,6 +412,16 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       return;
     }
     toast.success("Leg assigned to truck");
+    const assignedLeg = legs.find(l => l.id === legId);
+    const truckName = trucks.find(t => t.id === truckId)?.name ?? "truck";
+    if (onLogChange && assignedLeg) {
+      onLogChange({
+        change_type: "run_added",
+        change_summary: `Run assigned to ${truckName} for ${assignedLeg.patient_name} at ${assignedLeg.pickup_time ?? "TBD"}`,
+        truck_id: truckId,
+        leg_id: legId,
+      });
+    }
     setAddingLeg(null);
     onRefresh();
   }, [truckLegs, selectedDate, onRefresh, setAddingLeg]);
