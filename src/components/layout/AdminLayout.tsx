@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { HelpButton } from "@/components/help/HelpButton";
+import { useCompanyName } from "@/hooks/useCompanyName";
 
 interface NavItem {
   path: string;
