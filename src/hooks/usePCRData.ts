@@ -66,6 +66,9 @@ export interface PCRTripData {
   patient_mobility: string | null;
   isolation_precautions: any;
   necessity_notes: string | null;
+  // Leg info (joined from scheduling_legs)
+  leg_type: string | null;
+  chair_time: string | null;
   // Patient info (joined)
   patient?: any;
 }
@@ -86,16 +89,44 @@ export function usePCRData(tripId: string | null) {
       .eq("id", tripId)
       .maybeSingle();
 
+    if (error) {
+      console.error("Trip record fetch error:", error);
+      setLoading(false);
+      return;
+    }
+
     if (data) {
+      // Fetch leg data for leg_type and chair_time
+      let leg_type: string | null = null;
+      let chair_time: string | null = null;
+      if (data.leg_id) {
+        const { data: legData, error: legErr } = await supabase
+          .from("scheduling_legs")
+          .select("leg_type, chair_time")
+          .eq("id", data.leg_id)
+          .maybeSingle();
+        if (legErr) {
+          console.error("Scheduling leg fetch error for leg_id", data.leg_id, legErr);
+        } else if (legData) {
+          leg_type = legData.leg_type ?? null;
+          chair_time = legData.chair_time ?? null;
+        }
+      }
+
       // Fetch patient data
       let patient = null;
       if (data.patient_id) {
-        const { data: pData } = await supabase
+        const { data: pData, error: pErr } = await supabase
           .from("patients")
           .select("*")
           .eq("id", data.patient_id)
           .maybeSingle();
+        if (pErr) {
+          console.error("Patient fetch error for patient_id", data.patient_id, pErr);
+        }
         patient = pData;
+      } else {
+        console.warn(`Trip ${tripId} has no patient_id — patient info card will be empty`);
       }
 
       setTrip({
@@ -115,6 +146,8 @@ export function usePCRData(tripId: string | null) {
         secondary_impressions: Array.isArray(data.secondary_impressions) ? data.secondary_impressions : [],
         crew_updated_fields: Array.isArray(data.crew_updated_fields) ? data.crew_updated_fields : [],
         isolation_precautions: data.isolation_precautions || {},
+        leg_type,
+        chair_time,
         patient,
       } as PCRTripData);
     }

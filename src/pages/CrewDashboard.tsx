@@ -24,6 +24,7 @@ interface RunCard {
   slotOrder: number;
   legId: string;
   legType: string; // "A" | "B" | "—"
+  legTypeRaw: string | null; // raw enum: "a_leg" | "b_leg" | null
   patientName: string; // formatted as "J. Doe"
   patientHasRecord: boolean;
   pickupLocation: string;
