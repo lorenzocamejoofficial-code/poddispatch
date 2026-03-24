@@ -620,10 +620,35 @@ export default function Patients() {
                           <Label>O₂ LPM</Label>
                           <Input type="number" step="0.5" value={form.oxygen_lpm} onChange={e => setForm({ ...form, oxygen_lpm: e.target.value })} placeholder="—" />
                         </div>
-                        {form.transport_type === "dialysis" && (
+                        {form.transport_type === "dialysis" ? (
+                          <>
+                            <div className="col-span-2">
+                              <Label>Chair Time Duration</Label>
+                              <div className="grid grid-cols-2 gap-2 mt-1">
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">Hours</Label>
+                                  <Input type="number" min={0} max={8} value={form.chair_time_duration_hours} onChange={e => setForm({ ...form, chair_time_duration_hours: e.target.value })} />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">Minutes</Label>
+                                  <Input type="number" min={0} max={59} value={form.chair_time_duration_minutes} onChange={e => setForm({ ...form, chair_time_duration_minutes: e.target.value })} />
+                                </div>
+                              </div>
+                              {bLegWarnings.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {bLegWarnings.map((w, i) => (
+                                    <p key={i} className="text-[11px] text-[hsl(var(--status-yellow))]">
+                                      ⚠️ Warning: Existing B-leg pickup time {w.pickup_time} on {w.run_date} may be too early based on this chair time duration. Earliest valid pickup: {w.earliest}. A dispatcher override will be required.
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        ) : (
                           <div>
-                            <Label>Dialysis Window (min)</Label>
-                            <Input type="number" value={form.dialysis_window_minutes} onChange={e => setForm({ ...form, dialysis_window_minutes: e.target.value })} />
+                            <Label>Appointment Duration (minutes)</Label>
+                            <Input type="number" value={form.run_duration_minutes} onChange={e => setForm({ ...form, run_duration_minutes: e.target.value })} placeholder="e.g. 60" />
                           </div>
                         )}
                         <div>
