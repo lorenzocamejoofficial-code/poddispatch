@@ -248,6 +248,7 @@ export default function CrewDashboard() {
         run_date: today, status: "scheduled" as any,
         pickup_location: run.pickupLocation, destination_location: run.destinationLocation,
         scheduled_pickup_time: run.pickupTime, trip_type: run.tripType as any,
+        pcr_type: run.tripType as any,
         pcr_status: "not_started",
       }).select("id").single();
       if (error || !newTrip) {
