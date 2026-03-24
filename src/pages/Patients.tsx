@@ -115,6 +115,8 @@ export default function Patients() {
       oxygen_lpm: "", special_equipment_required: "none",
       dialysis_window_minutes: "45", must_arrive_by: "",
       recurrence_days: [],
+      location_type: "",
+      facility_id: "",
     });
     setEditing(null);
   };
