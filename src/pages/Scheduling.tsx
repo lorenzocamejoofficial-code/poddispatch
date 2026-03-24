@@ -825,11 +825,11 @@ export default function Scheduling() {
               <div className="rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-primary">
                   <BellRing className="h-4 w-4 shrink-0" />
-                  Schedule changed — Notify Crew?
+                  Schedule has been updated
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Button size="sm" variant="default" className="h-7 text-xs gap-1.5" onClick={handleNotifyCrew}>
-                    <Copy className="h-3 w-3" /> Copy & Notify
+                  <Button size="sm" variant="default" className="h-7 text-xs gap-1.5" onClick={() => setNotifyModalOpen(true)}>
+                    <BellRing className="h-3 w-3" /> Preview & Notify Crew
                   </Button>
                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setNotifyBannerVisible(false)}>
                     <X className="h-3.5 w-3.5" />
