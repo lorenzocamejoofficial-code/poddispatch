@@ -5,11 +5,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { supabase } from "@/integrations/supabase/client";
 import { TruckCard } from "@/components/dispatch/TruckCard";
 import { AlertsPanel } from "@/components/dispatch/AlertsPanel";
+import { PendingCancellationPanel, type PendingCancellation } from "@/components/dispatch/PendingCancellationPanel";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { computeCleanTripStatus } from "@/lib/billing-utils";
 import { computeRevenueStrength, type RevenueStrength } from "@/components/dispatch/RevenueStrengthBadge";
 import { evaluateSafetyRules, hasCompletePatientNeeds, type SafetyStatus } from "@/lib/safety-rules";
+import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
@@ -82,8 +84,10 @@ function deriveBillingStatus(trip: any, payerRulesMap: Map<string, any>): { stat
 
 export default function DispatchBoard() {
   const { selectedDate } = useSchedulingStore();
+  const { profileId } = useAuth();
   const [trucks, setTrucks] = useState<TruckData[]>([]);
   const [alerts, setAlerts] = useState<AlertData[]>([]);
+  const [pendingCancellations, setPendingCancellations] = useState<PendingCancellation[]>([]);
   const [loading, setLoading] = useState(true);
   const [overriddenLegIds, setOverriddenLegIds] = useState<Set<string>>(new Set());
 
@@ -274,6 +278,49 @@ export default function DispatchBoard() {
         created_at: a.created_at,
       }))
     );
+
+    // Extract pending cancellation trips
+    const pendingTrips = ((tripRows ?? []) as any[]).filter(
+      (t: any) => t.status === "pending_cancellation"
+    );
+    const cancellations: PendingCancellation[] = pendingTrips.map((t: any) => {
+      // Find truck name
+      const truck = (truckRows ?? []).find((tr: any) => tr.id === t.truck_id);
+      // Find patient name from slot → leg → patient
+      const slot = ((slotRows ?? []) as any[]).find((s: any) =>
+        s.leg_id === t.leg_id && s.truck_id === t.truck_id
+      );
+      const leg = slot?.leg as any;
+      const patient = leg?.patient;
+      const patientName = patient
+        ? `${patient.first_name} ${patient.last_name}`
+        : "Unknown Patient";
+      // Find crew member IDs
+      const crew = (crewCapRows as any[])?.find((c: any) => c.truck_id === t.truck_id);
+      const crewMemberIds: string[] = [];
+      if (crew?.member1?.id) crewMemberIds.push(crew.member1.id);
+      if (crew?.member2?.id) crewMemberIds.push(crew.member2.id);
+      // Find cancelled_by name
+      let cancelledByName = "Crew";
+      if (crew?.member1?.id === t.cancelled_by) cancelledByName = crew.member1.full_name;
+      else if (crew?.member2?.id === t.cancelled_by) cancelledByName = crew.member2.full_name;
+
+      return {
+        tripId: t.id,
+        patientName,
+        cancellationReason: t.cancellation_reason ?? "",
+        cancelledAt: t.cancelled_at ?? t.created_at,
+        cancelledByName,
+        truckName: truck?.name ?? "Unknown Truck",
+        truckId: t.truck_id ?? "",
+        legId: t.leg_id ?? null,
+        slotId: t.slot_id ?? null,
+        companyId: t.company_id ?? null,
+        crewMemberIds,
+      };
+    });
+    setPendingCancellations(cancellations);
+
     setLoading(false);
   };
 
@@ -326,6 +373,16 @@ export default function DispatchBoard() {
               </h2>
             </div>
           </div>
+
+          {/* Pending Cancellations */}
+          {pendingCancellations.length > 0 && (
+            <section>
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                Pending Crew Cancellations · {pendingCancellations.length}
+              </h3>
+              <PendingCancellationPanel cancellations={pendingCancellations} onResolved={fetchData} />
+            </section>
+          )}
 
           {/* Alerts */}
           <section>

@@ -2,7 +2,9 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Truck, Users, Loader2, Clock, AlertTriangle, FileText, Check, Eye, Ban } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Truck, Users, Loader2, Clock, AlertTriangle, FileText, Check, Eye, Ban, XCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { CrewLayout } from "@/components/crew/CrewLayout";
@@ -43,6 +45,8 @@ interface RunCard {
   pcrStatus: string;
   patientId: string | null;
   cancellationReason: string | null;
+  cancellationDisputed: boolean;
+  cancellationDispatcherNote: string | null;
 }
 
 interface HoldTimer {
@@ -68,6 +72,9 @@ export default function CrewDashboard() {
   const [loading, setLoading] = useState(true);
   const [holdTimers, setHoldTimers] = useState<HoldTimer[]>([]);
   const [holdLoading, setHoldLoading] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<RunCard | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
@@ -107,7 +114,7 @@ export default function CrewDashboard() {
 
     const [{ data: legs }, { data: trips }] = await Promise.all([
       supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, pickup_address, dropoff_facility, location_type, facility_id, facility:facilities!patients_facility_id_fkey(name))").in("id", legIds),
-      supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, scheduled_pickup_time, billing_blocked_reason").eq("run_date", today).eq("truck_id", truckId).in("leg_id", legIds),
+      supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, scheduled_pickup_time, billing_blocked_reason, cancellation_reason, cancellation_disputed, cancellation_dispatcher_note").eq("run_date", today).eq("truck_id", truckId).in("leg_id", legIds),
     ]);
 
     const legMap = new Map((legs ?? []).map(l => [l.id, l]));
@@ -148,7 +155,9 @@ export default function CrewDashboard() {
         companyId: trip?.company_id ?? crewCompanyId ?? null,
         pcrStatus: (trip as any)?.pcr_status ?? "not_started",
         patientId: (leg as any)?.patient_id ?? null,
-        cancellationReason: (trip as any)?.billing_blocked_reason ?? null,
+        cancellationReason: (trip as any)?.cancellation_reason ?? null,
+        cancellationDisputed: (trip as any)?.cancellation_disputed ?? false,
+        cancellationDispatcherNote: (trip as any)?.cancellation_dispatcher_note ?? null,
       };
     });
     setRuns(cards);
@@ -168,6 +177,9 @@ export default function CrewDashboard() {
     const channel = supabase.channel("crew-dash-v2")
       .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => fetchData())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
@@ -236,6 +248,73 @@ export default function CrewDashboard() {
       tripId = newTrip.id;
     }
     navigate(`/pcr?tripId=${tripId}`);
+  };
+
+  const handleCancelTrip = async () => {
+    if (!cancelTarget || cancelReason.trim().length < 10) return;
+    setCancelLoading(true);
+    try {
+      let tripId = cancelTarget.tripId;
+      // Create trip record if it doesn't exist yet
+      if (!tripId) {
+        const companyId = cancelTarget.companyId;
+        if (!companyId) throw new Error("No company association");
+        const { data: newTrip, error } = await supabase.from("trip_records").insert({
+          leg_id: cancelTarget.legId, truck_id: cancelTarget.truckId, crew_id: cancelTarget.crewId,
+          company_id: companyId, patient_id: cancelTarget.patientId,
+          run_date: today, status: "pending_cancellation" as any,
+          pickup_location: cancelTarget.pickupLocation, destination_location: cancelTarget.destinationLocation,
+          scheduled_pickup_time: cancelTarget.pickupTime, trip_type: cancelTarget.tripType as any,
+          pcr_status: "not_started",
+          cancellation_reason: cancelReason.trim(),
+          cancelled_by: profileId,
+          cancelled_at: new Date().toISOString(),
+        } as any).select("id").single();
+        if (error || !newTrip) throw new Error(error?.message ?? "Failed to create trip record");
+        tripId = newTrip.id;
+      } else {
+        await supabase.from("trip_records").update({
+          status: "pending_cancellation" as any,
+          cancellation_reason: cancelReason.trim(),
+          cancelled_by: profileId,
+          cancelled_at: new Date().toISOString(),
+        } as any).eq("id", tripId);
+      }
+
+      // Find dispatchers/owners for notification
+      if (cancelTarget.companyId) {
+        const { data: dispatchers } = await supabase
+          .from("company_memberships")
+          .select("user_id")
+          .eq("company_id", cancelTarget.companyId)
+          .in("role", ["dispatcher", "owner"] as any);
+        for (const d of (dispatchers ?? [])) {
+          await supabase.from("notifications").insert({
+            user_id: d.user_id,
+            message: `Trip cancellation requested by crew: ${cancelTarget.patientName} — ${cancelReason.trim()}`,
+            acknowledged: false,
+          });
+        }
+      }
+
+      // Insert alert
+      await supabase.from("alerts").insert({
+        message: `Crew cancellation pending review: ${cancelTarget.patientName}`,
+        severity: "yellow",
+        truck_id: cancelTarget.truckId,
+        run_id: tripId,
+        company_id: cancelTarget.companyId,
+        dismissed: false,
+      });
+
+      toast({ title: "Cancellation requested", description: "Dispatcher will review your request." });
+      setCancelTarget(null);
+      setCancelReason("");
+      await fetchData();
+    } catch (err: any) {
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
+    }
+    setCancelLoading(false);
   };
 
   if (loading) {
@@ -357,6 +436,15 @@ export default function CrewDashboard() {
                   </span>
                 </div>
 
+                {/* Disputed banner */}
+                {run.cancellationDisputed && run.cancellationDispatcherNote && (
+                  <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 px-3 py-2">
+                    <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                      Cancellation disputed by dispatch: {run.cancellationDispatcherNote}
+                    </p>
+                  </div>
+                )}
+
                 {activeHold && (
                   <div className="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
                     <div className="flex items-center gap-2 text-xs font-medium text-destructive">
@@ -389,6 +477,19 @@ export default function CrewDashboard() {
                     )}
                   </Button>
 
+                  {/* Cancel Trip button — only for non-terminal, non-completed PCR runs */}
+                  {!isTerminal && ["not_started", "in_progress"].includes(run.pcrStatus) && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-12 w-12 border-destructive/50 text-destructive hover:bg-destructive/5"
+                      onClick={() => { setCancelTarget(run); setCancelReason(""); }}
+                      title="Cancel Trip"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  )}
+
                   {run.tripId && !isTerminal && !activeHold && (
                     <>
                       {["arrived_pickup", "en_route"].includes(run.tripStatus) && (
@@ -413,6 +514,42 @@ export default function CrewDashboard() {
           })
         )}
       </div>
+
+      {/* Cancel Trip Dialog */}
+      <Dialog open={!!cancelTarget} onOpenChange={(open) => { if (!open) { setCancelTarget(null); setCancelReason(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Trip — {cancelTarget?.patientName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              This will send a cancellation request to dispatch for review. Please provide a reason.
+            </p>
+            <Textarea
+              placeholder="Reason for cancellation (minimum 10 characters)…"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              className="min-h-[80px]"
+            />
+            {cancelReason.length > 0 && cancelReason.trim().length < 10 && (
+              <p className="text-xs text-destructive">Minimum 10 characters required</p>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setCancelTarget(null); setCancelReason(""); }}>
+              Back
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={cancelReason.trim().length < 10 || cancelLoading}
+              onClick={handleCancelTrip}
+            >
+              {cancelLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+              Request Cancellation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </CrewLayout>
   );
 }
