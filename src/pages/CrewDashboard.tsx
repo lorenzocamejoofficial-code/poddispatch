@@ -174,6 +174,9 @@ export default function CrewDashboard() {
     const channel = supabase.channel("crew-dash-v2")
       .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, () => fetchData())
       .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => fetchData())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
