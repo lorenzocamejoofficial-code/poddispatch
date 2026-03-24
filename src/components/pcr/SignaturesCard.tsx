@@ -26,25 +26,29 @@ const SIG_TYPES = [
   "Receiving Facility / Transfer of Care",
   "Patient Refusal",
   "ABN / Non-covered Destination",
-  "Crew Attestation",
 ];
 
 const SIG_EXPLANATIONS: Record<string, string> = {
   "Payment Authorization": "By signing, the patient, their representative, or crew authorizes Genesis 7 Transport to bill Medicare, Medicaid, or any applicable insurance on their behalf. This also authorizes assessment and treatment provided during transport. Required on every transport for insurance reimbursement.",
-  "Receiving Facility / Transfer of Care": "Confirms that the receiving facility accepted the patient and that transfer of care was formally completed. Signed by a facility representative at the destination.",
   "Patient Refusal": "Documents that the patient was informed of the medical risks of refusing transport or treatment and chose to refuse. Crew witness signature is required.",
   "ABN / Non-covered Destination": "Advance Beneficiary Notice — informs the patient that Medicare may not cover this transport. Patient acknowledges they may be responsible for payment.",
-  "Crew Attestation": "Used only when the patient is physically or mentally unable to sign and no authorized representative is available. Crew member documents the reason the patient could not sign.",
+};
+
+const RECEIVING_FACILITY_EXPLANATIONS: Record<string, string> = {
+  a_leg: "Confirms that the receiving facility accepted the patient and that transfer of care was formally completed. Signed by a facility representative at the destination.",
+  b_leg: "Confirms the patient was returned home or to their residence facility. Signed by the patient or their authorized representative upon arrival.",
+  default: "Confirms that the receiving facility accepted the patient and that transfer of care was formally completed. Signed by a facility representative at the destination.",
 };
 
 const SIG_TOOLTIPS: Record<string, string> = {
   "Payment Authorization": PCR_TOOLTIPS.payment_authorization,
   "Receiving Facility / Transfer of Care": PCR_TOOLTIPS.receiving_facility_signature,
   "Patient Refusal": PCR_TOOLTIPS.patient_refusal,
-  "Crew Attestation": PCR_TOOLTIPS.crew_attestation,
 };
 
 const PAYMENT_AUTH_ROLES = ["Patient", "Authorized Representative", "Crew Attestation"] as const;
+const RECEIVING_A_LEG_ROLES = ["Facility Representative", "Nurse", "Physician", "Other"] as const;
+const RECEIVING_B_LEG_ROLES = ["Patient", "Authorized Representative", "Crew Attestation"] as const;
 const REP_RELATIONSHIPS = [
   "Legal Guardian",
   "Healthcare Power of Attorney",
@@ -52,6 +56,17 @@ const REP_RELATIONSHIPS = [
   "Family Member",
   "Facility Representative",
 ];
+
+function getReceivingExplanation(legType: string | null | undefined): string {
+  if (legType === "a_leg") return RECEIVING_FACILITY_EXPLANATIONS.a_leg;
+  if (legType === "b_leg") return RECEIVING_FACILITY_EXPLANATIONS.b_leg;
+  return RECEIVING_FACILITY_EXPLANATIONS.default;
+}
+
+function getExplanation(sigType: string, legType: string | null | undefined): string {
+  if (sigType === "Receiving Facility / Transfer of Care") return getReceivingExplanation(legType);
+  return SIG_EXPLANATIONS[sigType] ?? "";
+}
 
 /* ─── Full-screen signature canvas ─── */
 function FullScreenCanvas({
@@ -200,7 +215,6 @@ function SignaturePad({ onComplete }: { onComplete: (dataUrl: string) => void })
     setCurrentDataUrl(dataUrl);
     onComplete(dataUrl);
     setFullScreen(false);
-    // Redraw onto inline canvas
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -245,28 +259,34 @@ function SignaturePad({ onComplete }: { onComplete: (dataUrl: string) => void })
   );
 }
 
-/* ─── Payment Auth role selector ─── */
-function PaymentAuthRoleSelector({
+/* ─── Role selector reused for Payment Auth and Receiving Facility ─── */
+function RoleSelector({
+  roles,
   role, setRole,
   relationship, setRelationship,
   unableReason, setUnableReason,
+  showRelationship,
+  showUnableReason,
 }: {
+  roles: readonly string[];
   role: string; setRole: (r: string) => void;
   relationship: string; setRelationship: (r: string) => void;
   unableReason: string; setUnableReason: (r: string) => void;
+  showRelationship: boolean;
+  showUnableReason: boolean;
 }) {
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">Signer Role</Label>
-        <div className="flex gap-2">
-          {PAYMENT_AUTH_ROLES.map((r) => (
+        <div className="flex flex-wrap gap-2">
+          {roles.map((r) => (
             <Button
               key={r}
               type="button"
               variant={role === r ? "default" : "outline"}
               size="sm"
-              className="flex-1 text-xs"
+              className="flex-1 text-xs min-w-[100px]"
               onClick={() => { setRole(r); setRelationship(""); setUnableReason(""); }}
             >
               {r}
@@ -275,7 +295,7 @@ function PaymentAuthRoleSelector({
         </div>
       </div>
 
-      {role === "Authorized Representative" && (
+      {showRelationship && (
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Relationship to Patient</Label>
           <Select value={relationship} onValueChange={setRelationship}>
@@ -289,7 +309,7 @@ function PaymentAuthRoleSelector({
         </div>
       )}
 
-      {role === "Crew Attestation" && (
+      {showUnableReason && (
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Reason patient is unable to sign *</Label>
           <Textarea
@@ -311,33 +331,39 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("");
   const [pendingDataUrl, setPendingDataUrl] = useState("");
-  // Payment Auth extras
-  const [payAuthRole, setPayAuthRole] = useState("");
-  const [payRelationship, setPayRelationship] = useState("");
+  // Shared role selector state
+  const [selectedRole, setSelectedRole] = useState("");
+  const [selectedRelationship, setSelectedRelationship] = useState("");
   const [unableReason, setUnableReason] = useState("");
 
   const isPaymentAuth = addingType === "Payment Authorization";
+  const isReceivingFacility = addingType === "Receiving Facility / Transfer of Care";
+  const needsRoleSelector = isPaymentAuth || isReceivingFacility;
+
+  // Determine which roles to show for receiving facility
+  const receivingRoles = legType === "b_leg" ? RECEIVING_B_LEG_ROLES : RECEIVING_A_LEG_ROLES;
+  const activeRoles = isPaymentAuth ? PAYMENT_AUTH_ROLES : receivingRoles;
 
   const canSave = () => {
     if (!addingType || !newName || !pendingDataUrl) return false;
-    if (isPaymentAuth) {
-      if (!payAuthRole) return false;
-      if (payAuthRole === "Authorized Representative" && !payRelationship) return false;
-      if (payAuthRole === "Crew Attestation" && !unableReason.trim()) return false;
+    if (needsRoleSelector) {
+      if (!selectedRole) return false;
+      if (selectedRole === "Authorized Representative" && !selectedRelationship) return false;
+      if (selectedRole === "Crew Attestation" && !unableReason.trim()) return false;
     }
     return true;
   };
 
   const addSig = () => {
     if (!canSave()) return;
-    const role = isPaymentAuth ? payAuthRole : newRole;
+    const role = needsRoleSelector ? selectedRole : newRole;
     const sig: Signature = {
       id: crypto.randomUUID(),
       type: addingType!,
       name: newName,
       role,
-      relationship: isPaymentAuth && payAuthRole === "Authorized Representative" ? payRelationship : undefined,
-      unableToSignReason: isPaymentAuth && payAuthRole === "Crew Attestation" ? unableReason : undefined,
+      relationship: needsRoleSelector && selectedRole === "Authorized Representative" ? selectedRelationship : undefined,
+      unableToSignReason: needsRoleSelector && selectedRole === "Crew Attestation" ? unableReason : undefined,
       timestamp: new Date().toISOString(),
       dataUrl: pendingDataUrl,
     };
@@ -350,15 +376,15 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
     setNewName("");
     setNewRole("");
     setPendingDataUrl("");
-    setPayAuthRole("");
-    setPayRelationship("");
+    setSelectedRole("");
+    setSelectedRelationship("");
     setUnableReason("");
   };
 
   const removeSig = (id: string) => updateField("signatures_json", sigs.filter(s => s.id !== id));
 
-  const showCanvas = isPaymentAuth
-    ? payAuthRole === "Crew Attestation" ? !!unableReason.trim() : !!payAuthRole
+  const showCanvas = needsRoleSelector
+    ? selectedRole === "Crew Attestation" ? !!unableReason.trim() : !!selectedRole
     : true;
 
   return (
@@ -374,7 +400,7 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
               <Trash2 className="h-3 w-3 text-destructive" />
             </Button>
           </div>
-          <p className="text-[11px] text-muted-foreground mb-2">{SIG_EXPLANATIONS[sig.type]}</p>
+          <p className="text-[11px] text-muted-foreground mb-2">{getExplanation(sig.type, legType)}</p>
           <p className="text-sm">{sig.name} — {sig.role}{sig.relationship ? ` (${sig.relationship})` : ""}</p>
           {sig.unableToSignReason && <p className="text-xs text-muted-foreground mt-0.5">Reason: {sig.unableToSignReason}</p>}
           <p className="text-[10px] text-muted-foreground">{new Date(sig.timestamp).toLocaleString()}</p>
@@ -388,19 +414,22 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
             {addingType}
             {SIG_TOOLTIPS[addingType] && <PCRTooltip text={SIG_TOOLTIPS[addingType]} />}
           </p>
-          <p className="text-[11px] text-muted-foreground">{SIG_EXPLANATIONS[addingType]}</p>
+          <p className="text-[11px] text-muted-foreground">{getExplanation(addingType, legType)}</p>
 
-          {isPaymentAuth && (
-            <PaymentAuthRoleSelector
-              role={payAuthRole} setRole={setPayAuthRole}
-              relationship={payRelationship} setRelationship={setPayRelationship}
+          {needsRoleSelector && (
+            <RoleSelector
+              roles={activeRoles}
+              role={selectedRole} setRole={setSelectedRole}
+              relationship={selectedRelationship} setRelationship={setSelectedRelationship}
               unableReason={unableReason} setUnableReason={setUnableReason}
+              showRelationship={selectedRole === "Authorized Representative"}
+              showUnableReason={selectedRole === "Crew Attestation"}
             />
           )}
 
           <Input placeholder="Signer name" value={newName} onChange={(e) => setNewName(e.target.value)} className="h-10" />
 
-          {!isPaymentAuth && (
+          {!needsRoleSelector && (
             <Input placeholder="Role (e.g., Patient, Nurse, Medic)" value={newRole} onChange={(e) => setNewRole(e.target.value)} className="h-10" />
           )}
 
@@ -422,7 +451,7 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
                   {SIG_TOOLTIPS[type] && <PCRTooltip text={SIG_TOOLTIPS[type]} />}
                 </span>
               </Button>
-              <p className="text-[10px] text-muted-foreground px-2">{SIG_EXPLANATIONS[type]}</p>
+              <p className="text-[10px] text-muted-foreground px-2">{getExplanation(type, legType)}</p>
             </div>
           ))}
         </div>
