@@ -1122,7 +1122,16 @@ export default function Scheduling() {
             <div className="grid gap-3 py-2">
               <div>
                 <Label>Pickup Time</Label>
-                <Input type="time" value={exceptionForm.pickup_time} onChange={(e) => setExceptionForm(f => ({ ...f, pickup_time: e.target.value }))} />
+                <Input type="time" value={exceptionForm.pickup_time} onChange={(e) => handleExceptionPickupTimeChange(e.target.value)} />
+                {editingExceptionLeg?.leg_type === "b_leg" && bLegEarliest && (
+                  <p className="text-[11px] text-muted-foreground mt-1">Earliest valid pickup: {bLegEarliest}</p>
+                )}
+                {editingExceptionLeg?.leg_type === "b_leg" && bLegTooEarly && bLegEarliest && (
+                  <p className="text-[11px] text-[hsl(var(--status-yellow))] mt-0.5">
+                    <AlertTriangle className="inline h-3 w-3 mr-1" />
+                    Too early — patient's treatment ends at approximately {bLegEarliest}. Override required.
+                  </p>
+                )}
               </div>
               <div>
                 <Label>Pickup Location</Label>
