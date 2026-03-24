@@ -22,6 +22,7 @@ import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
 import { RunPool } from "@/components/scheduling/RunPool";
 import { TemplateControls } from "@/components/scheduling/TemplateControls";
 import { UpcomingNonDialysisPanel } from "@/components/scheduling/UpcomingNonDialysisPanel";
+import { NotifyCrewModal } from "@/components/scheduling/NotifyCrewModal";
 import { OperationalAlertsPanel, type OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
 import { CommsOutbox } from "@/components/dispatch/CommsOutbox";
 import { useSchedulingStore, type LegDisplay } from "@/hooks/useSchedulingStore";
