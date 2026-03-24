@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Plus, Zap, AlertTriangle, ArrowRight,
   Wand2, ChevronLeft, ChevronRight, CalendarDays, ArrowLeft,
-  GitBranch, GripVertical, AlertCircle, BellRing, X, Copy,
+  GitBranch, GripVertical, AlertCircle, BellRing, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
