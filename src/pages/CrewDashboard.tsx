@@ -227,8 +227,15 @@ export default function CrewDashboard() {
 
   const openPCR = async (run: RunCard) => {
     let tripId = run.tripId;
+    // Store leg type in sessionStorage for PCR fallback
+    if (run.legTypeRaw) {
+      sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
+    }
     // If no trip_record exists yet, create one
     if (!tripId) {
+      if (!run.patientId) {
+        console.warn("openPCR: run.patientId is null — trip record will have no patient linked", { legId: run.legId });
+      }
       const companyId = run.companyId;
       if (!companyId) {
         toast({ title: "Cannot create trip record", description: "No company association found for this crew.", variant: "destructive" });
