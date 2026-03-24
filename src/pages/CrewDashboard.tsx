@@ -288,6 +288,9 @@ export default function CrewDashboard() {
             const resolvePickup = (): string => {
               if (run.originType && run.originType.toLowerCase().includes("residence")) return "Residence";
               if (run.pickupLocation && run.pickupLocation !== "—") return run.pickupLocation;
+              // Use patient location_type / facility link
+              if (run.patientLocationType === "Residence") return "Residence";
+              if (run.patientFacilityName) return run.patientFacilityName;
               if (run.patientPickupAddress) return "Residence";
               return "—";
             };

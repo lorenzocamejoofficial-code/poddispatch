@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import type { Tables, Database } from "@/integrations/supabase/types";
 import { PatientStatusBadge } from "@/components/patients/PatientStatusBadge";
 import { FacilityDropdown } from "@/components/patients/FacilityDropdown";
+import { FacilitySelect } from "@/components/patients/FacilitySelect";
 
 type Patient = Tables<"patients">;
 type PatientStatus = Database["public"]["Enums"]["patient_status"];
