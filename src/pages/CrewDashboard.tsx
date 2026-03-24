@@ -137,6 +137,8 @@ export default function CrewDashboard() {
         originType: trip?.origin_type ?? null,
         patientPickupAddress: patient?.pickup_address ?? null,
         patientDropoffFacility: patient?.dropoff_facility ?? null,
+        patientLocationType: patient?.location_type ?? null,
+        patientFacilityName: (patient?.facility as any)?.name ?? null,
         dispatchTime: trip?.dispatch_time ?? null,
         tripType: trip?.trip_type ?? leg?.trip_type ?? null,
         pcrType: (trip as any)?.pcr_type ?? null,
