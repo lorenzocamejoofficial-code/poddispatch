@@ -216,7 +216,7 @@ interface HoldTimerData {
   slot_id: string | null;
 }
 
-export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException, onDownCountChange, activeTokens = [], operationalAlerts = [] }: TruckBuilderProps) {
+export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException, onDownCountChange, activeTokens = [], operationalAlerts = [], onLogChange }: TruckBuilderProps) {
   const { addingLeg, setAddingLeg } = useSchedulingStore();
   const [availability, setAvailability] = useState<AvailabilityRecord[]>([]);
   const [truckRisks, setTruckRisks] = useState<Map<string, TruckRiskData>>(new Map());
