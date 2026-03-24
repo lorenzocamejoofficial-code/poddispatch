@@ -226,6 +226,29 @@ export default function Patients() {
     if (editing) {
       await supabase.from("patients").update(payload).eq("id", editing.id);
       toast.success("Patient updated");
+
+      // Check for B-leg conflicts after saving chair time changes
+      if (form.transport_type === "dialysis" && form.chair_time) {
+        const durH = parseInt(form.chair_time_duration_hours) || 0;
+        const durM = parseInt(form.chair_time_duration_minutes) || 0;
+        if (durH > 0 || durM > 0) {
+          const today = new Date().toISOString().split("T")[0];
+          const { data: bLegs } = await supabase
+            .from("scheduling_legs")
+            .select("pickup_time, run_date")
+            .eq("patient_id", editing.id)
+            .eq("leg_type", "b_leg" as any)
+            .gte("run_date", today);
+          const warnings: typeof bLegWarnings = [];
+          for (const leg of bLegs ?? []) {
+            if (leg.pickup_time && isBLegTooEarly(leg.pickup_time, form.chair_time, durH, durM)) {
+              const earliest = getEarliestBLegPickup(form.chair_time, durH, durM);
+              if (earliest) warnings.push({ pickup_time: leg.pickup_time, run_date: leg.run_date, earliest });
+            }
+          }
+          setBLegWarnings(warnings);
+        }
+      }
     } else {
       payload.company_id = activeCompanyId;
       await supabase.from("patients").insert(payload);
