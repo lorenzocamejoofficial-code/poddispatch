@@ -72,6 +72,9 @@ export default function CrewDashboard() {
   const [loading, setLoading] = useState(true);
   const [holdTimers, setHoldTimers] = useState<HoldTimer[]>([]);
   const [holdLoading, setHoldLoading] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<RunCard | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
