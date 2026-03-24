@@ -42,7 +42,7 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
+      <div className="space-y-3">
         {buttons.map((btn, idx) => {
           const value = trip[btn.field];
           const recorded = !!value;
