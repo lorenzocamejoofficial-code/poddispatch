@@ -422,6 +422,23 @@ export default function Scheduling() {
     }
   };
 
+  // ── B-leg validation helper ──
+  const checkBLegTime = async (patientId: string | null, pickupTime: string | null): Promise<{ tooEarly: boolean; earliest: string | null }> => {
+    if (!patientId || !pickupTime) return { tooEarly: false, earliest: null };
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("chair_time, chair_time_duration_hours, chair_time_duration_minutes")
+      .eq("id", patientId)
+      .maybeSingle();
+    if (!patient) return { tooEarly: false, earliest: null };
+    const durH = (patient as any).chair_time_duration_hours ?? 0;
+    const durM = (patient as any).chair_time_duration_minutes ?? 0;
+    if (durH === 0 && durM === 0) return { tooEarly: false, earliest: null };
+    const earliest = getEarliestBLegPickup(patient.chair_time, durH, durM);
+    const tooEarly = isBLegTooEarly(pickupTime, patient.chair_time, durH, durM);
+    return { tooEarly, earliest };
+  };
+
   // Open exception edit dialog
   const openExceptionEdit = (leg: LegDisplay) => {
     setEditingExceptionLeg(leg);
@@ -431,10 +448,22 @@ export default function Scheduling() {
       destination_location: leg.destination_location,
       notes: leg.notes ?? "",
     });
+    setBLegEarliest(null);
+    setBLegTooEarly(false);
     setExceptionDialogOpen(true);
   };
 
-  const handleSaveException = async () => {
+  // Check B-leg time when exception pickup_time changes
+  const handleExceptionPickupTimeChange = async (time: string) => {
+    setExceptionForm(f => ({ ...f, pickup_time: time }));
+    if (editingExceptionLeg?.leg_type === "b_leg" && editingExceptionLeg.patient_id) {
+      const result = await checkBLegTime(editingExceptionLeg.patient_id, time);
+      setBLegEarliest(result.earliest);
+      setBLegTooEarly(result.tooEarly);
+    }
+  };
+
+  const doSaveException = async () => {
     if (!editingExceptionLeg) return;
     setSavingException(true);
     try {
@@ -446,7 +475,6 @@ export default function Scheduling() {
         destination_location: exceptionForm.destination_location || null,
         notes: exceptionForm.notes || null,
       };
-      // Upsert: if exception exists for this leg+date, update it; else insert
       const { error } = await supabase
         .from("leg_exceptions" as any)
         .upsert(payload, { onConflict: "scheduling_leg_id,run_date" });
@@ -458,6 +486,41 @@ export default function Scheduling() {
     } finally {
       setSavingException(false);
     }
+  };
+
+  const handleSaveException = async () => {
+    // If B-leg and too early, require override
+    if (editingExceptionLeg?.leg_type === "b_leg" && bLegTooEarly && exceptionForm.pickup_time) {
+      setBLegOverrideReason("");
+      setBLegPendingSave(() => async () => {
+        // Save the exception first
+        await doSaveException();
+        // Then log the override
+        const { data: companyId } = await supabase.rpc("get_my_company_id");
+        await supabase.from("billing_overrides").insert({
+          trip_id: editingExceptionLeg!.id, // leg_id as reference
+          override_reason: `Dispatcher overrode B-leg early pickup: ${bLegOverrideReason}`,
+          is_active: false,
+          snapshot: {
+            action: "b_leg_early_override",
+            patient_id: editingExceptionLeg!.patient_id,
+            chair_time: null,
+            b_leg_pickup_time: exceptionForm.pickup_time,
+            override_reason: bLegOverrideReason,
+          },
+        } as any);
+        await supabase.from("audit_logs").insert({
+          action: "b_leg_time_override",
+          actor_user_id: (await supabase.auth.getUser()).data.user?.id,
+          table_name: "scheduling_legs",
+          record_id: editingExceptionLeg!.id,
+          notes: `B-leg pickup time ${exceptionForm.pickup_time} is before treatment end. Override reason: ${bLegOverrideReason}`,
+        });
+      });
+      setBLegOverrideOpen(true);
+      return;
+    }
+    await doSaveException();
   };
 
   const handleDeleteException = async () => {
