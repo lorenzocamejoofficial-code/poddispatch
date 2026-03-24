@@ -132,11 +132,12 @@ export default function CrewDashboard() {
       const trip = tripMap.get(slot.leg_id);
       const patient = leg?.patient as any;
       const { name: patientName, hasRecord } = formatPatientName(patient);
-      const legTypeRaw = (leg as any)?.leg_type;
+      const legTypeRaw = (leg as any)?.leg_type ?? null;
       const legType = legTypeRaw === "a_leg" ? "A" : legTypeRaw === "b_leg" ? "B" : "—";
       return {
         slotId: slot.id, slotOrder: slot.slot_order, legId: slot.leg_id,
         legType,
+        legTypeRaw,
         patientName,
         patientHasRecord: hasRecord,
         pickupLocation: trip?.pickup_location ?? leg?.pickup_location ?? "—",
