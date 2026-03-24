@@ -217,6 +217,8 @@ export default function Patients() {
       recurrence_days: form.recurrence_days.length > 0 ? form.recurrence_days : null,
       location_type: form.location_type || null,
       facility_id: form.facility_id || null,
+      chair_time_duration_hours: parseInt(form.chair_time_duration_hours) || 0,
+      chair_time_duration_minutes: parseInt(form.chair_time_duration_minutes) || 0,
     };
 
     if (!payload.first_name || !payload.last_name) return;
