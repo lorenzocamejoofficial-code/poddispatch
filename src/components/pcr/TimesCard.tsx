@@ -29,6 +29,8 @@ const TOOLTIP_MAP: Record<string, string> = {
 
 export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [odometerWarning, setOdometerWarning] = useState<string | null>(null);
+  const [manualMilesOverride, setManualMilesOverride] = useState(false);
 
   const buttons = [
     { field: "dispatch_time", label: "Dispatched", status: undefined },
@@ -39,6 +41,27 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
     { field: "arrived_dropoff_at", label: "At Destination", status: "arrived_dropoff" },
     { field: "in_service_time", label: "In Service", status: "completed" },
   ];
+
+  const autoCalculateLoadedMiles = (sceneVal: number | null, destVal: number | null) => {
+    if (sceneVal && destVal && sceneVal > 0 && destVal > 0) {
+      const miles = destVal - sceneVal;
+      if (miles > 0) {
+        setOdometerWarning(null);
+        updateField("loaded_miles", parseFloat(miles.toFixed(1)));
+      } else {
+        setOdometerWarning("Check odometer values — destination reading is less than scene reading.");
+      }
+    }
+  };
+
+  const handleOdometerBlur = (field: string, rawValue: string) => {
+    const val = rawValue ? parseFloat(rawValue) : null;
+    updateField(field, val);
+
+    const sceneVal = field === "odometer_at_scene" ? val : (trip.odometer_at_scene ?? null);
+    const destVal = field === "odometer_at_destination" ? val : (trip.odometer_at_destination ?? null);
+    autoCalculateLoadedMiles(sceneVal, destVal);
+  };
 
   return (
     <div className="space-y-4">
@@ -123,7 +146,7 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
               defaultValue={trip.odometer_at_scene ?? ""}
               placeholder="0.0"
               className="h-11"
-              onBlur={(e) => updateField("odometer_at_scene", e.target.value ? parseFloat(e.target.value) : null)}
+              onBlur={(e) => handleOdometerBlur("odometer_at_scene", e.target.value)}
             />
           </div>
           <div className="min-w-0">
@@ -136,7 +159,7 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
               defaultValue={trip.odometer_at_destination ?? ""}
               placeholder="0.0"
               className="h-11"
-              onBlur={(e) => updateField("odometer_at_destination", e.target.value ? parseFloat(e.target.value) : null)}
+              onBlur={(e) => handleOdometerBlur("odometer_at_destination", e.target.value)}
             />
           </div>
           <div className="min-w-0">
@@ -152,6 +175,48 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
               onBlur={(e) => updateField("odometer_in_service", e.target.value ? parseFloat(e.target.value) : null)}
             />
           </div>
+        </div>
+
+        {/* Odometer warning */}
+        {odometerWarning && (
+          <p className="text-xs text-destructive mt-2">{odometerWarning}</p>
+        )}
+
+        {/* Loaded Miles (calculated) */}
+        <div className="mt-3">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-muted-foreground flex items-center">
+              Loaded Miles (calculated)
+            </label>
+            {!manualMilesOverride && (
+              <button
+                type="button"
+                className="text-xs text-primary underline underline-offset-2"
+                onClick={() => setManualMilesOverride(true)}
+              >
+                Override
+              </button>
+            )}
+          </div>
+          {manualMilesOverride ? (
+            <div className="mt-1">
+              <Input
+                type="number"
+                step="0.1"
+                defaultValue={trip.loaded_miles ?? ""}
+                placeholder="Enter miles"
+                className="h-11 w-40"
+                onBlur={(e) => {
+                  updateField("loaded_miles", e.target.value ? parseFloat(e.target.value) : null);
+                }}
+              />
+              <p className="text-xs text-muted-foreground mt-1 italic">Manually entered</p>
+            </div>
+          ) : (
+            <p className="text-sm font-mono text-foreground mt-1">
+              {trip.loaded_miles != null ? `${trip.loaded_miles} mi` : "—"}
+            </p>
+          )}
         </div>
       </div>
     </div>

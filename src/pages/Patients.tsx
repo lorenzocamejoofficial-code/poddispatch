@@ -225,14 +225,61 @@ export default function Patients() {
 
     if (editing) {
       await supabase.from("patients").update(payload).eq("id", editing.id);
-      toast.success("Patient updated");
+
+      // Propagate changes to future recurring scheduling legs
+      const today = new Date().toISOString().split("T")[0];
+      let propagatedCount = 0;
+
+      // A-leg propagation
+      const aLegPayload: any = {
+        pickup_location: payload.pickup_address ?? null,
+        destination_location: payload.dropoff_facility ?? null,
+        chair_time: payload.chair_time ?? null,
+        estimated_duration_minutes: payload.transport_type === "dialysis"
+          ? (payload.chair_time_duration_hours ?? 0) * 60 + (payload.chair_time_duration_minutes ?? 0)
+          : payload.run_duration_minutes ?? null,
+      };
+      const { data: aData } = await supabase
+        .from("scheduling_legs")
+        .update(aLegPayload)
+        .eq("patient_id", editing.id)
+        .eq("is_oneoff", false)
+        .eq("leg_type", "a_leg" as any)
+        .gte("run_date", today)
+        .select("id");
+      const aCount = aData?.length ?? 0;
+      propagatedCount += aCount ?? 0;
+
+      // B-leg propagation
+      const bLegPayload: any = {
+        pickup_location: payload.dropoff_facility ?? null,
+        destination_location: payload.pickup_address ?? null,
+        estimated_duration_minutes: payload.transport_type === "dialysis"
+          ? (payload.chair_time_duration_hours ?? 0) * 60 + (payload.chair_time_duration_minutes ?? 0)
+          : payload.run_duration_minutes ?? null,
+      };
+      const { data: bData } = await supabase
+        .from("scheduling_legs")
+        .update(bLegPayload)
+        .eq("patient_id", editing.id)
+        .eq("is_oneoff", false)
+        .eq("leg_type", "b_leg" as any)
+        .gte("run_date", today)
+        .select("id");
+      const bCount = bData?.length ?? 0;
+      propagatedCount += bCount ?? 0;
+
+      if (propagatedCount > 0) {
+        toast.success(`Patient updated — ${propagatedCount} future runs updated automatically.`);
+      } else {
+        toast.success("Patient updated");
+      }
 
       // Check for B-leg conflicts after saving chair time changes
       if (form.transport_type === "dialysis" && form.chair_time) {
         const durH = parseInt(form.chair_time_duration_hours) || 0;
         const durM = parseInt(form.chair_time_duration_minutes) || 0;
         if (durH > 0 || durM > 0) {
-          const today = new Date().toISOString().split("T")[0];
           const { data: bLegs } = await supabase
             .from("scheduling_legs")
             .select("pickup_time, run_date")
