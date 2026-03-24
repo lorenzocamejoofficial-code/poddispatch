@@ -256,47 +256,60 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
             </div>
 
             {/* GCS Section — 1 col mobile, 3 col tablet+ */}
-            <div className="border-t border-border pt-4">
-              <div className="flex items-center justify-between mb-3">
-                <label className="text-sm font-medium text-muted-foreground flex items-center">
-                  Glasgow Coma Scale <PCRTooltip text={PCR_TOOLTIPS.gcs} />
-                </label>
-                {gcsTotal !== null && gcsSeverity && (
-                  <span className={cn("text-xs font-bold", gcsSeverity.color)}>
-                    GCS: {gcsTotal} — {gcsSeverity.label}
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="min-w-0">
-                  <label className="text-sm font-medium text-muted-foreground flex items-center">Eye (E) <PCRTooltip text={PCR_TOOLTIPS.gcs_eye} /></label>
-                  <Select value={vs.gcs_eyes} onValueChange={(v) => updateSet(idx, "gcs_eyes", v)}>
-                    <SelectTrigger className="h-11"><SelectValue placeholder="E" /></SelectTrigger>
-                    <SelectContent>
-                      {GCS_EYE.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+            {(() => {
+              const gcsFilled = [vs.gcs_eyes, vs.gcs_verbal, vs.gcs_motor].filter(v => !!v && !isNaN(parseInt(v)));
+              const gcsContainerBorder = gcsFilled.length === 0
+                ? "border-destructive"
+                : gcsFilled.length === 3
+                  ? "border-emerald-400"
+                  : "border-amber-400";
+              const getGcsFieldBorder = (val: string) =>
+                val && !isNaN(parseInt(val)) ? "border-emerald-400" : "border-destructive";
+
+              return (
+                <div className={cn("border rounded-lg p-3 pt-4", gcsContainerBorder)}>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-sm font-medium text-muted-foreground flex items-center">
+                      Glasgow Coma Scale <PCRTooltip text={PCR_TOOLTIPS.gcs} />
+                    </label>
+                    {gcsTotal !== null && gcsSeverity && (
+                      <span className={cn("text-xs font-bold", gcsSeverity.color)}>
+                        GCS: {gcsTotal} — {gcsSeverity.label}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="min-w-0">
+                      <label className="text-sm font-medium text-muted-foreground flex items-center">Eye (E) <PCRTooltip text={PCR_TOOLTIPS.gcs_eye} /></label>
+                      <Select value={vs.gcs_eyes} onValueChange={(v) => updateSet(idx, "gcs_eyes", v)}>
+                        <SelectTrigger className={cn("h-11", getGcsFieldBorder(vs.gcs_eyes))}><SelectValue placeholder="E" /></SelectTrigger>
+                        <SelectContent>
+                          {GCS_EYE.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="min-w-0">
+                      <label className="text-sm font-medium text-muted-foreground flex items-center">Verbal (V) <PCRTooltip text={PCR_TOOLTIPS.gcs_verbal} /></label>
+                      <Select value={vs.gcs_verbal} onValueChange={(v) => updateSet(idx, "gcs_verbal", v)}>
+                        <SelectTrigger className={cn("h-11", getGcsFieldBorder(vs.gcs_verbal))}><SelectValue placeholder="V" /></SelectTrigger>
+                        <SelectContent>
+                          {GCS_VERBAL.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="min-w-0">
+                      <label className="text-sm font-medium text-muted-foreground flex items-center">Motor (M) <PCRTooltip text={PCR_TOOLTIPS.gcs_motor} /></label>
+                      <Select value={vs.gcs_motor} onValueChange={(v) => updateSet(idx, "gcs_motor", v)}>
+                        <SelectTrigger className={cn("h-11", getGcsFieldBorder(vs.gcs_motor))}><SelectValue placeholder="M" /></SelectTrigger>
+                        <SelectContent>
+                          {GCS_MOTOR.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <label className="text-sm font-medium text-muted-foreground flex items-center">Verbal (V) <PCRTooltip text={PCR_TOOLTIPS.gcs_verbal} /></label>
-                  <Select value={vs.gcs_verbal} onValueChange={(v) => updateSet(idx, "gcs_verbal", v)}>
-                    <SelectTrigger className="h-11"><SelectValue placeholder="V" /></SelectTrigger>
-                    <SelectContent>
-                      {GCS_VERBAL.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="min-w-0">
-                  <label className="text-sm font-medium text-muted-foreground flex items-center">Motor (M) <PCRTooltip text={PCR_TOOLTIPS.gcs_motor} /></label>
-                  <Select value={vs.gcs_motor} onValueChange={(v) => updateSet(idx, "gcs_motor", v)}>
-                    <SelectTrigger className="h-11"><SelectValue placeholder="M" /></SelectTrigger>
-                    <SelectContent>
-                      {GCS_MOTOR.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         );
       })}
