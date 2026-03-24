@@ -128,12 +128,11 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
           <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
         )}
         {isCancelled && (
-          <span className={cn(
-            "rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0",
+          <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
             isPendingCancel
               ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
               : "bg-destructive/15 text-destructive"
-          )}>
+          }`}>
             {isPendingCancel ? "PENDING CANCEL" : "CANCELLED"}
           </span>
         )}
