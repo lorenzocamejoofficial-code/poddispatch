@@ -25,7 +25,6 @@ export default function AdminSettings() {
     supabase.from("company_settings").select("*").limit(1).maybeSingle().then(({ data }) => {
       if (data) {
         setSettingsId(data.id);
-        setCompanyName(data.company_name);
         setGraceWindow(String((data as any).grace_window_minutes ?? 15));
         setLoadTime(String((data as any).load_time_minutes ?? 10));
         setUnloadTime(String((data as any).unload_time_minutes ?? 10));
