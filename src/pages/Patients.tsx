@@ -132,6 +132,13 @@ export default function Patients() {
   const openEdit = (p: Patient) => {
     setEditing(p);
     const endDate = (p as any).recurrence_end_date ?? "";
+    // Auto-convert legacy dialysis_window_minutes to hours+minutes
+    const legacyDwm = (p as any).dialysis_window_minutes ?? 45;
+    const existingH = (p as any).chair_time_duration_hours;
+    const existingM = (p as any).chair_time_duration_minutes;
+    const hasNewFields = (existingH != null && existingH > 0) || (existingM != null && existingM > 0);
+    const durH = hasNewFields ? String(existingH ?? 0) : String(Math.floor(legacyDwm / 60));
+    const durM = hasNewFields ? String(existingM ?? 0) : String(legacyDwm % 60);
     setForm({
       first_name: p.first_name, last_name: p.last_name,
       dob: p.dob ?? "", phone: p.phone ?? "",
@@ -163,7 +170,10 @@ export default function Patients() {
       recurrence_days: (p as any).recurrence_days ?? [],
       location_type: (p as any).location_type ?? "",
       facility_id: (p as any).facility_id ?? "",
+      chair_time_duration_hours: durH,
+      chair_time_duration_minutes: durM,
     });
+    setBLegWarnings([]);
     setDialogOpen(true);
   };
 
