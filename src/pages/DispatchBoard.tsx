@@ -84,8 +84,10 @@ function deriveBillingStatus(trip: any, payerRulesMap: Map<string, any>): { stat
 
 export default function DispatchBoard() {
   const { selectedDate } = useSchedulingStore();
+  const { profileId } = useAuth();
   const [trucks, setTrucks] = useState<TruckData[]>([]);
   const [alerts, setAlerts] = useState<AlertData[]>([]);
+  const [pendingCancellations, setPendingCancellations] = useState<PendingCancellation[]>([]);
   const [loading, setLoading] = useState(true);
   const [overriddenLegIds, setOverriddenLegIds] = useState<Set<string>>(new Set());
 
