@@ -58,7 +58,8 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
   };
 
   const isHeavy = (leg.patient_weight ?? 0) > 200;
-  const isCancelled = leg.slot_status === "cancelled";
+  const isCancelled = leg.slot_status === "cancelled" || leg.slot_status === "pending_cancellation";
+  const isPendingCancel = leg.slot_status === "pending_cancellation";
 
   return (
     <div
