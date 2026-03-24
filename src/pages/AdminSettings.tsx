@@ -38,10 +38,8 @@ export default function AdminSettings() {
   }, []);
 
   const save = async () => {
-    if (!companyName.trim()) return;
     setSaving(true);
     await supabase.from("company_settings").update({
-      company_name: companyName.trim(),
       grace_window_minutes: parseInt(graceWindow),
       load_time_minutes: parseInt(loadTime),
       unload_time_minutes: parseInt(unloadTime),
