@@ -213,7 +213,7 @@ export default function Patients() {
       oxygen_lpm: form.oxygen_lpm ? parseFloat(form.oxygen_lpm) : null,
       special_equipment_required: form.special_equipment_required,
       dialysis_window_minutes: form.dialysis_window_minutes ? parseInt(form.dialysis_window_minutes) : 45,
-      must_arrive_by: form.must_arrive_by || null,
+      
       recurrence_days: form.recurrence_days.length > 0 ? form.recurrence_days : null,
       location_type: form.location_type || null,
       facility_id: form.facility_id || null,
