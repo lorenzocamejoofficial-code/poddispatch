@@ -604,7 +604,7 @@ export default function Employees() {
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm"><Mail className="mr-1.5 h-3.5 w-3.5" /> Invite User</Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-sm">
+                <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
                   <DialogHeader>
                     <DialogTitle>Invite Team Member</DialogTitle>
                     <DialogDescription>Send an invite link. They'll create their own account.</DialogDescription>
