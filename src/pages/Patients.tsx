@@ -531,7 +531,7 @@ export default function Patients() {
                           <div>
                             {form.transport_type === "dialysis" ? (
                               <>
-                                <Label>Schedule Days</Label>
+                                <Label>Schedule Days<PCRTooltip text={ADMIN_TOOLTIPS.schedule_days} /></Label>
                                 <Select value={form.schedule_days} onValueChange={(v) => setForm({ ...form, schedule_days: v })}>
                                   <SelectTrigger><SelectValue placeholder="Select days" /></SelectTrigger>
                                   <SelectContent>
