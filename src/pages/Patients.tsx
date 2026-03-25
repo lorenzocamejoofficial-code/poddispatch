@@ -473,7 +473,7 @@ export default function Patients() {
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Weight (lbs)</Label><Input type="number" value={form.weight_lbs} onChange={(e) => {
+                    <div><Label>Weight (lbs)<PCRTooltip text={ADMIN_TOOLTIPS.weight_lbs} /></Label><Input type="number" value={form.weight_lbs} onChange={(e) => {
                       const w = e.target.value;
                       const wNum = w ? parseInt(w) : 0;
                       setForm({ ...form, weight_lbs: w, bariatric: wNum >= 300 ? true : form.bariatric });
