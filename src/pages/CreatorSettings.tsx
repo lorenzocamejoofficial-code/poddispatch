@@ -42,9 +42,9 @@ export default function CreatorSettings() {
           return supabase.from("notifications").delete().in("user_id", userIds);
         },
       },
-      { label: "alerts", fn: () => supabase.from("alerts").delete().eq("company_id", resetCompanyId) },
-      { label: "hold_timers", fn: () => supabase.from("hold_timers").delete().eq("company_id", resetCompanyId) },
-      { label: "qa_reviews", fn: () => supabase.from("qa_reviews").delete().eq("company_id", resetCompanyId) },
+      { label: "alerts", fn: async () => supabase.from("alerts").delete().eq("company_id", resetCompanyId) },
+      { label: "hold_timers", fn: async () => supabase.from("hold_timers").delete().eq("company_id", resetCompanyId) },
+      { label: "qa_reviews", fn: async () => supabase.from("qa_reviews").delete().eq("company_id", resetCompanyId) },
       {
         label: "billing_overrides",
         fn: async () => {
@@ -56,12 +56,12 @@ export default function CreatorSettings() {
           return supabase.from("billing_overrides").delete().in("trip_id", tripIds.map((t) => t.id));
         },
       },
-      { label: "claim_records", fn: () => supabase.from("claim_records").delete().eq("company_id", resetCompanyId) },
-      { label: "trip_records", fn: () => supabase.from("trip_records").delete().eq("company_id", resetCompanyId) },
-      { label: "truck_run_slots", fn: () => supabase.from("truck_run_slots").delete().eq("company_id", resetCompanyId) },
-      { label: "schedule_change_log", fn: () => supabase.from("schedule_change_log").delete().eq("company_id", resetCompanyId) },
-      { label: "scheduling_legs", fn: () => supabase.from("scheduling_legs").delete().eq("company_id", resetCompanyId) },
-      { label: "crews", fn: () => supabase.from("crews").delete().eq("company_id", resetCompanyId) },
+      { label: "claim_records", fn: async () => supabase.from("claim_records").delete().eq("company_id", resetCompanyId) },
+      { label: "trip_records", fn: async () => supabase.from("trip_records").delete().eq("company_id", resetCompanyId) },
+      { label: "truck_run_slots", fn: async () => supabase.from("truck_run_slots").delete().eq("company_id", resetCompanyId) },
+      { label: "schedule_change_log", fn: async () => supabase.from("schedule_change_log").delete().eq("company_id", resetCompanyId) },
+      { label: "scheduling_legs", fn: async () => supabase.from("scheduling_legs").delete().eq("company_id", resetCompanyId) },
+      { label: "crews", fn: async () => supabase.from("crews").delete().eq("company_id", resetCompanyId) },
     ];
 
     for (const step of steps) {
