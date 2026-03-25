@@ -728,7 +728,7 @@ export default function Patients() {
                       </div>
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input type="checkbox" checked={form.stair_chair_required} onChange={e => setForm({ ...form, stair_chair_required: e.target.checked })} className="accent-primary" />
-                        Stair Chair Required
+                        Stair Chair Required<PCRTooltip text={ADMIN_TOOLTIPS.stair_chair} />
                       </label>
                     </div>
                     <div className="flex flex-wrap gap-4">
