@@ -654,7 +654,7 @@ export default function Patients() {
                         </Select>
                       </div>
                       <div>
-                        <Label>Trips/Week Limit</Label>
+                        <Label>Trips/Week Limit<PCRTooltip text={ADMIN_TOOLTIPS.trips_per_week_limit} /></Label>
                         <Input type="number" value={form.trips_per_week_limit} onChange={e => setForm({ ...form, trips_per_week_limit: e.target.value })} placeholder="No limit" />
                       </div>
                     </div>
