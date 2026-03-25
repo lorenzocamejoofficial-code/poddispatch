@@ -567,7 +567,7 @@ export default function Patients() {
                           </div>
                           {form.transport_type !== "adhoc" && (
                             <div>
-                              <Label>{form.transport_type === "dialysis" ? "Chair Time" : "Appointment Time"}</Label>
+                              <Label>{form.transport_type === "dialysis" ? "Chair Time" : "Appointment Time"}<PCRTooltip text={form.transport_type === "dialysis" ? ADMIN_TOOLTIPS.chair_time : ADMIN_TOOLTIPS.appointment_time} /></Label>
                               <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
                             </div>
                           )}
