@@ -721,7 +721,7 @@ export default function Patients() {
                           </>
                         ) : (
                           <div>
-                            <Label>Appointment Duration (minutes)</Label>
+                            <Label>Appointment Duration (minutes)<PCRTooltip text={ADMIN_TOOLTIPS.appointment_duration} /></Label>
                             <Input type="number" value={form.run_duration_minutes} onChange={e => setForm({ ...form, run_duration_minutes: e.target.value })} placeholder="e.g. 60" />
                           </div>
                         )}
