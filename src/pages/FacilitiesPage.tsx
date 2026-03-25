@@ -88,27 +88,34 @@ export default function FacilitiesPage() {
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Facility name required"); return; }
     setSaving(true);
-    const { data: companyId } = await supabase.rpc("get_my_company_id");
-    const payload = {
-      name: form.name.trim(), facility_type: form.facility_type, address: form.address || null,
-      phone: form.phone || null, contact_name: form.contact_name || null, notes: form.notes || null,
-      active: form.active, company_id: companyId,
-      contract_payer_type: form.contract_payer_type || null,
-      rate_type: form.rate_type || null,
-      invoice_preference: form.invoice_preference || null,
-    };
+    try {
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      const payload = {
+        name: form.name.trim(), facility_type: form.facility_type, address: form.address || null,
+        phone: form.phone || null, contact_name: form.contact_name || null, notes: form.notes || null,
+        active: form.active, company_id: companyId,
+        contract_payer_type: form.contract_payer_type || null,
+        rate_type: form.rate_type || null,
+        invoice_preference: form.invoice_preference || null,
+      };
 
-    if (editing) {
-      await supabase.from("facilities" as any).update(payload).eq("id", editing.id);
-      toast.success("Facility updated");
-    } else {
-      await supabase.from("facilities" as any).insert(payload);
-      toast.success("Facility added");
+      if (editing) {
+        const { error } = await supabase.from("facilities" as any).update(payload).eq("id", editing.id);
+        if (error) throw error;
+        toast.success("Facility updated");
+      } else {
+        const { error } = await supabase.from("facilities" as any).insert(payload);
+        if (error) throw error;
+        toast.success("Facility added");
+      }
+      setDialogOpen(false);
+      resetForm();
+      fetchData();
+    } catch (err: any) {
+      toast.error(`Failed to save facility: ${err.message ?? "Unknown error"}`);
+    } finally {
+      setSaving(false);
     }
-    setDialogOpen(false);
-    resetForm();
-    fetchData();
-    setSaving(false);
   };
 
   const filtered = facilities.filter(f => f.name.toLowerCase().includes(search.toLowerCase()));
