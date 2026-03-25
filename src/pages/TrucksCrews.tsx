@@ -512,6 +512,9 @@ export default function TrucksCrews() {
                   <div><Label>Truck Name/Number</Label>
                     <Input value={truckName} onChange={(e) => setTruckName(e.target.value)} placeholder="e.g. Truck 1" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
                   </div>
+                  <div><Label>Vehicle ID / Unit #</Label>
+                    <Input value={truckVehicleId} onChange={(e) => setTruckVehicleId(e.target.value)} placeholder="e.g. G7T-101" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
+                  </div>
                   <Button onClick={addTruck} className="w-full">Add Truck</Button>
                 </div>
               </DialogContent>

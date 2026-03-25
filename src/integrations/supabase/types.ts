@@ -2834,6 +2834,7 @@ export type Database = {
           is_simulated: boolean
           name: string
           simulation_run_id: string | null
+          vehicle_id: string | null
         }
         Insert: {
           active?: boolean
@@ -2848,6 +2849,7 @@ export type Database = {
           is_simulated?: boolean
           name: string
           simulation_run_id?: string | null
+          vehicle_id?: string | null
         }
         Update: {
           active?: boolean
@@ -2862,6 +2864,7 @@ export type Database = {
           is_simulated?: boolean
           name?: string
           simulation_run_id?: string | null
+          vehicle_id?: string | null
         }
         Relationships: [
           {
