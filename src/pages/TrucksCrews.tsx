@@ -232,6 +232,7 @@ export default function TrucksCrews() {
   // Dialogs
   const [truckDialog, setTruckDialog] = useState(false);
   const [truckName, setTruckName] = useState("");
+  const [truckVehicleId, setTruckVehicleId] = useState("");
   const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
   const [editingTruckName, setEditingTruckName] = useState("");
 
