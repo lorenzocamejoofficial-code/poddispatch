@@ -444,7 +444,7 @@ export default function Patients() {
                   {/* Home Location Type */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>Home Location Type</Label>
+                      <Label>Home Location Type<PCRTooltip text={ADMIN_TOOLTIPS.location_type} /></Label>
                       <Select value={form.location_type || "none"} onValueChange={v => setForm({ ...form, location_type: v === "none" ? "" : v, facility_id: v === "Residence" ? "" : form.facility_id })}>
                         <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
                         <SelectContent>
