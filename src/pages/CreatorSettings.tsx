@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings, ShieldCheck, Bell, Globe, Trash2 } from "lucide-react";
+import { Settings, ShieldCheck, Bell, Globe, Trash2, RotateCcw } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -16,6 +17,86 @@ export default function CreatorSettings() {
   const [targetCompanyId, setTargetCompanyId] = useState("");
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [companiesLoaded, setCompaniesLoaded] = useState(false);
+
+  const [resetCompanyId, setResetCompanyId] = useState("");
+  const [resetConfirmName, setResetConfirmName] = useState("");
+  const [resetting, setResetting] = useState(false);
+
+  const selectedResetCompany = companies.find((c) => c.id === resetCompanyId);
+  const resetNameMatch = selectedResetCompany && resetConfirmName === selectedResetCompany.name;
+
+  const handleResetCompanyData = async () => {
+    if (!resetCompanyId || !resetNameMatch || !selectedResetCompany) return;
+    setResetting(true);
+
+    const steps: { label: string; fn: () => Promise<{ error: any }> }[] = [
+      {
+        label: "notifications",
+        fn: async () => {
+          const { data: profileIds } = await supabase
+            .from("profiles")
+            .select("user_id")
+            .eq("company_id", resetCompanyId);
+          if (!profileIds || profileIds.length === 0) return { error: null };
+          const userIds = profileIds.map((p) => p.user_id);
+          return supabase.from("notifications").delete().in("user_id", userIds);
+        },
+      },
+      { label: "alerts", fn: async () => supabase.from("alerts").delete().eq("company_id", resetCompanyId) },
+      { label: "hold_timers", fn: async () => supabase.from("hold_timers").delete().eq("company_id", resetCompanyId) },
+      { label: "qa_reviews", fn: async () => supabase.from("qa_reviews").delete().eq("company_id", resetCompanyId) },
+      {
+        label: "billing_overrides",
+        fn: async () => {
+          const { data: tripIds } = await supabase
+            .from("trip_records")
+            .select("id")
+            .eq("company_id", resetCompanyId);
+          if (!tripIds || tripIds.length === 0) return { error: null };
+          return supabase.from("billing_overrides").delete().in("trip_id", tripIds.map((t) => t.id));
+        },
+      },
+      { label: "claim_records", fn: async () => supabase.from("claim_records").delete().eq("company_id", resetCompanyId) },
+      { label: "trip_records", fn: async () => supabase.from("trip_records").delete().eq("company_id", resetCompanyId) },
+      { label: "truck_run_slots", fn: async () => supabase.from("truck_run_slots").delete().eq("company_id", resetCompanyId) },
+      { label: "schedule_change_log", fn: async () => supabase.from("schedule_change_log").delete().eq("company_id", resetCompanyId) },
+      { label: "scheduling_legs", fn: async () => supabase.from("scheduling_legs").delete().eq("company_id", resetCompanyId) },
+      { label: "crews", fn: async () => supabase.from("crews").delete().eq("company_id", resetCompanyId) },
+    ];
+
+    for (const step of steps) {
+      const { error } = await step.fn();
+      if (error) {
+        toast.error(`Reset failed at "${step.label}": ${error.message}`);
+        setResetting(false);
+        return;
+      }
+    }
+
+    // Audit log
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      await supabase.from("audit_logs").insert({
+        action: "creator_data_reset",
+        actor_user_id: user.id,
+        actor_email: user.email ?? null,
+        table_name: "companies",
+        record_id: resetCompanyId,
+        notes: `Operational data reset for "${selectedResetCompany.name}" at ${new Date().toISOString()}`,
+        company_id: resetCompanyId,
+      });
+    }
+
+    toast.success(`Company data reset complete — ${selectedResetCompany.name} is ready for fresh data.`);
+    setResetCompanyId("");
+    setResetConfirmName("");
+    setResetting(false);
+  };
 
   const loadCompanies = async () => {
     if (companiesLoaded) return;
@@ -171,6 +252,55 @@ export default function CreatorSettings() {
               >
                 <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                 {clearing ? "Clearing…" : "Clear Test Employees"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-destructive/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <RotateCcw className="h-4 w-4 text-destructive" />
+              Reset Company Data
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Wipe all operational data for a company — trips, scheduling, billing, crews, alerts, and notifications.
+              Preserves the company record, users, trucks, facilities, patients, and settings.
+            </p>
+            <div className="space-y-3">
+              <Select value={resetCompanyId} onValueChange={(v) => { setResetCompanyId(v); setResetConfirmName(""); }} onOpenChange={(open) => open && loadCompanies()}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select company…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedResetCompany && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">
+                    Type <span className="font-mono font-bold text-foreground">{selectedResetCompany.name}</span> to confirm
+                  </Label>
+                  <Input
+                    value={resetConfirmName}
+                    onChange={(e) => setResetConfirmName(e.target.value)}
+                    placeholder={selectedResetCompany.name}
+                    className="w-64 font-mono"
+                    autoComplete="off"
+                  />
+                </div>
+              )}
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleResetCompanyData}
+                disabled={resetting || !resetNameMatch}
+              >
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                {resetting ? "Resetting…" : "Reset Operational Data"}
               </Button>
             </div>
           </CardContent>
