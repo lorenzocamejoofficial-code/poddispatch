@@ -604,7 +604,7 @@ export default function Patients() {
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Insurance &amp; Transport</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label>Primary Payer</Label>
+                        <Label>Primary Payer<PCRTooltip text={ADMIN_TOOLTIPS.primary_payer} /></Label>
                         <Select value={form.primary_payer || "none"} onValueChange={v => setForm({ ...form, primary_payer: v === "none" ? "" : v })}>
                           <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
                           <SelectContent>
