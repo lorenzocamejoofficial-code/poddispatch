@@ -192,6 +192,9 @@ export default function FacilitiesPage() {
                   <SelectItem value="dialysis">Dialysis</SelectItem>
                   <SelectItem value="hospital">Hospital</SelectItem>
                   <SelectItem value="snf">SNF / Nursing</SelectItem>
+                  <SelectItem value="outpatient_specialty">Outpatient Specialty</SelectItem>
+                  <SelectItem value="assisted_living">Assisted Living</SelectItem>
+                  <SelectItem value="private_residence">Private Residence</SelectItem>
                 </SelectContent>
               </Select>
             </div>

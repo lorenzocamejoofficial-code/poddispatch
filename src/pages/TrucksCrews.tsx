@@ -232,6 +232,7 @@ export default function TrucksCrews() {
   // Dialogs
   const [truckDialog, setTruckDialog] = useState(false);
   const [truckName, setTruckName] = useState("");
+  const [truckVehicleId, setTruckVehicleId] = useState("");
   const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
   const [editingTruckName, setEditingTruckName] = useState("");
 
@@ -299,9 +300,9 @@ export default function TrucksCrews() {
   const addTruck = async () => {
     if (!truckName.trim()) return;
     const { data: companyData } = await supabase.rpc("get_my_company_id");
-    const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData });
+    const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData, vehicle_id: truckVehicleId.trim() || null } as any);
     if (error) { toast.error("Failed to add truck"); return; }
-    setTruckName(""); setTruckDialog(false);
+    setTruckName(""); setTruckVehicleId(""); setTruckDialog(false);
     toast.success("Truck added"); fetchAll(); refreshTrucks();
   };
 
@@ -510,6 +511,9 @@ export default function TrucksCrews() {
                 <div className="space-y-3 py-2">
                   <div><Label>Truck Name/Number</Label>
                     <Input value={truckName} onChange={(e) => setTruckName(e.target.value)} placeholder="e.g. Truck 1" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
+                  </div>
+                  <div><Label>Vehicle ID / Unit #</Label>
+                    <Input value={truckVehicleId} onChange={(e) => setTruckVehicleId(e.target.value)} placeholder="e.g. G7T-101" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
                   </div>
                   <Button onClick={addTruck} className="w-full">Add Truck</Button>
                 </div>
