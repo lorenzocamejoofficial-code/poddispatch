@@ -642,7 +642,7 @@ export default function Patients() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label>Mobility</Label>
+                        <Label>Mobility<PCRTooltip text={ADMIN_TOOLTIPS.mobility} /></Label>
                         <Select value={form.mobility} onValueChange={v => setForm({ ...form, mobility: v })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
