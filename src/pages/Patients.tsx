@@ -733,14 +733,14 @@ export default function Patients() {
                     </div>
                     <div className="flex flex-wrap gap-4">
                       {[
-                        { key: "oxygen_required" as const, label: "Oxygen Required" },
-                        { key: "bariatric" as const, label: "Bariatric" },
-                        { key: "standing_order" as const, label: "Standing Order" },
-                        { key: "auth_required" as const, label: "Auth Required" },
+                        { key: "oxygen_required" as const, label: "Oxygen Required", tooltip: ADMIN_TOOLTIPS.oxygen_required },
+                        { key: "bariatric" as const, label: "Bariatric", tooltip: ADMIN_TOOLTIPS.bariatric },
+                        { key: "standing_order" as const, label: "Standing Order", tooltip: ADMIN_TOOLTIPS.standing_order },
+                        { key: "auth_required" as const, label: "Auth Required", tooltip: ADMIN_TOOLTIPS.auth_required },
                       ].map(f => (
                         <label key={f.key} className="flex items-center gap-2 text-sm cursor-pointer">
                           <input type="checkbox" checked={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.checked })} className="accent-primary" />
-                          {f.label}
+                          {f.label}<PCRTooltip text={f.tooltip} />
                         </label>
                       ))}
                     </div>
