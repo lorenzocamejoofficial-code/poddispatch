@@ -715,7 +715,7 @@ export default function BillingAndClaims() {
             </div>
             {(editForm.status === "paid") && (
               <div>
-                <Label>Amount Paid</Label>
+                <Label>Amount Paid<PCRTooltip text={ADMIN_TOOLTIPS.amount_paid} /></Label>
                 <Input type="number" step="0.01" value={editForm.amount_paid}
                   onChange={e => setEditForm({ ...editForm, amount_paid: e.target.value })} />
               </div>
