@@ -1145,7 +1145,7 @@ export default function Scheduling() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Est. Duration (min)</Label><Input type="number" value={legForm.estimated_duration_minutes} onChange={(e) => setLegForm(f => ({ ...f, estimated_duration_minutes: e.target.value }))} /></div>
+                <div><Label>Est. Duration (min)<PCRTooltip text={ADMIN_TOOLTIPS.est_duration} /></Label><Input type="number" value={legForm.estimated_duration_minutes} onChange={(e) => setLegForm(f => ({ ...f, estimated_duration_minutes: e.target.value }))} /></div>
               </div>
               <div><Label>Notes</Label><Textarea value={legForm.notes} onChange={(e) => setLegForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
               <Button onClick={handleCreate}>Create {pendingLegType}-Leg</Button>
