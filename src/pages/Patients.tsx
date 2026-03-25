@@ -691,7 +691,7 @@ export default function Patients() {
                       </div>
                       <div className="grid grid-cols-3 gap-3">
                         <div>
-                          <Label>O₂ LPM</Label>
+                          <Label>O₂ LPM<PCRTooltip text={ADMIN_TOOLTIPS.oxygen_lpm} /></Label>
                           <Input type="number" step="0.5" value={form.oxygen_lpm} onChange={e => setForm({ ...form, oxygen_lpm: e.target.value })} placeholder="—" />
                         </div>
                         {form.transport_type === "dialysis" ? (
