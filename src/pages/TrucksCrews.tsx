@@ -227,7 +227,7 @@ export default function TrucksCrews() {
 
   // Week navigation
   const [currentWeekRef, setCurrentWeekRef] = useState(today);
-  const weekDates = getWeekDates(currentWeekRef);
+  const weekDates = useMemo(() => getWeekDates(currentWeekRef), [currentWeekRef]);
 
   // Dialogs
   const [truckDialog, setTruckDialog] = useState(false);
