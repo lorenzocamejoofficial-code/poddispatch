@@ -416,7 +416,7 @@ export default function Employees() {
               <DialogTrigger asChild>
                 <Button><Plus className="mr-1.5 h-4 w-4" /> Add Employee</Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
                 <DialogHeader><DialogTitle>Create Employee Account</DialogTitle><DialogDescription>Add a new employee with credentials and role.</DialogDescription></DialogHeader>
                 <div className="grid gap-3 py-2">
                   <div><Label>Full Name *</Label><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></div>
@@ -604,7 +604,7 @@ export default function Employees() {
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm"><Mail className="mr-1.5 h-3.5 w-3.5" /> Invite User</Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-sm">
+                <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
                   <DialogHeader>
                     <DialogTitle>Invite Team Member</DialogTitle>
                     <DialogDescription>Send an invite link. They'll create their own account.</DialogDescription>
@@ -689,7 +689,7 @@ export default function Employees() {
         )}
 
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
             <DialogHeader><DialogTitle>Edit Employee</DialogTitle><DialogDescription>Update employee information. Deactivate instead of deleting.</DialogDescription></DialogHeader>
             <div className="grid gap-3 py-2">
               <div><Label>Full Name *</Label><Input value={editForm.full_name} onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} /></div>

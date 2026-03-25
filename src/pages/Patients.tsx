@@ -421,7 +421,7 @@ export default function Patients() {
               <DialogTrigger asChild>
                 <Button><Plus className="mr-1.5 h-4 w-4" /> Add Patient</Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
                 <DialogHeader>
                   <DialogTitle>{editing ? "Edit Patient" : "Add Patient"}</DialogTitle>
                   <DialogDescription>Enter patient details including contact info, addresses, and recurring transport schedule.</DialogDescription>
