@@ -765,8 +765,8 @@ export default function BillingAndClaims() {
               <div><Label>$/Mile<PCRTooltip text={ADMIN_TOOLTIPS.mileage_rate} /></Label><Input type="number" step="0.0001" value={rateForm.mileage_rate} onChange={e => setRateForm({ ...rateForm, mileage_rate: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Wait $/Min</Label><Input type="number" step="0.0001" value={rateForm.wait_rate_per_min} onChange={e => setRateForm({ ...rateForm, wait_rate_per_min: e.target.value })} /></div>
-              <div><Label>O₂ Fee ($)</Label><Input type="number" step="0.01" value={rateForm.oxygen_fee} onChange={e => setRateForm({ ...rateForm, oxygen_fee: e.target.value })} /></div>
+              <div><Label>Wait $/Min<PCRTooltip text={ADMIN_TOOLTIPS.wait_rate} /></Label><Input type="number" step="0.0001" value={rateForm.wait_rate_per_min} onChange={e => setRateForm({ ...rateForm, wait_rate_per_min: e.target.value })} /></div>
+              <div><Label>O₂ Fee ($)<PCRTooltip text={ADMIN_TOOLTIPS.oxygen_fee} /></Label><Input type="number" step="0.01" value={rateForm.oxygen_fee} onChange={e => setRateForm({ ...rateForm, oxygen_fee: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Extra Attendant ($)</Label><Input type="number" step="0.01" value={rateForm.extra_attendant_fee} onChange={e => setRateForm({ ...rateForm, extra_attendant_fee: e.target.value })} /></div>
