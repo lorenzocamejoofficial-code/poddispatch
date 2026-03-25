@@ -174,7 +174,7 @@ export default function FacilitiesPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={o => { setDialogOpen(o); if (!o) resetForm(); }}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Facility" : "Add Facility"}</DialogTitle>
             <DialogDescription>Dialysis centers, hospitals, SNFs, and other destinations.</DialogDescription>

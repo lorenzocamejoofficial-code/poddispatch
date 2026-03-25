@@ -506,7 +506,7 @@ export default function TrucksCrews() {
               <DialogTrigger asChild>
                 <Button size="sm"><Plus className="mr-1.5 h-3.5 w-3.5" /> Add Truck</Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-sm">
+              <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
                 <DialogHeader><DialogTitle>Add Truck</DialogTitle><DialogDescription>Add a new truck to your fleet.</DialogDescription></DialogHeader>
                 <div className="space-y-3 py-2">
                   <div><Label>Truck Name/Number</Label>
