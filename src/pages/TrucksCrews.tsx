@@ -581,7 +581,7 @@ export default function TrucksCrews() {
                           refreshTrucks();
                         }}
                       />
-                      {label}
+                      {label}<PCRTooltip text={tooltip} />
                     </label>
                   ))}
                 </div>

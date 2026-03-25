@@ -769,8 +769,8 @@ export default function BillingAndClaims() {
               <div><Label>O₂ Fee ($)<PCRTooltip text={ADMIN_TOOLTIPS.oxygen_fee} /></Label><Input type="number" step="0.01" value={rateForm.oxygen_fee} onChange={e => setRateForm({ ...rateForm, oxygen_fee: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Extra Attendant ($)</Label><Input type="number" step="0.01" value={rateForm.extra_attendant_fee} onChange={e => setRateForm({ ...rateForm, extra_attendant_fee: e.target.value })} /></div>
-              <div><Label>Bariatric Fee ($)</Label><Input type="number" step="0.01" value={rateForm.bariatric_fee} onChange={e => setRateForm({ ...rateForm, bariatric_fee: e.target.value })} /></div>
+              <div><Label>Extra Attendant ($)<PCRTooltip text={ADMIN_TOOLTIPS.extra_attendant} /></Label><Input type="number" step="0.01" value={rateForm.extra_attendant_fee} onChange={e => setRateForm({ ...rateForm, extra_attendant_fee: e.target.value })} /></div>
+              <div><Label>Bariatric Fee ($)<PCRTooltip text={ADMIN_TOOLTIPS.bariatric_fee} /></Label><Input type="number" step="0.01" value={rateForm.bariatric_fee} onChange={e => setRateForm({ ...rateForm, bariatric_fee: e.target.value })} /></div>
             </div>
             <Button className="w-full" onClick={saveRate} disabled={savingRate}>
               {savingRate ? "Saving…" : "Save Rate"}
