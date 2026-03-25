@@ -614,9 +614,28 @@ export default function Patients() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div>
+                       <div>
                         <Label>Member ID</Label>
                         <Input value={form.member_id} onChange={e => setForm({ ...form, member_id: e.target.value })} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Secondary Payer</Label>
+                        <Select value={form.secondary_payer || "none"} onValueChange={v => setForm({ ...form, secondary_payer: v === "none" ? "" : v })}>
+                          <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">— None —</SelectItem>
+                            <SelectItem value="medicare">Medicare</SelectItem>
+                            <SelectItem value="medicaid">Medicaid</SelectItem>
+                            <SelectItem value="facility">Facility</SelectItem>
+                            <SelectItem value="cash">Cash / Private</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Secondary Member ID</Label>
+                        <Input value={form.secondary_member_id} onChange={e => setForm({ ...form, secondary_member_id: e.target.value })} />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
