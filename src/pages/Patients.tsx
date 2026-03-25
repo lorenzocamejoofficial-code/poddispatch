@@ -617,7 +617,7 @@ export default function Patients() {
                         </Select>
                       </div>
                        <div>
-                        <Label>Member ID</Label>
+                        <Label>Member ID<PCRTooltip text={ADMIN_TOOLTIPS.member_id} /></Label>
                         <Input value={form.member_id} onChange={e => setForm({ ...form, member_id: e.target.value })} />
                       </div>
                     </div>
