@@ -556,7 +556,7 @@ export default function Patients() {
                             )}
                           </div>
                           <div>
-                            <Label>Appointment Time</Label>
+                            <Label>Chair Time</Label>
                             <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
                           </div>
                         </div>
