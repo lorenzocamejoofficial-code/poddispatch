@@ -761,8 +761,8 @@ export default function BillingAndClaims() {
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Base Rate ($)</Label><Input type="number" step="0.01" value={rateForm.base_rate} onChange={e => setRateForm({ ...rateForm, base_rate: e.target.value })} /></div>
-              <div><Label>$/Mile</Label><Input type="number" step="0.0001" value={rateForm.mileage_rate} onChange={e => setRateForm({ ...rateForm, mileage_rate: e.target.value })} /></div>
+              <div><Label>Base Rate ($)<PCRTooltip text={ADMIN_TOOLTIPS.base_rate} /></Label><Input type="number" step="0.01" value={rateForm.base_rate} onChange={e => setRateForm({ ...rateForm, base_rate: e.target.value })} /></div>
+              <div><Label>$/Mile<PCRTooltip text={ADMIN_TOOLTIPS.mileage_rate} /></Label><Input type="number" step="0.0001" value={rateForm.mileage_rate} onChange={e => setRateForm({ ...rateForm, mileage_rate: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Wait $/Min</Label><Input type="number" step="0.0001" value={rateForm.wait_rate_per_min} onChange={e => setRateForm({ ...rateForm, wait_rate_per_min: e.target.value })} /></div>
