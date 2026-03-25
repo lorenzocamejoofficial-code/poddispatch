@@ -521,7 +521,9 @@ export default function TrucksCrews() {
                   <div><Label>Vehicle ID / Unit #</Label>
                     <Input value={truckVehicleId} onChange={(e) => setTruckVehicleId(e.target.value)} placeholder="e.g. G7T-101" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
                   </div>
-                  <Button onClick={addTruck} className="w-full">Add Truck</Button>
+                  <Button onClick={addTruck} className="w-full" disabled={savingTruck}>
+                    {savingTruck ? "Adding..." : "Add Truck"}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
