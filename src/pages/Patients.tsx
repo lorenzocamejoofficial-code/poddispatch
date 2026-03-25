@@ -106,7 +106,7 @@ export default function Patients() {
     setPatients(data ?? []);
   };
 
-  useEffect(() => { fetchPatients(); }, []);
+  useEffect(() => { fetchPatients(); }, [activeCompanyId]);
 
   const resetForm = () => {
     setForm({

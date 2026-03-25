@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { getLocalToday } from "@/lib/local-date";
 import { supabase } from "@/integrations/supabase/client";
@@ -227,12 +227,13 @@ export default function TrucksCrews() {
 
   // Week navigation
   const [currentWeekRef, setCurrentWeekRef] = useState(today);
-  const weekDates = getWeekDates(currentWeekRef);
+  const weekDates = useMemo(() => getWeekDates(currentWeekRef), [currentWeekRef]);
 
   // Dialogs
   const [truckDialog, setTruckDialog] = useState(false);
   const [truckName, setTruckName] = useState("");
   const [truckVehicleId, setTruckVehicleId] = useState("");
+  const [savingTruck, setSavingTruck] = useState(false);
   const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
   const [editingTruckName, setEditingTruckName] = useState("");
 
@@ -298,12 +299,17 @@ export default function TrucksCrews() {
 
   // Truck CRUD
   const addTruck = async () => {
-    if (!truckName.trim()) return;
-    const { data: companyData } = await supabase.rpc("get_my_company_id");
-    const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData, vehicle_id: truckVehicleId.trim() || null } as any);
-    if (error) { toast.error("Failed to add truck"); return; }
-    setTruckName(""); setTruckVehicleId(""); setTruckDialog(false);
-    toast.success("Truck added"); fetchAll(); refreshTrucks();
+    if (!truckName.trim() || savingTruck) return;
+    setSavingTruck(true);
+    try {
+      const { data: companyData } = await supabase.rpc("get_my_company_id");
+      const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData, vehicle_id: truckVehicleId.trim() || null } as any);
+      if (error) { toast.error("Failed to add truck"); return; }
+      setTruckName(""); setTruckVehicleId(""); setTruckDialog(false);
+      toast.success("Truck added"); fetchAll(); refreshTrucks();
+    } finally {
+      setSavingTruck(false);
+    }
   };
 
   const saveTruckName = async (id: string) => {
@@ -515,7 +521,9 @@ export default function TrucksCrews() {
                   <div><Label>Vehicle ID / Unit #</Label>
                     <Input value={truckVehicleId} onChange={(e) => setTruckVehicleId(e.target.value)} placeholder="e.g. G7T-101" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
                   </div>
-                  <Button onClick={addTruck} className="w-full">Add Truck</Button>
+                  <Button onClick={addTruck} className="w-full" disabled={savingTruck}>
+                    {savingTruck ? "Adding..." : "Add Truck"}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
