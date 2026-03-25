@@ -256,6 +256,55 @@ export default function CreatorSettings() {
             </div>
           </CardContent>
         </Card>
+        <Card className="border-destructive/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <RotateCcw className="h-4 w-4 text-destructive" />
+              Reset Company Data
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Wipe all operational data for a company — trips, scheduling, billing, crews, alerts, and notifications.
+              Preserves the company record, users, trucks, facilities, patients, and settings.
+            </p>
+            <div className="space-y-3">
+              <Select value={resetCompanyId} onValueChange={(v) => { setResetCompanyId(v); setResetConfirmName(""); }} onOpenChange={(open) => open && loadCompanies()}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select company…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedResetCompany && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">
+                    Type <span className="font-mono font-bold text-foreground">{selectedResetCompany.name}</span> to confirm
+                  </Label>
+                  <Input
+                    value={resetConfirmName}
+                    onChange={(e) => setResetConfirmName(e.target.value)}
+                    placeholder={selectedResetCompany.name}
+                    className="w-64 font-mono"
+                    autoComplete="off"
+                  />
+                </div>
+              )}
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleResetCompanyData}
+                disabled={resetting || !resetNameMatch}
+              >
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                {resetting ? "Resetting…" : "Reset Operational Data"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </CreatorLayout>
   );
