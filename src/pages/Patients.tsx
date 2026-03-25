@@ -209,6 +209,7 @@ export default function Patients() {
       primary_payer: form.primary_payer || null,
       secondary_payer: form.secondary_payer || null,
       member_id: form.member_id || null,
+      secondary_member_id: form.secondary_member_id || null,
       auth_required: form.auth_required,
       auth_expiration: form.auth_expiration || null,
       trips_per_week_limit: form.trips_per_week_limit ? parseInt(form.trips_per_week_limit) : null,
