@@ -1,0 +1,1 @@
+ALTER TABLE public.patients ADD COLUMN secondary_member_id text DEFAULT NULL;

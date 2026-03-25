@@ -1295,6 +1295,7 @@ export type Database = {
           recurrence_start_date: string | null
           run_duration_minutes: number | null
           schedule_days: Database["public"]["Enums"]["schedule_days"] | null
+          secondary_member_id: string | null
           secondary_payer: string | null
           simulation_run_id: string | null
           special_equipment_required: string
@@ -1340,6 +1341,7 @@ export type Database = {
           recurrence_start_date?: string | null
           run_duration_minutes?: number | null
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
+          secondary_member_id?: string | null
           secondary_payer?: string | null
           simulation_run_id?: string | null
           special_equipment_required?: string
@@ -1385,6 +1387,7 @@ export type Database = {
           recurrence_start_date?: string | null
           run_duration_minutes?: number | null
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
+          secondary_member_id?: string | null
           secondary_payer?: string | null
           simulation_run_id?: string | null
           special_equipment_required?: string
