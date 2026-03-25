@@ -698,10 +698,6 @@ export default function Patients() {
                             <Input type="number" value={form.run_duration_minutes} onChange={e => setForm({ ...form, run_duration_minutes: e.target.value })} placeholder="e.g. 60" />
                           </div>
                         )}
-                        <div>
-                          <Label>Must Arrive By</Label>
-                          <Input type="time" value={form.must_arrive_by} onChange={e => setForm({ ...form, must_arrive_by: e.target.value })} />
-                        </div>
                       </div>
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input type="checkbox" checked={form.stair_chair_required} onChange={e => setForm({ ...form, stair_chair_required: e.target.checked })} className="accent-primary" />
