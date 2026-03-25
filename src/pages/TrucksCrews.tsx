@@ -517,7 +517,7 @@ export default function TrucksCrews() {
               <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
                 <DialogHeader><DialogTitle>Add Truck</DialogTitle><DialogDescription>Add a new truck to your fleet.</DialogDescription></DialogHeader>
                 <div className="space-y-3 py-2">
-                  <div><Label>Truck Name/Number</Label>
+                  <div><Label>Truck Name/Number<PCRTooltip text={ADMIN_TOOLTIPS.truck_name} /></Label>
                     <Input value={truckName} onChange={(e) => setTruckName(e.target.value)} placeholder="e.g. Truck 1" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
                   </div>
                   <div><Label>Vehicle ID / Unit #</Label>
