@@ -723,7 +723,7 @@ export default function BillingAndClaims() {
             {(editForm.status === "denied" || editForm.status === "needs_correction") && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Denial Code</Label>
+                  <Label>Denial Code<PCRTooltip text={ADMIN_TOOLTIPS.denial_code} /></Label>
                   <Input value={editForm.denial_code} onChange={e => setEditForm({ ...editForm, denial_code: e.target.value })} />
                 </div>
                 <div>
