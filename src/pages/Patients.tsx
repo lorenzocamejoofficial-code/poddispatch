@@ -43,12 +43,16 @@ const CUSTOM_DAY_OPTIONS = [
   { value: 6, label: "Sat" },
 ];
 
-type TransportType = "dialysis" | "outpatient" | "adhoc";
+type TransportType = "dialysis" | "ift" | "discharge" | "outpatient" | "outpatient_specialty" | "private_pay" | "adhoc";
 
-const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string; description: string }[] = [
-  { value: "dialysis", label: "Dialysis", description: "Highly repetitive — auto-generates from schedule" },
-  { value: "outpatient", label: "Outpatient / Wound Care", description: "Repetitive but less consistent" },
-  { value: "adhoc", label: "Other / Ad-hoc", description: "No recurrence — created manually each time" },
+const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string }[] = [
+  { value: "dialysis", label: "Dialysis" },
+  { value: "ift", label: "IFT (Interfacility Transfer)" },
+  { value: "discharge", label: "Discharge" },
+  { value: "outpatient", label: "Outpatient / Wound Care" },
+  { value: "outpatient_specialty", label: "Outpatient Specialty" },
+  { value: "private_pay", label: "Private Pay" },
+  { value: "adhoc", label: "Other / Ad-hoc" },
 ];
 
 export default function Patients() {
