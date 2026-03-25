@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
+import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
@@ -713,7 +715,7 @@ export default function BillingAndClaims() {
             </div>
             {(editForm.status === "paid") && (
               <div>
-                <Label>Amount Paid</Label>
+                <Label>Amount Paid<PCRTooltip text={ADMIN_TOOLTIPS.amount_paid} /></Label>
                 <Input type="number" step="0.01" value={editForm.amount_paid}
                   onChange={e => setEditForm({ ...editForm, amount_paid: e.target.value })} />
               </div>
@@ -721,11 +723,11 @@ export default function BillingAndClaims() {
             {(editForm.status === "denied" || editForm.status === "needs_correction") && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Denial Code</Label>
+                  <Label>Denial Code<PCRTooltip text={ADMIN_TOOLTIPS.denial_code} /></Label>
                   <Input value={editForm.denial_code} onChange={e => setEditForm({ ...editForm, denial_code: e.target.value })} />
                 </div>
                 <div>
-                  <Label>Denial Reason</Label>
+                  <Label>Denial Reason<PCRTooltip text={ADMIN_TOOLTIPS.denial_reason} /></Label>
                   <Input value={editForm.denial_reason} onChange={e => setEditForm({ ...editForm, denial_reason: e.target.value })} />
                 </div>
               </div>
@@ -759,16 +761,16 @@ export default function BillingAndClaims() {
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Base Rate ($)</Label><Input type="number" step="0.01" value={rateForm.base_rate} onChange={e => setRateForm({ ...rateForm, base_rate: e.target.value })} /></div>
-              <div><Label>$/Mile</Label><Input type="number" step="0.0001" value={rateForm.mileage_rate} onChange={e => setRateForm({ ...rateForm, mileage_rate: e.target.value })} /></div>
+              <div><Label>Base Rate ($)<PCRTooltip text={ADMIN_TOOLTIPS.base_rate} /></Label><Input type="number" step="0.01" value={rateForm.base_rate} onChange={e => setRateForm({ ...rateForm, base_rate: e.target.value })} /></div>
+              <div><Label>$/Mile<PCRTooltip text={ADMIN_TOOLTIPS.mileage_rate} /></Label><Input type="number" step="0.0001" value={rateForm.mileage_rate} onChange={e => setRateForm({ ...rateForm, mileage_rate: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Wait $/Min</Label><Input type="number" step="0.0001" value={rateForm.wait_rate_per_min} onChange={e => setRateForm({ ...rateForm, wait_rate_per_min: e.target.value })} /></div>
-              <div><Label>O₂ Fee ($)</Label><Input type="number" step="0.01" value={rateForm.oxygen_fee} onChange={e => setRateForm({ ...rateForm, oxygen_fee: e.target.value })} /></div>
+              <div><Label>Wait $/Min<PCRTooltip text={ADMIN_TOOLTIPS.wait_rate} /></Label><Input type="number" step="0.0001" value={rateForm.wait_rate_per_min} onChange={e => setRateForm({ ...rateForm, wait_rate_per_min: e.target.value })} /></div>
+              <div><Label>O₂ Fee ($)<PCRTooltip text={ADMIN_TOOLTIPS.oxygen_fee} /></Label><Input type="number" step="0.01" value={rateForm.oxygen_fee} onChange={e => setRateForm({ ...rateForm, oxygen_fee: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Extra Attendant ($)</Label><Input type="number" step="0.01" value={rateForm.extra_attendant_fee} onChange={e => setRateForm({ ...rateForm, extra_attendant_fee: e.target.value })} /></div>
-              <div><Label>Bariatric Fee ($)</Label><Input type="number" step="0.01" value={rateForm.bariatric_fee} onChange={e => setRateForm({ ...rateForm, bariatric_fee: e.target.value })} /></div>
+              <div><Label>Extra Attendant ($)<PCRTooltip text={ADMIN_TOOLTIPS.extra_attendant} /></Label><Input type="number" step="0.01" value={rateForm.extra_attendant_fee} onChange={e => setRateForm({ ...rateForm, extra_attendant_fee: e.target.value })} /></div>
+              <div><Label>Bariatric Fee ($)<PCRTooltip text={ADMIN_TOOLTIPS.bariatric_fee} /></Label><Input type="number" step="0.01" value={rateForm.bariatric_fee} onChange={e => setRateForm({ ...rateForm, bariatric_fee: e.target.value })} /></div>
             </div>
             <Button className="w-full" onClick={saveRate} disabled={savingRate}>
               {savingRate ? "Saving…" : "Save Rate"}

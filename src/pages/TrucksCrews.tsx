@@ -15,6 +15,8 @@ import {
   WrenchIcon, AlertOctagon, Users,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -515,10 +517,10 @@ export default function TrucksCrews() {
               <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
                 <DialogHeader><DialogTitle>Add Truck</DialogTitle><DialogDescription>Add a new truck to your fleet.</DialogDescription></DialogHeader>
                 <div className="space-y-3 py-2">
-                  <div><Label>Truck Name/Number</Label>
+                  <div><Label>Truck Name/Number<PCRTooltip text={ADMIN_TOOLTIPS.truck_name} /></Label>
                     <Input value={truckName} onChange={(e) => setTruckName(e.target.value)} placeholder="e.g. Truck 1" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
                   </div>
-                  <div><Label>Vehicle ID / Unit #</Label>
+                  <div><Label>Vehicle ID / Unit #<PCRTooltip text={ADMIN_TOOLTIPS.vehicle_id} /></Label>
                     <Input value={truckVehicleId} onChange={(e) => setTruckVehicleId(e.target.value)} placeholder="e.g. G7T-101" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
                   </div>
                   <Button onClick={addTruck} className="w-full" disabled={savingTruck}>
@@ -557,10 +559,10 @@ export default function TrucksCrews() {
                 {/* Equipment flags */}
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-muted-foreground pl-6">
                   {[
-                    { key: "has_power_stretcher", label: "Power Stretcher / Bariatric" },
-                    { key: "has_stair_chair", label: "Stair Chair" },
-                    { key: "has_oxygen_mount", label: "Oxygen Mount" },
-                  ].map(({ key, label }) => (
+                    { key: "has_power_stretcher", label: "Power Stretcher / Bariatric", tooltip: ADMIN_TOOLTIPS.power_stretcher },
+                    { key: "has_stair_chair", label: "Stair Chair", tooltip: ADMIN_TOOLTIPS.stair_chair_equip },
+                    { key: "has_oxygen_mount", label: "Oxygen Mount", tooltip: ADMIN_TOOLTIPS.oxygen_mount },
+                  ].map(({ key, label, tooltip }) => (
                     <label key={key} className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors">
                       <input
                         type="checkbox"
@@ -579,7 +581,7 @@ export default function TrucksCrews() {
                           refreshTrucks();
                         }}
                       />
-                      {label}
+                      {label}<PCRTooltip text={tooltip} />
                     </label>
                   ))}
                 </div>

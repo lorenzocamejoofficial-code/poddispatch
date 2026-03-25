@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
+import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { useAuth } from "@/hooks/useAuth";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
 import { RunPool } from "@/components/scheduling/RunPool";
@@ -1024,12 +1026,12 @@ export default function Scheduling() {
                 <div className="rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] px-3 py-2 text-xs text-[hsl(var(--status-yellow))]">
                   This run will NOT create a permanent patient record. It's for same-day dispatch only.
                 </div>
-                <div><Label>Patient Name *</Label><Input value={oneoffForm.name} onChange={(e) => setOneoffForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. John Smith" /></div>
-                <div><Label>Pickup Address *</Label><Input value={oneoffForm.pickup_location} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="123 Main St, Atlanta GA" /></div>
-                <div><Label>Drop-off Address *</Label><Input value={oneoffForm.destination_location} onChange={(e) => setOneoffForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /></div>
+                <div><Label>Patient Name *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_name} /></Label><Input value={oneoffForm.name} onChange={(e) => setOneoffForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. John Smith" /></div>
+                <div><Label>Pickup Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_pickup} /></Label><Input value={oneoffForm.pickup_location} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="123 Main St, Atlanta GA" /></div>
+                <div><Label>Drop-off Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_dropoff} /></Label><Input value={oneoffForm.destination_location} onChange={(e) => setOneoffForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label>Transport Type</Label>
+                    <Label>Transport Type<PCRTooltip text={ADMIN_TOOLTIPS.trip_type} /></Label>
                     <Select value={oneoffForm.trip_type} onValueChange={(v) => setOneoffForm(f => ({ ...f, trip_type: v }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -1040,9 +1042,9 @@ export default function Scheduling() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div><Label>Pickup Time</Label><Input type="time" value={oneoffForm.pickup_time} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
+                  <div><Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label><Input type="time" value={oneoffForm.pickup_time} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
                 </div>
-                <div><Label>Est. Duration (min)</Label><Input type="number" value={oneoffForm.estimated_duration_minutes} onChange={(e) => setOneoffForm(f => ({ ...f, estimated_duration_minutes: e.target.value }))} /></div>
+                <div><Label>Est. Duration (min)<PCRTooltip text={ADMIN_TOOLTIPS.est_duration} /></Label><Input type="number" value={oneoffForm.estimated_duration_minutes} onChange={(e) => setOneoffForm(f => ({ ...f, estimated_duration_minutes: e.target.value }))} /></div>
 
                 {/* Safety notes */}
                 <div className="border-t pt-3">
@@ -1105,7 +1107,7 @@ export default function Scheduling() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Pickup Time</Label>
+                  <Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label>
                   <Input type="time" value={legForm.pickup_time} onChange={async (e) => {
                     const time = e.target.value;
                     setLegForm(f => ({ ...f, pickup_time: time }));
@@ -1125,13 +1127,13 @@ export default function Scheduling() {
                     </p>
                   )}
                 </div>
-                <div><Label>Chair Time</Label><Input type="time" value={legForm.chair_time} onChange={(e) => setLegForm(f => ({ ...f, chair_time: e.target.value }))} /></div>
+                <div><Label>Chair Time<PCRTooltip text={ADMIN_TOOLTIPS.chair_time} /></Label><Input type="time" value={legForm.chair_time} onChange={(e) => setLegForm(f => ({ ...f, chair_time: e.target.value }))} /></div>
               </div>
               <div><Label>Pickup Location *</Label><Input value={legForm.pickup_location} onChange={(e) => setLegForm(f => ({ ...f, pickup_location: e.target.value }))} /></div>
               <div><Label>Destination *</Label><Input value={legForm.destination_location} onChange={(e) => setLegForm(f => ({ ...f, destination_location: e.target.value }))} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Trip Type</Label>
+                  <Label>Trip Type<PCRTooltip text={ADMIN_TOOLTIPS.trip_type} /></Label>
                   <Select value={legForm.trip_type} onValueChange={(v) => setLegForm(f => ({ ...f, trip_type: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -1143,7 +1145,7 @@ export default function Scheduling() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Est. Duration (min)</Label><Input type="number" value={legForm.estimated_duration_minutes} onChange={(e) => setLegForm(f => ({ ...f, estimated_duration_minutes: e.target.value }))} /></div>
+                <div><Label>Est. Duration (min)<PCRTooltip text={ADMIN_TOOLTIPS.est_duration} /></Label><Input type="number" value={legForm.estimated_duration_minutes} onChange={(e) => setLegForm(f => ({ ...f, estimated_duration_minutes: e.target.value }))} /></div>
               </div>
               <div><Label>Notes</Label><Textarea value={legForm.notes} onChange={(e) => setLegForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
               <Button onClick={handleCreate}>Create {pendingLegType}-Leg</Button>
@@ -1167,7 +1169,7 @@ export default function Scheduling() {
             </DialogHeader>
             <div className="grid gap-3 py-2">
               <div>
-                <Label>Pickup Time</Label>
+                <Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label>
                 <Input type="time" value={exceptionForm.pickup_time} onChange={(e) => handleExceptionPickupTimeChange(e.target.value)} />
                 {editingExceptionLeg?.leg_type === "b_leg" && bLegEarliest && (
                   <p className="text-[11px] text-muted-foreground mt-1">Earliest valid pickup: {bLegEarliest}</p>

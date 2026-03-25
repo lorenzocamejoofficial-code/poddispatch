@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Search, Pencil, Trash2, Zap } from "lucide-react";
+import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { toast } from "sonner";
 import type { Tables, Database } from "@/integrations/supabase/types";
 import { PatientStatusBadge } from "@/components/patients/PatientStatusBadge";
@@ -430,19 +432,19 @@ export default function Patients() {
 
                   {/* Basic Info */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>First Name *</Label><Input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
-                    <div><Label>Last Name *</Label><Input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></div>
+                    <div><Label>First Name *<PCRTooltip text={ADMIN_TOOLTIPS.first_name} /></Label><Input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
+                    <div><Label>Last Name *<PCRTooltip text={ADMIN_TOOLTIPS.last_name} /></Label><Input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>DOB</Label><Input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></div>
-                    <div><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+                    <div><Label>DOB<PCRTooltip text={ADMIN_TOOLTIPS.dob} /></Label><Input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></div>
+                    <div><Label>Phone<PCRTooltip text={ADMIN_TOOLTIPS.phone} /></Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
                   </div>
-                  <div><Label>Pickup Address</Label><Input value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} /></div>
+                  <div><Label>Pickup Address<PCRTooltip text={ADMIN_TOOLTIPS.pickup_address} /></Label><Input value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} /></div>
 
                   {/* Home Location Type */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>Home Location Type</Label>
+                      <Label>Home Location Type<PCRTooltip text={ADMIN_TOOLTIPS.location_type} /></Label>
                       <Select value={form.location_type || "none"} onValueChange={v => setForm({ ...form, location_type: v === "none" ? "" : v, facility_id: v === "Residence" ? "" : form.facility_id })}>
                         <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
                         <SelectContent>
@@ -464,14 +466,14 @@ export default function Patients() {
                   </div>
 
                   <div>
-                    <Label>Dropoff Facility</Label>
+                    <Label>Dropoff Facility<PCRTooltip text={ADMIN_TOOLTIPS.dropoff_facility} /></Label>
                     <FacilityDropdown
                       value={form.dropoff_facility}
                       onChange={(v) => setForm({ ...form, dropoff_facility: v })}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Weight (lbs)</Label><Input type="number" value={form.weight_lbs} onChange={(e) => {
+                    <div><Label>Weight (lbs)<PCRTooltip text={ADMIN_TOOLTIPS.weight_lbs} /></Label><Input type="number" value={form.weight_lbs} onChange={(e) => {
                       const w = e.target.value;
                       const wNum = w ? parseInt(w) : 0;
                       setForm({ ...form, weight_lbs: w, bariatric: wNum >= 300 ? true : form.bariatric });
@@ -498,7 +500,7 @@ export default function Patients() {
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Transport &amp; Recurrence Profile</p>
 
                     <div className="mb-3">
-                      <Label className="mb-1.5 block">Transport Type</Label>
+                      <Label className="mb-1.5 block">Transport Type<PCRTooltip text={ADMIN_TOOLTIPS.transport_type} /></Label>
                       <div className="space-y-2">
                         {TRANSPORT_TYPE_OPTIONS.map((opt) => (
                           <label key={opt.value} className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${form.transport_type === opt.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}>
@@ -529,7 +531,7 @@ export default function Patients() {
                           <div>
                             {form.transport_type === "dialysis" ? (
                               <>
-                                <Label>Schedule Days</Label>
+                                <Label>Schedule Days<PCRTooltip text={ADMIN_TOOLTIPS.schedule_days} /></Label>
                                 <Select value={form.schedule_days} onValueChange={(v) => setForm({ ...form, schedule_days: v })}>
                                   <SelectTrigger><SelectValue placeholder="Select days" /></SelectTrigger>
                                   <SelectContent>
@@ -541,7 +543,7 @@ export default function Patients() {
                               </>
                             ) : (
                               <>
-                                <Label>Schedule Days</Label>
+                                <Label>Schedule Days<PCRTooltip text={ADMIN_TOOLTIPS.schedule_days} /></Label>
                                 <div className="flex flex-wrap gap-2 mt-1.5">
                                   {CUSTOM_DAY_OPTIONS.map((d) => (
                                     <label key={d.value} className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs cursor-pointer transition-colors ${form.recurrence_days.includes(d.value) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:border-primary/40"}`}>
@@ -565,7 +567,7 @@ export default function Patients() {
                           </div>
                           {form.transport_type !== "adhoc" && (
                             <div>
-                              <Label>{form.transport_type === "dialysis" ? "Chair Time" : "Appointment Time"}</Label>
+                              <Label>{form.transport_type === "dialysis" ? "Chair Time" : "Appointment Time"}<PCRTooltip text={form.transport_type === "dialysis" ? ADMIN_TOOLTIPS.chair_time : ADMIN_TOOLTIPS.appointment_time} /></Label>
                               <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
                             </div>
                           )}
@@ -602,7 +604,7 @@ export default function Patients() {
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Insurance &amp; Transport</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label>Primary Payer</Label>
+                        <Label>Primary Payer<PCRTooltip text={ADMIN_TOOLTIPS.primary_payer} /></Label>
                         <Select value={form.primary_payer || "none"} onValueChange={v => setForm({ ...form, primary_payer: v === "none" ? "" : v })}>
                           <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
                           <SelectContent>
@@ -615,13 +617,13 @@ export default function Patients() {
                         </Select>
                       </div>
                        <div>
-                        <Label>Member ID</Label>
+                        <Label>Member ID<PCRTooltip text={ADMIN_TOOLTIPS.member_id} /></Label>
                         <Input value={form.member_id} onChange={e => setForm({ ...form, member_id: e.target.value })} />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label>Secondary Payer</Label>
+                        <Label>Secondary Payer<PCRTooltip text={ADMIN_TOOLTIPS.secondary_payer} /></Label>
                         <Select value={form.secondary_payer || "none"} onValueChange={v => setForm({ ...form, secondary_payer: v === "none" ? "" : v })}>
                           <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
                           <SelectContent>
@@ -634,13 +636,13 @@ export default function Patients() {
                         </Select>
                       </div>
                       <div>
-                        <Label>Secondary Member ID</Label>
+                        <Label>Secondary Member ID<PCRTooltip text={ADMIN_TOOLTIPS.secondary_member_id} /></Label>
                         <Input value={form.secondary_member_id} onChange={e => setForm({ ...form, secondary_member_id: e.target.value })} />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label>Mobility</Label>
+                        <Label>Mobility<PCRTooltip text={ADMIN_TOOLTIPS.mobility} /></Label>
                         <Select value={form.mobility} onValueChange={v => setForm({ ...form, mobility: v })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -652,7 +654,7 @@ export default function Patients() {
                         </Select>
                       </div>
                       <div>
-                        <Label>Trips/Week Limit</Label>
+                        <Label>Trips/Week Limit<PCRTooltip text={ADMIN_TOOLTIPS.trips_per_week_limit} /></Label>
                         <Input type="number" value={form.trips_per_week_limit} onChange={e => setForm({ ...form, trips_per_week_limit: e.target.value })} placeholder="No limit" />
                       </div>
                     </div>
@@ -689,13 +691,13 @@ export default function Patients() {
                       </div>
                       <div className="grid grid-cols-3 gap-3">
                         <div>
-                          <Label>O₂ LPM</Label>
+                          <Label>O₂ LPM<PCRTooltip text={ADMIN_TOOLTIPS.oxygen_lpm} /></Label>
                           <Input type="number" step="0.5" value={form.oxygen_lpm} onChange={e => setForm({ ...form, oxygen_lpm: e.target.value })} placeholder="—" />
                         </div>
                         {form.transport_type === "dialysis" ? (
                           <>
                             <div className="col-span-2">
-                              <Label>Chair Time Duration</Label>
+                              <Label>Chair Time Duration<PCRTooltip text={ADMIN_TOOLTIPS.chair_time_duration} /></Label>
                               <div className="grid grid-cols-2 gap-2 mt-1">
                                 <div>
                                   <Label className="text-[10px] text-muted-foreground">Hours</Label>
@@ -719,32 +721,32 @@ export default function Patients() {
                           </>
                         ) : (
                           <div>
-                            <Label>Appointment Duration (minutes)</Label>
+                            <Label>Appointment Duration (minutes)<PCRTooltip text={ADMIN_TOOLTIPS.appointment_duration} /></Label>
                             <Input type="number" value={form.run_duration_minutes} onChange={e => setForm({ ...form, run_duration_minutes: e.target.value })} placeholder="e.g. 60" />
                           </div>
                         )}
                       </div>
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input type="checkbox" checked={form.stair_chair_required} onChange={e => setForm({ ...form, stair_chair_required: e.target.checked })} className="accent-primary" />
-                        Stair Chair Required
+                        Stair Chair Required<PCRTooltip text={ADMIN_TOOLTIPS.stair_chair} />
                       </label>
                     </div>
                     <div className="flex flex-wrap gap-4">
                       {[
-                        { key: "oxygen_required" as const, label: "Oxygen Required" },
-                        { key: "bariatric" as const, label: "Bariatric" },
-                        { key: "standing_order" as const, label: "Standing Order" },
-                        { key: "auth_required" as const, label: "Auth Required" },
+                        { key: "oxygen_required" as const, label: "Oxygen Required", tooltip: ADMIN_TOOLTIPS.oxygen_required },
+                        { key: "bariatric" as const, label: "Bariatric", tooltip: ADMIN_TOOLTIPS.bariatric },
+                        { key: "standing_order" as const, label: "Standing Order", tooltip: ADMIN_TOOLTIPS.standing_order },
+                        { key: "auth_required" as const, label: "Auth Required", tooltip: ADMIN_TOOLTIPS.auth_required },
                       ].map(f => (
                         <label key={f.key} className="flex items-center gap-2 text-sm cursor-pointer">
                           <input type="checkbox" checked={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.checked })} className="accent-primary" />
-                          {f.label}
+                          {f.label}<PCRTooltip text={f.tooltip} />
                         </label>
                       ))}
                     </div>
                     {form.auth_required && (
                       <div>
-                        <Label>Auth Expiration</Label>
+                        <Label>Auth Expiration<PCRTooltip text={ADMIN_TOOLTIPS.auth_expiration} /></Label>
                         <Input type="date" value={form.auth_expiration} onChange={e => setForm({ ...form, auth_expiration: e.target.value })} />
                       </div>
                     )}
