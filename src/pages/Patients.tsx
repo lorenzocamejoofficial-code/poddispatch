@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Search, Pencil, Trash2, Zap } from "lucide-react";
+import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { toast } from "sonner";
 import type { Tables, Database } from "@/integrations/supabase/types";
 import { PatientStatusBadge } from "@/components/patients/PatientStatusBadge";
