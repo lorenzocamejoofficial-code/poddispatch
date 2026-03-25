@@ -1133,7 +1133,7 @@ export default function Scheduling() {
               <div><Label>Destination *</Label><Input value={legForm.destination_location} onChange={(e) => setLegForm(f => ({ ...f, destination_location: e.target.value }))} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Trip Type</Label>
+                  <Label>Trip Type<PCRTooltip text={ADMIN_TOOLTIPS.trip_type} /></Label>
                   <Select value={legForm.trip_type} onValueChange={(v) => setLegForm(f => ({ ...f, trip_type: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
