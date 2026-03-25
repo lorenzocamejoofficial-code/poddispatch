@@ -510,12 +510,14 @@ export default function Patients() {
                               onChange={() => setForm({ ...form, transport_type: opt.value })}
                               className="mt-0.5 accent-primary"
                             />
-                            <div>
-                              <div className="text-sm font-medium text-foreground">{opt.label}</div>
-                              <div className="text-xs text-muted-foreground">{opt.description}</div>
-                            </div>
+                            <div className="text-sm font-medium text-foreground">{opt.label}</div>
                           </label>
                         ))}
+                        {(form.transport_type === "ift" || form.transport_type === "discharge") && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            IFT and Discharge patients can also be added as one-time runs directly on the Patient Runs / Scheduling page without saving a patient record.
+                          </p>
+                        )}
                       </div>
                     </div>
 
