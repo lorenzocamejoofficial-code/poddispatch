@@ -500,7 +500,7 @@ export default function Patients() {
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Transport &amp; Recurrence Profile</p>
 
                     <div className="mb-3">
-                      <Label className="mb-1.5 block">Transport Type</Label>
+                      <Label className="mb-1.5 block">Transport Type<PCRTooltip text={ADMIN_TOOLTIPS.transport_type} /></Label>
                       <div className="space-y-2">
                         {TRANSPORT_TYPE_OPTIONS.map((opt) => (
                           <label key={opt.value} className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${form.transport_type === opt.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}>
