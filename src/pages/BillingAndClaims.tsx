@@ -727,7 +727,7 @@ export default function BillingAndClaims() {
                   <Input value={editForm.denial_code} onChange={e => setEditForm({ ...editForm, denial_code: e.target.value })} />
                 </div>
                 <div>
-                  <Label>Denial Reason</Label>
+                  <Label>Denial Reason<PCRTooltip text={ADMIN_TOOLTIPS.denial_reason} /></Label>
                   <Input value={editForm.denial_reason} onChange={e => setEditForm({ ...editForm, denial_reason: e.target.value })} />
                 </div>
               </div>
