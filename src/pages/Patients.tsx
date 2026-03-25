@@ -43,12 +43,16 @@ const CUSTOM_DAY_OPTIONS = [
   { value: 6, label: "Sat" },
 ];
 
-type TransportType = "dialysis" | "outpatient" | "adhoc";
+type TransportType = "dialysis" | "ift" | "discharge" | "outpatient" | "outpatient_specialty" | "private_pay" | "adhoc";
 
-const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string; description: string }[] = [
-  { value: "dialysis", label: "Dialysis", description: "Highly repetitive — auto-generates from schedule" },
-  { value: "outpatient", label: "Outpatient / Wound Care", description: "Repetitive but less consistent" },
-  { value: "adhoc", label: "Other / Ad-hoc", description: "No recurrence — created manually each time" },
+const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string }[] = [
+  { value: "dialysis", label: "Dialysis" },
+  { value: "ift", label: "IFT (Interfacility Transfer)" },
+  { value: "discharge", label: "Discharge" },
+  { value: "outpatient", label: "Outpatient / Wound Care" },
+  { value: "outpatient_specialty", label: "Outpatient Specialty" },
+  { value: "private_pay", label: "Private Pay" },
+  { value: "adhoc", label: "Other / Ad-hoc" },
 ];
 
 export default function Patients() {
@@ -81,7 +85,7 @@ export default function Patients() {
     no_end_date: true,
     mobility: "ambulatory", oxygen_required: false, bariatric: false,
     standing_order: false, special_handling: "",
-    primary_payer: "", secondary_payer: "", member_id: "",
+    primary_payer: "", secondary_payer: "", member_id: "", secondary_member_id: "",
     auth_required: false, auth_expiration: "", trips_per_week_limit: "",
     // New operational needs
     stairs_required: "unknown", stair_chair_required: false,
@@ -115,7 +119,7 @@ export default function Patients() {
       no_end_date: true,
       mobility: "ambulatory", oxygen_required: false, bariatric: false,
       standing_order: false, special_handling: "",
-      primary_payer: "", secondary_payer: "", member_id: "",
+      primary_payer: "", secondary_payer: "", member_id: "", secondary_member_id: "",
       auth_required: false, auth_expiration: "", trips_per_week_limit: "",
       stairs_required: "unknown", stair_chair_required: false,
       oxygen_lpm: "", special_equipment_required: "none",
@@ -159,6 +163,7 @@ export default function Patients() {
       primary_payer: (p as any).primary_payer ?? "",
       secondary_payer: (p as any).secondary_payer ?? "",
       member_id: (p as any).member_id ?? "",
+      secondary_member_id: (p as any).secondary_member_id ?? "",
       auth_required: (p as any).auth_required ?? false,
       auth_expiration: (p as any).auth_expiration ?? "",
       trips_per_week_limit: (p as any).trips_per_week_limit?.toString() ?? "",
@@ -204,6 +209,7 @@ export default function Patients() {
       primary_payer: form.primary_payer || null,
       secondary_payer: form.secondary_payer || null,
       member_id: form.member_id || null,
+      secondary_member_id: form.secondary_member_id || null,
       auth_required: form.auth_required,
       auth_expiration: form.auth_expiration || null,
       trips_per_week_limit: form.trips_per_week_limit ? parseInt(form.trips_per_week_limit) : null,
@@ -504,12 +510,14 @@ export default function Patients() {
                               onChange={() => setForm({ ...form, transport_type: opt.value })}
                               className="mt-0.5 accent-primary"
                             />
-                            <div>
-                              <div className="text-sm font-medium text-foreground">{opt.label}</div>
-                              <div className="text-xs text-muted-foreground">{opt.description}</div>
-                            </div>
+                            <div className="text-sm font-medium text-foreground">{opt.label}</div>
                           </label>
                         ))}
+                        {(form.transport_type === "ift" || form.transport_type === "discharge") && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            IFT and Discharge patients can also be added as one-time runs directly on the Patient Runs / Scheduling page without saving a patient record.
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -555,17 +563,15 @@ export default function Patients() {
                               </>
                             )}
                           </div>
-                          <div>
-                            <Label>Chair Time</Label>
-                            <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
-                          </div>
+                          {form.transport_type !== "adhoc" && (
+                            <div>
+                              <Label>{form.transport_type === "dialysis" ? "Chair Time" : "Appointment Time"}</Label>
+                              <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
+                            </div>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label>Est. Duration (min)</Label>
-                            <Input type="number" placeholder="30" value={form.run_duration_minutes} onChange={(e) => setForm({ ...form, run_duration_minutes: e.target.value })} />
-                          </div>
                           <div>
                             <Label>Recurrence Start Date</Label>
                             <Input type="date" value={form.recurrence_start_date} onChange={(e) => setForm({ ...form, recurrence_start_date: e.target.value })} />
@@ -608,9 +614,28 @@ export default function Patients() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div>
+                       <div>
                         <Label>Member ID</Label>
                         <Input value={form.member_id} onChange={e => setForm({ ...form, member_id: e.target.value })} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Secondary Payer</Label>
+                        <Select value={form.secondary_payer || "none"} onValueChange={v => setForm({ ...form, secondary_payer: v === "none" ? "" : v })}>
+                          <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">— None —</SelectItem>
+                            <SelectItem value="medicare">Medicare</SelectItem>
+                            <SelectItem value="medicaid">Medicaid</SelectItem>
+                            <SelectItem value="facility">Facility</SelectItem>
+                            <SelectItem value="cash">Cash / Private</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Secondary Member ID</Label>
+                        <Input value={form.secondary_member_id} onChange={e => setForm({ ...form, secondary_member_id: e.target.value })} />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
