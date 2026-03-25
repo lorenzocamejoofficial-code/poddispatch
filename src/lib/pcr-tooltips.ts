@@ -39,6 +39,9 @@ export const PCR_TOOLTIPS: Record<string, string> = {
   medical_necessity_reason: "The clinical reason that justifies ambulance transport. Required by Medicare and Medicaid for reimbursement",
   necessity_notes: "Additional detail supporting the medical necessity determination",
 
+  // Chair Time
+  chair_time: "Time the patient needs to be seated at the dialysis facility. Used to determine the earliest valid return pickup time for the B-leg.",
+
   // Stretcher & Mobility
   stretcher_placement: "Method used to move the patient onto the stretcher",
   patient_mobility: "How the patient is able to move independently",

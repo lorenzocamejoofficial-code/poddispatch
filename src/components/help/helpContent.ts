@@ -255,7 +255,7 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
         "Only shows patients belonging to your company (multi-tenant isolated).",
         "Tracks patient status: Active, In Hospital, Out of Hospital, Vacation, or Paused — non-Active patients are skipped by Auto-Fill.",
         "Transport Type: classify each patient as Dialysis (highly repetitive), Outpatient/Wound Care (semi-repetitive), or Other/Ad-hoc (manual only).",
-        "Recurrence Profile for Dialysis: set MWF or TTS schedule days, appointment time, duration, and recurrence start/end date.",
+        "Recurrence Profile for Dialysis: set MWF or TTS schedule days, chair time, duration, and recurrence start/end date.",
         "Custom Recurrence for Outpatient/Wound Care: select specific days of the week (Mon–Sat) for flexible recurring schedules.",
         "Stores weight — patients 300+ lbs automatically toggle bariatric transport on.",
         "Tracks mobility type (ambulatory, wheelchair, stretcher), oxygen requirements, stair chair needs, and special equipment.",

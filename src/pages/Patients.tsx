@@ -213,7 +213,7 @@ export default function Patients() {
       oxygen_lpm: form.oxygen_lpm ? parseFloat(form.oxygen_lpm) : null,
       special_equipment_required: form.special_equipment_required,
       dialysis_window_minutes: form.dialysis_window_minutes ? parseInt(form.dialysis_window_minutes) : 45,
-      must_arrive_by: form.must_arrive_by || null,
+      
       recurrence_days: form.recurrence_days.length > 0 ? form.recurrence_days : null,
       location_type: form.location_type || null,
       facility_id: form.facility_id || null,
@@ -556,7 +556,7 @@ export default function Patients() {
                             )}
                           </div>
                           <div>
-                            <Label>Appointment Time</Label>
+                            <Label>Chair Time</Label>
                             <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
                           </div>
                         </div>
@@ -698,10 +698,6 @@ export default function Patients() {
                             <Input type="number" value={form.run_duration_minutes} onChange={e => setForm({ ...form, run_duration_minutes: e.target.value })} placeholder="e.g. 60" />
                           </div>
                         )}
-                        <div>
-                          <Label>Must Arrive By</Label>
-                          <Input type="time" value={form.must_arrive_by} onChange={e => setForm({ ...form, must_arrive_by: e.target.value })} />
-                        </div>
                       </div>
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input type="checkbox" checked={form.stair_chair_required} onChange={e => setForm({ ...form, stair_chair_required: e.target.checked })} className="accent-primary" />
