@@ -1107,7 +1107,7 @@ export default function Scheduling() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Pickup Time</Label>
+                  <Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label>
                   <Input type="time" value={legForm.pickup_time} onChange={async (e) => {
                     const time = e.target.value;
                     setLegForm(f => ({ ...f, pickup_time: time }));
