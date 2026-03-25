@@ -1044,7 +1044,7 @@ export default function Scheduling() {
                   </div>
                   <div><Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label><Input type="time" value={oneoffForm.pickup_time} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
                 </div>
-                <div><Label>Est. Duration (min)</Label><Input type="number" value={oneoffForm.estimated_duration_minutes} onChange={(e) => setOneoffForm(f => ({ ...f, estimated_duration_minutes: e.target.value }))} /></div>
+                <div><Label>Est. Duration (min)<PCRTooltip text={ADMIN_TOOLTIPS.est_duration} /></Label><Input type="number" value={oneoffForm.estimated_duration_minutes} onChange={(e) => setOneoffForm(f => ({ ...f, estimated_duration_minutes: e.target.value }))} /></div>
 
                 {/* Safety notes */}
                 <div className="border-t pt-3">
