@@ -520,7 +520,7 @@ export default function TrucksCrews() {
                   <div><Label>Truck Name/Number<PCRTooltip text={ADMIN_TOOLTIPS.truck_name} /></Label>
                     <Input value={truckName} onChange={(e) => setTruckName(e.target.value)} placeholder="e.g. Truck 1" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
                   </div>
-                  <div><Label>Vehicle ID / Unit #</Label>
+                  <div><Label>Vehicle ID / Unit #<PCRTooltip text={ADMIN_TOOLTIPS.vehicle_id} /></Label>
                     <Input value={truckVehicleId} onChange={(e) => setTruckVehicleId(e.target.value)} placeholder="e.g. G7T-101" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
                   </div>
                   <Button onClick={addTruck} className="w-full" disabled={savingTruck}>
