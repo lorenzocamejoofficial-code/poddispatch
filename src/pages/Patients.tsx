@@ -466,7 +466,7 @@ export default function Patients() {
                   </div>
 
                   <div>
-                    <Label>Dropoff Facility</Label>
+                    <Label>Dropoff Facility<PCRTooltip text={ADMIN_TOOLTIPS.dropoff_facility} /></Label>
                     <FacilityDropdown
                       value={form.dropoff_facility}
                       onChange={(v) => setForm({ ...form, dropoff_facility: v })}
