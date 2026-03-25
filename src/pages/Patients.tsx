@@ -543,7 +543,7 @@ export default function Patients() {
                               </>
                             ) : (
                               <>
-                                <Label>Schedule Days</Label>
+                                <Label>Schedule Days<PCRTooltip text={ADMIN_TOOLTIPS.schedule_days} /></Label>
                                 <div className="flex flex-wrap gap-2 mt-1.5">
                                   {CUSTOM_DAY_OPTIONS.map((d) => (
                                     <label key={d.value} className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs cursor-pointer transition-colors ${form.recurrence_days.includes(d.value) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:border-primary/40"}`}>
