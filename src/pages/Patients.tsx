@@ -563,17 +563,15 @@ export default function Patients() {
                               </>
                             )}
                           </div>
-                          <div>
-                            <Label>Chair Time</Label>
-                            <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
-                          </div>
+                          {form.transport_type !== "adhoc" && (
+                            <div>
+                              <Label>{form.transport_type === "dialysis" ? "Chair Time" : "Appointment Time"}</Label>
+                              <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
+                            </div>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label>Est. Duration (min)</Label>
-                            <Input type="number" placeholder="30" value={form.run_duration_minutes} onChange={(e) => setForm({ ...form, run_duration_minutes: e.target.value })} />
-                          </div>
                           <div>
                             <Label>Recurrence Start Date</Label>
                             <Input type="date" value={form.recurrence_start_date} onChange={(e) => setForm({ ...form, recurrence_start_date: e.target.value })} />
