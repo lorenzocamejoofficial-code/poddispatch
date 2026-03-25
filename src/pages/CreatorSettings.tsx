@@ -18,6 +18,86 @@ export default function CreatorSettings() {
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [companiesLoaded, setCompaniesLoaded] = useState(false);
 
+  const [resetCompanyId, setResetCompanyId] = useState("");
+  const [resetConfirmName, setResetConfirmName] = useState("");
+  const [resetting, setResetting] = useState(false);
+
+  const selectedResetCompany = companies.find((c) => c.id === resetCompanyId);
+  const resetNameMatch = selectedResetCompany && resetConfirmName === selectedResetCompany.name;
+
+  const handleResetCompanyData = async () => {
+    if (!resetCompanyId || !resetNameMatch || !selectedResetCompany) return;
+    setResetting(true);
+
+    const steps: { label: string; fn: () => Promise<{ error: any }> }[] = [
+      {
+        label: "notifications",
+        fn: async () => {
+          const { data: profileIds } = await supabase
+            .from("profiles")
+            .select("user_id")
+            .eq("company_id", resetCompanyId);
+          if (!profileIds || profileIds.length === 0) return { error: null };
+          const userIds = profileIds.map((p) => p.user_id);
+          return supabase.from("notifications").delete().in("user_id", userIds);
+        },
+      },
+      { label: "alerts", fn: () => supabase.from("alerts").delete().eq("company_id", resetCompanyId) },
+      { label: "hold_timers", fn: () => supabase.from("hold_timers").delete().eq("company_id", resetCompanyId) },
+      { label: "qa_reviews", fn: () => supabase.from("qa_reviews").delete().eq("company_id", resetCompanyId) },
+      {
+        label: "billing_overrides",
+        fn: async () => {
+          const { data: tripIds } = await supabase
+            .from("trip_records")
+            .select("id")
+            .eq("company_id", resetCompanyId);
+          if (!tripIds || tripIds.length === 0) return { error: null };
+          return supabase.from("billing_overrides").delete().in("trip_id", tripIds.map((t) => t.id));
+        },
+      },
+      { label: "claim_records", fn: () => supabase.from("claim_records").delete().eq("company_id", resetCompanyId) },
+      { label: "trip_records", fn: () => supabase.from("trip_records").delete().eq("company_id", resetCompanyId) },
+      { label: "truck_run_slots", fn: () => supabase.from("truck_run_slots").delete().eq("company_id", resetCompanyId) },
+      { label: "schedule_change_log", fn: () => supabase.from("schedule_change_log").delete().eq("company_id", resetCompanyId) },
+      { label: "scheduling_legs", fn: () => supabase.from("scheduling_legs").delete().eq("company_id", resetCompanyId) },
+      { label: "crews", fn: () => supabase.from("crews").delete().eq("company_id", resetCompanyId) },
+    ];
+
+    for (const step of steps) {
+      const { error } = await step.fn();
+      if (error) {
+        toast.error(`Reset failed at "${step.label}": ${error.message}`);
+        setResetting(false);
+        return;
+      }
+    }
+
+    // Audit log
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      await supabase.from("audit_logs").insert({
+        action: "creator_data_reset",
+        actor_user_id: user.id,
+        actor_email: user.email ?? null,
+        table_name: "companies",
+        record_id: resetCompanyId,
+        notes: `Operational data reset for "${selectedResetCompany.name}" at ${new Date().toISOString()}`,
+        company_id: resetCompanyId,
+      });
+    }
+
+    toast.success(`Company data reset complete — ${selectedResetCompany.name} is ready for fresh data.`);
+    setResetCompanyId("");
+    setResetConfirmName("");
+    setResetting(false);
+  };
+
   const loadCompanies = async () => {
     if (companiesLoaded) return;
     const { data } = await supabase.from("companies").select("id, name").order("name");
