@@ -697,7 +697,7 @@ export default function Patients() {
                         {form.transport_type === "dialysis" ? (
                           <>
                             <div className="col-span-2">
-                              <Label>Chair Time Duration</Label>
+                              <Label>Chair Time Duration<PCRTooltip text={ADMIN_TOOLTIPS.chair_time_duration} /></Label>
                               <div className="grid grid-cols-2 gap-2 mt-1">
                                 <div>
                                   <Label className="text-[10px] text-muted-foreground">Hours</Label>
