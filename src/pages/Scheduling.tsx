@@ -1169,7 +1169,7 @@ export default function Scheduling() {
             </DialogHeader>
             <div className="grid gap-3 py-2">
               <div>
-                <Label>Pickup Time</Label>
+                <Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label>
                 <Input type="time" value={exceptionForm.pickup_time} onChange={(e) => handleExceptionPickupTimeChange(e.target.value)} />
                 {editingExceptionLeg?.leg_type === "b_leg" && bLegEarliest && (
                   <p className="text-[11px] text-muted-foreground mt-1">Earliest valid pickup: {bLegEarliest}</p>

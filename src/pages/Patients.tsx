@@ -746,7 +746,7 @@ export default function Patients() {
                     </div>
                     {form.auth_required && (
                       <div>
-                        <Label>Auth Expiration</Label>
+                        <Label>Auth Expiration<PCRTooltip text={ADMIN_TOOLTIPS.auth_expiration} /></Label>
                         <Input type="date" value={form.auth_expiration} onChange={e => setForm({ ...form, auth_expiration: e.target.value })} />
                       </div>
                     )}
