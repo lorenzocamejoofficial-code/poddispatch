@@ -238,6 +238,7 @@ export default function TrucksCrews() {
   const [savingTruck, setSavingTruck] = useState(false);
   const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
   const [editingTruckName, setEditingTruckName] = useState("");
+  const [editingTruckVehicleId, setEditingTruckVehicleId] = useState("");
 
   // Mark Down dialog
   const [downDialog, setDownDialog] = useState(false);
