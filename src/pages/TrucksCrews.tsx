@@ -315,13 +315,13 @@ export default function TrucksCrews() {
     }
   };
 
-  const saveTruckName = async (id: string) => {
+  const saveTruckEdit = async (id: string) => {
     const trimmed = editingTruckName.trim();
     if (!trimmed) { toast.error("Name cannot be empty"); return; }
-    const { error } = await supabase.from("trucks").update({ name: trimmed }).eq("id", id);
-    if (error) { toast.error("Failed to rename truck"); return; }
+    const { error } = await supabase.from("trucks").update({ name: trimmed, vehicle_id: editingTruckVehicleId.trim() || null } as any).eq("id", id);
+    if (error) { toast.error("Failed to update truck"); return; }
     setEditingTruckId(null);
-    toast.success("Truck renamed"); fetchAll(); refreshTrucks();
+    toast.success("Truck updated"); fetchAll(); refreshTrucks();
   };
 
   const [deleteTruckId, setDeleteTruckId] = useState<string | null>(null);
