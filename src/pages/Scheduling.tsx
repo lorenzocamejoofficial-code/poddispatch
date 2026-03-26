@@ -449,11 +449,38 @@ export default function Scheduling() {
         oneoff_notes: oneoffForm.notes || null,
       } as any);
       if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create one-off leg: ${error.message}`); return; }
+
+      // Auto-create B-leg if toggle is on
+      if (oneoffForm.needs_b_leg) {
+        const bDuration = (parseInt(oneoffForm.b_leg_duration_hours) || 0) * 60 + (parseInt(oneoffForm.b_leg_duration_minutes) || 0);
+        await supabase.from("scheduling_legs").insert({
+          patient_id: null,
+          leg_type: "B" as any,
+          pickup_time: oneoffForm.b_leg_pickup_time || null,
+          chair_time: null,
+          pickup_location: oneoffForm.destination_location,
+          destination_location: oneoffForm.pickup_location,
+          trip_type: oneoffForm.trip_type as any,
+          estimated_duration_minutes: bDuration || null,
+          notes: oneoffForm.notes || null,
+          run_date: selectedDate,
+          company_id: companyId,
+          is_oneoff: true,
+          oneoff_name: oneoffForm.name,
+          oneoff_pickup_address: oneoffForm.destination_location,
+          oneoff_dropoff_address: oneoffForm.pickup_location,
+          oneoff_weight_lbs: null,
+          oneoff_mobility: "ambulatory",
+          oneoff_oxygen: false,
+          oneoff_notes: oneoffForm.notes || null,
+        } as any);
+      }
+
       await logScheduleChange({
         change_type: "run_added",
-        change_summary: `New ${pendingLegType}-leg run added for ${oneoffForm.name} at ${oneoffForm.pickup_time || "TBD"}`,
+        change_summary: `New ${pendingLegType}-leg run added for ${oneoffForm.name} at ${oneoffForm.pickup_time || "TBD"}${oneoffForm.needs_b_leg ? " (+ B-leg)" : ""}`,
       });
-      toast.success(`One-off ${pendingLegType}-Leg created`);
+      toast.success(`One-off ${pendingLegType}-Leg created${oneoffForm.needs_b_leg ? " + B-leg" : ""}`);
       setDialogOpen(false);
       refresh();
       return;
