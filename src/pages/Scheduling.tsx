@@ -358,7 +358,7 @@ export default function Scheduling() {
         pickup_location: oneoffForm.pickup_location,
         destination_location: oneoffForm.destination_location,
         trip_type: oneoffForm.trip_type as any,
-        estimated_duration_minutes: oneoffForm.estimated_duration_minutes ? parseInt(oneoffForm.estimated_duration_minutes) : null,
+        estimated_duration_minutes: null,
         notes: oneoffForm.notes || null,
         run_date: selectedDate,
         company_id: companyId,
@@ -366,9 +366,9 @@ export default function Scheduling() {
         oneoff_name: oneoffForm.name,
         oneoff_pickup_address: oneoffForm.pickup_location,
         oneoff_dropoff_address: oneoffForm.destination_location,
-        oneoff_weight_lbs: oneoffForm.weight ? parseInt(oneoffForm.weight) : null,
-        oneoff_mobility: oneoffForm.mobility,
-        oneoff_oxygen: oneoffForm.oxygen,
+        oneoff_weight_lbs: null,
+        oneoff_mobility: "ambulatory",
+        oneoff_oxygen: false,
         oneoff_notes: oneoffForm.notes || null,
       } as any);
       if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create one-off leg: ${error.message}`); return; }
