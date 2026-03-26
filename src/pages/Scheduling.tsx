@@ -391,7 +391,7 @@ export default function Scheduling() {
       company_id: companyId,
     } as any);
 
-    if (error) { toast.error("Failed to create leg"); return; }
+    if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create leg: ${error.message}`); return; }
 
     const patientName = patient?.name ?? "Unknown";
     await logScheduleChange({
