@@ -353,7 +353,7 @@ export default function Scheduling() {
         oneoff_oxygen: oneoffForm.oxygen,
         oneoff_notes: oneoffForm.notes || null,
       } as any);
-      if (error) { toast.error("Failed to create one-off leg"); return; }
+      if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create one-off leg: ${error.message}`); return; }
       await logScheduleChange({
         change_type: "run_added",
         change_summary: `New ${pendingLegType}-leg run added for ${oneoffForm.name} at ${oneoffForm.pickup_time || "TBD"}`,
