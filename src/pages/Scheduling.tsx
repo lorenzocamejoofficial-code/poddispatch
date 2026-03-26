@@ -377,10 +377,9 @@ export default function Scheduling() {
     // Resolve company_id for RLS via secure RPC
     const { data: companyId } = await supabase.rpc("get_my_company_id");
 
-    const mappedLegTypeRegular = pendingLegType === "A" ? "a_leg" : pendingLegType === "B" ? "b_leg" : pendingLegType!;
     const { error } = await supabase.from("scheduling_legs").insert({
       patient_id: legForm.patient_id,
-      leg_type: mappedLegTypeRegular as any,
+      leg_type: pendingLegType as any,
       pickup_time: legForm.pickup_time || null,
       chair_time: legForm.chair_time || null,
       pickup_location: legForm.pickup_location,
