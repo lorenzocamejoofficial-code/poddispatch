@@ -1077,7 +1077,7 @@ export default function Scheduling() {
 
         {/* Create Leg Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle>Create {pendingLegType}-Leg</DialogTitle>
               <DialogDescription>
@@ -1104,6 +1104,34 @@ export default function Scheduling() {
             {isOneOff ? (
               /* ── ONE-OFF FORM ── */
               <div className="grid gap-3 py-2">
+                {/* Copy from previous run */}
+                <Collapsible open={oneoffCopySearchOpen} onOpenChange={setOneoffCopySearchOpen}>
+                  <CollapsibleTrigger className="flex items-center gap-2 text-xs text-primary hover:underline w-full">
+                    <Search className="h-3 w-3" />
+                    Copy from a previous run
+                    <ChevronDown className={`h-3 w-3 ml-auto transition-transform ${oneoffCopySearchOpen ? "rotate-180" : ""}`} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2">
+                    <Input
+                      placeholder="Search by patient name..."
+                      value={oneoffCopySearchQuery}
+                      onChange={(e) => { setOneoffCopySearchQuery(e.target.value); searchPreviousRuns(e.target.value, "oneoff"); }}
+                      className="h-8 text-xs"
+                    />
+                    {oneoffCopySearching && <p className="text-[10px] text-muted-foreground mt-1">Searching...</p>}
+                    {oneoffCopySearchResults.length > 0 && (
+                      <div className="mt-1 max-h-32 overflow-y-auto rounded border divide-y">
+                        {oneoffCopySearchResults.map((r: any) => (
+                          <button key={r.id} className="w-full text-left px-2 py-1.5 text-xs hover:bg-muted/50 transition-colors" onClick={() => applyCopyResult(r, "oneoff")}>
+                            <span className="font-medium">{r.is_oneoff ? r.oneoff_name : `${r.patient?.first_name} ${r.patient?.last_name}`}</span>
+                            <span className="text-muted-foreground ml-2">{r.trip_type} · {r.pickup_location} · {r.run_date}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+
                 <div className="rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] px-3 py-2 text-xs text-[hsl(var(--status-yellow))]">
                   This run will NOT create a permanent patient record. It's for same-day dispatch only.
                 </div>
@@ -1183,79 +1211,124 @@ export default function Scheduling() {
             ) : (
               /* ── EXISTING PATIENT FORM ── */
               <div className="grid gap-3 py-2">
-              <div>
-                <Label>Patient *</Label>
-                <Select value={legForm.patient_id} onValueChange={(v) => {
-                  const p = patients.find(pt => pt.id === v);
-                  const inferredTripType = p?.transport_type === "outpatient" ? "outpatient" : "dialysis";
-                  setLegForm(f => ({
-                    ...f,
-                    patient_id: v,
-                    pickup_location: f.pickup_location || (pendingLegType === "A" ? (p?.pickup_address ?? "") : (p?.dropoff_facility ?? "")),
-                    destination_location: f.destination_location || (pendingLegType === "A" ? (p?.dropoff_facility ?? "") : (p?.pickup_address ?? "")),
-                    chair_time: f.chair_time || (p?.chair_time ?? ""),
-                    estimated_duration_minutes: f.estimated_duration_minutes || (p?.run_duration_minutes?.toString() ?? ""),
-                    trip_type: f.trip_type === "dialysis" ? inferredTripType : f.trip_type,
-                  }));
-                }}>
-                  <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
-                  <SelectContent>
-                    {patients.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        <span className="flex items-center gap-2">
-                          {p.name}
-                          {p.status !== "active" && <AlertTriangle className="h-3 w-3 text-[hsl(var(--status-yellow))]" />}
-                          {(p.weight ?? 0) > 200 && <Zap className="h-3 w-3 text-[hsl(var(--status-yellow))]" />}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+                {/* Copy from previous run */}
+                <Collapsible open={copySearchOpen} onOpenChange={setCopySearchOpen}>
+                  <CollapsibleTrigger className="flex items-center gap-2 text-xs text-primary hover:underline w-full">
+                    <Search className="h-3 w-3" />
+                    Copy from a previous run
+                    <ChevronDown className={`h-3 w-3 ml-auto transition-transform ${copySearchOpen ? "rotate-180" : ""}`} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2">
+                    <Input
+                      placeholder="Search by patient name..."
+                      value={copySearchQuery}
+                      onChange={(e) => { setCopySearchQuery(e.target.value); searchPreviousRuns(e.target.value, "existing"); }}
+                      className="h-8 text-xs"
+                    />
+                    {copySearching && <p className="text-[10px] text-muted-foreground mt-1">Searching...</p>}
+                    {copySearchResults.length > 0 && (
+                      <div className="mt-1 max-h-32 overflow-y-auto rounded border divide-y">
+                        {copySearchResults.map((r: any) => (
+                          <button key={r.id} className="w-full text-left px-2 py-1.5 text-xs hover:bg-muted/50 transition-colors" onClick={() => applyCopyResult(r, "existing")}>
+                            <span className="font-medium">{r.is_oneoff ? r.oneoff_name : `${r.patient?.first_name} ${r.patient?.last_name}`}</span>
+                            <span className="text-muted-foreground ml-2">{r.trip_type} · {r.pickup_location} · {r.run_date}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+
                 <div>
-                  <Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label>
-                  <Input type="time" value={legForm.pickup_time} onChange={async (e) => {
-                    const time = e.target.value;
-                    setLegForm(f => ({ ...f, pickup_time: time }));
-                    if (pendingLegType === "B" && legForm.patient_id) {
-                      const result = await checkBLegTime(legForm.patient_id, time);
-                      setCreateBLegEarliest(result.earliest);
-                      setCreateBLegTooEarly(result.tooEarly);
-                    }
-                  }} />
-                  {pendingLegType === "B" && createBLegEarliest && (
-                    <p className="text-[11px] text-muted-foreground mt-1">Earliest valid pickup: {createBLegEarliest}</p>
-                  )}
-                  {pendingLegType === "B" && createBLegTooEarly && createBLegEarliest && (
-                    <p className="text-[11px] text-[hsl(var(--status-yellow))] mt-0.5">
-                      <AlertTriangle className="inline h-3 w-3 mr-1" />
-                      Too early — treatment ends at approximately {createBLegEarliest}. Override required.
-                    </p>
-                  )}
+                  <Label>Patient *</Label>
+                  <Select value={legForm.patient_id} onValueChange={(v) => {
+                    setLegForm(f => ({ ...f, patient_id: v }));
+                  }}>
+                    <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
+                    <SelectContent>
+                      {patients.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          <span className="flex items-center gap-2">
+                            {p.name}
+                            {p.status !== "active" && <AlertTriangle className="h-3 w-3 text-[hsl(var(--status-yellow))]" />}
+                            {(p.weight ?? 0) > 200 && <Zap className="h-3 w-3 text-[hsl(var(--status-yellow))]" />}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div><Label>Chair Time<PCRTooltip text={ADMIN_TOOLTIPS.chair_time} /></Label><Input type="time" value={legForm.chair_time} onChange={(e) => setLegForm(f => ({ ...f, chair_time: e.target.value }))} /></div>
-              </div>
-              <div><Label>Pickup Location *</Label><Input value={legForm.pickup_location} onChange={(e) => setLegForm(f => ({ ...f, pickup_location: e.target.value }))} /></div>
-              <div><Label>Destination *</Label><Input value={legForm.destination_location} onChange={(e) => setLegForm(f => ({ ...f, destination_location: e.target.value }))} /></div>
-              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Trip Type<PCRTooltip text={ADMIN_TOOLTIPS.trip_type} /></Label>
+                  <Label>Transport Type<PCRTooltip text={ADMIN_TOOLTIPS.trip_type} /></Label>
                   <Select value={legForm.trip_type} onValueChange={(v) => setLegForm(f => ({ ...f, trip_type: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="dialysis">Dialysis</SelectItem>
+                      <SelectItem value="ift">IFT</SelectItem>
                       <SelectItem value="discharge">Discharge</SelectItem>
-                      <SelectItem value="hospital">Hospital</SelectItem>
                       <SelectItem value="outpatient">Outpatient</SelectItem>
                       <SelectItem value="private_pay">Private Pay</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Est. Duration (min)<PCRTooltip text={ADMIN_TOOLTIPS.est_duration} /></Label><Input type="number" value={legForm.estimated_duration_minutes} onChange={(e) => setLegForm(f => ({ ...f, estimated_duration_minutes: e.target.value }))} /></div>
-              </div>
-              <div><Label>Notes</Label><Textarea value={legForm.notes} onChange={(e) => setLegForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-              <Button onClick={handleCreate}>Create {pendingLegType}-Leg</Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Pickup Location Type</Label>
+                    <Select value={legPickupLocationType || "none"} onValueChange={(v) => setLegPickupLocationType(v === "none" ? "" : v)}>
+                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— Select —</SelectItem>
+                        <SelectItem value="Residence">Residence</SelectItem>
+                        <SelectItem value="Dialysis Facility">Dialysis Facility</SelectItem>
+                        <SelectItem value="Hospital">Hospital</SelectItem>
+                        <SelectItem value="SNF">SNF</SelectItem>
+                        <SelectItem value="Assisted Living">Assisted Living</SelectItem>
+                        <SelectItem value="Outpatient Specialty">Outpatient Specialty</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Destination Type</Label>
+                    <Select value={legDestinationType || "none"} onValueChange={(v) => setLegDestinationType(v === "none" ? "" : v)}>
+                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— Select —</SelectItem>
+                        <SelectItem value="Residence">Residence</SelectItem>
+                        <SelectItem value="Dialysis Facility">Dialysis Facility</SelectItem>
+                        <SelectItem value="Hospital">Hospital</SelectItem>
+                        <SelectItem value="SNF">SNF</SelectItem>
+                        <SelectItem value="Assisted Living">Assisted Living</SelectItem>
+                        <SelectItem value="Outpatient Specialty">Outpatient Specialty</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div><Label>Pickup Address *</Label><Input value={legForm.pickup_location} onChange={(e) => setLegForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="123 Main St, Atlanta GA" /></div>
+                <div><Label>Destination Address *</Label><Input value={legForm.destination_location} onChange={(e) => setLegForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /></div>
+                <div><Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label><Input type="time" value={legForm.pickup_time} onChange={(e) => setLegForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
+
+                {/* B-leg toggle */}
+                <div className="flex items-center gap-3 rounded-md border bg-muted/30 px-3 py-2">
+                  <Switch checked={legNeedsBLeg} onCheckedChange={setLegNeedsBLeg} id="existing-bleg" />
+                  <Label htmlFor="existing-bleg" className="cursor-pointer text-sm">This run needs a B-leg</Label>
+                </div>
+                {legNeedsBLeg && (
+                  <div className="space-y-3 rounded-md border bg-muted/20 p-3">
+                    <div><Label>B-leg Pickup Time</Label><Input type="time" value={legBLegPickupTime} onChange={(e) => setLegBLegPickupTime(e.target.value)} /></div>
+                    <div>
+                      <Label>Duration</Label>
+                      <div className="grid grid-cols-2 gap-2 mt-1">
+                        <div><Label className="text-[10px] text-muted-foreground">Hours</Label><Input type="number" min={0} max={8} value={legBLegDurationHours} onChange={e => setLegBLegDurationHours(e.target.value)} /></div>
+                        <div><Label className="text-[10px] text-muted-foreground">Minutes</Label><Input type="number" min={0} max={59} value={legBLegDurationMinutes} onChange={e => setLegBLegDurationMinutes(e.target.value)} /></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div><Label>Notes</Label><Textarea value={legForm.notes} onChange={(e) => setLegForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+                <Button onClick={handleCreate}>Create {pendingLegType}-Leg</Button>
               </div>
             )}
           </DialogContent>
