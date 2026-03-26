@@ -515,13 +515,31 @@ export default function Scheduling() {
 
     if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create leg: ${error.message}`); return; }
 
+    // Auto-create B-leg if toggle is on
+    if (legNeedsBLeg) {
+      const bDuration = (parseInt(legBLegDurationHours) || 0) * 60 + (parseInt(legBLegDurationMinutes) || 0);
+      await supabase.from("scheduling_legs").insert({
+        patient_id: legForm.patient_id,
+        leg_type: "B" as any,
+        pickup_time: legBLegPickupTime || null,
+        chair_time: null,
+        pickup_location: legForm.destination_location,
+        destination_location: legForm.pickup_location,
+        trip_type: legForm.trip_type as any,
+        estimated_duration_minutes: bDuration || null,
+        notes: legForm.notes || null,
+        run_date: selectedDate,
+        company_id: companyId,
+      } as any);
+    }
+
     const patientName = patient?.name ?? "Unknown";
     await logScheduleChange({
       change_type: "run_added",
-      change_summary: `New ${pendingLegType}-leg run added for ${patientName} at ${legForm.pickup_time || "TBD"}`,
+      change_summary: `New ${pendingLegType}-leg run added for ${patientName} at ${legForm.pickup_time || "TBD"}${legNeedsBLeg ? " (+ B-leg)" : ""}`,
     });
 
-    toast.success(`${pendingLegType}-Leg created`);
+    toast.success(`${pendingLegType}-Leg created${legNeedsBLeg ? " + B-leg" : ""}`);
     setDialogOpen(false);
     refresh();
   };
