@@ -68,8 +68,12 @@ export default function OverrideMonitor() {
     const load = async () => {
       setLoading(true);
 
-      // Fetch safety overrides
+      // Fetch company ID for defense-in-depth filtering
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+
+      // Fetch safety overrides (with explicit company_id filter as defense in depth)
       let safetyQuery = supabase.from("safety_overrides").select("*").order("overridden_at", { ascending: false }).limit(200);
+      if (companyId) safetyQuery = safetyQuery.eq("company_id", companyId);
       if (dateFrom) safetyQuery = safetyQuery.gte("overridden_at", dateFrom);
       if (dateTo) safetyQuery = safetyQuery.lte("overridden_at", dateTo + "T23:59:59");
 
