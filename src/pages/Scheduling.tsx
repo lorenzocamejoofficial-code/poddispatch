@@ -10,10 +10,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Plus, Zap, AlertTriangle, ArrowRight,
   Wand2, ChevronLeft, ChevronRight, CalendarDays, ArrowLeft,
-  GitBranch, GripVertical, AlertCircle, BellRing, X,
+  GitBranch, GripVertical, AlertCircle, BellRing, X, Search, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
@@ -308,14 +310,30 @@ export default function Scheduling() {
   const [isOneOff, setIsOneOff] = useState(false);
   const [oneoffForm, setOneoffForm] = useState({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
-    pickup_time: "", estimated_duration_minutes: "", notes: "",
-    weight: "", mobility: "ambulatory", oxygen: false,
+    pickup_time: "", notes: "",
+    pickup_location_type: "", destination_type: "",
+    needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
   });
   const resetOneoffForm = () => setOneoffForm({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
-    pickup_time: "", estimated_duration_minutes: "", notes: "",
-    weight: "", mobility: "ambulatory", oxygen: false,
+    pickup_time: "", notes: "",
+    pickup_location_type: "", destination_type: "",
+    needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
   });
+
+  // Existing patient form extra state
+  const [legPickupLocationType, setLegPickupLocationType] = useState("");
+  const [legDestinationType, setLegDestinationType] = useState("");
+  const [legNeedsBLeg, setLegNeedsBLeg] = useState(false);
+  const [legBLegPickupTime, setLegBLegPickupTime] = useState("");
+  const [legBLegDurationHours, setLegBLegDurationHours] = useState("0");
+  const [legBLegDurationMinutes, setLegBLegDurationMinutes] = useState("0");
+
+  // Copy from previous run
+  const [copySearchOpen, setCopySearchOpen] = useState(false);
+  const [copySearchQuery, setCopySearchQuery] = useState("");
+  const [copySearchResults, setCopySearchResults] = useState<any[]>([]);
+  const [copySearching, setCopySearching] = useState(false);
 
   const openCreateDialog = (type: "A" | "B") => {
     setPendingLegType(type);
@@ -340,7 +358,7 @@ export default function Scheduling() {
         pickup_location: oneoffForm.pickup_location,
         destination_location: oneoffForm.destination_location,
         trip_type: oneoffForm.trip_type as any,
-        estimated_duration_minutes: oneoffForm.estimated_duration_minutes ? parseInt(oneoffForm.estimated_duration_minutes) : null,
+        estimated_duration_minutes: null,
         notes: oneoffForm.notes || null,
         run_date: selectedDate,
         company_id: companyId,
@@ -348,9 +366,9 @@ export default function Scheduling() {
         oneoff_name: oneoffForm.name,
         oneoff_pickup_address: oneoffForm.pickup_location,
         oneoff_dropoff_address: oneoffForm.destination_location,
-        oneoff_weight_lbs: oneoffForm.weight ? parseInt(oneoffForm.weight) : null,
-        oneoff_mobility: oneoffForm.mobility,
-        oneoff_oxygen: oneoffForm.oxygen,
+        oneoff_weight_lbs: null,
+        oneoff_mobility: "ambulatory",
+        oneoff_oxygen: false,
         oneoff_notes: oneoffForm.notes || null,
       } as any);
       if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create one-off leg: ${error.message}`); return; }
@@ -1025,48 +1043,74 @@ export default function Scheduling() {
                   This run will NOT create a permanent patient record. It's for same-day dispatch only.
                 </div>
                 <div><Label>Patient Name *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_name} /></Label><Input value={oneoffForm.name} onChange={(e) => setOneoffForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. John Smith" /></div>
-                <div><Label>Pickup Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_pickup} /></Label><Input value={oneoffForm.pickup_location} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="123 Main St, Atlanta GA" /></div>
-                <div><Label>Drop-off Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_dropoff} /></Label><Input value={oneoffForm.destination_location} onChange={(e) => setOneoffForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /></div>
+                <div>
+                  <Label>Transport Type<PCRTooltip text={ADMIN_TOOLTIPS.trip_type} /></Label>
+                  <Select value={oneoffForm.trip_type} onValueChange={(v) => setOneoffForm(f => ({ ...f, trip_type: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dialysis">Dialysis</SelectItem>
+                      <SelectItem value="ift">IFT</SelectItem>
+                      <SelectItem value="discharge">Discharge</SelectItem>
+                      <SelectItem value="outpatient">Outpatient</SelectItem>
+                      <SelectItem value="private_pay">Private Pay</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label>Transport Type<PCRTooltip text={ADMIN_TOOLTIPS.trip_type} /></Label>
-                    <Select value={oneoffForm.trip_type} onValueChange={(v) => setOneoffForm(f => ({ ...f, trip_type: v }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Label>Pickup Location Type</Label>
+                    <Select value={oneoffForm.pickup_location_type || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, pickup_location_type: v === "none" ? "" : v }))}>
+                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="dialysis">Dialysis</SelectItem>
-                        <SelectItem value="discharge">IFT Discharge</SelectItem>
-                        <SelectItem value="outpatient">Outpatient</SelectItem>
-                        <SelectItem value="private_pay">Other</SelectItem>
+                        <SelectItem value="none">— Select —</SelectItem>
+                        <SelectItem value="Residence">Residence</SelectItem>
+                        <SelectItem value="Dialysis Facility">Dialysis Facility</SelectItem>
+                        <SelectItem value="Hospital">Hospital</SelectItem>
+                        <SelectItem value="SNF">SNF</SelectItem>
+                        <SelectItem value="Assisted Living">Assisted Living</SelectItem>
+                        <SelectItem value="Outpatient Specialty">Outpatient Specialty</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div><Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label><Input type="time" value={oneoffForm.pickup_time} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
+                  <div>
+                    <Label>Destination Type</Label>
+                    <Select value={oneoffForm.destination_type || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, destination_type: v === "none" ? "" : v }))}>
+                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— Select —</SelectItem>
+                        <SelectItem value="Residence">Residence</SelectItem>
+                        <SelectItem value="Dialysis Facility">Dialysis Facility</SelectItem>
+                        <SelectItem value="Hospital">Hospital</SelectItem>
+                        <SelectItem value="SNF">SNF</SelectItem>
+                        <SelectItem value="Assisted Living">Assisted Living</SelectItem>
+                        <SelectItem value="Outpatient Specialty">Outpatient Specialty</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div><Label>Est. Duration (min)<PCRTooltip text={ADMIN_TOOLTIPS.est_duration} /></Label><Input type="number" value={oneoffForm.estimated_duration_minutes} onChange={(e) => setOneoffForm(f => ({ ...f, estimated_duration_minutes: e.target.value }))} /></div>
+                <div><Label>Pickup Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_pickup} /></Label><Input value={oneoffForm.pickup_location} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="123 Main St, Atlanta GA" /></div>
+                <div><Label>Destination Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_dropoff} /></Label><Input value={oneoffForm.destination_location} onChange={(e) => setOneoffForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /></div>
+                <div><Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label><Input type="time" value={oneoffForm.pickup_time} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
 
-                {/* Safety notes */}
-                <div className="border-t pt-3">
-                  <p className="text-xs font-semibold text-muted-foreground mb-2">Safety Info (optional)</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Weight (lbs)</Label><Input type="number" value={oneoffForm.weight} onChange={(e) => setOneoffForm(f => ({ ...f, weight: e.target.value }))} placeholder="e.g. 250" /></div>
+                {/* B-leg toggle */}
+                <div className="flex items-center gap-3 rounded-md border bg-muted/30 px-3 py-2">
+                  <Switch checked={oneoffForm.needs_b_leg} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, needs_b_leg: v }))} id="oneoff-bleg" />
+                  <Label htmlFor="oneoff-bleg" className="cursor-pointer text-sm">This run needs a B-leg</Label>
+                </div>
+                {oneoffForm.needs_b_leg && (
+                  <div className="space-y-3 rounded-md border bg-muted/20 p-3">
+                    <div><Label>B-leg Pickup Time</Label><Input type="time" value={oneoffForm.b_leg_pickup_time} onChange={(e) => setOneoffForm(f => ({ ...f, b_leg_pickup_time: e.target.value }))} /></div>
                     <div>
-                      <Label>Mobility</Label>
-                      <Select value={oneoffForm.mobility} onValueChange={(v) => setOneoffForm(f => ({ ...f, mobility: v }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ambulatory">Ambulatory</SelectItem>
-                          <SelectItem value="wheelchair">Wheelchair</SelectItem>
-                          <SelectItem value="stretcher">Stretcher</SelectItem>
-                          <SelectItem value="bedbound">Bedbound</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label>Duration</Label>
+                      <div className="grid grid-cols-2 gap-2 mt-1">
+                        <div><Label className="text-[10px] text-muted-foreground">Hours</Label><Input type="number" min={0} max={8} value={oneoffForm.b_leg_duration_hours} onChange={e => setOneoffForm(f => ({ ...f, b_leg_duration_hours: e.target.value }))} /></div>
+                        <div><Label className="text-[10px] text-muted-foreground">Minutes</Label><Input type="number" min={0} max={59} value={oneoffForm.b_leg_duration_minutes} onChange={e => setOneoffForm(f => ({ ...f, b_leg_duration_minutes: e.target.value }))} /></div>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <input type="checkbox" id="oneoff-oxygen" checked={oneoffForm.oxygen} onChange={(e) => setOneoffForm(f => ({ ...f, oxygen: e.target.checked }))} className="rounded" />
-                    <Label htmlFor="oneoff-oxygen" className="cursor-pointer">Requires Oxygen</Label>
-                  </div>
-                </div>
+                )}
 
                 <div><Label>Notes</Label><Textarea value={oneoffForm.notes} onChange={(e) => setOneoffForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any special instructions for crew" /></div>
                 <Button onClick={handleCreate}>Create One-Off {pendingLegType}-Leg</Button>

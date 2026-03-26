@@ -238,6 +238,7 @@ export default function TrucksCrews() {
   const [savingTruck, setSavingTruck] = useState(false);
   const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
   const [editingTruckName, setEditingTruckName] = useState("");
+  const [editingTruckVehicleId, setEditingTruckVehicleId] = useState("");
 
   // Mark Down dialog
   const [downDialog, setDownDialog] = useState(false);
@@ -314,13 +315,13 @@ export default function TrucksCrews() {
     }
   };
 
-  const saveTruckName = async (id: string) => {
+  const saveTruckEdit = async (id: string) => {
     const trimmed = editingTruckName.trim();
     if (!trimmed) { toast.error("Name cannot be empty"); return; }
-    const { error } = await supabase.from("trucks").update({ name: trimmed }).eq("id", id);
-    if (error) { toast.error("Failed to rename truck"); return; }
+    const { error } = await supabase.from("trucks").update({ name: trimmed, vehicle_id: editingTruckVehicleId.trim() || null } as any).eq("id", id);
+    if (error) { toast.error("Failed to update truck"); return; }
     setEditingTruckId(null);
-    toast.success("Truck renamed"); fetchAll(); refreshTrucks();
+    toast.success("Truck updated"); fetchAll(); refreshTrucks();
   };
 
   const [deleteTruckId, setDeleteTruckId] = useState<string | null>(null);
@@ -536,18 +537,24 @@ export default function TrucksCrews() {
                 <div className="flex items-center gap-2">
                   <Truck className="h-4 w-4 text-primary shrink-0" />
                   {editingTruckId === t.id ? (
-                    <>
+                    <div className="flex items-center gap-2 flex-1">
                       <Input className="h-7 text-sm flex-1" value={editingTruckName}
                         onChange={(e) => setEditingTruckName(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") saveTruckName(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveTruckEdit(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
+                        placeholder="Truck name"
                         autoFocus />
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveTruckName(t.id)}><Check className="h-3 w-3 text-[hsl(var(--status-green))]" /></Button>
+                      <Input className="h-7 text-sm w-24" value={editingTruckVehicleId}
+                        onChange={(e) => setEditingTruckVehicleId(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveTruckEdit(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
+                        placeholder="Unit #" />
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveTruckEdit(t.id)}><Check className="h-3 w-3 text-[hsl(var(--status-green))]" /></Button>
                       <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingTruckId(null)}><X className="h-3 w-3" /></Button>
-                    </>
+                    </div>
                   ) : (
                     <>
                       <span className="font-medium text-card-foreground flex-1 truncate">{t.name}</span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); }}>
+                      {(t as any).vehicle_id && <span className="text-[10px] text-muted-foreground shrink-0">#{(t as any).vehicle_id}</span>}
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); }}>
                         <Pencil className="h-3 w-3" />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => confirmDeleteTruck(t.id)}>

@@ -1,0 +1,1 @@
+ALTER TABLE public.patients ADD COLUMN IF NOT EXISTS a_leg_pickup_time time without time zone;

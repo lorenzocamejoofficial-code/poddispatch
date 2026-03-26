@@ -1264,6 +1264,7 @@ export type Database = {
       }
       patients: {
         Row: {
+          a_leg_pickup_time: string | null
           auth_expiration: string | null
           auth_required: boolean | null
           bariatric: boolean | null
@@ -1310,6 +1311,7 @@ export type Database = {
           weight_lbs: number | null
         }
         Insert: {
+          a_leg_pickup_time?: string | null
           auth_expiration?: string | null
           auth_required?: boolean | null
           bariatric?: boolean | null
@@ -1356,6 +1358,7 @@ export type Database = {
           weight_lbs?: number | null
         }
         Update: {
+          a_leg_pickup_time?: string | null
           auth_expiration?: string | null
           auth_required?: boolean | null
           bariatric?: boolean | null

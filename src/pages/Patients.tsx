@@ -45,16 +45,12 @@ const CUSTOM_DAY_OPTIONS = [
   { value: 6, label: "Sat" },
 ];
 
-type TransportType = "dialysis" | "ift" | "discharge" | "outpatient" | "outpatient_specialty" | "private_pay" | "adhoc";
+type TransportType = "dialysis" | "outpatient" | "private_pay";
 
 const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string }[] = [
   { value: "dialysis", label: "Dialysis" },
-  { value: "ift", label: "IFT (Interfacility Transfer)" },
-  { value: "discharge", label: "Discharge" },
   { value: "outpatient", label: "Outpatient / Wound Care" },
-  { value: "outpatient_specialty", label: "Outpatient Specialty" },
   { value: "private_pay", label: "Private Pay" },
-  { value: "adhoc", label: "Other / Ad-hoc" },
 ];
 
 export default function Patients() {
@@ -101,6 +97,8 @@ export default function Patients() {
     // Chair time duration (hours + minutes)
     chair_time_duration_hours: "0",
     chair_time_duration_minutes: "0",
+    // A-leg pickup time
+    a_leg_pickup_time: "",
   });
 
   const fetchPatients = async () => {
@@ -131,6 +129,7 @@ export default function Patients() {
       facility_id: "",
       chair_time_duration_hours: "0",
       chair_time_duration_minutes: "0",
+      a_leg_pickup_time: "",
     });
     setEditing(null);
     setBLegWarnings([]);
@@ -180,6 +179,7 @@ export default function Patients() {
       facility_id: (p as any).facility_id ?? "",
       chair_time_duration_hours: durH,
       chair_time_duration_minutes: durM,
+      a_leg_pickup_time: (p as any).a_leg_pickup_time ?? "",
     });
     setBLegWarnings([]);
     setDialogOpen(true);
@@ -227,6 +227,7 @@ export default function Patients() {
       facility_id: form.facility_id || null,
       chair_time_duration_hours: parseInt(form.chair_time_duration_hours) || 0,
       chair_time_duration_minutes: parseInt(form.chair_time_duration_minutes) || 0,
+      a_leg_pickup_time: form.a_leg_pickup_time || null,
     };
 
     if (!payload.first_name || !payload.last_name) return;
@@ -382,7 +383,13 @@ export default function Patients() {
     });
   };
 
-  const isRepetitive = form.transport_type !== "adhoc";
+  // All transport types on patient form are repetitive
+  const isRepetitive = true;
+
+  // Compute B-leg earliest for display in recurrence section
+  const bLegEarliestDisplay = form.transport_type === "dialysis" && form.chair_time
+    ? getEarliestBLegPickup(form.chair_time, parseInt(form.chair_time_duration_hours) || 0, parseInt(form.chair_time_duration_minutes) || 0)
+    : null;
 
   return (
     <AdminLayout>
@@ -477,9 +484,6 @@ export default function Patients() {
                       const w = e.target.value;
                       const wNum = w ? parseInt(w) : 0;
                       setForm({ ...form, weight_lbs: w, bariatric: wNum >= 300 ? true : form.bariatric });
-                      if (wNum >= 300 && !form.bariatric) {
-                        // Auto-select bariatric will be reflected via the checkbox below
-                      }
                     }} /></div>
                     <div>
                       <Label>Status</Label>
@@ -515,11 +519,6 @@ export default function Patients() {
                             <div className="text-sm font-medium text-foreground">{opt.label}</div>
                           </label>
                         ))}
-                        {(form.transport_type === "ift" || form.transport_type === "discharge") && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            IFT and Discharge patients can also be added as one-time runs directly on the Patient Runs / Scheduling page without saving a patient record.
-                          </p>
-                        )}
                       </div>
                     </div>
 
@@ -565,13 +564,76 @@ export default function Patients() {
                               </>
                             )}
                           </div>
-                          {form.transport_type !== "adhoc" && (
-                            <div>
-                              <Label>{form.transport_type === "dialysis" ? "Chair Time" : "Appointment Time"}<PCRTooltip text={form.transport_type === "dialysis" ? ADMIN_TOOLTIPS.chair_time : ADMIN_TOOLTIPS.appointment_time} /></Label>
-                              <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
-                            </div>
-                          )}
                         </div>
+
+                        {/* Time & Duration fields — moved into Recurrence Schedule */}
+                        {form.transport_type === "dialysis" ? (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label>Chair Time<PCRTooltip text={ADMIN_TOOLTIPS.chair_time} /></Label>
+                                <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
+                              </div>
+                              <div>
+                                <Label>A-Leg Pickup Time</Label>
+                                <Input type="time" value={form.a_leg_pickup_time} onChange={(e) => setForm({ ...form, a_leg_pickup_time: e.target.value })} />
+                              </div>
+                            </div>
+                            <div>
+                              <Label>Chair Time Duration<PCRTooltip text={ADMIN_TOOLTIPS.chair_time_duration} /></Label>
+                              <div className="grid grid-cols-2 gap-2 mt-1">
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">Hours</Label>
+                                  <Input type="number" min={0} max={8} value={form.chair_time_duration_hours} onChange={e => setForm({ ...form, chair_time_duration_hours: e.target.value })} />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">Minutes</Label>
+                                  <Input type="number" min={0} max={59} value={form.chair_time_duration_minutes} onChange={e => setForm({ ...form, chair_time_duration_minutes: e.target.value })} />
+                                </div>
+                              </div>
+                              {bLegEarliestDisplay && (
+                                <p className="text-[11px] text-muted-foreground mt-1.5">
+                                  B-leg earliest valid return: <strong>{bLegEarliestDisplay}</strong>
+                                </p>
+                              )}
+                              {bLegWarnings.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {bLegWarnings.map((w, i) => (
+                                    <p key={i} className="text-[11px] text-[hsl(var(--status-yellow))]">
+                                      ⚠️ Warning: Existing B-leg pickup time {w.pickup_time} on {w.run_date} may be too early based on this chair time duration. Earliest valid pickup: {w.earliest}. A dispatcher override will be required.
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label>Appointment Time<PCRTooltip text={ADMIN_TOOLTIPS.appointment_time} /></Label>
+                                <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
+                              </div>
+                              <div>
+                                <Label>A-Leg Pickup Time</Label>
+                                <Input type="time" value={form.a_leg_pickup_time} onChange={(e) => setForm({ ...form, a_leg_pickup_time: e.target.value })} />
+                              </div>
+                            </div>
+                            <div>
+                              <Label>Appointment Duration</Label>
+                              <div className="grid grid-cols-2 gap-2 mt-1">
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">Hours</Label>
+                                  <Input type="number" min={0} max={8} value={form.chair_time_duration_hours} onChange={e => setForm({ ...form, chair_time_duration_hours: e.target.value })} />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">Minutes</Label>
+                                  <Input type="number" min={0} max={59} value={form.chair_time_duration_minutes} onChange={e => setForm({ ...form, chair_time_duration_minutes: e.target.value })} />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
                         <div className="grid grid-cols-2 gap-3">
                           <div>
@@ -694,37 +756,6 @@ export default function Patients() {
                           <Label>O₂ LPM<PCRTooltip text={ADMIN_TOOLTIPS.oxygen_lpm} /></Label>
                           <Input type="number" step="0.5" value={form.oxygen_lpm} onChange={e => setForm({ ...form, oxygen_lpm: e.target.value })} placeholder="—" />
                         </div>
-                        {form.transport_type === "dialysis" ? (
-                          <>
-                            <div className="col-span-2">
-                              <Label>Chair Time Duration<PCRTooltip text={ADMIN_TOOLTIPS.chair_time_duration} /></Label>
-                              <div className="grid grid-cols-2 gap-2 mt-1">
-                                <div>
-                                  <Label className="text-[10px] text-muted-foreground">Hours</Label>
-                                  <Input type="number" min={0} max={8} value={form.chair_time_duration_hours} onChange={e => setForm({ ...form, chair_time_duration_hours: e.target.value })} />
-                                </div>
-                                <div>
-                                  <Label className="text-[10px] text-muted-foreground">Minutes</Label>
-                                  <Input type="number" min={0} max={59} value={form.chair_time_duration_minutes} onChange={e => setForm({ ...form, chair_time_duration_minutes: e.target.value })} />
-                                </div>
-                              </div>
-                              {bLegWarnings.length > 0 && (
-                                <div className="mt-2 space-y-1">
-                                  {bLegWarnings.map((w, i) => (
-                                    <p key={i} className="text-[11px] text-[hsl(var(--status-yellow))]">
-                                      ⚠️ Warning: Existing B-leg pickup time {w.pickup_time} on {w.run_date} may be too early based on this chair time duration. Earliest valid pickup: {w.earliest}. A dispatcher override will be required.
-                                    </p>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </>
-                        ) : (
-                          <div>
-                            <Label>Appointment Duration (minutes)<PCRTooltip text={ADMIN_TOOLTIPS.appointment_duration} /></Label>
-                            <Input type="number" value={form.run_duration_minutes} onChange={e => setForm({ ...form, run_duration_minutes: e.target.value })} placeholder="e.g. 60" />
-                          </div>
-                        )}
                       </div>
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input type="checkbox" checked={form.stair_chair_required} onChange={e => setForm({ ...form, stair_chair_required: e.target.checked })} className="accent-primary" />
@@ -816,7 +847,7 @@ export default function Patients() {
                           tType === "outpatient" ? "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]" :
                           "bg-muted text-muted-foreground"
                         }`}>
-                          {tType === "dialysis" ? "Dialysis" : tType === "outpatient" ? "Outpatient" : "Ad-hoc"}
+                          {tType === "dialysis" ? "Dialysis" : tType === "outpatient" ? "Outpatient" : tType === "private_pay" ? "Private Pay" : tType}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
