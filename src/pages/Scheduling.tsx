@@ -332,10 +332,9 @@ export default function Scheduling() {
         return;
       }
       const { data: companyId } = await supabase.rpc("get_my_company_id");
-      const mappedLegType = pendingLegType === "A" ? "a_leg" : pendingLegType === "B" ? "b_leg" : pendingLegType!;
       const { error } = await supabase.from("scheduling_legs").insert({
         patient_id: null,
-        leg_type: mappedLegType as any,
+        leg_type: pendingLegType as any,
         pickup_time: oneoffForm.pickup_time || null,
         chair_time: null,
         pickup_location: oneoffForm.pickup_location,
@@ -354,7 +353,7 @@ export default function Scheduling() {
         oneoff_oxygen: oneoffForm.oxygen,
         oneoff_notes: oneoffForm.notes || null,
       } as any);
-      if (error) { toast.error("Failed to create one-off leg"); return; }
+      if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create one-off leg: ${error.message}`); return; }
       await logScheduleChange({
         change_type: "run_added",
         change_summary: `New ${pendingLegType}-leg run added for ${oneoffForm.name} at ${oneoffForm.pickup_time || "TBD"}`,
@@ -378,10 +377,9 @@ export default function Scheduling() {
     // Resolve company_id for RLS via secure RPC
     const { data: companyId } = await supabase.rpc("get_my_company_id");
 
-    const mappedLegTypeRegular = pendingLegType === "A" ? "a_leg" : pendingLegType === "B" ? "b_leg" : pendingLegType!;
     const { error } = await supabase.from("scheduling_legs").insert({
       patient_id: legForm.patient_id,
-      leg_type: mappedLegTypeRegular as any,
+      leg_type: pendingLegType as any,
       pickup_time: legForm.pickup_time || null,
       chair_time: legForm.chair_time || null,
       pickup_location: legForm.pickup_location,
@@ -393,7 +391,7 @@ export default function Scheduling() {
       company_id: companyId,
     } as any);
 
-    if (error) { toast.error("Failed to create leg"); return; }
+    if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create leg: ${error.message}`); return; }
 
     const patientName = patient?.name ?? "Unknown";
     await logScheduleChange({
