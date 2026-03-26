@@ -334,6 +334,71 @@ export default function Scheduling() {
   const [copySearchQuery, setCopySearchQuery] = useState("");
   const [copySearchResults, setCopySearchResults] = useState<any[]>([]);
   const [copySearching, setCopySearching] = useState(false);
+  // Same for one-off form
+  const [oneoffCopySearchOpen, setOneoffCopySearchOpen] = useState(false);
+  const [oneoffCopySearchQuery, setOneoffCopySearchQuery] = useState("");
+  const [oneoffCopySearchResults, setOneoffCopySearchResults] = useState<any[]>([]);
+  const [oneoffCopySearching, setOneoffCopySearching] = useState(false);
+
+  const searchPreviousRuns = useCallback(async (query: string, target: "existing" | "oneoff") => {
+    if (query.length < 2) {
+      target === "existing" ? setCopySearchResults([]) : setOneoffCopySearchResults([]);
+      return;
+    }
+    target === "existing" ? setCopySearching(true) : setOneoffCopySearching(true);
+    try {
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      // Search scheduling_legs joining patients for name match, or oneoff_name match
+      const { data } = await supabase
+        .from("scheduling_legs")
+        .select("id, run_date, leg_type, pickup_time, pickup_location, destination_location, trip_type, estimated_duration_minutes, notes, is_oneoff, oneoff_name, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)")
+        .eq("company_id", companyId)
+        .lt("run_date", selectedDate)
+        .order("run_date", { ascending: false })
+        .limit(100);
+
+      const lowerQ = query.toLowerCase();
+      const filtered = (data ?? []).filter((r: any) => {
+        const name = r.is_oneoff
+          ? (r.oneoff_name ?? "")
+          : (r.patient ? `${r.patient.first_name} ${r.patient.last_name}` : "");
+        return name.toLowerCase().includes(lowerQ);
+      }).slice(0, 10);
+
+      target === "existing" ? setCopySearchResults(filtered) : setOneoffCopySearchResults(filtered);
+    } finally {
+      target === "existing" ? setCopySearching(false) : setOneoffCopySearching(false);
+    }
+  }, [selectedDate]);
+
+  const applyCopyResult = (result: any, target: "existing" | "oneoff") => {
+    if (target === "oneoff") {
+      setOneoffForm(f => ({
+        ...f,
+        name: result.is_oneoff ? (result.oneoff_name ?? "") : (result.patient ? `${result.patient.first_name} ${result.patient.last_name}` : ""),
+        pickup_location: result.pickup_location ?? "",
+        destination_location: result.destination_location ?? "",
+        trip_type: result.trip_type ?? "dialysis",
+        pickup_time: result.pickup_time ?? "",
+        notes: result.notes ?? "",
+      }));
+      setOneoffCopySearchOpen(false);
+      setOneoffCopySearchQuery("");
+    } else {
+      setLegForm(f => ({
+        ...f,
+        pickup_location: result.pickup_location ?? "",
+        destination_location: result.destination_location ?? "",
+        trip_type: result.trip_type ?? "dialysis",
+        pickup_time: result.pickup_time ?? "",
+        notes: result.notes ?? "",
+        estimated_duration_minutes: result.estimated_duration_minutes?.toString() ?? "",
+      }));
+      setCopySearchOpen(false);
+      setCopySearchQuery("");
+    }
+    toast.info("Fields pre-filled from previous run — review before saving");
+  };
 
   const openCreateDialog = (type: "A" | "B") => {
     setPendingLegType(type);
