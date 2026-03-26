@@ -405,6 +405,18 @@ export default function Scheduling() {
     resetLegForm();
     resetOneoffForm();
     setIsOneOff(false);
+    setLegPickupLocationType("");
+    setLegDestinationType("");
+    setLegNeedsBLeg(false);
+    setLegBLegPickupTime("");
+    setLegBLegDurationHours("0");
+    setLegBLegDurationMinutes("0");
+    setCopySearchOpen(false);
+    setCopySearchQuery("");
+    setCopySearchResults([]);
+    setOneoffCopySearchOpen(false);
+    setOneoffCopySearchQuery("");
+    setOneoffCopySearchResults([]);
     setDialogOpen(true);
   };
 
