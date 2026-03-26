@@ -310,14 +310,30 @@ export default function Scheduling() {
   const [isOneOff, setIsOneOff] = useState(false);
   const [oneoffForm, setOneoffForm] = useState({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
-    pickup_time: "", estimated_duration_minutes: "", notes: "",
-    weight: "", mobility: "ambulatory", oxygen: false,
+    pickup_time: "", notes: "",
+    pickup_location_type: "", destination_type: "",
+    needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
   });
   const resetOneoffForm = () => setOneoffForm({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
-    pickup_time: "", estimated_duration_minutes: "", notes: "",
-    weight: "", mobility: "ambulatory", oxygen: false,
+    pickup_time: "", notes: "",
+    pickup_location_type: "", destination_type: "",
+    needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
   });
+
+  // Existing patient form extra state
+  const [legPickupLocationType, setLegPickupLocationType] = useState("");
+  const [legDestinationType, setLegDestinationType] = useState("");
+  const [legNeedsBLeg, setLegNeedsBLeg] = useState(false);
+  const [legBLegPickupTime, setLegBLegPickupTime] = useState("");
+  const [legBLegDurationHours, setLegBLegDurationHours] = useState("0");
+  const [legBLegDurationMinutes, setLegBLegDurationMinutes] = useState("0");
+
+  // Copy from previous run
+  const [copySearchOpen, setCopySearchOpen] = useState(false);
+  const [copySearchQuery, setCopySearchQuery] = useState("");
+  const [copySearchResults, setCopySearchResults] = useState<any[]>([]);
+  const [copySearching, setCopySearching] = useState(false);
 
   const openCreateDialog = (type: "A" | "B") => {
     setPendingLegType(type);
