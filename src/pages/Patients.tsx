@@ -191,6 +191,7 @@ export default function Patients() {
       last_name: form.last_name.trim(),
       dob: form.dob || null,
       phone: form.phone || null,
+      sex: form.sex || null,
       pickup_address: form.pickup_address || null,
       dropoff_facility: form.dropoff_facility || null,
       chair_time: form.chair_time || null,
