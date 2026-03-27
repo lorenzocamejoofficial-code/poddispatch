@@ -447,6 +447,17 @@ export default function Patients() {
                     <div><Label>DOB<PCRTooltip text={ADMIN_TOOLTIPS.dob} /></Label><Input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></div>
                     <div><Label>Phone<PCRTooltip text={ADMIN_TOOLTIPS.phone} /></Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
                   </div>
+                  <div>
+                    <Label>Sex<PCRTooltip text="Patient biological sex — required for Medicare claim demographics." /></Label>
+                    <div className="flex gap-2 mt-1.5">
+                      {([{ value: "M", label: "Male" }, { value: "F", label: "Female" }, { value: "U", label: "Unknown" }] as const).map((opt) => (
+                        <label key={opt.value} className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs cursor-pointer transition-colors ${form.sex === opt.value ? "border-primary bg-primary/5 font-medium" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                          <input type="radio" name="patient-sex" className="sr-only" checked={form.sex === opt.value} onChange={() => setForm({ ...form, sex: opt.value })} />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                   <div><Label>Pickup Address<PCRTooltip text={ADMIN_TOOLTIPS.pickup_address} /></Label><Input value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} /></div>
 
                   {/* Home Location Type */}
