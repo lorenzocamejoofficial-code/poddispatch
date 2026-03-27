@@ -12,6 +12,8 @@ import { TimingRiskBadge, computeTimingRisk } from "./TimingRiskBadge";
 import { BillingReadinessSummary } from "./BillingReadinessSummary";
 import { SafetyBadge, PatientNeedsWarning } from "./SafetyBadge";
 import { evaluateSafetyRules, hasCompletePatientNeeds, type PatientNeeds, type CrewCapability, type TruckEquipment, type SafetyStatus } from "@/lib/safety-rules";
+import { TimeTapRow } from "./TimeTapRow";
+import { PCRStatusIndicator } from "./PCRStatusIndicator";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
 
@@ -37,6 +39,14 @@ interface RunInfo {
   safety_reasons?: string[];
   needs_missing?: string[];
   is_oneoff?: boolean;
+  // PCR time taps
+  dispatch_time?: string | null;
+  arrived_pickup_at?: string | null;
+  at_scene_time?: string | null;
+  left_scene_time?: string | null;
+  arrived_dropoff_at?: string | null;
+  in_service_time?: string | null;
+  pcr_status?: string | null;
 }
 
 interface TruckCardProps {
@@ -351,6 +361,19 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                     )}
                   </div>
                 )}
+                {/* Row 4: PCR time taps */}
+                {!isCancelled && (
+                  <TimeTapRow
+                    dispatch_time={run.dispatch_time}
+                    arrived_pickup_at={run.arrived_pickup_at}
+                    at_scene_time={run.at_scene_time}
+                    left_scene_time={run.left_scene_time}
+                    arrived_dropoff_at={run.arrived_dropoff_at}
+                    in_service_time={run.in_service_time}
+                  />
+                )}
+                {/* Row 5: PCR status */}
+                {!isCancelled && <PCRStatusIndicator pcr_status={run.pcr_status} />}
               </div>
               );
             })}
