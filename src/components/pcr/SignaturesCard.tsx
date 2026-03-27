@@ -180,6 +180,8 @@ function SignaturePad({ onComplete }: { onComplete: (dataUrl: string) => void })
   const [drawing, setDrawing] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const [currentDataUrl, setCurrentDataUrl] = useState("");
+  const hasMoved = useRef(false);
+  const lastPos = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -200,21 +202,34 @@ function SignaturePad({ onComplete }: { onComplete: (dataUrl: string) => void })
 
   const startDraw = (e: React.TouchEvent | React.MouseEvent) => {
     setDrawing(true);
+    hasMoved.current = false;
     const ctx = canvasRef.current?.getContext("2d");
     const pos = getPos(e);
+    lastPos.current = pos;
     ctx?.beginPath();
     ctx?.moveTo(pos.x, pos.y);
   };
 
   const draw = (e: React.TouchEvent | React.MouseEvent) => {
     if (!drawing) return;
+    hasMoved.current = true;
     const ctx = canvasRef.current?.getContext("2d");
     const pos = getPos(e);
+    lastPos.current = pos;
     ctx?.lineTo(pos.x, pos.y);
     ctx?.stroke();
   };
 
   const endDraw = () => {
+    if (drawing && !hasMoved.current && lastPos.current) {
+      const ctx = canvasRef.current?.getContext("2d");
+      if (ctx) {
+        ctx.beginPath();
+        ctx.arc(lastPos.current.x, lastPos.current.y, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = "hsl(var(--foreground))";
+        ctx.fill();
+      }
+    }
     setDrawing(false);
     if (canvasRef.current) {
       const url = canvasRef.current.toDataURL();
