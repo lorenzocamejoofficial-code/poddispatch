@@ -321,7 +321,7 @@ function RoleSelector({
               type="button"
               variant={role === r ? "default" : "outline"}
               size="sm"
-              className="flex-1 text-xs min-w-[100px]"
+              className="text-xs px-3 py-2"
               onClick={() => { setRole(r); setRelationship(""); setUnableReason(""); }}
             >
               {r}
