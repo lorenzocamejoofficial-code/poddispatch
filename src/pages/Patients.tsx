@@ -110,7 +110,7 @@ export default function Patients() {
 
   const resetForm = () => {
     setForm({
-      first_name: "", last_name: "", dob: "", phone: "",
+      first_name: "", last_name: "", dob: "", phone: "", sex: "",
       pickup_address: "", dropoff_facility: "", chair_time: "",
       run_duration_minutes: "", schedule_days: "", weight_lbs: "",
       notes: "", status: "active",
