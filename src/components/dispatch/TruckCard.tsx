@@ -361,6 +361,19 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                     )}
                   </div>
                 )}
+                {/* Row 4: PCR time taps */}
+                {!isCancelled && (
+                  <TimeTapRow
+                    dispatch_time={run.dispatch_time}
+                    arrived_pickup_at={run.arrived_pickup_at}
+                    at_scene_time={run.at_scene_time}
+                    left_scene_time={run.left_scene_time}
+                    arrived_dropoff_at={run.arrived_dropoff_at}
+                    in_service_time={run.in_service_time}
+                  />
+                )}
+                {/* Row 5: PCR status */}
+                {!isCancelled && <PCRStatusIndicator pcr_status={run.pcr_status} />}
               </div>
               );
             })}
