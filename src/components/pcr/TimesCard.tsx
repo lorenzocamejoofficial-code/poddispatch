@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Clock, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
@@ -27,6 +28,22 @@ const TOOLTIP_MAP: Record<string, string> = {
   in_service_time: "in_service_time",
 };
 
+const LOCATION_TYPE_OPTIONS = [
+  "Residence",
+  "SNF",
+  "Assisted Living",
+  "Hospital",
+  "Dialysis Facility",
+  "Outpatient Specialty",
+  "Other",
+];
+
+// Billing-mirror fields: when crew taps these time fields, also write the billing-gate equivalents
+const BILLING_MIRROR: Record<string, string> = {
+  left_scene_time: "loaded_at",
+  arrived_dropoff_at: "dropped_at",
+};
+
 export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [odometerWarning, setOdometerWarning] = useState<string | null>(null);
@@ -41,6 +58,16 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
     { field: "arrived_dropoff_at", label: "At Destination", status: "arrived_dropoff" },
     { field: "in_service_time", label: "In Service", status: "completed" },
   ];
+
+  const handleTimeTap = async (field: string, status?: string) => {
+    await recordTime(field, status);
+    // Write billing-mirror field with the same timestamp
+    const mirrorField = BILLING_MIRROR[field];
+    if (mirrorField) {
+      const now = new Date().toISOString();
+      await updateField(mirrorField, now);
+    }
+  };
 
   const autoCalculateLoadedMiles = (sceneVal: number | null, destVal: number | null) => {
     if (sceneVal !== null && sceneVal !== undefined && destVal !== null && destVal !== undefined && destVal > sceneVal) {
@@ -77,7 +104,7 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
                 variant={recorded ? "outline" : "default"}
                 className={`flex-1 h-14 text-base justify-start gap-3 ${recorded ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400" : ""}`}
                 onClick={() => {
-                  if (!recorded) recordTime(btn.field, btn.status);
+                  if (!recorded) handleTimeTap(btn.field, btn.status);
                 }}
                 disabled={recorded}
               >
@@ -105,10 +132,14 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
                   defaultValue={value ? new Date(value).toTimeString().slice(0, 5) : ""}
                   onChange={(e) => {
                     if (e.target.value) {
-                      const today = new Date();
+                      const todayDate = new Date();
                       const [h, m] = e.target.value.split(":");
-                      today.setHours(parseInt(h), parseInt(m), 0, 0);
-                      updateField(btn.field, today.toISOString());
+                      todayDate.setHours(parseInt(h), parseInt(m), 0, 0);
+                      const iso = todayDate.toISOString();
+                      updateField(btn.field, iso);
+                      // Also update billing mirror on manual edit
+                      const mirrorField = BILLING_MIRROR[btn.field];
+                      if (mirrorField) updateField(mirrorField, iso);
                     }
                   }}
                   onBlur={() => setEditingField(null)}
@@ -215,6 +246,41 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
               {trip.loaded_miles != null ? `${trip.loaded_miles} mi` : "—"}
             </p>
           )}
+        </div>
+      </div>
+
+      {/* Origin & Destination Type */}
+      <div className="border-t border-border pt-4">
+        <h4 className="text-sm font-semibold text-foreground mb-3">Location Types</h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="min-w-0">
+            <label className="text-sm font-medium text-muted-foreground mb-1 block">Origin Type</label>
+            <Select
+              value={trip.origin_type || ""}
+              onValueChange={(v) => updateField("origin_type", v)}
+            >
+              <SelectTrigger className="h-11"><SelectValue placeholder="Select origin type" /></SelectTrigger>
+              <SelectContent>
+                {LOCATION_TYPE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="min-w-0">
+            <label className="text-sm font-medium text-muted-foreground mb-1 block">Destination Type</label>
+            <Select
+              value={trip.destination_type || ""}
+              onValueChange={(v) => updateField("destination_type", v)}
+            >
+              <SelectTrigger className="h-11"><SelectValue placeholder="Select destination type" /></SelectTrigger>
+              <SelectContent>
+                {LOCATION_TYPE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
     </div>
