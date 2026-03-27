@@ -43,14 +43,12 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
   ];
 
   const autoCalculateLoadedMiles = (sceneVal: number | null, destVal: number | null) => {
-    if (sceneVal && destVal && sceneVal > 0 && destVal > 0) {
+    if (sceneVal !== null && sceneVal !== undefined && destVal !== null && destVal !== undefined && destVal > sceneVal) {
       const miles = destVal - sceneVal;
-      if (miles > 0) {
-        setOdometerWarning(null);
-        updateField("loaded_miles", parseFloat(miles.toFixed(1)));
-      } else {
-        setOdometerWarning("Check odometer values — destination reading is less than scene reading.");
-      }
+      setOdometerWarning(null);
+      updateField("loaded_miles", parseFloat(miles.toFixed(1)));
+    } else if (sceneVal !== null && destVal !== null && destVal <= sceneVal) {
+      setOdometerWarning("Check odometer values — destination reading is less than or equal to scene reading.");
     }
   };
 

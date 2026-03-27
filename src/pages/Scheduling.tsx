@@ -226,14 +226,15 @@ export default function Scheduling() {
     fetchOperationalAlerts();
   }, [selectedDate, fetchOperationalAlerts]);
 
-  // Realtime subscription for operational alerts
+  // Realtime subscription for operational alerts and crews
   useEffect(() => {
     const channel = supabase
       .channel("operational-alerts-scheduling")
       .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => fetchOperationalAlerts())
+      .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => refresh())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [fetchOperationalAlerts]);
+  }, [fetchOperationalAlerts, refresh]);
 
   const resolveOperationalAlert = async (id: string) => {
     await supabase

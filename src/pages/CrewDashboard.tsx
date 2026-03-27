@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 const TRANSPORT_LABELS: Record<string, string> = {
   dialysis: "Dialysis Transport",
+  outpatient: "Outpatient Transport",
   ift: "Interfacility Transfer",
   discharge: "Discharge Transport",
   outpatient_specialty: "Outpatient Specialty",
