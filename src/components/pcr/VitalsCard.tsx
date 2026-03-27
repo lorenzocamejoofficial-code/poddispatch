@@ -155,9 +155,16 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
         return (
           <div key={vs.id} className="rounded-lg border p-4 space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-bold text-primary uppercase tracking-wider">
-                {idx === 0 ? "Initial Vitals" : `Repeat Vitals #${idx + 1}`}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-bold text-primary uppercase tracking-wider">
+                  {idx === 0 ? "Initial Vitals" : `Repeat Vitals #${idx + 1}`}
+                </p>
+                {vs.timestamp && (
+                  <span className="text-xs text-muted-foreground">
+                    · {new Date(vs.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                  </span>
+                )}
+              </div>
               {sets.length > 1 && (
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeSet(idx)}>
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
