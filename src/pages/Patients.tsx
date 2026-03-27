@@ -74,7 +74,7 @@ export default function Patients() {
   const [bLegWarnings, setBLegWarnings] = useState<{ pickup_time: string; run_date: string; earliest: string }[]>([]);
 
   const [form, setForm] = useState({
-    first_name: "", last_name: "", dob: "", phone: "",
+    first_name: "", last_name: "", dob: "", phone: "", sex: "",
     pickup_address: "", dropoff_facility: "", chair_time: "",
     run_duration_minutes: "", schedule_days: "" as string,
     weight_lbs: "", notes: "", status: "active" as PatientStatus,
