@@ -37,6 +37,14 @@ interface RunInfo {
   safety_reasons?: string[];
   needs_missing?: string[];
   is_oneoff?: boolean;
+  // PCR time taps
+  dispatch_time?: string | null;
+  arrived_pickup_at?: string | null;
+  at_scene_time?: string | null;
+  left_scene_time?: string | null;
+  arrived_dropoff_at?: string | null;
+  in_service_time?: string | null;
+  pcr_status?: string | null;
 }
 
 interface TruckCardProps {
