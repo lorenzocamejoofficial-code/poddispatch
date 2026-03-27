@@ -12,6 +12,8 @@ import { TimingRiskBadge, computeTimingRisk } from "./TimingRiskBadge";
 import { BillingReadinessSummary } from "./BillingReadinessSummary";
 import { SafetyBadge, PatientNeedsWarning } from "./SafetyBadge";
 import { evaluateSafetyRules, hasCompletePatientNeeds, type PatientNeeds, type CrewCapability, type TruckEquipment, type SafetyStatus } from "@/lib/safety-rules";
+import { TimeTapRow } from "./TimeTapRow";
+import { PCRStatusIndicator } from "./PCRStatusIndicator";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
 

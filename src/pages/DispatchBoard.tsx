@@ -239,6 +239,14 @@ export default function DispatchBoard() {
           is_oneoff: isOneoff,
           destination_name: leg?.destination_location ?? null,
           leg_id: leg?.id ?? null,
+          // PCR time taps
+          dispatch_time: tripRecord?.dispatch_time ?? null,
+          arrived_pickup_at: tripRecord?.arrived_pickup_at ?? null,
+          at_scene_time: tripRecord?.at_scene_time ?? null,
+          left_scene_time: tripRecord?.left_scene_time ?? null,
+          arrived_dropoff_at: tripRecord?.arrived_dropoff_at ?? null,
+          in_service_time: tripRecord?.in_service_time ?? null,
+          pcr_status: tripRecord?.pcr_status ?? null,
         };
       });
 
