@@ -56,4 +56,10 @@ export const PCR_TOOLTIPS: Record<string, string> = {
   receiving_facility_signature: "Confirms the receiving facility accepted the patient and transfer of care was completed",
   crew_attestation: "Crew statement confirming the patient was unable to sign and documents the reason",
   patient_refusal: "Documents that the patient was informed of risks and chose to refuse transport or treatment",
+
+  // Patient Info
+  chief_complaint_patient: "Primary reason for transport today — pre-filled from transport type, edit if different for this specific run",
+  pcs_obtained: "Physician Certification Statement — required by Medicare for interfacility transfers. Must be obtained at the sending facility before transport.",
+  discharge_instructions: "Confirmation that discharge instructions were received from the sending facility staff",
+  auth_status: "Prior authorization status — claim will be blocked if auth is expired or missing",
 };
