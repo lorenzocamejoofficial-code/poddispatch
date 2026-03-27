@@ -403,7 +403,12 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
       timestamp: new Date().toISOString(),
       dataUrl: pendingDataUrl,
     };
-    updateField("signatures_json", [...sigs, sig]);
+    const updatedSigs = [...sigs, sig];
+    updateField("signatures_json", updatedSigs);
+    // Set billing gate boolean when a Payment Authorization signature is captured
+    if (addingType === "Payment Authorization" && pendingDataUrl) {
+      updateField("signature_obtained", true);
+    }
     resetForm();
   };
 
