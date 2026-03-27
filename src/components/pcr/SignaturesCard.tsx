@@ -85,6 +85,8 @@ function FullScreenCanvas({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [drawing, setDrawing] = useState(false);
+  const hasMoved = useRef(false);
+  const lastPos = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -117,8 +119,10 @@ function FullScreenCanvas({
   const startDraw = (e: React.TouchEvent | React.MouseEvent) => {
     e.preventDefault();
     setDrawing(true);
+    hasMoved.current = false;
     const ctx = canvasRef.current?.getContext("2d");
     const pos = getPos(e);
+    lastPos.current = pos;
     ctx?.beginPath();
     ctx?.moveTo(pos.x, pos.y);
   };
@@ -126,13 +130,24 @@ function FullScreenCanvas({
   const draw = (e: React.TouchEvent | React.MouseEvent) => {
     if (!drawing) return;
     e.preventDefault();
+    hasMoved.current = true;
     const ctx = canvasRef.current?.getContext("2d");
     const pos = getPos(e);
+    lastPos.current = pos;
     ctx?.lineTo(pos.x, pos.y);
     ctx?.stroke();
   };
 
   const endDraw = () => {
+    if (drawing && !hasMoved.current && lastPos.current) {
+      const ctx = canvasRef.current?.getContext("2d");
+      if (ctx) {
+        ctx.beginPath();
+        ctx.arc(lastPos.current.x, lastPos.current.y, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = "hsl(var(--foreground))";
+        ctx.fill();
+      }
+    }
     setDrawing(false);
   };
 
