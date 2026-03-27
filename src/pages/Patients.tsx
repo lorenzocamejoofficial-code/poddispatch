@@ -147,7 +147,7 @@ export default function Patients() {
     const durM = hasNewFields ? String(existingM ?? 0) : String(legacyDwm % 60);
     setForm({
       first_name: p.first_name, last_name: p.last_name,
-      dob: p.dob ?? "", phone: p.phone ?? "",
+      dob: p.dob ?? "", phone: p.phone ?? "", sex: (p as any).sex ?? "",
       pickup_address: p.pickup_address ?? "", dropoff_facility: p.dropoff_facility ?? "",
       chair_time: p.chair_time ?? "", run_duration_minutes: p.run_duration_minutes?.toString() ?? "",
       schedule_days: p.schedule_days ?? "", weight_lbs: p.weight_lbs?.toString() ?? "",
