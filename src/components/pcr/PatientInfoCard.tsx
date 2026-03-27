@@ -18,7 +18,7 @@ export function PatientInfoCard({ trip, updateField }: PatientInfoCardProps) {
     { label: "Full Name", value: `${patient.first_name} ${patient.last_name}` },
     { label: "DOB", value: patient.dob || "—" },
     { label: "Age", value: age ? `${age}` : "—" },
-    { label: "Sex", value: patient.sex === "M" ? "Male" : patient.sex === "F" ? "Female" : patient.sex || "—" },
+    { label: "Sex", value: patient.sex === "M" ? "Male" : patient.sex === "F" ? "Female" : patient.sex === "U" ? "Unknown" : patient.sex || "—" },
     { label: "Weight", value: patient.weight_lbs ? `${patient.weight_lbs} lbs` : "—" },
     { label: "Home Address", value: patient.pickup_address || "—" },
     { label: "Primary Insurance", value: patient.primary_payer || "—" },

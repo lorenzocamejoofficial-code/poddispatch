@@ -1298,6 +1298,7 @@ export type Database = {
           schedule_days: Database["public"]["Enums"]["schedule_days"] | null
           secondary_member_id: string | null
           secondary_payer: string | null
+          sex: string | null
           simulation_run_id: string | null
           special_equipment_required: string
           special_handling: string | null
@@ -1345,6 +1346,7 @@ export type Database = {
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
           secondary_member_id?: string | null
           secondary_payer?: string | null
+          sex?: string | null
           simulation_run_id?: string | null
           special_equipment_required?: string
           special_handling?: string | null
@@ -1392,6 +1394,7 @@ export type Database = {
           schedule_days?: Database["public"]["Enums"]["schedule_days"] | null
           secondary_member_id?: string | null
           secondary_payer?: string | null
+          sex?: string | null
           simulation_run_id?: string | null
           special_equipment_required?: string
           special_handling?: string | null
@@ -2291,6 +2294,7 @@ export type Database = {
           claim_ready: boolean | null
           clinical_note: string | null
           company_id: string | null
+          condition_at_destination: string | null
           condition_on_arrival: Json | null
           created_at: string
           crew_id: string | null
@@ -2299,6 +2303,7 @@ export type Database = {
           crew_updated_fields: Json | null
           destination_location: string | null
           destination_type: string | null
+          discharge_instructions_received: boolean | null
           dispatch_time: string | null
           disposition: string | null
           documentation_complete: boolean | null
@@ -2397,6 +2402,7 @@ export type Database = {
           claim_ready?: boolean | null
           clinical_note?: string | null
           company_id?: string | null
+          condition_at_destination?: string | null
           condition_on_arrival?: Json | null
           created_at?: string
           crew_id?: string | null
@@ -2405,6 +2411,7 @@ export type Database = {
           crew_updated_fields?: Json | null
           destination_location?: string | null
           destination_type?: string | null
+          discharge_instructions_received?: boolean | null
           dispatch_time?: string | null
           disposition?: string | null
           documentation_complete?: boolean | null
@@ -2503,6 +2510,7 @@ export type Database = {
           claim_ready?: boolean | null
           clinical_note?: string | null
           company_id?: string | null
+          condition_at_destination?: string | null
           condition_on_arrival?: Json | null
           created_at?: string
           crew_id?: string | null
@@ -2511,6 +2519,7 @@ export type Database = {
           crew_updated_fields?: Json | null
           destination_location?: string | null
           destination_type?: string | null
+          discharge_instructions_received?: boolean | null
           dispatch_time?: string | null
           disposition?: string | null
           documentation_complete?: boolean | null

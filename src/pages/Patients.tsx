@@ -74,7 +74,7 @@ export default function Patients() {
   const [bLegWarnings, setBLegWarnings] = useState<{ pickup_time: string; run_date: string; earliest: string }[]>([]);
 
   const [form, setForm] = useState({
-    first_name: "", last_name: "", dob: "", phone: "",
+    first_name: "", last_name: "", dob: "", phone: "", sex: "",
     pickup_address: "", dropoff_facility: "", chair_time: "",
     run_duration_minutes: "", schedule_days: "" as string,
     weight_lbs: "", notes: "", status: "active" as PatientStatus,
@@ -110,7 +110,7 @@ export default function Patients() {
 
   const resetForm = () => {
     setForm({
-      first_name: "", last_name: "", dob: "", phone: "",
+      first_name: "", last_name: "", dob: "", phone: "", sex: "",
       pickup_address: "", dropoff_facility: "", chair_time: "",
       run_duration_minutes: "", schedule_days: "", weight_lbs: "",
       notes: "", status: "active",
@@ -147,7 +147,7 @@ export default function Patients() {
     const durM = hasNewFields ? String(existingM ?? 0) : String(legacyDwm % 60);
     setForm({
       first_name: p.first_name, last_name: p.last_name,
-      dob: p.dob ?? "", phone: p.phone ?? "",
+      dob: p.dob ?? "", phone: p.phone ?? "", sex: (p as any).sex ?? "",
       pickup_address: p.pickup_address ?? "", dropoff_facility: p.dropoff_facility ?? "",
       chair_time: p.chair_time ?? "", run_duration_minutes: p.run_duration_minutes?.toString() ?? "",
       schedule_days: p.schedule_days ?? "", weight_lbs: p.weight_lbs?.toString() ?? "",
@@ -191,6 +191,7 @@ export default function Patients() {
       last_name: form.last_name.trim(),
       dob: form.dob || null,
       phone: form.phone || null,
+      sex: form.sex || null,
       pickup_address: form.pickup_address || null,
       dropoff_facility: form.dropoff_facility || null,
       chair_time: form.chair_time || null,
@@ -445,6 +446,17 @@ export default function Patients() {
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>DOB<PCRTooltip text={ADMIN_TOOLTIPS.dob} /></Label><Input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></div>
                     <div><Label>Phone<PCRTooltip text={ADMIN_TOOLTIPS.phone} /></Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+                  </div>
+                  <div>
+                    <Label>Sex<PCRTooltip text="Patient biological sex — required for Medicare claim demographics." /></Label>
+                    <div className="flex gap-2 mt-1.5">
+                      {([{ value: "M", label: "Male" }, { value: "F", label: "Female" }, { value: "U", label: "Unknown" }] as const).map((opt) => (
+                        <label key={opt.value} className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs cursor-pointer transition-colors ${form.sex === opt.value ? "border-primary bg-primary/5 font-medium" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                          <input type="radio" name="patient-sex" className="sr-only" checked={form.sex === opt.value} onChange={() => setForm({ ...form, sex: opt.value })} />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
                   </div>
                   <div><Label>Pickup Address<PCRTooltip text={ADMIN_TOOLTIPS.pickup_address} /></Label><Input value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} /></div>
 
