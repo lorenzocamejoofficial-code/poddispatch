@@ -172,6 +172,24 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
               )}
             </div>
 
+            {/* Vitals timing warning */}
+            {(() => {
+              const leftScene = trip.left_scene_time;
+              const atDest = trip.arrived_dropoff_at;
+              if (!leftScene || !atDest || !vs.timestamp) return null;
+              const vt = new Date(vs.timestamp).getTime();
+              const ls = new Date(leftScene).getTime();
+              const ad = new Date(atDest).getTime();
+              if (vt < ls || vt > ad) {
+                return (
+                  <p className="text-[11px] text-[hsl(var(--status-yellow))]">
+                    ⚠ Vitals timestamp should fall between Left Scene and At Destination times for billing compliance.
+                  </p>
+                );
+              }
+              return null;
+            })()}
+
             {/* BP / Pulse — 1 col mobile, 3 col tablet+ */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 py-3">
               <div className="min-w-0">
