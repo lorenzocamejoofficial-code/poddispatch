@@ -612,6 +612,8 @@ export default function BillingAndClaims() {
                                 pcs_attached: claim.trip_pcs,
                                 origin_type: claim.origin_type,
                                 destination_type: claim.destination_type,
+                                loaded_at: claim.trip_loaded_at,
+                                dropped_at: claim.trip_dropped_at,
                               }}
                             />
                           </div>
