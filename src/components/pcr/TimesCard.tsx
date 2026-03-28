@@ -79,9 +79,11 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
     }
   };
 
-  const handleOdometerBlur = (field: string, rawValue: string) => {
-    const val = rawValue ? parseFloat(rawValue) : null;
-    updateField(field, val);
+  const handleOdometerBlur = async (field: string, rawValue: string) => {
+    const val = rawValue !== "" && rawValue !== null && rawValue !== undefined 
+      ? parseFloat(rawValue) 
+      : null;
+    await updateField(field, val);
 
     const sceneVal = field === "odometer_at_scene" ? val : (trip.odometer_at_scene ?? null);
     const destVal = field === "odometer_at_destination" ? val : (trip.odometer_at_destination ?? null);
