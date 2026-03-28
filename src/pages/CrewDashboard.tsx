@@ -143,7 +143,7 @@ export default function CrewDashboard() {
       const patient = leg?.patient as any;
       const { name: patientName, hasRecord } = formatPatientName(patient);
       const legTypeRaw = (leg as any)?.leg_type ?? null;
-      const legType = legTypeRaw === "a_leg" ? "A" : legTypeRaw === "b_leg" ? "B" : "—";
+      const legType = legTypeRaw === "a_leg" || legTypeRaw === "A" ? "A" : legTypeRaw === "b_leg" || legTypeRaw === "B" ? "B" : "—";
       return {
         slotId: slot.id, slotOrder: slot.slot_order, legId: slot.leg_id,
         legType,
