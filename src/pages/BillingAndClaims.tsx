@@ -143,6 +143,8 @@ export default function BillingAndClaims() {
           trip_loaded_miles: tripData?.loaded_miles ?? null,
           trip_signature: tripData?.signature_obtained ?? false,
           trip_pcs: tripData?.pcs_attached ?? false,
+          trip_loaded_at: tripData?.loaded_at ?? null,
+          trip_dropped_at: tripData?.dropped_at ?? null,
         };
       })
     );
