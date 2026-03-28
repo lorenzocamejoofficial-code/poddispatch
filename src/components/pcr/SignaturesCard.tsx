@@ -390,7 +390,7 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
     return true;
   };
 
-  const addSig = () => {
+  const addSig = async () => {
     if (!canSave()) return;
     const role = needsRoleSelector ? selectedRole : newRole;
     const sig: Signature = {
@@ -404,10 +404,10 @@ export function SignaturesCard({ trip, updateField, legType }: Props) {
       dataUrl: pendingDataUrl,
     };
     const updatedSigs = [...sigs, sig];
-    updateField("signatures_json", updatedSigs);
+    await updateField("signatures_json", updatedSigs);
     // Set billing gate boolean when a Payment Authorization signature is captured
     if (addingType === "Payment Authorization" && pendingDataUrl) {
-      updateField("signature_obtained", true);
+      await updateField("signature_obtained", true);
     }
     resetForm();
   };
