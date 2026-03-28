@@ -52,6 +52,7 @@ interface ClaimRecord {
   trip_pcs?: boolean;
   trip_loaded_at?: string | null;
   trip_dropped_at?: string | null;
+  trip_type?: string | null;
 }
 
 interface ChargeMaster {
@@ -127,7 +128,7 @@ export default function BillingAndClaims() {
         ? supabase.from("patients").select("id, first_name, last_name").in("id", patientIds)
         : Promise.resolve({ data: [] }),
       tripIds.length > 0
-        ? supabase.from("trip_records" as any).select("id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at").in("id", tripIds)
+        ? supabase.from("trip_records" as any).select("id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type").in("id", tripIds)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -145,6 +146,7 @@ export default function BillingAndClaims() {
           trip_pcs: tripData?.pcs_attached ?? false,
           trip_loaded_at: tripData?.loaded_at ?? null,
           trip_dropped_at: tripData?.dropped_at ?? null,
+          trip_type: tripData?.trip_type ?? c.payer_type ?? null,
         };
       })
     );
@@ -614,6 +616,7 @@ export default function BillingAndClaims() {
                                 destination_type: claim.destination_type,
                                 loaded_at: claim.trip_loaded_at,
                                 dropped_at: claim.trip_dropped_at,
+                                trip_type: claim.trip_type,
                               }}
                             />
                           </div>

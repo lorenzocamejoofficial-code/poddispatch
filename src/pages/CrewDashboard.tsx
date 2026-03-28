@@ -250,13 +250,30 @@ export default function CrewDashboard() {
 
   const getActiveHold = (tripId: string | null) => tripId ? holdTimers.find(h => h.tripId === tripId) : undefined;
 
+  const getOriginDestination = (tripType: string, legType: string) => {
+    if (legType === "B") {
+      const origin = tripType === "dialysis" ? "Dialysis Facility"
+        : tripType === "ift" ? "Hospital"
+        : tripType === "discharge" ? "Hospital"
+        : tripType === "outpatient" ? "Outpatient Specialty"
+        : "Healthcare Facility";
+      return { origin_type: origin, destination_type: "Residence" };
+    }
+    const destination = tripType === "dialysis" ? "Dialysis Facility"
+      : tripType === "ift" ? "Hospital"
+      : tripType === "discharge" ? "Hospital"
+      : tripType === "outpatient" ? "Outpatient Specialty"
+      : "Healthcare Facility";
+    return { origin_type: "Residence", destination_type: destination };
+  };
+
   const openPCR = async (run: RunCard) => {
     let tripId = run.tripId;
     // Store leg type in sessionStorage for PCR fallback
     if (run.legTypeRaw) {
       sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
     }
-    // If no trip_record exists yet, create one
+   // If no trip_record exists yet, create one
     if (!tripId) {
       if (!run.patientId) {
         console.warn("openPCR: run.patientId is null — trip record will have no patient linked", { legId: run.legId });
@@ -266,28 +283,14 @@ export default function CrewDashboard() {
         toast({ title: "Cannot create trip record", description: "No company association found for this crew.", variant: "destructive" });
         return;
       }
-      // Auto-derive origin_type from patient location_type
-      const patLocType = (run as any).patientLocationType;
-      let autoOriginType = "Residence";
-      if (patLocType) {
-        const loc = patLocType.toLowerCase();
-        if (loc.includes("snf") || loc === "skilled nursing facility") autoOriginType = "SNF";
-        else if (loc.includes("assisted living")) autoOriginType = "Assisted Living";
-        else if (loc.includes("hospital")) autoOriginType = "Hospital";
-        else if (loc.includes("dialysis")) autoOriginType = "Dialysis Facility";
-        else if (loc === "residence" || loc === "") autoOriginType = "Residence";
-        else autoOriginType = patLocType; // pass through
-      }
 
-      // Auto-derive destination_type from trip type
-      const tt = (run.tripType ?? "").toLowerCase();
-      let autoDestType = "Residence";
-      if (tt === "dialysis") autoDestType = "Dialysis Facility";
-      else if (tt === "ift") autoDestType = "Hospital";
-      else if (tt === "discharge") autoDestType = "Residence";
-      else if (tt === "outpatient" || tt === "outpatient_specialty") autoDestType = "Outpatient Specialty";
-      else if (tt === "emergency") autoDestType = "Hospital";
-      else if (tt === "private_pay") autoDestType = "Residence";
+      // Leg-type-aware origin/destination derivation
+      const derived = getOriginDestination(run.tripType ?? "", run.legType);
+      // Override origin with patient location_type if available
+      const patLocType = run.patientLocationType;
+      if (patLocType) {
+        derived.origin_type = patLocType;
+      }
 
       const { data: newTrip, error } = await supabase.from("trip_records").insert({
         leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
@@ -298,13 +301,15 @@ export default function CrewDashboard() {
         scheduled_pickup_time: run.pickupTime, trip_type: run.tripType as any,
         pcr_type: run.tripType as any,
         pcr_status: "not_started",
-        origin_type: autoOriginType,
-        destination_type: autoDestType,
-      }).select("id").single();
+        origin_type: derived.origin_type,
+        destination_type: derived.destination_type,
+      }).select("id, origin_type, destination_type").single();
       if (error || !newTrip) {
+        console.error("Failed to create trip record with origin/destination:", error);
         toast({ title: "Failed to create trip record", description: error?.message ?? "Unknown error", variant: "destructive" });
         return;
       }
+      console.log("Trip record created with origin_type:", newTrip.origin_type, "destination_type:", newTrip.destination_type);
       tripId = newTrip.id;
     }
     navigate(`/pcr?tripId=${tripId}`);
