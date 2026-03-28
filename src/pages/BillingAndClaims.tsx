@@ -255,62 +255,40 @@ export default function BillingAndClaims() {
     fetchOverrideLogs();
   }, [refreshToken, fetchData, fetchQueueTrips, fetchOverrideLogs]);
 
-  const syncClaimsFromTrips = async () => {
-    const { data: trips } = await supabase
-      .from("trip_records" as any)
-      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions")
-      .eq("status", "ready_for_billing");
+  // Helper: build claim data from a trip
+  const buildClaimFromTrip = (t: any) => {
+    const payerType = t.patient?.primary_payer ?? "default";
+    const payerRules = payerRulesMap.get(payerType) ?? null;
+    const authInfo = t.patient ? { auth_required: t.patient.auth_required, auth_expiration: t.patient.auth_expiration } : null;
+    const gateResult = computeCleanTripStatus(t, payerRules, authInfo);
 
-    if (!trips?.length) { toast.info("No new trips ready for billing"); return; }
+    const rate = chargeMaster.find(r => r.payer_type === payerType) ?? chargeMaster.find(r => r.payer_type === "default");
+    const base = rate?.base_rate ?? 0;
+    const miles = Number(t.loaded_miles ?? 0) * Number(rate?.mileage_rate ?? 0);
+    const wait = Number(t.wait_time_minutes ?? 0) * Number(rate?.wait_rate_per_min ?? 0);
+    const extras = (t.patient?.oxygen_required ? Number(rate?.oxygen_fee ?? 0) : 0)
+      + (t.patient?.bariatric ? Number(rate?.bariatric_fee ?? 0) : 0);
 
-    const { data: existing } = await supabase.from("claim_records" as any).select("trip_id");
-    const existingTripIds = new Set((existing ?? []).map((e: any) => e.trip_id));
+    const { codes, modifiers: mods } = computeHcpcsCodes({
+      pcr_type: t.pcr_type,
+      service_level: t.service_level,
+      loaded_miles: t.loaded_miles,
+      wait_time_minutes: t.wait_time_minutes,
+      oxygen_required: t.patient?.oxygen_required,
+      bariatric: t.patient?.bariatric,
+      equipment_used_json: t.equipment_used_json,
+      destination_type: t.destination_type,
+      origin_type: t.origin_type,
+      assessment_json: t.assessment_json,
+    });
 
-    const newTrips = (trips as any[]).filter(t => !existingTripIds.has(t.id));
-    if (!newTrips.length) { toast.info("All billing trips already have claims"); return; }
+    const claimStatus = gateResult.level === "blocked" ? "needs_review" : gateResult.level === "review" ? "needs_review" : "ready_to_bill";
+    const claimNotes = gateResult.level !== "clean" ? JSON.stringify(gateResult.issues) : null;
 
-    const cleanClaims: any[] = [];
-    const reviewClaims: any[] = [];
-    const blockedTrips: { id: string; issues: string[] }[] = [];
-
-    for (const t of newTrips) {
-      const payerType = t.patient?.primary_payer ?? "default";
-      const payerRules = payerRulesMap.get(payerType) ?? null;
-      const authInfo = t.patient ? { auth_required: t.patient.auth_required, auth_expiration: t.patient.auth_expiration } : null;
-
-      // Run clean trip gate
-      const gateResult = computeCleanTripStatus(t, payerRules, authInfo);
-
-      if (gateResult.level === "blocked") {
-        blockedTrips.push({ id: t.id, issues: gateResult.issues });
-        continue;
-      }
-
-      const rate = chargeMaster.find(r => r.payer_type === payerType) ?? chargeMaster.find(r => r.payer_type === "default");
-      const base = rate?.base_rate ?? 0;
-      const miles = Number(t.loaded_miles ?? 0) * Number(rate?.mileage_rate ?? 0);
-      const wait = Number(t.wait_time_minutes ?? 0) * Number(rate?.wait_rate_per_min ?? 0);
-      const extras = (t.patient?.oxygen_required ? Number(rate?.oxygen_fee ?? 0) : 0)
-        + (t.patient?.bariatric ? Number(rate?.bariatric_fee ?? 0) : 0);
-
-      // Derive HCPCS with full trip data
-      const { codes, modifiers: mods } = computeHcpcsCodes({
-        pcr_type: t.pcr_type,
-        service_level: t.service_level,
-        loaded_miles: t.loaded_miles,
-        wait_time_minutes: t.wait_time_minutes,
-        oxygen_required: t.patient?.oxygen_required,
-        bariatric: t.patient?.bariatric,
-        equipment_used_json: t.equipment_used_json,
-        destination_type: t.destination_type,
-        origin_type: t.origin_type,
-        assessment_json: t.assessment_json,
-      });
-
-      const claimStatus = gateResult.level === "review" ? "needs_review" : "ready_to_bill";
-      const claimNotes = gateResult.level === "review" ? JSON.stringify(gateResult.issues) : null;
-
-      const claim = {
+    return {
+      gateResult,
+      payerType,
+      claim: {
         trip_id: t.id,
         patient_id: t.patient_id,
         run_date: t.run_date,
@@ -335,7 +313,105 @@ export default function BillingAndClaims() {
         stretcher_placement: t.stretcher_placement ?? null,
         patient_mobility: t.patient_mobility ?? null,
         isolation_precautions: t.isolation_precautions ?? null,
-      };
+      },
+    };
+  };
+
+  // Refresh existing needs_review / needs_correction claims against live trip data
+  const refreshExistingClaims = async () => {
+    // Get refreshable claims
+    const { data: refreshableClaims } = await supabase
+      .from("claim_records" as any)
+      .select("id, trip_id, status")
+      .in("status", ["needs_review", "needs_correction"]);
+
+    if (!refreshableClaims?.length) {
+      toast.info("No claims need refreshing");
+      return;
+    }
+
+    const tripIds = (refreshableClaims as any[]).map((c: any) => c.trip_id).filter(Boolean);
+    const { data: trips } = await supabase
+      .from("trip_records" as any)
+      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions")
+      .in("id", tripIds);
+
+    if (!trips?.length) {
+      toast.info("No matching trip records found");
+      return;
+    }
+
+    const tripMap = new Map((trips as any[]).map((t: any) => [t.id, t]));
+    let upgraded = 0;
+    let stillPending = 0;
+
+    for (const claim of refreshableClaims as any[]) {
+      const t = tripMap.get(claim.trip_id);
+      if (!t) continue;
+
+      const { gateResult, claim: claimData } = buildClaimFromTrip(t);
+      const newStatus = gateResult.level === "clean" ? "ready_to_bill" : "needs_review";
+
+      await supabase
+        .from("claim_records" as any)
+        .update({
+          status: newStatus,
+          origin_type: claimData.origin_type,
+          destination_type: claimData.destination_type,
+          hcpcs_codes: claimData.hcpcs_codes,
+          hcpcs_modifiers: claimData.hcpcs_modifiers,
+          mileage_charge: claimData.mileage_charge,
+          total_charge: claimData.total_charge,
+          extras_charge: claimData.extras_charge,
+          notes: claimData.notes,
+          vehicle_id: claimData.vehicle_id,
+          odometer_at_scene: claimData.odometer_at_scene,
+          odometer_at_destination: claimData.odometer_at_destination,
+          odometer_in_service: claimData.odometer_in_service,
+          stretcher_placement: claimData.stretcher_placement,
+          patient_mobility: claimData.patient_mobility,
+          isolation_precautions: claimData.isolation_precautions,
+        } as any)
+        .eq("id", claim.id);
+
+      if (newStatus === "ready_to_bill") upgraded++;
+      else stillPending++;
+    }
+
+    const parts: string[] = [];
+    if (upgraded > 0) parts.push(`${upgraded} claim(s) upgraded to ready-to-bill`);
+    if (stillPending > 0) parts.push(`${stillPending} claim(s) still need review`);
+    toast.success(parts.join(" · ") || "Claims refreshed");
+    fetchData();
+  };
+
+  const syncClaimsFromTrips = async () => {
+    const { data: trips } = await supabase
+      .from("trip_records" as any)
+      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions")
+      .in("status", ["ready_for_billing", "completed"] as any)
+      .eq("pcr_status", "submitted");
+
+    if (!trips?.length) { toast.info("No new trips ready for billing"); return; }
+
+    const { data: existing } = await supabase.from("claim_records" as any).select("trip_id");
+    const existingTripIds = new Set((existing ?? []).map((e: any) => e.trip_id));
+
+    const newTrips = (trips as any[]).filter(t => !existingTripIds.has(t.id));
+
+    const cleanClaims: any[] = [];
+    const reviewClaims: any[] = [];
+    const blockedTrips: { id: string; issues: string[] }[] = [];
+
+    for (const t of newTrips) {
+      const { gateResult, claim } = buildClaimFromTrip(t);
+
+      if (gateResult.level === "blocked") {
+        blockedTrips.push({ id: t.id, issues: gateResult.issues });
+        // Still create the claim as needs_review so it can be refreshed later
+        reviewClaims.push(claim);
+        continue;
+      }
 
       if (gateResult.level === "review") {
         reviewClaims.push(claim);
@@ -348,6 +424,9 @@ export default function BillingAndClaims() {
     if (allClaims.length > 0) {
       await supabase.from("claim_records" as any).insert(allClaims);
     }
+
+    // Also refresh existing needs_review claims
+    await refreshExistingClaims();
 
     // Summary toast
     const parts: string[] = [];
