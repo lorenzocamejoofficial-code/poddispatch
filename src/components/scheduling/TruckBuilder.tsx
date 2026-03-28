@@ -705,6 +705,11 @@ const TruckCard = memo(function TruckCard({
   onAssignLeg, onRemoveLeg, onEditException, onCancelLeg, onRestoreLeg, truckAlertCount = 0, legAlertIds = new Set(), riskData,
   crewCapability, truckEquipment, onSafetyOverride, overriddenLegIds = new Set(),
 }: TruckCardProps) {
+  const [legsExpanded, setLegsExpanded] = useState(false);
+  const VISIBLE_LEG_COUNT = 2;
+  const visibleLegs = legsExpanded ? tLegs : tLegs.slice(0, VISIBLE_LEG_COUNT);
+  const hiddenLegCount = tLegs.length - VISIBLE_LEG_COUNT;
+
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `truck-drop-${truck.id}`,
     data: { type: "truck-zone", truckId: truck.id },
