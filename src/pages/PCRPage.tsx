@@ -87,7 +87,7 @@ export default function PCRPage() {
   }
 
   // Medic selection prompt
-  const isReadOnly = trip.pcr_status === "completed";
+  const isReadOnly = trip.pcr_status === "submitted";
 
   if (!trip.attending_medic_id) {
     const handleMedicSelect = async (medic: CrewMember) => {
