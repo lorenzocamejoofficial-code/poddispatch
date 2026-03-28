@@ -145,6 +145,7 @@ export default function BillingAndClaims() {
           trip_pcs: tripData?.pcs_attached ?? false,
           trip_loaded_at: tripData?.loaded_at ?? null,
           trip_dropped_at: tripData?.dropped_at ?? null,
+          trip_type: tripData?.trip_type ?? c.payer_type ?? null,
         };
       })
     );
