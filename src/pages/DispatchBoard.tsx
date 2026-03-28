@@ -340,24 +340,33 @@ export default function DispatchBoard() {
     setLoading(false);
   };
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedFetch = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchData(), 500);
+  }, []);
+
   useEffect(() => {
     setLoading(true);
     fetchData();
 
     const channel = supabase
       .channel("dispatch-board")
-      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => debouncedFetch())
+      .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs" }, () => debouncedFetch())
+      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => debouncedFetch())
+      .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => debouncedFetch())
+      .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => debouncedFetch())
+      .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, () => debouncedFetch())
+      .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => debouncedFetch())
+      .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => debouncedFetch())
+      .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides" }, () => debouncedFetch())
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      supabase.removeChannel(channel);
+    };
   }, [selectedDate]);
 
   const dismissAlert = async (id: string) => {
