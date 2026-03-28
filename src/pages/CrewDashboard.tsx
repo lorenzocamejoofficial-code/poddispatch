@@ -574,93 +574,97 @@ export default function CrewDashboard() {
                   </span>
                 </div>
 
-                {/* Disputed banner */}
-                {run.cancellationDisputed && run.cancellationDispatcherNote && (
-                  <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 px-3 py-2">
-                    <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
-                      Cancellation disputed by dispatch: {run.cancellationDispatcherNote}
-                    </p>
-                  </div>
-                )}
+                {isExpanded && (
+                  <>
+                    {/* Disputed banner */}
+                    {run.cancellationDisputed && run.cancellationDispatcherNote && (
+                      <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 px-3 py-2">
+                        <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                          Cancellation disputed by dispatch: {run.cancellationDispatcherNote}
+                        </p>
+                      </div>
+                    )}
 
-                {activeHold && (
-                  <div className="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
-                    <div className="flex items-center gap-2 text-xs font-medium text-destructive">
-                      <Clock className="h-3.5 w-3.5 animate-pulse" />
-                      {activeHold.holdType === "patient_not_ready" ? "Patient Not Ready" : "Facility Delay"}
-                      <span className="font-mono">{formatElapsed(activeHold.startedAt)}</span>
+                    {activeHold && (
+                      <div className="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+                        <div className="flex items-center gap-2 text-xs font-medium text-destructive">
+                          <Clock className="h-3.5 w-3.5 animate-pulse" />
+                          {activeHold.holdType === "patient_not_ready" ? "Patient Not Ready" : "Facility Delay"}
+                          <span className="font-mono">{formatElapsed(activeHold.startedAt)}</span>
+                        </div>
+                        <Button variant="outline" size="sm" className="h-7 text-xs" disabled={holdLoading === activeHold.id}
+                          onClick={(e) => { e.stopPropagation(); resolveHold(activeHold.id); }}>
+                          {holdLoading === activeHold.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Resolve"}
+                        </Button>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      {run.pcrStatus === "not_started" && (
+                        <Button
+                          className="flex-1 h-12 text-sm font-semibold gap-2 w-full"
+                          onClick={() => openPCR(run)}
+                        >
+                          <FileText className="h-4 w-4" />Start PCR
+                        </Button>
+                      )}
+
+                      {run.pcrStatus === "in_progress" && (
+                        <>
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 dark:bg-amber-900/20 dark:border-amber-700 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-400">
+                            <FileText className="h-3 w-3" /> PCR In Progress
+                          </span>
+                          <Button variant="link" size="sm" className="text-xs text-amber-700 dark:text-amber-400 px-1" onClick={() => openPCR(run)}>
+                            Continue →
+                          </Button>
+                        </>
+                      )}
+
+                      {run.pcrStatus === "submitted" && (
+                        <>
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-400">
+                            <Check className="h-3 w-3" /> PCR Submitted
+                          </span>
+                          <Button variant="link" size="sm" className="text-xs text-emerald-700 dark:text-emerald-400 px-1" onClick={() => openPCR(run)}>
+                            View →
+                          </Button>
+                        </>
+                      )}
+
+                      {/* Cancel Trip button */}
+                      {!isTerminal && ["not_started", "in_progress"].includes(run.pcrStatus) && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-12 w-12 border-destructive/50 text-destructive hover:bg-destructive/5"
+                          onClick={() => { setCancelTarget(run); setCancelReason(""); }}
+                          title="Cancel Trip"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                      )}
+
+                      {run.tripId && !isTerminal && !activeHold && (
+                        <>
+                          {["arrived_pickup", "en_route"].includes(run.tripStatus) && (
+                            <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
+                              disabled={holdLoading === `${run.tripId}-patient_not_ready`}
+                              onClick={() => startHold(run, "patient_not_ready")}>
+                              <AlertTriangle className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {["arrived_dropoff", "loaded"].includes(run.tripStatus) && (
+                            <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
+                              disabled={holdLoading === `${run.tripId}-facility_delay`}
+                              onClick={() => startHold(run, "facility_delay")}>
+                              <Clock className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </>
+                      )}
                     </div>
-                    <Button variant="outline" size="sm" className="h-7 text-xs" disabled={holdLoading === activeHold.id}
-                      onClick={() => resolveHold(activeHold.id)}>
-                      {holdLoading === activeHold.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Resolve"}
-                    </Button>
-                  </div>
+                  </>
                 )}
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {run.pcrStatus === "not_started" && (
-                    <Button
-                      className="flex-1 h-12 text-sm font-semibold gap-2 w-full"
-                      onClick={() => openPCR(run)}
-                    >
-                      <FileText className="h-4 w-4" />Start PCR
-                    </Button>
-                  )}
-
-                  {run.pcrStatus === "in_progress" && (
-                    <>
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 dark:bg-amber-900/20 dark:border-amber-700 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-400">
-                        <FileText className="h-3 w-3" /> PCR In Progress
-                      </span>
-                      <Button variant="link" size="sm" className="text-xs text-amber-700 dark:text-amber-400 px-1" onClick={() => openPCR(run)}>
-                        Continue →
-                      </Button>
-                    </>
-                  )}
-
-                  {run.pcrStatus === "submitted" && (
-                    <>
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-400">
-                        <Check className="h-3 w-3" /> PCR Submitted
-                      </span>
-                      <Button variant="link" size="sm" className="text-xs text-emerald-700 dark:text-emerald-400 px-1" onClick={() => openPCR(run)}>
-                        View →
-                      </Button>
-                    </>
-                  )}
-
-                  {/* Cancel Trip button — only for non-terminal, non-completed PCR runs */}
-                  {!isTerminal && ["not_started", "in_progress"].includes(run.pcrStatus) && (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-12 w-12 border-destructive/50 text-destructive hover:bg-destructive/5"
-                      onClick={() => { setCancelTarget(run); setCancelReason(""); }}
-                      title="Cancel Trip"
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  )}
-
-                  {run.tripId && !isTerminal && !activeHold && (
-                    <>
-                      {["arrived_pickup", "en_route"].includes(run.tripStatus) && (
-                        <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
-                          disabled={holdLoading === `${run.tripId}-patient_not_ready`}
-                          onClick={() => startHold(run, "patient_not_ready")}>
-                          <AlertTriangle className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {["arrived_dropoff", "loaded"].includes(run.tripStatus) && (
-                        <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
-                          disabled={holdLoading === `${run.tripId}-facility_delay`}
-                          onClick={() => startHold(run, "facility_delay")}>
-                          <Clock className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
               </div>
             );
           })
