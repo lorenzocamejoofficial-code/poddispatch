@@ -86,6 +86,7 @@ export default function CrewDashboard() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelLoading, setCancelLoading] = useState(false);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
@@ -143,7 +144,7 @@ export default function CrewDashboard() {
       const patient = leg?.patient as any;
       const { name: patientName, hasRecord } = formatPatientName(patient);
       const legTypeRaw = (leg as any)?.leg_type ?? null;
-      const legType = legTypeRaw === "a_leg" ? "A" : legTypeRaw === "b_leg" ? "B" : "—";
+      const legType = legTypeRaw === "a_leg" || legTypeRaw === "A" ? "A" : legTypeRaw === "b_leg" || legTypeRaw === "B" ? "B" : "—";
       return {
         slotId: slot.id, slotOrder: slot.slot_order, legId: slot.leg_id,
         legType,
@@ -514,7 +515,10 @@ export default function CrewDashboard() {
               return (
                 <div key={run.slotId} className="rounded-lg border bg-muted/40 p-4 space-y-3 opacity-70">
                   <div className="flex items-start gap-3">
-                    <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground text-xs font-bold">
+                    <span className={cn(
+                      "mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-bold",
+                      run.legType === "A" ? "bg-primary/10 text-primary" : run.legType === "B" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400" : "bg-muted text-muted-foreground"
+                    )}>
                       {run.legType}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -542,10 +546,19 @@ export default function CrewDashboard() {
               );
             }
 
+            const isExpanded = expandedRunId === run.slotId;
+
             return (
-              <div key={run.slotId} className={cn("rounded-lg border bg-card p-4 space-y-3", isTerminal && "opacity-60")}>
+              <div
+                key={run.slotId}
+                className={cn("rounded-lg border bg-card p-4 space-y-3 cursor-pointer transition-shadow", isTerminal && "opacity-60", isExpanded && "ring-1 ring-primary/30 shadow-sm")}
+                onClick={() => setExpandedRunId(isExpanded ? null : run.slotId)}
+              >
                 <div className="flex items-start gap-3">
-                  <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary text-xs font-bold">
+                  <span className={cn(
+                    "mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-bold",
+                    run.legType === "A" ? "bg-primary/10 text-primary" : run.legType === "B" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400" : "bg-muted text-muted-foreground"
+                  )}>
                     {run.legType}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -564,93 +577,97 @@ export default function CrewDashboard() {
                   </span>
                 </div>
 
-                {/* Disputed banner */}
-                {run.cancellationDisputed && run.cancellationDispatcherNote && (
-                  <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 px-3 py-2">
-                    <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
-                      Cancellation disputed by dispatch: {run.cancellationDispatcherNote}
-                    </p>
-                  </div>
-                )}
+                {isExpanded && (
+                  <>
+                    {/* Disputed banner */}
+                    {run.cancellationDisputed && run.cancellationDispatcherNote && (
+                      <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 px-3 py-2">
+                        <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                          Cancellation disputed by dispatch: {run.cancellationDispatcherNote}
+                        </p>
+                      </div>
+                    )}
 
-                {activeHold && (
-                  <div className="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
-                    <div className="flex items-center gap-2 text-xs font-medium text-destructive">
-                      <Clock className="h-3.5 w-3.5 animate-pulse" />
-                      {activeHold.holdType === "patient_not_ready" ? "Patient Not Ready" : "Facility Delay"}
-                      <span className="font-mono">{formatElapsed(activeHold.startedAt)}</span>
+                    {activeHold && (
+                      <div className="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+                        <div className="flex items-center gap-2 text-xs font-medium text-destructive">
+                          <Clock className="h-3.5 w-3.5 animate-pulse" />
+                          {activeHold.holdType === "patient_not_ready" ? "Patient Not Ready" : "Facility Delay"}
+                          <span className="font-mono">{formatElapsed(activeHold.startedAt)}</span>
+                        </div>
+                        <Button variant="outline" size="sm" className="h-7 text-xs" disabled={holdLoading === activeHold.id}
+                          onClick={(e) => { e.stopPropagation(); resolveHold(activeHold.id); }}>
+                          {holdLoading === activeHold.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Resolve"}
+                        </Button>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      {run.pcrStatus === "not_started" && (
+                        <Button
+                          className="flex-1 h-12 text-sm font-semibold gap-2 w-full"
+                          onClick={() => openPCR(run)}
+                        >
+                          <FileText className="h-4 w-4" />Start PCR
+                        </Button>
+                      )}
+
+                      {run.pcrStatus === "in_progress" && (
+                        <>
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 dark:bg-amber-900/20 dark:border-amber-700 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-400">
+                            <FileText className="h-3 w-3" /> PCR In Progress
+                          </span>
+                          <Button variant="link" size="sm" className="text-xs text-amber-700 dark:text-amber-400 px-1" onClick={() => openPCR(run)}>
+                            Continue →
+                          </Button>
+                        </>
+                      )}
+
+                      {run.pcrStatus === "submitted" && (
+                        <>
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-400">
+                            <Check className="h-3 w-3" /> PCR Submitted
+                          </span>
+                          <Button variant="link" size="sm" className="text-xs text-emerald-700 dark:text-emerald-400 px-1" onClick={() => openPCR(run)}>
+                            View →
+                          </Button>
+                        </>
+                      )}
+
+                      {/* Cancel Trip button */}
+                      {!isTerminal && ["not_started", "in_progress"].includes(run.pcrStatus) && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-12 w-12 border-destructive/50 text-destructive hover:bg-destructive/5"
+                          onClick={() => { setCancelTarget(run); setCancelReason(""); }}
+                          title="Cancel Trip"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                      )}
+
+                      {run.tripId && !isTerminal && !activeHold && (
+                        <>
+                          {["arrived_pickup", "en_route"].includes(run.tripStatus) && (
+                            <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
+                              disabled={holdLoading === `${run.tripId}-patient_not_ready`}
+                              onClick={() => startHold(run, "patient_not_ready")}>
+                              <AlertTriangle className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {["arrived_dropoff", "loaded"].includes(run.tripStatus) && (
+                            <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
+                              disabled={holdLoading === `${run.tripId}-facility_delay`}
+                              onClick={() => startHold(run, "facility_delay")}>
+                              <Clock className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </>
+                      )}
                     </div>
-                    <Button variant="outline" size="sm" className="h-7 text-xs" disabled={holdLoading === activeHold.id}
-                      onClick={() => resolveHold(activeHold.id)}>
-                      {holdLoading === activeHold.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Resolve"}
-                    </Button>
-                  </div>
+                  </>
                 )}
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {run.pcrStatus === "not_started" && (
-                    <Button
-                      className="flex-1 h-12 text-sm font-semibold gap-2 w-full"
-                      onClick={() => openPCR(run)}
-                    >
-                      <FileText className="h-4 w-4" />Start PCR
-                    </Button>
-                  )}
-
-                  {run.pcrStatus === "in_progress" && (
-                    <>
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 dark:bg-amber-900/20 dark:border-amber-700 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-400">
-                        <FileText className="h-3 w-3" /> PCR In Progress
-                      </span>
-                      <Button variant="link" size="sm" className="text-xs text-amber-700 dark:text-amber-400 px-1" onClick={() => openPCR(run)}>
-                        Continue →
-                      </Button>
-                    </>
-                  )}
-
-                  {run.pcrStatus === "submitted" && (
-                    <>
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-400">
-                        <Check className="h-3 w-3" /> PCR Submitted
-                      </span>
-                      <Button variant="link" size="sm" className="text-xs text-emerald-700 dark:text-emerald-400 px-1" onClick={() => openPCR(run)}>
-                        View →
-                      </Button>
-                    </>
-                  )}
-
-                  {/* Cancel Trip button — only for non-terminal, non-completed PCR runs */}
-                  {!isTerminal && ["not_started", "in_progress"].includes(run.pcrStatus) && (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-12 w-12 border-destructive/50 text-destructive hover:bg-destructive/5"
-                      onClick={() => { setCancelTarget(run); setCancelReason(""); }}
-                      title="Cancel Trip"
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  )}
-
-                  {run.tripId && !isTerminal && !activeHold && (
-                    <>
-                      {["arrived_pickup", "en_route"].includes(run.tripStatus) && (
-                        <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
-                          disabled={holdLoading === `${run.tripId}-patient_not_ready`}
-                          onClick={() => startHold(run, "patient_not_ready")}>
-                          <AlertTriangle className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {["arrived_dropoff", "loaded"].includes(run.tripStatus) && (
-                        <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
-                          disabled={holdLoading === `${run.tripId}-facility_delay`}
-                          onClick={() => startHold(run, "facility_delay")}>
-                          <Clock className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
               </div>
             );
           })

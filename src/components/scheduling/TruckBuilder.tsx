@@ -1,4 +1,5 @@
 import { memo, useEffect, useState, useCallback } from "react";
+import { ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -704,6 +705,11 @@ const TruckCard = memo(function TruckCard({
   onAssignLeg, onRemoveLeg, onEditException, onCancelLeg, onRestoreLeg, truckAlertCount = 0, legAlertIds = new Set(), riskData,
   crewCapability, truckEquipment, onSafetyOverride, overriddenLegIds = new Set(),
 }: TruckCardProps) {
+  const [legsExpanded, setLegsExpanded] = useState(false);
+  const VISIBLE_LEG_COUNT = 2;
+  const visibleLegs = legsExpanded ? tLegs : tLegs.slice(0, VISIBLE_LEG_COUNT);
+  const hiddenLegCount = tLegs.length - VISIBLE_LEG_COUNT;
+
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `truck-drop-${truck.id}`,
     data: { type: "truck-zone", truckId: truck.id },
@@ -832,7 +838,7 @@ const TruckCard = memo(function TruckCard({
         {tLegs.length > 0 ? (
           <div className={`space-y-1.5 rounded-md transition-colors duration-150 ${isOver && !isDown ? "bg-primary/3" : ""}`}>
             <SortableContext items={tLegs.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-              {tLegs.map((leg) => {
+              {visibleLegs.map((leg) => {
                 const patientNeeds: PatientNeeds = {
                   weight_lbs: leg.patient_weight,
                   mobility: leg.patient_mobility ?? null,
@@ -865,6 +871,15 @@ const TruckCard = memo(function TruckCard({
                 );
               })}
             </SortableContext>
+            {hiddenLegCount > 0 && (
+              <button
+                onClick={() => setLegsExpanded(!legsExpanded)}
+                className="w-full flex items-center justify-center gap-1 rounded-md border border-dashed border-muted-foreground/30 py-1 text-[10px] text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 transition-colors"
+              >
+                <ChevronDown className={`h-2.5 w-2.5 transition-transform ${legsExpanded ? "rotate-180" : ""}`} />
+                {legsExpanded ? "Show less" : `Show ${hiddenLegCount} more`}
+              </button>
+            )}
             {isOver && !isDown && (
               <div className="rounded-md border-2 border-dashed border-primary/40 px-2 py-1.5 text-center text-[10px] text-primary/70">
                 Drop to add here
