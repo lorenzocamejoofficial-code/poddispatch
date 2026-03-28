@@ -50,6 +50,8 @@ interface ClaimRecord {
   trip_loaded_miles?: number | null;
   trip_signature?: boolean;
   trip_pcs?: boolean;
+  trip_loaded_at?: string | null;
+  trip_dropped_at?: string | null;
 }
 
 interface ChargeMaster {
