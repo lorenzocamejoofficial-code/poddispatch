@@ -544,6 +544,9 @@ export default function BillingAndClaims() {
             <Button size="sm" onClick={syncClaimsFromTrips}>
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Sync from Trips
             </Button>
+            <Button size="sm" variant="outline" onClick={refreshExistingClaims}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Refresh Existing Claims
+            </Button>
           </div>
         </div>
 
