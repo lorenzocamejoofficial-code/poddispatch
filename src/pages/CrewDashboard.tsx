@@ -515,7 +515,10 @@ export default function CrewDashboard() {
               return (
                 <div key={run.slotId} className="rounded-lg border bg-muted/40 p-4 space-y-3 opacity-70">
                   <div className="flex items-start gap-3">
-                    <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground text-xs font-bold">
+                    <span className={cn(
+                      "mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-bold",
+                      run.legType === "A" ? "bg-primary/10 text-primary" : run.legType === "B" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400" : "bg-muted text-muted-foreground"
+                    )}>
                       {run.legType}
                     </span>
                     <div className="min-w-0 flex-1">
