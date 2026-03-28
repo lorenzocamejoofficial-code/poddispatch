@@ -543,10 +543,19 @@ export default function CrewDashboard() {
               );
             }
 
+            const isExpanded = expandedRunId === run.slotId;
+
             return (
-              <div key={run.slotId} className={cn("rounded-lg border bg-card p-4 space-y-3", isTerminal && "opacity-60")}>
+              <div
+                key={run.slotId}
+                className={cn("rounded-lg border bg-card p-4 space-y-3 cursor-pointer transition-shadow", isTerminal && "opacity-60", isExpanded && "ring-1 ring-primary/30 shadow-sm")}
+                onClick={() => setExpandedRunId(isExpanded ? null : run.slotId)}
+              >
                 <div className="flex items-start gap-3">
-                  <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary text-xs font-bold">
+                  <span className={cn(
+                    "mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-bold",
+                    run.legType === "A" ? "bg-primary/10 text-primary" : run.legType === "B" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400" : "bg-muted text-muted-foreground"
+                  )}>
                     {run.legType}
                   </span>
                   <div className="min-w-0 flex-1">
