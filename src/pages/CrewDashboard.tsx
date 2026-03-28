@@ -603,7 +603,7 @@ export default function CrewDashboard() {
                     </>
                   )}
 
-                  {run.pcrStatus === "completed" && (
+                  {run.pcrStatus === "submitted" && (
                     <>
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-400">
                         <Check className="h-3 w-3" /> PCR Submitted
