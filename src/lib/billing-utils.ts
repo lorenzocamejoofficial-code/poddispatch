@@ -295,10 +295,13 @@ export function computeCleanTripStatus(trip: {
     }
   }
 
+  // PCS is only relevant for IFT and discharge transports
+  const requiresPCSCheck = ["ift", "discharge"].includes(trip.trip_type ?? "");
+
   // Payer rule checks
   if (payerRules) {
     if (payerRules.requires_signature && !trip.signature_obtained) structured.push({ field: "signature_obtained", message: "Signature required by payer", severity: "blocker" });
-    if (payerRules.requires_pcs && !trip.pcs_attached) structured.push({ field: "pcs_attached", message: "PCS required by payer", severity: "blocker" });
+    if (payerRules.requires_pcs && requiresPCSCheck && !trip.pcs_attached) structured.push({ field: "pcs_attached", message: "PCS required by payer", severity: "blocker" });
     if (payerRules.requires_necessity_note) {
       if (!trip.necessity_notes && !trip.clinical_note) structured.push({ field: "necessity_notes", message: "Clinical justification note required", severity: "blocker" });
       const hasChecklist = trip.bed_confined || trip.cannot_transfer_safely || trip.requires_monitoring || trip.oxygen_during_transport;
@@ -308,7 +311,7 @@ export function computeCleanTripStatus(trip: {
   } else {
     // Default checks without payer rules
     if (!trip.signature_obtained) structured.push({ field: "signature_obtained", message: "No signature", severity: "warning" });
-    if (!trip.pcs_attached) structured.push({ field: "pcs_attached", message: "No PCS", severity: "warning" });
+    if (requiresPCSCheck && !trip.pcs_attached) structured.push({ field: "pcs_attached", message: "No PCS", severity: "warning" });
   }
 
   // New field checks
