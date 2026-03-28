@@ -160,7 +160,11 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
   const isDown = !!downStatus;
   const hasRunsWhileDown = isDown && runs.length > 0;
   const [previewRun, setPreviewRun] = useState<RunInfo | null>(null);
-
+  const [expanded, setExpanded] = useState(false);
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+  const VISIBLE_COUNT = 2;
+  const visibleRuns = expanded ? runs : runs.slice(0, VISIBLE_COUNT);
+  const hiddenCount = runs.length - VISIBLE_COUNT;
   return (
     <>
       <div className={`rounded-lg border bg-card p-4 shadow-sm ${isDown ? "border-destructive/40 bg-destructive/5" : ""}`}>
