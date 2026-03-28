@@ -87,7 +87,7 @@ export default function PCRPage() {
   }
 
   // Medic selection prompt
-  const isReadOnly = trip.pcr_status === "completed";
+  const isReadOnly = trip.pcr_status === "submitted";
 
   if (!trip.attending_medic_id) {
     const handleMedicSelect = async (medic: CrewMember) => {
@@ -247,7 +247,7 @@ export default function PCRPage() {
     setSubmitting(true);
     try {
       await supabase.from("trip_records").update({
-        pcr_status: "completed",
+        pcr_status: "submitted",
         pcr_completed_at: new Date().toISOString(),
         pcr_submitted_by: profileId,
         status: "ready_for_billing",
