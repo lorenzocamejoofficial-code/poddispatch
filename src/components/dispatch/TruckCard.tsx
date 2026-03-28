@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import { RevenueStrengthBadge, type RevenueStrength } from "./RevenueStrengthBadge";
 import { TimingRiskBadge, computeTimingRisk } from "./TimingRiskBadge";
