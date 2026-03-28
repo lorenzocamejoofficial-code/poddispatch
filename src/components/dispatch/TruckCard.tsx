@@ -225,15 +225,17 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
           <p className="text-sm text-muted-foreground italic">{isDown ? "Truck is down — no runs" : "No runs scheduled"}</p>
         ) : (
           <div className="space-y-2">
-            {runs.map((run) => {
+            {visibleRuns.map((run) => {
               const isCancelled = run.status === "cancelled";
+              const isRunExpanded = expandedRunId === run.id;
               return (
               <div
                 key={run.id}
-                className={`rounded-md border px-3 py-2 text-sm ${
+                className={`rounded-md border px-3 py-2 text-sm cursor-pointer transition-shadow ${
                   isCancelled ? "border-destructive/40 bg-destructive/5 opacity-75" :
                   run.is_current ? "border-primary/30 bg-primary/5" : ""
-                }`}
+                } ${isRunExpanded ? "ring-1 ring-primary/20 shadow-sm" : ""}`}
+                onClick={() => setExpandedRunId(isRunExpanded ? null : run.id)}
               >
                 {/* Row 1: name + status */}
                 <div className="flex items-center justify-between gap-2">
@@ -252,7 +254,7 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {isCancelled && onRestoreRun && !readOnly && (
-                      <Button variant="ghost" size="sm" className="h-5 text-[10px] text-primary hover:text-primary px-1.5" onClick={() => onRestoreRun(run.id)} title="Restore this run">
+                      <Button variant="ghost" size="sm" className="h-5 text-[10px] text-primary hover:text-primary px-1.5" onClick={(e) => { e.stopPropagation(); onRestoreRun(run.id); }} title="Restore this run">
                         Undo
                       </Button>
                     )}
@@ -265,123 +267,129 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                   {(run as any).destination_name && <span className="truncate">→ {(run as any).destination_name}</span>}
                   <span className="capitalize">{run.trip_type}</span>
                 </div>
-                {/* Row 3: badges — stacked to prevent overlap (issue #5) */}
-                {!isCancelled && (
-                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                    {run.is_oneoff && (
-                      <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
-                    )}
-                    {/* Safety badge */}
-                    {(() => {
-                      const legId = (run as any).leg_id;
-                      const isOverridden = legId && overriddenLegIds.has(legId);
+                {/* Expanded details */}
+                {isRunExpanded && !isCancelled && (
+                  <>
+                    {/* Row 3: badges */}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      {run.is_oneoff && (
+                        <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
+                      )}
+                      {/* Safety badge */}
+                      {(() => {
+                        const legId = (run as any).leg_id;
+                        const isOverridden = legId && overriddenLegIds.has(legId);
 
-                      // Overridden BLOCKED → show CAUTION · Overridden
-                      if (run.safety_status === "BLOCKED" && isOverridden) {
-                        return (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="inline-flex items-center gap-0.5 rounded-full bg-[hsl(var(--status-yellow-bg))] border border-[hsl(var(--status-yellow))]/30 px-1.5 py-0.5 text-[9px] font-bold text-[hsl(var(--status-yellow))] cursor-default">
-                                  <Shield className="h-2.5 w-2.5" /> CAUTION · Overridden
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="left" className="text-xs max-w-xs">
-                                <p className="font-semibold mb-1">CAUTION — Dispatcher Override</p>
-                                <p className="text-muted-foreground mb-1">A dispatcher reviewed and approved this blocked run.</p>
-                                {(run.safety_reasons ?? []).map((r, i) => <p key={i}>• {r}</p>)}
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        );
-                      }
-
-                      // Read-only BLOCKED (not overridden)
-                      if (readOnly && run.safety_status === "BLOCKED") {
-                        return (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="inline-flex items-center gap-0.5 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[9px] font-bold text-destructive cursor-default">
-                                  BLOCKED
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="left" className="text-xs max-w-xs">
-                                <p className="font-semibold mb-1">Safety Block</p>
-                                {(run.safety_reasons ?? []).map((r, i) => <p key={i}>• {r}</p>)}
-                                <p className="mt-1 text-muted-foreground italic">Go to Patient Runs/Scheduling to resolve this.</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        );
-                      }
-
-                      // One-off runs
-                      if (run.is_oneoff) {
-                        if (run.safety_status && run.safety_status !== "OK") {
-                          return <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />;
-                        }
-                        if (run.needs_missing && run.needs_missing.length > 0) {
+                        if (run.safety_status === "BLOCKED" && isOverridden) {
                           return (
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <span className="inline-flex items-center gap-0.5 rounded-full bg-accent/60 border border-accent text-accent-foreground px-1.5 py-0.5 text-[9px] font-semibold">
-                                    One-Off Run
+                                  <span className="inline-flex items-center gap-0.5 rounded-full bg-[hsl(var(--status-yellow-bg))] border border-[hsl(var(--status-yellow))]/30 px-1.5 py-0.5 text-[9px] font-bold text-[hsl(var(--status-yellow))] cursor-default">
+                                    <Shield className="h-2.5 w-2.5" /> CAUTION · Overridden
                                   </span>
                                 </TooltipTrigger>
-                                <TooltipContent side="left" className="text-xs">Safety fields optional for one-off runs</TooltipContent>
+                                <TooltipContent side="left" className="text-xs max-w-xs">
+                                  <p className="font-semibold mb-1">CAUTION — Dispatcher Override</p>
+                                  <p className="text-muted-foreground mb-1">A dispatcher reviewed and approved this blocked run.</p>
+                                  {(run.safety_reasons ?? []).map((r, i) => <p key={i}>• {r}</p>)}
+                                </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           );
                         }
-                        return null;
-                      }
 
-                      // Regular patients
-                      return (
-                        <>
-                          {run.safety_status && run.safety_status !== "OK" && (
-                            <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
-                          )}
-                          {run.safety_status === "OK" && run.needs_missing && run.needs_missing.length > 0 && (
-                            <PatientNeedsWarning missing={run.needs_missing} />
-                          )}
-                        </>
-                      );
-                    })()}
-                    {run.trip_type === "dialysis" && run.pickup_time && run.status !== "completed" && (() => {
-                      const risk = computeTimingRisk(run.pickup_time, run.status);
-                      return risk ? <TimingRiskBadge risk={risk} pickupTime={run.pickup_time} /> : null;
-                    })()}
-                    {!readOnly && <BillingStatusDot status={run.billing_status ?? null} issues={run.billing_issues} />}
-                    {!readOnly && run.billing_status && run.billing_status !== "not_ready" && (
-                      <button
-                        onClick={() => setPreviewRun(run)}
-                        className="text-muted-foreground hover:text-foreground transition-colors"
-                        title="View Billing Preview"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
+                        if (readOnly && run.safety_status === "BLOCKED") {
+                          return (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex items-center gap-0.5 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[9px] font-bold text-destructive cursor-default">
+                                    BLOCKED
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="text-xs max-w-xs">
+                                  <p className="font-semibold mb-1">Safety Block</p>
+                                  {(run.safety_reasons ?? []).map((r, i) => <p key={i}>• {r}</p>)}
+                                  <p className="mt-1 text-muted-foreground italic">Go to Patient Runs/Scheduling to resolve this.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        }
+
+                        if (run.is_oneoff) {
+                          if (run.safety_status && run.safety_status !== "OK") {
+                            return <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />;
+                          }
+                          if (run.needs_missing && run.needs_missing.length > 0) {
+                            return (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-flex items-center gap-0.5 rounded-full bg-accent/60 border border-accent text-accent-foreground px-1.5 py-0.5 text-[9px] font-semibold">
+                                      One-Off Run
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left" className="text-xs">Safety fields optional for one-off runs</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
+                          }
+                          return null;
+                        }
+
+                        return (
+                          <>
+                            {run.safety_status && run.safety_status !== "OK" && (
+                              <SafetyBadge status={run.safety_status} reasons={run.safety_reasons ?? []} slotId={run.id} />
+                            )}
+                            {run.safety_status === "OK" && run.needs_missing && run.needs_missing.length > 0 && (
+                              <PatientNeedsWarning missing={run.needs_missing} />
+                            )}
+                          </>
+                        );
+                      })()}
+                      {run.trip_type === "dialysis" && run.pickup_time && run.status !== "completed" && (() => {
+                        const risk = computeTimingRisk(run.pickup_time, run.status);
+                        return risk ? <TimingRiskBadge risk={risk} pickupTime={run.pickup_time} /> : null;
+                      })()}
+                      {!readOnly && <BillingStatusDot status={run.billing_status ?? null} issues={run.billing_issues} />}
+                      {!readOnly && run.billing_status && run.billing_status !== "not_ready" && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setPreviewRun(run); }}
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                          title="View Billing Preview"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {/* Row 4: PCR time taps */}
+                    <TimeTapRow
+                      dispatch_time={run.dispatch_time}
+                      arrived_pickup_at={run.arrived_pickup_at}
+                      at_scene_time={run.at_scene_time}
+                      left_scene_time={run.left_scene_time}
+                      arrived_dropoff_at={run.arrived_dropoff_at}
+                      in_service_time={run.in_service_time}
+                    />
+                    {/* Row 5: PCR status */}
+                    <PCRStatusIndicator pcr_status={run.pcr_status} />
+                  </>
                 )}
-                {/* Row 4: PCR time taps */}
-                {!isCancelled && (
-                  <TimeTapRow
-                    dispatch_time={run.dispatch_time}
-                    arrived_pickup_at={run.arrived_pickup_at}
-                    at_scene_time={run.at_scene_time}
-                    left_scene_time={run.left_scene_time}
-                    arrived_dropoff_at={run.arrived_dropoff_at}
-                    in_service_time={run.in_service_time}
-                  />
-                )}
-                {/* Row 5: PCR status */}
-                {!isCancelled && <PCRStatusIndicator pcr_status={run.pcr_status} />}
               </div>
               );
             })}
+            {hiddenCount > 0 && (
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="w-full flex items-center justify-center gap-1.5 rounded-md border border-dashed border-muted-foreground/30 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 transition-colors"
+              >
+                <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                {expanded ? "Show less" : `Show ${hiddenCount} more`}
+              </button>
+            )}
           </div>
         )}
 
