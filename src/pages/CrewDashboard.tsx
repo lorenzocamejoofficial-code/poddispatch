@@ -250,6 +250,23 @@ export default function CrewDashboard() {
 
   const getActiveHold = (tripId: string | null) => tripId ? holdTimers.find(h => h.tripId === tripId) : undefined;
 
+  const getOriginDestination = (tripType: string, legType: string) => {
+    if (legType === "B") {
+      const origin = tripType === "dialysis" ? "Dialysis Facility"
+        : tripType === "ift" ? "Hospital"
+        : tripType === "discharge" ? "Hospital"
+        : tripType === "outpatient" ? "Outpatient Specialty"
+        : "Healthcare Facility";
+      return { origin_type: origin, destination_type: "Residence" };
+    }
+    const destination = tripType === "dialysis" ? "Dialysis Facility"
+      : tripType === "ift" ? "Hospital"
+      : tripType === "discharge" ? "Hospital"
+      : tripType === "outpatient" ? "Outpatient Specialty"
+      : "Healthcare Facility";
+    return { origin_type: "Residence", destination_type: destination };
+  };
+
   const openPCR = async (run: RunCard) => {
     let tripId = run.tripId;
     // Store leg type in sessionStorage for PCR fallback

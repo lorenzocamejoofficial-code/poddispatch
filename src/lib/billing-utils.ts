@@ -266,6 +266,7 @@ export function computeCleanTripStatus(trip: {
   stretcher_placement?: string | null;
   patient_mobility?: string | null;
   odometer_at_destination?: number | null;
+  trip_type?: string | null;
 }, payerRules?: {
   requires_pcs?: boolean;
   requires_signature?: boolean;
