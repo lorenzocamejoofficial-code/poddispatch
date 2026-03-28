@@ -86,6 +86,7 @@ export default function CrewDashboard() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelLoading, setCancelLoading] = useState(false);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
