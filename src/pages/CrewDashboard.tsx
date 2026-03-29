@@ -9,6 +9,8 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { cn } from "@/lib/utils";
+import { deriveRunStatus } from "@/lib/trip-status";
+import { TimeTapRow } from "@/components/dispatch/TimeTapRow";
 
 const TRANSPORT_LABELS: Record<string, string> = {
   dialysis: "Dialysis Transport",
@@ -49,6 +51,13 @@ interface RunCard {
   cancellationReason: string | null;
   cancellationDisputed: boolean;
   cancellationDispatcherNote: string | null;
+  // Time tap fields
+  atSceneTime: string | null;
+  patientContactTime: string | null;
+  leftSceneTime: string | null;
+  arrivedPickupAt: string | null;
+  arrivedDropoffAt: string | null;
+  inServiceTime: string | null;
 }
 
 interface HoldTimer {
@@ -126,7 +135,7 @@ export default function CrewDashboard() {
 
     const [{ data: legs }, { data: trips }] = await Promise.all([
       supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, pickup_address, dropoff_facility, location_type, facility_id, facility:facilities!patients_facility_id_fkey(name))").in("id", legIds),
-      supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, scheduled_pickup_time, billing_blocked_reason, cancellation_reason, cancellation_disputed, cancellation_dispatcher_note").eq("run_date", today).eq("truck_id", truckId).in("leg_id", legIds),
+      supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, at_scene_time, patient_contact_time, left_scene_time, arrived_pickup_at, arrived_dropoff_at, in_service_time, scheduled_pickup_time, billing_blocked_reason, cancellation_reason, cancellation_disputed, cancellation_dispatcher_note").eq("run_date", today).eq("truck_id", truckId).in("leg_id", legIds),
     ]);
 
     const legMap = new Map((legs ?? []).map(l => [l.id, l]));
@@ -171,6 +180,12 @@ export default function CrewDashboard() {
         cancellationReason: (trip as any)?.cancellation_reason ?? null,
         cancellationDisputed: (trip as any)?.cancellation_disputed ?? false,
         cancellationDispatcherNote: (trip as any)?.cancellation_dispatcher_note ?? null,
+        atSceneTime: (trip as any)?.at_scene_time ?? null,
+        patientContactTime: (trip as any)?.patient_contact_time ?? null,
+        leftSceneTime: (trip as any)?.left_scene_time ?? null,
+        arrivedPickupAt: (trip as any)?.arrived_pickup_at ?? null,
+        arrivedDropoffAt: (trip as any)?.arrived_dropoff_at ?? null,
+        inServiceTime: (trip as any)?.in_service_time ?? null,
       };
     });
     setRuns(cards);
@@ -579,7 +594,39 @@ export default function CrewDashboard() {
 
                 {isExpanded && (
                   <>
-                    {/* Disputed banner */}
+                    {/* Run progress badge + time taps */}
+                    {(() => {
+                      const rs = deriveRunStatus({
+                        dispatch_time: run.dispatchTime,
+                        at_scene_time: run.atSceneTime,
+                        patient_contact_time: run.patientContactTime,
+                        left_scene_time: run.leftSceneTime,
+                        arrived_dropoff_at: run.arrivedDropoffAt,
+                        in_service_time: run.inServiceTime,
+                        pcr_status: run.pcrStatus,
+                      });
+                      const colorMap: Record<string, string> = {
+                        gray: "bg-muted text-muted-foreground",
+                        amber: "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400",
+                        blue: "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400",
+                        green: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400",
+                      };
+                      return (
+                        <div className="space-y-1">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${colorMap[rs.color] ?? colorMap.gray}`}>
+                            {rs.label}
+                          </span>
+                          <TimeTapRow
+                            dispatch_time={run.dispatchTime}
+                            arrived_pickup_at={run.arrivedPickupAt}
+                            at_scene_time={run.atSceneTime}
+                            left_scene_time={run.leftSceneTime}
+                            arrived_dropoff_at={run.arrivedDropoffAt}
+                            in_service_time={run.inServiceTime}
+                          />
+                        </div>
+                      );
+                    })()}
                     {run.cancellationDisputed && run.cancellationDispatcherNote && (
                       <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 px-3 py-2">
                         <p className="text-xs font-medium text-amber-800 dark:text-amber-300">

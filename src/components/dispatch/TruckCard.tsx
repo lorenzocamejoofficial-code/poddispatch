@@ -15,6 +15,7 @@ import { SafetyBadge, PatientNeedsWarning } from "./SafetyBadge";
 import { evaluateSafetyRules, hasCompletePatientNeeds, type PatientNeeds, type CrewCapability, type TruckEquipment, type SafetyStatus } from "@/lib/safety-rules";
 import { TimeTapRow } from "./TimeTapRow";
 import { PCRStatusIndicator } from "./PCRStatusIndicator";
+import { deriveRunStatus } from "@/lib/trip-status";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
 
@@ -251,6 +252,22 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                     <span className={`truncate font-medium ${isCancelled ? "line-through text-muted-foreground" : "text-card-foreground"}`}>
                       {run.patient_name}
                     </span>
+                    {/* Run progress badge */}
+                    {!isCancelled && (() => {
+                      const rs = deriveRunStatus(run);
+                      const colorMap: Record<string, string> = {
+                        gray: "bg-muted text-muted-foreground",
+                        amber: "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400",
+                        blue: "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400",
+                        green: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400",
+                      };
+                      if (rs.color === "gray") return null;
+                      return (
+                        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold shrink-0 ${colorMap[rs.color] ?? colorMap.gray}`}>
+                          {rs.label}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {isCancelled && onRestoreRun && !readOnly && (
