@@ -142,17 +142,22 @@ export default function CrewDashboard() {
     const legMap = new Map((legs ?? []).map(l => [l.id, l]));
     const tripMap = new Map((trips ?? []).map(t => [t.leg_id, t]));
 
-    const formatPatientName = (patient: any): { name: string; hasRecord: boolean } => {
-      if (!patient?.first_name) return { name: "Unassigned", hasRecord: false };
-      const firstInitial = patient.first_name.charAt(0).toUpperCase();
-      return { name: `${firstInitial}. ${patient.last_name}`, hasRecord: true };
+    const formatPatientName = (patient: any, leg: any): { name: string; hasRecord: boolean } => {
+      if (patient?.first_name) {
+        const firstInitial = patient.first_name.charAt(0).toUpperCase();
+        return { name: `${firstInitial}. ${patient.last_name}`, hasRecord: true };
+      }
+      // Fallback for one-off runs
+      if (leg?.is_oneoff && leg?.oneoff_name) return { name: leg.oneoff_name, hasRecord: false };
+      if (leg?.pickup_location) return { name: leg.pickup_location, hasRecord: false };
+      return { name: "Unknown Patient", hasRecord: false };
     };
 
     const cards: RunCard[] = slots.map(slot => {
       const leg = legMap.get(slot.leg_id);
       const trip = tripMap.get(slot.leg_id);
       const patient = leg?.patient as any;
-      const { name: patientName, hasRecord } = formatPatientName(patient);
+      const { name: patientName, hasRecord } = formatPatientName(patient, leg);
       const legTypeRaw = (leg as any)?.leg_type ?? null;
       const legType = legTypeRaw === "a_leg" || legTypeRaw === "A" ? "A" : legTypeRaw === "b_leg" || legTypeRaw === "B" ? "B" : "—";
       return {
