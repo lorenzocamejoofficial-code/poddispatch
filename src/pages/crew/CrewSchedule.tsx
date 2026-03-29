@@ -111,7 +111,7 @@ export default function CrewSchedule() {
 
       const { data: legs } = await supabase
         .from("scheduling_legs")
-        .select("id, patient_id, leg_type, pickup_time, pickup_location, destination_location, trip_type")
+        .select("id, patient_id, leg_type, pickup_time, pickup_location, destination_location, trip_type, is_oneoff, oneoff_name")
         .in("id", legIds);
 
       if (!legs) continue;
