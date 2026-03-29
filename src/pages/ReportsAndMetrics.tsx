@@ -224,7 +224,7 @@ export default function ReportsAndMetrics() {
       const { data: bLegs } = await supabase
         .from("scheduling_legs")
         .select("id, pickup_time, patient_id, leg_type")
-        .eq("leg_type", "b_leg");
+        .eq("leg_type", "b_leg" as any);
       const bLegList = (bLegs ?? []) as any[];
       const patientIdsForConflict = [...new Set(bLegList.map((l: any) => l.patient_id).filter(Boolean))] as string[];
       let conflictNum = 0, conflictDen = 0;
