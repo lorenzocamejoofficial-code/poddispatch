@@ -172,6 +172,87 @@ export default function ReportsAndMetrics() {
         }
       }
       setDailyTruckMetrics(Array.from(dtmAgg.values()).sort((a, b) => b.operational_risk_score - a.operational_risk_score));
+
+      // ── KPI calculations ──
+
+      // 1. Billing Complete Rate
+      const submittedTrips = tripList.filter(t => t.pcr_status === "submitted");
+      const cleanClaims = claimList.filter((c: any) => ["ready_to_bill", "submitted", "paid"].includes(c.status));
+      const billingDen = submittedTrips.length;
+      const billingNum = cleanClaims.length;
+      setKpiBilling({
+        rate: billingDen > 0 ? Math.round((billingNum / billingDen) * 100) : 0,
+        num: billingNum,
+        den: billingDen,
+      });
+
+      // 2. Late Pickup Rate — need scheduling_legs for pickup_time
+      const tripsWithScene = tripList.filter((t: any) => t.at_scene_time && t.leg_id);
+      const legIdsForLate = tripsWithScene.map((t: any) => t.leg_id).filter(Boolean) as string[];
+      let lateNum = 0, lateDen = 0;
+      if (legIdsForLate.length > 0) {
+        // batch in chunks of 50
+        const chunks: string[][] = [];
+        for (let i = 0; i < legIdsForLate.length; i += 50) chunks.push(legIdsForLate.slice(i, i + 50));
+        const allLegs: any[] = [];
+        for (const chunk of chunks) {
+          const { data: legData } = await supabase.from("scheduling_legs").select("id, pickup_time").in("id", chunk);
+          if (legData) allLegs.push(...legData);
+        }
+        const legTimeMap = new Map(allLegs.map((l: any) => [l.id, l.pickup_time]));
+
+        for (const trip of tripsWithScene) {
+          const scheduledTime = legTimeMap.get(trip.leg_id);
+          if (!scheduledTime) continue;
+          lateDen++;
+          // Convert pickup_time (HH:MM) to timestamp on run_date
+          const [h, m] = scheduledTime.split(":").map(Number);
+          const scheduled = new Date(`${trip.run_date}T00:00:00`);
+          scheduled.setHours(h, m, 0, 0);
+          const actual = new Date(trip.at_scene_time);
+          const diffMin = (actual.getTime() - scheduled.getTime()) / 60000;
+          if (diffMin > 15) lateNum++;
+        }
+      }
+      setKpiLate({
+        rate: lateDen > 0 ? Math.round((lateNum / lateDen) * 100) : 0,
+        num: lateNum,
+        den: lateDen,
+      });
+
+      // 3. Schedule Conflict Rate — B-legs with early pickup
+      const { data: bLegs } = await supabase
+        .from("scheduling_legs")
+        .select("id, pickup_time, patient_id, leg_type")
+        .eq("leg_type", "b_leg");
+      const bLegList = (bLegs ?? []) as any[];
+      const patientIdsForConflict = [...new Set(bLegList.map((l: any) => l.patient_id).filter(Boolean))] as string[];
+      let conflictNum = 0, conflictDen = 0;
+      if (patientIdsForConflict.length > 0) {
+        const pChunks: string[][] = [];
+        for (let i = 0; i < patientIdsForConflict.length; i += 50) pChunks.push(patientIdsForConflict.slice(i, i + 50));
+        const allPatients: any[] = [];
+        for (const chunk of pChunks) {
+          const { data: pd } = await supabase.from("patients").select("id, chair_time, chair_time_duration_hours, chair_time_duration_minutes").in("id", chunk);
+          if (pd) allPatients.push(...pd);
+        }
+        const patientMap = new Map(allPatients.map((p: any) => [p.id, p]));
+
+        for (const leg of bLegList) {
+          const patient = leg.patient_id ? patientMap.get(leg.patient_id) : null;
+          if (!patient || !patient.chair_time) continue;
+          conflictDen++;
+          if (isBLegTooEarly(leg.pickup_time, patient.chair_time, patient.chair_time_duration_hours ?? 0, patient.chair_time_duration_minutes ?? 0)) {
+            conflictNum++;
+          }
+        }
+      }
+      setKpiConflict({
+        rate: conflictDen > 0 ? Math.round((conflictNum / conflictDen) * 100) : 0,
+        num: conflictNum,
+        den: conflictDen,
+      });
+
     } finally {
       setLoading(false);
     }
