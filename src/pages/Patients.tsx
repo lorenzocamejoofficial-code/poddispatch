@@ -252,6 +252,12 @@ export default function Patients() {
       chair_time_duration_hours: parseInt(form.chair_time_duration_hours) || 0,
       chair_time_duration_minutes: parseInt(form.chair_time_duration_minutes) || 0,
       a_leg_pickup_time: form.a_leg_pickup_time || null,
+      pcs_on_file: form.pcs_on_file,
+      pcs_signed_date: form.pcs_signed_date || null,
+      pcs_expiration_date: form.pcs_signed_date ? format(addDays(parseISO(form.pcs_signed_date), 60), "yyyy-MM-dd") : null,
+      prior_auth_on_file: form.prior_auth_on_file,
+      prior_auth_number: form.prior_auth_number || null,
+      prior_auth_expiration: form.prior_auth_expiration || null,
     };
 
     if (!payload.first_name || !payload.last_name) return;
