@@ -351,17 +351,27 @@ export default function DispatchBoard() {
     fetchData();
 
     const channel = supabase
-      .channel("dispatch-board")
+      .channel(`dispatch-board-${selectedDate}`)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "trip_records",
+        filter: `run_date=eq.${selectedDate}`,
+      }, (payload) => {
+        console.log("trip_records changed:", payload);
+        debouncedFetch();
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => debouncedFetch())
       .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs" }, () => debouncedFetch())
       .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => debouncedFetch())
       .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => debouncedFetch())
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => debouncedFetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, () => debouncedFetch())
       .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => debouncedFetch())
       .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => debouncedFetch())
       .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides" }, () => debouncedFetch())
-      .subscribe();
+      .subscribe((status) => {
+        console.log("Dispatch board subscription status:", status);
+      });
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
