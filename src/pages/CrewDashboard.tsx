@@ -180,6 +180,12 @@ export default function CrewDashboard() {
         cancellationReason: (trip as any)?.cancellation_reason ?? null,
         cancellationDisputed: (trip as any)?.cancellation_disputed ?? false,
         cancellationDispatcherNote: (trip as any)?.cancellation_dispatcher_note ?? null,
+        atSceneTime: (trip as any)?.at_scene_time ?? null,
+        patientContactTime: (trip as any)?.patient_contact_time ?? null,
+        leftSceneTime: (trip as any)?.left_scene_time ?? null,
+        arrivedPickupAt: (trip as any)?.arrived_pickup_at ?? null,
+        arrivedDropoffAt: (trip as any)?.arrived_dropoff_at ?? null,
+        inServiceTime: (trip as any)?.in_service_time ?? null,
       };
     });
     setRuns(cards);
