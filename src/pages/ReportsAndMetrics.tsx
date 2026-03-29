@@ -81,7 +81,7 @@ export default function ReportsAndMetrics() {
         { data: allClaimsData },
         { data: dtmData },
       ] = await Promise.all([
-        supabase.from("trip_records" as any).select("id, status, truck_id").gte("run_date", start).lte("run_date", end),
+        supabase.from("trip_records" as any).select("id, status, truck_id, pcr_status, at_scene_time, leg_id, run_date").gte("run_date", start).lte("run_date", end),
         supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, denial_reason, submitted_at, paid_at").gte("run_date", start).lte("run_date", end),
         supabase.from("operational_alerts" as any).select("id").gte("run_date", start).lte("run_date", end).eq("status", "open"),
         supabase.from("trucks").select("id, name"),
