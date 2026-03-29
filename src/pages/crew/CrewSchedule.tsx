@@ -273,17 +273,17 @@ export default function CrewSchedule() {
                             {isTodayDate && (
                               <div className="shrink-0">
                                 {run.pcrStatus === "not_started" && (
-                                  <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => navigate("/pcr")}>
+                                  <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => navigate("/crew-dashboard", { state: { openPCRForTripId: run.tripId, openPCRForLegId: run.legId } })}>
                                     <FileText className="h-3 w-3" /> Start
                                   </Button>
                                 )}
                                 {run.pcrStatus === "in_progress" && (
-                                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-amber-300 text-amber-700" onClick={() => navigate("/pcr")}>
+                                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-amber-300 text-amber-700" onClick={() => navigate("/crew-dashboard", { state: { openPCRForTripId: run.tripId, openPCRForLegId: run.legId } })}>
                                     <FileText className="h-3 w-3" /> Continue
                                   </Button>
                                 )}
                                 {(run.pcrStatus === "completed" || run.pcrStatus === "submitted") && (
-                                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => navigate("/pcr")}>
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => navigate("/crew-dashboard", { state: { openPCRForTripId: run.tripId, openPCRForLegId: run.legId } })}>
                                     <Eye className="h-3 w-3" /> View
                                   </Button>
                                 )}

@@ -715,18 +715,22 @@ export default function CrewDashboard() {
                       {run.tripId && !isTerminal && !activeHold && (
                         <>
                           {["arrived_pickup", "en_route"].includes(run.tripStatus) && (
-                            <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
-                              disabled={holdLoading === `${run.tripId}-patient_not_ready`}
-                              onClick={() => startHold(run, "patient_not_ready")}>
-                              <AlertTriangle className="h-4 w-4" />
-                            </Button>
+                            <HoldConfirmButton
+                              icon={<AlertTriangle className="h-4 w-4" />}
+                              label="Start Patient Not Ready timer?"
+                              confirmLabel="Start Timer"
+                              loading={holdLoading === `${run.tripId}-patient_not_ready`}
+                              onConfirm={() => startHold(run, "patient_not_ready")}
+                            />
                           )}
                           {["arrived_dropoff", "loaded"].includes(run.tripStatus) && (
-                            <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
-                              disabled={holdLoading === `${run.tripId}-facility_delay`}
-                              onClick={() => startHold(run, "facility_delay")}>
-                              <Clock className="h-4 w-4" />
-                            </Button>
+                            <HoldConfirmButton
+                              icon={<Clock className="h-4 w-4" />}
+                              label="Start Facility Delay timer?"
+                              confirmLabel="Start Timer"
+                              loading={holdLoading === `${run.tripId}-facility_delay`}
+                              onConfirm={() => startHold(run, "facility_delay")}
+                            />
                           )}
                         </>
                       )}
