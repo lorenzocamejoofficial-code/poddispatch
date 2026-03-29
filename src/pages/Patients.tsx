@@ -103,6 +103,13 @@ export default function Patients() {
     chair_time_duration_minutes: "0",
     // A-leg pickup time
     a_leg_pickup_time: "",
+    // Compliance & Authorization
+    pcs_on_file: false,
+    pcs_signed_date: "",
+    pcs_expiration_date: "",
+    prior_auth_on_file: false,
+    prior_auth_number: "",
+    prior_auth_expiration: "",
   });
 
   const fetchPatients = async () => {
