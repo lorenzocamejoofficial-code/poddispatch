@@ -47,10 +47,24 @@ const BILLING_MIRROR: Record<string, string> = {
   arrived_dropoff_at: "dropped_at",
 };
 
-export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
+export function TimesCard({ trip, recordTime, updateField, isReadOnly = false }: TimesCardProps) {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [odometerWarning, setOdometerWarning] = useState<string | null>(null);
   const [manualMilesOverride, setManualMilesOverride] = useState(false);
+
+  const handleClearTimes = async () => {
+    const fields = [
+      "dispatch_time", "at_scene_time", "patient_contact_time",
+      "left_scene_time", "arrived_dropoff_at", "in_service_time",
+      "loaded_at", "dropped_at",
+    ];
+    for (const f of fields) {
+      await updateField(f, null);
+    }
+    await updateField("status", "scheduled");
+    await updateField("pcr_status", "not_started");
+    toast({ title: "Times cleared" });
+  };
 
   const buttons = [
     { field: "dispatch_time", label: "Dispatched", status: undefined },
