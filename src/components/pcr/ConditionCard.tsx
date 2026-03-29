@@ -64,6 +64,19 @@ export function ConditionOnArrivalCard({ trip, updateField }: ConditionCardProps
           </SelectContent>
         </Select>
       </div>
+
+      {/* Condition at Destination */}
+      <div className="border-t border-border pt-4">
+        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">
+          Condition at Destination
+        </label>
+        <Select value={trip.condition_at_destination || ""} onValueChange={(v) => updateField("condition_at_destination", v)}>
+          <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select..." /></SelectTrigger>
+          <SelectContent>
+            {DESTINATION_CONDITIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }
