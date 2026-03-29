@@ -18,6 +18,15 @@ const MOBILITY_OPTIONS = [
   "Independent with Device",
 ];
 
+const POSITION_OPTIONS = [
+  "Supine (flat)",
+  "Fowlers (semi-upright 45°)",
+  "High Fowlers (upright 90°)",
+  "Left lateral",
+  "Right lateral",
+  "Seated",
+];
+
 interface StretcherMobilityCardProps {
   trip: any;
   updateField: (field: string, value: any) => Promise<void>;
