@@ -1,15 +1,18 @@
 import { Button } from "@/components/ui/button";
-import { Clock, Check } from "lucide-react";
+import { Clock, Check, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
+import { toast } from "@/hooks/use-toast";
 
 interface TimesCardProps {
   trip: any;
   recordTime: (field: string, status?: string) => Promise<void>;
   updateField: (field: string, value: any) => Promise<void>;
+  isReadOnly?: boolean;
 }
 
 function fmtTime(ts: string | null): string {
