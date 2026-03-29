@@ -1,9 +1,19 @@
+import { useEffect, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MEDICAL_NECESSITY_REASONS } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
+
+const NECESSITY_TEMPLATES: Record<string, string> = {
+  dialysis: "Patient has end-stage renal disease (ESRD) requiring regular dialysis treatment. Patient is unable to safely use any other means of transportation due to medical condition requiring stretcher transport. Patient is bed-confined and/or cannot safely transfer to a seated position without medical assistance.",
+  ift: "Patient requires interfacility transfer for medical care not available at the originating facility. Patient's condition requires ambulance transport as any other means of transportation would endanger the patient's health. Patient requires medical monitoring during transport.",
+  discharge: "Patient is being discharged from medical facility and requires ambulance transport to destination. Patient's condition prevents safe transport by any other means. Patient requires stretcher transport due to medical condition.",
+  outpatient: "Patient requires transport to outpatient medical appointment. Patient's medical condition necessitates ambulance transport as other transportation methods would endanger the patient's health. Patient is unable to safely use alternative transportation.",
+  private_pay: "Patient requires medical transport. Stretcher transport is medically necessary due to patient's condition and mobility limitations.",
+  emergency: "Patient presents with acute medical condition requiring emergency transport. Immediate ambulance transport is medically necessary.",
+};
 
 const NECESSITY_ITEMS = [
   { field: "bed_confined", label: "Patient is bed-confined at origin" },
@@ -18,9 +28,23 @@ interface Props {
 }
 
 export function MedicalNecessityCard({ trip, updateField }: Props) {
+  const filledRef = useRef<string | null>(null);
+
+  const transportType = trip.trip_type ?? "dialysis";
+  const templateKey = transportType === "outpatient_specialty" ? "outpatient" : transportType;
+  const template = NECESSITY_TEMPLATES[templateKey] ?? NECESSITY_TEMPLATES.dialysis;
+  const templateLabel = templateKey.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+  useEffect(() => {
+    if (!trip.id || filledRef.current === trip.id) return;
+    if (!trip.necessity_notes) {
+      updateField("necessity_notes", template);
+    }
+    filledRef.current = trip.id;
+  }, [trip.id]);
+
   const handleCheckChange = async (field: string, checked: boolean) => {
     await updateField(field, checked);
-    // When any criterion is checked, auto-set clinical_note for billing gate
     if (checked) {
       await updateField("clinical_note", "Medical necessity criteria documented in PCR");
     }
@@ -40,7 +64,7 @@ export function MedicalNecessityCard({ trip, updateField }: Props) {
         </Select>
       </div>
 
-      {/* Medical necessity checklist — writes directly to trip_records */}
+      {/* Medical necessity checklist */}
       <div>
         <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2 block">
           Medical Necessity Criteria
@@ -75,9 +99,37 @@ export function MedicalNecessityCard({ trip, updateField }: Props) {
           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 flex items-center">
             Additional Notes <PCRTooltip text={PCR_TOOLTIPS.necessity_notes} />
           </label>
+          <p className="text-[10px] text-muted-foreground mb-1">Template: {templateLabel}</p>
           <Textarea placeholder="Additional notes (optional)..."
             value={trip.necessity_notes || ""}
-            onChange={(e) => updateField("necessity_notes", e.target.value)} rows={2} />
+            onChange={(e) => updateField("necessity_notes", e.target.value)} rows={4} />
+          <button
+            type="button"
+            className="text-xs text-primary hover:underline mt-1"
+            onClick={() => updateField("necessity_notes", template)}
+          >
+            Reset to default template
+          </button>
+        </div>
+      )}
+
+      {/* Show notes section even without a reason selected, for template auto-fill */}
+      {!trip.medical_necessity_reason && (
+        <div>
+          <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 flex items-center">
+            Medical Necessity Notes <PCRTooltip text={PCR_TOOLTIPS.necessity_notes} />
+          </label>
+          <p className="text-[10px] text-muted-foreground mb-1">Template: {templateLabel}</p>
+          <Textarea placeholder="Medical necessity documentation..."
+            value={trip.necessity_notes || ""}
+            onChange={(e) => updateField("necessity_notes", e.target.value)} rows={4} />
+          <button
+            type="button"
+            className="text-xs text-primary hover:underline mt-1"
+            onClick={() => updateField("necessity_notes", template)}
+          >
+            Reset to default template
+          </button>
         </div>
       )}
     </div>
