@@ -85,6 +85,7 @@ interface NotificationRow {
 export default function CrewDashboard() {
   const { user, signOut, profileId } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [truckName, setTruckName] = useState("");
   const [partnerName, setPartnerName] = useState("");
   const [runs, setRuns] = useState<RunCard[]>([]);
