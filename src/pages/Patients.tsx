@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { format, addDays, differenceInDays, parseISO } from "date-fns";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,7 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Pencil, Trash2, Zap } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Zap, Clock, AlertTriangle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { toast } from "sonner";
@@ -99,6 +103,13 @@ export default function Patients() {
     chair_time_duration_minutes: "0",
     // A-leg pickup time
     a_leg_pickup_time: "",
+    // Compliance & Authorization
+    pcs_on_file: false,
+    pcs_signed_date: "",
+    pcs_expiration_date: "",
+    prior_auth_on_file: false,
+    prior_auth_number: "",
+    prior_auth_expiration: "",
   });
 
   const fetchPatients = async () => {
@@ -130,6 +141,12 @@ export default function Patients() {
       chair_time_duration_hours: "0",
       chair_time_duration_minutes: "0",
       a_leg_pickup_time: "",
+      pcs_on_file: false,
+      pcs_signed_date: "",
+      pcs_expiration_date: "",
+      prior_auth_on_file: false,
+      prior_auth_number: "",
+      prior_auth_expiration: "",
     });
     setEditing(null);
     setBLegWarnings([]);
@@ -180,6 +197,12 @@ export default function Patients() {
       chair_time_duration_hours: durH,
       chair_time_duration_minutes: durM,
       a_leg_pickup_time: (p as any).a_leg_pickup_time ?? "",
+      pcs_on_file: (p as any).pcs_on_file ?? false,
+      pcs_signed_date: (p as any).pcs_signed_date ?? "",
+      pcs_expiration_date: (p as any).pcs_expiration_date ?? "",
+      prior_auth_on_file: (p as any).prior_auth_on_file ?? false,
+      prior_auth_number: (p as any).prior_auth_number ?? "",
+      prior_auth_expiration: (p as any).prior_auth_expiration ?? "",
     });
     setBLegWarnings([]);
     setDialogOpen(true);
@@ -229,6 +252,12 @@ export default function Patients() {
       chair_time_duration_hours: parseInt(form.chair_time_duration_hours) || 0,
       chair_time_duration_minutes: parseInt(form.chair_time_duration_minutes) || 0,
       a_leg_pickup_time: form.a_leg_pickup_time || null,
+      pcs_on_file: form.pcs_on_file,
+      pcs_signed_date: form.pcs_signed_date || null,
+      pcs_expiration_date: form.pcs_signed_date ? format(addDays(parseISO(form.pcs_signed_date), 60), "yyyy-MM-dd") : null,
+      prior_auth_on_file: form.prior_auth_on_file,
+      prior_auth_number: form.prior_auth_number || null,
+      prior_auth_expiration: form.prior_auth_expiration || null,
     };
 
     if (!payload.first_name || !payload.last_name) return;
@@ -795,6 +824,76 @@ export default function Patients() {
                     )}
                   </div>
 
+                  {/* Compliance & Authorization — dialysis only */}
+                  {form.transport_type === "dialysis" && (
+                    <Collapsible defaultOpen={form.pcs_on_file || form.prior_auth_on_file}>
+                      <div className="border-t pt-3">
+                        <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Compliance &amp; Authorization</p>
+                            <p className="text-[11px] text-muted-foreground">Required for Medicare dialysis transport billing</p>
+                          </div>
+                          <span className="text-xs text-muted-foreground">▸</span>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-3 mt-3">
+                          {/* PCS */}
+                          <div className="flex items-center justify-between">
+                            <Label>PCS on File</Label>
+                            <Switch checked={form.pcs_on_file} onCheckedChange={(v) => setForm({ ...form, pcs_on_file: v })} />
+                          </div>
+                          {form.pcs_on_file && (
+                            <div className="space-y-3 pl-1">
+                              <div>
+                                <Label>PCS Signed Date</Label>
+                                <Input type="date" value={form.pcs_signed_date} onChange={(e) => setForm({ ...form, pcs_signed_date: e.target.value })} />
+                              </div>
+                              {form.pcs_signed_date && (() => {
+                                const expDate = addDays(parseISO(form.pcs_signed_date), 60);
+                                const daysLeft = differenceInDays(expDate, new Date());
+                                const colorClass = daysLeft < 0 ? "text-destructive" : daysLeft <= 14 ? "text-[hsl(var(--status-yellow))]" : "text-emerald-600";
+                                return (
+                                  <p className={`text-xs font-medium ${colorClass}`}>
+                                    Expires: {format(expDate, "MMM dd, yyyy")}
+                                    {daysLeft < 0 ? " (Expired)" : daysLeft <= 14 ? ` (${daysLeft} days left)` : ""}
+                                  </p>
+                                );
+                              })()}
+                            </div>
+                          )}
+
+                          {/* Prior Auth */}
+                          <div className="flex items-center justify-between">
+                            <Label>Prior Auth on File</Label>
+                            <Switch checked={form.prior_auth_on_file} onCheckedChange={(v) => setForm({ ...form, prior_auth_on_file: v })} />
+                          </div>
+                          {form.prior_auth_on_file && (
+                            <div className="space-y-3 pl-1">
+                              <div>
+                                <Label>Prior Auth Number (UTN)</Label>
+                                <Input value={form.prior_auth_number} onChange={(e) => setForm({ ...form, prior_auth_number: e.target.value })} placeholder="Enter UTN" />
+                              </div>
+                              <div>
+                                <Label>Prior Auth Expiration</Label>
+                                <Input type="date" value={form.prior_auth_expiration} onChange={(e) => setForm({ ...form, prior_auth_expiration: e.target.value })} />
+                              </div>
+                              {form.prior_auth_expiration && (() => {
+                                const expDate = parseISO(form.prior_auth_expiration);
+                                const daysLeft = differenceInDays(expDate, new Date());
+                                const colorClass = daysLeft < 0 ? "text-destructive" : daysLeft <= 14 ? "text-[hsl(var(--status-yellow))]" : "text-emerald-600";
+                                return (
+                                  <p className={`text-xs font-medium ${colorClass}`}>
+                                    Expires: {format(expDate, "MMM dd, yyyy")}
+                                    {daysLeft < 0 ? " (Expired)" : daysLeft <= 14 ? ` (${daysLeft} days left)` : ""}
+                                  </p>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
+                  )}
+
                   <Button onClick={handleSave}>{editing ? "Save Changes" : "Add Patient"}</Button>
                 </div>
               </DialogContent>
@@ -830,6 +929,27 @@ export default function Patients() {
                   const isInactive = (p as any).status !== "active";
                   const tType = (p as any).transport_type ?? "dialysis";
                   const isChecked = selected.has(p.id);
+                  // Compliance expiration warning for dialysis patients
+                  const complianceWarning = (() => {
+                    if (tType !== "dialysis") return null;
+                    const now = new Date();
+                    const pcsExp = (p as any).pcs_expiration_date ? parseISO((p as any).pcs_expiration_date) : null;
+                    const authExp = (p as any).prior_auth_expiration ? parseISO((p as any).prior_auth_expiration) : null;
+                    const pcsOnFile = (p as any).pcs_on_file;
+                    const authOnFile = (p as any).prior_auth_on_file;
+                    let worst: "expired" | "expiring" | null = null;
+                    if (pcsOnFile && pcsExp) {
+                      const d = differenceInDays(pcsExp, now);
+                      if (d < 0) worst = "expired";
+                      else if (d <= 14) worst = worst === "expired" ? "expired" : "expiring";
+                    }
+                    if (authOnFile && authExp) {
+                      const d = differenceInDays(authExp, now);
+                      if (d < 0) worst = "expired";
+                      else if (d <= 14 && worst !== "expired") worst = "expiring";
+                    }
+                    return worst;
+                  })();
                   return (
                     <tr
                       key={p.id}
@@ -849,6 +969,22 @@ export default function Patients() {
                             <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--status-yellow-bg))] px-2 py-0.5 text-[10px] font-semibold text-[hsl(var(--status-yellow))]" title="Electric stretcher required">
                               <Zap className="h-3 w-3" /> &gt;200
                             </span>
+                          )}
+                          {complianceWarning && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  {complianceWarning === "expired" ? (
+                                    <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                  ) : (
+                                    <Clock className="h-3.5 w-3.5 text-[hsl(var(--status-yellow))] shrink-0" />
+                                  )}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {complianceWarning === "expired" ? "PCS or auth expired" : "PCS or auth expiring soon"}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
                         </div>
                       </td>
