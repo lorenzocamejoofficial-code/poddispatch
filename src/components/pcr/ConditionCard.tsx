@@ -1,6 +1,15 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { LEVEL_OF_CONSCIOUSNESS, SKIN_CONDITIONS, TRANSPORT_CONDITIONS } from "@/lib/pcr-dropdowns";
+
+const DESTINATION_CONDITIONS = [
+  "Alert/Oriented",
+  "Confused",
+  "Unresponsive",
+  "Unchanged from arrival",
+  "Improved from arrival",
+  "Deteriorated from arrival",
+];
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 
