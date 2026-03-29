@@ -9,6 +9,8 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { cn } from "@/lib/utils";
+import { deriveRunStatus } from "@/lib/trip-status";
+import { TimeTapRow } from "@/components/dispatch/TimeTapRow";
 
 const TRANSPORT_LABELS: Record<string, string> = {
   dialysis: "Dialysis Transport",
