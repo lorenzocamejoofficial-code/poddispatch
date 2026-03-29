@@ -301,6 +301,48 @@ export default function ReportsAndMetrics() {
           )}
         </div>
 
+        {/* KPI Dashboard */}
+        <TabsContent value="kpis" className="m-0 space-y-6">
+          {loading ? (
+            <PageLoader label="Calculating KPIs…" />
+          ) : (
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+              <KpiCard
+                label="Billing Complete Rate"
+                subtitle="% of completed runs with a clean claim"
+                value={kpiBilling.rate}
+                num={kpiBilling.num}
+                den={kpiBilling.den}
+                unit="trips"
+                greenIf={(v) => v >= 80}
+                amberIf={(v) => v >= 50 && v < 80}
+              />
+              <KpiCard
+                label="Late Pickup Rate"
+                subtitle="% of pickups arriving more than 15 min late"
+                value={kpiLate.rate}
+                num={kpiLate.num}
+                den={kpiLate.den}
+                unit="trips"
+                greenIf={(v) => v <= 10}
+                amberIf={(v) => v > 10 && v <= 25}
+                invertColors
+              />
+              <KpiCard
+                label="Schedule Conflict Rate"
+                subtitle="% of return runs scheduled too early"
+                value={kpiConflict.rate}
+                num={kpiConflict.num}
+                den={kpiConflict.den}
+                unit="B-legs"
+                greenIf={(v) => v <= 5}
+                amberIf={(v) => v > 5 && v <= 15}
+                invertColors
+              />
+            </div>
+          )}
+        </TabsContent>
+
         <TabsContent value="overview" className="m-0 space-y-6">
           {loading ? (
             <PageLoader label="Loading metrics…" />
