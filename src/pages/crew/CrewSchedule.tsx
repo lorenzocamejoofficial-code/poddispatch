@@ -136,11 +136,17 @@ export default function CrewSchedule() {
         const trip = tripMap.get(leg.id);
         const slot = slotMap.get(leg.id);
 
+        const patientName = patient
+          ? `${patient.first_name?.[0] ?? ""}. ${patient.last_name}`
+          : ((leg as any).is_oneoff && (leg as any).oneoff_name)
+            ? (leg as any).oneoff_name
+            : (leg.pickup_location || "Unknown Patient");
+
         allRuns.push({
           date: crew.active_date,
           legId: leg.id,
           legType: mapLegType(leg.leg_type),
-          patientName: patient ? `${patient.first_name?.[0] ?? ""}. ${patient.last_name}` : "Unknown",
+          patientName,
           pickupTime: leg.pickup_time,
           pickupLocation: leg.pickup_location,
           destinationLocation: leg.destination_location,
