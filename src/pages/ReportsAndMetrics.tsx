@@ -6,8 +6,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TrendingUp, Truck, AlertTriangle, XCircle, CheckCircle, Clock, DollarSign } from "lucide-react";
+import { TrendingUp, Truck, AlertTriangle, XCircle, CheckCircle, Clock, DollarSign, Activity } from "lucide-react";
 import { computeAgingBuckets, computeAverageDaysToPayment } from "@/lib/billing-utils";
+import { isBLegTooEarly } from "@/lib/dialysis-validation";
+import { cn } from "@/lib/utils";
 
 interface TruckMetric {
   truck_id: string;
@@ -45,6 +47,10 @@ export default function ReportsAndMetrics() {
   const [allClaims, setAllClaims] = useState<any[]>([]);
   const [dailyTruckMetrics, setDailyTruckMetrics] = useState<DailyTruckMetric[]>([]);
 
+  // KPI state
+  const [kpiBilling, setKpiBilling] = useState({ rate: 0, num: 0, den: 0 });
+  const [kpiLate, setKpiLate] = useState({ rate: 0, num: 0, den: 0 });
+  const [kpiConflict, setKpiConflict] = useState({ rate: 0, num: 0, den: 0 });
   const getDateRange = useCallback(() => {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().split("T")[0];
@@ -75,7 +81,7 @@ export default function ReportsAndMetrics() {
         { data: allClaimsData },
         { data: dtmData },
       ] = await Promise.all([
-        supabase.from("trip_records" as any).select("id, status, truck_id").gte("run_date", start).lte("run_date", end),
+        supabase.from("trip_records" as any).select("id, status, truck_id, pcr_status, at_scene_time, leg_id, run_date").gte("run_date", start).lte("run_date", end),
         supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, denial_reason, submitted_at, paid_at").gte("run_date", start).lte("run_date", end),
         supabase.from("operational_alerts" as any).select("id").gte("run_date", start).lte("run_date", end).eq("status", "open"),
         supabase.from("trucks").select("id, name"),
@@ -166,6 +172,87 @@ export default function ReportsAndMetrics() {
         }
       }
       setDailyTruckMetrics(Array.from(dtmAgg.values()).sort((a, b) => b.operational_risk_score - a.operational_risk_score));
+
+      // ── KPI calculations ──
+
+      // 1. Billing Complete Rate
+      const submittedTrips = tripList.filter(t => t.pcr_status === "submitted");
+      const cleanClaims = claimList.filter((c: any) => ["ready_to_bill", "submitted", "paid"].includes(c.status));
+      const billingDen = submittedTrips.length;
+      const billingNum = cleanClaims.length;
+      setKpiBilling({
+        rate: billingDen > 0 ? Math.round((billingNum / billingDen) * 100) : 0,
+        num: billingNum,
+        den: billingDen,
+      });
+
+      // 2. Late Pickup Rate — need scheduling_legs for pickup_time
+      const tripsWithScene = tripList.filter((t: any) => t.at_scene_time && t.leg_id);
+      const legIdsForLate = tripsWithScene.map((t: any) => t.leg_id).filter(Boolean) as string[];
+      let lateNum = 0, lateDen = 0;
+      if (legIdsForLate.length > 0) {
+        // batch in chunks of 50
+        const chunks: string[][] = [];
+        for (let i = 0; i < legIdsForLate.length; i += 50) chunks.push(legIdsForLate.slice(i, i + 50));
+        const allLegs: any[] = [];
+        for (const chunk of chunks) {
+          const { data: legData } = await supabase.from("scheduling_legs").select("id, pickup_time").in("id", chunk);
+          if (legData) allLegs.push(...legData);
+        }
+        const legTimeMap = new Map(allLegs.map((l: any) => [l.id, l.pickup_time]));
+
+        for (const trip of tripsWithScene) {
+          const scheduledTime = legTimeMap.get(trip.leg_id);
+          if (!scheduledTime) continue;
+          lateDen++;
+          // Convert pickup_time (HH:MM) to timestamp on run_date
+          const [h, m] = scheduledTime.split(":").map(Number);
+          const scheduled = new Date(`${trip.run_date}T00:00:00`);
+          scheduled.setHours(h, m, 0, 0);
+          const actual = new Date(trip.at_scene_time);
+          const diffMin = (actual.getTime() - scheduled.getTime()) / 60000;
+          if (diffMin > 15) lateNum++;
+        }
+      }
+      setKpiLate({
+        rate: lateDen > 0 ? Math.round((lateNum / lateDen) * 100) : 0,
+        num: lateNum,
+        den: lateDen,
+      });
+
+      // 3. Schedule Conflict Rate — B-legs with early pickup
+      const { data: bLegs } = await supabase
+        .from("scheduling_legs")
+        .select("id, pickup_time, patient_id, leg_type")
+        .eq("leg_type", "b_leg" as any);
+      const bLegList = (bLegs ?? []) as any[];
+      const patientIdsForConflict = [...new Set(bLegList.map((l: any) => l.patient_id).filter(Boolean))] as string[];
+      let conflictNum = 0, conflictDen = 0;
+      if (patientIdsForConflict.length > 0) {
+        const pChunks: string[][] = [];
+        for (let i = 0; i < patientIdsForConflict.length; i += 50) pChunks.push(patientIdsForConflict.slice(i, i + 50));
+        const allPatients: any[] = [];
+        for (const chunk of pChunks) {
+          const { data: pd } = await supabase.from("patients").select("id, chair_time, chair_time_duration_hours, chair_time_duration_minutes").in("id", chunk);
+          if (pd) allPatients.push(...pd);
+        }
+        const patientMap = new Map(allPatients.map((p: any) => [p.id, p]));
+
+        for (const leg of bLegList) {
+          const patient = leg.patient_id ? patientMap.get(leg.patient_id) : null;
+          if (!patient || !patient.chair_time) continue;
+          conflictDen++;
+          if (isBLegTooEarly(leg.pickup_time, patient.chair_time, patient.chair_time_duration_hours ?? 0, patient.chair_time_duration_minutes ?? 0)) {
+            conflictNum++;
+          }
+        }
+      }
+      setKpiConflict({
+        rate: conflictDen > 0 ? Math.round((conflictNum / conflictDen) * 100) : 0,
+        num: conflictNum,
+        den: conflictDen,
+      });
+
     } finally {
       setLoading(false);
     }
@@ -188,9 +275,10 @@ export default function ReportsAndMetrics() {
 
   return (
     <AdminLayout>
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs defaultValue="kpis" className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <TabsList>
+            <TabsTrigger value="kpis"><Activity className="h-3.5 w-3.5 mr-1" />KPIs</TabsTrigger>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="otp"><Clock className="h-3.5 w-3.5 mr-1" />OTP & Risk</TabsTrigger>
             <TabsTrigger value="ar-aging"><DollarSign className="h-3.5 w-3.5 mr-1" />AR Aging</TabsTrigger>
@@ -212,6 +300,48 @@ export default function ReportsAndMetrics() {
             </>
           )}
         </div>
+
+        {/* KPI Dashboard */}
+        <TabsContent value="kpis" className="m-0 space-y-6">
+          {loading ? (
+            <PageLoader label="Calculating KPIs…" />
+          ) : (
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+              <KpiCard
+                label="Billing Complete Rate"
+                subtitle="% of completed runs with a clean claim"
+                value={kpiBilling.rate}
+                num={kpiBilling.num}
+                den={kpiBilling.den}
+                unit="trips"
+                greenIf={(v) => v >= 80}
+                amberIf={(v) => v >= 50 && v < 80}
+              />
+              <KpiCard
+                label="Late Pickup Rate"
+                subtitle="% of pickups arriving more than 15 min late"
+                value={kpiLate.rate}
+                num={kpiLate.num}
+                den={kpiLate.den}
+                unit="trips"
+                greenIf={(v) => v <= 10}
+                amberIf={(v) => v > 10 && v <= 25}
+                invertColors
+              />
+              <KpiCard
+                label="Schedule Conflict Rate"
+                subtitle="% of return runs scheduled too early"
+                value={kpiConflict.rate}
+                num={kpiConflict.num}
+                den={kpiConflict.den}
+                unit="B-legs"
+                greenIf={(v) => v <= 5}
+                amberIf={(v) => v > 5 && v <= 15}
+                invertColors
+              />
+            </div>
+          )}
+        </TabsContent>
 
         <TabsContent value="overview" className="m-0 space-y-6">
           {loading ? (
@@ -490,5 +620,48 @@ export default function ReportsAndMetrics() {
         </TabsContent>
       </Tabs>
     </AdminLayout>
+  );
+}
+
+interface KpiCardProps {
+  label: string;
+  subtitle: string;
+  value: number;
+  num: number;
+  den: number;
+  unit: string;
+  greenIf: (v: number) => boolean;
+  amberIf: (v: number) => boolean;
+  invertColors?: boolean; // for metrics where lower is better
+}
+
+function KpiCard({ label, subtitle, value, num, den, unit, greenIf, amberIf }: KpiCardProps) {
+  const isGreen = greenIf(value);
+  const isAmber = !isGreen && amberIf(value);
+  const isRed = !isGreen && !isAmber;
+
+  const colorClass = isGreen
+    ? "text-emerald-600 dark:text-emerald-400"
+    : isAmber
+    ? "text-amber-600 dark:text-amber-400"
+    : "text-destructive";
+
+  const bgClass = isGreen
+    ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800/40 dark:bg-emerald-950/20"
+    : isAmber
+    ? "border-amber-200 bg-amber-50/50 dark:border-amber-800/40 dark:bg-amber-950/20"
+    : "border-destructive/30 bg-destructive/5";
+
+  return (
+    <div className={cn("rounded-xl border-2 p-6 space-y-2 transition-colors", bgClass)}>
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className={cn("text-5xl font-bold tabular-nums tracking-tight", colorClass)}>
+        {value}%
+      </p>
+      <p className="text-xs text-muted-foreground">{subtitle}</p>
+      <p className="text-sm font-medium text-foreground pt-1">
+        {num} of {den} {unit}
+      </p>
+    </div>
   );
 }
