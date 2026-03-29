@@ -929,6 +929,27 @@ export default function Patients() {
                   const isInactive = (p as any).status !== "active";
                   const tType = (p as any).transport_type ?? "dialysis";
                   const isChecked = selected.has(p.id);
+                  // Compliance expiration warning for dialysis patients
+                  const complianceWarning = (() => {
+                    if (tType !== "dialysis") return null;
+                    const now = new Date();
+                    const pcsExp = (p as any).pcs_expiration_date ? parseISO((p as any).pcs_expiration_date) : null;
+                    const authExp = (p as any).prior_auth_expiration ? parseISO((p as any).prior_auth_expiration) : null;
+                    const pcsOnFile = (p as any).pcs_on_file;
+                    const authOnFile = (p as any).prior_auth_on_file;
+                    let worst: "expired" | "expiring" | null = null;
+                    if (pcsOnFile && pcsExp) {
+                      const d = differenceInDays(pcsExp, now);
+                      if (d < 0) worst = "expired";
+                      else if (d <= 14) worst = worst === "expired" ? "expired" : "expiring";
+                    }
+                    if (authOnFile && authExp) {
+                      const d = differenceInDays(authExp, now);
+                      if (d < 0) worst = "expired";
+                      else if (d <= 14 && worst !== "expired") worst = "expiring";
+                    }
+                    return worst;
+                  })();
                   return (
                     <tr
                       key={p.id}
