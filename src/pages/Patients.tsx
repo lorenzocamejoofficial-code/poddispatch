@@ -970,6 +970,22 @@ export default function Patients() {
                               <Zap className="h-3 w-3" /> &gt;200
                             </span>
                           )}
+                          {complianceWarning && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  {complianceWarning === "expired" ? (
+                                    <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                  ) : (
+                                    <Clock className="h-3.5 w-3.5 text-[hsl(var(--status-yellow))] shrink-0" />
+                                  )}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {complianceWarning === "expired" ? "PCS or auth expired" : "PCS or auth expiring soon"}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3"><PatientStatusBadge status={(p as any).status ?? "active"} /></td>
