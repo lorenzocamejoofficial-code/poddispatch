@@ -141,6 +141,12 @@ export default function Patients() {
       chair_time_duration_hours: "0",
       chair_time_duration_minutes: "0",
       a_leg_pickup_time: "",
+      pcs_on_file: false,
+      pcs_signed_date: "",
+      pcs_expiration_date: "",
+      prior_auth_on_file: false,
+      prior_auth_number: "",
+      prior_auth_expiration: "",
     });
     setEditing(null);
     setBLegWarnings([]);
