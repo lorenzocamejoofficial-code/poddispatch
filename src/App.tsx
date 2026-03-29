@@ -44,6 +44,8 @@ import ForgotEmail from "./pages/ForgotEmail";
 import SuspendedPage from "./pages/SuspendedPage";
 import CrewDashboard from "./pages/CrewDashboard";
 import PCRPage from "./pages/PCRPage";
+import CrewPatients from "./pages/crew/CrewPatients";
+import CrewSchedulePage from "./pages/crew/CrewSchedule";
 // Token links redirect to login with crew mode when unauthenticated
 function TokenLoginRedirect() {
   const { token } = useParams<{ token: string }>();
