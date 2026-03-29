@@ -11,7 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Pencil, Trash2, Zap } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Zap, Clock, AlertTriangle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { toast } from "sonner";
