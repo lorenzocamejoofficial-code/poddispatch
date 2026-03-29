@@ -275,7 +275,7 @@ export default function ReportsAndMetrics() {
 
   return (
     <AdminLayout>
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs defaultValue="kpis" className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <TabsList>
             <TabsTrigger value="kpis"><Activity className="h-3.5 w-3.5 mr-1" />KPIs</TabsTrigger>
