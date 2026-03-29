@@ -594,7 +594,39 @@ export default function CrewDashboard() {
 
                 {isExpanded && (
                   <>
-                    {/* Disputed banner */}
+                    {/* Run progress badge + time taps */}
+                    {(() => {
+                      const rs = deriveRunStatus({
+                        dispatch_time: run.dispatchTime,
+                        at_scene_time: run.atSceneTime,
+                        patient_contact_time: run.patientContactTime,
+                        left_scene_time: run.leftSceneTime,
+                        arrived_dropoff_at: run.arrivedDropoffAt,
+                        in_service_time: run.inServiceTime,
+                        pcr_status: run.pcrStatus,
+                      });
+                      const colorMap: Record<string, string> = {
+                        gray: "bg-muted text-muted-foreground",
+                        amber: "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400",
+                        blue: "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400",
+                        green: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400",
+                      };
+                      return (
+                        <div className="space-y-1">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${colorMap[rs.color] ?? colorMap.gray}`}>
+                            {rs.label}
+                          </span>
+                          <TimeTapRow
+                            dispatch_time={run.dispatchTime}
+                            arrived_pickup_at={run.arrivedPickupAt}
+                            at_scene_time={run.atSceneTime}
+                            left_scene_time={run.leftSceneTime}
+                            arrived_dropoff_at={run.arrivedDropoffAt}
+                            in_service_time={run.inServiceTime}
+                          />
+                        </div>
+                      );
+                    })()}
                     {run.cancellationDisputed && run.cancellationDispatcherNote && (
                       <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 px-3 py-2">
                         <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
