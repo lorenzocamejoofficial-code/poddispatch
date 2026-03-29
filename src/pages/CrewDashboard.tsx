@@ -114,7 +114,7 @@ function HoldConfirmButton({ icon, label, confirmLabel, loading, onConfirm }: {
   );
 }
 
-  const { user, signOut, profileId } = useAuth();
+  export default function CrewDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const [truckName, setTruckName] = useState("");
