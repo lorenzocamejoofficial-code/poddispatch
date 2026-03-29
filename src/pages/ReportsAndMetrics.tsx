@@ -47,6 +47,10 @@ export default function ReportsAndMetrics() {
   const [allClaims, setAllClaims] = useState<any[]>([]);
   const [dailyTruckMetrics, setDailyTruckMetrics] = useState<DailyTruckMetric[]>([]);
 
+  // KPI state
+  const [kpiBilling, setKpiBilling] = useState({ rate: 0, num: 0, den: 0 });
+  const [kpiLate, setKpiLate] = useState({ rate: 0, num: 0, den: 0 });
+  const [kpiConflict, setKpiConflict] = useState({ rate: 0, num: 0, den: 0 });
   const getDateRange = useCallback(() => {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().split("T")[0];
