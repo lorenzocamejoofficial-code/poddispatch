@@ -196,6 +196,8 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<CrewDashboard />} />
         <Route path="/crew-dashboard" element={<CrewDashboard />} />
+        <Route path="/crew-patients" element={<CrewPatients />} />
+        <Route path="/crew-schedule" element={<CrewSchedulePage />} />
         <Route path="/pcr" element={<PCRPage />} />
         <Route path="/crew/:token" element={<DailyRunSheet />} />
         <Route path="/account" element={<AccountSettings />} />
