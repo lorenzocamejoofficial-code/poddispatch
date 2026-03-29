@@ -622,3 +622,46 @@ export default function ReportsAndMetrics() {
     </AdminLayout>
   );
 }
+
+interface KpiCardProps {
+  label: string;
+  subtitle: string;
+  value: number;
+  num: number;
+  den: number;
+  unit: string;
+  greenIf: (v: number) => boolean;
+  amberIf: (v: number) => boolean;
+  invertColors?: boolean; // for metrics where lower is better
+}
+
+function KpiCard({ label, subtitle, value, num, den, unit, greenIf, amberIf }: KpiCardProps) {
+  const isGreen = greenIf(value);
+  const isAmber = !isGreen && amberIf(value);
+  const isRed = !isGreen && !isAmber;
+
+  const colorClass = isGreen
+    ? "text-emerald-600 dark:text-emerald-400"
+    : isAmber
+    ? "text-amber-600 dark:text-amber-400"
+    : "text-destructive";
+
+  const bgClass = isGreen
+    ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800/40 dark:bg-emerald-950/20"
+    : isAmber
+    ? "border-amber-200 bg-amber-50/50 dark:border-amber-800/40 dark:bg-amber-950/20"
+    : "border-destructive/30 bg-destructive/5";
+
+  return (
+    <div className={cn("rounded-xl border-2 p-6 space-y-2 transition-colors", bgClass)}>
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className={cn("text-5xl font-bold tabular-nums tracking-tight", colorClass)}>
+        {value}%
+      </p>
+      <p className="text-xs text-muted-foreground">{subtitle}</p>
+      <p className="text-sm font-medium text-foreground pt-1">
+        {num} of {den} {unit}
+      </p>
+    </div>
+  );
+}
