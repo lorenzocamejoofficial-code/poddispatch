@@ -111,7 +111,7 @@ export default function CrewSchedule() {
 
       const { data: legs } = await supabase
         .from("scheduling_legs")
-        .select("id, patient_id, leg_type, pickup_time, pickup_location, destination_location, trip_type")
+        .select("id, patient_id, leg_type, pickup_time, pickup_location, destination_location, trip_type, is_oneoff, oneoff_name")
         .in("id", legIds);
 
       if (!legs) continue;
@@ -136,11 +136,17 @@ export default function CrewSchedule() {
         const trip = tripMap.get(leg.id);
         const slot = slotMap.get(leg.id);
 
+        const patientName = patient
+          ? `${patient.first_name?.[0] ?? ""}. ${patient.last_name}`
+          : ((leg as any).is_oneoff && (leg as any).oneoff_name)
+            ? (leg as any).oneoff_name
+            : (leg.pickup_location || "Unknown Patient");
+
         allRuns.push({
           date: crew.active_date,
           legId: leg.id,
           legType: mapLegType(leg.leg_type),
-          patientName: patient ? `${patient.first_name?.[0] ?? ""}. ${patient.last_name}` : "Unknown",
+          patientName,
           pickupTime: leg.pickup_time,
           pickupLocation: leg.pickup_location,
           destinationLocation: leg.destination_location,
@@ -267,17 +273,17 @@ export default function CrewSchedule() {
                             {isTodayDate && (
                               <div className="shrink-0">
                                 {run.pcrStatus === "not_started" && (
-                                  <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => navigate("/pcr")}>
+                                  <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => navigate("/crew-dashboard", { state: { openPCRForTripId: run.tripId, openPCRForLegId: run.legId } })}>
                                     <FileText className="h-3 w-3" /> Start
                                   </Button>
                                 )}
                                 {run.pcrStatus === "in_progress" && (
-                                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-amber-300 text-amber-700" onClick={() => navigate("/pcr")}>
+                                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-amber-300 text-amber-700" onClick={() => navigate("/crew-dashboard", { state: { openPCRForTripId: run.tripId, openPCRForLegId: run.legId } })}>
                                     <FileText className="h-3 w-3" /> Continue
                                   </Button>
                                 )}
                                 {(run.pcrStatus === "completed" || run.pcrStatus === "submitted") && (
-                                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => navigate("/pcr")}>
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => navigate("/crew-dashboard", { state: { openPCRForTripId: run.tripId, openPCRForLegId: run.legId } })}>
                                     <Eye className="h-3 w-3" /> View
                                   </Button>
                                 )}

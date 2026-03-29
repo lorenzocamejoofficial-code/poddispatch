@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Truck, Users, Loader2, Clock, AlertTriangle, FileText, Check, Eye, Ban, XCircle } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { cn } from "@/lib/utils";
@@ -82,9 +82,41 @@ interface NotificationRow {
   acknowledged: boolean;
 }
 
-export default function CrewDashboard() {
+function HoldConfirmButton({ icon, label, confirmLabel, loading, onConfirm }: {
+  icon: React.ReactNode;
+  label: string;
+  confirmLabel: string;
+  loading: boolean;
+  onConfirm: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
+        disabled={loading}
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}>
+        {icon}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-xs" onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle className="text-sm">{label}</DialogTitle>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button size="sm" disabled={loading} onClick={() => { setOpen(false); onConfirm(); }}>
+              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : confirmLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
   const { user, signOut, profileId } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [truckName, setTruckName] = useState("");
   const [partnerName, setPartnerName] = useState("");
   const [runs, setRuns] = useState<RunCard[]>([]);
@@ -134,24 +166,29 @@ export default function CrewDashboard() {
     const legIds = slots.map(s => s.leg_id);
 
     const [{ data: legs }, { data: trips }] = await Promise.all([
-      supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, pickup_address, dropoff_facility, location_type, facility_id, facility:facilities!patients_facility_id_fkey(name))").in("id", legIds),
+      supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, is_oneoff, oneoff_name, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, pickup_address, dropoff_facility, location_type, facility_id, facility:facilities!patients_facility_id_fkey(name))").in("id", legIds),
       supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, at_scene_time, patient_contact_time, left_scene_time, arrived_pickup_at, arrived_dropoff_at, in_service_time, scheduled_pickup_time, billing_blocked_reason, cancellation_reason, cancellation_disputed, cancellation_dispatcher_note").eq("run_date", today).eq("truck_id", truckId).in("leg_id", legIds),
     ]);
 
     const legMap = new Map((legs ?? []).map(l => [l.id, l]));
     const tripMap = new Map((trips ?? []).map(t => [t.leg_id, t]));
 
-    const formatPatientName = (patient: any): { name: string; hasRecord: boolean } => {
-      if (!patient?.first_name) return { name: "Unassigned", hasRecord: false };
-      const firstInitial = patient.first_name.charAt(0).toUpperCase();
-      return { name: `${firstInitial}. ${patient.last_name}`, hasRecord: true };
+    const formatPatientName = (patient: any, leg: any): { name: string; hasRecord: boolean } => {
+      if (patient?.first_name) {
+        const firstInitial = patient.first_name.charAt(0).toUpperCase();
+        return { name: `${firstInitial}. ${patient.last_name}`, hasRecord: true };
+      }
+      // Fallback for one-off runs
+      if (leg?.is_oneoff && leg?.oneoff_name) return { name: leg.oneoff_name, hasRecord: false };
+      if (leg?.pickup_location) return { name: leg.pickup_location, hasRecord: false };
+      return { name: "Unknown Patient", hasRecord: false };
     };
 
     const cards: RunCard[] = slots.map(slot => {
       const leg = legMap.get(slot.leg_id);
       const trip = tripMap.get(slot.leg_id);
       const patient = leg?.patient as any;
-      const { name: patientName, hasRecord } = formatPatientName(patient);
+      const { name: patientName, hasRecord } = formatPatientName(patient, leg);
       const legTypeRaw = (leg as any)?.leg_type ?? null;
       const legType = legTypeRaw === "a_leg" || legTypeRaw === "A" ? "A" : legTypeRaw === "b_leg" || legTypeRaw === "B" ? "B" : "—";
       return {
@@ -226,6 +263,18 @@ export default function CrewDashboard() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
+
+  // Auto-open PCR when navigated from schedule tab with state
+  useEffect(() => {
+    if (location.state?.openPCRForTripId && runs.length > 0) {
+      const run = runs.find(r => r.tripId === location.state.openPCRForTripId || r.legId === location.state.openPCRForLegId);
+      if (run) {
+        openPCR(run);
+        // Clear state to prevent re-triggering
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [runs, location.state]);
 
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -697,18 +746,22 @@ export default function CrewDashboard() {
                       {run.tripId && !isTerminal && !activeHold && (
                         <>
                           {["arrived_pickup", "en_route"].includes(run.tripStatus) && (
-                            <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
-                              disabled={holdLoading === `${run.tripId}-patient_not_ready`}
-                              onClick={() => startHold(run, "patient_not_ready")}>
-                              <AlertTriangle className="h-4 w-4" />
-                            </Button>
+                            <HoldConfirmButton
+                              icon={<AlertTriangle className="h-4 w-4" />}
+                              label="Start Patient Not Ready timer?"
+                              confirmLabel="Start Timer"
+                              loading={holdLoading === `${run.tripId}-patient_not_ready`}
+                              onConfirm={() => startHold(run, "patient_not_ready")}
+                            />
                           )}
                           {["arrived_dropoff", "loaded"].includes(run.tripStatus) && (
-                            <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
-                              disabled={holdLoading === `${run.tripId}-facility_delay`}
-                              onClick={() => startHold(run, "facility_delay")}>
-                              <Clock className="h-4 w-4" />
-                            </Button>
+                            <HoldConfirmButton
+                              icon={<Clock className="h-4 w-4" />}
+                              label="Start Facility Delay timer?"
+                              confirmLabel="Start Timer"
+                              loading={holdLoading === `${run.tripId}-facility_delay`}
+                              onConfirm={() => startHold(run, "facility_delay")}
+                            />
                           )}
                         </>
                       )}

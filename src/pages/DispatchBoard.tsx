@@ -356,9 +356,8 @@ export default function DispatchBoard() {
         event: "UPDATE",
         schema: "public",
         table: "trip_records",
-        filter: `run_date=eq.${selectedDate}`,
       }, (payload) => {
-        console.log("trip_records changed:", payload);
+        console.log("trip_records UPDATE received:", (payload as any).new);
         debouncedFetch();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => debouncedFetch())
