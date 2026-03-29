@@ -51,6 +51,13 @@ interface RunCard {
   cancellationReason: string | null;
   cancellationDisputed: boolean;
   cancellationDispatcherNote: string | null;
+  // Time tap fields
+  atSceneTime: string | null;
+  patientContactTime: string | null;
+  leftSceneTime: string | null;
+  arrivedPickupAt: string | null;
+  arrivedDropoffAt: string | null;
+  inServiceTime: string | null;
 }
 
 interface HoldTimer {
