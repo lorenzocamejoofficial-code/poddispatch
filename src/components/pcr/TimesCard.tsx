@@ -110,6 +110,24 @@ export function TimesCard({ trip, recordTime, updateField, isReadOnly = false }:
   return (
     <div className="space-y-4">
       <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-semibold text-foreground">Times</h4>
+          {!isReadOnly && (
+            <ConfirmActionDialog
+              trigger={
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground gap-1">
+                  <RotateCcw className="h-3 w-3" />
+                  Clear Times
+                </Button>
+              }
+              title="Clear all times?"
+              description="Clear all recorded times? This cannot be undone."
+              confirmWord="CONFIRM"
+              onConfirm={handleClearTimes}
+              destructive
+            />
+          )}
+        </div>
         {buttons.map((btn, idx) => {
           const value = trip[btn.field];
           const recorded = !!value;
