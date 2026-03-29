@@ -159,6 +159,8 @@ function AppRoutes() {
           <Route path="/crew-preview" element={<CrewUIPreview />} />
           <Route path="/override-monitor" element={<OverrideMonitor />} />
           <Route path="/crew-dashboard" element={<CrewDashboard />} />
+          <Route path="/crew-patients" element={<CrewPatients />} />
+          <Route path="/crew-schedule" element={<CrewSchedulePage />} />
           <Route path="/pcr" element={<PCRPage />} />
           {/* App Simulation — all operational pages */}
           <Route path="/simulation" element={<DispatchBoard />} />
