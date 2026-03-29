@@ -1288,9 +1288,15 @@ export type Database = {
           notes: string | null
           oxygen_lpm: number | null
           oxygen_required: boolean | null
+          pcs_expiration_date: string | null
+          pcs_on_file: boolean | null
+          pcs_signed_date: string | null
           phone: string | null
           pickup_address: string | null
           primary_payer: string | null
+          prior_auth_expiration: string | null
+          prior_auth_number: string | null
+          prior_auth_on_file: boolean | null
           recurrence_days: number[] | null
           recurrence_end_date: string | null
           recurrence_start_date: string | null
@@ -1336,9 +1342,15 @@ export type Database = {
           notes?: string | null
           oxygen_lpm?: number | null
           oxygen_required?: boolean | null
+          pcs_expiration_date?: string | null
+          pcs_on_file?: boolean | null
+          pcs_signed_date?: string | null
           phone?: string | null
           pickup_address?: string | null
           primary_payer?: string | null
+          prior_auth_expiration?: string | null
+          prior_auth_number?: string | null
+          prior_auth_on_file?: boolean | null
           recurrence_days?: number[] | null
           recurrence_end_date?: string | null
           recurrence_start_date?: string | null
@@ -1384,9 +1396,15 @@ export type Database = {
           notes?: string | null
           oxygen_lpm?: number | null
           oxygen_required?: boolean | null
+          pcs_expiration_date?: string | null
+          pcs_on_file?: boolean | null
+          pcs_signed_date?: string | null
           phone?: string | null
           pickup_address?: string | null
           primary_payer?: string | null
+          prior_auth_expiration?: string | null
+          prior_auth_number?: string | null
+          prior_auth_on_file?: boolean | null
           recurrence_days?: number[] | null
           recurrence_end_date?: string | null
           recurrence_start_date?: string | null
