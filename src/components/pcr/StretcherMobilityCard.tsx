@@ -18,6 +18,15 @@ const MOBILITY_OPTIONS = [
   "Independent with Device",
 ];
 
+const POSITION_OPTIONS = [
+  "Supine (flat)",
+  "Fowlers (semi-upright 45°)",
+  "High Fowlers (upright 90°)",
+  "Left lateral",
+  "Right lateral",
+  "Seated",
+];
+
 interface StretcherMobilityCardProps {
   trip: any;
   updateField: (field: string, value: any) => Promise<void>;
@@ -58,6 +67,25 @@ export function StretcherMobilityCard({ trip, updateField }: StretcherMobilityCa
           </SelectTrigger>
           <SelectContent>
             {MOBILITY_OPTIONS.map((opt) => (
+              <SelectItem key={opt} value={opt} className="text-base py-3">{opt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label className="text-sm font-medium text-foreground flex items-center">
+          Position During Transport <PCRTooltip text="Patient's body position during transport — required for stretcher transport documentation" />
+        </Label>
+        <Select
+          value={trip.patient_position || ""}
+          onValueChange={(val) => updateField("patient_position", val)}
+        >
+          <SelectTrigger className="mt-1.5 h-11 text-base w-full">
+            <SelectValue placeholder="Select position" />
+          </SelectTrigger>
+          <SelectContent>
+            {POSITION_OPTIONS.map((opt) => (
               <SelectItem key={opt} value={opt} className="text-base py-3">{opt}</SelectItem>
             ))}
           </SelectContent>

@@ -5,32 +5,60 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
+import { cn } from "@/lib/utils";
 
 const PRECAUTION_TYPES = ["MRSA", "VRE", "C-Diff", "Hepatitis", "COVID-19", "HIV", "Other"];
+
+type IsoStatus = "na" | "no" | "yes";
 
 interface IsolationPrecautionsCardProps {
   trip: any;
   updateField: (field: string, value: any) => Promise<void>;
 }
 
+function deriveStatus(iso: any): IsoStatus {
+  if (!iso || typeof iso !== "object") return "na";
+  if (iso.status === "na") return "na";
+  if (iso.status === "none" || iso.required === false) return "no";
+  if (iso.required === true || iso.status === "yes") return "yes";
+  return "na";
+}
+
 export function IsolationPrecautionsCard({ trip, updateField }: IsolationPrecautionsCardProps) {
   const iso = trip.isolation_precautions || {};
-  const [required, setRequired] = useState<boolean>(!!iso.required);
+  const [status, setStatus] = useState<IsoStatus>(() => deriveStatus(iso));
   const [types, setTypes] = useState<string[]>(iso.types || []);
   const [active, setActive] = useState<boolean>(!!iso.active);
   const [notes, setNotes] = useState<string>(iso.notes || "");
 
   useEffect(() => {
     const current = trip.isolation_precautions || {};
-    setRequired(!!current.required);
+    setStatus(deriveStatus(current));
     setTypes(current.types || []);
     setActive(!!current.active);
     setNotes(current.notes || "");
   }, [trip.isolation_precautions]);
 
-  const save = (updates: Partial<{ required: boolean; types: string[]; active: boolean; notes: string }>) => {
-    const next = { required, types, active, notes, ...updates };
+  const save = (updates: Partial<{ status: string; required: boolean; types: string[]; active: boolean; notes: string }>) => {
+    const next = { required: status === "yes", types, active, notes, status, ...updates };
     updateField("isolation_precautions", next);
+  };
+
+  const handleStatusChange = (newStatus: IsoStatus) => {
+    setStatus(newStatus);
+    if (newStatus === "na") {
+      save({ status: "na", required: false, types: [], active: false, notes: "" });
+      setTypes([]);
+      setActive(false);
+      setNotes("");
+    } else if (newStatus === "no") {
+      save({ status: "none", required: false, types: [], active: false, notes: "" });
+      setTypes([]);
+      setActive(false);
+      setNotes("");
+    } else {
+      save({ status: "yes", required: true });
+    }
   };
 
   const toggleType = (type: string) => {
@@ -39,22 +67,42 @@ export function IsolationPrecautionsCard({ trip, updateField }: IsolationPrecaut
     save({ types: next });
   };
 
+  const STATUS_OPTIONS: { value: IsoStatus; label: string }[] = [
+    { value: "na", label: "N/A" },
+    { value: "no", label: "No" },
+    { value: "yes", label: "Yes" },
+  ];
+
   return (
     <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium text-foreground flex items-center">
+      <div>
+        <Label className="text-sm font-medium text-foreground flex items-center mb-2">
           Isolation Required? <PCRTooltip text={PCR_TOOLTIPS.isolation_required} />
         </Label>
-        <Switch
-          checked={required}
-          onCheckedChange={(val) => {
-            setRequired(val);
-            save({ required: val });
-          }}
-        />
+        <div className="flex gap-1 rounded-lg border border-border p-1 bg-muted/30 w-fit">
+          {STATUS_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => handleStatusChange(opt.value)}
+              className={cn(
+                "px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
+                status === opt.value
+                  ? opt.value === "na"
+                    ? "bg-muted text-foreground shadow-sm"
+                    : opt.value === "no"
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 shadow-sm"
+                    : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400 shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {required && (
+      {status === "yes" && (
         <div className="space-y-4 border-l-2 border-primary/20 ml-1 pl-3">
           <div>
             <Label className="text-xs font-medium text-muted-foreground mb-2 flex items-center">
