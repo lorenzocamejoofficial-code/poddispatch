@@ -114,6 +114,7 @@ function HoldConfirmButton({ icon, label, confirmLabel, loading, onConfirm }: {
   );
 }
 
+export default function CrewDashboard() {
   const { user, signOut, profileId } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
