@@ -82,7 +82,38 @@ interface NotificationRow {
   acknowledged: boolean;
 }
 
-export default function CrewDashboard() {
+function HoldConfirmButton({ icon, label, confirmLabel, loading, onConfirm }: {
+  icon: React.ReactNode;
+  label: string;
+  confirmLabel: string;
+  loading: boolean;
+  onConfirm: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
+        disabled={loading}
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}>
+        {icon}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-xs" onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle className="text-sm">{label}</DialogTitle>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button size="sm" disabled={loading} onClick={() => { setOpen(false); onConfirm(); }}>
+              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : confirmLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
   const { user, signOut, profileId } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
