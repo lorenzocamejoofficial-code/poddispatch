@@ -824,6 +824,76 @@ export default function Patients() {
                     )}
                   </div>
 
+                  {/* Compliance & Authorization — dialysis only */}
+                  {form.transport_type === "dialysis" && (
+                    <Collapsible defaultOpen={form.pcs_on_file || form.prior_auth_on_file}>
+                      <div className="border-t pt-3">
+                        <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Compliance &amp; Authorization</p>
+                            <p className="text-[11px] text-muted-foreground">Required for Medicare dialysis transport billing</p>
+                          </div>
+                          <span className="text-xs text-muted-foreground">▸</span>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-3 mt-3">
+                          {/* PCS */}
+                          <div className="flex items-center justify-between">
+                            <Label>PCS on File</Label>
+                            <Switch checked={form.pcs_on_file} onCheckedChange={(v) => setForm({ ...form, pcs_on_file: v })} />
+                          </div>
+                          {form.pcs_on_file && (
+                            <div className="space-y-3 pl-1">
+                              <div>
+                                <Label>PCS Signed Date</Label>
+                                <Input type="date" value={form.pcs_signed_date} onChange={(e) => setForm({ ...form, pcs_signed_date: e.target.value })} />
+                              </div>
+                              {form.pcs_signed_date && (() => {
+                                const expDate = addDays(parseISO(form.pcs_signed_date), 60);
+                                const daysLeft = differenceInDays(expDate, new Date());
+                                const colorClass = daysLeft < 0 ? "text-destructive" : daysLeft <= 14 ? "text-[hsl(var(--status-yellow))]" : "text-emerald-600";
+                                return (
+                                  <p className={`text-xs font-medium ${colorClass}`}>
+                                    Expires: {format(expDate, "MMM dd, yyyy")}
+                                    {daysLeft < 0 ? " (Expired)" : daysLeft <= 14 ? ` (${daysLeft} days left)` : ""}
+                                  </p>
+                                );
+                              })()}
+                            </div>
+                          )}
+
+                          {/* Prior Auth */}
+                          <div className="flex items-center justify-between">
+                            <Label>Prior Auth on File</Label>
+                            <Switch checked={form.prior_auth_on_file} onCheckedChange={(v) => setForm({ ...form, prior_auth_on_file: v })} />
+                          </div>
+                          {form.prior_auth_on_file && (
+                            <div className="space-y-3 pl-1">
+                              <div>
+                                <Label>Prior Auth Number (UTN)</Label>
+                                <Input value={form.prior_auth_number} onChange={(e) => setForm({ ...form, prior_auth_number: e.target.value })} placeholder="Enter UTN" />
+                              </div>
+                              <div>
+                                <Label>Prior Auth Expiration</Label>
+                                <Input type="date" value={form.prior_auth_expiration} onChange={(e) => setForm({ ...form, prior_auth_expiration: e.target.value })} />
+                              </div>
+                              {form.prior_auth_expiration && (() => {
+                                const expDate = parseISO(form.prior_auth_expiration);
+                                const daysLeft = differenceInDays(expDate, new Date());
+                                const colorClass = daysLeft < 0 ? "text-destructive" : daysLeft <= 14 ? "text-[hsl(var(--status-yellow))]" : "text-emerald-600";
+                                return (
+                                  <p className={`text-xs font-medium ${colorClass}`}>
+                                    Expires: {format(expDate, "MMM dd, yyyy")}
+                                    {daysLeft < 0 ? " (Expired)" : daysLeft <= 14 ? ` (${daysLeft} days left)` : ""}
+                                  </p>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
+                  )}
+
                   <Button onClick={handleSave}>{editing ? "Save Changes" : "Add Patient"}</Button>
                 </div>
               </DialogContent>
