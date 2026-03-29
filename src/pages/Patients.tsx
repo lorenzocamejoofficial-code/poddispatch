@@ -197,6 +197,12 @@ export default function Patients() {
       chair_time_duration_hours: durH,
       chair_time_duration_minutes: durM,
       a_leg_pickup_time: (p as any).a_leg_pickup_time ?? "",
+      pcs_on_file: (p as any).pcs_on_file ?? false,
+      pcs_signed_date: (p as any).pcs_signed_date ?? "",
+      pcs_expiration_date: (p as any).pcs_expiration_date ?? "",
+      prior_auth_on_file: (p as any).prior_auth_on_file ?? false,
+      prior_auth_number: (p as any).prior_auth_number ?? "",
+      prior_auth_expiration: (p as any).prior_auth_expiration ?? "",
     });
     setBLegWarnings([]);
     setDialogOpen(true);
