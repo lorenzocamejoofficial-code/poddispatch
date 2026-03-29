@@ -1,15 +1,18 @@
 import { Button } from "@/components/ui/button";
-import { Clock, Check } from "lucide-react";
+import { Clock, Check, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
+import { toast } from "@/hooks/use-toast";
 
 interface TimesCardProps {
   trip: any;
   recordTime: (field: string, status?: string) => Promise<void>;
   updateField: (field: string, value: any) => Promise<void>;
+  isReadOnly?: boolean;
 }
 
 function fmtTime(ts: string | null): string {
@@ -44,10 +47,24 @@ const BILLING_MIRROR: Record<string, string> = {
   arrived_dropoff_at: "dropped_at",
 };
 
-export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
+export function TimesCard({ trip, recordTime, updateField, isReadOnly = false }: TimesCardProps) {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [odometerWarning, setOdometerWarning] = useState<string | null>(null);
   const [manualMilesOverride, setManualMilesOverride] = useState(false);
+
+  const handleClearTimes = async () => {
+    const fields = [
+      "dispatch_time", "at_scene_time", "patient_contact_time",
+      "left_scene_time", "arrived_dropoff_at", "in_service_time",
+      "loaded_at", "dropped_at",
+    ];
+    for (const f of fields) {
+      await updateField(f, null);
+    }
+    await updateField("status", "scheduled");
+    await updateField("pcr_status", "not_started");
+    toast({ title: "Times cleared" });
+  };
 
   const buttons = [
     { field: "dispatch_time", label: "Dispatched", status: undefined },
@@ -93,6 +110,24 @@ export function TimesCard({ trip, recordTime, updateField }: TimesCardProps) {
   return (
     <div className="space-y-4">
       <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-semibold text-foreground">Times</h4>
+          {!isReadOnly && (
+            <ConfirmActionDialog
+              trigger={
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground gap-1">
+                  <RotateCcw className="h-3 w-3" />
+                  Clear Times
+                </Button>
+              }
+              title="Clear all times?"
+              description="Clear all recorded times? This cannot be undone."
+              confirmWord="CONFIRM"
+              onConfirm={handleClearTimes}
+              destructive
+            />
+          )}
+        </div>
         {buttons.map((btn, idx) => {
           const value = trip[btn.field];
           const recorded = !!value;
