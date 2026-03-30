@@ -454,7 +454,7 @@ export default function PCRPage() {
       return <LockedSectionOverlay reason={rule.lockedReason} />;
     }
     switch (type) {
-      case "times": return <TimesCard trip={trip} recordTime={recordTime} updateField={updateField} />;
+      case "times": return <TimesCard trip={trip} recordTime={recordTime} updateField={updateField} updateMultipleFields={updateMultipleFields} />;
       case "patient_info": return <PatientInfoCard trip={trip} updateField={updateField} />;
       case "vitals": return <VitalsCard trip={trip} updateField={updateField} />;
       case "condition_on_arrival": return <ConditionOnArrivalCard trip={trip} updateField={updateField} />;
