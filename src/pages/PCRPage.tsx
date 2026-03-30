@@ -21,6 +21,8 @@ import { StretcherMobilityCard } from "@/components/pcr/StretcherMobilityCard";
 import { IsolationPrecautionsCard } from "@/components/pcr/IsolationPrecautionsCard";
 import { LockedSectionOverlay } from "@/components/pcr/LockedSectionOverlay";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
+import { evaluatePCRFieldCompletion } from "@/lib/pcr-field-requirements";
+import { SectionCompletionBadge } from "@/components/pcr/PCRFieldIndicator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -569,6 +571,9 @@ export default function PCRPage() {
   const completedRequired = requiredCards.filter(c => isCardComplete(c)).length;
   const totalRequired = requiredCards.length;
 
+  // Field-level completion tracking
+  const fieldCompletion = evaluatePCRFieldCompletion(trip);
+
   return (
     <CrewLayout>
       <div className="p-4 pb-24 min-h-screen">
@@ -607,12 +612,17 @@ export default function PCRPage() {
             </p>
           )}
           {!isReadOnly && (
-            <div className="mt-2 flex items-center gap-2 min-w-0 overflow-hidden">
-              <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden min-w-0">
-                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${totalRequired > 0 ? (completedRequired / totalRequired) * 100 : 0}%` }} />
+            <>
+              <div className="mt-2 flex items-center gap-2 min-w-0 overflow-hidden">
+                <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden min-w-0">
+                  <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${totalRequired > 0 ? (completedRequired / totalRequired) * 100 : 0}%` }} />
+                </div>
+                <span className="text-xs font-medium text-muted-foreground shrink-0">{completedRequired}/{totalRequired}</span>
               </div>
-              <span className="text-xs font-medium text-muted-foreground shrink-0">{completedRequired}/{totalRequired}</span>
-            </div>
+              <p className={cn("text-xs font-medium mt-1", fieldCompletion.completedRequired === fieldCompletion.totalRequired ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
+                {fieldCompletion.completedRequired} of {fieldCompletion.totalRequired} required fields complete
+              </p>
+            </>
           )}
         </div>
 
@@ -652,6 +662,14 @@ export default function PCRPage() {
                   <span className={cn("flex-1 text-sm font-semibold", isLockedCard ? "text-muted-foreground/50" : "text-foreground")}>
                     {card.label}
                   </span>
+                  {!isLockedCard && (() => {
+                    const sectionKey = card.type === "chief_complaint" ? "assessment" : card.type;
+                    const sec = fieldCompletion.bySection[sectionKey];
+                    if (sec && sec.total > 0 && rule.state === "required") {
+                      return <SectionCompletionBadge completed={sec.completed} total={sec.total} />;
+                    }
+                    return null;
+                  })()}
                   {getCardStateLabel(card)}
                 </div>
                 {isLockedCard && (
