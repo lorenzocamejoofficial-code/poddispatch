@@ -265,15 +265,14 @@ export default function CrewDashboard() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
 
-  // Auto-open PCR when navigated from schedule tab with state
+  // Auto-open PCR when navigated from schedule tab with state — redirect to PCR tab
   useEffect(() => {
     if (location.state?.openPCRForTripId && runs.length > 0) {
       const run = runs.find(r => r.tripId === location.state.openPCRForTripId || r.legId === location.state.openPCRForLegId);
-      if (run) {
-        openPCR(run);
-        // Clear state to prevent re-triggering
-        window.history.replaceState({}, document.title);
+      if (run && run.tripId) {
+        navigate(`/pcr?tripId=${run.tripId}`, { replace: true });
       }
+      window.history.replaceState({}, document.title);
     }
   }, [runs, location.state]);
 
