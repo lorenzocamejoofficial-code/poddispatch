@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Clock, Check, RotateCcw } from "lucide-react";
+import { Clock, Check, RotateCcw, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
@@ -7,6 +7,37 @@ import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+// Deduplicated unique fields in chronological order
+
+// Deduplicated for validation (unique fields in order)
+const UNIQUE_TIME_FIELDS = [
+  "dispatch_time",
+  "at_scene_time",
+  "patient_contact_time",
+  "left_scene_time",
+  "arrived_dropoff_at",
+  "in_service_time",
+];
+
+/** Returns set of field names that are out of chronological order */
+export function getTimeSequenceWarnings(trip: any): Set<string> {
+  const warnings = new Set<string>();
+  for (let i = 1; i < UNIQUE_TIME_FIELDS.length; i++) {
+    const prevField = UNIQUE_TIME_FIELDS[i - 1];
+    const currField = UNIQUE_TIME_FIELDS[i];
+    const prevVal = trip?.[prevField];
+    const currVal = trip?.[currField];
+    if (!prevVal || !currVal) continue;
+    const prevTime = new Date(prevVal).getTime();
+    const currTime = new Date(currVal).getTime();
+    if (currTime < prevTime) {
+      warnings.add(currField);
+    }
+  }
+  return warnings;
+}
 
 interface TimesCardProps {
   trip: any;
@@ -58,6 +89,7 @@ export function TimesCard({ trip, recordTime, updateField, isReadOnly = false }:
   const [odometerWarning, setOdometerWarning] = useState<string | null>(null);
   const [manualMilesOverride, setManualMilesOverride] = useState(false);
 
+  const sequenceWarnings = getTimeSequenceWarnings(trip);
   const handleClearTimes = async () => {
     const fields = [
       "dispatch_time", "at_scene_time", "patient_contact_time",
@@ -149,53 +181,70 @@ export function TimesCard({ trip, recordTime, updateField, isReadOnly = false }:
           const isEditing = editingField === `${btn.field}-${idx}`;
           const ttKey = (btn as any).tooltipKey || TOOLTIP_MAP[btn.field];
           const tooltipText = ttKey ? PCR_TOOLTIPS[ttKey] : undefined;
+          const hasSequenceWarning = recorded && sequenceWarnings.has(btn.field);
 
           return (
-            <div key={`${btn.field}-${idx}`} className="flex items-center gap-3">
-              <Button
-                variant={recorded ? "outline" : "default"}
-                className={`flex-1 h-14 text-base justify-start gap-3 ${recorded ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400" : ""}`}
-                onClick={() => {
-                  if (!recorded) handleTimeTap(btn.field, btn.status);
-                }}
-                disabled={recorded}
-              >
-                {recorded ? <Check className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
-                <span className="flex-1 text-left flex items-center">
-                  {btn.label}
-                  {tooltipText && <PCRTooltip text={tooltipText} />}
-                </span>
-                {recorded && <span className="text-sm font-mono">{fmtTime(value)}</span>}
-              </Button>
-              {recorded && (
+            <div key={`${btn.field}-${idx}`} className="space-y-1">
+              <div className="flex items-center gap-3">
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs text-muted-foreground"
-                  onClick={() => setEditingField(isEditing ? null : `${btn.field}-${idx}`)}
-                >
-                  Edit
-                </Button>
-              )}
-              {isEditing && (
-                <Input
-                  type="time"
-                  className="w-28 h-10"
-                  defaultValue={value ? new Date(value).toTimeString().slice(0, 5) : ""}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      const todayDate = new Date();
-                      const [h, m] = e.target.value.split(":");
-                      todayDate.setHours(parseInt(h), parseInt(m), 0, 0);
-                      const iso = todayDate.toISOString();
-                      updateField(btn.field, iso);
-                      // Also update billing mirror on manual edit
-                      const mirrorField = BILLING_MIRROR[btn.field];
-                      if (mirrorField) updateField(mirrorField, iso);
-                    }
+                  variant={recorded ? "outline" : "default"}
+                  className={cn(
+                    "flex-1 h-14 text-base justify-start gap-3",
+                    recorded && !hasSequenceWarning && "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400",
+                    hasSequenceWarning && "border-destructive/60 bg-destructive/5 text-destructive dark:border-destructive/40 dark:bg-destructive/10 dark:text-destructive"
+                  )}
+                  onClick={() => {
+                    if (!recorded) handleTimeTap(btn.field, btn.status);
                   }}
-                  onBlur={() => setEditingField(null)}
-                />
+                  disabled={recorded}
+                >
+                  {recorded ? (
+                    hasSequenceWarning ? <AlertTriangle className="h-5 w-5" /> : <Check className="h-5 w-5" />
+                  ) : (
+                    <Clock className="h-5 w-5" />
+                  )}
+                  <span className="flex-1 text-left flex items-center">
+                    {btn.label}
+                    {tooltipText && <PCRTooltip text={tooltipText} />}
+                  </span>
+                  {recorded && <span className="text-sm font-mono">{fmtTime(value)}</span>}
+                </Button>
+                {recorded && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground"
+                    onClick={() => setEditingField(isEditing ? null : `${btn.field}-${idx}`)}
+                  >
+                    Edit
+                  </Button>
+                )}
+                {isEditing && (
+                  <Input
+                    type="time"
+                    className="w-28 h-10"
+                    defaultValue={value ? new Date(value).toTimeString().slice(0, 5) : ""}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const todayDate = new Date();
+                        const [h, m] = e.target.value.split(":");
+                        todayDate.setHours(parseInt(h), parseInt(m), 0, 0);
+                        const iso = todayDate.toISOString();
+                        updateField(btn.field, iso);
+                        // Also update billing mirror on manual edit
+                        const mirrorField = BILLING_MIRROR[btn.field];
+                        if (mirrorField) updateField(mirrorField, iso);
+                      }
+                    }}
+                    onBlur={() => setEditingField(null)}
+                  />
+                )}
+              </div>
+              {hasSequenceWarning && (
+                <p className="text-[11px] text-destructive/80 ml-1 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  This time is out of sequence — check the recorded time.
+                </p>
               )}
             </div>
           );
