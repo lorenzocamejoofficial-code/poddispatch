@@ -45,6 +45,7 @@ interface RunInfo {
   dispatch_time?: string | null;
   arrived_pickup_at?: string | null;
   at_scene_time?: string | null;
+  patient_contact_time?: string | null;
   left_scene_time?: string | null;
   arrived_dropoff_at?: string | null;
   in_service_time?: string | null;
