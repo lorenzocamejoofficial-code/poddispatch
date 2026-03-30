@@ -31,7 +31,7 @@ interface Props {
   requiredFields?: string[];
 }
 
-export function MedicalNecessityCard({ trip, updateField, requiredFields = ["medical_necessity_reason", "necessity_checklist"] }: Props) {
+export function MedicalNecessityCard({ trip, updateField, updateMultipleFields, requiredFields = ["medical_necessity_reason", "necessity_checklist"] }: Props) {
   const filledRef = useRef<string | null>(null);
 
   const transportType = trip.trip_type ?? "dialysis";
