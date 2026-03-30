@@ -624,6 +624,12 @@ export default function PCRPage() {
               <p className={cn("text-xs font-medium mt-1", fieldCompletion.completedRequired === fieldCompletion.totalRequired ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
                 {fieldCompletion.completedRequired} of {fieldCompletion.totalRequired} required fields complete
               </p>
+              {timeWarningCount > 0 && (
+                <p className="text-xs font-medium text-destructive/80 mt-0.5 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {timeWarningCount} time sequence {timeWarningCount === 1 ? "warning" : "warnings"}
+                </p>
+              )}
             </>
           )}
         </div>
