@@ -243,6 +243,7 @@ export default function DispatchBoard() {
           dispatch_time: tripRecord?.dispatch_time ?? null,
           arrived_pickup_at: tripRecord?.arrived_pickup_at ?? null,
           at_scene_time: tripRecord?.at_scene_time ?? null,
+          patient_contact_time: tripRecord?.patient_contact_time ?? null,
           left_scene_time: tripRecord?.left_scene_time ?? null,
           arrived_dropoff_at: tripRecord?.arrived_dropoff_at ?? null,
           in_service_time: tripRecord?.in_service_time ?? null,
