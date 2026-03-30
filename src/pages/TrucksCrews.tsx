@@ -98,11 +98,13 @@ function TruckDayCell({
   const [editing, setEditing] = useState(false);
   const [m1, setM1] = useState(crew?.member1_id ?? "");
   const [m2, setM2] = useState(crew?.member2_id ?? "");
+  const [m3, setM3] = useState(crew?.member3_id ?? "");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setM1(crew?.member1_id ?? "");
     setM2(crew?.member2_id ?? "");
+    setM3(crew?.member3_id ?? "");
   }, [crew]);
 
   const isDown = !!downRecord;
