@@ -332,13 +332,6 @@ export default function CrewDashboard() {
     return { origin_type: "Residence", destination_type: destination };
   };
 
-  // openPCR is now handled directly via the PCR tab — kept as redirect helper
-  const openPCRRedirect = (run: RunCard) => {
-    if (run.tripId) {
-      navigate(`/pcr?tripId=${run.tripId}`);
-    }
-  };
-
   const handleCancelTrip = async () => {
     if (!cancelTarget || cancelReason.trim().length < 10) return;
     setCancelLoading(true);
