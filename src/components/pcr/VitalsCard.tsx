@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Save, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, Save, CheckCircle2, Pencil, Check, X } from "lucide-react";
 import { RESPIRATORY_QUALITY, PULSE_QUALITY } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
@@ -18,6 +18,7 @@ interface VitalSet {
   id: string;
   timestamp: string;
   saved: boolean;
+  timestamp_edited?: boolean;
   bp_systolic: string;
   bp_diastolic: string;
   pulse: string;
@@ -136,7 +137,8 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
 
   const [sets, setSets] = useState<VitalSet[]>(initial);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
-
+  const [editingTimestamp, setEditingTimestamp] = useState<string | null>(null);
+  const [editTimeValue, setEditTimeValue] = useState("");
   const savedCount = sets.filter(s => s.saved).length;
 
   const persistToDb = (updated: VitalSet[]) => {
@@ -204,6 +206,47 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
     persistToDb(updated);
   };
 
+  const startEditTimestamp = (vs: VitalSet) => {
+    const d = new Date(vs.timestamp);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    setEditTimeValue(`${hh}:${mm}`);
+    setEditingTimestamp(vs.id);
+  };
+
+  const saveEditedTimestamp = (idx: number) => {
+    const vs = sets[idx];
+    const [hh, mm] = editTimeValue.split(":").map(Number);
+    if (isNaN(hh) || isNaN(mm)) return;
+
+    const original = new Date(vs.timestamp);
+    const corrected = new Date(original);
+    corrected.setHours(hh, mm, 0, 0);
+
+    // Check transport window warning
+    const leftScene = trip.left_scene_time;
+    const atDest = trip.arrived_dropoff_at;
+    if (leftScene && atDest) {
+      const ct = corrected.getTime();
+      const ls = new Date(leftScene).getTime();
+      const ad = new Date(atDest).getTime();
+      if (ct < ls || ct > ad) {
+        toast({
+          title: "Transport window warning",
+          description: "This vitals time falls outside the Left Scene → At Destination window. The corrected time will still be saved.",
+          variant: "default",
+        });
+      }
+    }
+
+    const updated = [...sets];
+    updated[idx] = { ...updated[idx], timestamp: corrected.toISOString(), timestamp_edited: true };
+    setSets(updated);
+    persistToDb(updated);
+    setEditingTimestamp(null);
+    toast({ title: "Timestamp corrected", description: `Updated to ${corrected.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}` });
+  };
+
   return (
     <div className="space-y-4">
       {sets.map((vs, idx) => {
@@ -215,15 +258,43 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
         return (
           <div key={vs.id} className={cn("rounded-lg border p-4 space-y-4", isSaved && "border-emerald-300 dark:border-emerald-700 bg-emerald-50/30 dark:bg-emerald-900/10")}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {isSaved && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
                 <p className="text-xs font-bold text-primary uppercase tracking-wider">
                   {idx === 0 ? "Initial Vitals" : `Repeat Vitals #${idx + 1}`}
                 </p>
-                {isSaved && vs.timestamp && (
-                  <span className="text-xs text-muted-foreground">
+                {isSaved && vs.timestamp && editingTimestamp !== vs.id && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
                     · {new Date(vs.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                    <button
+                      type="button"
+                      onClick={() => startEditTimestamp(vs)}
+                      className="inline-flex items-center text-muted-foreground/60 hover:text-primary transition-colors"
+                      title="Edit timestamp"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    {vs.timestamp_edited && (
+                      <span className="text-[10px] text-muted-foreground/50 italic">Edited</span>
+                    )}
                   </span>
+                )}
+                {isSaved && editingTimestamp === vs.id && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">·</span>
+                    <Input
+                      type="time"
+                      value={editTimeValue}
+                      onChange={(e) => setEditTimeValue(e.target.value)}
+                      className="h-7 w-28 text-xs px-2"
+                    />
+                    <button type="button" onClick={() => saveEditedTimestamp(idx)} className="text-emerald-600 hover:text-emerald-700" title="Save">
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" onClick={() => setEditingTimestamp(null)} className="text-muted-foreground hover:text-destructive" title="Cancel">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 )}
               </div>
               {sets.length > 1 && !isSaved && (
