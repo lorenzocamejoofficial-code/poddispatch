@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     const [{ data: crew }, { data: slots }, { data: companySettings }, { data: activeTimers }] = await Promise.all([
       supabaseAdmin
         .from("crews")
-        .select("member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
+        .select("member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name), member3:profiles!crews_member3_id_fkey(full_name)")
         .eq("truck_id", tokenRow.truck_id)
         .eq("active_date", scheduleDate)
         .maybeSingle(),
