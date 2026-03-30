@@ -4,10 +4,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Eye, Loader2 } from "lucide-react";
+import { FileText, Eye, Loader2, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format, addDays, startOfDay, startOfWeek, isToday } from "date-fns";
+import { useCrewPartner } from "@/hooks/useCrewPartner";
 
 interface ScheduleRun {
   date: string;
@@ -76,6 +77,7 @@ export default function CrewSchedule() {
   const [runs, setRuns] = useState<ScheduleRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => format(startOfDay(new Date()), "yyyy-MM-dd"));
+  const { partnerName: crewPartnerName, loading: crewPartnerLoading } = useCrewPartner();
 
   const fetchSchedule = useCallback(async () => {
     if (!user) return;
@@ -172,6 +174,14 @@ export default function CrewSchedule() {
   return (
     <CrewLayout>
       <div className="p-4 max-w-2xl mx-auto space-y-4">
+        {/* Partner display */}
+        <div className="flex items-center gap-2 rounded-lg border bg-card px-4 py-2.5">
+          <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+          <p className="text-sm text-muted-foreground">
+            {crewPartnerLoading ? "Loading..." : crewPartnerName ? `Your partner today: ${crewPartnerName}` : "No partner assigned for today"}
+          </p>
+        </div>
+
         <DayPicker selectedDate={selectedDate} onSelect={setSelectedDate} />
 
         {loading ? (
