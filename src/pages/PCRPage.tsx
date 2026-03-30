@@ -612,12 +612,17 @@ export default function PCRPage() {
             </p>
           )}
           {!isReadOnly && (
-            <div className="mt-2 flex items-center gap-2 min-w-0 overflow-hidden">
-              <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden min-w-0">
-                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${totalRequired > 0 ? (completedRequired / totalRequired) * 100 : 0}%` }} />
+            <>
+              <div className="mt-2 flex items-center gap-2 min-w-0 overflow-hidden">
+                <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden min-w-0">
+                  <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${totalRequired > 0 ? (completedRequired / totalRequired) * 100 : 0}%` }} />
+                </div>
+                <span className="text-xs font-medium text-muted-foreground shrink-0">{completedRequired}/{totalRequired}</span>
               </div>
-              <span className="text-xs font-medium text-muted-foreground shrink-0">{completedRequired}/{totalRequired}</span>
-            </div>
+              <p className={cn("text-xs font-medium mt-1", fieldCompletion.completedRequired === fieldCompletion.totalRequired ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
+                {fieldCompletion.completedRequired} of {fieldCompletion.totalRequired} required fields complete
+              </p>
+            </>
           )}
         </div>
 
