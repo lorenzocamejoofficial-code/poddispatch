@@ -9,16 +9,7 @@ import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-/** Ordered time fields for chronological validation */
-const TIME_SEQUENCE = [
-  "dispatch_time",
-  "dispatch_time", // En Route shares dispatch_time field
-  "at_scene_time",
-  "patient_contact_time",
-  "left_scene_time",
-  "arrived_dropoff_at",
-  "in_service_time",
-];
+// Deduplicated unique fields in chronological order
 
 // Deduplicated for validation (unique fields in order)
 const UNIQUE_TIME_FIELDS = [
