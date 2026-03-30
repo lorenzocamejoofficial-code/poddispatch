@@ -4,6 +4,7 @@ interface TimeTapRowProps {
   dispatch_time?: string | null;
   arrived_pickup_at?: string | null;
   at_scene_time?: string | null;
+  patient_contact_time?: string | null;
   left_scene_time?: string | null;
   arrived_dropoff_at?: string | null;
   in_service_time?: string | null;
@@ -23,6 +24,7 @@ const TAPS = [
   { key: "dispatch_time", label: "Dispatched" },
   { key: "arrived_pickup_at", label: "En Route" },
   { key: "at_scene_time", label: "On Scene" },
+  { key: "patient_contact_time", label: "Patient Contact" },
   { key: "left_scene_time", label: "Transporting" },
   { key: "arrived_dropoff_at", label: "At Dest" },
   { key: "in_service_time", label: "In Service" },
