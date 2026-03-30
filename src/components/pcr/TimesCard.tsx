@@ -89,6 +89,7 @@ export function TimesCard({ trip, recordTime, updateField, isReadOnly = false }:
   const [odometerWarning, setOdometerWarning] = useState<string | null>(null);
   const [manualMilesOverride, setManualMilesOverride] = useState(false);
 
+  const sequenceWarnings = getTimeSequenceWarnings(trip);
   const handleClearTimes = async () => {
     const fields = [
       "dispatch_time", "at_scene_time", "patient_contact_time",
