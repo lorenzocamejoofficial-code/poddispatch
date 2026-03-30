@@ -25,7 +25,7 @@ interface RunInfo {
   id: string;
   patient_name: string;
   pickup_time: string | null;
-  status: RunStatus;
+  status: string;
   trip_type: string;
   is_current: boolean;
   patient_weight?: number | null;
