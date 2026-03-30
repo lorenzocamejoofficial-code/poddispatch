@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Truck, Users, Loader2, Clock, AlertTriangle, FileText, Check, Eye, Ban, XCircle } from "lucide-react";
+import { Truck, Users, Loader2, Clock, AlertTriangle, Ban, XCircle } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { CrewLayout } from "@/components/crew/CrewLayout";
@@ -265,15 +265,14 @@ export default function CrewDashboard() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
 
-  // Auto-open PCR when navigated from schedule tab with state
+  // Auto-open PCR when navigated from schedule tab with state — redirect to PCR tab
   useEffect(() => {
     if (location.state?.openPCRForTripId && runs.length > 0) {
       const run = runs.find(r => r.tripId === location.state.openPCRForTripId || r.legId === location.state.openPCRForLegId);
-      if (run) {
-        openPCR(run);
-        // Clear state to prevent re-triggering
-        window.history.replaceState({}, document.title);
+      if (run && run.tripId) {
+        navigate(`/pcr?tripId=${run.tripId}`, { replace: true });
       }
+      window.history.replaceState({}, document.title);
     }
   }, [runs, location.state]);
 
@@ -331,54 +330,6 @@ export default function CrewDashboard() {
       : tripType === "outpatient" ? "Outpatient Specialty"
       : "Healthcare Facility";
     return { origin_type: "Residence", destination_type: destination };
-  };
-
-  const openPCR = async (run: RunCard) => {
-    let tripId = run.tripId;
-    // Store leg type in sessionStorage for PCR fallback
-    if (run.legTypeRaw) {
-      sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
-    }
-   // If no trip_record exists yet, create one
-    if (!tripId) {
-      if (!run.patientId) {
-        console.warn("openPCR: run.patientId is null — trip record will have no patient linked", { legId: run.legId });
-      }
-      const companyId = run.companyId;
-      if (!companyId) {
-        toast({ title: "Cannot create trip record", description: "No company association found for this crew.", variant: "destructive" });
-        return;
-      }
-
-      // Leg-type-aware origin/destination derivation
-      const derived = getOriginDestination(run.tripType ?? "", run.legType);
-      // Override origin with patient location_type if available
-      const patLocType = run.patientLocationType;
-      if (patLocType) {
-        derived.origin_type = patLocType;
-      }
-
-      const { data: newTrip, error } = await supabase.from("trip_records").insert({
-        leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
-        company_id: companyId,
-        patient_id: run.patientId,
-        run_date: today, status: "scheduled" as any,
-        pickup_location: run.pickupLocation, destination_location: run.destinationLocation,
-        scheduled_pickup_time: run.pickupTime, trip_type: run.tripType as any,
-        pcr_type: run.tripType as any,
-        pcr_status: "not_started",
-        origin_type: derived.origin_type,
-        destination_type: derived.destination_type,
-      }).select("id, origin_type, destination_type").single();
-      if (error || !newTrip) {
-        console.error("Failed to create trip record with origin/destination:", error);
-        toast({ title: "Failed to create trip record", description: error?.message ?? "Unknown error", variant: "destructive" });
-        return;
-      }
-      console.log("Trip record created with origin_type:", newTrip.origin_type, "destination_type:", newTrip.destination_type);
-      tripId = newTrip.id;
-    }
-    navigate(`/pcr?tripId=${tripId}`);
   };
 
   const handleCancelTrip = async () => {
@@ -700,37 +651,6 @@ export default function CrewDashboard() {
                     )}
 
                     <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      {run.pcrStatus === "not_started" && (
-                        <Button
-                          className="flex-1 h-12 text-sm font-semibold gap-2 w-full"
-                          onClick={() => openPCR(run)}
-                        >
-                          <FileText className="h-4 w-4" />Start PCR
-                        </Button>
-                      )}
-
-                      {run.pcrStatus === "in_progress" && (
-                        <>
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 dark:bg-amber-900/20 dark:border-amber-700 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-400">
-                            <FileText className="h-3 w-3" /> PCR In Progress
-                          </span>
-                          <Button variant="link" size="sm" className="text-xs text-amber-700 dark:text-amber-400 px-1" onClick={() => openPCR(run)}>
-                            Continue →
-                          </Button>
-                        </>
-                      )}
-
-                      {run.pcrStatus === "submitted" && (
-                        <>
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-700 px-3 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-400">
-                            <Check className="h-3 w-3" /> PCR Submitted
-                          </span>
-                          <Button variant="link" size="sm" className="text-xs text-emerald-700 dark:text-emerald-400 px-1" onClick={() => openPCR(run)}>
-                            View →
-                          </Button>
-                        </>
-                      )}
-
                       {/* Cancel Trip button */}
                       {!isTerminal && ["not_started", "in_progress"].includes(run.pcrStatus) && (
                         <Button
