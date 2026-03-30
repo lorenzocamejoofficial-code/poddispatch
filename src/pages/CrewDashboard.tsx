@@ -425,7 +425,7 @@ export default function CrewDashboard() {
   return (
     <CrewLayout>
       <div className="p-4 space-y-4">
-        {/* Truck & Partner Header */}
+      {/* Truck & Partner Header */}
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -433,11 +433,10 @@ export default function CrewDashboard() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-foreground">{truckName || "No Truck Assigned"}</h1>
-              {partnerName && (
-                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                  <Users className="h-3.5 w-3.5" /> Partner: {partnerName}
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5" />
+                {crewPartnerLoading ? "Loading..." : crewPartnerName ? `Your partner today: ${crewPartnerName}` : "No partner assigned for today"}
+              </p>
             </div>
           </div>
         </div>
