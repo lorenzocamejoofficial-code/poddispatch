@@ -332,52 +332,11 @@ export default function CrewDashboard() {
     return { origin_type: "Residence", destination_type: destination };
   };
 
-  const openPCR = async (run: RunCard) => {
-    let tripId = run.tripId;
-    // Store leg type in sessionStorage for PCR fallback
-    if (run.legTypeRaw) {
-      sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
+  // openPCR is now handled directly via the PCR tab — kept as redirect helper
+  const openPCRRedirect = (run: RunCard) => {
+    if (run.tripId) {
+      navigate(`/pcr?tripId=${run.tripId}`);
     }
-   // If no trip_record exists yet, create one
-    if (!tripId) {
-      if (!run.patientId) {
-        console.warn("openPCR: run.patientId is null — trip record will have no patient linked", { legId: run.legId });
-      }
-      const companyId = run.companyId;
-      if (!companyId) {
-        toast({ title: "Cannot create trip record", description: "No company association found for this crew.", variant: "destructive" });
-        return;
-      }
-
-      // Leg-type-aware origin/destination derivation
-      const derived = getOriginDestination(run.tripType ?? "", run.legType);
-      // Override origin with patient location_type if available
-      const patLocType = run.patientLocationType;
-      if (patLocType) {
-        derived.origin_type = patLocType;
-      }
-
-      const { data: newTrip, error } = await supabase.from("trip_records").insert({
-        leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
-        company_id: companyId,
-        patient_id: run.patientId,
-        run_date: today, status: "scheduled" as any,
-        pickup_location: run.pickupLocation, destination_location: run.destinationLocation,
-        scheduled_pickup_time: run.pickupTime, trip_type: run.tripType as any,
-        pcr_type: run.tripType as any,
-        pcr_status: "not_started",
-        origin_type: derived.origin_type,
-        destination_type: derived.destination_type,
-      }).select("id, origin_type, destination_type").single();
-      if (error || !newTrip) {
-        console.error("Failed to create trip record with origin/destination:", error);
-        toast({ title: "Failed to create trip record", description: error?.message ?? "Unknown error", variant: "destructive" });
-        return;
-      }
-      console.log("Trip record created with origin_type:", newTrip.origin_type, "destination_type:", newTrip.destination_type);
-      tripId = newTrip.id;
-    }
-    navigate(`/pcr?tripId=${tripId}`);
   };
 
   const handleCancelTrip = async () => {
