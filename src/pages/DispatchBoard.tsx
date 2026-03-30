@@ -346,9 +346,11 @@ export default function DispatchBoard() {
   };
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchDataRef = useRef(fetchData);
+  fetchDataRef.current = fetchData;
   const debouncedFetch = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchData(), 500);
+    debounceRef.current = setTimeout(() => fetchDataRef.current(), 400);
   }, []);
 
   useEffect(() => {
