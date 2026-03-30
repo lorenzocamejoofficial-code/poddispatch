@@ -190,8 +190,8 @@ export default function DispatchBoard() {
           ? (leg?.oneoff_name ?? "One-Off")
           : (patient ? `${patient.first_name} ${patient.last_name}` : "Unknown");
 
-        // Lookup trip record for billing data
-        const tripRecord = tripBySlot.get(s.id);
+        // Lookup trip record by slot_id first, fallback to leg_id
+        const tripRecord = tripBySlot.get(s.id) ?? tripByLeg.get(leg?.id);
         const billingData = deriveBillingStatus(
           tripRecord ? { ...tripRecord, auth_required: patient?.auth_required, auth_expiration: patient?.auth_expiration, payer_type: patient?.primary_payer } : null,
           prMap
