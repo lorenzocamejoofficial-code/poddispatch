@@ -74,7 +74,7 @@ export function NotifyCrewModal({ open, onOpenChange, selectedDate, onNotified }
         // Look up crew for this truck on selectedDate
         const { data: crewRow } = await supabase
           .from("crews")
-          .select("member1_id, member2_id, member1:profiles!crews_member1_id_fkey(user_id), member2:profiles!crews_member2_id_fkey(user_id)")
+          .select("member1_id, member2_id, member3_id, member1:profiles!crews_member1_id_fkey(user_id), member2:profiles!crews_member2_id_fkey(user_id), member3:profiles!crews_member3_id_fkey(user_id)")
           .eq("truck_id", truckId)
           .eq("active_date", selectedDate)
           .maybeSingle();
@@ -88,6 +88,7 @@ export function NotifyCrewModal({ open, onOpenChange, selectedDate, onNotified }
         const userIds: string[] = [];
         if ((crewRow.member1 as any)?.user_id) userIds.push((crewRow.member1 as any).user_id);
         if ((crewRow.member2 as any)?.user_id) userIds.push((crewRow.member2 as any).user_id);
+        if ((crewRow.member3 as any)?.user_id) userIds.push((crewRow.member3 as any).user_id);
 
         for (const userId of userIds) {
           await supabase.from("notifications").insert({

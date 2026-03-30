@@ -64,7 +64,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
         .from("crews")
         .select("id, truck_id, company_id, active_date")
         .eq("active_date", today)
-        .or(`member1_id.eq.${profileId},member2_id.eq.${profileId}`)
+        .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
         .maybeSingle();
 
       if (!crewRow) { setRuns([]); setLoading(false); return; }

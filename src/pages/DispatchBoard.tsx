@@ -154,6 +154,7 @@ export default function DispatchBoard() {
       if (crew) {
         if (crew.member1?.full_name) crewNames.push(crew.member1.full_name);
         if (crew.member2?.full_name) crewNames.push(crew.member2.full_name);
+        if (crew.member3?.full_name) crewNames.push(crew.member3.full_name);
       }
 
       // Build crew capability + truck equipment for safety checks

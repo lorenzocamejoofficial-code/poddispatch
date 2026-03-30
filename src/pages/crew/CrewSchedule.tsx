@@ -94,7 +94,7 @@ export default function CrewSchedule() {
     const { data: crewRows } = await supabase
       .from("crews")
       .select("id, truck_id, active_date")
-      .or(`member1_id.eq.${profile.id},member2_id.eq.${profile.id}`)
+      .or(`member1_id.eq.${profile.id},member2_id.eq.${profile.id},member3_id.eq.${profile.id}`)
       .eq("active_date", selectedDate);
 
     if (!crewRows || crewRows.length === 0) { setRuns([]); setLoading(false); return; }
