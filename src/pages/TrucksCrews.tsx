@@ -32,8 +32,10 @@ interface CrewRecord {
   truck_id: string;
   member1_id: string | null;
   member2_id: string | null;
+  member3_id: string | null;
   member1_name: string | null;
   member2_name: string | null;
+  member3_name: string | null;
   active_date: string;
 }
 
