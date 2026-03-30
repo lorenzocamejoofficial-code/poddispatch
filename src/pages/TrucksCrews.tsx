@@ -162,11 +162,18 @@ function TruckDayCell({
             {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={m3} onValueChange={setM3}>
+          <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="Member 3 (Optional)" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">— None —</SelectItem>
+            {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <div className="flex gap-1 pt-0.5">
           <Button size="sm" className="h-6 text-[10px] flex-1" onClick={handleSave} disabled={saving}>
             <Check className="h-3 w-3 mr-0.5" /> Save
           </Button>
-          <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { setEditing(false); setM1(crew?.member1_id ?? ""); setM2(crew?.member2_id ?? ""); }}>
+          <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { setEditing(false); setM1(crew?.member1_id ?? ""); setM2(crew?.member2_id ?? ""); setM3(crew?.member3_id ?? ""); }}>
             <X className="h-3 w-3" />
           </Button>
         </div>
