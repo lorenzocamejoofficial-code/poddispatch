@@ -636,8 +636,8 @@ export default function TrucksCrews() {
             </div>
           </div>
 
-          {/* Legend */}
-          <div className="mb-3 flex items-center gap-4 text-[11px] text-muted-foreground">
+          {/* Legend — hide on mobile to save space */}
+          <div className="mb-3 hidden sm:flex items-center gap-4 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1"><WrenchIcon className="h-3 w-3 text-[hsl(var(--status-yellow))]" /> Hover a cell to assign or mark down</span>
             <span className="flex items-center gap-1"><AlertOctagon className="h-3 w-3 text-destructive" /> Red = truck is down (crew cannot be assigned)</span>
           </div>

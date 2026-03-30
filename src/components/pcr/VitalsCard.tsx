@@ -256,16 +256,16 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
         const setErrors_ = errors[vs.id] || [];
 
         return (
-          <div key={vs.id} className={cn("rounded-lg border p-4 space-y-4", isSaved && "border-emerald-300 dark:border-emerald-700 bg-emerald-50/30 dark:bg-emerald-900/10")}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 flex-wrap">
-                {isSaved && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+          <div key={vs.id} className={cn("rounded-lg border p-3 sm:p-4 space-y-4", isSaved && "border-emerald-300 dark:border-emerald-700 bg-emerald-50/30 dark:bg-emerald-900/10")}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-wrap min-w-0">
+                {isSaved && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />}
                 <p className="text-xs font-bold text-primary uppercase tracking-wider">
                   {idx === 0 ? "Initial Vitals" : `Repeat Vitals #${idx + 1}`}
                 </p>
                 {isSaved && vs.timestamp && editingTimestamp !== vs.id && (
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    · {new Date(vs.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                    <span className="hidden sm:inline">·</span> {new Date(vs.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}
                     <button
                       type="button"
                       onClick={() => startEditTimestamp(vs)}
@@ -281,7 +281,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                 )}
                 {isSaved && editingTimestamp === vs.id && (
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground">·</span>
+                    <span className="text-xs text-muted-foreground hidden sm:inline">·</span>
                     <Input
                       type="time"
                       value={editTimeValue}
@@ -298,7 +298,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                 )}
               </div>
               {sets.length > 1 && !isSaved && (
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeSet(idx)}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeSet(idx)}>
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 </Button>
               )}
