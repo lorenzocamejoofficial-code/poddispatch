@@ -662,6 +662,14 @@ export default function PCRPage() {
                   <span className={cn("flex-1 text-sm font-semibold", isLockedCard ? "text-muted-foreground/50" : "text-foreground")}>
                     {card.label}
                   </span>
+                  {!isLockedCard && (() => {
+                    const sectionKey = card.type === "chief_complaint" ? "assessment" : card.type;
+                    const sec = fieldCompletion.bySection[sectionKey];
+                    if (sec && sec.total > 0 && rule.state === "required") {
+                      return <SectionCompletionBadge completed={sec.completed} total={sec.total} />;
+                    }
+                    return null;
+                  })()}
                   {getCardStateLabel(card)}
                 </div>
                 {isLockedCard && (
