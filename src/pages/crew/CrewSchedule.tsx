@@ -8,6 +8,7 @@ import { FileText, Eye, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format, addDays, startOfDay, startOfWeek, isToday } from "date-fns";
+import { useCrewPartner } from "@/hooks/useCrewPartner";
 
 interface ScheduleRun {
   date: string;
