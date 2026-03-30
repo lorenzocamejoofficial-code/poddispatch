@@ -382,21 +382,22 @@ export default function TrucksCrews() {
   };
 
   // Crew CRUD
-  const assignCrew = async (truckId: string, date: string, m1: string, m2: string) => {
+  const assignCrew = async (truckId: string, date: string, m1: string, m2: string, m3: string) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
+    const m3Val = m3 === "none" || !m3 ? null : m3;
 
-    if (!m1Val && !m2Val) {
+    if (!m1Val && !m2Val && !m3Val) {
       toast.error("Select at least one crew member");
       return;
     }
 
-    // Use server-side atomic crew assignment with conflict detection
     const { data: result, error } = await supabase.rpc("safe_assign_crew", {
       p_truck_id: truckId,
       p_active_date: date,
       p_member1_id: m1Val,
       p_member2_id: m2Val,
+      p_member3_id: m3Val,
     });
 
     if (error) { toast.error("Failed to assign crew"); return; }
@@ -409,24 +410,26 @@ export default function TrucksCrews() {
     toast.success("Crew assigned"); fetchAll();
   };
 
-  const editCrew = async (crewId: string, m1: string, m2: string) => {
+  const editCrew = async (crewId: string, m1: string, m2: string, m3: string) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
+    const m3Val = m3 === "none" || !m3 ? null : m3;
 
-    // Prevent assigning the same person to both slots
-    if (m1Val && m2Val && m1Val === m2Val) {
-      toast.error("Cannot assign the same employee to both crew slots");
+    // Prevent assigning the same person to multiple slots
+    const vals = [m1Val, m2Val, m3Val].filter(Boolean);
+    if (new Set(vals).size < vals.length) {
+      toast.error("Cannot assign the same employee to multiple crew slots");
       return;
     }
 
     // Prevent assigning someone already on another truck for this date
     const crew = crews.find((c) => c.id === crewId);
     if (crew) {
-      const membersToCheck = [m1Val, m2Val].filter(Boolean) as string[];
+      const membersToCheck = vals as string[];
       for (const memberId of membersToCheck) {
         const existing = crews.find(
           (c) => c.active_date === crew.active_date && c.id !== crewId &&
-            (c.member1_id === memberId || c.member2_id === memberId)
+            (c.member1_id === memberId || c.member2_id === memberId || c.member3_id === memberId)
         );
         if (existing) {
           const memberName = profiles.find((p) => p.id === memberId)?.full_name ?? "This employee";
@@ -440,6 +443,7 @@ export default function TrucksCrews() {
     const { error } = await supabase.from("crews").update({
       member1_id: m1Val,
       member2_id: m2Val,
+      member3_id: m3Val,
     } as any).eq("id", crewId);
     if (error) { toast.error("Failed to update crew"); return; }
     toast.success("Crew updated"); fetchAll();
