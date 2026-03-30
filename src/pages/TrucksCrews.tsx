@@ -192,6 +192,12 @@ function TruckDayCell({
           <span className="w-3 shrink-0" />
           <span className="truncate text-muted-foreground">{crew.member2_name ?? "—"}</span>
         </div>
+        {crew.member3_name && (
+          <div className="flex items-center gap-1 text-[11px] mt-0.5">
+            <span className="w-3 shrink-0" />
+            <span className="truncate text-muted-foreground">{crew.member3_name}</span>
+          </div>
+        )}
         <div className="mt-1.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setEditing(true)} title="Edit crew">
             <Pencil className="h-2.5 w-2.5" />
