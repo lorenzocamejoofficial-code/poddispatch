@@ -2,11 +2,12 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Save, CheckCircle2 } from "lucide-react";
 import { RESPIRATORY_QUALITY, PULSE_QUALITY } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
 
 interface VitalsCardProps {
   trip: any;
@@ -16,6 +17,7 @@ interface VitalsCardProps {
 interface VitalSet {
   id: string;
   timestamp: string;
+  saved: boolean;
   bp_systolic: string;
   bp_diastolic: string;
   pulse: string;
@@ -64,6 +66,10 @@ function isChipValue(v: string): v is ChipValue {
   return CHIP_VALUES.includes(v as ChipValue);
 }
 
+function hasValue(v: string): boolean {
+  return !!v && v.trim() !== "";
+}
+
 function getGCSTotal(e: string, v: string, m: string): number | null {
   const en = parseInt(e), vn = parseInt(v), mn = parseInt(m);
   if (isNaN(en) || isNaN(vn) || isNaN(mn)) return null;
@@ -79,10 +85,9 @@ function getGCSSeverity(total: number): { label: string; color: string } {
 function getFieldBorder(field: string, value: string): string {
   const isRequired = REQUIRED_FIELDS.includes(field);
   const isOptional = OPTIONAL_FIELDS.includes(field);
-  const hasValue = !!value && value.trim() !== "";
-  const hasChip = isChipValue(value);
+  const filled = hasValue(value) || isChipValue(value);
 
-  if (hasValue || hasChip) return "border-emerald-400 focus-visible:ring-emerald-400";
+  if (filled) return "border-emerald-400 focus-visible:ring-emerald-400";
   if (isRequired) return "border-destructive focus-visible:ring-destructive";
   if (isOptional) return "";
   return "";
@@ -91,14 +96,15 @@ function getFieldBorder(field: string, value: string): string {
 function newVitalSet(): VitalSet {
   return {
     id: crypto.randomUUID(),
-    timestamp: new Date().toISOString(),
+    timestamp: "",
+    saved: false,
     bp_systolic: "", bp_diastolic: "", pulse: "", pulse_quality: "",
     respiratory_rate: "", respiratory_quality: "", spo2: "", temperature: "",
     blood_glucose: "", pain_scale: "", gcs_eyes: "", gcs_verbal: "", gcs_motor: "",
   };
 }
 
-function VitalChips({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function VitalChips({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
   const activeChip = isChipValue(value) ? value : null;
   return (
     <div className="flex flex-wrap gap-1 mt-1">
@@ -106,12 +112,14 @@ function VitalChips({ value, onChange }: { value: string; onChange: (v: string) 
         <button
           key={chip}
           type="button"
+          disabled={disabled}
           onClick={() => onChange(activeChip === chip ? "" : chip)}
           className={cn(
             "px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors",
             activeChip === chip
               ? "bg-primary text-primary-foreground border-primary"
-              : "bg-muted/50 text-muted-foreground border-border hover:border-primary/50"
+              : "bg-muted/50 text-muted-foreground border-border hover:border-primary/50",
+            disabled && "opacity-50 cursor-not-allowed"
           )}
         >
           {chip}
@@ -123,14 +131,18 @@ function VitalChips({ value, onChange }: { value: string; onChange: (v: string) 
 
 export function VitalsCard({ trip, updateField }: VitalsCardProps) {
   const initial: VitalSet[] = trip.vitals_json?.length > 0
-    ? trip.vitals_json.map((v: any) => ({ ...newVitalSet(), ...v }))
+    ? trip.vitals_json.map((v: any) => ({ ...newVitalSet(), ...v, saved: !!v.timestamp }))
     : [newVitalSet()];
 
   const [sets, setSets] = useState<VitalSet[]>(initial);
+  const [errors, setErrors] = useState<Record<string, string[]>>({});
 
-  const save = (updated: VitalSet[]) => {
-    setSets(updated);
-    updateField("vitals_json", updated);
+  const savedCount = sets.filter(s => s.saved).length;
+
+  const persistToDb = (updated: VitalSet[]) => {
+    // Only persist saved sets to the database
+    const toSave = updated.filter(s => s.saved);
+    updateField("vitals_json", toSave);
   };
 
   const updateSet = (idx: number, field: string, value: string) => {
@@ -140,37 +152,93 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
       const total = getGCSTotal(updated[idx].gcs_eyes, updated[idx].gcs_verbal, updated[idx].gcs_motor);
       updated[idx].gcs_total = total !== null ? String(total) : "";
     }
-    save(updated);
+    setSets(updated);
+    // Clear errors for this set when user edits
+    if (errors[updated[idx].id]) {
+      setErrors(prev => { const n = { ...prev }; delete n[updated[idx].id]; return n; });
+    }
   };
 
-  const addSet = () => save([...sets, newVitalSet()]);
-  const removeSet = (idx: number) => { if (sets.length > 1) save(sets.filter((_, i) => i !== idx)); };
+  const validateAndSave = (idx: number) => {
+    const vs = sets[idx];
+    const missing: string[] = [];
+
+    const check = (field: string, label: string) => {
+      const val = (vs as any)[field];
+      if (!hasValue(val) && !isChipValue(val)) missing.push(label);
+    };
+
+    check("bp_systolic", "Systolic BP");
+    check("bp_diastolic", "Diastolic BP");
+    check("pulse", "Heart Rate / Pulse");
+    check("respiratory_rate", "Respiratory Rate");
+    check("spo2", "SpO2");
+
+    if (missing.length > 0) {
+      setErrors(prev => ({ ...prev, [vs.id]: missing }));
+      toast({
+        title: "Required vitals missing",
+        description: `Please fill in: ${missing.join(", ")}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // All good — stamp timestamp now and mark saved
+    const updated = [...sets];
+    updated[idx] = { ...updated[idx], timestamp: new Date().toISOString(), saved: true };
+    setSets(updated);
+    persistToDb(updated);
+    setErrors(prev => { const n = { ...prev }; delete n[vs.id]; return n; });
+    toast({ title: `Vitals set ${idx + 1} saved`, description: `Recorded at ${new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}` });
+  };
+
+  const addSet = () => {
+    setSets(prev => [...prev, newVitalSet()]);
+  };
+
+  const removeSet = (idx: number) => {
+    if (sets.length <= 1) return;
+    const updated = sets.filter((_, i) => i !== idx);
+    setSets(updated);
+    persistToDb(updated);
+  };
 
   return (
     <div className="space-y-4">
       {sets.map((vs, idx) => {
         const gcsTotal = getGCSTotal(vs.gcs_eyes, vs.gcs_verbal, vs.gcs_motor);
         const gcsSeverity = gcsTotal !== null ? getGCSSeverity(gcsTotal) : null;
+        const isSaved = vs.saved;
+        const setErrors_ = errors[vs.id] || [];
 
         return (
-          <div key={vs.id} className="rounded-lg border p-4 space-y-4">
+          <div key={vs.id} className={cn("rounded-lg border p-4 space-y-4", isSaved && "border-emerald-300 dark:border-emerald-700 bg-emerald-50/30 dark:bg-emerald-900/10")}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
+                {isSaved && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
                 <p className="text-xs font-bold text-primary uppercase tracking-wider">
                   {idx === 0 ? "Initial Vitals" : `Repeat Vitals #${idx + 1}`}
                 </p>
-                {vs.timestamp && (
+                {isSaved && vs.timestamp && (
                   <span className="text-xs text-muted-foreground">
                     · {new Date(vs.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}
                   </span>
                 )}
               </div>
-              {sets.length > 1 && (
+              {sets.length > 1 && !isSaved && (
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeSet(idx)}>
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 </Button>
               )}
             </div>
+
+            {/* Validation errors */}
+            {setErrors_.length > 0 && (
+              <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2">
+                <p className="text-xs font-medium text-destructive">Missing required fields: {setErrors_.join(", ")}</p>
+              </div>
+            )}
 
             {/* Vitals timing warning */}
             {(() => {
@@ -182,7 +250,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
               const ad = new Date(atDest).getTime();
               if (vt < ls || vt > ad) {
                 return (
-                  <p className="text-[11px] text-[hsl(var(--status-yellow))]">
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
                     ⚠ Vitals timestamp should fall between Left Scene and At Destination times for billing compliance.
                   </p>
                 );
@@ -190,28 +258,28 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
               return null;
             })()}
 
-            {/* BP / Pulse — 1 col mobile, 3 col tablet+ */}
+            {/* BP / Pulse */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 py-3">
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Systolic <PCRTooltip text={PCR_TOOLTIPS.systolic} /></label>
                 <Input type="number" inputMode="numeric" placeholder="120" value={isChipValue(vs.bp_systolic) ? "" : vs.bp_systolic}
-                  disabled={isChipValue(vs.bp_systolic)}
+                  disabled={isChipValue(vs.bp_systolic) || isSaved}
                   onChange={(e) => updateSet(idx, "bp_systolic", e.target.value)} className={cn("h-11", getFieldBorder("bp_systolic", vs.bp_systolic))} />
-                <VitalChips value={vs.bp_systolic} onChange={(v) => updateSet(idx, "bp_systolic", v)} />
+                <VitalChips value={vs.bp_systolic} onChange={(v) => updateSet(idx, "bp_systolic", v)} disabled={isSaved} />
               </div>
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Diastolic <PCRTooltip text={PCR_TOOLTIPS.diastolic} /></label>
                 <Input type="number" inputMode="numeric" placeholder="80" value={isChipValue(vs.bp_diastolic) ? "" : vs.bp_diastolic}
-                  disabled={isChipValue(vs.bp_diastolic)}
+                  disabled={isChipValue(vs.bp_diastolic) || isSaved}
                   onChange={(e) => updateSet(idx, "bp_diastolic", e.target.value)} className={cn("h-11", getFieldBorder("bp_diastolic", vs.bp_diastolic))} />
-                <VitalChips value={vs.bp_diastolic} onChange={(v) => updateSet(idx, "bp_diastolic", v)} />
+                <VitalChips value={vs.bp_diastolic} onChange={(v) => updateSet(idx, "bp_diastolic", v)} disabled={isSaved} />
               </div>
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Pulse <PCRTooltip text={PCR_TOOLTIPS.pulse} /></label>
                 <Input type="number" inputMode="numeric" placeholder="72" value={isChipValue(vs.pulse) ? "" : vs.pulse}
-                  disabled={isChipValue(vs.pulse)}
+                  disabled={isChipValue(vs.pulse) || isSaved}
                   onChange={(e) => updateSet(idx, "pulse", e.target.value)} className={cn("h-11", getFieldBorder("pulse", vs.pulse))} />
-                <VitalChips value={vs.pulse} onChange={(v) => updateSet(idx, "pulse", v)} />
+                <VitalChips value={vs.pulse} onChange={(v) => updateSet(idx, "pulse", v)} disabled={isSaved} />
               </div>
             </div>
 
@@ -219,7 +287,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-3">
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Pulse Quality <PCRTooltip text={PCR_TOOLTIPS.pulse_quality} /></label>
-                <Select value={vs.pulse_quality} onValueChange={(v) => updateSet(idx, "pulse_quality", v)}>
+                <Select value={vs.pulse_quality} onValueChange={(v) => updateSet(idx, "pulse_quality", v)} disabled={isSaved}>
                   <SelectTrigger className="h-11"><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
                     {PULSE_QUALITY.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
@@ -229,9 +297,9 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">SpO2 % <PCRTooltip text={PCR_TOOLTIPS.spo2} /></label>
                 <Input type="number" inputMode="numeric" placeholder="98" value={isChipValue(vs.spo2) ? "" : vs.spo2}
-                  disabled={isChipValue(vs.spo2)}
+                  disabled={isChipValue(vs.spo2) || isSaved}
                   onChange={(e) => updateSet(idx, "spo2", e.target.value)} className={cn("h-11", getFieldBorder("spo2", vs.spo2))} />
-                <VitalChips value={vs.spo2} onChange={(v) => updateSet(idx, "spo2", v)} />
+                <VitalChips value={vs.spo2} onChange={(v) => updateSet(idx, "spo2", v)} disabled={isSaved} />
               </div>
             </div>
 
@@ -240,13 +308,13 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Resp Rate <PCRTooltip text={PCR_TOOLTIPS.resp_rate} /></label>
                 <Input type="number" inputMode="numeric" placeholder="16" value={isChipValue(vs.respiratory_rate) ? "" : vs.respiratory_rate}
-                  disabled={isChipValue(vs.respiratory_rate)}
+                  disabled={isChipValue(vs.respiratory_rate) || isSaved}
                   onChange={(e) => updateSet(idx, "respiratory_rate", e.target.value)} className={cn("h-11", getFieldBorder("respiratory_rate", vs.respiratory_rate))} />
-                <VitalChips value={vs.respiratory_rate} onChange={(v) => updateSet(idx, "respiratory_rate", v)} />
+                <VitalChips value={vs.respiratory_rate} onChange={(v) => updateSet(idx, "respiratory_rate", v)} disabled={isSaved} />
               </div>
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Resp Quality <PCRTooltip text={PCR_TOOLTIPS.resp_quality} /></label>
-                <Select value={vs.respiratory_quality} onValueChange={(v) => updateSet(idx, "respiratory_quality", v)}>
+                <Select value={vs.respiratory_quality} onValueChange={(v) => updateSet(idx, "respiratory_quality", v)} disabled={isSaved}>
                   <SelectTrigger className="h-11"><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
                     {RESPIRATORY_QUALITY.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
@@ -255,32 +323,32 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
               </div>
             </div>
 
-            {/* Temp / BGL / Pain — 1 col mobile, 3 col tablet+ */}
+            {/* Temp / BGL / Pain */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 py-3">
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Temp °F <PCRTooltip text={PCR_TOOLTIPS.temp} /></label>
                 <Input type="number" inputMode="decimal" placeholder="98.6" value={isChipValue(vs.temperature) ? "" : vs.temperature}
-                  disabled={isChipValue(vs.temperature)}
+                  disabled={isChipValue(vs.temperature) || isSaved}
                   onChange={(e) => updateSet(idx, "temperature", e.target.value)} className={cn("h-11", getFieldBorder("temperature", vs.temperature))} />
-                <VitalChips value={vs.temperature} onChange={(v) => updateSet(idx, "temperature", v)} />
+                <VitalChips value={vs.temperature} onChange={(v) => updateSet(idx, "temperature", v)} disabled={isSaved} />
               </div>
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">BGL <PCRTooltip text={PCR_TOOLTIPS.bgl} /></label>
                 <Input type="number" inputMode="numeric" placeholder="100" value={isChipValue(vs.blood_glucose) ? "" : vs.blood_glucose}
-                  disabled={isChipValue(vs.blood_glucose)}
+                  disabled={isChipValue(vs.blood_glucose) || isSaved}
                   onChange={(e) => updateSet(idx, "blood_glucose", e.target.value)} className={cn("h-11", getFieldBorder("blood_glucose", vs.blood_glucose))} />
-                <VitalChips value={vs.blood_glucose} onChange={(v) => updateSet(idx, "blood_glucose", v)} />
+                <VitalChips value={vs.blood_glucose} onChange={(v) => updateSet(idx, "blood_glucose", v)} disabled={isSaved} />
               </div>
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Pain (0-10) <PCRTooltip text={PCR_TOOLTIPS.pain} /></label>
                 <Input type="number" inputMode="numeric" placeholder="0" min="0" max="10" value={isChipValue(vs.pain_scale) ? "" : vs.pain_scale}
-                  disabled={isChipValue(vs.pain_scale)}
+                  disabled={isChipValue(vs.pain_scale) || isSaved}
                   onChange={(e) => updateSet(idx, "pain_scale", e.target.value)} className={cn("h-11", getFieldBorder("pain_scale", vs.pain_scale))} />
-                <VitalChips value={vs.pain_scale} onChange={(v) => updateSet(idx, "pain_scale", v)} />
+                <VitalChips value={vs.pain_scale} onChange={(v) => updateSet(idx, "pain_scale", v)} disabled={isSaved} />
               </div>
             </div>
 
-            {/* GCS Section — 1 col mobile, 3 col tablet+ */}
+            {/* GCS Section */}
             {(() => {
               const gcsFilled = [vs.gcs_eyes, vs.gcs_verbal, vs.gcs_motor].filter(v => !!v && !isNaN(parseInt(v)));
               const gcsContainerBorder = gcsFilled.length === 0
@@ -306,7 +374,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="min-w-0">
                       <label className="text-sm font-medium text-muted-foreground flex items-center">Eye (E) <PCRTooltip text={PCR_TOOLTIPS.gcs_eye} /></label>
-                      <Select value={vs.gcs_eyes} onValueChange={(v) => updateSet(idx, "gcs_eyes", v)}>
+                      <Select value={vs.gcs_eyes} onValueChange={(v) => updateSet(idx, "gcs_eyes", v)} disabled={isSaved}>
                         <SelectTrigger className={cn("h-11", getGcsFieldBorder(vs.gcs_eyes))}><SelectValue placeholder="E" /></SelectTrigger>
                         <SelectContent>
                           {GCS_EYE.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
@@ -315,7 +383,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                     </div>
                     <div className="min-w-0">
                       <label className="text-sm font-medium text-muted-foreground flex items-center">Verbal (V) <PCRTooltip text={PCR_TOOLTIPS.gcs_verbal} /></label>
-                      <Select value={vs.gcs_verbal} onValueChange={(v) => updateSet(idx, "gcs_verbal", v)}>
+                      <Select value={vs.gcs_verbal} onValueChange={(v) => updateSet(idx, "gcs_verbal", v)} disabled={isSaved}>
                         <SelectTrigger className={cn("h-11", getGcsFieldBorder(vs.gcs_verbal))}><SelectValue placeholder="V" /></SelectTrigger>
                         <SelectContent>
                           {GCS_VERBAL.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
@@ -324,7 +392,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                     </div>
                     <div className="min-w-0">
                       <label className="text-sm font-medium text-muted-foreground flex items-center">Motor (M) <PCRTooltip text={PCR_TOOLTIPS.gcs_motor} /></label>
-                      <Select value={vs.gcs_motor} onValueChange={(v) => updateSet(idx, "gcs_motor", v)}>
+                      <Select value={vs.gcs_motor} onValueChange={(v) => updateSet(idx, "gcs_motor", v)} disabled={isSaved}>
                         <SelectTrigger className={cn("h-11", getGcsFieldBorder(vs.gcs_motor))}><SelectValue placeholder="M" /></SelectTrigger>
                         <SelectContent>
                           {GCS_MOTOR.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
@@ -335,13 +403,24 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                 </div>
               );
             })()}
+
+            {/* Save button for unsaved sets */}
+            {!isSaved && (
+              <Button className="w-full h-12 text-base gap-2" onClick={() => validateAndSave(idx)}>
+                <Save className="h-4 w-4" />
+                Save Vitals
+              </Button>
+            )}
           </div>
         );
       })}
 
-      <Button variant="outline" className="w-full" onClick={addSet}>
-        <Plus className="h-4 w-4 mr-2" /> Add Vitals Set
-      </Button>
+      {/* Only show Add Another after at least one is saved and no unsaved drafts exist */}
+      {savedCount > 0 && sets.every(s => s.saved) && (
+        <Button variant="outline" className="w-full" onClick={addSet}>
+          <Plus className="h-4 w-4 mr-2" /> Add Another Vitals Set
+        </Button>
+      )}
     </div>
   );
 }

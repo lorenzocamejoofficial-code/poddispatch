@@ -15,6 +15,12 @@ interface TimesCardProps {
   isReadOnly?: boolean;
 }
 
+function hasSavedVitals(trip: any): boolean {
+  const vitals = trip.vitals_json;
+  if (!Array.isArray(vitals) || vitals.length === 0) return false;
+  return vitals.some((v: any) => !!v.timestamp && v.saved !== false);
+}
+
 function fmtTime(ts: string | null): string {
   if (!ts) return "";
   try {
@@ -77,6 +83,15 @@ export function TimesCard({ trip, recordTime, updateField, isReadOnly = false }:
   ];
 
   const handleTimeTap = async (field: string, status?: string) => {
+    // Gate At Destination behind saved vitals
+    if (field === "arrived_dropoff_at" && !hasSavedVitals(trip)) {
+      toast({
+        title: "Vitals required",
+        description: "At least one complete vitals set must be saved before marking At Destination.",
+        variant: "destructive",
+      });
+      return;
+    }
     await recordTime(field, status);
     // Write billing-mirror field with the same timestamp
     const mirrorField = BILLING_MIRROR[field];
