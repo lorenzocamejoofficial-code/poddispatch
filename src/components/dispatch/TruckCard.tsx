@@ -25,7 +25,7 @@ interface RunInfo {
   id: string;
   patient_name: string;
   pickup_time: string | null;
-  status: RunStatus;
+  status: string;
   trip_type: string;
   is_current: boolean;
   patient_weight?: number | null;
@@ -228,7 +228,7 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
         ) : (
           <div className="space-y-2">
             {visibleRuns.map((run) => {
-              const isCancelled = run.status === "cancelled";
+              const isCancelled = run.status === "cancelled" || run.status === "pending_cancellation";
               const isRunExpanded = expandedRunId === run.id;
               return (
               <div
