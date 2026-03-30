@@ -818,7 +818,7 @@ const TruckCard = memo(function TruckCard({
         <div className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
           <Users className="h-3 w-3 shrink-0" />
           {crew ? (
-            <span className="truncate">{crew.member1_name ?? "—"} & {crew.member2_name ?? "—"}</span>
+            <span className="truncate">{[crew.member1_name, crew.member2_name, crew.member3_name].filter(Boolean).join(" & ") || "—"}</span>
           ) : (
             <span className="italic text-[hsl(var(--status-yellow))]">⚠ No crew assigned</span>
           )}
