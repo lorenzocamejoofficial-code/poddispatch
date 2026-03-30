@@ -197,6 +197,7 @@ Deno.serve(async (req) => {
         date: scheduleDate,
         member1: (crew as any)?.member1?.full_name ?? null,
         member2: (crew as any)?.member2?.full_name ?? null,
+        member3: (crew as any)?.member3?.full_name ?? null,
         legs,
       });
   }
