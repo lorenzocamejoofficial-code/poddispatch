@@ -21,6 +21,8 @@ import { StretcherMobilityCard } from "@/components/pcr/StretcherMobilityCard";
 import { IsolationPrecautionsCard } from "@/components/pcr/IsolationPrecautionsCard";
 import { LockedSectionOverlay } from "@/components/pcr/LockedSectionOverlay";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
+import { evaluatePCRFieldCompletion } from "@/lib/pcr-field-requirements";
+import { SectionCompletionBadge } from "@/components/pcr/PCRFieldIndicator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
