@@ -18,6 +18,7 @@ interface VitalSet {
   id: string;
   timestamp: string;
   saved: boolean;
+  timestamp_edited?: boolean;
   bp_systolic: string;
   bp_diastolic: string;
   pulse: string;
