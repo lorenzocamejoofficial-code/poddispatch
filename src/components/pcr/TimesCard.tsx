@@ -83,6 +83,15 @@ export function TimesCard({ trip, recordTime, updateField, isReadOnly = false }:
   ];
 
   const handleTimeTap = async (field: string, status?: string) => {
+    // Gate At Destination behind saved vitals
+    if (field === "arrived_dropoff_at" && !hasSavedVitals(trip)) {
+      toast({
+        title: "Vitals required",
+        description: "At least one complete vitals set must be saved before marking At Destination.",
+        variant: "destructive",
+      });
+      return;
+    }
     await recordTime(field, status);
     // Write billing-mirror field with the same timestamp
     const mirrorField = BILLING_MIRROR[field];
