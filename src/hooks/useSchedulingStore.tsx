@@ -62,6 +62,7 @@ export interface CrewDisplay {
   truck_id: string;
   member1_name: string | null;
   member2_name: string | null;
+  member3_name: string | null;
 }
 
 export interface LegFormState {
