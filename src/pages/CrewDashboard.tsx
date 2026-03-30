@@ -11,6 +11,7 @@ import { CrewLayout } from "@/components/crew/CrewLayout";
 import { cn } from "@/lib/utils";
 import { deriveRunStatus } from "@/lib/trip-status";
 import { TimeTapRow } from "@/components/dispatch/TimeTapRow";
+import { useCrewPartner } from "@/hooks/useCrewPartner";
 
 const TRANSPORT_LABELS: Record<string, string> = {
   dialysis: "Dialysis Transport",
