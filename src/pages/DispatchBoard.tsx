@@ -354,7 +354,7 @@ export default function DispatchBoard() {
     const channel = supabase
       .channel(`dispatch-board-${selectedDate}`)
       .on("postgres_changes", {
-        event: "UPDATE",
+        event: "*",
         schema: "public",
         table: "trip_records",
       }, (payload) => {
