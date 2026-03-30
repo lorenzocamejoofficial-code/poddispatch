@@ -27,6 +27,7 @@ const NECESSITY_ITEMS = [
 interface Props {
   trip: any;
   updateField: (field: string, value: any) => Promise<void>;
+  updateMultipleFields?: (fields: Record<string, any>) => Promise<void>;
   requiredFields?: string[];
 }
 
