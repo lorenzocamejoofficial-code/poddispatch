@@ -21,17 +21,245 @@ import { StretcherMobilityCard } from "@/components/pcr/StretcherMobilityCard";
 import { IsolationPrecautionsCard } from "@/components/pcr/IsolationPrecautionsCard";
 import { LockedSectionOverlay } from "@/components/pcr/LockedSectionOverlay";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ChevronLeft, Check, Loader2, Send, AlertCircle, Lock, AlertTriangle, Eye } from "lucide-react";
+import { ChevronLeft, Check, Loader2, Send, AlertCircle, Lock, AlertTriangle, Eye, FileText, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 interface CrewMember { id: string; name: string; cert: string; }
 
+interface RunForPCR {
+  tripId: string | null;
+  legId: string;
+  legType: string;
+  patientName: string;
+  pickupTime: string | null;
+  pickupLocation: string;
+  destinationLocation: string;
+  tripType: string | null;
+  pcrStatus: string;
+  tripStatus: string;
+  truckId: string;
+  crewId: string;
+  companyId: string | null;
+  patientId: string | null;
+  legTypeRaw: string | null;
+  cancellationReason: string | null;
+}
+
+function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
+  const { profileId } = useAuth();
+  const [runs, setRuns] = useState<RunForPCR[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState<string | null>(null);
+
+  const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
+
+  useEffect(() => {
+    if (!profileId) return;
+    (async () => {
+      const { data: crewRow } = await supabase
+        .from("crews")
+        .select("id, truck_id, company_id, active_date")
+        .eq("active_date", today)
+        .or(`member1_id.eq.${profileId},member2_id.eq.${profileId}`)
+        .maybeSingle();
+
+      if (!crewRow) { setRuns([]); setLoading(false); return; }
+
+      const { data: slots } = await supabase
+        .from("truck_run_slots")
+        .select("id, leg_id, slot_order")
+        .eq("truck_id", crewRow.truck_id)
+        .eq("run_date", today)
+        .order("slot_order");
+
+      if (!slots?.length) { setRuns([]); setLoading(false); return; }
+
+      const legIds = slots.map(s => s.leg_id);
+
+      const [{ data: legs }, { data: trips }] = await Promise.all([
+        supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, is_oneoff, oneoff_name, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)").in("id", legIds),
+        supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason").eq("run_date", today).eq("truck_id", crewRow.truck_id).in("leg_id", legIds),
+      ]);
+
+      const legMap = new Map((legs ?? []).map(l => [l.id, l]));
+      const tripMap = new Map((trips ?? []).map(t => [t.leg_id, t]));
+
+      const items: RunForPCR[] = slots.map(slot => {
+        const leg = legMap.get(slot.leg_id) as any;
+        const trip = tripMap.get(slot.leg_id) as any;
+        const patient = leg?.patient;
+        const patientName = patient?.first_name
+          ? `${patient.first_name.charAt(0)}. ${patient.last_name}`
+          : (leg?.is_oneoff && leg?.oneoff_name) ? leg.oneoff_name
+          : leg?.pickup_location || "Unknown Patient";
+        const legTypeRaw = leg?.leg_type ?? null;
+        const legType = legTypeRaw === "a_leg" || legTypeRaw === "A" ? "A" : legTypeRaw === "b_leg" || legTypeRaw === "B" ? "B" : "—";
+
+        return {
+          tripId: trip?.id ?? null,
+          legId: slot.leg_id,
+          legType,
+          legTypeRaw,
+          patientName,
+          pickupTime: leg?.pickup_time ?? null,
+          pickupLocation: leg?.pickup_location ?? "—",
+          destinationLocation: leg?.destination_location ?? "—",
+          tripType: trip?.trip_type ?? leg?.trip_type ?? null,
+          pcrStatus: trip?.pcr_status ?? "not_started",
+          tripStatus: trip?.status ?? "scheduled",
+          truckId: crewRow.truck_id,
+          crewId: crewRow.id,
+          companyId: trip?.company_id ?? crewRow.company_id ?? null,
+          patientId: leg?.patient_id ?? null,
+          cancellationReason: trip?.cancellation_reason ?? null,
+        };
+      });
+
+      setRuns(items);
+      setLoading(false);
+
+      // Auto-select if only one non-cancelled run with a trip record
+      const activeRuns = items.filter(r => !["cancelled", "pending_cancellation"].includes(r.tripStatus));
+      if (activeRuns.length === 1 && activeRuns[0].tripId) {
+        onSelect(activeRuns[0].tripId);
+      }
+    })();
+  }, [profileId, today]);
+
+  const getOriginDestination = (tripType: string, legType: string) => {
+    if (legType === "B") {
+      const origin = tripType === "dialysis" ? "Dialysis Facility" : tripType === "ift" ? "Hospital" : "Healthcare Facility";
+      return { origin_type: origin, destination_type: "Residence" };
+    }
+    const destination = tripType === "dialysis" ? "Dialysis Facility" : tripType === "ift" ? "Hospital" : "Healthcare Facility";
+    return { origin_type: "Residence", destination_type: destination };
+  };
+
+  const handleSelect = async (run: RunForPCR) => {
+    const isCancelled = ["cancelled", "pending_cancellation"].includes(run.tripStatus);
+    if (isCancelled) return;
+
+    if (run.tripId) {
+      if (run.legTypeRaw) sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
+      onSelect(run.tripId);
+      return;
+    }
+
+    // Create trip record
+    setCreating(run.legId);
+    const companyId = run.companyId;
+    if (!companyId) {
+      toast.error("No company association found");
+      setCreating(null);
+      return;
+    }
+    const derived = getOriginDestination(run.tripType ?? "", run.legType);
+    const { data: newTrip, error } = await supabase.from("trip_records").insert({
+      leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
+      company_id: companyId, patient_id: run.patientId,
+      run_date: today, status: "scheduled" as any,
+      pickup_location: run.pickupLocation, destination_location: run.destinationLocation,
+      scheduled_pickup_time: run.pickupTime, trip_type: run.tripType as any,
+      pcr_type: run.tripType as any, pcr_status: "not_started",
+      origin_type: derived.origin_type, destination_type: derived.destination_type,
+    }).select("id").single();
+
+    if (error || !newTrip) {
+      toast.error(error?.message ?? "Failed to create trip record");
+      setCreating(null);
+      return;
+    }
+    if (run.legTypeRaw) sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
+    onSelect(newTrip.id);
+    setCreating(null);
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
+  }
+
+  if (runs.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-6">
+        <p className="text-muted-foreground text-sm">No runs assigned for today.</p>
+      </div>
+    );
+  }
+
+  const PCR_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+    not_started: { label: "Not Started", color: "bg-muted text-muted-foreground" },
+    in_progress: { label: "In Progress", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400" },
+    completed: { label: "Completed", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400" },
+    submitted: { label: "Submitted", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400" },
+  };
+
+  return (
+    <div className="p-4 max-w-2xl mx-auto space-y-3">
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Select a run to open PCR</p>
+      {runs.map(run => {
+        const isCancelled = ["cancelled", "pending_cancellation"].includes(run.tripStatus);
+        const pcr = PCR_STATUS_CONFIG[run.pcrStatus] ?? PCR_STATUS_CONFIG.not_started;
+
+        return (
+          <button
+            key={run.legId}
+            onClick={() => handleSelect(run)}
+            disabled={isCancelled || creating === run.legId}
+            className={cn(
+              "w-full text-left rounded-lg border p-4 transition-colors",
+              isCancelled
+                ? "bg-muted/40 opacity-60 cursor-not-allowed"
+                : "bg-card hover:bg-accent/50 cursor-pointer"
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <Badge variant="secondary" className={cn(
+                "text-xs px-1.5 py-0 mt-0.5 shrink-0",
+                run.legType === "A" ? "bg-primary/10 text-primary" : run.legType === "B" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" : ""
+              )}>
+                {run.legType}
+              </Badge>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-foreground truncate">{run.patientName}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                  {run.pickupTime && <><span className="font-medium">@ {run.pickupTime?.substring(0,5)}</span> · </>}
+                  {run.pickupLocation} → {run.destinationLocation}
+                </p>
+              </div>
+              <div className="shrink-0">
+                {isCancelled ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
+                    <Ban className="h-3 w-3" />
+                    {run.tripStatus === "pending_cancellation" ? "Pending Cancel" : "Cancelled"}
+                  </span>
+                ) : creating === run.legId ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : (
+                  <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold", pcr.color)}>
+                    {run.pcrStatus === "not_started" ? "Start PCR" :
+                     run.pcrStatus === "in_progress" ? "Continue" :
+                     run.pcrStatus === "submitted" ? "View" : pcr.label}
+                  </span>
+                )}
+              </div>
+            </div>
+            {isCancelled && run.cancellationReason && (
+              <p className="text-xs text-muted-foreground italic mt-2 pl-8">Reason: {run.cancellationReason}</p>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function PCRPage() {
   const { profileId } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const tripId = searchParams.get("tripId");
@@ -71,6 +299,15 @@ export default function PCRPage() {
     })();
   }, [trip?.crew_id]);
 
+  // If no tripId, show run selector
+  if (!tripId) {
+    return (
+      <CrewLayout>
+        <PCRRunSelector onSelect={(id) => setSearchParams({ tripId: id })} />
+      </CrewLayout>
+    );
+  }
+
   if (loading) {
     return <CrewLayout><div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div></CrewLayout>;
   }
@@ -79,8 +316,34 @@ export default function PCRPage() {
     return (
       <CrewLayout>
         <div className="flex flex-col items-center justify-center min-h-[50vh] p-6">
-          <p className="text-muted-foreground">No trip selected. Go to your dashboard and tap Open PCR.</p>
-          <Button className="mt-4" onClick={() => navigate("/crew-dashboard")}>Back to Dashboard</Button>
+          <p className="text-muted-foreground">Trip not found.</p>
+          <Button className="mt-4" onClick={() => setSearchParams({})}>Back to Run List</Button>
+        </div>
+      </CrewLayout>
+    );
+  }
+
+  // Check if the run is cancelled — block PCR editing
+  const isTripCancelled = ["cancelled", "pending_cancellation"].includes(trip.status);
+  if (isTripCancelled) {
+    return (
+      <CrewLayout>
+        <div className="p-4 max-w-2xl mx-auto space-y-4">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3">
+            <Ban className="h-10 w-10 text-destructive mx-auto" />
+            <h2 className="text-lg font-bold text-foreground">Run Cancelled</h2>
+            <p className="text-sm text-muted-foreground">
+              {trip.status === "pending_cancellation"
+                ? "This run has a pending cancellation request. PCR editing is locked until dispatch resolves it."
+                : "This run has been cancelled. The PCR can no longer be edited."}
+            </p>
+            {(trip as any).cancellation_reason && (
+              <p className="text-xs text-muted-foreground italic">Reason: {(trip as any).cancellation_reason}</p>
+            )}
+          </div>
+          <Button variant="outline" className="w-full" onClick={() => setSearchParams({})}>
+            ← Back to Run List
+          </Button>
         </div>
       </CrewLayout>
     );
