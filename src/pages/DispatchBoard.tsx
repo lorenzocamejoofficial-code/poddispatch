@@ -357,6 +357,11 @@ export default function DispatchBoard() {
     setLoading(true);
     fetchData();
 
+    // Auto-refresh every 30 seconds
+    const pollInterval = setInterval(() => {
+      fetchDataRef.current();
+    }, 30_000);
+
     const channel = supabase
       .channel(`dispatch-board-${selectedDate}`)
       .on("postgres_changes", {
@@ -380,6 +385,7 @@ export default function DispatchBoard() {
       });
 
     return () => {
+      clearInterval(pollInterval);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       supabase.removeChannel(channel);
     };
