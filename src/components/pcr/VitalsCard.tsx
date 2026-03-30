@@ -258,15 +258,43 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
         return (
           <div key={vs.id} className={cn("rounded-lg border p-4 space-y-4", isSaved && "border-emerald-300 dark:border-emerald-700 bg-emerald-50/30 dark:bg-emerald-900/10")}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {isSaved && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
                 <p className="text-xs font-bold text-primary uppercase tracking-wider">
                   {idx === 0 ? "Initial Vitals" : `Repeat Vitals #${idx + 1}`}
                 </p>
-                {isSaved && vs.timestamp && (
-                  <span className="text-xs text-muted-foreground">
+                {isSaved && vs.timestamp && editingTimestamp !== vs.id && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
                     · {new Date(vs.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                    <button
+                      type="button"
+                      onClick={() => startEditTimestamp(vs)}
+                      className="inline-flex items-center text-muted-foreground/60 hover:text-primary transition-colors"
+                      title="Edit timestamp"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    {vs.timestamp_edited && (
+                      <span className="text-[10px] text-muted-foreground/50 italic">Edited</span>
+                    )}
                   </span>
+                )}
+                {isSaved && editingTimestamp === vs.id && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">·</span>
+                    <Input
+                      type="time"
+                      value={editTimeValue}
+                      onChange={(e) => setEditTimeValue(e.target.value)}
+                      className="h-7 w-28 text-xs px-2"
+                    />
+                    <button type="button" onClick={() => saveEditedTimestamp(idx)} className="text-emerald-600 hover:text-emerald-700" title="Save">
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" onClick={() => setEditingTimestamp(null)} className="text-muted-foreground hover:text-destructive" title="Cancel">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 )}
               </div>
               {sets.length > 1 && !isSaved && (
