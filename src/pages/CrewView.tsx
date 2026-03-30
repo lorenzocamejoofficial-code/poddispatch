@@ -48,9 +48,9 @@ export default function CrewView() {
     // Find my crew for today
     const { data: crewData } = await supabase
       .from("crews")
-      .select("*, truck:trucks!crews_truck_id_fkey(name), member1:profiles!crews_member1_id_fkey(id, full_name), member2:profiles!crews_member2_id_fkey(id, full_name)")
+      .select("*, truck:trucks!crews_truck_id_fkey(name), member1:profiles!crews_member1_id_fkey(id, full_name), member2:profiles!crews_member2_id_fkey(id, full_name), member3:profiles!crews_member3_id_fkey(id, full_name)")
       .eq("active_date", today)
-      .or(`member1_id.eq.${profileId},member2_id.eq.${profileId}`)
+      .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
       .maybeSingle();
 
     if (!crewData) {
@@ -59,11 +59,9 @@ export default function CrewView() {
     }
 
     setTruckName(crewData.truck?.name ?? "");
-    const partner =
-      crewData.member1?.id === profileId
-        ? crewData.member2?.full_name
-        : crewData.member1?.full_name;
-    setPartnerName(partner ?? "");
+    const allMembers = [crewData.member1, crewData.member2, crewData.member3].filter(Boolean) as any[];
+    const partners = allMembers.filter((m: any) => m.id !== profileId).map((m: any) => m.full_name);
+    setPartnerName(partners.join(" & ") || "");
 
     // Fetch runs for this crew
     const { data: runData } = await supabase

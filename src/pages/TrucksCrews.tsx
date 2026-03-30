@@ -32,8 +32,10 @@ interface CrewRecord {
   truck_id: string;
   member1_id: string | null;
   member2_id: string | null;
+  member3_id: string | null;
   member1_name: string | null;
   member2_name: string | null;
+  member3_name: string | null;
   active_date: string;
 }
 
@@ -82,8 +84,8 @@ interface TruckDayCellProps {
   crew: CrewRecord | undefined;
   downRecord: AvailabilityRecord | undefined;
   profiles: ProfileOption[];
-  onAssign: (truckId: string, date: string, m1: string, m2: string) => Promise<void>;
-  onEdit: (crewId: string, m1: string, m2: string) => Promise<void>;
+  onAssign: (truckId: string, date: string, m1: string, m2: string, m3: string) => Promise<void>;
+  onEdit: (crewId: string, m1: string, m2: string, m3: string) => Promise<void>;
   onClear: (crewId: string) => Promise<void>;
   onMarkDown: (truckId: string) => void;
   onRemoveDown: (availId: string) => Promise<void>;
@@ -96,11 +98,13 @@ function TruckDayCell({
   const [editing, setEditing] = useState(false);
   const [m1, setM1] = useState(crew?.member1_id ?? "");
   const [m2, setM2] = useState(crew?.member2_id ?? "");
+  const [m3, setM3] = useState(crew?.member3_id ?? "");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setM1(crew?.member1_id ?? "");
     setM2(crew?.member2_id ?? "");
+    setM3(crew?.member3_id ?? "");
   }, [crew]);
 
   const isDown = !!downRecord;
@@ -109,10 +113,10 @@ function TruckDayCell({
     setSaving(true);
     try {
       if (crew) {
-        await onEdit(crew.id, m1, m2);
+        await onEdit(crew.id, m1, m2, m3);
       } else {
-        if (!m1 && !m2) { toast.error("Select at least one crew member"); return; }
-        await onAssign(truck.id, date, m1, m2);
+        if (!m1 && !m2 && !m3) { toast.error("Select at least one crew member"); return; }
+        await onAssign(truck.id, date, m1, m2, m3);
       }
       setEditing(false);
     } finally {
@@ -158,11 +162,18 @@ function TruckDayCell({
             {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={m3} onValueChange={setM3}>
+          <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="Member 3 (Optional)" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">— None —</SelectItem>
+            {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <div className="flex gap-1 pt-0.5">
           <Button size="sm" className="h-6 text-[10px] flex-1" onClick={handleSave} disabled={saving}>
             <Check className="h-3 w-3 mr-0.5" /> Save
           </Button>
-          <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { setEditing(false); setM1(crew?.member1_id ?? ""); setM2(crew?.member2_id ?? ""); }}>
+          <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { setEditing(false); setM1(crew?.member1_id ?? ""); setM2(crew?.member2_id ?? ""); setM3(crew?.member3_id ?? ""); }}>
             <X className="h-3 w-3" />
           </Button>
         </div>
@@ -181,6 +192,12 @@ function TruckDayCell({
           <span className="w-3 shrink-0" />
           <span className="truncate text-muted-foreground">{crew.member2_name ?? "—"}</span>
         </div>
+        {crew.member3_name && (
+          <div className="flex items-center gap-1 text-[11px] mt-0.5">
+            <span className="w-3 shrink-0" />
+            <span className="truncate text-muted-foreground">{crew.member3_name}</span>
+          </div>
+        )}
         <div className="mt-1.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setEditing(true)} title="Edit crew">
             <Pencil className="h-2.5 w-2.5" />
@@ -266,7 +283,7 @@ export default function TrucksCrews() {
       supabase.from("trucks").select("*").eq("company_id", companyId).order("name"),
       supabase.from("profiles").select("id, full_name").eq("active", true).eq("company_id", companyId).order("full_name"),
       supabase.from("crews")
-        .select("*, member1:profiles!crews_member1_id_fkey(full_name, id), member2:profiles!crews_member2_id_fkey(full_name, id)")
+        .select("*, member1:profiles!crews_member1_id_fkey(full_name, id), member2:profiles!crews_member2_id_fkey(full_name, id), member3:profiles!crews_member3_id_fkey(full_name, id)")
         .eq("company_id", companyId)
         .gte("active_date", startDate)
         .lte("active_date", endDate),
@@ -283,8 +300,10 @@ export default function TrucksCrews() {
       truck_id: cr.truck_id,
       member1_id: cr.member1_id ?? null,
       member2_id: cr.member2_id ?? null,
+      member3_id: cr.member3_id ?? null,
       member1_name: cr.member1?.full_name ?? null,
       member2_name: cr.member2?.full_name ?? null,
+      member3_name: cr.member3?.full_name ?? null,
       active_date: cr.active_date,
     })));
     setAvailability((av ?? []) as unknown as AvailabilityRecord[]);
@@ -363,21 +382,22 @@ export default function TrucksCrews() {
   };
 
   // Crew CRUD
-  const assignCrew = async (truckId: string, date: string, m1: string, m2: string) => {
+  const assignCrew = async (truckId: string, date: string, m1: string, m2: string, m3: string) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
+    const m3Val = m3 === "none" || !m3 ? null : m3;
 
-    if (!m1Val && !m2Val) {
+    if (!m1Val && !m2Val && !m3Val) {
       toast.error("Select at least one crew member");
       return;
     }
 
-    // Use server-side atomic crew assignment with conflict detection
     const { data: result, error } = await supabase.rpc("safe_assign_crew", {
       p_truck_id: truckId,
       p_active_date: date,
       p_member1_id: m1Val,
       p_member2_id: m2Val,
+      p_member3_id: m3Val,
     });
 
     if (error) { toast.error("Failed to assign crew"); return; }
@@ -390,24 +410,26 @@ export default function TrucksCrews() {
     toast.success("Crew assigned"); fetchAll();
   };
 
-  const editCrew = async (crewId: string, m1: string, m2: string) => {
+  const editCrew = async (crewId: string, m1: string, m2: string, m3: string) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
+    const m3Val = m3 === "none" || !m3 ? null : m3;
 
-    // Prevent assigning the same person to both slots
-    if (m1Val && m2Val && m1Val === m2Val) {
-      toast.error("Cannot assign the same employee to both crew slots");
+    // Prevent assigning the same person to multiple slots
+    const vals = [m1Val, m2Val, m3Val].filter(Boolean);
+    if (new Set(vals).size < vals.length) {
+      toast.error("Cannot assign the same employee to multiple crew slots");
       return;
     }
 
     // Prevent assigning someone already on another truck for this date
     const crew = crews.find((c) => c.id === crewId);
     if (crew) {
-      const membersToCheck = [m1Val, m2Val].filter(Boolean) as string[];
+      const membersToCheck = vals as string[];
       for (const memberId of membersToCheck) {
         const existing = crews.find(
           (c) => c.active_date === crew.active_date && c.id !== crewId &&
-            (c.member1_id === memberId || c.member2_id === memberId)
+            (c.member1_id === memberId || c.member2_id === memberId || c.member3_id === memberId)
         );
         if (existing) {
           const memberName = profiles.find((p) => p.id === memberId)?.full_name ?? "This employee";
@@ -421,6 +443,7 @@ export default function TrucksCrews() {
     const { error } = await supabase.from("crews").update({
       member1_id: m1Val,
       member2_id: m2Val,
+      member3_id: m3Val,
     } as any).eq("id", crewId);
     if (error) { toast.error("Failed to update crew"); return; }
     toast.success("Crew updated"); fetchAll();
@@ -479,7 +502,7 @@ export default function TrucksCrews() {
         const targetDate = targetDates[srcIdx];
         const key = `${targetDate}_${crew.truck_id}`;
         if (existingKeys.has(key)) continue;
-        newCrews.push({ truck_id: crew.truck_id, member1_id: crew.member1_id, member2_id: crew.member2_id, active_date: targetDate, company_id: companyId });
+        newCrews.push({ truck_id: crew.truck_id, member1_id: crew.member1_id, member2_id: crew.member2_id, member3_id: crew.member3_id, active_date: targetDate, company_id: companyId });
       }
       if (newCrews.length > 0) await supabase.from("crews").insert(newCrews);
       toast.success(`Copied ${newCrews.length} crew assignment(s) to target week.`);

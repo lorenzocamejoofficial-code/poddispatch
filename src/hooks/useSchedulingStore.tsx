@@ -62,6 +62,7 @@ export interface CrewDisplay {
   truck_id: string;
   member1_name: string | null;
   member2_name: string | null;
+  member3_name: string | null;
 }
 
 export interface LegFormState {
@@ -238,13 +239,14 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   const fetchCrews = useCallback(async () => {
     const { data } = await supabase
       .from("crews")
-      .select("id, truck_id, member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
+      .select("id, truck_id, member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name), member3:profiles!crews_member3_id_fkey(full_name)")
       .eq("active_date", selectedDate);
     setCrews((data ?? []).map((c: any) => ({
       id: c.id,
       truck_id: c.truck_id,
       member1_name: c.member1?.full_name ?? null,
       member2_name: c.member2?.full_name ?? null,
+      member3_name: c.member3?.full_name ?? null,
     })));
   }, [selectedDate]);
 

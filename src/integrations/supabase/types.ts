@@ -682,6 +682,7 @@ export type Database = {
           is_simulated: boolean
           member1_id: string | null
           member2_id: string | null
+          member3_id: string | null
           simulation_run_id: string | null
           truck_id: string
         }
@@ -693,6 +694,7 @@ export type Database = {
           is_simulated?: boolean
           member1_id?: string | null
           member2_id?: string | null
+          member3_id?: string | null
           simulation_run_id?: string | null
           truck_id: string
         }
@@ -704,6 +706,7 @@ export type Database = {
           is_simulated?: boolean
           member1_id?: string | null
           member2_id?: string | null
+          member3_id?: string | null
           simulation_run_id?: string | null
           truck_id?: string
         }
@@ -725,6 +728,13 @@ export type Database = {
           {
             foreignKeyName: "crews_member2_id_fkey"
             columns: ["member2_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crews_member3_id_fkey"
+            columns: ["member3_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2950,15 +2960,26 @@ export type Database = {
       }
       is_dispatcher: { Args: never; Returns: boolean }
       is_system_creator: { Args: never; Returns: boolean }
-      safe_assign_crew: {
-        Args: {
-          p_active_date: string
-          p_member1_id?: string
-          p_member2_id?: string
-          p_truck_id: string
-        }
-        Returns: Json
-      }
+      safe_assign_crew:
+        | {
+            Args: {
+              p_active_date: string
+              p_member1_id?: string
+              p_member2_id?: string
+              p_truck_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_active_date: string
+              p_member1_id?: string
+              p_member2_id?: string
+              p_member3_id?: string
+              p_truck_id: string
+            }
+            Returns: Json
+          }
       safe_update_slot_order: {
         Args: {
           p_expected_updated_at?: string

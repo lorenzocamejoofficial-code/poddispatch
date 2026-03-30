@@ -22,17 +22,20 @@ export function useCrewPartner(): PartnerInfo {
 
     const { data: crewRow } = await supabase
       .from("crews")
-      .select("member1_id, member2_id, member1:profiles!crews_member1_id_fkey(id, full_name), member2:profiles!crews_member2_id_fkey(id, full_name)")
+      .select("member1_id, member2_id, member3_id, member1:profiles!crews_member1_id_fkey(id, full_name), member2:profiles!crews_member2_id_fkey(id, full_name), member3:profiles!crews_member3_id_fkey(id, full_name)")
       .eq("active_date", today)
-      .or(`member1_id.eq.${profileId},member2_id.eq.${profileId}`)
+      .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
       .maybeSingle();
 
     if (!crewRow) {
       setPartnerName("");
     } else {
-      const m1 = crewRow.member1 as any;
-      const m2 = crewRow.member2 as any;
-      setPartnerName((m1?.id === profileId ? m2?.full_name : m1?.full_name) ?? "");
+      const allMembers = [crewRow.member1, crewRow.member2, crewRow.member3]
+        .filter(Boolean) as Array<{ id: string; full_name: string }>;
+      const partners = allMembers
+        .filter((m) => m.id !== profileId)
+        .map((m) => m.full_name);
+      setPartnerName(partners.join(" & ") || "");
     }
     setLoading(false);
   }, [profileId, today]);
