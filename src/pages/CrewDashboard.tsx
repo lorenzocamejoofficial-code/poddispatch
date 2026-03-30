@@ -120,7 +120,7 @@ export default function CrewDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const [truckName, setTruckName] = useState("");
-  const [partnerName, setPartnerName] = useState("");
+  const [_partnerName, setPartnerName] = useState("");
   const [runs, setRuns] = useState<RunCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [holdTimers, setHoldTimers] = useState<HoldTimer[]>([]);
