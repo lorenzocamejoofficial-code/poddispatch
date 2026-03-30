@@ -231,10 +231,13 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
                         const [h, m] = e.target.value.split(":");
                         todayDate.setHours(parseInt(h), parseInt(m), 0, 0);
                         const iso = todayDate.toISOString();
-                        updateField(btn.field, iso);
-                        // Also update billing mirror on manual edit
                         const mirrorField = BILLING_MIRROR[btn.field];
-                        if (mirrorField) updateField(mirrorField, iso);
+                        if (mirrorField && updateMultipleFields) {
+                          updateMultipleFields({ [btn.field]: iso, [mirrorField]: iso });
+                        } else {
+                          updateField(btn.field, iso);
+                          if (mirrorField) updateField(mirrorField, iso);
+                        }
                       }
                     }}
                     onBlur={() => setEditingField(null)}

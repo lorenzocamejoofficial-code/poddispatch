@@ -458,7 +458,7 @@ export default function PCRPage() {
       case "patient_info": return <PatientInfoCard trip={trip} updateField={updateField} />;
       case "vitals": return <VitalsCard trip={trip} updateField={updateField} />;
       case "condition_on_arrival": return <ConditionOnArrivalCard trip={trip} updateField={updateField} />;
-      case "medical_necessity": return <MedicalNecessityCard trip={trip} updateField={updateField} />;
+      case "medical_necessity": return <MedicalNecessityCard trip={trip} updateField={updateField} updateMultipleFields={updateMultipleFields} />;
       case "equipment": return <EquipmentCard trip={trip} updateField={updateField} />;
       case "signatures": return <SignaturesCard trip={trip} updateField={updateField} legType={activeLegType} />;
       case "narrative": return <NarrativeCard trip={trip} truckName={truckName} updateField={updateField} />;

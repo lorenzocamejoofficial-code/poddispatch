@@ -48,9 +48,10 @@ export function MedicalNecessityCard({ trip, updateField, updateMultipleFields, 
   }, [trip.id]);
 
   const handleCheckChange = async (field: string, checked: boolean) => {
-    await updateField(field, checked);
-    if (checked) {
-      await updateField("clinical_note", "Medical necessity criteria documented in PCR");
+    if (checked && updateMultipleFields) {
+      await updateMultipleFields({ [field]: checked, clinical_note: "Medical necessity criteria documented in PCR" });
+    } else {
+      await updateField(field, checked);
     }
   };
 
