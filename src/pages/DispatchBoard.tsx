@@ -135,10 +135,12 @@ export default function DispatchBoard() {
       ((availRows ?? []) as any[]).map((a: any) => [a.truck_id, { status: a.status, reason: a.reason ?? null }])
     );
 
-    // Build trip map by slot_id for billing status lookup
+    // Build trip maps by slot_id and leg_id for billing/time tap lookup
     const tripBySlot = new Map<string, any>();
+    const tripByLeg = new Map<string, any>();
     ((tripRows ?? []) as any[]).forEach((t: any) => {
       if (t.slot_id) tripBySlot.set(t.slot_id, t);
+      if (t.leg_id) tripByLeg.set(t.leg_id, t);
     });
 
     // Build payer rules map
