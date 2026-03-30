@@ -255,7 +255,8 @@ export default function DispatchBoard() {
       });
 
       // Mark first non-completed as "current"
-      const currentIdx = truckRuns.findIndex((r) => r.status !== "completed");
+      const doneStatuses = ["completed", "ready_for_billing", "cancelled", "no_show"];
+      const currentIdx = truckRuns.findIndex((r) => !doneStatuses.includes(r.status));
       if (currentIdx >= 0) truckRuns[currentIdx].is_current = true;
 
       const avail = availMap.get(t.id);
