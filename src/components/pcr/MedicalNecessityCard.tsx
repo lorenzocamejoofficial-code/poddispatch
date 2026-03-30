@@ -27,10 +27,11 @@ const NECESSITY_ITEMS = [
 interface Props {
   trip: any;
   updateField: (field: string, value: any) => Promise<void>;
+  updateMultipleFields?: (fields: Record<string, any>) => Promise<void>;
   requiredFields?: string[];
 }
 
-export function MedicalNecessityCard({ trip, updateField, requiredFields = ["medical_necessity_reason", "necessity_checklist"] }: Props) {
+export function MedicalNecessityCard({ trip, updateField, updateMultipleFields, requiredFields = ["medical_necessity_reason", "necessity_checklist"] }: Props) {
   const filledRef = useRef<string | null>(null);
 
   const transportType = trip.trip_type ?? "dialysis";
@@ -47,9 +48,10 @@ export function MedicalNecessityCard({ trip, updateField, requiredFields = ["med
   }, [trip.id]);
 
   const handleCheckChange = async (field: string, checked: boolean) => {
-    await updateField(field, checked);
-    if (checked) {
-      await updateField("clinical_note", "Medical necessity criteria documented in PCR");
+    if (checked && updateMultipleFields) {
+      await updateMultipleFields({ [field]: checked, clinical_note: "Medical necessity criteria documented in PCR" });
+    } else {
+      await updateField(field, checked);
     }
   };
 

@@ -43,6 +43,7 @@ interface TimesCardProps {
   trip: any;
   recordTime: (field: string, status?: string) => Promise<void>;
   updateField: (field: string, value: any) => Promise<void>;
+  updateMultipleFields?: (fields: Record<string, any>) => Promise<void>;
   isReadOnly?: boolean;
 }
 
@@ -84,7 +85,7 @@ const BILLING_MIRROR: Record<string, string> = {
   arrived_dropoff_at: "dropped_at",
 };
 
-export function TimesCard({ trip, recordTime, updateField, isReadOnly = false }: TimesCardProps) {
+export function TimesCard({ trip, recordTime, updateField, updateMultipleFields, isReadOnly = false }: TimesCardProps) {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [odometerWarning, setOdometerWarning] = useState<string | null>(null);
   const [manualMilesOverride, setManualMilesOverride] = useState(false);
@@ -230,10 +231,13 @@ export function TimesCard({ trip, recordTime, updateField, isReadOnly = false }:
                         const [h, m] = e.target.value.split(":");
                         todayDate.setHours(parseInt(h), parseInt(m), 0, 0);
                         const iso = todayDate.toISOString();
-                        updateField(btn.field, iso);
-                        // Also update billing mirror on manual edit
                         const mirrorField = BILLING_MIRROR[btn.field];
-                        if (mirrorField) updateField(mirrorField, iso);
+                        if (mirrorField && updateMultipleFields) {
+                          updateMultipleFields({ [btn.field]: iso, [mirrorField]: iso });
+                        } else {
+                          updateField(btn.field, iso);
+                          if (mirrorField) updateField(mirrorField, iso);
+                        }
                       }
                     }}
                     onBlur={() => setEditingField(null)}
