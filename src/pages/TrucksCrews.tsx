@@ -113,10 +113,10 @@ function TruckDayCell({
     setSaving(true);
     try {
       if (crew) {
-        await onEdit(crew.id, m1, m2);
+        await onEdit(crew.id, m1, m2, m3);
       } else {
-        if (!m1 && !m2) { toast.error("Select at least one crew member"); return; }
-        await onAssign(truck.id, date, m1, m2);
+        if (!m1 && !m2 && !m3) { toast.error("Select at least one crew member"); return; }
+        await onAssign(truck.id, date, m1, m2, m3);
       }
       setEditing(false);
     } finally {
