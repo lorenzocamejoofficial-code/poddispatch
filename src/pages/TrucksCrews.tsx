@@ -84,8 +84,8 @@ interface TruckDayCellProps {
   crew: CrewRecord | undefined;
   downRecord: AvailabilityRecord | undefined;
   profiles: ProfileOption[];
-  onAssign: (truckId: string, date: string, m1: string, m2: string) => Promise<void>;
-  onEdit: (crewId: string, m1: string, m2: string) => Promise<void>;
+  onAssign: (truckId: string, date: string, m1: string, m2: string, m3: string) => Promise<void>;
+  onEdit: (crewId: string, m1: string, m2: string, m3: string) => Promise<void>;
   onClear: (crewId: string) => Promise<void>;
   onMarkDown: (truckId: string) => void;
   onRemoveDown: (availId: string) => Promise<void>;
