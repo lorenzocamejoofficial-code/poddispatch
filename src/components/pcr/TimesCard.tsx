@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Clock, Check, RotateCcw } from "lucide-react";
+import { Clock, Check, RotateCcw, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
@@ -7,6 +7,46 @@ import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+/** Ordered time fields for chronological validation */
+const TIME_SEQUENCE = [
+  "dispatch_time",
+  "dispatch_time", // En Route shares dispatch_time field
+  "at_scene_time",
+  "patient_contact_time",
+  "left_scene_time",
+  "arrived_dropoff_at",
+  "in_service_time",
+];
+
+// Deduplicated for validation (unique fields in order)
+const UNIQUE_TIME_FIELDS = [
+  "dispatch_time",
+  "at_scene_time",
+  "patient_contact_time",
+  "left_scene_time",
+  "arrived_dropoff_at",
+  "in_service_time",
+];
+
+/** Returns set of field names that are out of chronological order */
+export function getTimeSequenceWarnings(trip: any): Set<string> {
+  const warnings = new Set<string>();
+  for (let i = 1; i < UNIQUE_TIME_FIELDS.length; i++) {
+    const prevField = UNIQUE_TIME_FIELDS[i - 1];
+    const currField = UNIQUE_TIME_FIELDS[i];
+    const prevVal = trip?.[prevField];
+    const currVal = trip?.[currField];
+    if (!prevVal || !currVal) continue;
+    const prevTime = new Date(prevVal).getTime();
+    const currTime = new Date(currVal).getTime();
+    if (currTime < prevTime) {
+      warnings.add(currField);
+    }
+  }
+  return warnings;
+}
 
 interface TimesCardProps {
   trip: any;
