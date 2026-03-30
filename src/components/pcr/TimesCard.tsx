@@ -43,6 +43,7 @@ interface TimesCardProps {
   trip: any;
   recordTime: (field: string, status?: string) => Promise<void>;
   updateField: (field: string, value: any) => Promise<void>;
+  updateMultipleFields?: (fields: Record<string, any>) => Promise<void>;
   isReadOnly?: boolean;
 }
 
