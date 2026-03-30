@@ -283,7 +283,7 @@ export default function TrucksCrews() {
       supabase.from("trucks").select("*").eq("company_id", companyId).order("name"),
       supabase.from("profiles").select("id, full_name").eq("active", true).eq("company_id", companyId).order("full_name"),
       supabase.from("crews")
-        .select("*, member1:profiles!crews_member1_id_fkey(full_name, id), member2:profiles!crews_member2_id_fkey(full_name, id)")
+        .select("*, member1:profiles!crews_member1_id_fkey(full_name, id), member2:profiles!crews_member2_id_fkey(full_name, id), member3:profiles!crews_member3_id_fkey(full_name, id)")
         .eq("company_id", companyId)
         .gte("active_date", startDate)
         .lte("active_date", endDate),
@@ -300,8 +300,10 @@ export default function TrucksCrews() {
       truck_id: cr.truck_id,
       member1_id: cr.member1_id ?? null,
       member2_id: cr.member2_id ?? null,
+      member3_id: cr.member3_id ?? null,
       member1_name: cr.member1?.full_name ?? null,
       member2_name: cr.member2?.full_name ?? null,
+      member3_name: cr.member3?.full_name ?? null,
       active_date: cr.active_date,
     })));
     setAvailability((av ?? []) as unknown as AvailabilityRecord[]);
