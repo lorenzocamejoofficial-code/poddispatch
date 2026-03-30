@@ -574,6 +574,7 @@ export default function PCRPage() {
 
   // Field-level completion tracking
   const fieldCompletion = evaluatePCRFieldCompletion(trip);
+  const timeWarningCount = getTimeSequenceWarnings(trip).size;
 
   return (
     <CrewLayout>
