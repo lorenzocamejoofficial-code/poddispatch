@@ -77,7 +77,7 @@ export default function CrewSchedule() {
   const [runs, setRuns] = useState<ScheduleRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => format(startOfDay(new Date()), "yyyy-MM-dd"));
-  const { partnerName: crewPartnerName, loading: crewPartnerLoading } = useCrewPartner();
+  const { partnerName: crewPartnerName, loading: crewPartnerLoading } = useCrewPartner(selectedDate);
 
   const fetchSchedule = useCallback(async () => {
     if (!user) return;
@@ -178,7 +178,7 @@ export default function CrewSchedule() {
         <div className="flex items-center gap-2 rounded-lg border bg-card px-4 py-2.5">
           <Users className="h-4 w-4 text-muted-foreground shrink-0" />
           <p className="text-sm text-muted-foreground">
-            {crewPartnerLoading ? "Loading..." : crewPartnerName ? `Your partner today: ${crewPartnerName}` : "No partner assigned for today"}
+            {crewPartnerLoading ? "Loading..." : crewPartnerName ? `Partner: ${crewPartnerName}` : "No partner assigned"}
           </p>
         </div>
 

@@ -7,15 +7,16 @@ interface PartnerInfo {
   loading: boolean;
 }
 
-export function useCrewPartner(): PartnerInfo {
+function toDateString(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function useCrewPartner(date?: string): PartnerInfo {
   const { profileId } = useAuth();
   const [partnerName, setPartnerName] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const today = (() => {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
-  })();
+  const targetDate = date || toDateString(new Date());
 
   const fetchPartner = useCallback(async () => {
     if (!profileId) { setLoading(false); return; }
@@ -23,7 +24,7 @@ export function useCrewPartner(): PartnerInfo {
     const { data: crewRow } = await supabase
       .from("crews")
       .select("member1_id, member2_id, member3_id, member1:profiles!crews_member1_id_fkey(id, full_name), member2:profiles!crews_member2_id_fkey(id, full_name), member3:profiles!crews_member3_id_fkey(id, full_name)")
-      .eq("active_date", today)
+      .eq("active_date", targetDate)
       .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
       .maybeSingle();
 
@@ -38,18 +39,18 @@ export function useCrewPartner(): PartnerInfo {
       setPartnerName(partners.join(" & ") || "");
     }
     setLoading(false);
-  }, [profileId, today]);
+  }, [profileId, targetDate]);
 
   useEffect(() => {
     fetchPartner();
 
     const channel = supabase
-      .channel(`crew-partner-${today}`)
+      .channel(`crew-partner-${targetDate}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => fetchPartner())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [fetchPartner, today]);
+  }, [fetchPartner, targetDate]);
 
   return { partnerName, loading };
 }
