@@ -225,7 +225,7 @@ export default function DispatchBoard() {
           id: s.id,
           patient_name: patientName,
           pickup_time: leg?.pickup_time ?? null,
-          status: (s.status ?? "pending") as RunStatus,
+          status: (tripRecord?.status ?? s.status ?? "pending") as RunStatus,
           trip_type: leg?.trip_type ?? "dialysis",
           is_current: false,
           patient_weight: isOneoff ? (leg?.oneoff_weight_lbs ?? null) : (patient?.weight_lbs ?? null),
