@@ -6,22 +6,32 @@ import { Label } from "@/components/ui/label";
 import { DISPOSITIONS } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
+import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
+import { cn } from "@/lib/utils";
 
-interface Props { trip: any; updateField: (f: string, v: any) => Promise<void>; tripType?: string; }
+interface Props { trip: any; updateField: (f: string, v: any) => Promise<void>; tripType?: string; requiredFields?: string[]; }
 
-export function SendingFacilityCard({ trip, updateField, tripType }: Props) {
+export function SendingFacilityCard({ trip, updateField, tripType, requiredFields = ["facility_name", "pcs_attached"] }: Props) {
   const sf = trip.sending_facility_json || {};
   const update = (k: string, v: any) => updateField("sending_facility_json", { ...sf, [k]: v });
   const isDischarge = tripType === "discharge";
 
+  const isReq = (f: string) => requiredFields.includes(f);
+  const facilityFilled = !!sf.facility_name && sf.facility_name.trim() !== "";
+  const pcsFilled = !!trip.pcs_attached;
+
   return (
     <div className="space-y-3">
       {/* PCS toggle — all transport types */}
-      <div className="flex items-center justify-between rounded-md border border-border p-3">
+      <div className={cn(
+        "flex items-center justify-between rounded-md border p-3",
+        isReq("pcs_attached") ? (pcsFilled ? "border-emerald-400" : "border-destructive/50") : "border-border"
+      )}>
         <div className="space-y-0.5">
-          <Label className="text-sm font-medium">
+          <Label className="text-sm font-medium flex items-center">
             PCS Obtained
             <PCRTooltip text={PCR_TOOLTIPS.pcs_obtained} />
+            {isReq("pcs_attached") && <PCRFieldDot filled={pcsFilled} />}
           </Label>
           <p className="text-[10px] text-muted-foreground">Physician Certification Statement obtained at sending facility</p>
         </div>
@@ -35,8 +45,12 @@ export function SendingFacilityCard({ trip, updateField, tripType }: Props) {
       )}
 
       <div>
-        <label className="text-[10px] font-medium text-muted-foreground block mb-1">Sending Facility Name</label>
-        <Input value={sf.facility_name || ""} onChange={(e) => update("facility_name", e.target.value)} className="h-10" />
+        <label className="text-[10px] font-medium text-muted-foreground block mb-1 flex items-center">
+          Sending Facility Name
+          {isReq("facility_name") && <PCRFieldDot filled={facilityFilled} />}
+        </label>
+        <Input value={sf.facility_name || ""} onChange={(e) => update("facility_name", e.target.value)}
+          className={cn("h-10", isReq("facility_name") ? (facilityFilled ? "border-emerald-400" : "border-destructive/50") : "")} />
       </div>
       <div>
         <label className="text-[10px] font-medium text-muted-foreground block mb-1">Sending Physician Name</label>
@@ -96,9 +110,12 @@ export function SendingFacilityCard({ trip, updateField, tripType }: Props) {
   );
 }
 
-export function HospitalOutcomeCard({ trip, updateField }: Props) {
+export function HospitalOutcomeCard({ trip, updateField, requiredFields = ["disposition"] }: Props) {
   const ho = trip.hospital_outcome_json || {};
   const update = (k: string, v: any) => updateField("hospital_outcome_json", { ...ho, [k]: v });
+
+  const isReq = (f: string) => (requiredFields || []).includes(f);
+  const dispositionFilled = !!trip.disposition && trip.disposition.trim() !== "";
 
   return (
     <div className="space-y-3">
@@ -115,9 +132,12 @@ export function HospitalOutcomeCard({ trip, updateField }: Props) {
         <Input value={ho.icd10_codes || ""} onChange={(e) => update("icd10_codes", e.target.value)} placeholder="E.g., I10, N18.6" className="h-10" />
       </div>
       <div>
-        <label className="text-[10px] font-medium text-muted-foreground block mb-1">Disposition</label>
+        <label className="text-[10px] font-medium text-muted-foreground block mb-1 flex items-center">
+          Disposition
+          {isReq("disposition") && <PCRFieldDot filled={dispositionFilled} />}
+        </label>
         <Select value={trip.disposition || ""} onValueChange={(v) => updateField("disposition", v)}>
-          <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select..." /></SelectTrigger>
+          <SelectTrigger className={cn("h-12 text-base", isReq("disposition") ? (dispositionFilled ? "border-emerald-400" : "border-destructive/50") : "")}><SelectValue placeholder="Select..." /></SelectTrigger>
           <SelectContent>
             {DISPOSITIONS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
           </SelectContent>

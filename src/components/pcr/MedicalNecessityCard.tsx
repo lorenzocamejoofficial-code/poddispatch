@@ -5,6 +5,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { MEDICAL_NECESSITY_REASONS } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
+import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
+import { cn } from "@/lib/utils";
 
 const NECESSITY_TEMPLATES: Record<string, string> = {
   dialysis: "Patient has end-stage renal disease (ESRD) requiring regular dialysis treatment. Patient is unable to safely use any other means of transportation due to medical condition requiring stretcher transport. Patient is bed-confined and/or cannot safely transfer to a seated position without medical assistance.",
@@ -25,9 +27,10 @@ const NECESSITY_ITEMS = [
 interface Props {
   trip: any;
   updateField: (field: string, value: any) => Promise<void>;
+  requiredFields?: string[];
 }
 
-export function MedicalNecessityCard({ trip, updateField }: Props) {
+export function MedicalNecessityCard({ trip, updateField, requiredFields = ["medical_necessity_reason", "necessity_checklist"] }: Props) {
   const filledRef = useRef<string | null>(null);
 
   const transportType = trip.trip_type ?? "dialysis";
@@ -50,14 +53,19 @@ export function MedicalNecessityCard({ trip, updateField }: Props) {
     }
   };
 
+  const isReq = (f: string) => requiredFields.includes(f);
+  const reasonFilled = !!trip.medical_necessity_reason;
+  const checklistFilled = !!(trip.bed_confined || trip.cannot_transfer_safely || trip.requires_monitoring || trip.oxygen_during_transport);
+
   return (
     <div className="space-y-4">
       <div>
         <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 flex items-center">
           Reason Ambulance is Medically Necessary <PCRTooltip text={PCR_TOOLTIPS.medical_necessity_reason} />
+          {isReq("medical_necessity_reason") && <PCRFieldDot filled={reasonFilled} />}
         </label>
         <Select value={trip.medical_necessity_reason || ""} onValueChange={(v) => updateField("medical_necessity_reason", v)}>
-          <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select reason..." /></SelectTrigger>
+          <SelectTrigger className={cn("h-12 text-base", isReq("medical_necessity_reason") ? (reasonFilled ? "border-emerald-400" : "border-destructive/50") : "")}><SelectValue placeholder="Select reason..." /></SelectTrigger>
           <SelectContent>
             {MEDICAL_NECESSITY_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
           </SelectContent>
@@ -66,9 +74,13 @@ export function MedicalNecessityCard({ trip, updateField }: Props) {
 
       {/* Medical necessity checklist */}
       <div>
-        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2 block">
+        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2 flex items-center">
           Medical Necessity Criteria
+          {isReq("necessity_checklist") && <PCRFieldDot filled={checklistFilled} />}
         </label>
+        {isReq("necessity_checklist") && !checklistFilled && (
+          <p className="text-[10px] text-destructive mb-2">At least one criterion must be checked</p>
+        )}
         <div className="space-y-3">
           {NECESSITY_ITEMS.map(item => (
             <label key={item.field} className="flex items-start gap-3 cursor-pointer">

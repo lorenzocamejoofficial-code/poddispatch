@@ -4,23 +4,33 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CHIEF_COMPLAINTS, PHYSICAL_EXAM_SYSTEMS } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
+import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
+import { cn } from "@/lib/utils";
 
 interface AssessmentCardProps {
   trip: any;
   updateField: (field: string, value: any) => Promise<void>;
+  requiredFields?: string[];
 }
 
-export function AssessmentCard({ trip, updateField }: AssessmentCardProps) {
+export function AssessmentCard({ trip, updateField, requiredFields = ["chief_complaint", "primary_impression"] }: AssessmentCardProps) {
   const assessment = trip.assessment_json || {};
+  const isReq = (f: string) => requiredFields.includes(f);
+  const isFilled = (f: string) => !!trip[f] && String(trip[f]).trim() !== "";
+  const fieldBorder = (f: string) => {
+    if (!isReq(f)) return "";
+    return isFilled(f) ? "border-emerald-400" : "border-destructive/50";
+  };
 
   return (
     <div className="space-y-4">
       <div>
         <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 flex items-center">
           Chief Complaint <PCRTooltip text={PCR_TOOLTIPS.chief_complaint} />
+          {isReq("chief_complaint") && <PCRFieldDot filled={isFilled("chief_complaint")} />}
         </label>
         <Select value={trip.chief_complaint || ""} onValueChange={(v) => updateField("chief_complaint", v)}>
-          <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select..." /></SelectTrigger>
+          <SelectTrigger className={cn("h-12 text-base", fieldBorder("chief_complaint"))}><SelectValue placeholder="Select..." /></SelectTrigger>
           <SelectContent>
             {CHIEF_COMPLAINTS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
@@ -34,9 +44,10 @@ export function AssessmentCard({ trip, updateField }: AssessmentCardProps) {
       <div>
         <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 flex items-center">
           Primary Impression <PCRTooltip text={PCR_TOOLTIPS.primary_impression} />
+          {isReq("primary_impression") && <PCRFieldDot filled={isFilled("primary_impression")} />}
         </label>
         <Select value={trip.primary_impression || ""} onValueChange={(v) => updateField("primary_impression", v)}>
-          <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select..." /></SelectTrigger>
+          <SelectTrigger className={cn("h-12 text-base", fieldBorder("primary_impression"))}><SelectValue placeholder="Select..." /></SelectTrigger>
           <SelectContent>
             {CHIEF_COMPLAINTS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
