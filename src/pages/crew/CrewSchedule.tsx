@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Eye, Loader2 } from "lucide-react";
+import { FileText, Eye, Loader2, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format, addDays, startOfDay, startOfWeek, isToday } from "date-fns";
