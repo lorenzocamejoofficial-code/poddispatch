@@ -206,6 +206,47 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
     persistToDb(updated);
   };
 
+  const startEditTimestamp = (vs: VitalSet) => {
+    const d = new Date(vs.timestamp);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    setEditTimeValue(`${hh}:${mm}`);
+    setEditingTimestamp(vs.id);
+  };
+
+  const saveEditedTimestamp = (idx: number) => {
+    const vs = sets[idx];
+    const [hh, mm] = editTimeValue.split(":").map(Number);
+    if (isNaN(hh) || isNaN(mm)) return;
+
+    const original = new Date(vs.timestamp);
+    const corrected = new Date(original);
+    corrected.setHours(hh, mm, 0, 0);
+
+    // Check transport window warning
+    const leftScene = trip.left_scene_time;
+    const atDest = trip.arrived_dropoff_at;
+    if (leftScene && atDest) {
+      const ct = corrected.getTime();
+      const ls = new Date(leftScene).getTime();
+      const ad = new Date(atDest).getTime();
+      if (ct < ls || ct > ad) {
+        toast({
+          title: "Transport window warning",
+          description: "This vitals time falls outside the Left Scene → At Destination window. The corrected time will still be saved.",
+          variant: "default",
+        });
+      }
+    }
+
+    const updated = [...sets];
+    updated[idx] = { ...updated[idx], timestamp: corrected.toISOString(), timestamp_edited: true };
+    setSets(updated);
+    persistToDb(updated);
+    setEditingTimestamp(null);
+    toast({ title: "Timestamp corrected", description: `Updated to ${corrected.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}` });
+  };
+
   return (
     <div className="space-y-4">
       {sets.map((vs, idx) => {
