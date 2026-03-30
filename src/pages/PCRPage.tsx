@@ -571,6 +571,9 @@ export default function PCRPage() {
   const completedRequired = requiredCards.filter(c => isCardComplete(c)).length;
   const totalRequired = requiredCards.length;
 
+  // Field-level completion tracking
+  const fieldCompletion = evaluatePCRFieldCompletion(trip);
+
   return (
     <CrewLayout>
       <div className="p-4 pb-24 min-h-screen">
