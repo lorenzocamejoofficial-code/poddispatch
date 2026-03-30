@@ -15,6 +15,12 @@ interface TimesCardProps {
   isReadOnly?: boolean;
 }
 
+function hasSavedVitals(trip: any): boolean {
+  const vitals = trip.vitals_json;
+  if (!Array.isArray(vitals) || vitals.length === 0) return false;
+  return vitals.some((v: any) => !!v.timestamp && v.saved !== false);
+}
+
 function fmtTime(ts: string | null): string {
   if (!ts) return "";
   try {
