@@ -228,7 +228,7 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
         ) : (
           <div className="space-y-2">
             {visibleRuns.map((run) => {
-              const isCancelled = run.status === "cancelled";
+              const isCancelled = run.status === "cancelled" || run.status === "pending_cancellation";
               const isRunExpanded = expandedRunId === run.id;
               return (
               <div
