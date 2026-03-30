@@ -85,7 +85,7 @@ const BILLING_MIRROR: Record<string, string> = {
   arrived_dropoff_at: "dropped_at",
 };
 
-export function TimesCard({ trip, recordTime, updateField, isReadOnly = false }: TimesCardProps) {
+export function TimesCard({ trip, recordTime, updateField, updateMultipleFields, isReadOnly = false }: TimesCardProps) {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [odometerWarning, setOdometerWarning] = useState<string | null>(null);
   const [manualMilesOverride, setManualMilesOverride] = useState(false);
