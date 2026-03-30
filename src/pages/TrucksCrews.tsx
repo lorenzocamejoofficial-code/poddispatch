@@ -502,7 +502,7 @@ export default function TrucksCrews() {
         const targetDate = targetDates[srcIdx];
         const key = `${targetDate}_${crew.truck_id}`;
         if (existingKeys.has(key)) continue;
-        newCrews.push({ truck_id: crew.truck_id, member1_id: crew.member1_id, member2_id: crew.member2_id, active_date: targetDate, company_id: companyId });
+        newCrews.push({ truck_id: crew.truck_id, member1_id: crew.member1_id, member2_id: crew.member2_id, member3_id: crew.member3_id, active_date: targetDate, company_id: companyId });
       }
       if (newCrews.length > 0) await supabase.from("crews").insert(newCrews);
       toast.success(`Copied ${newCrews.length} crew assignment(s) to target week.`);
