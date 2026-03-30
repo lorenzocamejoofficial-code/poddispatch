@@ -77,7 +77,7 @@ export default function CrewSchedule() {
   const [runs, setRuns] = useState<ScheduleRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => format(startOfDay(new Date()), "yyyy-MM-dd"));
-  const { partnerName: crewPartnerName, loading: crewPartnerLoading } = useCrewPartner();
+  const { partnerName: crewPartnerName, loading: crewPartnerLoading } = useCrewPartner(selectedDate);
 
   const fetchSchedule = useCallback(async () => {
     if (!user) return;
