@@ -38,6 +38,16 @@ interface PayerRule {
   requires_auth: boolean;
 }
 
+interface IncidentReport {
+  id: string;
+  incident_date: string;
+  incident_type: string;
+  description: string | null;
+  crew_names: string | null;
+  emergency_services_contacted: boolean;
+  created_at: string;
+}
+
 const PAYER_TYPES = ["medicare", "medicaid", "facility", "cash", "default"];
 
 export default function ComplianceAndQA() {
