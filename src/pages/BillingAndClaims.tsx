@@ -557,7 +557,7 @@ export default function BillingAndClaims() {
         </div>
 
         {/* Summary KPIs */}
-        <div className="grid gap-3 grid-cols-3">
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
           <div className="rounded-lg border bg-card p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Collected</p>
             <p className="text-2xl font-bold text-[hsl(var(--status-green))]">${totalRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
