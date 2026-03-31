@@ -956,7 +956,7 @@ export default function Scheduling() {
         {/* WEEKLY VIEW */}
         {weekView ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
               {weekDates.map((date, idx) => {
                 const summary = weekSummaries.find((s) => s.date === date);
                 const isToday = date === today;
