@@ -307,7 +307,7 @@ export default function TripsAndClinical() {
       }
     }
 
-    const updatePayload: any = { status: next };
+    const updatePayload: any = { status: next, updated_by: user?.id ?? null };
     // Auto-set timestamps on status transitions
     if (next === "arrived_pickup") updatePayload.arrived_pickup_at = new Date().toISOString();
     if (next === "loaded") updatePayload.loaded_at = new Date().toISOString();
