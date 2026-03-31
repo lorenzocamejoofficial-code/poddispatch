@@ -82,7 +82,7 @@ export function useSidebarBadges(role: string | null) {
 
   const fetchCounts = useCallback(async () => {
     if (!role || !userId) return;
-    const r = role === "owner" ? "admin" : role === "biller" ? "billing" : role;
+    const r = role === "biller" ? "billing" : role;
     const next = { ...EMPTY };
 
     const jobs: Promise<void>[] = [];
@@ -93,12 +93,12 @@ export function useSidebarBadges(role: string | null) {
     const seenTrips = getLastSeen(userId, "trips");
     const seenOverrides = getLastSeen(userId, "overrides");
 
-    if (["admin", "dispatcher"].includes(r)) {
+    if (["owner", "dispatcher"].includes(r)) {
       jobs.push(
         countAfter("operational_alerts", { status: "open" }, seenDispatch).then(c => { next.dispatch = c; })
       );
     }
-    if (["admin", "billing"].includes(r)) {
+    if (["owner", "billing"].includes(r)) {
       jobs.push(
         countAfter("trip_records", { status: "ready_for_billing" }, seenBilling).then(c => { next.billing = c; })
       );
