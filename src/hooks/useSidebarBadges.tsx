@@ -119,7 +119,7 @@ export function useSidebarBadges(role: string | null) {
         next.trips = count ?? 0;
       })());
     }
-    if (r === "admin") {
+    if (r === "owner") {
       const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       // Use the later of the 24h window or the last-seen timestamp
       const overrideSince = seenOverrides && seenOverrides > windowStart ? seenOverrides : windowStart;

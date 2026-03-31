@@ -548,15 +548,13 @@ export default function Employees() {
                       <td className="px-4 py-3 text-muted-foreground">{e.phone_number || "—"}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          e.role === "Owner"
-                            ? "bg-primary/10 text-primary"
-                            : e.role === "admin" || e.role === "owner"
+                          e.role === "Owner" || e.role === "owner"
                             ? "bg-primary/10 text-primary"
                             : e.role === "dispatcher"
                             ? "bg-secondary text-secondary-foreground"
                             : "bg-accent text-accent-foreground"
                         }`}>
-                          {e.role === "Owner" ? "Owner" : e.role === "owner" ? "Owner" : e.role === "admin" ? "Admin" : e.role === "dispatcher" ? "Dispatcher" : e.role === "biller" ? "Billing" : "Crew"}
+                          {e.role === "Owner" || e.role === "owner" ? "Owner" : e.role === "dispatcher" ? "Dispatcher" : e.role === "biller" ? "Billing" : "Crew"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{e.cert_level}</td>

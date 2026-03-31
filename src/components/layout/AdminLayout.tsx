@@ -62,10 +62,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // System creator gets full access to all nav items
-  // Regular users need admin, dispatcher, or billing role
-  // Map actual DB roles to nav role categories
-  const effectiveNavRole = role === "owner" ? "admin" : role === "biller" ? "billing" : role;
-  if (!isSystemCreator && (!effectiveNavRole || !["admin", "dispatcher", "billing"].includes(effectiveNavRole))) {
+  // Regular users need owner, dispatcher, or billing role
+  // Map biller → billing for nav matching
+  const effectiveNavRole = role === "biller" ? "billing" : role;
+  if (!isSystemCreator && (!effectiveNavRole || !["owner", "dispatcher", "billing"].includes(effectiveNavRole))) {
     return null;
   }
 
