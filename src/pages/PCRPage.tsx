@@ -729,6 +729,63 @@ export default function PCRPage() {
           })}
         </div>
 
+        {/* Odometer validation indicator */}
+        {!isReadOnly && (
+          <div className={cn("mt-3 rounded-lg border-2 p-3", 
+            trip.odometer_at_scene && trip.odometer_at_destination && Number(trip.odometer_at_destination) > Number(trip.odometer_at_scene)
+              ? "border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/10"
+              : "border-destructive bg-destructive/5"
+          )}>
+            <p className="text-xs font-bold text-foreground mb-1">Odometer Readings (Required)</p>
+            <div className="flex gap-4 text-xs">
+              <span className={trip.odometer_at_scene ? "text-emerald-600 dark:text-emerald-400" : "text-destructive font-bold"}>
+                At Scene: {trip.odometer_at_scene ?? "Missing"}
+              </span>
+              <span className={trip.odometer_at_destination ? "text-emerald-600 dark:text-emerald-400" : "text-destructive font-bold"}>
+                At Destination: {trip.odometer_at_destination ?? "Missing"}
+              </span>
+            </div>
+            {trip.odometer_at_scene != null && trip.odometer_at_destination != null && (
+              Number(trip.odometer_at_destination) > Number(trip.odometer_at_scene) ? (
+                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-1">
+                  ✓ Loaded Miles: {(Number(trip.odometer_at_destination) - Number(trip.odometer_at_scene)).toFixed(1)}
+                </p>
+              ) : (
+                <p className="text-xs font-bold text-destructive mt-1">
+                  ⚠ Destination reading must be greater than scene reading
+                </p>
+              )
+            )}
+          </div>
+        )}
+
+        {/* Crew Signatures Section */}
+        {!isReadOnly && (
+          <div className="mt-3">
+            <CrewSignaturesSection trip={trip} updateField={updateField} />
+          </div>
+        )}
+
+        {/* Document Attachments */}
+        <div className="mt-3">
+          <DocumentAttachments
+            recordType="pcr"
+            recordId={trip.id}
+            companyId={trip.company_id}
+            allowUpload={!isReadOnly}
+          />
+        </div>
+
+        {/* Incident Report */}
+        {!isReadOnly && (
+          <div className="mt-3">
+            <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setIncidentOpen(true)}>
+              <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+              Report Incident
+            </Button>
+          </div>
+        )}
+
         {/* Submit — only when not read-only */}
         {!isReadOnly && (
           <div className="mt-6">
