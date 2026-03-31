@@ -32,7 +32,7 @@ import { logAuditEvent } from "@/lib/audit-logger";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ChevronLeft, Check, Loader2, Send, AlertCircle, Lock, AlertTriangle, Eye, Ban, FileWarning } from "lucide-react";
+import { ChevronLeft, Check, Loader2, Send, AlertCircle, Lock, AlertTriangle, Eye, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
