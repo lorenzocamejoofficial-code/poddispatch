@@ -464,6 +464,7 @@ export default function BillingAndClaims() {
 
   const openClaim = (claim: ClaimRecord) => {
     setSelectedClaim(claim);
+    logAuditEvent({ action: "view", tableName: "claim_records", recordId: claim.id, notes: `Viewed claim for ${claim.patient_name}` });
     setEditForm({
       status: claim.status,
       amount_paid: claim.amount_paid?.toString() ?? "",
