@@ -25,6 +25,7 @@ import { CrewSignaturesSection, areAllCrewSigned } from "@/components/pcr/CrewSi
 import { DocumentAttachments } from "@/components/documents/DocumentAttachments";
 import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
+import { checkDuplicateTrip } from "@/lib/duplicate-trip-check";
 import { evaluatePCRFieldCompletion } from "@/lib/pcr-field-requirements";
 import { SectionCompletionBadge } from "@/components/pcr/PCRFieldIndicator";
 import { KickbackChecklist } from "@/components/pcr/KickbackChecklist";
