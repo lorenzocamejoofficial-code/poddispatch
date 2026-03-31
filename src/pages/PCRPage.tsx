@@ -355,6 +355,7 @@ export default function PCRPage() {
 
   // Medic selection prompt
   const isReadOnly = trip.pcr_status === "submitted";
+  const isKickedBack = trip.pcr_status === "kicked_back";
 
   if (!trip.attending_medic_id) {
     const handleMedicSelect = async (medic: CrewMember) => {
