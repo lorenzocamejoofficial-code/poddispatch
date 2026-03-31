@@ -832,6 +832,16 @@ export default function PCRPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Incident Report Dialog */}
+        <IncidentReportForm
+          open={incidentOpen}
+          onOpenChange={setIncidentOpen}
+          truckId={trip.truck_id}
+          patientName={trip.patient ? `${trip.patient.first_name} ${trip.patient.last_name}` : undefined}
+          patientId={trip.patient_id}
+          crewNames={truckName}
+        />
       </div>
     </CrewLayout>
   );
