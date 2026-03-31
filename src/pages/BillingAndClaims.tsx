@@ -579,6 +579,25 @@ export default function BillingAndClaims() {
             <Button size="sm" variant="outline" onClick={refreshExistingClaims}>
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Refresh Existing Claims
             </Button>
+            <Button size="sm" variant="outline" onClick={() => {
+              const rows = claims.map(c => ({
+                patient_name: c.patient_name ?? "",
+                run_date: c.run_date,
+                payer: c.payer_type,
+                status: c.status,
+                base_charge: c.base_charge,
+                mileage_charge: c.mileage_charge,
+                total_charge: c.total_charge,
+                amount_paid: c.amount_paid ?? "",
+                hcpcs: (c.hcpcs_codes ?? []).join("; "),
+                denial_reason: c.denial_reason ?? "",
+              }));
+              downloadCSV(rows, `claims_export_${dateFilter}.csv`);
+              logAuditEvent({ action: "export", tableName: "claim_records", notes: `Exported ${rows.length} claims` });
+              toast.success(`Exported ${rows.length} claims`);
+            }}>
+              <Download className="h-3.5 w-3.5 mr-1.5" />Export CSV
+            </Button>
           </div>
         </div>
 
