@@ -276,29 +276,31 @@ export default function ReportsAndMetrics() {
   return (
     <AdminLayout>
       <Tabs defaultValue="kpis" className="space-y-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <TabsList>
+        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3">
+          <TabsList className="flex-wrap">
             <TabsTrigger value="kpis"><Activity className="h-3.5 w-3.5 mr-1" />KPIs</TabsTrigger>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="otp"><Clock className="h-3.5 w-3.5 mr-1" />OTP & Risk</TabsTrigger>
             <TabsTrigger value="ar-aging"><DollarSign className="h-3.5 w-3.5 mr-1" />AR Aging</TabsTrigger>
           </TabsList>
-          <Select value={range} onValueChange={setRange}>
-            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="day">Today</SelectItem>
-              <SelectItem value="week">This Week</SelectItem>
-              <SelectItem value="month">This Month</SelectItem>
-              <SelectItem value="custom">Custom Range</SelectItem>
-            </SelectContent>
-          </Select>
-          {range === "custom" && (
-            <>
-              <Input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="w-40" />
-              <span className="text-muted-foreground text-sm">to</span>
-              <Input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="w-40" />
-            </>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={range} onValueChange={setRange}>
+              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="day">Today</SelectItem>
+                <SelectItem value="week">This Week</SelectItem>
+                <SelectItem value="month">This Month</SelectItem>
+                <SelectItem value="custom">Custom Range</SelectItem>
+              </SelectContent>
+            </Select>
+            {range === "custom" && (
+              <>
+                <Input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="w-40" />
+                <span className="text-muted-foreground text-sm">to</span>
+                <Input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="w-40" />
+              </>
+            )}
+          </div>
         </div>
 
         {/* KPI Dashboard */}

@@ -431,7 +431,7 @@ export default function Employees() {
                       </button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <Label>Role</Label>
                       <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as any })}>

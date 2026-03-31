@@ -411,7 +411,7 @@ export default function TripsAndClinical() {
     <AdminLayout>
       <div className="space-y-4">
         {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3">
           <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-40" />
           <div className="relative flex-1 max-w-xs min-w-[180px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

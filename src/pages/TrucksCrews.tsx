@@ -623,21 +623,21 @@ export default function TrucksCrews() {
 
         {/* ── WEEKLY CREW CALENDAR ── */}
         <section>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Weekly Crew Assignments</h3>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={() => navigateWeek(-1)}><ChevronLeft className="h-4 w-4" /></Button>
-              <Button variant="outline" size="sm" onClick={goToToday}><CalendarDays className="mr-1.5 h-3.5 w-3.5" /> Today</Button>
-              <Button variant="outline" size="icon" onClick={() => navigateWeek(1)}><ChevronRight className="h-4 w-4" /></Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigateWeek(-1)}><ChevronLeft className="h-4 w-4" /></Button>
+              <Button variant="outline" size="sm" className="h-8" onClick={goToToday}><CalendarDays className="mr-1.5 h-3.5 w-3.5" /> Today</Button>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigateWeek(1)}><ChevronRight className="h-4 w-4" /></Button>
               <span className="text-sm font-semibold text-foreground">{getWeekLabel(weekDates)}</span>
-              <Button variant="outline" size="sm" onClick={() => { setCopyTargetWeek(nextWeekStart); setCopyDialog(true); }}>
+              <Button variant="outline" size="sm" className="h-8" onClick={() => { setCopyTargetWeek(nextWeekStart); setCopyDialog(true); }}>
                 <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy Week
               </Button>
             </div>
           </div>
 
-          {/* Legend */}
-          <div className="mb-3 flex items-center gap-4 text-[11px] text-muted-foreground">
+          {/* Legend — hide on mobile to save space */}
+          <div className="mb-3 hidden sm:flex items-center gap-4 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1"><WrenchIcon className="h-3 w-3 text-[hsl(var(--status-yellow))]" /> Hover a cell to assign or mark down</span>
             <span className="flex items-center gap-1"><AlertOctagon className="h-3 w-3 text-destructive" /> Red = truck is down (crew cannot be assigned)</span>
           </div>

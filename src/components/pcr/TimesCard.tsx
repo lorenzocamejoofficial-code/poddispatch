@@ -186,11 +186,11 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
 
           return (
             <div key={`${btn.field}-${idx}`} className="space-y-1">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 <Button
                   variant={recorded ? "outline" : "default"}
                   className={cn(
-                    "flex-1 h-14 text-base justify-start gap-3",
+                    "flex-1 min-w-0 h-14 text-base justify-start gap-3",
                     recorded && !hasSequenceWarning && "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400",
                     hasSequenceWarning && "border-destructive/60 bg-destructive/5 text-destructive dark:border-destructive/40 dark:bg-destructive/10 dark:text-destructive"
                   )}
@@ -200,30 +200,32 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
                   disabled={recorded}
                 >
                   {recorded ? (
-                    hasSequenceWarning ? <AlertTriangle className="h-5 w-5" /> : <Check className="h-5 w-5" />
+                    hasSequenceWarning ? <AlertTriangle className="h-5 w-5 shrink-0" /> : <Check className="h-5 w-5 shrink-0" />
                   ) : (
-                    <Clock className="h-5 w-5" />
+                    <Clock className="h-5 w-5 shrink-0" />
                   )}
-                  <span className="flex-1 text-left flex items-center">
+                  <span className="flex-1 text-left flex items-center truncate">
                     {btn.label}
                     {tooltipText && <PCRTooltip text={tooltipText} />}
                   </span>
-                  {recorded && <span className="text-sm font-mono">{fmtTime(value)}</span>}
+                  {recorded && <span className="text-sm font-mono shrink-0">{fmtTime(value)}</span>}
                 </Button>
                 {recorded && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-xs text-muted-foreground"
+                    className="text-xs text-muted-foreground shrink-0"
                     onClick={() => setEditingField(isEditing ? null : `${btn.field}-${idx}`)}
                   >
                     Edit
                   </Button>
                 )}
-                {isEditing && (
+              </div>
+              {isEditing && (
+                <div className="ml-1">
                   <Input
                     type="time"
-                    className="w-28 h-10"
+                    className="w-32 h-10"
                     defaultValue={value ? new Date(value).toTimeString().slice(0, 5) : ""}
                     onChange={(e) => {
                       if (e.target.value) {
@@ -242,8 +244,8 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
                     }}
                     onBlur={() => setEditingField(null)}
                   />
-                )}
-              </div>
+                </div>
+              )}
               {hasSequenceWarning && (
                 <p className="text-[11px] text-destructive/80 ml-1 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3 shrink-0" />

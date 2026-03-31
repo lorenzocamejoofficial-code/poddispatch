@@ -911,8 +911,8 @@ export default function Scheduling() {
     <AdminLayout>
       <div className="space-y-4">
         {/* Week navigation header */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             {!weekView && (
               <Button variant="ghost" size="icon" onClick={() => setWeekView(true)}>
                 <ArrowLeft className="h-4 w-4" />
@@ -927,7 +927,7 @@ export default function Scheduling() {
             <Button variant="outline" size="icon" onClick={() => navigateWeek(1)}>
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <span className="text-sm font-semibold text-foreground ml-2">
+            <span className="text-sm font-semibold text-foreground">
               {weekView
                 ? weekLabel
                 : new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
@@ -939,7 +939,7 @@ export default function Scheduling() {
               Copy Week Forward
             </Button>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={handleAutoGenerate} disabled={generating}>
                 <Wand2 className="mr-1.5 h-4 w-4" /> {generating ? "Generating..." : "Auto-Fill from Templates"}
               </Button>
@@ -956,7 +956,7 @@ export default function Scheduling() {
         {/* WEEKLY VIEW */}
         {weekView ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
               {weekDates.map((date, idx) => {
                 const summary = weekSummaries.find((s) => s.date === date);
                 const isToday = date === today;
@@ -995,7 +995,7 @@ export default function Scheduling() {
           >
             {/* ── SCHEDULE CHANGE NOTIFY BANNER ── */}
             {notifyBannerVisible && (
-              <div className="rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3 mb-2">
+              <div className="rounded-lg border border-primary/40 bg-primary/5 px-3 sm:px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 mb-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-primary">
                   <BellRing className="h-4 w-4 shrink-0" />
                   Schedule has been updated
