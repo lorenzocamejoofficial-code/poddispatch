@@ -222,6 +222,42 @@ export type Database = {
           },
         ]
       }
+      claim_adjustments: {
+        Row: {
+          changed_by: string
+          company_id: string
+          created_at: string
+          field_changed: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          reason: string | null
+          trip_id: string
+        }
+        Insert: {
+          changed_by: string
+          company_id: string
+          created_at?: string
+          field_changed: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          reason?: string | null
+          trip_id: string
+        }
+        Update: {
+          changed_by?: string
+          company_id?: string
+          created_at?: string
+          field_changed?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          reason?: string | null
+          trip_id?: string
+        }
+        Relationships: []
+      }
       claim_records: {
         Row: {
           amount_paid: number | null
@@ -589,6 +625,7 @@ export type Database = {
           grace_window_minutes: number
           id: string
           load_time_minutes: number
+          retention_policy_years: number
           session_timeout_minutes: number
           session_warning_enabled: boolean
           unload_time_minutes: number
@@ -603,6 +640,7 @@ export type Database = {
           grace_window_minutes?: number
           id?: string
           load_time_minutes?: number
+          retention_policy_years?: number
           session_timeout_minutes?: number
           session_warning_enabled?: boolean
           unload_time_minutes?: number
@@ -617,6 +655,7 @@ export type Database = {
           grace_window_minutes?: number
           id?: string
           load_time_minutes?: number
+          retention_policy_years?: number
           session_timeout_minutes?: number
           session_warning_enabled?: boolean
           unload_time_minutes?: number
@@ -806,6 +845,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      document_attachments: {
+        Row: {
+          company_id: string
+          created_at: string
+          document_type: string
+          file_name: string
+          file_path: string
+          id: string
+          record_id: string
+          record_type: string
+          uploaded_by: string
+          uploaded_by_name: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          document_type?: string
+          file_name: string
+          file_path: string
+          id?: string
+          record_id: string
+          record_type: string
+          uploaded_by: string
+          uploaded_by_name?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          document_type?: string
+          file_name?: string
+          file_path?: string
+          id?: string
+          record_id?: string
+          record_type?: string
+          uploaded_by?: string
+          uploaded_by_name?: string | null
+        }
+        Relationships: []
       }
       facilities: {
         Row: {
@@ -1018,6 +1096,66 @@ export type Database = {
           warnings?: Json | null
         }
         Relationships: []
+      }
+      incident_reports: {
+        Row: {
+          company_id: string
+          created_at: string
+          crew_names: string | null
+          description: string | null
+          emergency_services_contacted: boolean
+          id: string
+          incident_date: string
+          incident_type: string
+          patient_id: string | null
+          submitted_by: string
+          truck_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          crew_names?: string | null
+          description?: string | null
+          emergency_services_contacted?: boolean
+          id?: string
+          incident_date: string
+          incident_type?: string
+          patient_id?: string | null
+          submitted_by: string
+          truck_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          crew_names?: string | null
+          description?: string | null
+          emergency_services_contacted?: boolean
+          id?: string
+          incident_date?: string
+          incident_type?: string
+          patient_id?: string | null
+          submitted_by?: string
+          truck_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incident_reports_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_reports_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       leg_exceptions: {
         Row: {
