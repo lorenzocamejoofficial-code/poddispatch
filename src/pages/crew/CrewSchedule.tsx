@@ -103,7 +103,20 @@ export default function CrewSchedule() {
   const [runs, setRuns] = useState<ScheduleRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => format(startOfDay(new Date()), "yyyy-MM-dd"));
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
   const { partnerName: crewPartnerName, loading: crewPartnerLoading } = useCrewPartner(selectedDate);
+
+  const handleWeekChange = useCallback((dir: -1 | 1) => {
+    setWeekStart((prev) => {
+      const newWeek = addWeeks(prev, dir);
+      // Keep same day-of-week
+      const currentSelected = new Date(selectedDate + "T00:00:00");
+      const dayOfWeek = currentSelected.getDay();
+      const newDate = addDays(newWeek, dayOfWeek);
+      setSelectedDate(format(newDate, "yyyy-MM-dd"));
+      return newWeek;
+    });
+  }, [selectedDate]);
 
   const fetchSchedule = useCallback(async () => {
     if (!user) return;
