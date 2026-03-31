@@ -181,6 +181,7 @@ export default function ComplianceAndQA() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <TabsList>
             <TabsTrigger value="qa">QA Queue {pending.length > 0 && <span className="ml-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] px-1.5 py-0.5">{pending.length}</span>}</TabsTrigger>
+            <TabsTrigger value="incidents"><FileWarning className="h-3.5 w-3.5 mr-1.5" />Incidents {incidents.length > 0 && <span className="ml-1.5 text-[10px]">({incidents.length})</span>}</TabsTrigger>
             <TabsTrigger value="payer-rules"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Payer Rules</TabsTrigger>
           </TabsList>
           <Button size="sm" variant="outline" onClick={runAutoFlag}>
