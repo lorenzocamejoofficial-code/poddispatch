@@ -19,6 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Search, ChevronRight, FileText, Clock, AlertTriangle, XCircle, CheckCircle, ExternalLink, Download } from "lucide-react";
 import { toast } from "sonner";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
+import { TripStatusTimeline } from "@/components/billing/TripStatusTimeline";
 import { LocationTypeSelect } from "@/components/billing/LocationTypeSelect";
 import {
   computeHcpcsCodes,
@@ -115,7 +116,7 @@ const STATUS_COLORS: Record<TripStatus, string> = {
 };
 
 export default function TripsAndClinical() {
-  const { canManageBilling } = useAuth();
+  const { canManageBilling, user } = useAuth();
   const { simulationRunId, refreshToken } = useSimulationSession();
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -307,7 +308,7 @@ export default function TripsAndClinical() {
       }
     }
 
-    const updatePayload: any = { status: next };
+    const updatePayload: any = { status: next, updated_by: user?.id ?? null };
     // Auto-set timestamps on status transitions
     if (next === "arrived_pickup") updatePayload.arrived_pickup_at = new Date().toISOString();
     if (next === "loaded") updatePayload.loaded_at = new Date().toISOString();
@@ -321,7 +322,7 @@ export default function TripsAndClinical() {
   };
 
   const markSpecialStatus = async (trip: TripRecord, status: "no_show" | "patient_not_ready" | "facility_delay" | "cancelled") => {
-    await supabase.from("trip_records" as any).update({ status }).eq("id", trip.id);
+    await supabase.from("trip_records" as any).update({ status, updated_by: user?.id ?? null }).eq("id", trip.id);
     toast.success(`Status → ${STATUS_LABELS[status]}`);
     fetchTrips();
   };
@@ -779,6 +780,10 @@ export default function TripsAndClinical() {
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 Authorization expired on {selectedTrip.auth_expiration}. Update patient authorization before billing.
               </div>
+            )}
+
+            {selectedTrip && (
+              <TripStatusTimeline tripId={selectedTrip.id} />
             )}
 
             <Button className="w-full" onClick={saveTrip} disabled={saving}>
