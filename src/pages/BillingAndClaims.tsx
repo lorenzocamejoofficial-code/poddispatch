@@ -874,6 +874,7 @@ export default function BillingAndClaims() {
               <Textarea rows={2} value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} />
             </div>
             {selectedClaim && <ClaimAdjustmentHistory tripId={selectedClaim.trip_id} />}
+            {selectedClaim && <TripStatusTimeline tripId={selectedClaim.trip_id} label="Trip Status Timeline" />}
             <Button className="w-full" onClick={saveClaim} disabled={savingClaim}>
               {savingClaim ? "Saving…" : "Save Claim"}
             </Button>

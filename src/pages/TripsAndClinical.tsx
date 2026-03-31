@@ -782,6 +782,10 @@ export default function TripsAndClinical() {
               </div>
             )}
 
+            {selectedTrip && (
+              <TripStatusTimeline tripId={selectedTrip.id} />
+            )}
+
             <Button className="w-full" onClick={saveTrip} disabled={saving}>
               {saving ? "Saving…" : "Save Clinical Record"}
             </Button>
