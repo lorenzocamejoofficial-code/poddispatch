@@ -620,6 +620,17 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
           onSaved={() => { setCorrectTrip(null); onRefresh(); }}
         />
       )}
+
+      {/* Kickback Dialog */}
+      {kickbackTripId && (
+        <KickbackDialog
+          open={!!kickbackTripId}
+          onOpenChange={(open) => { if (!open) setKickbackTripId(null); }}
+          tripId={kickbackTripId}
+          patientName={kickbackPatientName}
+          onKickedBack={() => { setKickbackTripId(null); onRefresh(); }}
+        />
+      )}
     </div>
   );
 }
