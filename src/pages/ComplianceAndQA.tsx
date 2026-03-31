@@ -53,6 +53,7 @@ const PAYER_TYPES = ["medicare", "medicaid", "facility", "cash", "default"];
 export default function ComplianceAndQA() {
   const [qaItems, setQaItems] = useState<QAReview[]>([]);
   const [payerRules, setPayerRules] = useState<PayerRule[]>([]);
+  const [incidents, setIncidents] = useState<IncidentReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedQA, setSelectedQA] = useState<QAReview | null>(null);
   const [qaNotes, setQaNotes] = useState("");
@@ -64,9 +65,10 @@ export default function ComplianceAndQA() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [{ data: qaRows }, { data: ruleRows }] = await Promise.all([
+    const [{ data: qaRows }, { data: ruleRows }, { data: incidentRows }] = await Promise.all([
       supabase.from("qa_reviews" as any).select("*").order("created_at", { ascending: false }),
       supabase.from("payer_billing_rules" as any).select("*").order("payer_type"),
+      supabase.from("incident_reports").select("*").order("incident_date", { ascending: false }),
     ]);
 
     // Enrich QA with trip/patient data
