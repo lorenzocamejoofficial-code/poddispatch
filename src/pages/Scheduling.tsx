@@ -995,7 +995,7 @@ export default function Scheduling() {
           >
             {/* ── SCHEDULE CHANGE NOTIFY BANNER ── */}
             {notifyBannerVisible && (
-              <div className="rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3 mb-2">
+              <div className="rounded-lg border border-primary/40 bg-primary/5 px-3 sm:px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 mb-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-primary">
                   <BellRing className="h-4 w-4 shrink-0" />
                   Schedule has been updated
