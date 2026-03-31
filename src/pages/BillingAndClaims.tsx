@@ -538,14 +538,14 @@ export default function BillingAndClaims() {
   return (
     <AdminLayout>
       <Tabs defaultValue="trip-queue" className="space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <TabsList>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <TabsList className="flex-wrap">
             <TabsTrigger value="trip-queue"><ClipboardList className="h-3.5 w-3.5 mr-1.5" />Trip Queue</TabsTrigger>
             <TabsTrigger value="claims">Claims Board</TabsTrigger>
             <TabsTrigger value="overrides-log"><ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Overrides Log</TabsTrigger>
             <TabsTrigger value="charge-master"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Charge Master</TabsTrigger>
           </TabsList>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-40 h-9" />
             <Button size="sm" onClick={syncClaimsFromTrips}>
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Sync from Trips
