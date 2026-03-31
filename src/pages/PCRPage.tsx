@@ -277,6 +277,43 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
           </button>
         );
       })}
+
+      {/* Duplicate Trip Warning Dialog */}
+      <Dialog open={!!dupWarning} onOpenChange={o => { if (!o) setDupWarning(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Potential Duplicate Trip
+            </DialogTitle>
+            <DialogDescription>
+              A trip already exists for this patient on this date with a pickup time within 30 minutes. Are you sure you want to create another trip record?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            {dupWarning?.existingTrips.map(t => (
+              <div key={t.id} className="rounded-md border bg-muted/30 p-2 text-xs">
+                <span className="font-medium">Pickup: {t.pickup_time?.substring(0, 5) ?? "N/A"}</span>
+                <span className="ml-3 text-muted-foreground">Status: {t.status}</span>
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDupWarning(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                const run = dupWarning!.run;
+                setDupWarning(null);
+                logAuditEvent({ action: "duplicate_override", tableName: "trip_records", notes: `Crew confirmed duplicate trip for patient ${run.patientId} on ${today}` });
+                await createTripForRun(run);
+              }}
+            >
+              Create Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
