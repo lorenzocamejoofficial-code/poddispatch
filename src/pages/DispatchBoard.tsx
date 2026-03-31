@@ -427,9 +427,11 @@ export default function DispatchBoard() {
   });
   const isToday = selectedDate === getLocalToday();
 
+  const [incidentOpen, setIncidentOpen] = useState(false);
+
   return (
     <AdminLayout>
-      {loading ? (
+      <IncidentReportForm open={incidentOpen} onClose={() => setIncidentOpen(false)} />
         <PageLoader label="Loading dispatch board…" />
       ) : (
         <div className="space-y-6">
