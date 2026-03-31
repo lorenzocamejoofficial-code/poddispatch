@@ -71,7 +71,7 @@ export default function Employees() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
-    full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew" | "biller",
+    full_name: "", email: "", password: "", role: "crew" as "owner" | "dispatcher" | "crew" | "biller",
     sex: "M" as "M" | "F", cert_level: "EMT-B", phone_number: "",
     employment_type: "full_time" as "full_time" | "part_time" | "prn",
     stair_chair_trained: false, bariatric_trained: false,
