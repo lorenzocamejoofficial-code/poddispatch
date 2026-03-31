@@ -34,7 +34,7 @@ export default function AdminSettings() {
         setDischargeBuffer(String((data as any).discharge_buffer_minutes ?? 20));
         setSessionTimeout(String((data as any).session_timeout_minutes ?? 30));
         setSessionWarningEnabled((data as any).session_warning_enabled ?? true);
-      }
+        setRetentionYears(String((data as any).retention_policy_years ?? 7));
     });
   }, []);
 
