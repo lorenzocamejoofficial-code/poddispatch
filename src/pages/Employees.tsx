@@ -437,7 +437,7 @@ export default function Employees() {
                       <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as any })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="owner">Owner</SelectItem>
                           <SelectItem value="dispatcher">Dispatcher</SelectItem>
                           <SelectItem value="biller">Billing</SelectItem>
                           <SelectItem value="crew">Crew</SelectItem>
