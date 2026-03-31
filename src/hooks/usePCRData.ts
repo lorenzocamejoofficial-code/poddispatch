@@ -66,6 +66,11 @@ export interface PCRTripData {
   patient_mobility: string | null;
   isolation_precautions: any;
   necessity_notes: string | null;
+  // Kickback fields
+  kickback_reasons: string[];
+  kickback_note: string | null;
+  kicked_back_by: string | null;
+  kicked_back_at: string | null;
   // Leg info (joined from scheduling_legs)
   leg_type: string | null;
   chair_time: string | null;
@@ -146,6 +151,10 @@ export function usePCRData(tripId: string | null) {
         secondary_impressions: Array.isArray(data.secondary_impressions) ? data.secondary_impressions : [],
         crew_updated_fields: Array.isArray(data.crew_updated_fields) ? data.crew_updated_fields : [],
         isolation_precautions: data.isolation_precautions || {},
+        kickback_reasons: Array.isArray((data as any).kickback_reasons) ? (data as any).kickback_reasons : [],
+        kickback_note: (data as any).kickback_note ?? null,
+        kicked_back_by: (data as any).kicked_back_by ?? null,
+        kicked_back_at: (data as any).kicked_back_at ?? null,
         leg_type,
         chair_time,
         patient,

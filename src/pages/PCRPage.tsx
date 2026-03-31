@@ -198,6 +198,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     in_progress: { label: "In Progress", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400" },
     completed: { label: "Completed", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400" },
     submitted: { label: "Submitted", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400" },
+    kicked_back: { label: "Returned", color: "bg-destructive/10 text-destructive border-destructive/30" },
   };
 
   return (
@@ -245,7 +246,8 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
                   <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold", pcr.color)}>
                     {run.pcrStatus === "not_started" ? "Start PCR" :
                      run.pcrStatus === "in_progress" ? "Continue" :
-                     run.pcrStatus === "submitted" ? "View" : pcr.label}
+                     run.pcrStatus === "submitted" ? "View" :
+                     run.pcrStatus === "kicked_back" ? "Correct" : pcr.label}
                   </span>
                 )}
               </div>
@@ -354,6 +356,7 @@ export default function PCRPage() {
 
   // Medic selection prompt
   const isReadOnly = trip.pcr_status === "submitted";
+  const isKickedBack = trip.pcr_status === "kicked_back";
 
   if (!trip.attending_medic_id) {
     const handleMedicSelect = async (medic: CrewMember) => {
@@ -519,15 +522,20 @@ export default function PCRPage() {
         status: "ready_for_billing",
         claim_ready: true,
         documentation_complete: true,
+        // Clear kickback fields on resubmit
+        kickback_reasons: [],
+        kickback_note: null,
+        kicked_back_by: null,
+        kicked_back_at: null,
         updated_at: new Date().toISOString(),
-      }).eq("id", trip.id);
+      } as any).eq("id", trip.id);
 
       // Auto-create QA review
       if (trip.company_id) {
         await supabase.from("qa_reviews").insert({
           company_id: trip.company_id,
           trip_id: trip.id,
-          flag_reason: "PCR auto-submitted — pending QA review",
+          flag_reason: isKickedBack ? "PCR resubmitted after kickback — pending QA review" : "PCR auto-submitted — pending QA review",
           status: "pending",
         });
       }
@@ -579,6 +587,47 @@ export default function PCRPage() {
   return (
     <CrewLayout>
       <div className="p-4 pb-24 min-h-screen">
+        {/* Kickback notice — returned for correction */}
+        {isKickedBack && (
+          <div className="mb-4 rounded-lg border-2 border-destructive bg-destructive/10 p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-destructive/20 flex items-center justify-center">
+                <AlertTriangle className="h-6 w-6 text-destructive" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-destructive">Returned for Correction</p>
+                <p className="text-xs text-destructive/80">
+                  {(trip as any).kicked_back_at ? new Date((trip as any).kicked_back_at).toLocaleString() : ""}
+                </p>
+              </div>
+            </div>
+            {(() => {
+              const reasons: string[] = Array.isArray((trip as any).kickback_reasons) ? (trip as any).kickback_reasons : [];
+              const note: string | null = (trip as any).kickback_note ?? null;
+              return (
+                <div className="mt-3 space-y-2">
+                  {reasons.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-destructive/90 uppercase tracking-wider">Issues to correct:</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        {reasons.map((r, i) => (
+                          <li key={i} className="text-sm text-foreground">{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {note && (
+                    <div className="rounded-md border border-destructive/20 bg-background p-2">
+                      <p className="text-xs font-semibold text-muted-foreground mb-0.5">Biller Note:</p>
+                      <p className="text-sm text-foreground">{note}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
         {/* Read-only submitted banner */}
         {isReadOnly && (
           <div className="mb-4 rounded-lg border-2 border-emerald-400 bg-emerald-50 dark:bg-emerald-900/10 p-4">

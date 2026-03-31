@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText, Pencil } from "lucide-react";
+import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText, Pencil, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { KickbackDialog } from "@/components/billing/KickbackDialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -141,6 +142,8 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
   const [tripAuditLog, setTripAuditLog] = useState<any[] | null>(null);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [correctTrip, setCorrectTrip] = useState<TripForQueue | null>(null);
+  const [kickbackTripId, setKickbackTripId] = useState<string | null>(null);
+  const [kickbackPatientName, setKickbackPatientName] = useState<string | undefined>(undefined);
 
   const fetchOverrideHistory = useCallback(async () => {
     const tripIds = trips.map(t => t.id);
@@ -524,6 +527,20 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                 <Pencil className="h-3.5 w-3.5" />
                 Correct PCR
               </Button>
+              {/* Kick Back to Crew button — only for submitted PCRs */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/5"
+                onClick={() => {
+                  setKickbackTripId(selectedTrip.id);
+                  setKickbackPatientName(selectedTrip.patient_name);
+                  setSelectedTrip(null);
+                }}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Kick Back to Crew
+              </Button>
             </div>
           )}
         </DialogContent>
@@ -601,6 +618,17 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
           open={!!correctTrip}
           onOpenChange={(open) => { if (!open) setCorrectTrip(null); }}
           onSaved={() => { setCorrectTrip(null); onRefresh(); }}
+        />
+      )}
+
+      {/* Kickback Dialog */}
+      {kickbackTripId && (
+        <KickbackDialog
+          open={!!kickbackTripId}
+          onOpenChange={(open) => { if (!open) setKickbackTripId(null); }}
+          tripId={kickbackTripId}
+          patientName={kickbackPatientName}
+          onKickedBack={() => { setKickbackTripId(null); onRefresh(); }}
         />
       )}
     </div>

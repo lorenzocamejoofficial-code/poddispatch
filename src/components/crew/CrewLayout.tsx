@@ -1,10 +1,11 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { LayoutDashboard, FileText, LogOut, Menu, X, Truck, Users, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCompanyName } from "@/hooks/useCompanyName";
+import { supabase } from "@/integrations/supabase/client";
 
 const crewNav = [
   { path: "/crew-dashboard", label: "Crew Dashboard", icon: LayoutDashboard },
@@ -14,11 +15,36 @@ const crewNav = [
 ];
 
 export function CrewLayout({ children }: { children: ReactNode }) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, profileId } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { companyName } = useCompanyName();
+  const [hasKickback, setHasKickback] = useState(false);
+
+  // Check for kicked_back PCRs assigned to this crew member
+  useEffect(() => {
+    if (!profileId) return;
+    const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
+    (async () => {
+      const { data: crewRow } = await supabase
+        .from("crews")
+        .select("truck_id")
+        .eq("active_date", today)
+        .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
+        .maybeSingle();
+      if (!crewRow) { setHasKickback(false); return; }
+
+      const { data: trips } = await supabase
+        .from("trip_records")
+        .select("id")
+        .eq("run_date", today)
+        .eq("truck_id", crewRow.truck_id)
+        .eq("pcr_status", "kicked_back")
+        .limit(1);
+      setHasKickback((trips ?? []).length > 0);
+    })();
+  }, [profileId]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -41,14 +67,18 @@ export function CrewLayout({ children }: { children: ReactNode }) {
         <nav className="flex-1 space-y-1 p-3">
           {crewNav.map((item) => {
             const active = location.pathname === item.path;
+            const showBadge = item.path === "/pcr" && hasKickback;
             return (
               <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors relative",
                   active ? "bg-sidebar-accent text-sidebar-primary" : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                 )}>
                 <item.icon className="h-4 w-4" />
                 {item.label}
+                {showBadge && (
+                  <span className="ml-auto h-2.5 w-2.5 rounded-full bg-destructive animate-pulse" />
+                )}
               </Link>
             );
           })}
