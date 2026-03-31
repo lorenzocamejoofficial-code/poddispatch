@@ -37,20 +37,20 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: "/", label: "Dispatch Command", icon: LayoutDashboard, roles: ["admin", "dispatcher"] },
-  { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList, roles: ["admin", "dispatcher"] },
-  { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send, roles: ["admin", "dispatcher"] },
-  { path: "/patients", label: "Patients", icon: Users, roles: ["admin", "dispatcher", "billing"] },
-  { path: "/trips", label: "Trips & Clinical", icon: FileText, roles: ["admin", "billing"] },
-  { path: "/billing", label: "Billing & Claims", icon: DollarSign, roles: ["admin", "billing"] },
-  { path: "/compliance", label: "Compliance & QA", icon: ShieldCheck, roles: ["admin", "billing"] },
-  { path: "/facilities", label: "Facilities", icon: Building2, roles: ["admin", "dispatcher", "billing"] },
-  { path: "/reports", label: "Reports & Metrics", icon: BarChart3, roles: ["admin", "billing"] },
-  { path: "/employees", label: "Employees", icon: UserPlus, roles: ["admin", "dispatcher"] },
-  { path: "/trucks", label: "Trucks & Crews", icon: Truck, roles: ["admin", "dispatcher"] },
-  { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft, roles: ["admin", "dispatcher"] },
-  { path: "/override-monitor", label: "Override Monitor", icon: Eye, roles: ["admin"] },
-  { path: "/settings", label: "Settings", icon: Settings, roles: ["admin", "dispatcher"] },
+  { path: "/", label: "Dispatch Command", icon: LayoutDashboard, roles: ["owner", "dispatcher"] },
+  { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList, roles: ["owner", "dispatcher"] },
+  { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send, roles: ["owner", "dispatcher"] },
+  { path: "/patients", label: "Patients", icon: Users, roles: ["owner", "dispatcher", "billing"] },
+  { path: "/trips", label: "Trips & Clinical", icon: FileText, roles: ["owner", "billing"] },
+  { path: "/billing", label: "Billing & Claims", icon: DollarSign, roles: ["owner", "billing"] },
+  { path: "/compliance", label: "Compliance & QA", icon: ShieldCheck, roles: ["owner", "billing"] },
+  { path: "/facilities", label: "Facilities", icon: Building2, roles: ["owner", "dispatcher", "billing"] },
+  { path: "/reports", label: "Reports & Metrics", icon: BarChart3, roles: ["owner", "billing"] },
+  { path: "/employees", label: "Employees", icon: UserPlus, roles: ["owner", "dispatcher"] },
+  { path: "/trucks", label: "Trucks & Crews", icon: Truck, roles: ["owner", "dispatcher"] },
+  { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft, roles: ["owner", "dispatcher"] },
+  { path: "/override-monitor", label: "Override Monitor", icon: Eye, roles: ["owner"] },
+  { path: "/settings", label: "Settings", icon: Settings, roles: ["owner", "dispatcher"] },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {
