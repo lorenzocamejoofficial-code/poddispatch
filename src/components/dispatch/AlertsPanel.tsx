@@ -1,16 +1,31 @@
-import { AlertTriangle, Clock, X } from "lucide-react";
+import { AlertTriangle, Clock, Timer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { memo, useState, useEffect } from "react";
 
 interface Alert {
   id: string;
   message: string;
   severity: "yellow" | "red";
   created_at: string;
+  /** If set, this alert is a live hold-timer alert */
+  hold_timer_started_at?: string | null;
 }
 
 interface AlertsPanelProps {
   alerts: Alert[];
   onDismiss: (id: string) => void;
+}
+
+function LiveElapsed({ startedAt }: { startedAt: string }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = new Date(startedAt).getTime();
+    const update = () => setElapsed(Math.floor((Date.now() - start) / 60000));
+    update();
+    const interval = setInterval(update, 15000);
+    return () => clearInterval(interval);
+  }, [startedAt]);
+  return <span className="font-mono font-semibold">{elapsed}m</span>;
 }
 
 export function AlertsPanel({ alerts, onDismiss }: AlertsPanelProps) {
@@ -25,31 +40,47 @@ export function AlertsPanel({ alerts, onDismiss }: AlertsPanelProps) {
 
   return (
     <div className="space-y-2">
-      {alerts.map((alert) => (
-        <div
-          key={alert.id}
-          className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${
-            alert.severity === "red"
-              ? "border-status-red/30 bg-status-red-bg"
-              : "border-status-yellow/30 bg-status-yellow-bg"
-          }`}
-        >
-          <AlertTriangle
-            className={`mt-0.5 h-4 w-4 shrink-0 ${
-              alert.severity === "red" ? "text-status-red" : "text-status-yellow"
+      {alerts.map((alert) => {
+        const isHoldTimer = !!alert.hold_timer_started_at;
+        return (
+          <div
+            key={alert.id}
+            className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${
+              alert.severity === "red"
+                ? "border-[hsl(var(--status-red))]/30 bg-[hsl(var(--status-red))]/5"
+                : "border-[hsl(var(--status-yellow))]/30 bg-[hsl(var(--status-yellow-bg))]"
             }`}
-          />
-          <span className="flex-1 text-foreground">{alert.message}</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 shrink-0"
-            onClick={() => onDismiss(alert.id)}
           >
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ))}
+            {isHoldTimer ? (
+              <Timer className={`mt-0.5 h-4 w-4 shrink-0 animate-pulse ${
+                alert.severity === "red" ? "text-[hsl(var(--status-red))]" : "text-[hsl(var(--status-yellow))]"
+              }`} />
+            ) : (
+              <AlertTriangle
+                className={`mt-0.5 h-4 w-4 shrink-0 ${
+                  alert.severity === "red" ? "text-[hsl(var(--status-red))]" : "text-[hsl(var(--status-yellow))]"
+                }`}
+              />
+            )}
+            <span className="flex-1 text-foreground">
+              {alert.message}
+              {isHoldTimer && alert.hold_timer_started_at && (
+                <span className="ml-2 text-muted-foreground">
+                  (<LiveElapsed startedAt={alert.hold_timer_started_at} /> elapsed)
+                </span>
+              )}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={() => onDismiss(alert.id)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        );
+      })}
     </div>
   );
 }
