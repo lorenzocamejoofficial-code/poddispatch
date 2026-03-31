@@ -14,6 +14,7 @@ import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, 
 import { downloadCSV } from "@/lib/csv-export";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { ClaimAdjustmentHistory } from "@/components/billing/ClaimAdjustmentHistory";
+import { TripStatusTimeline } from "@/components/billing/TripStatusTimeline";
 import { toast } from "sonner";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
