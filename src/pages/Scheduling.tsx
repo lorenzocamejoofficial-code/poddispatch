@@ -30,6 +30,8 @@ import { NotifyCrewModal } from "@/components/scheduling/NotifyCrewModal";
 import { OperationalAlertsPanel, type OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
 import { CommsOutbox } from "@/components/dispatch/CommsOutbox";
 import { useSchedulingStore, type LegDisplay } from "@/hooks/useSchedulingStore";
+import { RunReassignmentDialog } from "@/components/scheduling/RunReassignmentDialog";
+import { detectTimeConflicts, type TimeConflict } from "@/lib/time-conflict";
 import {
   DndContext,
   closestCenter,
@@ -247,6 +249,12 @@ export default function Scheduling() {
 
   // Drag state
   const [activeDragLeg, setActiveDragLeg] = useState<LegDisplay | null>(null);
+
+  // Reassignment dialog state
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
+  const [reassignLeg, setReassignLeg] = useState<LegDisplay | null>(null);
+  const [reassignSourceTruck, setReassignSourceTruck] = useState<string | null>(null);
+  const [reassignTargetTruck, setReassignTargetTruck] = useState<string>("");
 
   // Exception editing state
   const [exceptionDialogOpen, setExceptionDialogOpen] = useState(false);
@@ -842,7 +850,16 @@ export default function Scheduling() {
 
     const truckName = trucks.find(t => t.id === targetTruckId)?.name ?? "truck";
 
-    // Optimistic assign
+    // If moving from one truck to another, open the reassignment dialog
+    if (currentTruckId) {
+      setReassignLeg(activeLeg);
+      setReassignSourceTruck(currentTruckId);
+      setReassignTargetTruck(targetTruckId);
+      setReassignDialogOpen(true);
+      return;
+    }
+
+    // Assign from pool (no dialog needed)
     optimisticUpdateLegs(prev =>
       prev.map(l => l.id === activeId
         ? { ...l, assigned_truck_id: targetTruckId, slot_order: targetLegs.length }
@@ -850,36 +867,23 @@ export default function Scheduling() {
       )
     );
 
-    if (currentTruckId) {
-      toast.success(`Run moved to ${truckName}`);
-      const { error } = await supabase
-        .from("truck_run_slots")
-        .update({ truck_id: targetTruckId, slot_order: targetLegs.length } as any)
-        .eq("leg_id", activeId)
-        .eq("run_date", selectedDate);
-      if (error) {
-        toast.error("Assignment failed — reverting");
-        refresh();
+    toast.success(`Run assigned to ${truckName}`);
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
+    const { error } = await supabase.from("truck_run_slots").insert({
+      truck_id: targetTruckId,
+      leg_id: activeId,
+      run_date: selectedDate,
+      slot_order: targetLegs.length,
+      company_id: companyId,
+    } as any);
+    if (error) {
+      if (error.code === "23505") {
+        toast.error("This leg is already assigned to a truck");
+      } else {
+        console.error("Assignment error:", error);
+        toast.error(`Assignment failed: ${error.message}`);
       }
-    } else {
-      toast.success(`Run assigned to ${truckName}`);
-      const { data: companyId } = await supabase.rpc("get_my_company_id");
-      const { error } = await supabase.from("truck_run_slots").insert({
-        truck_id: targetTruckId,
-        leg_id: activeId,
-        run_date: selectedDate,
-        slot_order: targetLegs.length,
-        company_id: companyId,
-      } as any);
-      if (error) {
-        if (error.code === "23505") {
-          toast.error("This leg is already assigned to a truck");
-        } else {
-          console.error("Assignment error:", error);
-          toast.error(`Assignment failed: ${error.message}`);
-        }
-        refresh();
-      }
+      refresh();
     }
   };
 
@@ -1132,6 +1136,20 @@ export default function Scheduling() {
             </DragOverlay>
           </DndContext>
         )}
+
+        {/* Run Reassignment Dialog */}
+        <RunReassignmentDialog
+          open={reassignDialogOpen}
+          onOpenChange={setReassignDialogOpen}
+          leg={reassignLeg}
+          sourceTruckId={reassignSourceTruck}
+          targetTruckId={reassignTargetTruck}
+          targetTruckName={trucks.find(t => t.id === reassignTargetTruck)?.name ?? "truck"}
+          targetTruckLegs={legs.filter(l => l.assigned_truck_id === reassignTargetTruck)}
+          selectedDate={selectedDate}
+          onComplete={refresh}
+          onLogChange={logScheduleChange}
+        />
 
         {/* Create Leg Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

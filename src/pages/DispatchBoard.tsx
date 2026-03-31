@@ -61,6 +61,7 @@ interface AlertData {
   message: string;
   severity: "yellow" | "red";
   created_at: string;
+  hold_timer_started_at?: string | null;
 }
 
 function computeOverallStatus(runs: { status: RunStatus }[]): "green" | "yellow" | "red" {
@@ -110,6 +111,7 @@ export default function DispatchBoard() {
       { data: payerRules },
       { data: crewCapRows },
       { data: overrideRows },
+      { data: holdTimerRows },
     ] = await Promise.all([
       supabase.from("trucks").select("*").eq("active", true).order("name"),
       supabase
@@ -125,6 +127,7 @@ export default function DispatchBoard() {
         .select("*, member1:profiles!crews_member1_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member3:profiles!crews_member3_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
         .eq("active_date", selectedDate),
       supabase.from("safety_overrides").select("leg_id").not("leg_id", "is", null),
+      supabase.from("hold_timers").select("*").eq("is_active", true),
     ]);
 
     const overriddenIds = new Set<string>(
@@ -292,14 +295,35 @@ export default function DispatchBoard() {
     });
 
     setTrucks(truckData);
-    setAlerts(
-      (alertRows ?? []).map((a) => ({
-        id: a.id,
-        message: a.message,
-        severity: a.severity as "yellow" | "red",
-        created_at: a.created_at,
-      }))
-    );
+
+    // Build alerts: standard alerts + hold timer alerts
+    const standardAlerts: AlertData[] = (alertRows ?? []).map((a) => ({
+      id: a.id,
+      message: a.message,
+      severity: a.severity as "yellow" | "red",
+      created_at: a.created_at,
+    }));
+
+    // Create synthetic alerts from active hold timers
+    const holdTimerAlerts: AlertData[] = ((holdTimerRows ?? []) as any[]).map((ht: any) => {
+      const trip = ((tripRows ?? []) as any[]).find((t: any) => t.id === ht.trip_id);
+      const truck = (truckRows ?? []).find((t: any) => t.id === trip?.truck_id);
+      const slot = ((slotRows ?? []) as any[]).find((s: any) => s.truck_id === trip?.truck_id && s.leg_id === trip?.leg_id);
+      const leg = slot?.leg as any;
+      const patient = leg?.patient;
+      const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
+      const truckName = truck?.name ?? "Unknown Truck";
+      const holdLabel = ht.hold_type === "wait_patient" ? "Patient Wait" : "Offload Wait";
+      return {
+        id: `hold-${ht.id}`,
+        message: `${holdLabel} — ${truckName} · ${patientName}`,
+        severity: (ht.current_level === "red" ? "red" : "yellow") as "yellow" | "red",
+        created_at: ht.started_at,
+        hold_timer_started_at: ht.started_at,
+      };
+    });
+
+    setAlerts([...holdTimerAlerts, ...standardAlerts]);
 
     // Extract pending cancellation trips
     const pendingTrips = ((tripRows ?? []) as any[]).filter(
