@@ -92,6 +92,7 @@ export default function ComplianceAndQA() {
       })
     );
     setPayerRules((ruleRows ?? []) as any[]);
+    setIncidents((incidentRows ?? []) as any[]);
     setLoading(false);
   }, []);
 
