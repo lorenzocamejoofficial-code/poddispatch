@@ -6,6 +6,8 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAuth } from "@/hooks/useAuth";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
+import { logAuditEvent } from "@/lib/audit-logger";
+import { downloadCSV } from "@/lib/csv-export";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
