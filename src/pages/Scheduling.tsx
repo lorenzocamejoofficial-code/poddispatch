@@ -1137,6 +1137,20 @@ export default function Scheduling() {
           </DndContext>
         )}
 
+        {/* Run Reassignment Dialog */}
+        <RunReassignmentDialog
+          open={reassignDialogOpen}
+          onOpenChange={setReassignDialogOpen}
+          leg={reassignLeg}
+          sourceTruckId={reassignSourceTruck}
+          targetTruckId={reassignTargetTruck}
+          targetTruckName={trucks.find(t => t.id === reassignTargetTruck)?.name ?? "truck"}
+          targetTruckLegs={legs.filter(l => l.assigned_truck_id === reassignTargetTruck)}
+          selectedDate={selectedDate}
+          onComplete={refresh}
+          onLogChange={logScheduleChange}
+        />
+
         {/* Create Leg Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
