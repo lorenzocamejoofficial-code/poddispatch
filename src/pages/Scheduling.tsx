@@ -250,6 +250,12 @@ export default function Scheduling() {
   // Drag state
   const [activeDragLeg, setActiveDragLeg] = useState<LegDisplay | null>(null);
 
+  // Reassignment dialog state
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
+  const [reassignLeg, setReassignLeg] = useState<LegDisplay | null>(null);
+  const [reassignSourceTruck, setReassignSourceTruck] = useState<string | null>(null);
+  const [reassignTargetTruck, setReassignTargetTruck] = useState<string>("");
+
   // Exception editing state
   const [exceptionDialogOpen, setExceptionDialogOpen] = useState(false);
   const [editingExceptionLeg, setEditingExceptionLeg] = useState<LegDisplay | null>(null);
