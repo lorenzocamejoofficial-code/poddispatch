@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { Button } from "@/components/ui/button";
 import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
 import { PageLoader } from "@/components/ui/page-loader";
 import { getLocalToday } from "@/lib/local-date";
