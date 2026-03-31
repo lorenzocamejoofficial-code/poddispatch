@@ -134,25 +134,31 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
     }
   };
 
-  const autoCalculateLoadedMiles = (sceneVal: number | null, destVal: number | null) => {
-    if (sceneVal !== null && sceneVal !== undefined && destVal !== null && destVal !== undefined && destVal > sceneVal) {
-      const miles = destVal - sceneVal;
-      setOdometerWarning(null);
-      updateField("loaded_miles", parseFloat(miles.toFixed(1)));
-    } else if (sceneVal !== null && destVal !== null && destVal <= sceneVal) {
-      setOdometerWarning("Check odometer values — destination reading is less than or equal to scene reading.");
-    }
-  };
-
   const handleOdometerBlur = async (field: string, rawValue: string) => {
     const val = rawValue !== "" && rawValue !== null && rawValue !== undefined 
       ? parseFloat(rawValue) 
       : null;
-    await updateField(field, val);
 
     const sceneVal = field === "odometer_at_scene" ? val : (trip.odometer_at_scene ?? null);
     const destVal = field === "odometer_at_destination" ? val : (trip.odometer_at_destination ?? null);
-    autoCalculateLoadedMiles(sceneVal, destVal);
+
+    // Build a single update payload to avoid debounce cancellation
+    const updates: Record<string, any> = { [field]: val };
+
+    if (sceneVal !== null && sceneVal !== undefined && destVal !== null && destVal !== undefined && destVal > sceneVal) {
+      updates.loaded_miles = parseFloat((destVal - sceneVal).toFixed(1));
+      setOdometerWarning(null);
+    } else if (sceneVal !== null && destVal !== null && destVal <= sceneVal) {
+      setOdometerWarning("Check odometer values — destination reading is less than or equal to scene reading.");
+    }
+
+    if (updateMultipleFields) {
+      await updateMultipleFields(updates);
+    } else {
+      for (const [k, v] of Object.entries(updates)) {
+        await updateField(k, v);
+      }
+    }
   };
 
   return (
