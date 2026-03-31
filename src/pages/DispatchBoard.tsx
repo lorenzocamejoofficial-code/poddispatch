@@ -448,6 +448,9 @@ export default function DispatchBoard() {
                 )}
               </h2>
             </div>
+            <Button variant="outline" size="sm" onClick={() => setIncidentOpen(true)} className="text-xs">
+              Report Incident
+            </Button>
           </div>
 
           {/* Pending Cancellations */}
