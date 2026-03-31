@@ -49,6 +49,7 @@ export default function AdminSettings() {
       discharge_buffer_minutes: parseInt(dischargeBuffer),
       session_timeout_minutes: parseInt(sessionTimeout),
       session_warning_enabled: sessionWarningEnabled,
+      retention_policy_years: parseInt(retentionYears),
     } as any).eq("id", settingsId);
     toast.success("Settings saved");
     setSaving(false);
