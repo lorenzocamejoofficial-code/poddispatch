@@ -24,6 +24,7 @@ import { LockedSectionOverlay } from "@/components/pcr/LockedSectionOverlay";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
 import { evaluatePCRFieldCompletion } from "@/lib/pcr-field-requirements";
 import { SectionCompletionBadge } from "@/components/pcr/PCRFieldIndicator";
+import { KickbackChecklist } from "@/components/pcr/KickbackChecklist";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -587,46 +588,8 @@ export default function PCRPage() {
   return (
     <CrewLayout>
       <div className="p-4 pb-24 min-h-screen">
-        {/* Kickback notice — returned for correction */}
-        {isKickedBack && (
-          <div className="mb-4 rounded-lg border-2 border-destructive bg-destructive/10 p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-destructive/20 flex items-center justify-center">
-                <AlertTriangle className="h-6 w-6 text-destructive" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-destructive">Returned for Correction</p>
-                <p className="text-xs text-destructive/80">
-                  {(trip as any).kicked_back_at ? new Date((trip as any).kicked_back_at).toLocaleString() : ""}
-                </p>
-              </div>
-            </div>
-            {(() => {
-              const reasons: string[] = Array.isArray((trip as any).kickback_reasons) ? (trip as any).kickback_reasons : [];
-              const note: string | null = (trip as any).kickback_note ?? null;
-              return (
-                <div className="mt-3 space-y-2">
-                  {reasons.length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-destructive/90 uppercase tracking-wider">Issues to correct:</p>
-                      <ul className="list-disc list-inside space-y-0.5">
-                        {reasons.map((r, i) => (
-                          <li key={i} className="text-sm text-foreground">{r}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {note && (
-                    <div className="rounded-md border border-destructive/20 bg-background p-2">
-                      <p className="text-xs font-semibold text-muted-foreground mb-0.5">Biller Note:</p>
-                      <p className="text-sm text-foreground">{note}</p>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        )}
+        {/* Kickback checklist — dynamic resolution tracking */}
+        {isKickedBack && <KickbackChecklist trip={trip} />}
 
         {/* Read-only submitted banner */}
         {isReadOnly && (
