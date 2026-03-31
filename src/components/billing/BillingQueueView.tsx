@@ -142,6 +142,8 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
   const [tripAuditLog, setTripAuditLog] = useState<any[] | null>(null);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [correctTrip, setCorrectTrip] = useState<TripForQueue | null>(null);
+  const [kickbackTripId, setKickbackTripId] = useState<string | null>(null);
+  const [kickbackPatientName, setKickbackPatientName] = useState<string | undefined>(undefined);
 
   const fetchOverrideHistory = useCallback(async () => {
     const tripIds = trips.map(t => t.id);
