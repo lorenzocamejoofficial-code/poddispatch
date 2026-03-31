@@ -432,6 +432,7 @@ export default function DispatchBoard() {
   return (
     <AdminLayout>
       <IncidentReportForm open={incidentOpen} onClose={() => setIncidentOpen(false)} />
+      {loading ? (
         <PageLoader label="Loading dispatch board…" />
       ) : (
         <div className="space-y-6">
