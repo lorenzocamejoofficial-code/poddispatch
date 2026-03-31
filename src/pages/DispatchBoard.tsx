@@ -111,6 +111,7 @@ export default function DispatchBoard() {
       { data: payerRules },
       { data: crewCapRows },
       { data: overrideRows },
+      { data: holdTimerRows },
     ] = await Promise.all([
       supabase.from("trucks").select("*").eq("active", true).order("name"),
       supabase
@@ -126,6 +127,7 @@ export default function DispatchBoard() {
         .select("*, member1:profiles!crews_member1_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member3:profiles!crews_member3_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
         .eq("active_date", selectedDate),
       supabase.from("safety_overrides").select("leg_id").not("leg_id", "is", null),
+      supabase.from("hold_timers").select("*").eq("is_active", true),
     ]);
 
     const overriddenIds = new Set<string>(
