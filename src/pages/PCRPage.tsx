@@ -25,6 +25,7 @@ import { CrewSignaturesSection, areAllCrewSigned } from "@/components/pcr/CrewSi
 import { DocumentAttachments } from "@/components/documents/DocumentAttachments";
 import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
+import { checkDuplicateTrip } from "@/lib/duplicate-trip-check";
 import { evaluatePCRFieldCompletion } from "@/lib/pcr-field-requirements";
 import { SectionCompletionBadge } from "@/components/pcr/PCRFieldIndicator";
 import { KickbackChecklist } from "@/components/pcr/KickbackChecklist";
@@ -62,6 +63,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
   const [runs, setRuns] = useState<RunForPCR[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<string | null>(null);
+  const [dupWarning, setDupWarning] = useState<{ run: RunForPCR; existingTrips: { id: string; pickup_time: string | null; status: string }[] } | null>(null);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
@@ -147,17 +149,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     return { origin_type: "Residence", destination_type: destination };
   };
 
-  const handleSelect = async (run: RunForPCR) => {
-    const isCancelled = ["cancelled", "pending_cancellation"].includes(run.tripStatus);
-    if (isCancelled) return;
-
-    if (run.tripId) {
-      if (run.legTypeRaw) sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
-      onSelect(run.tripId);
-      return;
-    }
-
-    // Create trip record
+  const createTripForRun = async (run: RunForPCR) => {
     setCreating(run.legId);
     const companyId = run.companyId;
     if (!companyId) {
@@ -184,6 +176,28 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     if (run.legTypeRaw) sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
     onSelect(newTrip.id);
     setCreating(null);
+  };
+
+  const handleSelect = async (run: RunForPCR) => {
+    const isCancelled = ["cancelled", "pending_cancellation"].includes(run.tripStatus);
+    if (isCancelled) return;
+
+    if (run.tripId) {
+      if (run.legTypeRaw) sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
+      onSelect(run.tripId);
+      return;
+    }
+
+    // Duplicate trip detection
+    if (run.patientId) {
+      const dupResult = await checkDuplicateTrip(run.patientId, today, run.pickupTime);
+      if (dupResult.isDuplicate) {
+        setDupWarning({ run, existingTrips: dupResult.existingTrips });
+        return;
+      }
+    }
+
+    await createTripForRun(run);
   };
 
   if (loading) {
@@ -263,6 +277,43 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
           </button>
         );
       })}
+
+      {/* Duplicate Trip Warning Dialog */}
+      <Dialog open={!!dupWarning} onOpenChange={o => { if (!o) setDupWarning(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Potential Duplicate Trip
+            </DialogTitle>
+            <DialogDescription>
+              A trip already exists for this patient on this date with a pickup time within 30 minutes. Are you sure you want to create another trip record?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            {dupWarning?.existingTrips.map(t => (
+              <div key={t.id} className="rounded-md border bg-muted/30 p-2 text-xs">
+                <span className="font-medium">Pickup: {t.pickup_time?.substring(0, 5) ?? "N/A"}</span>
+                <span className="ml-3 text-muted-foreground">Status: {t.status}</span>
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDupWarning(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                const run = dupWarning!.run;
+                setDupWarning(null);
+                logAuditEvent({ action: "duplicate_override", tableName: "trip_records", notes: `Crew confirmed duplicate trip for patient ${run.patientId} on ${today}` });
+                await createTripForRun(run);
+              }}
+            >
+              Create Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
