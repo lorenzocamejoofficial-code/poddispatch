@@ -527,6 +527,20 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                 <Pencil className="h-3.5 w-3.5" />
                 Correct PCR
               </Button>
+              {/* Kick Back to Crew button — only for submitted PCRs */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/5"
+                onClick={() => {
+                  setKickbackTripId(selectedTrip.id);
+                  setKickbackPatientName(selectedTrip.patient_name);
+                  setSelectedTrip(null);
+                }}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Kick Back to Crew
+              </Button>
             </div>
           )}
         </DialogContent>
