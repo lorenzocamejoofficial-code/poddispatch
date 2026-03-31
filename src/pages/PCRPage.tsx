@@ -149,17 +149,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     return { origin_type: "Residence", destination_type: destination };
   };
 
-  const handleSelect = async (run: RunForPCR) => {
-    const isCancelled = ["cancelled", "pending_cancellation"].includes(run.tripStatus);
-    if (isCancelled) return;
-
-    if (run.tripId) {
-      if (run.legTypeRaw) sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
-      onSelect(run.tripId);
-      return;
-    }
-
-    // Create trip record
+  const createTripForRun = async (run: RunForPCR) => {
     setCreating(run.legId);
     const companyId = run.companyId;
     if (!companyId) {
@@ -186,6 +176,28 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     if (run.legTypeRaw) sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
     onSelect(newTrip.id);
     setCreating(null);
+  };
+
+  const handleSelect = async (run: RunForPCR) => {
+    const isCancelled = ["cancelled", "pending_cancellation"].includes(run.tripStatus);
+    if (isCancelled) return;
+
+    if (run.tripId) {
+      if (run.legTypeRaw) sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
+      onSelect(run.tripId);
+      return;
+    }
+
+    // Duplicate trip detection
+    if (run.patientId) {
+      const dupResult = await checkDuplicateTrip(run.patientId, today, run.pickupTime);
+      if (dupResult.isDuplicate) {
+        setDupWarning({ run, existingTrips: dupResult.existingTrips });
+        return;
+      }
+    }
+
+    await createTripForRun(run);
   };
 
   if (loading) {
