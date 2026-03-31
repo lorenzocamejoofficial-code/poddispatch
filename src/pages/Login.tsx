@@ -18,7 +18,7 @@ function getRoleLanding(role: string | null, isSystemCreator: boolean): string {
   }
 }
 
-type LoginMode = "landing" | "admin" | "crew";
+type LoginMode = "landing" | "staff" | "crew";
 
 export default function Login() {
   const [searchParams] = useSearchParams();
