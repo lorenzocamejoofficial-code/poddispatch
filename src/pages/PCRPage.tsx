@@ -198,6 +198,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     in_progress: { label: "In Progress", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400" },
     completed: { label: "Completed", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400" },
     submitted: { label: "Submitted", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400" },
+    kicked_back: { label: "Returned", color: "bg-destructive/10 text-destructive border-destructive/30" },
   };
 
   return (
