@@ -4,10 +4,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Eye, Loader2, Users } from "lucide-react";
+import { FileText, Eye, Loader2, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { format, addDays, startOfDay, startOfWeek, isToday } from "date-fns";
+import { format, addDays, addWeeks, startOfDay, startOfWeek, isToday, isSameWeek } from "date-fns";
 import { useCrewPartner } from "@/hooks/useCrewPartner";
 
 interface ScheduleRun {
@@ -40,33 +40,59 @@ function mapLegType(raw: string | null): string {
   return "—";
 }
 
-function DayPicker({ selectedDate, onSelect }: { selectedDate: string; onSelect: (d: string) => void }) {
-  const today = startOfDay(new Date());
-  const weekStart = startOfWeek(today, { weekStartsOn: 0 });
+function DayPicker({
+  selectedDate,
+  onSelect,
+  weekStart,
+  onWeekChange,
+}: {
+  selectedDate: string;
+  onSelect: (d: string) => void;
+  weekStart: Date;
+  onWeekChange: (dir: -1 | 1) => void;
+}) {
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = addDays(weekStart, i);
     return { date: format(d, "yyyy-MM-dd"), dayName: format(d, "EEE"), dayNum: format(d, "d"), isToday: isToday(d) };
   });
 
+  const isCurrentWeek = isSameWeek(weekStart, new Date(), { weekStartsOn: 0 });
+  const weekLabel = `${format(weekStart, "MMM d")} – ${format(addDays(weekStart, 6), "MMM d, yyyy")}`;
+
   return (
-    <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
-      {days.map((d) => (
-        <button
-          key={d.date}
-          onClick={() => onSelect(d.date)}
-          className={cn(
-            "flex flex-col items-center min-w-[3rem] py-2 px-2 rounded-xl text-xs font-medium transition-colors shrink-0",
-            d.date === selectedDate
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : d.isToday
-                ? "bg-primary/10 text-primary"
-                : "bg-muted/50 text-muted-foreground hover:bg-muted"
-          )}
-        >
-          <span className="text-[10px] uppercase tracking-wide">{d.dayName}</span>
-          <span className="text-base font-semibold leading-tight mt-0.5">{d.dayNum}</span>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <button onClick={() => onWeekChange(-1)} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
+          <ChevronLeft className="h-5 w-5" />
         </button>
-      ))}
+        <span className={cn("text-sm font-medium", isCurrentWeek ? "text-primary" : "text-foreground")}>
+          {weekLabel}
+          {isCurrentWeek && <span className="text-[10px] ml-1.5 text-primary/70">(this week)</span>}
+        </span>
+        <button onClick={() => onWeekChange(1)} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      </div>
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+        {days.map((d) => (
+          <button
+            key={d.date}
+            onClick={() => onSelect(d.date)}
+            className={cn(
+              "flex flex-col items-center min-w-[3rem] py-2 px-2 rounded-xl text-xs font-medium transition-colors shrink-0",
+              d.date === selectedDate
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : d.isToday
+                  ? "ring-2 ring-primary/50 bg-primary/10 text-primary"
+                  : "bg-muted/50 text-muted-foreground hover:bg-muted"
+            )}
+          >
+            <span className="text-[10px] uppercase tracking-wide">{d.dayName}</span>
+            <span className="text-base font-semibold leading-tight mt-0.5">{d.dayNum}</span>
+            {d.isToday && d.date !== selectedDate && <span className="h-1 w-1 rounded-full bg-primary mt-0.5" />}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -77,7 +103,20 @@ export default function CrewSchedule() {
   const [runs, setRuns] = useState<ScheduleRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => format(startOfDay(new Date()), "yyyy-MM-dd"));
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
   const { partnerName: crewPartnerName, loading: crewPartnerLoading } = useCrewPartner(selectedDate);
+
+  const handleWeekChange = useCallback((dir: -1 | 1) => {
+    setWeekStart((prev) => {
+      const newWeek = addWeeks(prev, dir);
+      // Keep same day-of-week
+      const currentSelected = new Date(selectedDate + "T00:00:00");
+      const dayOfWeek = currentSelected.getDay();
+      const newDate = addDays(newWeek, dayOfWeek);
+      setSelectedDate(format(newDate, "yyyy-MM-dd"));
+      return newWeek;
+    });
+  }, [selectedDate]);
 
   const fetchSchedule = useCallback(async () => {
     if (!user) return;
@@ -182,7 +221,7 @@ export default function CrewSchedule() {
           </p>
         </div>
 
-        <DayPicker selectedDate={selectedDate} onSelect={setSelectedDate} />
+        <DayPicker selectedDate={selectedDate} onSelect={setSelectedDate} weekStart={weekStart} onWeekChange={handleWeekChange} />
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
