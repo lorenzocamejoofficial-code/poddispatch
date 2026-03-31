@@ -66,6 +66,11 @@ export interface PCRTripData {
   patient_mobility: string | null;
   isolation_precautions: any;
   necessity_notes: string | null;
+  // Kickback fields
+  kickback_reasons: string[];
+  kickback_note: string | null;
+  kicked_back_by: string | null;
+  kicked_back_at: string | null;
   // Leg info (joined from scheduling_legs)
   leg_type: string | null;
   chair_time: string | null;

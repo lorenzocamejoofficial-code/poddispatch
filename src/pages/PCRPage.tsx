@@ -246,7 +246,8 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
                   <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold", pcr.color)}>
                     {run.pcrStatus === "not_started" ? "Start PCR" :
                      run.pcrStatus === "in_progress" ? "Continue" :
-                     run.pcrStatus === "submitted" ? "View" : pcr.label}
+                     run.pcrStatus === "submitted" ? "View" :
+                     run.pcrStatus === "kicked_back" ? "Correct" : pcr.label}
                   </span>
                 )}
               </div>
