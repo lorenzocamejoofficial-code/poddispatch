@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
 import { PageLoader } from "@/components/ui/page-loader";
 import { getLocalToday } from "@/lib/local-date";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -426,8 +427,11 @@ export default function DispatchBoard() {
   });
   const isToday = selectedDate === getLocalToday();
 
+  const [incidentOpen, setIncidentOpen] = useState(false);
+
   return (
     <AdminLayout>
+      <IncidentReportForm open={incidentOpen} onClose={() => setIncidentOpen(false)} />
       {loading ? (
         <PageLoader label="Loading dispatch board…" />
       ) : (
@@ -444,6 +448,9 @@ export default function DispatchBoard() {
                 )}
               </h2>
             </div>
+            <Button variant="outline" size="sm" onClick={() => setIncidentOpen(true)} className="text-xs">
+              Report Incident
+            </Button>
           </div>
 
           {/* Pending Cancellations */}

@@ -6,6 +6,8 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAuth } from "@/hooks/useAuth";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
+import { logAuditEvent } from "@/lib/audit-logger";
+import { downloadCSV } from "@/lib/csv-export";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, ChevronRight, FileText, Clock, AlertTriangle, XCircle, CheckCircle, ExternalLink } from "lucide-react";
+import { Search, ChevronRight, FileText, Clock, AlertTriangle, XCircle, CheckCircle, ExternalLink, Download } from "lucide-react";
 import { toast } from "sonner";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { LocationTypeSelect } from "@/components/billing/LocationTypeSelect";
@@ -255,6 +257,7 @@ export default function TripsAndClinical() {
 
   const openTrip = (trip: TripRecord) => {
     setSelectedTrip(trip);
+    logAuditEvent({ action: "view", tableName: "trip_records", recordId: trip.id, notes: `Viewed trip for ${trip.patient_name}` });
     const autoOrigin = trip.origin_type || inferLocationType(trip.pickup_location, facilityMap) || "";
     const autoDest = trip.destination_type || inferLocationType(trip.destination_location, facilityMap) || "";
     setForm({
@@ -428,6 +431,27 @@ export default function TripsAndClinical() {
           <Button variant="outline" size="sm" onClick={() => syncSlotsToTrips(dateFilter)}>
             Sync from Dispatch
           </Button>
+          {canManageBilling && (
+            <Button variant="outline" size="sm" onClick={() => {
+              const rows = filtered.map(t => ({
+                patient_name: t.patient_name ?? "",
+                pickup_date: t.run_date,
+                pickup_time: t.scheduled_pickup_time ?? "",
+                route: `${t.pickup_location ?? ""} → ${t.destination_location ?? ""}`,
+                truck: t.truck_name ?? "",
+                trip_status: t.status,
+                pcr_type: t.pcr_type ?? "",
+                billing_status: t.claim_ready ? "Ready" : (t.billing_blocked_reason ?? "Not Ready"),
+                miles: t.loaded_miles ?? "",
+                hcpcs: (t.hcpcs_codes ?? []).join("; "),
+              }));
+              downloadCSV(rows, `trips_${dateFilter}.csv`);
+              logAuditEvent({ action: "export", tableName: "trip_records", notes: `Exported ${rows.length} trips for ${dateFilter}` });
+              toast.success(`Exported ${rows.length} records`);
+            }}>
+              <Download className="h-3.5 w-3.5 mr-1.5" />Export CSV
+            </Button>
+          )}
         </div>
 
         {/* Status summary bar */}

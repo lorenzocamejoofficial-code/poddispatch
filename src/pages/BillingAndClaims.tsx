@@ -10,7 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert } from "lucide-react";
+import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download } from "lucide-react";
+import { downloadCSV } from "@/lib/csv-export";
+import { logAuditEvent } from "@/lib/audit-logger";
+import { ClaimAdjustmentHistory } from "@/components/billing/ClaimAdjustmentHistory";
 import { toast } from "sonner";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
@@ -461,6 +464,7 @@ export default function BillingAndClaims() {
 
   const openClaim = (claim: ClaimRecord) => {
     setSelectedClaim(claim);
+    logAuditEvent({ action: "view", tableName: "claim_records", recordId: claim.id, notes: `Viewed claim for ${claim.patient_name}` });
     setEditForm({
       status: claim.status,
       amount_paid: claim.amount_paid?.toString() ?? "",
@@ -483,7 +487,29 @@ export default function BillingAndClaims() {
     if (editForm.status === "submitted") payload.submitted_at = new Date().toISOString();
     if (editForm.status === "paid") payload.paid_at = new Date().toISOString();
 
+    // Log adjustment history for each changed field
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
+    const fieldMap: Record<string, { old: any; new: any }> = {};
+    if (editForm.status !== selectedClaim.status) fieldMap.status = { old: selectedClaim.status, new: editForm.status };
+    if ((editForm.amount_paid || "") !== (selectedClaim.amount_paid?.toString() ?? "")) fieldMap.amount_paid = { old: selectedClaim.amount_paid?.toString() ?? null, new: editForm.amount_paid || null };
+    if ((editForm.denial_reason || "") !== (selectedClaim.denial_reason ?? "")) fieldMap.denial_reason = { old: selectedClaim.denial_reason, new: editForm.denial_reason || null };
+
+    const adjustments = Object.entries(fieldMap).map(([field, { old: oldVal, new: newVal }]) => ({
+      trip_id: selectedClaim.trip_id,
+      company_id: companyId,
+      changed_by: user?.id,
+      field_changed: field,
+      old_value: oldVal ? String(oldVal) : null,
+      new_value: newVal ? String(newVal) : null,
+      reason: editForm.notes || null,
+    }));
+    if (adjustments.length > 0) {
+      await supabase.from("claim_adjustments" as any).insert(adjustments);
+    }
+
     await supabase.from("claim_records" as any).update(payload).eq("id", selectedClaim.id);
+    logAuditEvent({ action: "edit", tableName: "claim_records", recordId: selectedClaim.id, notes: `Updated claim: ${Object.keys(fieldMap).join(", ")}` });
     toast.success("Claim updated");
     setSelectedClaim(null);
     fetchData();
@@ -552,6 +578,25 @@ export default function BillingAndClaims() {
             </Button>
             <Button size="sm" variant="outline" onClick={refreshExistingClaims}>
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Refresh Existing Claims
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => {
+              const rows = claims.map(c => ({
+                patient_name: c.patient_name ?? "",
+                run_date: c.run_date,
+                payer: c.payer_type,
+                status: c.status,
+                base_charge: c.base_charge,
+                mileage_charge: c.mileage_charge,
+                total_charge: c.total_charge,
+                amount_paid: c.amount_paid ?? "",
+                hcpcs: (c.hcpcs_codes ?? []).join("; "),
+                denial_reason: c.denial_reason ?? "",
+              }));
+              downloadCSV(rows, `claims_export_${dateFilter}.csv`);
+              logAuditEvent({ action: "export", tableName: "claim_records", notes: `Exported ${rows.length} claims` });
+              toast.success(`Exported ${rows.length} claims`);
+            }}>
+              <Download className="h-3.5 w-3.5 mr-1.5" />Export CSV
             </Button>
           </div>
         </div>
@@ -827,6 +872,7 @@ export default function BillingAndClaims() {
               <Label>Notes</Label>
               <Textarea rows={2} value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} />
             </div>
+            {selectedClaim && <ClaimAdjustmentHistory tripId={selectedClaim.trip_id} />}
             <Button className="w-full" onClick={saveClaim} disabled={savingClaim}>
               {savingClaim ? "Saving…" : "Save Claim"}
             </Button>
