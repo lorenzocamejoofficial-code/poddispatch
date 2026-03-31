@@ -221,7 +221,7 @@ export default function CrewSchedule() {
           </p>
         </div>
 
-        <DayPicker selectedDate={selectedDate} onSelect={setSelectedDate} />
+        <DayPicker selectedDate={selectedDate} onSelect={setSelectedDate} weekStart={weekStart} onWeekChange={handleWeekChange} />
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
