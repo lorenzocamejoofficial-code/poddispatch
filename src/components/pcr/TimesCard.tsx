@@ -133,6 +133,41 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
       const now = new Date().toISOString();
       await updateField(mirrorField, now);
     }
+
+    // Auto-stop hold timers when relevant times are tapped
+    // Patient Wait stops on patient_contact_time or left_scene_time
+    // Offload Wait stops on arrived_dropoff_at or in_service_time
+    const HOLD_STOP_MAP: Record<string, string[]> = {
+      patient_contact_time: ["wait_patient"],
+      left_scene_time: ["wait_patient"],
+      arrived_dropoff_at: ["wait_offload"],
+      in_service_time: ["wait_offload"],
+    };
+    const holdTypesToStop = HOLD_STOP_MAP[field];
+    if (holdTypesToStop && trip.id) {
+      try {
+        const { data: timers } = await supabase
+          .from("hold_timers")
+          .select("id")
+          .eq("trip_id", trip.id)
+          .eq("is_active", true)
+          .in("hold_type", holdTypesToStop);
+        if (timers && timers.length > 0) {
+          await supabase
+            .from("hold_timers")
+            .update({ is_active: false, resolved_at: new Date().toISOString() } as any)
+            .in("id", timers.map(t => t.id));
+          // Also auto-dismiss related alerts
+          await supabase
+            .from("alerts")
+            .update({ dismissed: true } as any)
+            .eq("dismissed", false)
+            .ilike("message", `%hold timer%${trip.id}%`);
+        }
+      } catch (e) {
+        console.error("Failed to stop hold timer:", e);
+      }
+    }
   };
 
   const handleOdometerBlur = async (field: string, rawValue: string) => {
