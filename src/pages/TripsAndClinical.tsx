@@ -115,7 +115,7 @@ const STATUS_COLORS: Record<TripStatus, string> = {
 };
 
 export default function TripsAndClinical() {
-  const { canManageBilling } = useAuth();
+  const { canManageBilling, user } = useAuth();
   const { simulationRunId, refreshToken } = useSimulationSession();
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [loading, setLoading] = useState(true);
