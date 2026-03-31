@@ -2350,6 +2350,10 @@ export type Database = {
           is_simulated: boolean
           isolation_precautions: Json | null
           iv_access_json: Json | null
+          kickback_note: string | null
+          kickback_reasons: Json | null
+          kicked_back_at: string | null
+          kicked_back_by: string | null
           left_scene_time: string | null
           leg_id: string | null
           level_of_consciousness: string | null
@@ -2458,6 +2462,10 @@ export type Database = {
           is_simulated?: boolean
           isolation_precautions?: Json | null
           iv_access_json?: Json | null
+          kickback_note?: string | null
+          kickback_reasons?: Json | null
+          kicked_back_at?: string | null
+          kicked_back_by?: string | null
           left_scene_time?: string | null
           leg_id?: string | null
           level_of_consciousness?: string | null
@@ -2566,6 +2574,10 @@ export type Database = {
           is_simulated?: boolean
           isolation_precautions?: Json | null
           iv_access_json?: Json | null
+          kickback_note?: string | null
+          kickback_reasons?: Json | null
+          kicked_back_at?: string | null
+          kicked_back_by?: string | null
           left_scene_time?: string | null
           leg_id?: string | null
           level_of_consciousness?: string | null
