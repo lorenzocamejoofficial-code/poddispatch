@@ -193,6 +193,35 @@ export default function AdminSettings() {
           )}
         </section>
 
+        {/* Data Retention Policy */}
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Data Retention Policy</h3>
+            <p className="text-sm text-muted-foreground">Medicare requires 7-year minimum retention for transport records.</p>
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-foreground">Retention Period</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Trip records, PCR data, and billing documents are retained for {retentionYears} year{retentionYears !== "1" ? "s" : ""}.
+                </p>
+              </div>
+              <Select value={retentionYears} onValueChange={setRetentionYears}>
+                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">7 years</SelectItem>
+                  <SelectItem value="10">10 years</SelectItem>
+                  <SelectItem value="15">15 years</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2 border-t pt-2">
+              ℹ️ No records are automatically deleted. This setting documents your company's retention commitment for audit compliance.
+            </p>
+          </div>
+        </section>
+
         {/* Limits info */}
         <section className="space-y-3">
           <div>
