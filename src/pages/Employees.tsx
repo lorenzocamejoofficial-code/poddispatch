@@ -71,7 +71,7 @@ export default function Employees() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
-    full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew" | "biller",
+    full_name: "", email: "", password: "", role: "crew" as "owner" | "dispatcher" | "crew" | "biller",
     sex: "M" as "M" | "F", cert_level: "EMT-B", phone_number: "",
     employment_type: "full_time" as "full_time" | "part_time" | "prn",
     stair_chair_trained: false, bariatric_trained: false,
@@ -209,7 +209,7 @@ export default function Employees() {
     } else {
       toast.success(`${form.full_name} created successfully`);
       setDialogOpen(false);
-      setForm({ full_name: "", email: "", password: "", role: "crew" as "admin" | "dispatcher" | "crew" | "biller", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time" as "full_time" | "part_time" | "prn", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
+      setForm({ full_name: "", email: "", password: "", role: "crew" as "owner" | "dispatcher" | "crew" | "biller", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time" as "full_time" | "part_time" | "prn", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
       fetchEmployees();
     }
     setCreating(false);
@@ -437,7 +437,7 @@ export default function Employees() {
                       <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as any })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="owner">Owner</SelectItem>
                           <SelectItem value="dispatcher">Dispatcher</SelectItem>
                           <SelectItem value="biller">Billing</SelectItem>
                           <SelectItem value="crew">Crew</SelectItem>
@@ -548,15 +548,13 @@ export default function Employees() {
                       <td className="px-4 py-3 text-muted-foreground">{e.phone_number || "—"}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          e.role === "Owner"
-                            ? "bg-primary/10 text-primary"
-                            : e.role === "admin" || e.role === "owner"
+                          e.role === "Owner" || e.role === "owner"
                             ? "bg-primary/10 text-primary"
                             : e.role === "dispatcher"
                             ? "bg-secondary text-secondary-foreground"
                             : "bg-accent text-accent-foreground"
                         }`}>
-                          {e.role === "Owner" ? "Owner" : e.role === "owner" ? "Owner" : e.role === "admin" ? "Admin" : e.role === "dispatcher" ? "Dispatcher" : e.role === "biller" ? "Billing" : "Crew"}
+                          {e.role === "Owner" || e.role === "owner" ? "Owner" : e.role === "dispatcher" ? "Dispatcher" : e.role === "biller" ? "Billing" : "Crew"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{e.cert_level}</td>

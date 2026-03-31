@@ -18,7 +18,7 @@ function getRoleLanding(role: string | null, isSystemCreator: boolean): string {
   }
 }
 
-type LoginMode = "landing" | "admin" | "crew";
+type LoginMode = "landing" | "staff" | "crew";
 
 export default function Login() {
   const [searchParams] = useSearchParams();
@@ -114,7 +114,7 @@ export default function Login() {
             </button>
 
             <button
-              onClick={() => setMode("admin")}
+              onClick={() => setMode("staff")}
               className="group w-full rounded-xl border-2 border-border bg-card p-5 text-left transition-all hover:border-primary/40 hover:shadow-md"
             >
               <div className="flex items-center gap-4">

@@ -12,7 +12,7 @@ interface ActiveEmployee {
   phone_number: string | null;
   truck_id: string | null;
   truck_name: string | null;
-  role: "admin" | "crew" | null;
+  role: "owner" | "crew" | null;
 }
 
 interface CrewInviteSectionProps {
