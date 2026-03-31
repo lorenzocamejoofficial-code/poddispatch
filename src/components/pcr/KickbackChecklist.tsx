@@ -38,7 +38,7 @@ function isReasonResolved(reason: string, trip: PCRTripData): boolean | null {
     }
 
     case "Incorrect transport information":
-      return !!(trip.pickup_location && trip.destination_location && trip.origin_type && trip.destination_type);
+      return !!(trip.pickup_location && trip.destination_location);
 
     default:
       // "Other" or any unknown reason → manual checkbox
