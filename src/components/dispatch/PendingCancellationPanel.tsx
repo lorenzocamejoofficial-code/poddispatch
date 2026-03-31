@@ -44,6 +44,7 @@ export function PendingCancellationPanel({ cancellations, onResolved }: PendingC
         cancellation_verified_at: new Date().toISOString(),
         cancellation_dispatcher_note: note,
         cancellation_disputed: false,
+        updated_by: profileId,
       } as any).eq("id", c.tripId);
 
       // Update truck_run_slots status

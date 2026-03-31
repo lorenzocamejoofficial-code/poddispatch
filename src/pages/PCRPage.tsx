@@ -609,6 +609,7 @@ export default function PCRPage() {
         kicked_back_by: null,
         kicked_back_at: null,
         updated_at: new Date().toISOString(),
+        updated_by: profileId,
       } as any).eq("id", trip.id);
 
       // Auto-create QA review

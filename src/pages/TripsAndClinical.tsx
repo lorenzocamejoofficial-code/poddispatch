@@ -321,7 +321,7 @@ export default function TripsAndClinical() {
   };
 
   const markSpecialStatus = async (trip: TripRecord, status: "no_show" | "patient_not_ready" | "facility_delay" | "cancelled") => {
-    await supabase.from("trip_records" as any).update({ status }).eq("id", trip.id);
+    await supabase.from("trip_records" as any).update({ status, updated_by: user?.id ?? null }).eq("id", trip.id);
     toast.success(`Status → ${STATUS_LABELS[status]}`);
     fetchTrips();
   };

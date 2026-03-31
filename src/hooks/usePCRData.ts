@@ -218,11 +218,15 @@ export function usePCRData(tripId: string | null) {
   const recordTime = useCallback(async (timeField: string, statusUpdate?: string) => {
     if (!tripId) return;
     const now = new Date().toISOString();
+    const { data: { user } } = await supabase.auth.getUser();
     const updates: Record<string, any> = {
       [timeField]: now,
       updated_at: now,
     };
-    if (statusUpdate) updates.status = statusUpdate;
+    if (statusUpdate) {
+      updates.status = statusUpdate;
+      updates.updated_by = user?.id ?? null;
+    }
     if (trip?.pcr_status === "not_started") updates.pcr_status = "in_progress";
 
     setTrip(prev => prev ? { ...prev, [timeField]: now, ...(statusUpdate ? { status: statusUpdate } : {}), pcr_status: prev.pcr_status === "not_started" ? "in_progress" : prev.pcr_status } : prev);
