@@ -487,7 +487,29 @@ export default function BillingAndClaims() {
     if (editForm.status === "submitted") payload.submitted_at = new Date().toISOString();
     if (editForm.status === "paid") payload.paid_at = new Date().toISOString();
 
+    // Log adjustment history for each changed field
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
+    const fieldMap: Record<string, { old: any; new: any }> = {};
+    if (editForm.status !== selectedClaim.status) fieldMap.status = { old: selectedClaim.status, new: editForm.status };
+    if ((editForm.amount_paid || "") !== (selectedClaim.amount_paid?.toString() ?? "")) fieldMap.amount_paid = { old: selectedClaim.amount_paid?.toString() ?? null, new: editForm.amount_paid || null };
+    if ((editForm.denial_reason || "") !== (selectedClaim.denial_reason ?? "")) fieldMap.denial_reason = { old: selectedClaim.denial_reason, new: editForm.denial_reason || null };
+
+    const adjustments = Object.entries(fieldMap).map(([field, { old: oldVal, new: newVal }]) => ({
+      trip_id: selectedClaim.trip_id,
+      company_id: companyId,
+      changed_by: user?.id,
+      field_changed: field,
+      old_value: oldVal ? String(oldVal) : null,
+      new_value: newVal ? String(newVal) : null,
+      reason: editForm.notes || null,
+    }));
+    if (adjustments.length > 0) {
+      await supabase.from("claim_adjustments" as any).insert(adjustments);
+    }
+
     await supabase.from("claim_records" as any).update(payload).eq("id", selectedClaim.id);
+    logAuditEvent({ action: "edit", tableName: "claim_records", recordId: selectedClaim.id, notes: `Updated claim: ${Object.keys(fieldMap).join(", ")}` });
     toast.success("Claim updated");
     setSelectedClaim(null);
     fetchData();

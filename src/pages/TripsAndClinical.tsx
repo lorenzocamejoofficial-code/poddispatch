@@ -431,6 +431,27 @@ export default function TripsAndClinical() {
           <Button variant="outline" size="sm" onClick={() => syncSlotsToTrips(dateFilter)}>
             Sync from Dispatch
           </Button>
+          {canManageBilling && (
+            <Button variant="outline" size="sm" onClick={() => {
+              const rows = filtered.map(t => ({
+                patient_name: t.patient_name ?? "",
+                pickup_date: t.run_date,
+                pickup_time: t.scheduled_pickup_time ?? "",
+                route: `${t.pickup_location ?? ""} → ${t.destination_location ?? ""}`,
+                truck: t.truck_name ?? "",
+                trip_status: t.status,
+                pcr_type: t.pcr_type ?? "",
+                billing_status: t.claim_ready ? "Ready" : (t.billing_blocked_reason ?? "Not Ready"),
+                miles: t.loaded_miles ?? "",
+                hcpcs: (t.hcpcs_codes ?? []).join("; "),
+              }));
+              downloadCSV(rows, `trips_${dateFilter}.csv`);
+              logAuditEvent({ action: "export", tableName: "trip_records", notes: `Exported ${rows.length} trips for ${dateFilter}` });
+              toast.success(`Exported ${rows.length} records`);
+            }}>
+              <Download className="h-3.5 w-3.5 mr-1.5" />Export CSV
+            </Button>
+          )}
         </div>
 
         {/* Status summary bar */}
