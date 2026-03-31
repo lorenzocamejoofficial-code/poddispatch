@@ -2542,6 +2542,7 @@ export type Database = {
           trip_type: Database["public"]["Enums"]["trip_type"] | null
           truck_id: string | null
           updated_at: string
+          updated_by: string | null
           vehicle_id: string | null
           vitals_json: Json | null
           vitals_taken_at: string | null
@@ -2654,6 +2655,7 @@ export type Database = {
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
           updated_at?: string
+          updated_by?: string | null
           vehicle_id?: string | null
           vitals_json?: Json | null
           vitals_taken_at?: string | null
@@ -2766,6 +2768,7 @@ export type Database = {
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
           updated_at?: string
+          updated_by?: string | null
           vehicle_id?: string | null
           vitals_json?: Json | null
           vitals_taken_at?: string | null
@@ -2829,6 +2832,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      trip_status_history: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          company_id: string | null
+          id: string
+          new_status: string
+          notes: string | null
+          old_status: string | null
+          trip_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          company_id?: string | null
+          id?: string
+          new_status: string
+          notes?: string | null
+          old_status?: string | null
+          trip_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          company_id?: string | null
+          id?: string
+          new_status?: string
+          notes?: string | null
+          old_status?: string | null
+          trip_id?: string
+        }
+        Relationships: []
       }
       truck_availability: {
         Row: {
