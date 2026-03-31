@@ -521,15 +521,20 @@ export default function PCRPage() {
         status: "ready_for_billing",
         claim_ready: true,
         documentation_complete: true,
+        // Clear kickback fields on resubmit
+        kickback_reasons: [],
+        kickback_note: null,
+        kicked_back_by: null,
+        kicked_back_at: null,
         updated_at: new Date().toISOString(),
-      }).eq("id", trip.id);
+      } as any).eq("id", trip.id);
 
       // Auto-create QA review
       if (trip.company_id) {
         await supabase.from("qa_reviews").insert({
           company_id: trip.company_id,
           trip_id: trip.id,
-          flag_reason: "PCR auto-submitted — pending QA review",
+          flag_reason: isKickedBack ? "PCR resubmitted after kickback — pending QA review" : "PCR auto-submitted — pending QA review",
           status: "pending",
         });
       }
