@@ -51,7 +51,10 @@ interface KickbackChecklistProps {
 }
 
 export function KickbackChecklist({ trip }: KickbackChecklistProps) {
-  const reasons: string[] = Array.isArray(trip.kickback_reasons) ? trip.kickback_reasons : [];
+  const reasons: string[] = useMemo(
+    () => Array.isArray(trip.kickback_reasons) ? trip.kickback_reasons : [],
+    [trip.kickback_reasons]
+  );
   const note: string | null = trip.kickback_note ?? null;
 
   // Manual overrides for items that can't be auto-detected
