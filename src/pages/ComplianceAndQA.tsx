@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShieldCheck, AlertTriangle, CheckCircle, RotateCcw, Settings2 } from "lucide-react";
+import { ShieldCheck, AlertTriangle, CheckCircle, RotateCcw, Settings2, FileWarning } from "lucide-react";
 import { toast } from "sonner";
 
 interface QAReview {
@@ -38,11 +38,22 @@ interface PayerRule {
   requires_auth: boolean;
 }
 
+interface IncidentReport {
+  id: string;
+  incident_date: string;
+  incident_type: string;
+  description: string | null;
+  crew_names: string | null;
+  emergency_services_contacted: boolean;
+  created_at: string;
+}
+
 const PAYER_TYPES = ["medicare", "medicaid", "facility", "cash", "default"];
 
 export default function ComplianceAndQA() {
   const [qaItems, setQaItems] = useState<QAReview[]>([]);
   const [payerRules, setPayerRules] = useState<PayerRule[]>([]);
+  const [incidents, setIncidents] = useState<IncidentReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedQA, setSelectedQA] = useState<QAReview | null>(null);
   const [qaNotes, setQaNotes] = useState("");
@@ -54,9 +65,10 @@ export default function ComplianceAndQA() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [{ data: qaRows }, { data: ruleRows }] = await Promise.all([
+    const [{ data: qaRows }, { data: ruleRows }, { data: incidentRows }] = await Promise.all([
       supabase.from("qa_reviews" as any).select("*").order("created_at", { ascending: false }),
       supabase.from("payer_billing_rules" as any).select("*").order("payer_type"),
+      supabase.from("incident_reports").select("*").order("incident_date", { ascending: false }),
     ]);
 
     // Enrich QA with trip/patient data
@@ -80,6 +92,7 @@ export default function ComplianceAndQA() {
       })
     );
     setPayerRules((ruleRows ?? []) as any[]);
+    setIncidents((incidentRows ?? []) as any[]);
     setLoading(false);
   }, []);
 
@@ -168,6 +181,7 @@ export default function ComplianceAndQA() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <TabsList>
             <TabsTrigger value="qa">QA Queue {pending.length > 0 && <span className="ml-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] px-1.5 py-0.5">{pending.length}</span>}</TabsTrigger>
+            <TabsTrigger value="incidents"><FileWarning className="h-3.5 w-3.5 mr-1.5" />Incidents {incidents.length > 0 && <span className="ml-1.5 text-[10px]">({incidents.length})</span>}</TabsTrigger>
             <TabsTrigger value="payer-rules"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Payer Rules</TabsTrigger>
           </TabsList>
           <Button size="sm" variant="outline" onClick={runAutoFlag}>
@@ -273,6 +287,37 @@ export default function ComplianceAndQA() {
               </tbody>
             </table>
           </div>
+        </TabsContent>
+
+        {/* Incidents Tab */}
+        <TabsContent value="incidents" className="m-0 space-y-4">
+          {loading ? (
+            <PageLoader label="Loading incidents…" />
+          ) : incidents.length === 0 ? (
+            <EmptyState
+              icon={FileWarning}
+              title="No incident reports"
+              description="Incident reports submitted by crew or dispatchers will appear here."
+            />
+          ) : (
+            <div className="space-y-2">
+              {incidents.map(inc => (
+                <div key={inc.id} className="rounded-lg border bg-card p-4 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground">{inc.incident_type}</span>
+                    <span className="text-xs text-muted-foreground">{new Date(inc.incident_date).toLocaleString()}</span>
+                  </div>
+                  {inc.description && <p className="text-xs text-muted-foreground">{inc.description}</p>}
+                  <div className="flex gap-3 text-[10px] text-muted-foreground">
+                    {inc.crew_names && <span>Crew: {inc.crew_names}</span>}
+                    {inc.emergency_services_contacted && (
+                      <span className="text-destructive font-bold">Emergency Services Contacted</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 

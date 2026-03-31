@@ -21,10 +21,14 @@ import { BillingCard } from "@/components/pcr/BillingCard";
 import { StretcherMobilityCard } from "@/components/pcr/StretcherMobilityCard";
 import { IsolationPrecautionsCard } from "@/components/pcr/IsolationPrecautionsCard";
 import { LockedSectionOverlay } from "@/components/pcr/LockedSectionOverlay";
+import { CrewSignaturesSection, areAllCrewSigned } from "@/components/pcr/CrewSignaturesSection";
+import { DocumentAttachments } from "@/components/documents/DocumentAttachments";
+import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
 import { evaluatePCRFieldCompletion } from "@/lib/pcr-field-requirements";
 import { SectionCompletionBadge } from "@/components/pcr/PCRFieldIndicator";
 import { KickbackChecklist } from "@/components/pcr/KickbackChecklist";
+import { logAuditEvent } from "@/lib/audit-logger";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -280,17 +284,19 @@ export default function PCRPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
+  const [incidentOpen, setIncidentOpen] = useState(false);
+  const [assignedCrewCount, setAssignedCrewCount] = useState(0);
 
   // Central section rules driven by pcr_type
   const sectionRules = usePCRSectionRules(trip?.pcr_type || trip?.trip_type);
 
-  // Fetch crew info for medic selection
+  // Fetch crew info for medic selection + count assigned crew
   useEffect(() => {
     if (!trip?.crew_id) return;
     (async () => {
       const { data: crew } = await supabase
         .from("crews")
-        .select("truck_id, member1_id, member2_id, truck:trucks!crews_truck_id_fkey(name), member1:profiles!crews_member1_id_fkey(id, full_name, cert_level), member2:profiles!crews_member2_id_fkey(id, full_name, cert_level)")
+        .select("truck_id, member1_id, member2_id, member3_id, truck:trucks!crews_truck_id_fkey(name), member1:profiles!crews_member1_id_fkey(id, full_name, cert_level), member2:profiles!crews_member2_id_fkey(id, full_name, cert_level), member3:profiles!crews_member3_id_fkey(id, full_name, cert_level)")
         .eq("id", trip.crew_id)
         .maybeSingle();
       if (crew) {
@@ -301,9 +307,25 @@ export default function PCRPage() {
           m1: m1 ? { id: m1.id, name: m1.full_name, cert: m1.cert_level } : null,
           m2: m2 ? { id: m2.id, name: m2.full_name, cert: m2.cert_level } : null,
         });
+        let count = 0;
+        if (crew.member1_id) count++;
+        if (crew.member2_id) count++;
+        if ((crew as any).member3_id) count++;
+        setAssignedCrewCount(count);
       }
     })();
   }, [trip?.crew_id]);
+
+  // Audit log: record PCR view
+  useEffect(() => {
+    if (!trip?.id || !profileId) return;
+    logAuditEvent({
+      action: "view",
+      tableName: "trip_records",
+      recordId: trip.id,
+      notes: "PCR viewed",
+    });
+  }, [trip?.id, profileId]);
 
   // If no tripId, show run selector
   if (!tripId) {
@@ -505,6 +527,13 @@ export default function PCRPage() {
         missing.push(card.label);
       }
     }
+    // Odometer fields required on all PCR types
+    if (!trip.odometer_at_scene) missing.push("Odometer at Scene");
+    if (!trip.odometer_at_destination) missing.push("Odometer at Destination");
+    // Crew signatures required
+    if (assignedCrewCount > 0 && !areAllCrewSigned(trip.signatures_json || [], assignedCrewCount)) {
+      missing.push("Crew Signatures");
+    }
     return missing;
   };
 
@@ -700,6 +729,63 @@ export default function PCRPage() {
           })}
         </div>
 
+        {/* Odometer validation indicator */}
+        {!isReadOnly && (
+          <div className={cn("mt-3 rounded-lg border-2 p-3", 
+            trip.odometer_at_scene && trip.odometer_at_destination && Number(trip.odometer_at_destination) > Number(trip.odometer_at_scene)
+              ? "border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/10"
+              : "border-destructive bg-destructive/5"
+          )}>
+            <p className="text-xs font-bold text-foreground mb-1">Odometer Readings (Required)</p>
+            <div className="flex gap-4 text-xs">
+              <span className={trip.odometer_at_scene ? "text-emerald-600 dark:text-emerald-400" : "text-destructive font-bold"}>
+                At Scene: {trip.odometer_at_scene ?? "Missing"}
+              </span>
+              <span className={trip.odometer_at_destination ? "text-emerald-600 dark:text-emerald-400" : "text-destructive font-bold"}>
+                At Destination: {trip.odometer_at_destination ?? "Missing"}
+              </span>
+            </div>
+            {trip.odometer_at_scene != null && trip.odometer_at_destination != null && (
+              Number(trip.odometer_at_destination) > Number(trip.odometer_at_scene) ? (
+                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-1">
+                  ✓ Loaded Miles: {(Number(trip.odometer_at_destination) - Number(trip.odometer_at_scene)).toFixed(1)}
+                </p>
+              ) : (
+                <p className="text-xs font-bold text-destructive mt-1">
+                  ⚠ Destination reading must be greater than scene reading
+                </p>
+              )
+            )}
+          </div>
+        )}
+
+        {/* Crew Signatures Section */}
+        {!isReadOnly && (
+          <div className="mt-3">
+            <CrewSignaturesSection trip={trip} updateField={updateField} />
+          </div>
+        )}
+
+        {/* Document Attachments */}
+        <div className="mt-3">
+          <DocumentAttachments
+            recordType="pcr"
+            recordId={trip.id}
+            companyId={trip.company_id}
+            allowUpload={!isReadOnly}
+          />
+        </div>
+
+        {/* Incident Report */}
+        {!isReadOnly && (
+          <div className="mt-3">
+            <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setIncidentOpen(true)}>
+              <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+              Report Incident
+            </Button>
+          </div>
+        )}
+
         {/* Submit — only when not read-only */}
         {!isReadOnly && (
           <div className="mt-6">
@@ -746,6 +832,14 @@ export default function PCRPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Incident Report Dialog */}
+        <IncidentReportForm
+          open={incidentOpen}
+          onClose={() => setIncidentOpen(false)}
+          defaultTruckId={trip.truck_id}
+          defaultPatientName={trip.patient ? `${trip.patient.first_name} ${trip.patient.last_name}` : undefined}
+        />
       </div>
     </CrewLayout>
   );
