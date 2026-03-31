@@ -850,7 +850,16 @@ export default function Scheduling() {
 
     const truckName = trucks.find(t => t.id === targetTruckId)?.name ?? "truck";
 
-    // Optimistic assign
+    // If moving from one truck to another, open the reassignment dialog
+    if (currentTruckId) {
+      setReassignLeg(activeLeg);
+      setReassignSourceTruck(currentTruckId);
+      setReassignTargetTruck(targetTruckId);
+      setReassignDialogOpen(true);
+      return;
+    }
+
+    // Assign from pool (no dialog needed)
     optimisticUpdateLegs(prev =>
       prev.map(l => l.id === activeId
         ? { ...l, assigned_truck_id: targetTruckId, slot_order: targetLegs.length }
@@ -858,36 +867,23 @@ export default function Scheduling() {
       )
     );
 
-    if (currentTruckId) {
-      toast.success(`Run moved to ${truckName}`);
-      const { error } = await supabase
-        .from("truck_run_slots")
-        .update({ truck_id: targetTruckId, slot_order: targetLegs.length } as any)
-        .eq("leg_id", activeId)
-        .eq("run_date", selectedDate);
-      if (error) {
-        toast.error("Assignment failed — reverting");
-        refresh();
+    toast.success(`Run assigned to ${truckName}`);
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
+    const { error } = await supabase.from("truck_run_slots").insert({
+      truck_id: targetTruckId,
+      leg_id: activeId,
+      run_date: selectedDate,
+      slot_order: targetLegs.length,
+      company_id: companyId,
+    } as any);
+    if (error) {
+      if (error.code === "23505") {
+        toast.error("This leg is already assigned to a truck");
+      } else {
+        console.error("Assignment error:", error);
+        toast.error(`Assignment failed: ${error.message}`);
       }
-    } else {
-      toast.success(`Run assigned to ${truckName}`);
-      const { data: companyId } = await supabase.rpc("get_my_company_id");
-      const { error } = await supabase.from("truck_run_slots").insert({
-        truck_id: targetTruckId,
-        leg_id: activeId,
-        run_date: selectedDate,
-        slot_order: targetLegs.length,
-        company_id: companyId,
-      } as any);
-      if (error) {
-        if (error.code === "23505") {
-          toast.error("This leg is already assigned to a truck");
-        } else {
-          console.error("Assignment error:", error);
-          toast.error(`Assignment failed: ${error.message}`);
-        }
-        refresh();
-      }
+      refresh();
     }
   };
 
