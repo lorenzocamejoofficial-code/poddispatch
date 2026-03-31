@@ -19,6 +19,7 @@ export default function AdminSettings() {
   const [dischargeBuffer, setDischargeBuffer] = useState("20");
   const [sessionTimeout, setSessionTimeout] = useState("30");
   const [sessionWarningEnabled, setSessionWarningEnabled] = useState(true);
+  const [retentionYears, setRetentionYears] = useState("7");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
