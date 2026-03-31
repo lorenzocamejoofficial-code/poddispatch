@@ -290,13 +290,13 @@ export default function PCRPage() {
   // Central section rules driven by pcr_type
   const sectionRules = usePCRSectionRules(trip?.pcr_type || trip?.trip_type);
 
-  // Fetch crew info for medic selection
+  // Fetch crew info for medic selection + count assigned crew
   useEffect(() => {
     if (!trip?.crew_id) return;
     (async () => {
       const { data: crew } = await supabase
         .from("crews")
-        .select("truck_id, member1_id, member2_id, truck:trucks!crews_truck_id_fkey(name), member1:profiles!crews_member1_id_fkey(id, full_name, cert_level), member2:profiles!crews_member2_id_fkey(id, full_name, cert_level)")
+        .select("truck_id, member1_id, member2_id, member3_id, truck:trucks!crews_truck_id_fkey(name), member1:profiles!crews_member1_id_fkey(id, full_name, cert_level), member2:profiles!crews_member2_id_fkey(id, full_name, cert_level), member3:profiles!crews_member3_id_fkey(id, full_name, cert_level)")
         .eq("id", trip.crew_id)
         .maybeSingle();
       if (crew) {
@@ -307,9 +307,25 @@ export default function PCRPage() {
           m1: m1 ? { id: m1.id, name: m1.full_name, cert: m1.cert_level } : null,
           m2: m2 ? { id: m2.id, name: m2.full_name, cert: m2.cert_level } : null,
         });
+        let count = 0;
+        if (crew.member1_id) count++;
+        if (crew.member2_id) count++;
+        if ((crew as any).member3_id) count++;
+        setAssignedCrewCount(count);
       }
     })();
   }, [trip?.crew_id]);
+
+  // Audit log: record PCR view
+  useEffect(() => {
+    if (!trip?.id || !profileId) return;
+    logAuditEvent({
+      action: "view",
+      tableName: "trip_records",
+      recordId: trip.id,
+      notes: "PCR viewed",
+    });
+  }, [trip?.id, profileId]);
 
   // If no tripId, show run selector
   if (!tripId) {
