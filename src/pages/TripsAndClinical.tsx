@@ -257,6 +257,7 @@ export default function TripsAndClinical() {
 
   const openTrip = (trip: TripRecord) => {
     setSelectedTrip(trip);
+    logAuditEvent({ action: "view", tableName: "trip_records", recordId: trip.id, notes: `Viewed trip for ${trip.patient_name}` });
     const autoOrigin = trip.origin_type || inferLocationType(trip.pickup_location, facilityMap) || "";
     const autoDest = trip.destination_type || inferLocationType(trip.destination_location, facilityMap) || "";
     setForm({
