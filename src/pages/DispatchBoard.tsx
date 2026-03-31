@@ -61,6 +61,7 @@ interface AlertData {
   message: string;
   severity: "yellow" | "red";
   created_at: string;
+  hold_timer_started_at?: string | null;
 }
 
 function computeOverallStatus(runs: { status: RunStatus }[]): "green" | "yellow" | "red" {
