@@ -40,33 +40,59 @@ function mapLegType(raw: string | null): string {
   return "—";
 }
 
-function DayPicker({ selectedDate, onSelect }: { selectedDate: string; onSelect: (d: string) => void }) {
-  const today = startOfDay(new Date());
-  const weekStart = startOfWeek(today, { weekStartsOn: 0 });
+function DayPicker({
+  selectedDate,
+  onSelect,
+  weekStart,
+  onWeekChange,
+}: {
+  selectedDate: string;
+  onSelect: (d: string) => void;
+  weekStart: Date;
+  onWeekChange: (dir: -1 | 1) => void;
+}) {
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = addDays(weekStart, i);
     return { date: format(d, "yyyy-MM-dd"), dayName: format(d, "EEE"), dayNum: format(d, "d"), isToday: isToday(d) };
   });
 
+  const isCurrentWeek = isSameWeek(weekStart, new Date(), { weekStartsOn: 0 });
+  const weekLabel = `${format(weekStart, "MMM d")} – ${format(addDays(weekStart, 6), "MMM d, yyyy")}`;
+
   return (
-    <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
-      {days.map((d) => (
-        <button
-          key={d.date}
-          onClick={() => onSelect(d.date)}
-          className={cn(
-            "flex flex-col items-center min-w-[3rem] py-2 px-2 rounded-xl text-xs font-medium transition-colors shrink-0",
-            d.date === selectedDate
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : d.isToday
-                ? "bg-primary/10 text-primary"
-                : "bg-muted/50 text-muted-foreground hover:bg-muted"
-          )}
-        >
-          <span className="text-[10px] uppercase tracking-wide">{d.dayName}</span>
-          <span className="text-base font-semibold leading-tight mt-0.5">{d.dayNum}</span>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <button onClick={() => onWeekChange(-1)} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
+          <ChevronLeft className="h-5 w-5" />
         </button>
-      ))}
+        <span className={cn("text-sm font-medium", isCurrentWeek ? "text-primary" : "text-foreground")}>
+          {weekLabel}
+          {isCurrentWeek && <span className="text-[10px] ml-1.5 text-primary/70">(this week)</span>}
+        </span>
+        <button onClick={() => onWeekChange(1)} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      </div>
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+        {days.map((d) => (
+          <button
+            key={d.date}
+            onClick={() => onSelect(d.date)}
+            className={cn(
+              "flex flex-col items-center min-w-[3rem] py-2 px-2 rounded-xl text-xs font-medium transition-colors shrink-0",
+              d.date === selectedDate
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : d.isToday
+                  ? "ring-2 ring-primary/50 bg-primary/10 text-primary"
+                  : "bg-muted/50 text-muted-foreground hover:bg-muted"
+            )}
+          >
+            <span className="text-[10px] uppercase tracking-wide">{d.dayName}</span>
+            <span className="text-base font-semibold leading-tight mt-0.5">{d.dayNum}</span>
+            {d.isToday && d.date !== selectedDate && <span className="h-1 w-1 rounded-full bg-primary mt-0.5" />}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
