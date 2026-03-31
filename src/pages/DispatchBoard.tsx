@@ -295,14 +295,35 @@ export default function DispatchBoard() {
     });
 
     setTrucks(truckData);
-    setAlerts(
-      (alertRows ?? []).map((a) => ({
-        id: a.id,
-        message: a.message,
-        severity: a.severity as "yellow" | "red",
-        created_at: a.created_at,
-      }))
-    );
+
+    // Build alerts: standard alerts + hold timer alerts
+    const standardAlerts: AlertData[] = (alertRows ?? []).map((a) => ({
+      id: a.id,
+      message: a.message,
+      severity: a.severity as "yellow" | "red",
+      created_at: a.created_at,
+    }));
+
+    // Create synthetic alerts from active hold timers
+    const holdTimerAlerts: AlertData[] = ((holdTimerRows ?? []) as any[]).map((ht: any) => {
+      const trip = ((tripRows ?? []) as any[]).find((t: any) => t.id === ht.trip_id);
+      const truck = (truckRows ?? []).find((t: any) => t.id === trip?.truck_id);
+      const slot = ((slotRows ?? []) as any[]).find((s: any) => s.truck_id === trip?.truck_id && s.leg_id === trip?.leg_id);
+      const leg = slot?.leg as any;
+      const patient = leg?.patient;
+      const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
+      const truckName = truck?.name ?? "Unknown Truck";
+      const holdLabel = ht.hold_type === "wait_patient" ? "Patient Wait" : "Offload Wait";
+      return {
+        id: `hold-${ht.id}`,
+        message: `${holdLabel} — ${truckName} · ${patientName}`,
+        severity: (ht.current_level === "red" ? "red" : "yellow") as "yellow" | "red",
+        created_at: ht.started_at,
+        hold_timer_started_at: ht.started_at,
+      };
+    });
+
+    setAlerts([...holdTimerAlerts, ...standardAlerts]);
 
     // Extract pending cancellation trips
     const pendingTrips = ((tripRows ?? []) as any[]).filter(
