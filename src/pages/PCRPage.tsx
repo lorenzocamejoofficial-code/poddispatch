@@ -284,6 +284,8 @@ export default function PCRPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
+  const [incidentOpen, setIncidentOpen] = useState(false);
+  const [assignedCrewCount, setAssignedCrewCount] = useState(0);
 
   // Central section rules driven by pcr_type
   const sectionRules = usePCRSectionRules(trip?.pcr_type || trip?.trip_type);
