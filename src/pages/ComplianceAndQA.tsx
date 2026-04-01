@@ -4,28 +4,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShieldCheck, AlertTriangle, CheckCircle, RotateCcw, Settings2, FileWarning } from "lucide-react";
+import { CheckCircle, Settings2, FileWarning } from "lucide-react";
 import { toast } from "sonner";
-
-interface QAReview {
-  id: string;
-  trip_id: string;
-  flag_reason: string;
-  status: string;
-  qa_notes: string | null;
-  created_at: string;
-  // joined
-  patient_name?: string;
-  run_date?: string;
-  trip_type?: string;
-}
+import { QAQueuePanel } from "@/components/compliance/QAQueuePanel";
 
 interface PayerRule {
   id: string;
@@ -51,13 +37,9 @@ interface IncidentReport {
 const PAYER_TYPES = ["medicare", "medicaid", "facility", "cash", "default"];
 
 export default function ComplianceAndQA() {
-  const [qaItems, setQaItems] = useState<QAReview[]>([]);
   const [payerRules, setPayerRules] = useState<PayerRule[]>([]);
   const [incidents, setIncidents] = useState<IncidentReport[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedQA, setSelectedQA] = useState<QAReview | null>(null);
-  const [qaNotes, setQaNotes] = useState("");
-  const [savingQA, setSavingQA] = useState(false);
   const [editingRule, setEditingRule] = useState<PayerRule | null>(null);
   const [ruleForm, setRuleForm] = useState<Partial<PayerRule>>({});
   const [savingRule, setSavingRule] = useState(false);
@@ -65,83 +47,16 @@ export default function ComplianceAndQA() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [{ data: qaRows }, { data: ruleRows }, { data: incidentRows }] = await Promise.all([
-      supabase.from("qa_reviews" as any).select("*").order("created_at", { ascending: false }),
+    const [{ data: ruleRows }, { data: incidentRows }] = await Promise.all([
       supabase.from("payer_billing_rules" as any).select("*").order("payer_type"),
       supabase.from("incident_reports").select("*").order("incident_date", { ascending: false }),
     ]);
-
-    // Enrich QA with trip/patient data
-    const tripIds = [...new Set(((qaRows ?? []) as any[]).map((q: any) => q.trip_id).filter(Boolean))];
-    const { data: tripRows } = tripIds.length > 0
-      ? await supabase.from("trip_records" as any)
-          .select("id, run_date, trip_type, patient:patients!trip_records_patient_id_fkey(first_name, last_name)")
-          .in("id", tripIds)
-      : { data: [] };
-    const tripMap = new Map((tripRows ?? []).map((t: any) => [t.id, t]));
-
-    setQaItems(
-      ((qaRows ?? []) as any[]).map((q: any) => {
-        const t = tripMap.get(q.trip_id) as any;
-        return {
-          ...q,
-          patient_name: t?.patient ? `${t.patient.first_name} ${t.patient.last_name}` : "Unknown",
-          run_date: t?.run_date ?? "—",
-          trip_type: t?.trip_type ?? "—",
-        };
-      })
-    );
     setPayerRules((ruleRows ?? []) as any[]);
     setIncidents((incidentRows ?? []) as any[]);
     setLoading(false);
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
-  // Auto-flag suspicious trips
-  const runAutoFlag = async () => {
-    const { data: trips } = await supabase
-      .from("trip_records" as any)
-      .select("id, loaded_miles, company_id")
-      .in("status", ["completed", "ready_for_billing"]);
-    if (!trips) return;
-
-    const { data: existing } = await supabase.from("qa_reviews" as any).select("trip_id");
-    const flagged = new Set((existing ?? []).map((e: any) => e.trip_id));
-    const { data: companyId } = await supabase.rpc("get_my_company_id");
-
-    const newFlags: any[] = [];
-    (trips as any[]).forEach(t => {
-      if (flagged.has(t.id)) return;
-      const reasons: string[] = [];
-      if (Number(t.loaded_miles ?? 0) > 100) reasons.push("Unusually long mileage (>100 miles)");
-      if (reasons.length > 0) {
-        newFlags.push({ trip_id: t.id, flag_reason: reasons.join("; "), company_id: companyId, status: "pending" });
-      }
-    });
-
-    if (newFlags.length > 0) {
-      await supabase.from("qa_reviews" as any).insert(newFlags);
-      toast.success(`Flagged ${newFlags.length} trip(s) for QA review`);
-      fetchData();
-    } else {
-      toast.info("No new flags generated");
-    }
-  };
-
-  const handleQAAction = async (action: "approved" | "sent_back" | "adjusted") => {
-    if (!selectedQA) return;
-    setSavingQA(true);
-    await supabase.from("qa_reviews" as any).update({
-      status: action,
-      qa_notes: qaNotes || null,
-      reviewed_at: new Date().toISOString(),
-    }).eq("id", selectedQA.id);
-    toast.success(`QA item ${action.replace("_", " ")}`);
-    setSelectedQA(null);
-    fetchData();
-    setSavingQA(false);
-  };
 
   const openEditRule = (rule: PayerRule) => {
     setEditingRule(rule);
@@ -165,76 +80,17 @@ export default function ComplianceAndQA() {
     setSavingRule(false);
   };
 
-  const statusColor: Record<string, string> = {
-    pending: "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]",
-    approved: "bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))]",
-    sent_back: "bg-destructive/10 text-destructive",
-    adjusted: "bg-primary/10 text-primary",
-  };
-
-  const pending = qaItems.filter(q => q.status === "pending");
-  const reviewed = qaItems.filter(q => q.status !== "pending");
-
   return (
     <AdminLayout>
       <Tabs defaultValue="qa" className="space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <TabsList>
-            <TabsTrigger value="qa">QA Queue {pending.length > 0 && <span className="ml-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] px-1.5 py-0.5">{pending.length}</span>}</TabsTrigger>
-            <TabsTrigger value="incidents"><FileWarning className="h-3.5 w-3.5 mr-1.5" />Incidents {incidents.length > 0 && <span className="ml-1.5 text-[10px]">({incidents.length})</span>}</TabsTrigger>
-            <TabsTrigger value="payer-rules"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Payer Rules</TabsTrigger>
-          </TabsList>
-          <Button size="sm" variant="outline" onClick={runAutoFlag}>
-            <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />Run Auto-Flag
-          </Button>
-        </div>
+        <TabsList>
+          <TabsTrigger value="qa">QA Queue</TabsTrigger>
+          <TabsTrigger value="incidents"><FileWarning className="h-3.5 w-3.5 mr-1.5" />Incidents {incidents.length > 0 && <span className="ml-1.5 text-[10px]">({incidents.length})</span>}</TabsTrigger>
+          <TabsTrigger value="payer-rules"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Payer Rules</TabsTrigger>
+        </TabsList>
 
-        <TabsContent value="qa" className="m-0 space-y-4">
-          {loading ? (
-            <PageLoader label="Loading QA reviews…" />
-          ) : pending.length === 0 && reviewed.length === 0 ? (
-            <EmptyState
-              icon={ShieldCheck}
-              title="No QA items"
-              description="Run Auto-Flag to check for suspicious trips."
-            />
-          ) : (
-            <>
-              {pending.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pending Review ({pending.length})</p>
-                  {pending.map(item => (
-                    <div key={item.id} className="flex items-center gap-3 rounded-lg border bg-card p-4">
-                      <AlertTriangle className="h-5 w-5 text-[hsl(var(--status-yellow))] shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">{item.patient_name}</p>
-                        <p className="text-xs text-muted-foreground">{item.run_date} · {item.flag_reason}</p>
-                      </div>
-                      <Button size="sm" onClick={() => { setSelectedQA(item); setQaNotes(item.qa_notes ?? ""); }}>
-                        Review
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {reviewed.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reviewed ({reviewed.length})</p>
-                  {reviewed.map(item => (
-                    <div key={item.id} className="flex items-center gap-3 rounded-lg border bg-card/50 p-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-foreground">{item.patient_name}</p>
-                        <p className="text-xs text-muted-foreground">{item.run_date} · {item.flag_reason}</p>
-                      </div>
-                      <span className={`rounded-full px-2 py-0.5 text-xs capitalize ${statusColor[item.status] ?? ""}`}>
-                        {item.status.replace("_", " ")}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+        <TabsContent value="qa" className="m-0">
+          <QAQueuePanel />
         </TabsContent>
 
         <TabsContent value="payer-rules" className="m-0 space-y-4">
@@ -289,7 +145,6 @@ export default function ComplianceAndQA() {
           </div>
         </TabsContent>
 
-        {/* Incidents Tab */}
         <TabsContent value="incidents" className="m-0 space-y-4">
           {loading ? (
             <PageLoader label="Loading incidents…" />
@@ -320,33 +175,6 @@ export default function ComplianceAndQA() {
           )}
         </TabsContent>
       </Tabs>
-
-      {/* QA review dialog */}
-      <Dialog open={!!selectedQA} onOpenChange={o => { if (!o) setSelectedQA(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>QA Review — {selectedQA?.patient_name}</DialogTitle>
-            <DialogDescription>{selectedQA?.run_date} · {selectedQA?.flag_reason}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <Label>QA Notes</Label>
-              <Textarea rows={4} value={qaNotes} onChange={e => setQaNotes(e.target.value)} placeholder="Add review notes…" />
-            </div>
-            <div className="flex gap-2">
-              <Button className="flex-1" onClick={() => handleQAAction("approved")} disabled={savingQA}>
-                <CheckCircle className="h-4 w-4 mr-1.5" />Approve
-              </Button>
-              <Button variant="outline" className="flex-1" onClick={() => handleQAAction("adjusted")} disabled={savingQA}>
-                <Settings2 className="h-4 w-4 mr-1.5" />Adjust
-              </Button>
-              <Button variant="destructive" className="flex-1" onClick={() => handleQAAction("sent_back")} disabled={savingQA}>
-                <RotateCcw className="h-4 w-4 mr-1.5" />Send Back
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Payer rule edit dialog */}
       <Dialog open={!!editingRule || addingRule} onOpenChange={o => { if (!o) { setEditingRule(null); setAddingRule(false); } }}>

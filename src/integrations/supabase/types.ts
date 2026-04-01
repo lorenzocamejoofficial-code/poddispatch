@@ -1741,10 +1741,12 @@ export type Database = {
           company_id: string | null
           created_at: string
           flag_reason: string
+          flag_type: string | null
           id: string
           qa_notes: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          severity: string
           status: string
           trip_id: string | null
         }
@@ -1753,10 +1755,12 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           flag_reason: string
+          flag_type?: string | null
           id?: string
           qa_notes?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          severity?: string
           status?: string
           trip_id?: string | null
         }
@@ -1765,10 +1769,12 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           flag_reason?: string
+          flag_type?: string | null
           id?: string
           qa_notes?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          severity?: string
           status?: string
           trip_id?: string | null
         }
