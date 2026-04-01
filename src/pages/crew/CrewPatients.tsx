@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -53,22 +54,65 @@ function formatSex(s: string | null): string {
   return s;
 }
 
+function toDateString(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export default function CrewPatients() {
+  const { profileId } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const today = toDateString(new Date());
+
   useEffect(() => {
+    if (!profileId) return;
     (async () => {
+      // 1. Find crew's truck for today
+      const { data: crewRow } = await supabase
+        .from("crews")
+        .select("truck_id")
+        .eq("active_date", today)
+        .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
+        .maybeSingle();
+
+      if (!crewRow) { setPatients([]); setLoading(false); return; }
+
+      // 2. Get leg ids from today's truck run slots
+      const { data: slots } = await supabase
+        .from("truck_run_slots")
+        .select("leg_id")
+        .eq("truck_id", crewRow.truck_id)
+        .eq("run_date", today);
+
+      if (!slots?.length) { setPatients([]); setLoading(false); return; }
+
+      const legIds = slots.map(s => s.leg_id);
+
+      // 3. Get patient ids from scheduling legs
+      const { data: legs } = await supabase
+        .from("scheduling_legs")
+        .select("patient_id")
+        .in("id", legIds)
+        .not("patient_id", "is", null);
+
+      const patientIds = [...new Set((legs ?? []).map(l => l.patient_id).filter(Boolean))] as string[];
+
+      if (!patientIds.length) { setPatients([]); setLoading(false); return; }
+
+      // 4. Fetch only those patients
       const { data } = await supabase
         .from("patients")
         .select("id, first_name, last_name, transport_type, phone, schedule_days, pickup_address, dropoff_facility, sex, weight_lbs, mobility, oxygen_required, bariatric, stair_chair_required, notes, primary_payer, member_id, recurrence_days")
+        .in("id", patientIds)
         .order("last_name", { ascending: true });
+
       setPatients((data as Patient[]) ?? []);
       setLoading(false);
     })();
-  }, []);
+  }, [profileId, today]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return patients;
@@ -81,12 +125,13 @@ export default function CrewPatients() {
   return (
     <CrewLayout>
       <div className="p-4 max-w-2xl mx-auto space-y-4">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Today's Assigned Patients</p>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search patients..."
+            placeholder="Search today's patients..."
             className="pl-9 h-11"
           />
         </div>
@@ -96,7 +141,9 @@ export default function CrewPatients() {
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : filtered.length === 0 ? (
-          <p className="text-center text-sm text-muted-foreground py-8">No patients found</p>
+          <p className="text-center text-sm text-muted-foreground py-8">
+            {search.trim() ? "No matching patients" : "No patients assigned for today."}
+          </p>
         ) : (
           <div className="space-y-2">
             {filtered.map(p => {
