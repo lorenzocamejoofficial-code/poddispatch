@@ -80,7 +80,7 @@ function SessionWarningBanner() {
 }
 
 function AppRoutes() {
-  const { user, role, loading, membershipLoaded, isSystemCreator, onboardingStatus, activeCompanyId } = useAuth();
+  const { user, role, loading, membershipLoaded, isSystemCreator, onboardingStatus, activeCompanyId, subscriptionStatus, wizardCompleted } = useAuth();
 
   // Show loading while auth session OR membership data is still resolving
   if (loading || (user && !membershipLoaded)) {
