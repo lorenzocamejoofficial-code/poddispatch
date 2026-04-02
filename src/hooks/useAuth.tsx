@@ -69,14 +69,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (membershipData) {
       setRole(membershipData.role as MembershipRole);
       setActiveCompanyId(membershipData.company_id);
-      const { data: companyData } = await supabase
-        .from("companies")
-        .select("onboarding_status")
-        .eq("id", membershipData.company_id)
-        .maybeSingle();
-      if (companyData) {
-        setOnboardingStatus(companyData.onboarding_status as OnboardingStatus);
-      }
+      const [{ data: companyData }, { data: subData }, { data: migData }] = await Promise.all([
+        supabase.from("companies").select("onboarding_status").eq("id", membershipData.company_id).maybeSingle(),
+        supabase.from("subscription_records").select("subscription_status").eq("company_id", membershipData.company_id).maybeSingle(),
+        supabase.from("migration_settings").select("wizard_completed").eq("company_id", membershipData.company_id).maybeSingle(),
+      ]);
+      if (companyData) setOnboardingStatus(companyData.onboarding_status as OnboardingStatus);
+      setSubscriptionStatus(subData?.subscription_status ?? null);
+      setWizardCompleted(migData ? (migData as any).wizard_completed : null);
     }
     if (profileData) setProfileId(profileData.id);
     setIsSystemCreator(!!scData);
