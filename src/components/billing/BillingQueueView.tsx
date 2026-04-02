@@ -302,6 +302,15 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
         </div>
       ) : (
         <>
+          {/* Readiness bar */}
+          <BillingReadinessBar
+            readyCount={grouped.ready.length}
+            blockedCount={grouped.blocked.length}
+            reviewCount={grouped.review.length}
+            activeFilter={readinessFilter}
+            onFilter={setReadinessFilter}
+          />
+
           {/* KPIs */}
           <div className="grid grid-cols-4 gap-3">
             <div className="rounded-lg border bg-card p-3">
@@ -327,6 +336,9 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
           {/* Queue columns */}
           <div className="grid gap-4 md:grid-cols-3">
             {(["ready", "review", "blocked"] as BillingQueueStatus[]).map(queueStatus => {
+              // Apply readiness filter
+              if (readinessFilter && readinessFilter !== queueStatus) return null;
+
               const config = QUEUE_CONFIG[queueStatus];
               const Icon = config.icon;
               const items = grouped[queueStatus];
@@ -342,36 +354,60 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                   ) : (
                     items.map(trip => {
                       const hasOverride = overrideHistory.has(trip.id);
+                      const allBlockers = [...(trip.queueBlockers ?? []), ...(trip.blockers ?? [])].filter(Boolean);
+                      const uniqueBlockers = [...new Set(allBlockers)];
                       return (
-                        <button
-                          key={trip.id}
-                          onClick={() => setSelectedTrip(trip)}
-                          className="w-full rounded-md border bg-card p-3 text-left hover:border-primary/40 hover:shadow-sm transition-all"
-                        >
-                          <div className="flex items-center justify-between gap-1 mb-1">
-                            <p className="text-xs font-semibold text-foreground truncate">{trip.patient_name}</p>
-                            <div className="flex items-center gap-1">
-                              {hasOverride && (
-                                <Badge variant="outline" className="text-[9px] border-[hsl(var(--status-yellow))]/40 text-[hsl(var(--status-yellow))]">
-                                  <ShieldAlert className="h-2.5 w-2.5 mr-0.5" />Override
+                        <div key={trip.id} className="rounded-md border bg-card hover:border-primary/40 hover:shadow-sm transition-all">
+                          <button
+                            onClick={() => setSelectedTrip(trip)}
+                            className="w-full p-3 text-left"
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <p className="text-xs font-semibold text-foreground truncate">{trip.patient_name}</p>
+                              <div className="flex items-center gap-1">
+                                {hasOverride && (
+                                  <Badge variant="outline" className="text-[9px] border-[hsl(var(--status-yellow))]/40 text-[hsl(var(--status-yellow))]">
+                                    <ShieldAlert className="h-2.5 w-2.5 mr-0.5" />Override
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className="text-[9px]">
+                                  {PCR_TYPES.find(p => p.value === trip.pcr_type)?.label ?? trip.pcr_type ?? "—"}
                                 </Badge>
-                              )}
-                              <Badge variant="outline" className="text-[9px]">
-                                {PCR_TYPES.find(p => p.value === trip.pcr_type)?.label ?? trip.pcr_type ?? "—"}
-                              </Badge>
+                              </div>
                             </div>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground">{trip.run_date} · {trip.truck_name}</p>
-                          {trip.queueMissing.length > 0 && (
-                            <p className="text-[10px] text-destructive mt-1 truncate">
-                              Missing: {trip.queueMissing.join(", ")}
-                            </p>
+                            <p className="text-[10px] text-muted-foreground">{trip.run_date} · {trip.truck_name}</p>
+                            <div className="mt-1.5 flex items-center justify-between">
+                              <span className="text-xs font-bold text-foreground">${(trip.expected_revenue ?? 0).toLocaleString()}</span>
+                              {queueStatus === "ready" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-5 text-[9px] px-1.5 gap-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreSubmitTripId(trip.id);
+                                    setPreSubmitPatientId(trip.patient_id ?? null);
+                                  }}
+                                >
+                                  <ClipboardCheck className="h-2.5 w-2.5" />
+                                  Pre-Submit
+                                </Button>
+                              )}
+                              {queueStatus !== "ready" && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+                            </div>
+                          </button>
+                          {/* Inline explanation panel for blocked/review */}
+                          {queueStatus !== "ready" && uniqueBlockers.length > 0 && (
+                            <div className="px-3 pb-2">
+                              <BlockerExplanationPanel
+                                blockers={uniqueBlockers}
+                                tripId={trip.id}
+                                patientId={(trip as any).patient_id}
+                                compact
+                              />
+                            </div>
                           )}
-                          <div className="mt-1.5 flex items-center justify-between">
-                            <span className="text-xs font-bold text-foreground">${(trip.expected_revenue ?? 0).toLocaleString()}</span>
-                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                          </div>
-                        </button>
+                        </div>
                       );
                     })
                   )}
