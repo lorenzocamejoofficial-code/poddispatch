@@ -144,6 +144,29 @@ function AppRoutes() {
     );
   }
 
+  // Trial expired — block access for non-creators
+  if (!isSystemCreator && subscriptionStatus === "trial_expired") {
+    return (
+      <Routes>
+        <Route path="/trial-expired" element={<TrialExpired />} />
+        <Route path="*" element={<Navigate to="/trial-expired" replace />} />
+      </Routes>
+    );
+  }
+
+  // New owner hasn't completed wizard — force redirect (owner/admin only)
+  if (!isSystemCreator && (role === "owner" || role === "creator") && wizardCompleted === false) {
+    return (
+      <SchedulingProvider>
+        <Routes>
+          <Route path="/onboarding" element={<OnboardingWizard />} />
+          <Route path="/account" element={<AccountSettings />} />
+          <Route path="*" element={<Navigate to="/onboarding" replace />} />
+        </Routes>
+      </SchedulingProvider>
+    );
+  }
+
   // Newly approved companies route to migration first
   // (handled naturally — they have active status and land on "/" which is DispatchBoard)
   
