@@ -62,7 +62,7 @@ export function CallConfirmationDrawer({
   onCallQueued,
 }: CallConfirmationDrawerProps) {
   const { companyName } = useCompanyName();
-  const { userId } = useAuth();
+  const { user } = useAuth();
   const [eta, setEta] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [holdMinutes, setHoldMinutes] = useState<number | null>(null);
