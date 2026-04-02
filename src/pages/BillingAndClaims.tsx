@@ -10,7 +10,53 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download } from "lucide-react";
+import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download, Info, X } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+const DISMISSED_KEY = "charge_master_notice_dismissed_at";
+
+function ChargeRateNotice({ chargeMaster }: { chargeMaster: ChargeMaster[] }) {
+  const [dismissed, setDismissed] = useState(false);
+
+  const mostRecentEdit = chargeMaster.reduce((latest, r) => {
+    const d = new Date(r.updated_at).getTime();
+    return d > latest ? d : latest;
+  }, 0);
+
+  const stale = mostRecentEdit > 0 && Date.now() - mostRecentEdit > 365 * 24 * 60 * 60 * 1000;
+
+  useEffect(() => {
+    if (stale) {
+      setDismissed(false);
+      localStorage.removeItem(DISMISSED_KEY);
+      return;
+    }
+    const stored = localStorage.getItem(DISMISSED_KEY);
+    if (stored) setDismissed(true);
+  }, [stale]);
+
+  if (dismissed && !stale) return null;
+
+  return (
+    <Alert className="border-blue-300/50 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-700/40">
+      <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+      <AlertDescription className="flex items-start justify-between gap-4 text-sm text-blue-900 dark:text-blue-200">
+        <span>
+          Rates are pre-loaded from the 2025 CMS Ambulance Fee Schedule for Georgia urban service areas.
+          Verify these rates match your service area and update them annually when CMS publishes new rates.
+          Medicare and Medicaid rates vary by state and urban versus rural designation.
+        </span>
+        <button
+          onClick={() => { setDismissed(true); localStorage.setItem(DISMISSED_KEY, new Date().toISOString()); }}
+          className="shrink-0 rounded p-0.5 hover:bg-blue-200/60 dark:hover:bg-blue-800/40"
+          aria-label="Dismiss notice"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </AlertDescription>
+    </Alert>
+  );
+}
 import { downloadCSV } from "@/lib/csv-export";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { ClaimAdjustmentHistory } from "@/components/billing/ClaimAdjustmentHistory";
@@ -68,6 +114,7 @@ interface ChargeMaster {
   oxygen_fee: number;
   extra_attendant_fee: number;
   bariatric_fee: number;
+  updated_at: string;
 }
 
 const CLAIM_COLUMNS: { status: ClaimStatus; label: string; icon: React.ReactNode; color: string }[] = [
@@ -764,6 +811,7 @@ export default function BillingAndClaims() {
 
         {/* Charge Master */}
         <TabsContent value="charge-master" className="m-0 space-y-4">
+          <ChargeRateNotice chargeMaster={chargeMaster} />
           <div className="flex justify-end">
             <Button size="sm" onClick={() => {
               setEditingRate(null);
