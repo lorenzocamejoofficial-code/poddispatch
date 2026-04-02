@@ -179,6 +179,7 @@ export function useCrewBadges(profileId: string | null): CrewBadges {
     if (path === "/crew-dashboard") tabKey = "dashboard";
     else if (path === "/crew-schedule") tabKey = "schedule";
     else if (path === "/pcr") tabKey = "pcr";
+    else if (path === "/crew-checklist") tabKey = "checklist";
 
     if (tabKey) {
       markSeen(profileId, tabKey);

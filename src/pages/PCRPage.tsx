@@ -369,7 +369,7 @@ export default function PCRPage() {
 
   const [activeCard, setActiveCard] = useState<PCRCardType | null>(null);
   const [truckName, setTruckName] = useState("");
-  const [crewMembers, setCrewMembers] = useState<{ m1: CrewMember | null; m2: CrewMember | null }>({ m1: null, m2: null });
+  const [crewMembers, setCrewMembers] = useState<{ m1: CrewMember | null; m2: CrewMember | null; m3: CrewMember | null }>({ m1: null, m2: null, m3: null });
   const [submitting, setSubmitting] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
@@ -392,9 +392,11 @@ export default function PCRPage() {
         setTruckName((crew.truck as any)?.name || "");
         const m1 = crew.member1 as any;
         const m2 = crew.member2 as any;
+        const m3 = (crew as any).member3 as any;
         setCrewMembers({
           m1: m1 ? { id: m1.id, name: m1.full_name, cert: m1.cert_level } : null,
           m2: m2 ? { id: m2.id, name: m2.full_name, cert: m2.cert_level } : null,
+          m3: m3 ? { id: m3.id, name: m3.full_name, cert: m3.cert_level } : null,
         });
         let count = 0;
         if (crew.member1_id) count++;
@@ -481,7 +483,7 @@ export default function PCRPage() {
     };
     return (
       <CrewLayout>
-        <MedicSelector crewMember1={crewMembers.m1} crewMember2={crewMembers.m2} onSelect={handleMedicSelect} />
+        <MedicSelector crewMember1={crewMembers.m1} crewMember2={crewMembers.m2} crewMember3={crewMembers.m3} onSelect={handleMedicSelect} />
       </CrewLayout>
     );
   }
