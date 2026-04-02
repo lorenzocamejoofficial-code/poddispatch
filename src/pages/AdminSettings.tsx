@@ -107,7 +107,8 @@ export default function AdminSettings() {
   return (
     <AdminLayout>
       <div className="max-w-lg space-y-8">
-        {/* Company */}
+        <TrialBanner />
+        <OnboardingChecklist />
         <section className="space-y-3">
           <div>
             <h3 className="text-lg font-semibold text-foreground">Company Settings</h3>
