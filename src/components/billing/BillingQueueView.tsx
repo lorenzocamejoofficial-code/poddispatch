@@ -533,7 +533,7 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                   <ClipboardCheck className="h-3.5 w-3.5" />
                   Pre-Submit Checklist
                 </Button>
-              )
+              )}
 
               {/* Override section - only for review/blocked */}
               {selectedQueueInfo.status !== "ready" && (
