@@ -369,7 +369,7 @@ export default function PCRPage() {
 
   const [activeCard, setActiveCard] = useState<PCRCardType | null>(null);
   const [truckName, setTruckName] = useState("");
-  const [crewMembers, setCrewMembers] = useState<{ m1: CrewMember | null; m2: CrewMember | null }>({ m1: null, m2: null });
+  const [crewMembers, setCrewMembers] = useState<{ m1: CrewMember | null; m2: CrewMember | null; m3: CrewMember | null }>({ m1: null, m2: null, m3: null });
   const [submitting, setSubmitting] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
