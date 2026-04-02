@@ -103,6 +103,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfileId(null);
     setIsSystemCreator(false);
     setOnboardingStatus(null);
+    setSubscriptionStatus(null);
+    setWizardCompleted(null);
     setMembershipLoaded(false);
   }, []);
 
