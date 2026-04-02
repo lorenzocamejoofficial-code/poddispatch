@@ -392,9 +392,11 @@ export default function PCRPage() {
         setTruckName((crew.truck as any)?.name || "");
         const m1 = crew.member1 as any;
         const m2 = crew.member2 as any;
+        const m3 = (crew as any).member3 as any;
         setCrewMembers({
           m1: m1 ? { id: m1.id, name: m1.full_name, cert: m1.cert_level } : null,
           m2: m2 ? { id: m2.id, name: m2.full_name, cert: m2.cert_level } : null,
+          m3: m3 ? { id: m3.id, name: m3.full_name, cert: m3.cert_level } : null,
         });
         let count = 0;
         if (crew.member1_id) count++;
