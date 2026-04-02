@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { CheckCircle2, ClipboardList } from "lucide-react";
+import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
+import { TrialBanner } from "@/components/onboarding/TrialBanner";
 
 export default function AdminSettings() {
   const [settingsId, setSettingsId] = useState("");
