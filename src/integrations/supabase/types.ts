@@ -489,14 +489,22 @@ export type Database = {
           id: string
           is_sandbox: boolean
           name: string
+          npi_number: string | null
           onboarding_status: Database["public"]["Enums"]["onboarding_status"]
           owner_email: string | null
           owner_user_id: string | null
+          payer_mix_facility: number | null
+          payer_mix_medicaid: number | null
+          payer_mix_medicare: number | null
+          payer_mix_private: number | null
           rejected_at: string | null
           rejected_reason: string | null
+          service_area_type: string | null
+          state_of_operation: string | null
           suspended_at: string | null
           suspended_by: string | null
           suspended_reason: string | null
+          truck_count: number | null
         }
         Insert: {
           approved_at?: string | null
@@ -507,14 +515,22 @@ export type Database = {
           id?: string
           is_sandbox?: boolean
           name: string
+          npi_number?: string | null
           onboarding_status?: Database["public"]["Enums"]["onboarding_status"]
           owner_email?: string | null
           owner_user_id?: string | null
+          payer_mix_facility?: number | null
+          payer_mix_medicaid?: number | null
+          payer_mix_medicare?: number | null
+          payer_mix_private?: number | null
           rejected_at?: string | null
           rejected_reason?: string | null
+          service_area_type?: string | null
+          state_of_operation?: string | null
           suspended_at?: string | null
           suspended_by?: string | null
           suspended_reason?: string | null
+          truck_count?: number | null
         }
         Update: {
           approved_at?: string | null
@@ -525,14 +541,22 @@ export type Database = {
           id?: string
           is_sandbox?: boolean
           name?: string
+          npi_number?: string | null
           onboarding_status?: Database["public"]["Enums"]["onboarding_status"]
           owner_email?: string | null
           owner_user_id?: string | null
+          payer_mix_facility?: number | null
+          payer_mix_medicaid?: number | null
+          payer_mix_medicare?: number | null
+          payer_mix_private?: number | null
           rejected_at?: string | null
           rejected_reason?: string | null
+          service_area_type?: string | null
+          state_of_operation?: string | null
           suspended_at?: string | null
           suspended_by?: string | null
           suspended_reason?: string | null
+          truck_count?: number | null
         }
         Relationships: []
       }
@@ -1241,8 +1265,14 @@ export type Database = {
           company_id: string
           created_at: string
           id: string
+          onboarding_dismissed: boolean
           parallel_mode: boolean
           start_forward_mode: boolean
+          step_first_trip: boolean
+          step_patients_added: boolean
+          step_rates_verified: boolean
+          step_team_invited: boolean
+          step_trucks_added: boolean
           updated_at: string
           wizard_completed: boolean
           wizard_step: number
@@ -1251,8 +1281,14 @@ export type Database = {
           company_id: string
           created_at?: string
           id?: string
+          onboarding_dismissed?: boolean
           parallel_mode?: boolean
           start_forward_mode?: boolean
+          step_first_trip?: boolean
+          step_patients_added?: boolean
+          step_rates_verified?: boolean
+          step_team_invited?: boolean
+          step_trucks_added?: boolean
           updated_at?: string
           wizard_completed?: boolean
           wizard_step?: number
@@ -1261,8 +1297,14 @@ export type Database = {
           company_id?: string
           created_at?: string
           id?: string
+          onboarding_dismissed?: boolean
           parallel_mode?: boolean
           start_forward_mode?: boolean
+          step_first_trip?: boolean
+          step_patients_added?: boolean
+          step_rates_verified?: boolean
+          step_team_invited?: boolean
+          step_trucks_added?: boolean
           updated_at?: string
           wizard_completed?: boolean
           wizard_step?: number
@@ -2247,6 +2289,7 @@ export type Database = {
           provider_customer_id: string | null
           provider_subscription_id: string | null
           subscription_status: string
+          trial_ends_at: string | null
           updated_at: string
         }
         Insert: {
@@ -2262,6 +2305,7 @@ export type Database = {
           provider_customer_id?: string | null
           provider_subscription_id?: string | null
           subscription_status?: string
+          trial_ends_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -2277,6 +2321,7 @@ export type Database = {
           provider_customer_id?: string | null
           provider_subscription_id?: string | null
           subscription_status?: string
+          trial_ends_at?: string | null
           updated_at?: string
         }
         Relationships: [
