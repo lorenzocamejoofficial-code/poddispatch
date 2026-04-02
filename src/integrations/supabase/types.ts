@@ -698,6 +698,7 @@ export type Database = {
       crew_share_tokens: {
         Row: {
           active: boolean
+          company_id: string | null
           created_at: string
           created_by: string
           id: string
@@ -708,6 +709,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          company_id?: string | null
           created_at?: string
           created_by: string
           id?: string
@@ -718,6 +720,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          company_id?: string | null
           created_at?: string
           created_by?: string
           id?: string
@@ -2065,6 +2068,7 @@ export type Database = {
       }
       schedule_previews: {
         Row: {
+          company_id: string | null
           id: string
           message: string
           preview_date: string
@@ -2073,6 +2077,7 @@ export type Database = {
           target_user_id: string
         }
         Insert: {
+          company_id?: string | null
           id?: string
           message: string
           preview_date: string
@@ -2081,6 +2086,7 @@ export type Database = {
           target_user_id: string
         }
         Update: {
+          company_id?: string | null
           id?: string
           message?: string
           preview_date?: string
