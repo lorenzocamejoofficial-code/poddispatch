@@ -9,9 +9,10 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, Settings2, FileWarning } from "lucide-react";
+import { CheckCircle, Settings2, FileWarning, ClipboardCheck } from "lucide-react";
 import { toast } from "sonner";
 import { QAQueuePanel } from "@/components/compliance/QAQueuePanel";
+import { VehicleInspectionsTab } from "@/components/compliance/VehicleInspectionsTab";
 
 interface PayerRule {
   id: string;
