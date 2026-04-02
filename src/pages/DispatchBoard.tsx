@@ -477,6 +477,9 @@ export default function DispatchBoard() {
             <AlertsPanel alerts={alerts} onDismiss={dismissAlert} />
           </section>
 
+          {/* Communications */}
+          <CommunicationsSection selectedDate={selectedDate} trucks={trucks} />
+
           {/* Trucks */}
           <section>
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
