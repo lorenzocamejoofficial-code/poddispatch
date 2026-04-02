@@ -439,6 +439,8 @@ export default function DispatchBoard() {
         <PageLoader label="Loading dispatch board…" />
       ) : (
         <div className="space-y-6">
+          <TrialBanner />
+          <OnboardingChecklist />
           <div className="flex items-center gap-3">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Dispatch Board</p>
