@@ -1,7 +1,7 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, LogOut, Menu, X, Truck, Users, CalendarDays } from "lucide-react";
+import { LayoutDashboard, FileText, LogOut, Menu, X, Truck, Users, CalendarDays, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCompanyName } from "@/hooks/useCompanyName";
@@ -11,6 +11,7 @@ const crewNav = [
   { path: "/crew-dashboard", label: "Crew Dashboard", icon: LayoutDashboard, badgeKey: "dashboard" as const },
   { path: "/crew-patients", label: "Patients", icon: Users, badgeKey: null },
   { path: "/crew-schedule", label: "Schedule", icon: CalendarDays, badgeKey: "schedule" as const },
+  { path: "/crew-checklist", label: "Checklist", icon: ClipboardCheck, badgeKey: "checklist" as const },
   { path: "/pcr", label: "PCR", icon: FileText, badgeKey: "pcr" as const },
 ];
 

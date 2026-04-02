@@ -86,10 +86,23 @@ export function useCrewBadges(profileId: string | null): CrewBadges {
         .gt("created_at", pcrSeen),
     ]);
 
+    // Check if today's inspection is missing
+    let checklistBadge = false;
+    if (truckId) {
+      const currentToday2 = todayRef.current;
+      const { count: inspCount } = await supabase
+        .from("vehicle_inspections" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("truck_id", truckId)
+        .eq("run_date", currentToday2);
+      checklistBadge = (inspCount ?? 0) === 0;
+    }
+
     setBadges({
       dashboard: (dashTripCount ?? 0) > 0,
       schedule: (schedSlotCount ?? 0) > 0,
       pcr: (pcrKickbackCount ?? 0) > 0 || (pcrTripCount ?? 0) > 0,
+      checklist: checklistBadge,
     });
   }, []);
 
