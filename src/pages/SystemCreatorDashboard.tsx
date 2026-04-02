@@ -11,6 +11,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DevModePanel } from "@/components/creator/DevModePanel";
 import { CreatorLayout } from "@/components/layout/CreatorLayout";
+import { CompanyHealthTable } from "@/components/creator/CompanyHealthTable";
 
 interface SystemMetrics {
   totalCompanies: number;
