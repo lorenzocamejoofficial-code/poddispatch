@@ -243,6 +243,21 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     kicked_back: { label: "Returned", color: "bg-destructive/10 text-destructive border-destructive/30" },
   };
 
+  if (inspectionGated) {
+    return (
+      <div className="flex flex-col items-center justify-center p-10 space-y-4 text-center">
+        <Lock className="h-10 w-10 text-muted-foreground" />
+        <h3 className="text-lg font-bold text-foreground">Pre-Trip Inspection Required</h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          Pre-trip inspection required before accessing PCR. Complete the inspection in the Checklist tab.
+        </p>
+        <Button onClick={() => navigate("/crew-checklist")}>
+          Go to Checklist
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-3">
       <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Select a run to open PCR</p>
