@@ -147,6 +147,9 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
   const [correctTrip, setCorrectTrip] = useState<TripForQueue | null>(null);
   const [kickbackTripId, setKickbackTripId] = useState<string | null>(null);
   const [kickbackPatientName, setKickbackPatientName] = useState<string | undefined>(undefined);
+  const [readinessFilter, setReadinessFilter] = useState<string | null>(null);
+  const [preSubmitTripId, setPreSubmitTripId] = useState<string | null>(null);
+  const [preSubmitPatientId, setPreSubmitPatientId] = useState<string | null>(null);
 
   const fetchOverrideHistory = useCallback(async () => {
     const tripIds = trips.map(t => t.id);
