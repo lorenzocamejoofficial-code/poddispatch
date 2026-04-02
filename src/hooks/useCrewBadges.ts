@@ -29,7 +29,7 @@ interface CrewBadges {
  */
 export function useCrewBadges(profileId: string | null): CrewBadges {
   const location = useLocation();
-  const [badges, setBadges] = useState<CrewBadges>({ dashboard: false, schedule: false, pcr: false });
+  const [badges, setBadges] = useState<CrewBadges>({ dashboard: false, schedule: false, pcr: false, checklist: false });
   const truckIdRef = useRef<string | null>(null);
   const todayRef = useRef<string>("");
   const profileIdRef = useRef(profileId);
