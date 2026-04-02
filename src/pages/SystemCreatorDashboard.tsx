@@ -172,6 +172,9 @@ export default function SystemCreatorDashboard() {
               </p>
             </CardContent>
           </Card>
+
+          {/* Per-Company Health */}
+          <CompanyHealthTable />
         </div>
       )}
     </CreatorLayout>
