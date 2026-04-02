@@ -81,6 +81,27 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
 
       if (!crewRow) { setRuns([]); setLoading(false); return; }
 
+      // Check inspection gate
+      const { data: template } = await supabase
+        .from("vehicle_inspection_templates" as any)
+        .select("gate_enabled")
+        .eq("truck_id", crewRow.truck_id)
+        .eq("company_id", crewRow.company_id)
+        .maybeSingle();
+
+      if ((template as any)?.gate_enabled) {
+        const { count } = await supabase
+          .from("vehicle_inspections" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("truck_id", crewRow.truck_id)
+          .eq("run_date", today);
+        if ((count ?? 0) === 0) {
+          setInspectionGated(true);
+          setLoading(false);
+          return;
+        }
+      }
+
       const { data: slots } = await supabase
         .from("truck_run_slots")
         .select("id, leg_id, slot_order")
