@@ -36,7 +36,7 @@ export function VehicleInspectionsTab() {
   const [inspections, setInspections] = useState<InspectionRecord[]>([]);
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [trucks, setTrucks] = useState<{ id: string; name: string }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Filters
