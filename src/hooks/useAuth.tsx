@@ -21,6 +21,8 @@ interface AuthContextType {
   sessionWarning: boolean;
   isSystemCreator: boolean;
   onboardingStatus: OnboardingStatus | null;
+  subscriptionStatus: string | null;
+  wizardCompleted: boolean | null;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshOnboardingStatus: () => Promise<void>;
