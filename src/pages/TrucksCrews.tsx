@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { InspectionConfigPanel } from "@/components/inspection/InspectionConfigPanel";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import type { Tables } from "@/integrations/supabase/types";
@@ -615,6 +616,8 @@ export default function TrucksCrews() {
                     </label>
                   ))}
                 </div>
+                {/* Vehicle Inspection Config */}
+                <InspectionConfigPanel truckId={t.id} companyId={(t as any).company_id ?? ""} />
               </div>
             ))}
             {trucks.length === 0 && <p className="text-sm text-muted-foreground col-span-full">No trucks yet</p>}

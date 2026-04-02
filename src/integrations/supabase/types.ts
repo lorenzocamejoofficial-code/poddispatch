@@ -3198,6 +3198,181 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_inspection_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          acknowledged_by_name: string | null
+          company_id: string
+          created_at: string
+          crew_note: string | null
+          dispatcher_note: string | null
+          dispatcher_response: string | null
+          id: string
+          inspection_id: string
+          missing_item_key: string
+          missing_item_label: string
+          run_date: string
+          truck_id: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          acknowledged_by_name?: string | null
+          company_id: string
+          created_at?: string
+          crew_note?: string | null
+          dispatcher_note?: string | null
+          dispatcher_response?: string | null
+          id?: string
+          inspection_id: string
+          missing_item_key: string
+          missing_item_label: string
+          run_date: string
+          truck_id: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          acknowledged_by_name?: string | null
+          company_id?: string
+          created_at?: string
+          crew_note?: string | null
+          dispatcher_note?: string | null
+          dispatcher_response?: string | null
+          id?: string
+          inspection_id?: string
+          missing_item_key?: string
+          missing_item_label?: string
+          run_date?: string
+          truck_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_inspection_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_inspection_alerts_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_inspection_alerts_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_inspection_templates: {
+        Row: {
+          company_id: string
+          enabled_items: Json
+          gate_enabled: boolean
+          id: string
+          truck_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          enabled_items?: Json
+          gate_enabled?: boolean
+          id?: string
+          truck_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          enabled_items?: Json
+          gate_enabled?: boolean
+          id?: string
+          truck_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_inspection_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_inspection_templates_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_inspections: {
+        Row: {
+          company_id: string
+          id: string
+          items_checked: Json
+          missing_count: number
+          run_date: string
+          status: string
+          submitted_at: string
+          submitted_by: string
+          submitted_by_name: string | null
+          total_items: number
+          truck_id: string
+        }
+        Insert: {
+          company_id: string
+          id?: string
+          items_checked?: Json
+          missing_count?: number
+          run_date?: string
+          status?: string
+          submitted_at?: string
+          submitted_by: string
+          submitted_by_name?: string | null
+          total_items?: number
+          truck_id: string
+        }
+        Update: {
+          company_id?: string
+          id?: string
+          items_checked?: Json
+          missing_count?: number
+          run_date?: string
+          status?: string
+          submitted_at?: string
+          submitted_by?: string
+          submitted_by_name?: string | null
+          total_items?: number
+          truck_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_inspections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_inspections_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

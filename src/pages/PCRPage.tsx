@@ -60,10 +60,12 @@ interface RunForPCR {
 
 function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
   const { profileId } = useAuth();
+  const navigate = useNavigate();
   const [runs, setRuns] = useState<RunForPCR[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<string | null>(null);
   const [dupWarning, setDupWarning] = useState<{ run: RunForPCR; existingTrips: { id: string; pickup_time: string | null; status: string }[] } | null>(null);
+  const [inspectionGated, setInspectionGated] = useState(false);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
@@ -78,6 +80,27 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
         .maybeSingle();
 
       if (!crewRow) { setRuns([]); setLoading(false); return; }
+
+      // Check inspection gate
+      const { data: template } = await supabase
+        .from("vehicle_inspection_templates" as any)
+        .select("gate_enabled")
+        .eq("truck_id", crewRow.truck_id)
+        .eq("company_id", crewRow.company_id)
+        .maybeSingle();
+
+      if ((template as any)?.gate_enabled) {
+        const { count } = await supabase
+          .from("vehicle_inspections" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("truck_id", crewRow.truck_id)
+          .eq("run_date", today);
+        if ((count ?? 0) === 0) {
+          setInspectionGated(true);
+          setLoading(false);
+          return;
+        }
+      }
 
       const { data: slots } = await supabase
         .from("truck_run_slots")
@@ -219,6 +242,21 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     submitted: { label: "Submitted", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400" },
     kicked_back: { label: "Returned", color: "bg-destructive/10 text-destructive border-destructive/30" },
   };
+
+  if (inspectionGated) {
+    return (
+      <div className="flex flex-col items-center justify-center p-10 space-y-4 text-center">
+        <Lock className="h-10 w-10 text-muted-foreground" />
+        <h3 className="text-lg font-bold text-foreground">Pre-Trip Inspection Required</h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          Pre-trip inspection required before accessing PCR. Complete the inspection in the Checklist tab.
+        </p>
+        <Button onClick={() => navigate("/crew-checklist")}>
+          Go to Checklist
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-3">
