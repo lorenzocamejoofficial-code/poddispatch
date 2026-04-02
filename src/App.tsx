@@ -228,6 +228,7 @@ function AppRoutes() {
         <Route path="/crew-patients" element={<CrewPatients />} />
         <Route path="/crew-schedule" element={<CrewSchedulePage />} />
         <Route path="/pcr" element={<PCRPage />} />
+        <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
         <Route path="/crew/:token" element={<DailyRunSheet />} />
         <Route path="/account" element={<AccountSettings />} />
         <Route path="*" element={<Navigate to="/" replace />} />

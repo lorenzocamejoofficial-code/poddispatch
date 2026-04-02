@@ -176,6 +176,10 @@ export default function ComplianceAndQA() {
             </div>
           )}
         </TabsContent>
+
+        <TabsContent value="inspections" className="m-0">
+          <VehicleInspectionsTab />
+        </TabsContent>
       </Tabs>
 
       {/* Payer rule edit dialog */}
