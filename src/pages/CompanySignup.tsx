@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Truck, ArrowLeft, Shield, FileText, Lock } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { US_STATES } from "@/lib/us-states";
 
 const AGREEMENTS = [
   {
@@ -34,18 +37,25 @@ const AGREEMENTS = [
 
 export default function CompanySignup() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<"info" | "agreements" | "confirm">("info");
+  const [step, setStep] = useState<"info" | "profile" | "agreements" | "confirm">("info");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [emailExists, setEmailExists] = useState(false);
 
-  // Form fields
+  // Step 1: Account fields
   const [companyName, setCompanyName] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  // Step 2: Company profile fields
+  const [npiNumber, setNpiNumber] = useState("");
+  const [stateOfOperation, setStateOfOperation] = useState("");
+  const [serviceAreaType, setServiceAreaType] = useState("");
+  const [truckCount, setTruckCount] = useState("");
+  const [payerMix, setPayerMix] = useState({ medicare: 40, medicaid: 30, facility: 20, private: 10 });
 
   // Agreements
   const [accepted, setAccepted] = useState<Record<string, boolean>>({
@@ -55,6 +65,7 @@ export default function CompanySignup() {
   });
 
   const allAccepted = AGREEMENTS.every((a) => accepted[a.key]);
+  const payerTotal = payerMix.medicare + payerMix.medicaid + payerMix.facility + payerMix.private;
 
   const validateInfo = () => {
     setError("");
@@ -65,7 +76,23 @@ export default function CompanySignup() {
     if (!password || password.length < 8)
       return setError("Password must be at least 8 characters.");
     if (password !== confirmPassword) return setError("Passwords do not match.");
+    setStep("profile");
+  };
+
+  const validateProfile = () => {
+    setError("");
+    if (!npiNumber.trim()) return setError("NPI number is required.");
+    if (npiNumber.trim().length !== 10 || !/^\d{10}$/.test(npiNumber.trim()))
+      return setError("NPI number must be exactly 10 digits.");
+    if (!stateOfOperation) return setError("State of operation is required.");
+    if (!serviceAreaType) return setError("Service area type is required.");
+    if (!truckCount || parseInt(truckCount) < 1) return setError("Number of active trucks is required.");
+    if (payerTotal !== 100) return setError(`Payer mix must add up to 100%. Currently ${payerTotal}%.`);
     setStep("agreements");
+  };
+
+  const updatePayerSlider = (key: keyof typeof payerMix, value: number) => {
+    setPayerMix(prev => ({ ...prev, [key]: value }));
   };
 
   const handleSubmit = async () => {
@@ -85,13 +112,16 @@ export default function CompanySignup() {
             phone: phone.trim() || null,
             agreements: accepted,
             clientIp: null,
+            npiNumber: npiNumber.trim(),
+            stateOfOperation,
+            serviceAreaType,
+            truckCount: parseInt(truckCount),
+            payerMix,
           },
         }
       );
 
-      // Handle edge function non-2xx (FunctionsHttpError wraps the body)
       if (fnError) {
-        // Try to parse the error body for structured error codes
         try {
           const body = JSON.parse(fnError.message);
           if (body?.code === "email_exists") {
@@ -106,7 +136,6 @@ export default function CompanySignup() {
         }
       }
 
-      // Handle structured error in successful response
       if (data?.error) {
         if (data?.code === "email_exists") {
           setEmailExists(true);
@@ -117,15 +146,12 @@ export default function CompanySignup() {
         throw new Error(data.error);
       }
 
-      // Auto-login the newly created user
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
 
       if (signInError) throw new Error(signInError.message);
-
-      // Auth state change triggers useAuth → routes based on onboarding status
       navigate("/pending-approval");
     } catch (err: any) {
       const msg = (err.message || "").toLowerCase();
@@ -173,115 +199,152 @@ export default function CompanySignup() {
           </div>
         )}
 
-        {/* Step 1: Company Info */}
+        {/* Progress indicator */}
+        <div className="flex gap-1 mb-6">
+          {["info", "profile", "agreements", "confirm"].map((s, i) => (
+            <div key={s} className={`h-1 flex-1 rounded-full transition-colors ${
+              ["info", "profile", "agreements", "confirm"].indexOf(step) >= i
+                ? "bg-primary"
+                : "bg-muted"
+            }`} />
+          ))}
+        </div>
+
+        {/* Step 1: Account Info */}
         {step === "info" && (
           <div className="space-y-4">
+            <p className="text-sm font-medium text-foreground">Step 1 of 4 — Account Information</p>
             <div className="space-y-2">
               <Label>Company Name</Label>
-              <Input
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="Acme Ambulance LLC"
-              />
+              <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Acme Ambulance LLC" />
             </div>
             <div className="space-y-2">
               <Label>Your Full Name</Label>
-              <Input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Jane Doe"
-              />
+              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jane Doe" />
             </div>
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-              />
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" />
             </div>
             <div className="space-y-2">
               <Label>Phone (optional)</Label>
-              <Input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="(555) 123-4567"
-              />
+              <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
             </div>
             <div className="space-y-2">
               <Label>Password</Label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min 8 characters"
-              />
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 8 characters" />
             </div>
             <div className="space-y-2">
               <Label>Confirm Password</Label>
-              <Input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter password"
-              />
+              <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter password" />
             </div>
-            <Button className="w-full" onClick={validateInfo}>
-              Continue to Agreements
-            </Button>
+            <Button className="w-full" onClick={validateInfo}>Continue</Button>
             <p className="text-center text-xs text-muted-foreground">
               Already have an account?{" "}
-              <Link to="/login" className="text-primary hover:underline">
-                Sign in
-              </Link>
+              <Link to="/login" className="text-primary hover:underline">Sign in</Link>
             </p>
           </div>
         )}
 
-        {/* Step 2: Legal Agreements */}
+        {/* Step 2: Company Profile */}
+        {step === "profile" && (
+          <div className="space-y-4">
+            <button onClick={() => setStep("info")} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="h-3 w-3" /> Back
+            </button>
+            <p className="text-sm font-medium text-foreground">Step 2 of 4 — Company Profile</p>
+
+            <div className="space-y-2">
+              <Label>NPI Number *</Label>
+              <Input value={npiNumber} onChange={(e) => setNpiNumber(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="1234567890" maxLength={10} />
+              <p className="text-xs text-muted-foreground">Your 10-digit National Provider Identifier</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>State of Operation *</Label>
+              <Select value={stateOfOperation} onValueChange={setStateOfOperation}>
+                <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                <SelectContent>
+                  {US_STATES.map(s => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Service Area Type *</Label>
+              <Select value={serviceAreaType} onValueChange={setServiceAreaType}>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="urban">Urban</SelectItem>
+                  <SelectItem value="suburban">Suburban</SelectItem>
+                  <SelectItem value="rural">Rural</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Determines which Medicare rate tier applies</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Number of Active Trucks *</Label>
+              <Input type="number" min="1" max="200" value={truckCount} onChange={(e) => setTruckCount(e.target.value)} placeholder="e.g. 5" />
+            </div>
+
+            <div className="space-y-3">
+              <Label>Primary Payer Mix *</Label>
+              <p className="text-xs text-muted-foreground">
+                Approximate percentage of revenue by payer type. Must total 100%.
+                {payerTotal !== 100 && (
+                  <span className="text-destructive font-medium"> Currently {payerTotal}%</span>
+                )}
+                {payerTotal === 100 && (
+                  <span className="text-[hsl(var(--status-green))] font-medium"> ✓ 100%</span>
+                )}
+              </p>
+              {(["medicare", "medicaid", "facility", "private"] as const).map(key => (
+                <div key={key} className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="capitalize">{key === "private" ? "Private Pay" : key === "facility" ? "Facility Contract" : key}</span>
+                    <span className="font-medium">{payerMix[key]}%</span>
+                  </div>
+                  <Slider
+                    value={[payerMix[key]]}
+                    onValueChange={([v]) => updatePayerSlider(key, v)}
+                    max={100}
+                    step={5}
+                    className="w-full"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <Button className="w-full" onClick={validateProfile}>Continue to Agreements</Button>
+          </div>
+        )}
+
+        {/* Step 3: Legal Agreements */}
         {step === "agreements" && (
           <div className="space-y-4">
-            <button
-              onClick={() => setStep("info")}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="h-3 w-3" /> Back to info
+            <button onClick={() => setStep("profile")} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="h-3 w-3" /> Back
             </button>
+            <p className="text-sm font-medium text-foreground">Step 3 of 4 — Legal Agreements</p>
 
             <div className="space-y-3">
               {AGREEMENTS.map((agreement) => (
-                <div
-                  key={agreement.key}
-                  className="rounded-lg border bg-card p-4 space-y-2"
-                >
+                <div key={agreement.key} className="rounded-lg border bg-card p-4 space-y-2">
                   <div className="flex items-start gap-3">
                     <Checkbox
                       id={agreement.key}
                       checked={accepted[agreement.key]}
-                      onCheckedChange={(v) =>
-                        setAccepted((prev) => ({
-                          ...prev,
-                          [agreement.key]: v === true,
-                        }))
-                      }
+                      onCheckedChange={(v) => setAccepted((prev) => ({ ...prev, [agreement.key]: v === true }))}
                       className="mt-0.5"
                     />
                     <div className="flex-1">
-                      <Label
-                        htmlFor={agreement.key}
-                        className="text-sm font-medium cursor-pointer"
-                      >
-                        {agreement.label}
-                      </Label>
+                      <Label htmlFor={agreement.key} className="text-sm font-medium cursor-pointer">{agreement.label}</Label>
                       <Collapsible>
-                        <CollapsibleTrigger className="text-xs text-primary hover:underline mt-1">
-                          View summary
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="mt-2 text-xs text-muted-foreground">
-                          {agreement.summary}
-                        </CollapsibleContent>
+                        <CollapsibleTrigger className="text-xs text-primary hover:underline mt-1">View summary</CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2 text-xs text-muted-foreground">{agreement.summary}</CollapsibleContent>
                       </Collapsible>
                     </div>
                     <agreement.icon className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
@@ -290,52 +353,35 @@ export default function CompanySignup() {
               ))}
             </div>
 
-            <Button
-              className="w-full"
-              disabled={!allAccepted}
-              onClick={() => setStep("confirm")}
-            >
-              Continue to Review
-            </Button>
+            <Button className="w-full" disabled={!allAccepted} onClick={() => setStep("confirm")}>Continue to Review</Button>
           </div>
         )}
 
-        {/* Step 3: Final Confirmation */}
+        {/* Step 4: Final Confirmation */}
         {step === "confirm" && (
           <div className="space-y-4">
-            <button
-              onClick={() => setStep("agreements")}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="h-3 w-3" /> Back to agreements
+            <button onClick={() => setStep("agreements")} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="h-3 w-3" /> Back
             </button>
+            <p className="text-sm font-medium text-foreground">Step 4 of 4 — Review & Submit</p>
 
             <div className="rounded-lg border bg-card p-4 space-y-3 text-sm">
               <h3 className="font-semibold text-foreground">Review Your Signup</h3>
               <div className="space-y-1 text-muted-foreground">
-                <p>
-                  <span className="text-foreground font-medium">Company:</span>{" "}
-                  {companyName}
-                </p>
-                <p>
-                  <span className="text-foreground font-medium">Owner:</span>{" "}
-                  {fullName}
-                </p>
-                <p>
-                  <span className="text-foreground font-medium">Email:</span>{" "}
-                  {email}
-                </p>
-                <p>
-                  <span className="text-foreground font-medium">Plan:</span>{" "}
-                  PodDispatch Standard (Build Mode — No Payment Required)
-                </p>
+                <p><span className="text-foreground font-medium">Company:</span> {companyName}</p>
+                <p><span className="text-foreground font-medium">Owner:</span> {fullName}</p>
+                <p><span className="text-foreground font-medium">Email:</span> {email}</p>
+                <p><span className="text-foreground font-medium">NPI:</span> {npiNumber}</p>
+                <p><span className="text-foreground font-medium">State:</span> {US_STATES.find(s => s.value === stateOfOperation)?.label}</p>
+                <p><span className="text-foreground font-medium">Service Area:</span> {serviceAreaType}</p>
+                <p><span className="text-foreground font-medium">Trucks:</span> {truckCount}</p>
+                <p><span className="text-foreground font-medium">Payer Mix:</span> Medicare {payerMix.medicare}% / Medicaid {payerMix.medicaid}% / Facility {payerMix.facility}% / Private {payerMix.private}%</p>
+                <p><span className="text-foreground font-medium">Plan:</span> PodDispatch Standard (Build Mode — No Payment Required)</p>
               </div>
               <div className="border-t pt-2">
                 <p className="text-xs text-muted-foreground">
-                  ✅ Terms of Service accepted
-                  <br />
-                  ✅ Privacy Policy accepted
-                  <br />
+                  ✅ Terms of Service accepted<br />
+                  ✅ Privacy Policy accepted<br />
                   ✅ HIPAA Responsibilities accepted
                 </p>
               </div>
@@ -346,14 +392,11 @@ export default function CompanySignup() {
               <ol className="list-decimal list-inside space-y-0.5">
                 <li>Your account and company will be created</li>
                 <li>Your account will be reviewed and activated by the PodDispatch team</li>
+                <li>After approval, a guided setup wizard will help you get operational</li>
               </ol>
             </div>
 
-            <Button
-              className="w-full"
-              onClick={handleSubmit}
-              disabled={loading}
-            >
+            <Button className="w-full" onClick={handleSubmit} disabled={loading}>
               {loading ? "Creating account..." : "Create Company & Continue"}
             </Button>
           </div>

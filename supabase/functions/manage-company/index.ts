@@ -57,12 +57,23 @@ Deno.serve(async (req) => {
 
       if (updateError) return json({ error: updateError.message }, 500);
 
+      // Set trial period: 45 days from approval
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + 45);
+      await supabaseAdmin
+        .from("subscription_records")
+        .update({
+          subscription_status: "trial",
+          trial_ends_at: trialEndsAt.toISOString(),
+        })
+        .eq("company_id", companyId);
+
       await supabaseAdmin.from("onboarding_events").insert({
         company_id: companyId,
         event_type: "company_approved",
         actor_user_id: user.id,
         actor_email: user.email,
-        details: { approved_by: user.email },
+        details: { approved_by: user.email, trial_ends_at: trialEndsAt.toISOString() },
       });
 
       return json({ success: true, status: "active" });

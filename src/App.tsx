@@ -46,6 +46,8 @@ import CrewDashboard from "./pages/CrewDashboard";
 import PCRPage from "./pages/PCRPage";
 import CrewPatients from "./pages/crew/CrewPatients";
 import CrewSchedulePage from "./pages/crew/CrewSchedule";
+import OnboardingWizard from "./pages/OnboardingWizard";
+import TrialExpired from "./pages/TrialExpired";
 // Token links redirect to login with crew mode when unauthenticated
 function TokenLoginRedirect() {
   const { token } = useParams<{ token: string }>();
@@ -256,6 +258,8 @@ function AppRoutes() {
     <SchedulingProvider>
       <Routes>
         <Route path="/pending-approval" element={<PendingApproval />} />
+        <Route path="/onboarding" element={<OnboardingWizard />} />
+        <Route path="/trial-expired" element={<TrialExpired />} />
         <Route path="/" element={<DispatchBoard />} />
         <Route path="/scheduling" element={<Scheduling />} />
         <Route path="/crew-schedule" element={<CrewScheduleAdmin />} />
