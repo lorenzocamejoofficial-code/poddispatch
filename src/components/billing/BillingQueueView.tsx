@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText, Pencil, RotateCcw } from "lucide-react";
+import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText, Pencil, RotateCcw, ClipboardCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { KickbackDialog } from "@/components/billing/KickbackDialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { BlockerExplanationPanel } from "@/components/billing/BlockerExplanationPanel";
+import { PreSubmitChecklist } from "@/components/billing/PreSubmitChecklist";
+import { BillingReadinessBar } from "@/components/billing/BillingReadinessBar";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
