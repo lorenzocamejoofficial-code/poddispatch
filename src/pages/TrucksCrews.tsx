@@ -616,6 +616,8 @@ export default function TrucksCrews() {
                     </label>
                   ))}
                 </div>
+                {/* Vehicle Inspection Config */}
+                <InspectionConfigPanel truckId={t.id} companyId={(t as any).company_id ?? ""} />
               </div>
             ))}
             {trucks.length === 0 && <p className="text-sm text-muted-foreground col-span-full">No trucks yet</p>}
