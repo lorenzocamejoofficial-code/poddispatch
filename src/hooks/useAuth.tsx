@@ -50,6 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionWarning, setSessionWarning] = useState(false);
   const [isSystemCreator, setIsSystemCreator] = useState(false);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [wizardCompleted, setWizardCompleted] = useState<boolean | null>(null);
 
   // HIPAA: inactivity timeout refs
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
