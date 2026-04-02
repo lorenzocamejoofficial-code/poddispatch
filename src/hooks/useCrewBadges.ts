@@ -20,6 +20,7 @@ interface CrewBadges {
   dashboard: boolean;
   schedule: boolean;
   pcr: boolean;
+  checklist: boolean;
 }
 
 /**
