@@ -258,6 +258,8 @@ function AppRoutes() {
     <SchedulingProvider>
       <Routes>
         <Route path="/pending-approval" element={<PendingApproval />} />
+        <Route path="/onboarding" element={<OnboardingWizard />} />
+        <Route path="/trial-expired" element={<TrialExpired />} />
         <Route path="/" element={<DispatchBoard />} />
         <Route path="/scheduling" element={<Scheduling />} />
         <Route path="/crew-schedule" element={<CrewScheduleAdmin />} />
