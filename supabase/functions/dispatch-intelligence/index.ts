@@ -597,6 +597,14 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Fix 8: If caller provided a company_id in the body that differs from their
+    // actual membership, reject the request to prevent cross-company data access.
+    if (companyId && body.company_id && body.company_id !== companyId) {
+      return new Response(JSON.stringify({ error: "Company ID mismatch — access denied" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (!companyId) {
       return new Response(JSON.stringify({ error: "No company found" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
