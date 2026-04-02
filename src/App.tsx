@@ -187,7 +187,8 @@ function AppRoutes() {
           <Route path="/crew-dashboard" element={<CrewDashboard />} />
           <Route path="/crew-patients" element={<CrewPatients />} />
           <Route path="/crew-schedule" element={<CrewSchedulePage />} />
-          <Route path="/pcr" element={<PCRPage />} />
+           <Route path="/pcr" element={<PCRPage />} />
+           <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
           {/* App Simulation — all operational pages */}
           <Route path="/simulation" element={<DispatchBoard />} />
           <Route path="/scheduling" element={<Scheduling />} />
