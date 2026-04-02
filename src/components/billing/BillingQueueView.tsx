@@ -506,17 +506,34 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                 </div>
               </div>
 
-              {/* Blockers */}
-              {selectedQueueInfo.blockers.length > 0 && (
-                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive">Blockers</p>
-                  {selectedQueueInfo.blockers.map((b, i) => (
-                    <p key={i} className="text-xs text-destructive flex items-center gap-1.5">
-                      <XCircle className="h-3 w-3 shrink-0" /> {b}
-                    </p>
-                  ))}
-                </div>
-              )}
+              {/* Claim Issues — plain language explanations */}
+              {(() => {
+                const allBlockers = [...(selectedQueueInfo.blockers ?? []), ...(selectedTrip.blockers ?? [])].filter(Boolean);
+                const uniqueBlockers = [...new Set(allBlockers)];
+                return (
+                  <BlockerExplanationPanel
+                    blockers={uniqueBlockers}
+                    tripId={selectedTrip.id}
+                    patientId={selectedTrip.patient_id}
+                  />
+                );
+              })()}
+
+              {/* Pre-Submit Checklist for ready claims */}
+              {selectedQueueInfo.status === "ready" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1.5"
+                  onClick={() => {
+                    setPreSubmitTripId(selectedTrip.id);
+                    setPreSubmitPatientId(selectedTrip.patient_id ?? null);
+                  }}
+                >
+                  <ClipboardCheck className="h-3.5 w-3.5" />
+                  Pre-Submit Checklist
+                </Button>
+              )
 
               {/* Override section - only for review/blocked */}
               {selectedQueueInfo.status !== "ready" && (
