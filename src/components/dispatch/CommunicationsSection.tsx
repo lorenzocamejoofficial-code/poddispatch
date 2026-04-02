@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { Phone, PhoneCall, Building2, ChevronDown } from "lucide-react";
+import { Phone, PhoneCall, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CallConfirmationDrawer } from "./CallConfirmationDrawer";
 import { CommsOutboxPanel } from "./CommsOutboxPanel";
 
