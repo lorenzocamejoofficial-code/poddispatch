@@ -24,6 +24,7 @@ import { BillerPCROverridePanel } from "@/components/billing/BillerPCROverridePa
 
 interface TripForQueue {
   id: string;
+  patient_id?: string | null;
   run_date: string;
   status: string;
   trip_type: string | null;
