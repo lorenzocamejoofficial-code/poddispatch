@@ -80,7 +80,7 @@ function SessionWarningBanner() {
 }
 
 function AppRoutes() {
-  const { user, role, loading, membershipLoaded, isSystemCreator, onboardingStatus, activeCompanyId } = useAuth();
+  const { user, role, loading, membershipLoaded, isSystemCreator, onboardingStatus, activeCompanyId, subscriptionStatus, wizardCompleted } = useAuth();
 
   // Show loading while auth session OR membership data is still resolving
   if (loading || (user && !membershipLoaded)) {
@@ -141,6 +141,29 @@ function AppRoutes() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/pending-approval" replace />} />
       </Routes>
+    );
+  }
+
+  // Trial expired — block access for non-creators
+  if (!isSystemCreator && subscriptionStatus === "trial_expired") {
+    return (
+      <Routes>
+        <Route path="/trial-expired" element={<TrialExpired />} />
+        <Route path="*" element={<Navigate to="/trial-expired" replace />} />
+      </Routes>
+    );
+  }
+
+  // New owner hasn't completed wizard — force redirect (owner/admin only)
+  if (!isSystemCreator && (role === "owner" || role === "creator") && wizardCompleted === false) {
+    return (
+      <SchedulingProvider>
+        <Routes>
+          <Route path="/onboarding" element={<OnboardingWizard />} />
+          <Route path="/account" element={<AccountSettings />} />
+          <Route path="*" element={<Navigate to="/onboarding" replace />} />
+        </Routes>
+      </SchedulingProvider>
     );
   }
 

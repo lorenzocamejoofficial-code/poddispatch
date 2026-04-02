@@ -21,6 +21,8 @@ interface AuthContextType {
   sessionWarning: boolean;
   isSystemCreator: boolean;
   onboardingStatus: OnboardingStatus | null;
+  subscriptionStatus: string | null;
+  wizardCompleted: boolean | null;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshOnboardingStatus: () => Promise<void>;
@@ -48,6 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionWarning, setSessionWarning] = useState(false);
   const [isSystemCreator, setIsSystemCreator] = useState(false);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [wizardCompleted, setWizardCompleted] = useState<boolean | null>(null);
 
   // HIPAA: inactivity timeout refs
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -65,14 +69,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (membershipData) {
       setRole(membershipData.role as MembershipRole);
       setActiveCompanyId(membershipData.company_id);
-      const { data: companyData } = await supabase
-        .from("companies")
-        .select("onboarding_status")
-        .eq("id", membershipData.company_id)
-        .maybeSingle();
-      if (companyData) {
-        setOnboardingStatus(companyData.onboarding_status as OnboardingStatus);
-      }
+      const [{ data: companyData }, { data: subData }, { data: migData }] = await Promise.all([
+        supabase.from("companies").select("onboarding_status").eq("id", membershipData.company_id).maybeSingle(),
+        supabase.from("subscription_records").select("subscription_status").eq("company_id", membershipData.company_id).maybeSingle(),
+        supabase.from("migration_settings").select("wizard_completed").eq("company_id", membershipData.company_id).maybeSingle(),
+      ]);
+      if (companyData) setOnboardingStatus(companyData.onboarding_status as OnboardingStatus);
+      setSubscriptionStatus(subData?.subscription_status ?? null);
+      setWizardCompleted(migData ? (migData as any).wizard_completed : null);
     }
     if (profileData) setProfileId(profileData.id);
     setIsSystemCreator(!!scData);
@@ -99,6 +103,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfileId(null);
     setIsSystemCreator(false);
     setOnboardingStatus(null);
+    setSubscriptionStatus(null);
+    setWizardCompleted(null);
     setMembershipLoaded(false);
   }, []);
 
@@ -210,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, session, role, activeCompanyId, profileId, loading, membershipLoaded, sessionWarning, isSystemCreator, onboardingStatus, signIn, signOut, refreshOnboardingStatus,
+      user, session, role, activeCompanyId, profileId, loading, membershipLoaded, sessionWarning, isSystemCreator, onboardingStatus, subscriptionStatus, wizardCompleted, signIn, signOut, refreshOnboardingStatus,
       isAdmin, isOwner, isDispatcher, isBilling, isCrew, isCreator,
       canManageTrips, canManageBilling, canManagePatients,
     }}>
