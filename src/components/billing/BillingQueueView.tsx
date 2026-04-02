@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText, Pencil, RotateCcw } from "lucide-react";
+import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText, Pencil, RotateCcw, ClipboardCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { KickbackDialog } from "@/components/billing/KickbackDialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { BlockerExplanationPanel } from "@/components/billing/BlockerExplanationPanel";
+import { PreSubmitChecklist } from "@/components/billing/PreSubmitChecklist";
+import { BillingReadinessBar } from "@/components/billing/BillingReadinessBar";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +24,7 @@ import { BillerPCROverridePanel } from "@/components/billing/BillerPCROverridePa
 
 interface TripForQueue {
   id: string;
+  patient_id?: string | null;
   run_date: string;
   status: string;
   trip_type: string | null;
@@ -144,6 +148,9 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
   const [correctTrip, setCorrectTrip] = useState<TripForQueue | null>(null);
   const [kickbackTripId, setKickbackTripId] = useState<string | null>(null);
   const [kickbackPatientName, setKickbackPatientName] = useState<string | undefined>(undefined);
+  const [readinessFilter, setReadinessFilter] = useState<string | null>(null);
+  const [preSubmitTripId, setPreSubmitTripId] = useState<string | null>(null);
+  const [preSubmitPatientId, setPreSubmitPatientId] = useState<string | null>(null);
 
   const fetchOverrideHistory = useCallback(async () => {
     const tripIds = trips.map(t => t.id);
@@ -296,6 +303,15 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
         </div>
       ) : (
         <>
+          {/* Readiness bar */}
+          <BillingReadinessBar
+            readyCount={grouped.ready.length}
+            blockedCount={grouped.blocked.length}
+            reviewCount={grouped.review.length}
+            activeFilter={readinessFilter}
+            onFilter={setReadinessFilter}
+          />
+
           {/* KPIs */}
           <div className="grid grid-cols-4 gap-3">
             <div className="rounded-lg border bg-card p-3">
@@ -321,6 +337,9 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
           {/* Queue columns */}
           <div className="grid gap-4 md:grid-cols-3">
             {(["ready", "review", "blocked"] as BillingQueueStatus[]).map(queueStatus => {
+              // Apply readiness filter
+              if (readinessFilter && readinessFilter !== queueStatus) return null;
+
               const config = QUEUE_CONFIG[queueStatus];
               const Icon = config.icon;
               const items = grouped[queueStatus];
@@ -336,36 +355,60 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                   ) : (
                     items.map(trip => {
                       const hasOverride = overrideHistory.has(trip.id);
+                      const allBlockers = [...(trip.queueBlockers ?? []), ...(trip.blockers ?? [])].filter(Boolean);
+                      const uniqueBlockers = [...new Set(allBlockers)];
                       return (
-                        <button
-                          key={trip.id}
-                          onClick={() => setSelectedTrip(trip)}
-                          className="w-full rounded-md border bg-card p-3 text-left hover:border-primary/40 hover:shadow-sm transition-all"
-                        >
-                          <div className="flex items-center justify-between gap-1 mb-1">
-                            <p className="text-xs font-semibold text-foreground truncate">{trip.patient_name}</p>
-                            <div className="flex items-center gap-1">
-                              {hasOverride && (
-                                <Badge variant="outline" className="text-[9px] border-[hsl(var(--status-yellow))]/40 text-[hsl(var(--status-yellow))]">
-                                  <ShieldAlert className="h-2.5 w-2.5 mr-0.5" />Override
+                        <div key={trip.id} className="rounded-md border bg-card hover:border-primary/40 hover:shadow-sm transition-all">
+                          <button
+                            onClick={() => setSelectedTrip(trip)}
+                            className="w-full p-3 text-left"
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <p className="text-xs font-semibold text-foreground truncate">{trip.patient_name}</p>
+                              <div className="flex items-center gap-1">
+                                {hasOverride && (
+                                  <Badge variant="outline" className="text-[9px] border-[hsl(var(--status-yellow))]/40 text-[hsl(var(--status-yellow))]">
+                                    <ShieldAlert className="h-2.5 w-2.5 mr-0.5" />Override
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className="text-[9px]">
+                                  {PCR_TYPES.find(p => p.value === trip.pcr_type)?.label ?? trip.pcr_type ?? "—"}
                                 </Badge>
-                              )}
-                              <Badge variant="outline" className="text-[9px]">
-                                {PCR_TYPES.find(p => p.value === trip.pcr_type)?.label ?? trip.pcr_type ?? "—"}
-                              </Badge>
+                              </div>
                             </div>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground">{trip.run_date} · {trip.truck_name}</p>
-                          {trip.queueMissing.length > 0 && (
-                            <p className="text-[10px] text-destructive mt-1 truncate">
-                              Missing: {trip.queueMissing.join(", ")}
-                            </p>
+                            <p className="text-[10px] text-muted-foreground">{trip.run_date} · {trip.truck_name}</p>
+                            <div className="mt-1.5 flex items-center justify-between">
+                              <span className="text-xs font-bold text-foreground">${(trip.expected_revenue ?? 0).toLocaleString()}</span>
+                              {queueStatus === "ready" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-5 text-[9px] px-1.5 gap-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreSubmitTripId(trip.id);
+                                    setPreSubmitPatientId(trip.patient_id ?? null);
+                                  }}
+                                >
+                                  <ClipboardCheck className="h-2.5 w-2.5" />
+                                  Pre-Submit
+                                </Button>
+                              )}
+                              {queueStatus !== "ready" && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+                            </div>
+                          </button>
+                          {/* Inline explanation panel for blocked/review */}
+                          {queueStatus !== "ready" && uniqueBlockers.length > 0 && (
+                            <div className="px-3 pb-2">
+                              <BlockerExplanationPanel
+                                blockers={uniqueBlockers}
+                                tripId={trip.id}
+                                patientId={(trip as any).patient_id}
+                                compact
+                              />
+                            </div>
                           )}
-                          <div className="mt-1.5 flex items-center justify-between">
-                            <span className="text-xs font-bold text-foreground">${(trip.expected_revenue ?? 0).toLocaleString()}</span>
-                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                          </div>
-                        </button>
+                        </div>
                       );
                     })
                   )}
@@ -463,16 +506,33 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                 </div>
               </div>
 
-              {/* Blockers */}
-              {selectedQueueInfo.blockers.length > 0 && (
-                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive">Blockers</p>
-                  {selectedQueueInfo.blockers.map((b, i) => (
-                    <p key={i} className="text-xs text-destructive flex items-center gap-1.5">
-                      <XCircle className="h-3 w-3 shrink-0" /> {b}
-                    </p>
-                  ))}
-                </div>
+              {/* Claim Issues — plain language explanations */}
+              {(() => {
+                const allBlockers = [...(selectedQueueInfo.blockers ?? []), ...(selectedTrip.blockers ?? [])].filter(Boolean);
+                const uniqueBlockers = [...new Set(allBlockers)];
+                return (
+                  <BlockerExplanationPanel
+                    blockers={uniqueBlockers}
+                    tripId={selectedTrip.id}
+                    patientId={selectedTrip.patient_id}
+                  />
+                );
+              })()}
+
+              {/* Pre-Submit Checklist for ready claims */}
+              {selectedQueueInfo.status === "ready" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1.5"
+                  onClick={() => {
+                    setPreSubmitTripId(selectedTrip.id);
+                    setPreSubmitPatientId(selectedTrip.patient_id ?? null);
+                  }}
+                >
+                  <ClipboardCheck className="h-3.5 w-3.5" />
+                  Pre-Submit Checklist
+                </Button>
               )}
 
               {/* Override section - only for review/blocked */}
@@ -631,6 +691,15 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
           onKickedBack={() => { setKickbackTripId(null); onRefresh(); }}
         />
       )}
+
+      {/* Pre-Submit Checklist */}
+      <PreSubmitChecklist
+        tripId={preSubmitTripId ?? ""}
+        patientId={preSubmitPatientId}
+        open={!!preSubmitTripId}
+        onOpenChange={(open) => { if (!open) { setPreSubmitTripId(null); setPreSubmitPatientId(null); } }}
+        onSubmit={() => { setPreSubmitTripId(null); setPreSubmitPatientId(null); onRefresh(); }}
+      />
     </div>
   );
 }
