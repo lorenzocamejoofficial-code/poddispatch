@@ -69,6 +69,7 @@ interface ChargeMaster {
   oxygen_fee: number;
   extra_attendant_fee: number;
   bariatric_fee: number;
+  updated_at: string;
 }
 
 const CLAIM_COLUMNS: { status: ClaimStatus; label: string; icon: React.ReactNode; color: string }[] = [
