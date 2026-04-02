@@ -766,6 +766,7 @@ export default function BillingAndClaims() {
 
         {/* Charge Master */}
         <TabsContent value="charge-master" className="m-0 space-y-4">
+          <ChargeRateNotice chargeMaster={chargeMaster} />
           <div className="flex justify-end">
             <Button size="sm" onClick={() => {
               setEditingRate(null);
