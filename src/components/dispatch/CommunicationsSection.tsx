@@ -125,7 +125,6 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
       .eq("truck_id", run.truckId)
       .limit(10);
 
-    const matchingTrip = ((tripData ?? []) as any[]).find((t: any) => true); // first trip for this truck
     // Try to get a more specific match via slot lookup
     const { data: slotTrip } = await supabase
       .from("truck_run_slots")

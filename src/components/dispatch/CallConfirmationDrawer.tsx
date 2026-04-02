@@ -131,7 +131,7 @@ export function CallConfirmationDrawer({
         facility_name: facilityName,
         message_text: message,
         eta_used: eta,
-        queued_by: userId,
+        queued_by: user?.id,
         queued_at: new Date().toISOString(),
         status: "queued",
         payload: {
