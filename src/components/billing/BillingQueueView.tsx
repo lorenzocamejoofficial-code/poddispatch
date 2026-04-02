@@ -691,6 +691,15 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
           onKickedBack={() => { setKickbackTripId(null); onRefresh(); }}
         />
       )}
+
+      {/* Pre-Submit Checklist */}
+      <PreSubmitChecklist
+        tripId={preSubmitTripId ?? ""}
+        patientId={preSubmitPatientId}
+        open={!!preSubmitTripId}
+        onOpenChange={(open) => { if (!open) { setPreSubmitTripId(null); setPreSubmitPatientId(null); } }}
+        onSubmit={() => { setPreSubmitTripId(null); setPreSubmitPatientId(null); onRefresh(); }}
+      />
     </div>
   );
 }
