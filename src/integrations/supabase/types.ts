@@ -420,36 +420,57 @@ export type Database = {
       }
       comms_events: {
         Row: {
+          call_type: string | null
           company_id: string
           created_at: string
+          eta_used: string | null
           event_type: string
           facility_id: string | null
+          facility_name: string | null
           id: string
+          message_text: string | null
+          patient_name: string | null
           payload: Json | null
+          queued_at: string | null
+          queued_by: string | null
           simulation_run_id: string | null
           status: string
           trip_id: string
           truck_id: string
         }
         Insert: {
+          call_type?: string | null
           company_id: string
           created_at?: string
+          eta_used?: string | null
           event_type: string
           facility_id?: string | null
+          facility_name?: string | null
           id?: string
+          message_text?: string | null
+          patient_name?: string | null
           payload?: Json | null
+          queued_at?: string | null
+          queued_by?: string | null
           simulation_run_id?: string | null
           status?: string
           trip_id: string
           truck_id: string
         }
         Update: {
+          call_type?: string | null
           company_id?: string
           created_at?: string
+          eta_used?: string | null
           event_type?: string
           facility_id?: string | null
+          facility_name?: string | null
           id?: string
+          message_text?: string | null
+          patient_name?: string | null
           payload?: Json | null
+          queued_at?: string | null
+          queued_by?: string | null
           simulation_run_id?: string | null
           status?: string
           trip_id?: string
