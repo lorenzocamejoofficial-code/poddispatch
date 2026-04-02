@@ -109,6 +109,7 @@ export function PendingCancellationPanel({ cancellations, onResolved }: PendingC
         status: "assigned" as any,
         cancellation_disputed: true,
         cancellation_dispatcher_note: note,
+        updated_by: profileId,
       } as any).eq("id", c.tripId);
 
       // Notify crew members
