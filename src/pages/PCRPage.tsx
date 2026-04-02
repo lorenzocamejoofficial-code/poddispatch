@@ -483,7 +483,7 @@ export default function PCRPage() {
     };
     return (
       <CrewLayout>
-        <MedicSelector crewMember1={crewMembers.m1} crewMember2={crewMembers.m2} onSelect={handleMedicSelect} />
+        <MedicSelector crewMember1={crewMembers.m1} crewMember2={crewMembers.m2} crewMember3={crewMembers.m3} onSelect={handleMedicSelect} />
       </CrewLayout>
     );
   }
