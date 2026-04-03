@@ -625,6 +625,12 @@ export default function BillingAndClaims() {
               837P Export
             </Button>
           </a>
+          <a href="/remittance-import">
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+              <Download className="h-3.5 w-3.5" />
+              835 Import
+            </Button>
+          </a>
           <div className="flex flex-wrap items-center gap-2">
             <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-40 h-9" />
             <Button size="sm" onClick={syncClaimsFromTrips}>
