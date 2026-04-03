@@ -201,6 +201,7 @@ function AppRoutes() {
           <Route path="/trips" element={<TripsAndClinical />} />
           <Route path="/billing" element={<BillingAndClaims />} />
           <Route path="/edi-export" element={<EDIExport />} />
+          <Route path="/remittance-import" element={<RemittanceImport />} />
           <Route path="/compliance" element={<ComplianceAndQA />} />
           <Route path="/facilities" element={<FacilitiesPage />} />
           <Route path="/reports" element={<ReportsAndMetrics />} />
