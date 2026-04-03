@@ -637,6 +637,7 @@ export default function BillingAndClaims() {
             <TabsTrigger value="claims">Claims Board</TabsTrigger>
             <TabsTrigger value="overrides-log"><ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Overrides Log</TabsTrigger>
             <TabsTrigger value="charge-master"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Charge Master</TabsTrigger>
+            <TabsTrigger value="revenue-cycle"><TrendingUp className="h-3.5 w-3.5 mr-1.5" />Revenue Cycle</TabsTrigger>
           </TabsList>
           <a href="/edi-export">
             <Button variant="outline" size="sm" className="gap-1.5 text-xs">
