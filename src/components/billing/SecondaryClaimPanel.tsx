@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, ArrowRight, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
