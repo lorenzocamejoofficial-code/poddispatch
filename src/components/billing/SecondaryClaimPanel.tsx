@@ -119,7 +119,7 @@ export function SecondaryClaimPanel({
         tableName: "claim_records",
         recordId: claimId,
         notes: `Generated secondary claim for ${secondaryPayer} — $${secondaryCharge.toFixed(2)}`,
-        newData: { secondary_claim_id: newClaim.id, secondary_payer: secondaryPayer },
+        newData: { secondary_claim_id: newClaimId, secondary_payer: secondaryPayer },
       });
 
       setGenerated(true);
