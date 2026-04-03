@@ -197,15 +197,19 @@ export default function BillingAndClaims() {
     setClaims(
       ((claimRows ?? []) as any[]).map((c: any) => {
         const tripData = tMap.get(c.trip_id) as any;
+        const patData = pMap.get(c.patient_id) as any;
         return {
           ...c,
-          patient_name: pMap.get(c.patient_id) ?? "Unknown",
+          patient_name: patData?.name ?? "Unknown",
           trip_loaded_miles: tripData?.loaded_miles ?? null,
           trip_signature: tripData?.signature_obtained ?? false,
           trip_pcs: tripData?.pcs_attached ?? false,
           trip_loaded_at: tripData?.loaded_at ?? null,
           trip_dropped_at: tripData?.dropped_at ?? null,
           trip_type: tripData?.trip_type ?? c.payer_type ?? null,
+          patient_secondary_payer: patData?.secondary_payer ?? null,
+          patient_secondary_member_id: patData?.secondary_member_id ?? null,
+          patient_secondary_payer_id: patData?.secondary_payer_id ?? null,
         };
       })
     );
