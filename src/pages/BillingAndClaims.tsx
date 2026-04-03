@@ -648,6 +648,12 @@ export default function BillingAndClaims() {
               835 Import
             </Button>
           </a>
+          {secondaryOpportunities > 0 && (
+            <Badge variant="secondary" className="text-xs gap-1 bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] border border-[hsl(var(--status-yellow))]/30 cursor-default">
+              <AlertTriangle className="h-3 w-3" />
+              {secondaryOpportunities} secondary {secondaryOpportunities === 1 ? "opportunity" : "opportunities"}
+            </Badge>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-40 h-9" />
             <Button size="sm" onClick={syncClaimsFromTrips}>
