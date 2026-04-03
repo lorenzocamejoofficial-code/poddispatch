@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download, Info, X } from "lucide-react";
+import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download, Info, X, FileText } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const DISMISSED_KEY = "charge_master_notice_dismissed_at";
@@ -619,6 +619,12 @@ export default function BillingAndClaims() {
             <TabsTrigger value="overrides-log"><ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Overrides Log</TabsTrigger>
             <TabsTrigger value="charge-master"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Charge Master</TabsTrigger>
           </TabsList>
+          <a href="/edi-export">
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+              <FileText className="h-3.5 w-3.5" />
+              837P Export
+            </Button>
+          </a>
           <div className="flex flex-wrap items-center gap-2">
             <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-40 h-9" />
             <Button size="sm" onClick={syncClaimsFromTrips}>

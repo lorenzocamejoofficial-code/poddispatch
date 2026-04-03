@@ -278,6 +278,7 @@ export type Database = {
           destination_zip: string | null
           edi_acknowledgment_code: string | null
           expected_revenue: number | null
+          exported_at: string | null
           extras_charge: number | null
           hcpcs_codes: string[] | null
           hcpcs_modifiers: string[] | null
@@ -336,6 +337,7 @@ export type Database = {
           destination_zip?: string | null
           edi_acknowledgment_code?: string | null
           expected_revenue?: number | null
+          exported_at?: string | null
           extras_charge?: number | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
@@ -394,6 +396,7 @@ export type Database = {
           destination_zip?: string | null
           edi_acknowledgment_code?: string | null
           expected_revenue?: number | null
+          exported_at?: string | null
           extras_charge?: number | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null

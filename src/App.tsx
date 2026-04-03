@@ -48,6 +48,7 @@ import CrewPatients from "./pages/crew/CrewPatients";
 import CrewSchedulePage from "./pages/crew/CrewSchedule";
 import OnboardingWizard from "./pages/OnboardingWizard";
 import TrialExpired from "./pages/TrialExpired";
+import EDIExport from "./pages/EDIExport";
 import CrewInspectionChecklist from "./components/inspection/CrewInspectionChecklist";
 // Token links redirect to login with crew mode when unauthenticated
 function TokenLoginRedirect() {
@@ -198,6 +199,7 @@ function AppRoutes() {
           <Route path="/patients" element={<Patients />} />
           <Route path="/trips" element={<TripsAndClinical />} />
           <Route path="/billing" element={<BillingAndClaims />} />
+          <Route path="/edi-export" element={<EDIExport />} />
           <Route path="/compliance" element={<ComplianceAndQA />} />
           <Route path="/facilities" element={<FacilitiesPage />} />
           <Route path="/reports" element={<ReportsAndMetrics />} />
@@ -268,6 +270,7 @@ function AppRoutes() {
           <Route path="/patients" element={<Patients />} />
           <Route path="/trips" element={<TripsAndClinical />} />
           <Route path="/billing" element={<BillingAndClaims />} />
+          <Route path="/edi-export" element={<EDIExport />} />
           <Route path="/compliance" element={<ComplianceAndQA />} />
           <Route path="/facilities" element={<FacilitiesPage />} />
           <Route path="/reports" element={<ReportsAndMetrics />} />
@@ -294,6 +297,7 @@ function AppRoutes() {
         <Route path="/patients" element={<Patients />} />
         <Route path="/trips" element={<TripsAndClinical />} />
         <Route path="/billing" element={<BillingAndClaims />} />
+        <Route path="/edi-export" element={<EDIExport />} />
         <Route path="/compliance" element={<ComplianceAndQA />} />
         <Route path="/facilities" element={<FacilitiesPage />} />
         <Route path="/reports" element={<ReportsAndMetrics />} />
