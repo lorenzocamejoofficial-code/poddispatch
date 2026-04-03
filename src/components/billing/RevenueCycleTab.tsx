@@ -18,7 +18,7 @@ interface ClaimRecord {
   denial_reason: string | null;
   payer_type: string;
   payer_name: string | null;
-  adjustment_codes: string[] | null;
+  adjustment_codes?: string[] | null;
   patient_secondary_payer?: string | null;
   secondary_claim_generated?: boolean;
   patient_responsibility_amount?: number | null;
