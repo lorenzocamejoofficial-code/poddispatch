@@ -890,6 +890,11 @@ export default function BillingAndClaims() {
             </table>
           </div>
         </TabsContent>
+
+        {/* Revenue Cycle */}
+        <TabsContent value="revenue-cycle" className="m-0">
+          <RevenueCycleTab claims={claims} />
+        </TabsContent>
       </Tabs>
 
       {/* Claim edit dialog */}
