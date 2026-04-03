@@ -103,6 +103,14 @@ interface ClaimRecord {
   trip_loaded_at?: string | null;
   trip_dropped_at?: string | null;
   trip_type?: string | null;
+  // secondary insurance & remittance
+  patient_responsibility_amount?: number | null;
+  secondary_claim_generated?: boolean;
+  icd10_codes?: string[] | null;
+  // patient secondary insurance info (joined)
+  patient_secondary_payer?: string | null;
+  patient_secondary_member_id?: string | null;
+  patient_secondary_payer_id?: string | null;
 }
 
 interface ChargeMaster {
