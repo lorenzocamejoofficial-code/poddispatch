@@ -68,6 +68,7 @@ import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
+import { SecondaryClaimPanel } from "@/components/billing/SecondaryClaimPanel";
 
 type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction" | "needs_review";
 
