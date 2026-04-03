@@ -184,14 +184,14 @@ export default function BillingAndClaims() {
     const tripIds = [...new Set(((claimRows ?? []) as any[]).map((c: any) => c.trip_id).filter(Boolean))];
     const [{ data: pRows }, { data: tripRows }] = await Promise.all([
       patientIds.length > 0
-        ? supabase.from("patients").select("id, first_name, last_name").in("id", patientIds)
+        ? supabase.from("patients").select("id, first_name, last_name, secondary_payer, secondary_member_id, secondary_payer_id").in("id", patientIds)
         : Promise.resolve({ data: [] }),
       tripIds.length > 0
         ? supabase.from("trip_records" as any).select("id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type").in("id", tripIds)
         : Promise.resolve({ data: [] }),
     ]);
 
-    const pMap = new Map((pRows ?? []).map((p: any) => [p.id, `${p.first_name} ${p.last_name}`]));
+    const pMap = new Map((pRows ?? []).map((p: any) => [p.id, { name: `${p.first_name} ${p.last_name}`, secondary_payer: p.secondary_payer, secondary_member_id: p.secondary_member_id, secondary_payer_id: p.secondary_payer_id }]));
     const tMap = new Map((tripRows ?? []).map((t: any) => [t.id, t]));
 
     setClaims(
