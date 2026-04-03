@@ -622,6 +622,10 @@ export default function BillingAndClaims() {
     ? ((claims.filter(c => c.status === "denied").length / claims.length) * 100).toFixed(1)
     : "0.0";
 
+  const secondaryOpportunities = claims.filter(
+    c => c.status === "paid" && c.patient_secondary_payer && !c.secondary_claim_generated
+  ).length;
+
   return (
     <AdminLayout>
       <Tabs defaultValue="trip-queue" className="space-y-4">
