@@ -77,7 +77,7 @@ export function SecondaryClaimPanel({
       const secondaryCharge = patResp > 0 ? patResp : totalCharge;
 
       // Create secondary claim
-      const { data: newClaim, error: insertError } = await supabase
+      const { data: newClaimData, error: insertError } = await supabase
         .from("claim_records" as any)
         .insert({
           trip_id: tripId,
@@ -103,6 +103,7 @@ export function SecondaryClaimPanel({
         .single();
 
       if (insertError) throw insertError;
+      const newClaimId = (newClaimData as any)?.id;
 
       // Update primary claim
       await supabase
