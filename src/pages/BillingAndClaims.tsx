@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download, Info, X, FileText } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 const DISMISSED_KEY = "charge_master_notice_dismissed_at";
 
@@ -68,6 +69,7 @@ import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
+import { SecondaryClaimPanel } from "@/components/billing/SecondaryClaimPanel";
 
 type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction" | "needs_review";
 
@@ -103,6 +105,14 @@ interface ClaimRecord {
   trip_loaded_at?: string | null;
   trip_dropped_at?: string | null;
   trip_type?: string | null;
+  // secondary insurance & remittance
+  patient_responsibility_amount?: number | null;
+  secondary_claim_generated?: boolean;
+  icd10_codes?: string[] | null;
+  // patient secondary insurance info (joined)
+  patient_secondary_payer?: string | null;
+  patient_secondary_member_id?: string | null;
+  patient_secondary_payer_id?: string | null;
 }
 
 interface ChargeMaster {
@@ -176,28 +186,32 @@ export default function BillingAndClaims() {
     const tripIds = [...new Set(((claimRows ?? []) as any[]).map((c: any) => c.trip_id).filter(Boolean))];
     const [{ data: pRows }, { data: tripRows }] = await Promise.all([
       patientIds.length > 0
-        ? supabase.from("patients").select("id, first_name, last_name").in("id", patientIds)
+        ? supabase.from("patients").select("id, first_name, last_name, secondary_payer, secondary_member_id, secondary_payer_id").in("id", patientIds)
         : Promise.resolve({ data: [] }),
       tripIds.length > 0
         ? supabase.from("trip_records" as any).select("id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type").in("id", tripIds)
         : Promise.resolve({ data: [] }),
     ]);
 
-    const pMap = new Map((pRows ?? []).map((p: any) => [p.id, `${p.first_name} ${p.last_name}`]));
+    const pMap = new Map((pRows ?? []).map((p: any) => [p.id, { name: `${p.first_name} ${p.last_name}`, secondary_payer: p.secondary_payer, secondary_member_id: p.secondary_member_id, secondary_payer_id: p.secondary_payer_id }]));
     const tMap = new Map((tripRows ?? []).map((t: any) => [t.id, t]));
 
     setClaims(
       ((claimRows ?? []) as any[]).map((c: any) => {
         const tripData = tMap.get(c.trip_id) as any;
+        const patData = pMap.get(c.patient_id) as any;
         return {
           ...c,
-          patient_name: pMap.get(c.patient_id) ?? "Unknown",
+          patient_name: patData?.name ?? "Unknown",
           trip_loaded_miles: tripData?.loaded_miles ?? null,
           trip_signature: tripData?.signature_obtained ?? false,
           trip_pcs: tripData?.pcs_attached ?? false,
           trip_loaded_at: tripData?.loaded_at ?? null,
           trip_dropped_at: tripData?.dropped_at ?? null,
           trip_type: tripData?.trip_type ?? c.payer_type ?? null,
+          patient_secondary_payer: patData?.secondary_payer ?? null,
+          patient_secondary_member_id: patData?.secondary_member_id ?? null,
+          patient_secondary_payer_id: patData?.secondary_payer_id ?? null,
         };
       })
     );
@@ -609,6 +623,10 @@ export default function BillingAndClaims() {
     ? ((claims.filter(c => c.status === "denied").length / claims.length) * 100).toFixed(1)
     : "0.0";
 
+  const secondaryOpportunities = claims.filter(
+    c => c.status === "paid" && c.patient_secondary_payer && !c.secondary_claim_generated
+  ).length;
+
   return (
     <AdminLayout>
       <Tabs defaultValue="trip-queue" className="space-y-4">
@@ -631,6 +649,12 @@ export default function BillingAndClaims() {
               835 Import
             </Button>
           </a>
+          {secondaryOpportunities > 0 && (
+            <Badge variant="secondary" className="text-xs gap-1 bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] border border-[hsl(var(--status-yellow))]/30 cursor-default">
+              <AlertTriangle className="h-3 w-3" />
+              {secondaryOpportunities} secondary {secondaryOpportunities === 1 ? "opportunity" : "opportunities"}
+            </Badge>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-40 h-9" />
             <Button size="sm" onClick={syncClaimsFromTrips}>
@@ -934,6 +958,28 @@ export default function BillingAndClaims() {
               <Textarea rows={2} value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} />
             </div>
             {selectedClaim && <ClaimAdjustmentHistory tripId={selectedClaim.trip_id} />}
+            {selectedClaim && (
+              <SecondaryClaimPanel
+                claimId={selectedClaim.id}
+                tripId={selectedClaim.trip_id}
+                patientId={selectedClaim.patient_id}
+                status={selectedClaim.status}
+                amountPaid={selectedClaim.amount_paid}
+                patientResponsibilityAmount={selectedClaim.patient_responsibility_amount ?? null}
+                totalCharge={selectedClaim.total_charge}
+                secondaryClaimGenerated={selectedClaim.secondary_claim_generated ?? false}
+                runDate={selectedClaim.run_date}
+                hcpcsCodes={selectedClaim.hcpcs_codes}
+                hcpcsModifiers={selectedClaim.hcpcs_modifiers}
+                originType={selectedClaim.origin_type}
+                destinationType={selectedClaim.destination_type}
+                icd10Codes={selectedClaim.icd10_codes ?? null}
+                secondaryPayer={selectedClaim.patient_secondary_payer ?? null}
+                secondaryMemberId={selectedClaim.patient_secondary_member_id ?? null}
+                secondaryPayerId={selectedClaim.patient_secondary_payer_id ?? null}
+                onGenerated={fetchData}
+              />
+            )}
             {selectedClaim && <TripStatusTimeline tripId={selectedClaim.trip_id} label="Trip Status Timeline" />}
             <Button className="w-full" onClick={saveClaim} disabled={savingClaim}>
               {savingClaim ? "Saving…" : "Save Claim"}
