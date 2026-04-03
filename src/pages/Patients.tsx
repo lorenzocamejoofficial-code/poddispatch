@@ -184,6 +184,8 @@ export default function Patients() {
       secondary_payer: (p as any).secondary_payer ?? "",
       member_id: (p as any).member_id ?? "",
       secondary_member_id: (p as any).secondary_member_id ?? "",
+      secondary_group_number: (p as any).secondary_group_number ?? "",
+      secondary_payer_id: (p as any).secondary_payer_id ?? "",
       auth_required: (p as any).auth_required ?? false,
       auth_expiration: (p as any).auth_expiration ?? "",
       trips_per_week_limit: (p as any).trips_per_week_limit?.toString() ?? "",
