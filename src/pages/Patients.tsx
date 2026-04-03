@@ -730,25 +730,43 @@ export default function Patients() {
                         <Input value={form.member_id} onChange={e => setForm({ ...form, member_id: e.target.value })} />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label>Secondary Payer<PCRTooltip text={ADMIN_TOOLTIPS.secondary_payer} /></Label>
-                        <Select value={form.secondary_payer || "none"} onValueChange={v => setForm({ ...form, secondary_payer: v === "none" ? "" : v })}>
-                          <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">— None —</SelectItem>
-                            <SelectItem value="medicare">Medicare</SelectItem>
-                            <SelectItem value="medicaid">Medicaid</SelectItem>
-                            <SelectItem value="facility">Facility</SelectItem>
-                            <SelectItem value="cash">Cash / Private</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>Secondary Member ID<PCRTooltip text={ADMIN_TOOLTIPS.secondary_member_id} /></Label>
-                        <Input value={form.secondary_member_id} onChange={e => setForm({ ...form, secondary_member_id: e.target.value })} />
-                      </div>
-                    </div>
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-1">
+                        <span>Secondary Insurance</span>
+                        {form.secondary_payer && <Badge variant="outline" className="text-[10px] capitalize">{form.secondary_payer}</Badge>}
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-3 pt-2">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label>Secondary Payer<PCRTooltip text={ADMIN_TOOLTIPS.secondary_payer} /></Label>
+                            <Select value={form.secondary_payer || "none"} onValueChange={v => setForm({ ...form, secondary_payer: v === "none" ? "" : v })}>
+                              <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— None —</SelectItem>
+                                <SelectItem value="medicare">Medicare</SelectItem>
+                                <SelectItem value="medicaid">Medicaid</SelectItem>
+                                <SelectItem value="facility">Facility</SelectItem>
+                                <SelectItem value="cash">Cash / Private</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Secondary Member ID<PCRTooltip text={ADMIN_TOOLTIPS.secondary_member_id} /></Label>
+                            <Input value={form.secondary_member_id} onChange={e => setForm({ ...form, secondary_member_id: e.target.value })} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Group Number</Label>
+                            <Input value={form.secondary_group_number} onChange={e => setForm({ ...form, secondary_group_number: e.target.value })} placeholder="Group #" />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Payer ID (EDI)</Label>
+                            <Input value={form.secondary_payer_id} onChange={e => setForm({ ...form, secondary_payer_id: e.target.value })} placeholder="Electronic payer ID" />
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label>Mobility<PCRTooltip text={ADMIN_TOOLTIPS.mobility} /></Label>
