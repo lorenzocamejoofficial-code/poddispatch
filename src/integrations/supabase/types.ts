@@ -260,10 +260,14 @@ export type Database = {
       }
       claim_records: {
         Row: {
+          adjustment_codes: string[] | null
+          allowed_amount: number | null
           amount_paid: number | null
           auth_number: string | null
           base_charge: number | null
           claim_build_date: string | null
+          clearinghouse_id: string | null
+          clearinghouse_status: string | null
           company_id: string | null
           cpt_codes: string[] | null
           created_at: string
@@ -272,6 +276,7 @@ export type Database = {
           denial_reason: string | null
           destination_type: string | null
           destination_zip: string | null
+          edi_acknowledgment_code: string | null
           expected_revenue: number | null
           extras_charge: number | null
           hcpcs_codes: string[] | null
@@ -288,13 +293,20 @@ export type Database = {
           odometer_in_service: number | null
           origin_type: string | null
           origin_zip: string | null
+          original_claim_id: string | null
           paid_at: string | null
           patient_id: string | null
           patient_mobility: string | null
+          patient_responsibility_amount: number | null
+          payer_claim_control_number: string | null
           payer_name: string | null
           payer_type: string | null
+          remittance_date: string | null
+          resubmission_count: number | null
           resubmitted_at: string | null
           run_date: string
+          secondary_claim_generated: boolean | null
+          secondary_claim_id: string | null
           simulation_run_id: string | null
           status: Database["public"]["Enums"]["claim_status"]
           stretcher_placement: string | null
@@ -303,12 +315,17 @@ export type Database = {
           trip_id: string | null
           updated_at: string
           vehicle_id: string | null
+          write_off_amount: number | null
         }
         Insert: {
+          adjustment_codes?: string[] | null
+          allowed_amount?: number | null
           amount_paid?: number | null
           auth_number?: string | null
           base_charge?: number | null
           claim_build_date?: string | null
+          clearinghouse_id?: string | null
+          clearinghouse_status?: string | null
           company_id?: string | null
           cpt_codes?: string[] | null
           created_at?: string
@@ -317,6 +334,7 @@ export type Database = {
           denial_reason?: string | null
           destination_type?: string | null
           destination_zip?: string | null
+          edi_acknowledgment_code?: string | null
           expected_revenue?: number | null
           extras_charge?: number | null
           hcpcs_codes?: string[] | null
@@ -333,13 +351,20 @@ export type Database = {
           odometer_in_service?: number | null
           origin_type?: string | null
           origin_zip?: string | null
+          original_claim_id?: string | null
           paid_at?: string | null
           patient_id?: string | null
           patient_mobility?: string | null
+          patient_responsibility_amount?: number | null
+          payer_claim_control_number?: string | null
           payer_name?: string | null
           payer_type?: string | null
+          remittance_date?: string | null
+          resubmission_count?: number | null
           resubmitted_at?: string | null
           run_date: string
+          secondary_claim_generated?: boolean | null
+          secondary_claim_id?: string | null
           simulation_run_id?: string | null
           status?: Database["public"]["Enums"]["claim_status"]
           stretcher_placement?: string | null
@@ -348,12 +373,17 @@ export type Database = {
           trip_id?: string | null
           updated_at?: string
           vehicle_id?: string | null
+          write_off_amount?: number | null
         }
         Update: {
+          adjustment_codes?: string[] | null
+          allowed_amount?: number | null
           amount_paid?: number | null
           auth_number?: string | null
           base_charge?: number | null
           claim_build_date?: string | null
+          clearinghouse_id?: string | null
+          clearinghouse_status?: string | null
           company_id?: string | null
           cpt_codes?: string[] | null
           created_at?: string
@@ -362,6 +392,7 @@ export type Database = {
           denial_reason?: string | null
           destination_type?: string | null
           destination_zip?: string | null
+          edi_acknowledgment_code?: string | null
           expected_revenue?: number | null
           extras_charge?: number | null
           hcpcs_codes?: string[] | null
@@ -378,13 +409,20 @@ export type Database = {
           odometer_in_service?: number | null
           origin_type?: string | null
           origin_zip?: string | null
+          original_claim_id?: string | null
           paid_at?: string | null
           patient_id?: string | null
           patient_mobility?: string | null
+          patient_responsibility_amount?: number | null
+          payer_claim_control_number?: string | null
           payer_name?: string | null
           payer_type?: string | null
+          remittance_date?: string | null
+          resubmission_count?: number | null
           resubmitted_at?: string | null
           run_date?: string
+          secondary_claim_generated?: boolean | null
+          secondary_claim_id?: string | null
           simulation_run_id?: string | null
           status?: Database["public"]["Enums"]["claim_status"]
           stretcher_placement?: string | null
@@ -393,6 +431,7 @@ export type Database = {
           trip_id?: string | null
           updated_at?: string
           vehicle_id?: string | null
+          write_off_amount?: number | null
         }
         Relationships: [
           {
@@ -403,10 +442,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "claim_records_original_claim_id_fkey"
+            columns: ["original_claim_id"]
+            isOneToOne: false
+            referencedRelation: "claim_records"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "claim_records_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_records_secondary_claim_id_fkey"
+            columns: ["secondary_claim_id"]
+            isOneToOne: false
+            referencedRelation: "claim_records"
             referencedColumns: ["id"]
           },
           {
@@ -932,6 +985,63 @@ export type Database = {
           uploaded_by_name?: string | null
         }
         Relationships: []
+      }
+      eligibility_checks: {
+        Row: {
+          checked_at: string
+          checked_by: string | null
+          company_id: string
+          coverage_end: string | null
+          coverage_start: string | null
+          id: string
+          is_eligible: boolean | null
+          patient_id: string
+          payer_type: string | null
+          raw_response: Json | null
+          response_summary: string | null
+        }
+        Insert: {
+          checked_at?: string
+          checked_by?: string | null
+          company_id: string
+          coverage_end?: string | null
+          coverage_start?: string | null
+          id?: string
+          is_eligible?: boolean | null
+          patient_id: string
+          payer_type?: string | null
+          raw_response?: Json | null
+          response_summary?: string | null
+        }
+        Update: {
+          checked_at?: string
+          checked_by?: string | null
+          company_id?: string
+          coverage_end?: string | null
+          coverage_start?: string | null
+          id?: string
+          is_eligible?: boolean | null
+          patient_id?: string
+          payer_type?: string | null
+          raw_response?: Json | null
+          response_summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eligibility_checks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eligibility_checks_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       facilities: {
         Row: {
@@ -1864,6 +1974,53 @@ export type Database = {
             columns: ["trip_id"]
             isOneToOne: false
             referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remittance_files: {
+        Row: {
+          claims_matched: number
+          claims_updated: number
+          company_id: string
+          file_content: string
+          file_name: string
+          id: string
+          imported_at: string
+          imported_by: string | null
+          status: string
+          total_paid: number
+        }
+        Insert: {
+          claims_matched?: number
+          claims_updated?: number
+          company_id: string
+          file_content: string
+          file_name: string
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          status?: string
+          total_paid?: number
+        }
+        Update: {
+          claims_matched?: number
+          claims_updated?: number
+          company_id?: string
+          file_content?: string
+          file_name?: string
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          status?: string
+          total_paid?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remittance_files_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
