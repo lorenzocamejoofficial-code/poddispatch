@@ -132,6 +132,7 @@ export default function Patients() {
       mobility: "ambulatory", oxygen_required: false, bariatric: false,
       standing_order: false, special_handling: "",
       primary_payer: "", secondary_payer: "", member_id: "", secondary_member_id: "",
+      secondary_group_number: "", secondary_payer_id: "",
       auth_required: false, auth_expiration: "", trips_per_week_limit: "",
       stairs_required: "unknown", stair_chair_required: false,
       oxygen_lpm: "", special_equipment_required: "none",
