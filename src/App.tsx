@@ -50,6 +50,7 @@ import OnboardingWizard from "./pages/OnboardingWizard";
 import TrialExpired from "./pages/TrialExpired";
 import EDIExport from "./pages/EDIExport";
 import RemittanceImport from "./pages/RemittanceImport";
+import OwnerDashboard from "./pages/OwnerDashboard";
 import CrewInspectionChecklist from "./components/inspection/CrewInspectionChecklist";
 // Token links redirect to login with crew mode when unauthenticated
 function TokenLoginRedirect() {
@@ -202,6 +203,7 @@ function AppRoutes() {
           <Route path="/billing" element={<BillingAndClaims />} />
           <Route path="/edi-export" element={<EDIExport />} />
           <Route path="/remittance-import" element={<RemittanceImport />} />
+          <Route path="/owner-dashboard" element={<OwnerDashboard />} />
           <Route path="/compliance" element={<ComplianceAndQA />} />
           <Route path="/facilities" element={<FacilitiesPage />} />
           <Route path="/reports" element={<ReportsAndMetrics />} />
@@ -302,6 +304,7 @@ function AppRoutes() {
         <Route path="/billing" element={<BillingAndClaims />} />
         <Route path="/edi-export" element={<EDIExport />} />
         <Route path="/remittance-import" element={<RemittanceImport />} />
+        <Route path="/owner-dashboard" element={<OwnerDashboard />} />
         <Route path="/compliance" element={<ComplianceAndQA />} />
         <Route path="/facilities" element={<FacilitiesPage />} />
         <Route path="/reports" element={<ReportsAndMetrics />} />

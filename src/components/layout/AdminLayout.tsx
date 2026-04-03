@@ -38,6 +38,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: "/", label: "Dispatch Command", icon: LayoutDashboard, roles: ["owner", "dispatcher"] },
+  { path: "/owner-dashboard", label: "Owner Command Center", icon: BarChart3, roles: ["owner"] },
   { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList, roles: ["owner", "dispatcher"] },
   { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send, roles: ["owner", "dispatcher"] },
   { path: "/patients", label: "Patients", icon: Users, roles: ["owner", "dispatcher", "billing"] },

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download, Info, X, FileText } from "lucide-react";
+import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download, Info, X, FileText, TrendingUp } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
@@ -70,6 +70,7 @@ import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 import { SecondaryClaimPanel } from "@/components/billing/SecondaryClaimPanel";
+import { RevenueCycleTab } from "@/components/billing/RevenueCycleTab";
 
 type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction" | "needs_review";
 
@@ -636,6 +637,7 @@ export default function BillingAndClaims() {
             <TabsTrigger value="claims">Claims Board</TabsTrigger>
             <TabsTrigger value="overrides-log"><ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Overrides Log</TabsTrigger>
             <TabsTrigger value="charge-master"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Charge Master</TabsTrigger>
+            <TabsTrigger value="revenue-cycle"><TrendingUp className="h-3.5 w-3.5 mr-1.5" />Revenue Cycle</TabsTrigger>
           </TabsList>
           <a href="/edi-export">
             <Button variant="outline" size="sm" className="gap-1.5 text-xs">
@@ -887,6 +889,11 @@ export default function BillingAndClaims() {
               </tbody>
             </table>
           </div>
+        </TabsContent>
+
+        {/* Revenue Cycle */}
+        <TabsContent value="revenue-cycle" className="m-0">
+          <RevenueCycleTab claims={claims} />
         </TabsContent>
       </Tabs>
 
