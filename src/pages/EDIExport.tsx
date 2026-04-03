@@ -141,7 +141,7 @@ export default function EDIExport() {
 
   // Load company settings for provider info
   const fetchProviderDefaults = useCallback(async () => {
-    const { data: settings } = await supabase
+    await supabase
       .from("company_settings")
       .select("company_name")
       .limit(1)
