@@ -273,9 +273,9 @@ export default function EDIExport() {
       // Audit log
       await logAuditEvent({
         action: "edi_837p_export",
-        table_name: "claim_records",
+        tableName: "claim_records",
         notes: `Exported ${ids.length} claims to ${filename}`,
-        new_data: { claim_ids: ids, filename },
+        newData: { claim_ids: ids, filename },
       });
 
       toast.success(`${filename} downloaded with ${ids.length} claims`);
