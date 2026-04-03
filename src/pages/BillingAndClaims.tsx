@@ -619,6 +619,12 @@ export default function BillingAndClaims() {
             <TabsTrigger value="overrides-log"><ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Overrides Log</TabsTrigger>
             <TabsTrigger value="charge-master"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Charge Master</TabsTrigger>
           </TabsList>
+          <a href="/edi-export">
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+              <FileText className="h-3.5 w-3.5" />
+              837P Export
+            </Button>
+          </a>
           <div className="flex flex-wrap items-center gap-2">
             <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-40 h-9" />
             <Button size="sm" onClick={syncClaimsFromTrips}>
