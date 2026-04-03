@@ -110,7 +110,7 @@ export function SecondaryClaimPanel({
         .from("claim_records" as any)
         .update({
           secondary_claim_generated: true,
-          secondary_claim_id: newClaim.id,
+          secondary_claim_id: newClaimId,
         } as any)
         .eq("id", claimId);
 
