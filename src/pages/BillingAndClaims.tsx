@@ -958,6 +958,28 @@ export default function BillingAndClaims() {
               <Textarea rows={2} value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} />
             </div>
             {selectedClaim && <ClaimAdjustmentHistory tripId={selectedClaim.trip_id} />}
+            {selectedClaim && (
+              <SecondaryClaimPanel
+                claimId={selectedClaim.id}
+                tripId={selectedClaim.trip_id}
+                patientId={selectedClaim.patient_id}
+                status={selectedClaim.status}
+                amountPaid={selectedClaim.amount_paid}
+                patientResponsibilityAmount={selectedClaim.patient_responsibility_amount ?? null}
+                totalCharge={selectedClaim.total_charge}
+                secondaryClaimGenerated={selectedClaim.secondary_claim_generated ?? false}
+                runDate={selectedClaim.run_date}
+                hcpcsCodes={selectedClaim.hcpcs_codes}
+                hcpcsModifiers={selectedClaim.hcpcs_modifiers}
+                originType={selectedClaim.origin_type}
+                destinationType={selectedClaim.destination_type}
+                icd10Codes={selectedClaim.icd10_codes ?? null}
+                secondaryPayer={selectedClaim.patient_secondary_payer ?? null}
+                secondaryMemberId={selectedClaim.patient_secondary_member_id ?? null}
+                secondaryPayerId={selectedClaim.patient_secondary_payer_id ?? null}
+                onGenerated={fetchData}
+              />
+            )}
             {selectedClaim && <TripStatusTimeline tripId={selectedClaim.trip_id} label="Trip Status Timeline" />}
             <Button className="w-full" onClick={saveClaim} disabled={savingClaim}>
               {savingClaim ? "Saving…" : "Save Claim"}
