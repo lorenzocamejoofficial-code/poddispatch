@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileText, Download, AlertTriangle, CheckCircle, Info } from "lucide-react";
+import { FileText, Download, Info } from "lucide-react";
 import { toast } from "sonner";
 import { logAuditEvent } from "@/lib/audit-logger";
 import {

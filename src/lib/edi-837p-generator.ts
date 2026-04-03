@@ -259,7 +259,7 @@ export function generateEDI837P(
         "LB",                        // Weight unit
         "",                          // Patient weight (optional)
         "A",                         // Ambulance transport code
-        facilityCo‌de.length >= 2 ? facilityCode : "RD", // Transport reason
+        facilityCode.length >= 2 ? facilityCode : "RD", // Transport reason
         "DH",                        // Distance unit (miles)
         claim.loaded_miles > 0 ? String(claim.loaded_miles) : "1",
         "",                          // Description (optional)
