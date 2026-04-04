@@ -153,7 +153,7 @@ export function CompanyHealthTable() {
                 <td className="py-2 pr-3">
                   {(() => {
                     if (!c.hasMigrationRow) {
-                    if (!hasMigrationRow) {
+                    if (!c.hasMigrationRow) {
                       return <span className="text-muted-foreground italic text-[10px]">Not Started</span>;
                     }
                     return (
