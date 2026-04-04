@@ -142,6 +142,7 @@ const CLAIM_COLUMNS: { status: ClaimStatus; label: string; icon: React.ReactNode
 const PAYER_TYPES = ["default", "medicare", "medicaid", "facility", "cash"];
 
 export default function BillingAndClaims() {
+  const { activeCompanyId } = useAuth();
   const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [chargeMaster, setChargeMaster] = useState<ChargeMaster[]>([]);
   const [loading, setLoading] = useState(true);
