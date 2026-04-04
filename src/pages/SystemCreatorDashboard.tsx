@@ -6,12 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import {
   Building2, Users, TrendingUp, AlertTriangle, Activity,
-  Truck, Code2,
+  Truck, Code2, BarChart3,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DevModePanel } from "@/components/creator/DevModePanel";
 import { CreatorLayout } from "@/components/layout/CreatorLayout";
 import { CompanyHealthTable } from "@/components/creator/CompanyHealthTable";
+import { SaaSMetricsTab } from "@/components/creator/SaaSMetricsTab";
 
 interface SystemMetrics {
   totalCompanies: number;
