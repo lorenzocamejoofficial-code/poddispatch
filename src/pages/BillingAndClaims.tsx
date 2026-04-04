@@ -540,8 +540,12 @@ export default function BillingAndClaims() {
   // Fix 19: State for orphan secondary claim warning
   const [orphanWarning, setOrphanWarning] = useState<{ claim: ClaimRecord; newStatus: string } | null>(null);
 
+  // Optimistic concurrency: capture updated_at when claim is opened
+  const [claimOpenedAt, setClaimOpenedAt] = useState<string | null>(null);
+
   const openClaim = (claim: ClaimRecord) => {
     setSelectedClaim(claim);
+    setClaimOpenedAt(claim.updated_at ?? null);
     logAuditEvent({ action: "view", tableName: "claim_records", recordId: claim.id, notes: `Viewed claim for ${claim.patient_name}` });
     setEditForm({
       status: claim.status,
