@@ -26,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { HelpButton } from "@/components/help/HelpButton";
+import { ContextualHelpPanel, HelpIconButton } from "@/components/help/ContextualHelpPanel";
 import { useCompanyName } from "@/hooks/useCompanyName";
 
 interface NavItem {
