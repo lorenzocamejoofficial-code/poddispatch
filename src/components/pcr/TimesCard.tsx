@@ -252,15 +252,31 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
                   </span>
                   {recorded && <span className="text-sm font-mono shrink-0">{fmtTime(value)}</span>}
                 </Button>
-                {recorded && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-muted-foreground shrink-0"
-                    onClick={() => setEditingField(isEditing ? null : `${btn.field}-${idx}`)}
-                  >
-                    Edit
-                  </Button>
+              {recorded && !isReadOnly && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground"
+                      onClick={() => setEditingField(isEditing ? null : `${btn.field}-${idx}`)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      title="Clear this time"
+                      onClick={async () => {
+                        await updateField(btn.field, null);
+                        const mirrorField = BILLING_MIRROR[btn.field];
+                        if (mirrorField) await updateField(mirrorField, null);
+                        toast({ title: `${btn.label} cleared` });
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 )}
               </div>
               {isEditing && (
