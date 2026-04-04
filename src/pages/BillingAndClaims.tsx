@@ -324,7 +324,19 @@ export default function BillingAndClaims() {
     }));
   }, [simulationRunId]);
 
-  useEffect(() => { fetchData(); fetchQueueTrips(); fetchOverrideLogs(); }, [fetchData, fetchQueueTrips, fetchOverrideLogs]);
+  useEffect(() => {
+    fetchData(); fetchQueueTrips(); fetchOverrideLogs();
+    // Check if clearinghouse is configured
+    if (activeCompanyId) {
+      supabase.from("clearinghouse_settings" as any)
+        .select("is_configured")
+        .eq("company_id", activeCompanyId)
+        .maybeSingle()
+        .then(({ data }) => {
+          setClearinghouseConfigured(!!(data as any)?.is_configured);
+        });
+    }
+  }, [fetchData, fetchQueueTrips, fetchOverrideLogs, activeCompanyId]);
 
   useEffect(() => {
     if (!refreshToken) return;
@@ -335,6 +347,46 @@ export default function BillingAndClaims() {
     fetchQueueTrips();
     fetchOverrideLogs();
   }, [refreshToken, fetchData, fetchQueueTrips, fetchOverrideLogs]);
+
+  const handleSendViaSftp = async () => {
+    if (!activeCompanyId) return;
+    setSftpSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-claims-sftp", {
+        body: { company_id: activeCompanyId },
+      });
+      if (error) throw error;
+      if (data?.sent > 0) {
+        toast.success(`Sent ${data.sent} claims via Office Ally`);
+      } else {
+        toast.info("No new claims to send");
+      }
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send claims");
+    }
+    setSftpSending(false);
+  };
+
+  const handleCheckPayments = async () => {
+    if (!activeCompanyId) return;
+    setSftpReceiving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("retrieve-remittance-sftp", {
+        body: { company_id: activeCompanyId },
+      });
+      if (error) throw error;
+      if (data?.received > 0) {
+        toast.success(`Imported ${data.received} payment files`);
+      } else {
+        toast.info("No new payment files found");
+      }
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to check for payments");
+    }
+    setSftpReceiving(false);
+  };
 
   // Helper: build claim data from a trip
   const buildClaimFromTrip = (t: any) => {
