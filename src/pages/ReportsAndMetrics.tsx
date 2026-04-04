@@ -275,10 +275,9 @@ export default function ReportsAndMetrics() {
 
   return (
     <AdminLayout>
-      <Tabs defaultValue="kpis" className="space-y-4">
+      <Tabs defaultValue="overview" className="space-y-4">
         <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3">
           <TabsList className="flex-wrap">
-            <TabsTrigger value="kpis"><Activity className="h-3.5 w-3.5 mr-1" />KPIs</TabsTrigger>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="otp"><Clock className="h-3.5 w-3.5 mr-1" />OTP & Risk</TabsTrigger>
             <TabsTrigger value="ar-aging"><DollarSign className="h-3.5 w-3.5 mr-1" />AR Aging</TabsTrigger>
@@ -303,63 +302,51 @@ export default function ReportsAndMetrics() {
           </div>
         </div>
 
-        {/* KPI Dashboard */}
-        <TabsContent value="kpis" className="m-0 space-y-6">
-          {loading ? (
-            <PageLoader label="Calculating KPIs…" />
-          ) : (
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-              <KpiCard
-                label="Billing Complete Rate"
-                subtitle="% of completed runs with a clean claim"
-                value={kpiBilling.rate}
-                num={kpiBilling.num}
-                den={kpiBilling.den}
-                unit="trips"
-                greenIf={(v) => v >= 80}
-                amberIf={(v) => v >= 50 && v < 80}
-              />
-              <KpiCard
-                label="Late Pickup Rate"
-                subtitle="% of pickups arriving more than 15 min late"
-                value={kpiLate.rate}
-                num={kpiLate.num}
-                den={kpiLate.den}
-                unit="trips"
-                greenIf={(v) => v <= 10}
-                amberIf={(v) => v > 10 && v <= 25}
-                invertColors
-              />
-              <KpiCard
-                label="Schedule Conflict Rate"
-                subtitle="% of return runs scheduled too early"
-                value={kpiConflict.rate}
-                num={kpiConflict.num}
-                den={kpiConflict.den}
-                unit="B-legs"
-                greenIf={(v) => v <= 5}
-                amberIf={(v) => v > 5 && v <= 15}
-                invertColors
-              />
-            </div>
-          )}
-        </TabsContent>
-
         <TabsContent value="overview" className="m-0 space-y-6">
           {loading ? (
             <PageLoader label="Loading metrics…" />
           ) : (
             <>
-              {/* KPI grid */}
-              <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-                {kpis.map(k => (
-                  <div key={k.label} className="rounded-lg border bg-card p-4 space-y-1">
-                    <div className={`${k.color}`}>{k.icon}</div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider">{k.label}</p>
-                    <p className={`text-xl font-bold ${k.color}`}>{k.value}</p>
-                    {k.sub && <p className="text-xs text-muted-foreground">{k.sub}</p>}
-                  </div>
-                ))}
+              {/* Operational metrics row */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Operational</p>
+                <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+                  {[
+                    { label: "Total Trips", value: metrics.trips_total, icon: <Clock className="h-5 w-5" />, color: "text-foreground" },
+                    { label: "Completed", value: metrics.trips_completed, sub: `${metrics.trips_total > 0 ? Math.round((metrics.trips_completed / metrics.trips_total) * 100) : 0}%`, icon: <CheckCircle className="h-5 w-5" />, color: "text-[hsl(var(--status-green))]" },
+                    { label: "Cancelled", value: metrics.trips_cancelled, icon: <XCircle className="h-5 w-5" />, color: "text-destructive" },
+                    { label: "Late Pickups", value: kpiLate.num, sub: `${kpiLate.rate}% rate`, icon: <AlertTriangle className="h-5 w-5" />, color: kpiLate.rate > 15 ? "text-destructive" : "text-[hsl(var(--status-yellow))]" },
+                    { label: "Schedule Conflicts", value: kpiConflict.num, sub: `${kpiConflict.rate}% rate`, icon: <AlertTriangle className="h-5 w-5" />, color: kpiConflict.rate > 10 ? "text-destructive" : "text-foreground" },
+                  ].map(k => (
+                    <div key={k.label} className="rounded-lg border bg-card p-4 space-y-1">
+                      <div className={`${k.color}`}>{k.icon}</div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">{k.label}</p>
+                      <p className={`text-xl font-bold ${k.color}`}>{k.value}</p>
+                      {k.sub && <p className="text-xs text-muted-foreground">{k.sub}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Financial metrics row */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Financial</p>
+                <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+                  {[
+                    { label: "Revenue Collected", value: `$${metrics.revenue_collected.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <TrendingUp className="h-5 w-5" />, color: "text-[hsl(var(--status-green))]" },
+                    { label: "Pending A/R", value: `$${metrics.revenue_pending.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <DollarSign className="h-5 w-5" />, color: "text-foreground" },
+                    { label: "Denied Claims", value: metrics.denial_count, icon: <AlertTriangle className="h-5 w-5" />, color: "text-destructive" },
+                    { label: "Billing Complete", value: `${kpiBilling.rate}%`, sub: `${kpiBilling.num} of ${kpiBilling.den}`, icon: <CheckCircle className="h-5 w-5" />, color: kpiBilling.rate >= 80 ? "text-[hsl(var(--status-green))]" : "text-[hsl(var(--status-yellow))]" },
+                    { label: "Utilization", value: `${metrics.on_time_pct}%`, sub: "trips completed", icon: <Truck className="h-5 w-5" />, color: "text-primary" },
+                  ].map(k => (
+                    <div key={k.label} className="rounded-lg border bg-card p-4 space-y-1">
+                      <div className={`${k.color}`}>{k.icon}</div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">{k.label}</p>
+                      <p className={`text-xl font-bold ${k.color}`}>{typeof k.value === "number" ? k.value : k.value}</p>
+                      {k.sub && <p className="text-xs text-muted-foreground">{k.sub}</p>}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Truck utilization */}
