@@ -347,6 +347,59 @@ export default function TrucksCrews() {
   const [deleteTruckId, setDeleteTruckId] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState(false);
 
+  // Deactivation warning state
+  const [deactivateDialog, setDeactivateDialog] = useState(false);
+  const [deactivateTruckId, setDeactivateTruckId] = useState<string | null>(null);
+  const [deactivateAffectedRuns, setDeactivateAffectedRuns] = useState<{ patient_name: string; pickup_time: string | null }[]>([]);
+  const [deactivating, setDeactivating] = useState(false);
+
+  const confirmDeactivateTruck = async (truckId: string) => {
+    // Check for today's assigned runs
+    const { data: slots } = await supabase
+      .from("truck_run_slots")
+      .select("leg_id, leg:scheduling_legs!truck_run_slots_leg_id_fkey(pickup_time, is_oneoff, oneoff_name, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name))")
+      .eq("truck_id", truckId)
+      .eq("run_date", today);
+
+    const affectedRuns = ((slots ?? []) as any[]).map((s: any) => {
+      const leg = s.leg;
+      const name = leg?.is_oneoff
+        ? (leg?.oneoff_name ?? "One-Off")
+        : (leg?.patient ? `${leg.patient.first_name} ${leg.patient.last_name}` : "Unknown");
+      return { patient_name: name, pickup_time: leg?.pickup_time ?? null };
+    });
+
+    setDeactivateTruckId(truckId);
+    setDeactivateAffectedRuns(affectedRuns);
+
+    if (affectedRuns.length > 0) {
+      setDeactivateDialog(true);
+    } else {
+      // No runs — deactivate immediately
+      await executeDeactivateTruck(truckId);
+    }
+  };
+
+  const executeDeactivateTruck = async (truckId: string) => {
+    setDeactivating(true);
+    const { error } = await supabase.from("trucks").update({ active: false } as any).eq("id", truckId);
+    if (error) { toast.error("Failed to deactivate truck"); setDeactivating(false); return; }
+    toast.success("Truck deactivated");
+    setDeactivateDialog(false);
+    setDeactivateTruckId(null);
+    setDeactivating(false);
+    fetchAll();
+    refreshTrucks();
+  };
+
+  const reactivateTruck = async (truckId: string) => {
+    const { error } = await supabase.from("trucks").update({ active: true } as any).eq("id", truckId);
+    if (error) { toast.error("Failed to reactivate truck"); return; }
+    toast.success("Truck reactivated");
+    fetchAll();
+    refreshTrucks();
+  };
+
   const confirmDeleteTruck = (id: string) => {
     setDeleteTruckId(id);
     setDeleteDialog(true);
