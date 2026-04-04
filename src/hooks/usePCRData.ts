@@ -78,8 +78,8 @@ export interface PCRTripData {
   patient?: any;
 }
 
-// Auto-save debounce
-let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+// Per-field debounce map — prevents editing one field from canceling a pending save for another
+const fieldSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function usePCRData(tripId: string | null) {
   const [trip, setTrip] = useState<PCRTripData | null>(null);
