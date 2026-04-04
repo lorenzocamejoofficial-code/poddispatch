@@ -227,6 +227,14 @@ export default function Login() {
             </p>
           </div>
         </form>
+
+        <div className="mt-6 text-center text-xs text-muted-foreground">
+          <a href="/legal?tab=terms" className="hover:underline">Terms of Service</a>
+          <span className="mx-1.5">·</span>
+          <a href="/legal?tab=privacy" className="hover:underline">Privacy Policy</a>
+          <span className="mx-1.5">·</span>
+          <a href="mailto:support@poddispatch.com" className="hover:underline">Contact</a>
+        </div>
       </div>
     </div>
   );

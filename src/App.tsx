@@ -105,6 +105,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<CompanySignup />} />
+        <Route path="/legal" element={<LegalPage />} />
         <Route path="/invite" element={<AcceptInvite />} />
         {/* Token links redirect to login with crew mode pre-selected */}
         <Route path="/crew/:token" element={<TokenLoginRedirect />} />
