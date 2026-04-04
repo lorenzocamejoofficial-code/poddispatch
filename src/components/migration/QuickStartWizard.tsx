@@ -233,7 +233,6 @@ export function QuickStartWizard({ onComplete }: { onComplete: () => void }) {
               }}>
                 <ArrowLeft className="h-4 w-4 mr-2" /> Back
               </Button>
-              </Button>
             )}
             {step < 4 ? (
               <Button onClick={async () => {
