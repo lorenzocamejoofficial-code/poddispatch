@@ -13,6 +13,7 @@ interface CompanyHealth {
   subscriptionStatus: string | null;
   onboardingSteps: number;
   hasMigrationRow: boolean;
+  trucks: number;
   patients: number;
   tripsThisMonth: number;
   billingCompleteRate: number;
