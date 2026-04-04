@@ -26,7 +26,7 @@ const TIMES_FIELDS: FieldRequirement[] = [
   { field: "left_scene_time", label: "Left Scene", section: "times", check: (t) => !!t.left_scene_time },
   { field: "arrived_dropoff_at", label: "At Destination", section: "times", check: (t) => !!t.arrived_dropoff_at },
   { field: "in_service_time", label: "In Service", section: "times", check: (t) => !!t.in_service_time },
-  { field: "loaded_miles", label: "Loaded Miles", section: "times", check: (t) => (t.loaded_miles ?? 0) > 0 },
+  { field: "loaded_miles", label: "Loaded Miles", section: "times", check: (t) => t.loaded_miles != null && t.loaded_miles >= 0 },
   { field: "origin_type", label: "Origin Type", section: "times", check: (t) => hasValue(t.origin_type) },
   { field: "destination_type", label: "Destination Type", section: "times", check: (t) => hasValue(t.destination_type) },
 ];

@@ -181,11 +181,17 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
     // Build a single update payload to avoid debounce cancellation
     const updates: Record<string, any> = { [field]: val };
 
-    if (sceneVal !== null && sceneVal !== undefined && destVal !== null && destVal !== undefined && destVal > sceneVal) {
-      updates.loaded_miles = parseFloat((destVal - sceneVal).toFixed(1));
+    // 0 is a valid scene reading (trip counter reset) — only null/undefined means missing
+    const scenePresent = sceneVal !== null && sceneVal !== undefined;
+    const destPresent = destVal !== null && destVal !== undefined;
+
+    if (scenePresent && destPresent && destVal! > sceneVal!) {
+      updates.loaded_miles = parseFloat((destVal! - sceneVal!).toFixed(1));
       setOdometerWarning(null);
-    } else if (sceneVal !== null && destVal !== null && destVal <= sceneVal) {
+    } else if (scenePresent && destPresent && destVal! <= sceneVal!) {
       setOdometerWarning("Check odometer values — destination reading is less than or equal to scene reading.");
+    } else {
+      setOdometerWarning(null);
     }
 
     if (updateMultipleFields) {

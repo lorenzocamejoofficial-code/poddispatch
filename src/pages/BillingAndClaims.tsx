@@ -634,7 +634,7 @@ export default function BillingAndClaims() {
     <AdminLayout>
       <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <TabsList className="flex-wrap">
+          <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="trip-queue"><ClipboardList className="h-3.5 w-3.5 mr-1.5" />Trip Queue</TabsTrigger>
             <TabsTrigger value="claims">Claims Board</TabsTrigger>
             <TabsTrigger value="overrides-log"><ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Overrides Log</TabsTrigger>

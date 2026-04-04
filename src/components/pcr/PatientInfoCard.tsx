@@ -26,7 +26,7 @@ interface PatientInfoCardProps {
   updateField: (field: string, value: any) => Promise<void>;
 }
 
-export function PatientInfoCard({ trip, updateField }: PatientInfoCardProps) {
+export function PatientInfoCard({ trip, updateField: _updateField }: PatientInfoCardProps) {
   const patient = trip.patient;
   const transportType = trip.trip_type || trip.pcr_type || "dialysis";
   const transportLabel = TRANSPORT_LABELS[transportType] || transportType;
