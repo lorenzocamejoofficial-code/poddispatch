@@ -121,6 +121,8 @@ export default function Employees() {
       .select("user_id, role")
       .eq("company_id", activeCompanyId);
 
+    // Fetch emails from auth via edge function or profiles
+    // We'll use the user_id to look up emails from auth metadata stored in profiles
     const empList: Employee[] = (profiles ?? []).map((p: any) => {
       const membership = memberships?.find((m) => m.user_id === p.user_id);
       const roleLabel = membership?.role === "owner" ? "Owner" : membership?.role ?? "crew";
@@ -131,6 +133,7 @@ export default function Employees() {
         cert_level: p.cert_level,
         user_id: p.user_id,
         phone_number: p.phone_number ?? null,
+        email: p.email ?? null,
         active: p.active ?? true,
         role: roleLabel,
         employment_type: p.employment_type ?? "full_time",
