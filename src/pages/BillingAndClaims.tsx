@@ -97,6 +97,7 @@ interface ClaimRecord {
   destination_type: string | null;
   hcpcs_codes: string[] | null;
   hcpcs_modifiers: string[] | null;
+  updated_at?: string;
   // joined
   patient_name?: string;
   // trip data for badge
