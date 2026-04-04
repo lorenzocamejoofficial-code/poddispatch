@@ -529,11 +529,12 @@ export default function Employees() {
                     />
                   </th>
                   <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Phone</th>
                   <th className="px-4 py-3">Role</th>
                   <th className="px-4 py-3">Cert</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 w-20"></th>
+                  <th className="px-4 py-3 w-28"></th>
                 </tr>
               </thead>
               <tbody>
