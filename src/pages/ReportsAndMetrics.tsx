@@ -260,16 +260,6 @@ export default function ReportsAndMetrics() {
 
   useEffect(() => { fetchMetrics(); }, [fetchMetrics]);
 
-  const kpis = [
-    { label: "Total Trips", value: metrics.trips_total, icon: <Clock className="h-5 w-5" />, color: "text-foreground" },
-    { label: "Completed", value: metrics.trips_completed, sub: `${metrics.trips_total > 0 ? Math.round((metrics.trips_completed / metrics.trips_total) * 100) : 0}%`, icon: <CheckCircle className="h-5 w-5" />, color: "text-[hsl(var(--status-green))]" },
-    { label: "Cancelled", value: metrics.trips_cancelled, icon: <XCircle className="h-5 w-5" />, color: "text-destructive" },
-    { label: "Revenue Collected", value: `$${metrics.revenue_collected.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <TrendingUp className="h-5 w-5" />, color: "text-[hsl(var(--status-green))]" },
-    { label: "Pending A/R", value: `$${metrics.revenue_pending.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <TrendingUp className="h-5 w-5" />, color: "text-foreground" },
-    { label: "Denied Claims", value: metrics.denial_count, icon: <AlertTriangle className="h-5 w-5" />, color: "text-destructive" },
-    { label: "Patient Not Ready", value: metrics.not_ready_count, icon: <AlertTriangle className="h-5 w-5" />, color: "text-[hsl(var(--status-yellow))]" },
-    { label: "Utilization", value: `${metrics.on_time_pct}%`, sub: "trips completed", icon: <Truck className="h-5 w-5" />, color: "text-primary" },
-  ];
 
   const totalOutstanding = agingBuckets.reduce((s, b) => s + b.total, 0);
 
