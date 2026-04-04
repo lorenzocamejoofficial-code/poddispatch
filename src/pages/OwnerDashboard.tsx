@@ -25,7 +25,6 @@ export default function OwnerDashboard() {
     async function load() {
       const today = new Date().toISOString().slice(0, 10);
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
 
       const [claimRes, tripRes, truckRes, inspRes] = await Promise.all([
         supabase.from("claim_records" as any).select("*"),
@@ -34,7 +33,26 @@ export default function OwnerDashboard() {
         supabase.from("vehicle_inspections" as any).select("id, truck_id, run_date").eq("run_date", today),
       ]);
 
-      setClaims((claimRes.data ?? []) as any[]);
+      const rawClaims = (claimRes.data ?? []) as any[];
+
+      // Join patient secondary_payer data for secondary opportunity detection
+      const patientIds = [...new Set(rawClaims.map((c: any) => c.patient_id).filter(Boolean))];
+      let patientsMap: Record<string, any> = {};
+      if (patientIds.length > 0) {
+        const { data: patients } = await supabase
+          .from("patients")
+          .select("id, secondary_payer")
+          .in("id", patientIds);
+        (patients || []).forEach((p: any) => { patientsMap[p.id] = p; });
+      }
+
+      // Enrich claims with patient secondary payer info
+      const enrichedClaims = rawClaims.map((c: any) => ({
+        ...c,
+        _has_secondary_payer: !!patientsMap[c.patient_id]?.secondary_payer,
+      }));
+
+      setClaims(enrichedClaims);
       setTrips((tripRes.data ?? []) as any[]);
       setTrucks((truckRes.data ?? []) as any[]);
       setInspections((inspRes.data ?? []) as any[]);
