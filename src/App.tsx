@@ -49,6 +49,7 @@ import CrewSchedulePage from "./pages/crew/CrewSchedule";
 import OnboardingWizard from "./pages/OnboardingWizard";
 import TrialExpired from "./pages/TrialExpired";
 import EDIExport from "./pages/EDIExport";
+import LegalPage from "./pages/LegalPage";
 import RemittanceImport from "./pages/RemittanceImport";
 import OwnerDashboard from "./pages/OwnerDashboard";
 import CrewInspectionChecklist from "./components/inspection/CrewInspectionChecklist";
