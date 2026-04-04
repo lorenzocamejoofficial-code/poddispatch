@@ -61,6 +61,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { companyName } = useCompanyName();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // System creator gets full access to all nav items
   // Regular users need owner, dispatcher, or billing role
