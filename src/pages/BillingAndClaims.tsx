@@ -192,7 +192,7 @@ export default function BillingAndClaims() {
         ? supabase.from("patients").select("id, first_name, last_name, secondary_payer, secondary_member_id, secondary_payer_id").in("id", patientIds)
         : Promise.resolve({ data: [] }),
       tripIds.length > 0
-        ? supabase.from("trip_records" as any).select("id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type").in("id", tripIds)
+        ? supabase.from("trip_records" as any).select("id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type, updated_at").in("id", tripIds)
         : Promise.resolve({ data: [] }),
     ]);
 
