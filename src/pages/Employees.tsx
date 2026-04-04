@@ -20,6 +20,7 @@ interface Employee {
   cert_level: string;
   user_id: string;
   phone_number: string | null;
+  email: string | null;
   active: boolean;
   role?: string;
   employment_type?: string;
