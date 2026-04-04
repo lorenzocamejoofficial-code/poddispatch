@@ -120,14 +120,6 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
     }
 
     // Also look up trip_id for the slot
-    const { data: tripData } = await supabase
-      .from("trip_records" as any)
-      .select("id")
-      .eq("run_date", selectedDate)
-      .eq("truck_id", run.truckId)
-      .limit(10);
-
-    // Try to get a more specific match via slot lookup
     const { data: slotTrip } = await supabase
       .from("truck_run_slots")
       .select("leg_id")
@@ -143,6 +135,25 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
         .eq("run_date", selectedDate)
         .maybeSingle();
       tripId = (legTrip as any)?.id ?? null;
+    }
+
+    // Fix 6: Duplicate call check — warn before queuing same call type on same trip today
+    if (tripId) {
+      const today = selectedDate;
+      const { count } = await supabase
+        .from("comms_events" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("trip_id", tripId)
+        .eq("call_type", callType)
+        .gte("created_at", `${today}T00:00:00`)
+        .lte("created_at", `${today}T23:59:59`);
+
+      if ((count ?? 0) > 0) {
+        const confirmed = window.confirm(
+          `A ${callType} call was already queued for this run today. Queue another?`
+        );
+        if (!confirmed) return;
+      }
     }
 
     setSelectedCall({
