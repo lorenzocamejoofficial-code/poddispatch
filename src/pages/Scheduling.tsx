@@ -228,12 +228,13 @@ export default function Scheduling() {
     fetchOperationalAlerts();
   }, [selectedDate, fetchOperationalAlerts]);
 
-  // Realtime subscription for operational alerts and crews
+  // Realtime subscription for operational alerts, crews, and slot updates
   useEffect(() => {
     const channel = supabase
-      .channel("operational-alerts-scheduling")
+      .channel("scheduling-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => fetchOperationalAlerts())
       .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => refresh())
+      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => refresh())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchOperationalAlerts, refresh]);
