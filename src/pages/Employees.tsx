@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Pencil, Trash2, Mail, Copy, Check, XCircle } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Mail, Copy, Check, XCircle, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
 interface Employee {
@@ -20,6 +20,7 @@ interface Employee {
   cert_level: string;
   user_id: string;
   phone_number: string | null;
+  email: string | null;
   active: boolean;
   role?: string;
   employment_type?: string;
@@ -120,6 +121,8 @@ export default function Employees() {
       .select("user_id, role")
       .eq("company_id", activeCompanyId);
 
+    // Fetch emails from auth via edge function or profiles
+    // We'll use the user_id to look up emails from auth metadata stored in profiles
     const empList: Employee[] = (profiles ?? []).map((p: any) => {
       const membership = memberships?.find((m) => m.user_id === p.user_id);
       const roleLabel = membership?.role === "owner" ? "Owner" : membership?.role ?? "crew";
@@ -130,6 +133,7 @@ export default function Employees() {
         cert_level: p.cert_level,
         user_id: p.user_id,
         phone_number: p.phone_number ?? null,
+        email: p.email ?? null,
         active: p.active ?? true,
         role: roleLabel,
         employment_type: p.employment_type ?? "full_time",
@@ -525,11 +529,12 @@ export default function Employees() {
                     />
                   </th>
                   <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Phone</th>
                   <th className="px-4 py-3">Role</th>
                   <th className="px-4 py-3">Cert</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 w-20"></th>
+                  <th className="px-4 py-3 w-28"></th>
                 </tr>
               </thead>
               <tbody>
@@ -545,6 +550,7 @@ export default function Employees() {
                         />
                       </td>
                       <td className="px-4 py-3 font-medium text-card-foreground">{e.full_name}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{e.email || "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{e.phone_number || "—"}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -567,6 +573,25 @@ export default function Employees() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
+                          {(userRole === "owner" || userRole === "creator") && e.email && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title="Send password reset email"
+                              onClick={async (ev) => {
+                                ev.stopPropagation();
+                                const { error } = await supabase.auth.resetPasswordForEmail(e.email!);
+                                if (error) {
+                                  toast.error("Failed to send reset email");
+                                } else {
+                                  toast.success("Password reset email sent");
+                                }
+                              }}
+                            >
+                              <KeyRound className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(e)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -584,7 +609,7 @@ export default function Employees() {
                   );
                 })}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">No employees found</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No employees found</td></tr>
                 )}
               </tbody>
             </table>

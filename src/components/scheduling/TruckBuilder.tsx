@@ -113,14 +113,12 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
           )}
         </div>
       </div>
-      {/* Second row: pickup address → destination, transport type, chair time */}
+      {/* Second row: destination, transport type, return time */}
       {!isCancelled && (
         <div className="flex items-center gap-1 mt-0.5 pl-5 text-[10px] text-muted-foreground min-w-0">
-          <span className="truncate">{leg.pickup_location}</span>
-          <ArrowRight className="h-2.5 w-2.5 shrink-0" />
           <span className="truncate">{leg.destination_location}</span>
           <span className="shrink-0 capitalize">· {leg.trip_type}</span>
-          {leg.chair_time && <span className="shrink-0">· Chair {leg.chair_time}</span>}
+          {leg.chair_time && <span className="shrink-0">· Return {leg.chair_time}</span>}
         </div>
       )}
       {/* Third row: badges */}

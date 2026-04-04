@@ -26,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { HelpButton } from "@/components/help/HelpButton";
+import { ContextualHelpPanel, HelpIconButton } from "@/components/help/ContextualHelpPanel";
 import { useCompanyName } from "@/hooks/useCompanyName";
 
 interface NavItem {
@@ -61,6 +61,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { companyName } = useCompanyName();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // System creator gets full access to all nav items
   // Regular users need owner, dispatcher, or billing role
@@ -202,7 +203,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <h2 className="text-lg font-semibold text-foreground flex-1">
             {navItems.find((i) => i.path === location.pathname)?.label ?? "PodDispatch"}
           </h2>
-          <HelpButton routeKey={location.pathname} />
+          <HelpIconButton onClick={() => setHelpOpen(prev => !prev)} />
           <Button
             variant="ghost"
             size="sm"
@@ -214,6 +215,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </Button>
         </header>
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
+        <ContextualHelpPanel routeKey={location.pathname} open={helpOpen} onOpenChange={setHelpOpen} />
       </div>
     </div>
   );
