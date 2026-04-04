@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
-  DollarSign, Truck, Users, Mail, Rocket,
+  DollarSign, Truck, Users, Mail, Rocket, Network,
   CheckCircle2, ArrowRight, ArrowLeft, AlertTriangle,
 } from "lucide-react";
 
@@ -24,6 +24,7 @@ const STEPS = [
   { icon: Users, title: "Add Your First Patient", description: "Enter at least one patient with required billing fields." },
   { icon: Mail, title: "Invite Your Team", description: "Send invitations to your dispatcher and crew members." },
   { icon: Rocket, title: "Run Your First Trip", description: "Complete the full trip lifecycle from scheduling to billing." },
+  { icon: Network, title: "Connect Your Clearinghouse", description: "Link PodDispatch to Office Ally for electronic claims." },
 ];
 
 export default function OnboardingWizard() {
