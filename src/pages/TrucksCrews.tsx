@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Plus, Truck, Pencil, Trash2, Check, X,
   ChevronLeft, ChevronRight, CalendarDays, Copy,
-  WrenchIcon, AlertOctagon, Users,
+  WrenchIcon, AlertOctagon, Users, Power,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
@@ -347,6 +347,59 @@ export default function TrucksCrews() {
   const [deleteTruckId, setDeleteTruckId] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState(false);
 
+  // Deactivation warning state
+  const [deactivateDialog, setDeactivateDialog] = useState(false);
+  const [deactivateTruckId, setDeactivateTruckId] = useState<string | null>(null);
+  const [deactivateAffectedRuns, setDeactivateAffectedRuns] = useState<{ patient_name: string; pickup_time: string | null }[]>([]);
+  const [deactivating, setDeactivating] = useState(false);
+
+  const confirmDeactivateTruck = async (truckId: string) => {
+    // Check for today's assigned runs
+    const { data: slots } = await supabase
+      .from("truck_run_slots")
+      .select("leg_id, leg:scheduling_legs!truck_run_slots_leg_id_fkey(pickup_time, is_oneoff, oneoff_name, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name))")
+      .eq("truck_id", truckId)
+      .eq("run_date", today);
+
+    const affectedRuns = ((slots ?? []) as any[]).map((s: any) => {
+      const leg = s.leg;
+      const name = leg?.is_oneoff
+        ? (leg?.oneoff_name ?? "One-Off")
+        : (leg?.patient ? `${leg.patient.first_name} ${leg.patient.last_name}` : "Unknown");
+      return { patient_name: name, pickup_time: leg?.pickup_time ?? null };
+    });
+
+    setDeactivateTruckId(truckId);
+    setDeactivateAffectedRuns(affectedRuns);
+
+    if (affectedRuns.length > 0) {
+      setDeactivateDialog(true);
+    } else {
+      // No runs — deactivate immediately
+      await executeDeactivateTruck(truckId);
+    }
+  };
+
+  const executeDeactivateTruck = async (truckId: string) => {
+    setDeactivating(true);
+    const { error } = await supabase.from("trucks").update({ active: false } as any).eq("id", truckId);
+    if (error) { toast.error("Failed to deactivate truck"); setDeactivating(false); return; }
+    toast.success("Truck deactivated");
+    setDeactivateDialog(false);
+    setDeactivateTruckId(null);
+    setDeactivating(false);
+    fetchAll();
+    refreshTrucks();
+  };
+
+  const reactivateTruck = async (truckId: string) => {
+    const { error } = await supabase.from("trucks").update({ active: true } as any).eq("id", truckId);
+    if (error) { toast.error("Failed to reactivate truck"); return; }
+    toast.success("Truck reactivated");
+    fetchAll();
+    refreshTrucks();
+  };
+
   const confirmDeleteTruck = (id: string) => {
     setDeleteTruckId(id);
     setDeleteDialog(true);
@@ -557,9 +610,9 @@ export default function TrucksCrews() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {trucks.map((t) => (
-              <div key={t.id} className="rounded-lg border bg-card p-3 space-y-2">
+              <div key={t.id} className={`rounded-lg border bg-card p-3 space-y-2 ${!t.active ? "opacity-60 border-muted" : ""}`}>
                 <div className="flex items-center gap-2">
-                  <Truck className="h-4 w-4 text-primary shrink-0" />
+                  <Truck className={`h-4 w-4 shrink-0 ${t.active ? "text-primary" : "text-muted-foreground"}`} />
                   {editingTruckId === t.id ? (
                     <div className="flex items-center gap-2 flex-1">
                       <Input className="h-7 text-sm flex-1" value={editingTruckName}
@@ -577,10 +630,20 @@ export default function TrucksCrews() {
                   ) : (
                     <>
                       <span className="font-medium text-card-foreground flex-1 truncate">{t.name}</span>
+                      {!t.active && <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground">Inactive</Badge>}
                       {(t as any).vehicle_id && <span className="text-[10px] text-muted-foreground shrink-0">#{(t as any).vehicle_id}</span>}
                       <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); }}>
                         <Pencil className="h-3 w-3" />
                       </Button>
+                      {t.active ? (
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => confirmDeactivateTruck(t.id)} title="Deactivate truck">
+                          <Power className="h-3 w-3 text-[hsl(var(--status-yellow))]" />
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => reactivateTruck(t.id)} title="Reactivate truck">
+                          <Power className="h-3 w-3 text-[hsl(var(--status-green))]" />
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => confirmDeleteTruck(t.id)}>
                         <Trash2 className="h-3 w-3 text-destructive" />
                       </Button>
@@ -802,6 +865,45 @@ export default function TrucksCrews() {
               <Button variant="outline" className="flex-1" onClick={() => setDeleteDialog(false)}>Cancel</Button>
               <Button variant="destructive" className="flex-1" onClick={deleteTruck}>
                 <Trash2 className="mr-1.5 h-4 w-4" /> Delete Truck
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Deactivate Truck Warning Dialog */}
+        <Dialog open={deactivateDialog} onOpenChange={setDeactivateDialog}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertOctagon className="h-4 w-4 text-[hsl(var(--status-yellow))]" />
+                Deactivate Truck
+              </DialogTitle>
+              <DialogDescription asChild>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p>
+                    <strong className="text-foreground">{trucks.find(t => t.id === deactivateTruckId)?.name}</strong> has runs assigned today.
+                    Deactivating it will hide it from the dispatch board. The following runs will need to be reassigned:
+                  </p>
+                  <ul className="list-disc list-inside space-y-0.5 text-xs">
+                    {deactivateAffectedRuns.map((run, idx) => (
+                      <li key={idx}>
+                        <span className="font-medium text-foreground">{run.patient_name}</span>
+                        {run.pickup_time && <span className="font-mono ml-1">({run.pickup_time})</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setDeactivateDialog(false)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                disabled={deactivating}
+                onClick={() => deactivateTruckId && executeDeactivateTruck(deactivateTruckId)}
+              >
+                <Power className="mr-1.5 h-4 w-4" /> {deactivating ? "Deactivating…" : "Deactivate Anyway"}
               </Button>
             </div>
           </DialogContent>

@@ -391,29 +391,30 @@ export default function DispatchBoard() {
       fetchDataRef.current();
     }, 30_000);
 
-    const channel = supabase
-      .channel(`dispatch-board-${selectedDate}`)
-      .on("postgres_changes", {
-        event: "*",
-        schema: "public",
-        table: "trip_records",
-      }, () => {
-        debouncedFetch();
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => debouncedFetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs" }, () => debouncedFetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => debouncedFetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => debouncedFetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => debouncedFetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => debouncedFetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => debouncedFetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides" }, () => debouncedFetch())
-      .subscribe();
+    // Get company_id for scoped realtime subscriptions
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      const companyFilter = companyId ? `company_id=eq.${companyId}` : undefined;
+
+      channel = supabase
+        .channel(`dispatch-board-${selectedDate}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "trip_records", filter: companyFilter }, () => debouncedFetch())
+        .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots", filter: companyFilter }, () => debouncedFetch())
+        .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs", filter: companyFilter }, () => debouncedFetch())
+        .on("postgres_changes", { event: "*", schema: "public", table: "alerts", filter: companyFilter }, () => debouncedFetch())
+        .on("postgres_changes", { event: "*", schema: "public", table: "crews", filter: companyFilter }, () => debouncedFetch())
+        .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => debouncedFetch())
+        .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts", filter: companyFilter }, () => debouncedFetch())
+        .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers", filter: companyFilter }, () => debouncedFetch())
+        .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides" }, () => debouncedFetch())
+        .subscribe();
+    })();
 
     return () => {
       clearInterval(pollInterval);
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
     };
   }, [selectedDate]);
 
