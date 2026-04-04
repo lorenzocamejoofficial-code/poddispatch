@@ -322,6 +322,17 @@ export default function TripsAndClinical() {
   };
 
   const markSpecialStatus = async (trip: TripRecord, status: "no_show" | "patient_not_ready" | "facility_delay" | "cancelled") => {
+    // Guard: don't allow backward transitions from terminal states
+    const terminalStatuses = ["completed", "ready_for_billing"];
+    if (terminalStatuses.includes(trip.status) && status !== "cancelled") {
+      toast.error(`Cannot change a ${STATUS_LABELS[trip.status]} trip to ${STATUS_LABELS[status]}`);
+      return;
+    }
+    // Guard: don't allow reverting billed trips
+    if (trip.status === "ready_for_billing" && status === "cancelled") {
+      // Allow cancellation but warn
+      toast.warning("Cancelling a trip that was ready for billing — any associated claims should be reviewed.");
+    }
     await supabase.from("trip_records" as any).update({ status, updated_by: user?.id ?? null }).eq("id", trip.id);
     toast.success(`Status → ${STATUS_LABELS[status]}`);
     fetchTrips();

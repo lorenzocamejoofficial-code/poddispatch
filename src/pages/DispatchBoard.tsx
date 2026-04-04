@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
 import { PageLoader } from "@/components/ui/page-loader";
 import { getLocalToday } from "@/lib/local-date";
-import { EmptyState } from "@/components/ui/empty-state";
 import { supabase } from "@/integrations/supabase/client";
 import { TruckCard } from "@/components/dispatch/TruckCard";
 import { AlertsPanel } from "@/components/dispatch/AlertsPanel";
@@ -14,7 +13,7 @@ import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { computeCleanTripStatus } from "@/lib/billing-utils";
 import { computeRevenueStrength, type RevenueStrength } from "@/components/dispatch/RevenueStrengthBadge";
 import { evaluateSafetyRules, hasCompletePatientNeeds, type SafetyStatus } from "@/lib/safety-rules";
-import { useAuth } from "@/hooks/useAuth";
+
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { TrialBanner } from "@/components/onboarding/TrialBanner";
 import type { Database } from "@/integrations/supabase/types";
@@ -99,7 +98,7 @@ function deriveBillingStatus(trip: any, payerRulesMap: Map<string, any>): { stat
 
 export default function DispatchBoard() {
   const { selectedDate } = useSchedulingStore();
-  const { profileId } = useAuth();
+  
   const [trucks, setTrucks] = useState<TruckData[]>([]);
   const [alerts, setAlerts] = useState<AlertData[]>([]);
   const [pendingCancellations, setPendingCancellations] = useState<PendingCancellation[]>([]);
@@ -398,8 +397,7 @@ export default function DispatchBoard() {
         event: "*",
         schema: "public",
         table: "trip_records",
-      }, (payload) => {
-        console.log("trip_records UPDATE received:", (payload as any).new);
+      }, () => {
         debouncedFetch();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => debouncedFetch())
@@ -410,9 +408,7 @@ export default function DispatchBoard() {
       .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => debouncedFetch())
       .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => debouncedFetch())
       .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides" }, () => debouncedFetch())
-      .subscribe((status) => {
-        console.log("Dispatch board subscription status:", status);
-      });
+      .subscribe();
 
     return () => {
       clearInterval(pollInterval);

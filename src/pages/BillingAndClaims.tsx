@@ -170,7 +170,7 @@ export default function BillingAndClaims() {
   const fetchData = useCallback(async () => {
     setLoading(true);
 
-    let claimsQuery = supabase.from("claim_records" as any).select("*").order("run_date", { ascending: false });
+    let claimsQuery = supabase.from("claim_records" as any).select("*").order("run_date", { ascending: false }).limit(1000);
     if (simulationRunId) {
       claimsQuery = claimsQuery.eq("simulation_run_id", simulationRunId);
     }
@@ -192,7 +192,7 @@ export default function BillingAndClaims() {
         ? supabase.from("patients").select("id, first_name, last_name, secondary_payer, secondary_member_id, secondary_payer_id").in("id", patientIds)
         : Promise.resolve({ data: [] }),
       tripIds.length > 0
-        ? supabase.from("trip_records" as any).select("id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type").in("id", tripIds)
+        ? supabase.from("trip_records" as any).select("id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type, updated_at").in("id", tripIds)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -212,6 +212,7 @@ export default function BillingAndClaims() {
           trip_loaded_at: tripData?.loaded_at ?? null,
           trip_dropped_at: tripData?.dropped_at ?? null,
           trip_type: tripData?.trip_type ?? c.payer_type ?? null,
+          trip_updated_at: tripData?.updated_at ?? null,
           patient_secondary_payer: patData?.secondary_payer ?? null,
           patient_secondary_member_id: patData?.secondary_member_id ?? null,
           patient_secondary_payer_id: patData?.secondary_payer_id ?? null,
