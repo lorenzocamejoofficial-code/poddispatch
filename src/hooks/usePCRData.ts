@@ -205,16 +205,21 @@ export function usePCRData(tripId: string | null) {
       setTrip(prev => prev ? { ...prev, pcr_status: "in_progress" } : prev);
     }
 
-    if (saveTimeout) clearTimeout(saveTimeout);
+    // Use a composite key for multi-field saves
+    const compositeKey = `__multi_${Object.keys(fields).sort().join("_")}`;
+    const existingTimer = fieldSaveTimers.get(compositeKey);
+    if (existingTimer) clearTimeout(existingTimer);
     setSaving(true);
-    saveTimeout = setTimeout(async () => {
+    const timer = setTimeout(async () => {
+      fieldSaveTimers.delete(compositeKey);
       const { error } = await supabase
         .from("trip_records")
         .update({ ...fields, updated_at: new Date().toISOString(), ...extraFields })
         .eq("id", tripId);
-      setSaving(false);
+      if (fieldSaveTimers.size === 0) setSaving(false);
       if (error) console.error("PCR auto-save error:", error);
     }, 500);
+    fieldSaveTimers.set(compositeKey, timer);
   }, [tripId, trip]);
 
   // Record a time event and also push status to trip_records for realtime dispatch
