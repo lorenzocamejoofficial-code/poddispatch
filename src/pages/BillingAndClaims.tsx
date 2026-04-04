@@ -163,6 +163,8 @@ export default function BillingAndClaims() {
   const setDateFilter = setSharedDate;
   const [overrideLogs, setOverrideLogs] = useState<any[]>([]);
   const [overrideLogSort, setOverrideLogSort] = useState<"date" | "user" | "reason">("date");
+  const [activeTab, setActiveTab] = useState("trip-queue");
+  const [secondaryFilter, setSecondaryFilter] = useState(false);
   const { simulationRunId, refreshToken } = useSimulationSession();
 
   const fetchData = useCallback(async () => {

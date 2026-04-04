@@ -758,7 +758,7 @@ export default function Patients() {
                             <Input value={form.secondary_member_id} onChange={e => setForm({ ...form, secondary_member_id: e.target.value })} />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-3 gap-3">
                           <div>
                             <Label className="text-xs">Group Number</Label>
                             <Input value={form.secondary_group_number} onChange={e => setForm({ ...form, secondary_group_number: e.target.value })} placeholder="Group #" />
@@ -766,6 +766,10 @@ export default function Patients() {
                           <div>
                             <Label className="text-xs">Payer ID (EDI)</Label>
                             <Input value={form.secondary_payer_id} onChange={e => setForm({ ...form, secondary_payer_id: e.target.value })} placeholder="Electronic payer ID" />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Payer Phone</Label>
+                            <Input value={form.secondary_payer_phone} onChange={e => setForm({ ...form, secondary_payer_phone: e.target.value })} placeholder="Phone number" />
                           </div>
                         </div>
                       </CollapsibleContent>
