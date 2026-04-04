@@ -89,7 +89,7 @@ export default function Patients() {
     mobility: "ambulatory", oxygen_required: false, bariatric: false,
     standing_order: false, special_handling: "",
     primary_payer: "", secondary_payer: "", member_id: "", secondary_member_id: "",
-    secondary_group_number: "", secondary_payer_id: "",
+    secondary_group_number: "", secondary_payer_id: "", secondary_payer_phone: "",
     auth_required: false, auth_expiration: "", trips_per_week_limit: "",
     // New operational needs
     stairs_required: "unknown", stair_chair_required: false,
@@ -133,7 +133,7 @@ export default function Patients() {
       mobility: "ambulatory", oxygen_required: false, bariatric: false,
       standing_order: false, special_handling: "",
       primary_payer: "", secondary_payer: "", member_id: "", secondary_member_id: "",
-      secondary_group_number: "", secondary_payer_id: "",
+      secondary_group_number: "", secondary_payer_id: "", secondary_payer_phone: "",
       auth_required: false, auth_expiration: "", trips_per_week_limit: "",
       stairs_required: "unknown", stair_chair_required: false,
       oxygen_lpm: "", special_equipment_required: "none",
@@ -187,6 +187,7 @@ export default function Patients() {
       secondary_member_id: (p as any).secondary_member_id ?? "",
       secondary_group_number: (p as any).secondary_group_number ?? "",
       secondary_payer_id: (p as any).secondary_payer_id ?? "",
+      secondary_payer_phone: (p as any).secondary_payer_phone ?? "",
       auth_required: (p as any).auth_required ?? false,
       auth_expiration: (p as any).auth_expiration ?? "",
       trips_per_week_limit: (p as any).trips_per_week_limit?.toString() ?? "",
@@ -243,6 +244,7 @@ export default function Patients() {
       secondary_member_id: form.secondary_member_id || null,
       secondary_group_number: form.secondary_group_number || null,
       secondary_payer_id: form.secondary_payer_id || null,
+      secondary_payer_phone: form.secondary_payer_phone || null,
       auth_required: form.auth_required,
       auth_expiration: form.auth_expiration || null,
       trips_per_week_limit: form.trips_per_week_limit ? parseInt(form.trips_per_week_limit) : null,
@@ -756,7 +758,7 @@ export default function Patients() {
                             <Input value={form.secondary_member_id} onChange={e => setForm({ ...form, secondary_member_id: e.target.value })} />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-3 gap-3">
                           <div>
                             <Label className="text-xs">Group Number</Label>
                             <Input value={form.secondary_group_number} onChange={e => setForm({ ...form, secondary_group_number: e.target.value })} placeholder="Group #" />
@@ -764,6 +766,10 @@ export default function Patients() {
                           <div>
                             <Label className="text-xs">Payer ID (EDI)</Label>
                             <Input value={form.secondary_payer_id} onChange={e => setForm({ ...form, secondary_payer_id: e.target.value })} placeholder="Electronic payer ID" />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Payer Phone</Label>
+                            <Input value={form.secondary_payer_phone} onChange={e => setForm({ ...form, secondary_payer_phone: e.target.value })} placeholder="Phone number" />
                           </div>
                         </div>
                       </CollapsibleContent>
