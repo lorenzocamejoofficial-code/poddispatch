@@ -152,7 +152,7 @@ export function CompanyHealthTable() {
                 </td>
                 <td className="py-2 pr-3">
                   {(() => {
-                    const hasMigrationRow = migMap.has(c.id);
+                    if (!c.hasMigrationRow) {
                     if (!hasMigrationRow) {
                       return <span className="text-muted-foreground italic text-[10px]">Not Started</span>;
                     }
