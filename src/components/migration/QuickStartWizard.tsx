@@ -26,6 +26,7 @@ interface QuickPatient {
 
 export function QuickStartWizard({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(0);
+  const [stepLoaded, setStepLoaded] = useState(false);
   const [truckCount, setTruckCount] = useState("");
   const [patientCount, setPatientCount] = useState("");
   const [patients, setPatients] = useState<QuickPatient[]>([
@@ -35,6 +36,23 @@ export function QuickStartWizard({ onComplete }: { onComplete: () => void }) {
     { name: "", address: "" },
   ]);
   const [saving, setSaving] = useState(false);
+
+  // Fix 4: Load wizard_step from DB on mount so progress persists across browser closes
+  useState(() => {
+    (async () => {
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      if (!companyId) { setStepLoaded(true); return; }
+      const { data } = await supabase
+        .from("migration_settings")
+        .select("wizard_step")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (data && (data as any).wizard_step > 0) {
+        setStep((data as any).wizard_step);
+      }
+      setStepLoaded(true);
+    })();
+  });
 
   const progress = ((step + 1) / STEPS.length) * 100;
   const StepIcon = STEPS[step].icon;
