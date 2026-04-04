@@ -837,9 +837,7 @@ export default function Patients() {
                     <div className="flex flex-wrap gap-4">
                       {[
                         { key: "oxygen_required" as const, label: "Oxygen Required", tooltip: ADMIN_TOOLTIPS.oxygen_required },
-                        { key: "bariatric" as const, label: "Bariatric", tooltip: ADMIN_TOOLTIPS.bariatric },
                         { key: "standing_order" as const, label: "Standing Order", tooltip: ADMIN_TOOLTIPS.standing_order },
-                        { key: "auth_required" as const, label: "Auth Required", tooltip: ADMIN_TOOLTIPS.auth_required },
                       ].map(f => (
                         <label key={f.key} className="flex items-center gap-2 text-sm cursor-pointer">
                           <input type="checkbox" checked={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.checked })} className="accent-primary" />
@@ -847,12 +845,6 @@ export default function Patients() {
                         </label>
                       ))}
                     </div>
-                    {form.auth_required && (
-                      <div>
-                        <Label>Auth Expiration<PCRTooltip text={ADMIN_TOOLTIPS.auth_expiration} /></Label>
-                        <Input type="date" value={form.auth_expiration} onChange={e => setForm({ ...form, auth_expiration: e.target.value })} />
-                      </div>
-                    )}
                   </div>
 
                   {/* Compliance & Authorization — dialysis only */}
