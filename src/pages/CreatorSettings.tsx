@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CreatorLayout } from "@/components/layout/CreatorLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings, ShieldCheck, Bell, Globe, Trash2, RotateCcw } from "lucide-react";
+import { Settings, ShieldCheck, Bell, Globe, Trash2, RotateCcw, DollarSign } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -22,8 +22,37 @@ export default function CreatorSettings() {
   const [resetConfirmName, setResetConfirmName] = useState("");
   const [resetting, setResetting] = useState(false);
 
+  const [cacValue, setCacValue] = useState("");
+  const [savingCac, setSavingCac] = useState(false);
+
   const selectedResetCompany = companies.find((c) => c.id === resetCompanyId);
   const resetNameMatch = selectedResetCompany && resetConfirmName === selectedResetCompany.name;
+
+  useEffect(() => {
+    supabase
+      .from("creator_settings")
+      .select("value")
+      .eq("key", "cac_per_customer")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) setCacValue(data.value);
+      });
+  }, []);
+
+  const handleSaveCac = async () => {
+    setSavingCac(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from("creator_settings")
+      .update({ value: cacValue, updated_at: new Date().toISOString(), updated_by: user?.id ?? null })
+      .eq("key", "cac_per_customer");
+    if (error) {
+      toast.error("Failed to save CAC: " + error.message);
+    } else {
+      toast.success("Customer Acquisition Cost updated.");
+    }
+    setSavingCac(false);
+  };
 
   const handleResetCompanyData = async () => {
     if (!resetCompanyId || !resetNameMatch || !selectedResetCompany) return;
@@ -301,6 +330,37 @@ export default function CreatorSettings() {
               >
                 <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
                 {resetting ? "Resetting…" : "Reset Operational Data"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* CAC Input */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-primary" />
+              Customer Acquisition Cost (CAC)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Enter your average cost to acquire a new customer. This feeds the LTV:CAC ratio on the SaaS Metrics dashboard.
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="relative w-40">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                <Input
+                  type="number"
+                  min="0"
+                  value={cacValue}
+                  onChange={(e) => setCacValue(e.target.value)}
+                  className="pl-7"
+                  placeholder="0"
+                />
+              </div>
+              <Button size="sm" onClick={handleSaveCac} disabled={savingCac}>
+                {savingCac ? "Saving…" : "Save"}
               </Button>
             </div>
           </CardContent>
