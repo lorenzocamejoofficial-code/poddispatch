@@ -75,6 +75,17 @@ export default function OnboardingWizard() {
     setRatesLoading(false);
   };
 
+  // Clearinghouse step state
+  const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
+  useEffect(() => {
+    if (!activeCompanyId) return;
+    supabase.from("clearinghouse_settings" as any)
+      .select("is_configured")
+      .eq("company_id", activeCompanyId)
+      .maybeSingle()
+      .then(({ data }) => setClearinghouseConfigured(!!(data as any)?.is_configured));
+  }, [activeCompanyId]);
+
   // Determine which steps are actually done
   const stepDone = [
     progress.step_rates_verified,
@@ -82,6 +93,7 @@ export default function OnboardingWizard() {
     patients.length > 0 || progress.step_patients_added,
     progress.step_team_invited,
     progress.step_first_trip,
+    clearinghouseConfigured || (progress as any).step_clearinghouse_connected,
   ];
 
   // Auto-advance to first incomplete step
@@ -92,7 +104,7 @@ export default function OnboardingWizard() {
     }
   }, [progress.loading]);
 
-  const progressPct = ((stepDone.filter(Boolean).length) / 5) * 100;
+  const progressPct = ((stepDone.filter(Boolean).length) / 6) * 100;
   const StepIcon = STEPS[currentStep].icon;
 
   // Step 1: Confirm rates
