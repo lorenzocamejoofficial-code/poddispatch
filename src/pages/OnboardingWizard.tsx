@@ -478,6 +478,34 @@ export default function OnboardingWizard() {
               </div>
             )}
 
+            {/* Step 6: Clearinghouse */}
+            {currentStep === 5 && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  To submit claims electronically you need to connect PodDispatch to your clearinghouse.
+                  We recommend Office Ally which is free for providers. This step takes about 10 minutes.
+                </p>
+                {clearinghouseConfigured ? (
+                  <div className="rounded-lg border border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5 p-3">
+                    <p className="text-sm text-[hsl(var(--status-green))] font-medium">
+                      <CheckCircle2 className="h-4 w-4 inline mr-1" />
+                      Your clearinghouse is connected!
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <Button onClick={() => navigate("/settings")} size="sm" className="gap-2">
+                      <Network className="h-4 w-4" />
+                      Go to Settings → Clearinghouse
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      This step completes automatically when your clearinghouse connection is configured.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Navigation */}
             <div className="flex gap-3 justify-between mt-6 pt-4 border-t">
               <div>
@@ -491,12 +519,20 @@ export default function OnboardingWizard() {
                 {currentStep === 3 && !stepDone[3] && (
                   <Button variant="ghost" onClick={() => setCurrentStep(4)}>Skip for now</Button>
                 )}
-                {currentStep < 4 && stepDone[currentStep] && (
+                {currentStep === 5 && !stepDone[5] && (
+                  <Button variant="ghost" onClick={() => {
+                    progress.markStep("step_clearinghouse_connected" as any, false);
+                    handleFinish();
+                  }}>
+                    Skip for now
+                  </Button>
+                )}
+                {currentStep < 5 && stepDone[currentStep] && (
                   <Button onClick={() => setCurrentStep(s => s + 1)}>
                     Next <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 )}
-                {currentStep === 4 && (
+                {currentStep === 5 && stepDone[5] && (
                   <Button onClick={handleFinish}>
                     Go to Dispatch <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
