@@ -1,5 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -45,9 +49,6 @@ Deno.serve(async (req) => {
     }
 
     // Attempt SFTP connection test using Deno.connect (TCP level)
-    // Since Deno edge functions don't have a native SSH/SFTP library,
-    // we verify TCP connectivity to the SFTP host:port as a connection test.
-    // Full SFTP handshake would require an SSH library not available in edge runtime.
     try {
       const conn = await Deno.connect({ hostname: "sftp.officeally.com", port: 22 });
       
@@ -59,9 +60,6 @@ Deno.serve(async (req) => {
       if (n && n > 0) {
         const banner = new TextDecoder().decode(buf.subarray(0, n));
         if (banner.startsWith("SSH-")) {
-          // TCP connection succeeded and we got an SSH banner
-          // In production, full SFTP auth would happen in the send/receive functions
-          // using a server-side SFTP client library
           return new Response(
             JSON.stringify({ 
               success: true, 
