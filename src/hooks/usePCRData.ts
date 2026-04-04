@@ -223,8 +223,11 @@ export function usePCRData(tripId: string | null) {
   }, [tripId, trip]);
 
   // Record a time event and also push status to trip_records for realtime dispatch
+  // Idempotency guard: if field already has a value, do not overwrite (prevents double-taps)
   const recordTime = useCallback(async (timeField: string, statusUpdate?: string) => {
     if (!tripId) return;
+    // Idempotency: if the field already has a value, skip
+    if (trip && (trip as any)[timeField] != null) return;
     const now = new Date().toISOString();
     const { data: { user } } = await supabase.auth.getUser();
     const updates: Record<string, any> = {

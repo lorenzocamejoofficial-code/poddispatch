@@ -149,17 +149,25 @@ export function CompanyHealthTable() {
                   )}
                 </td>
                 <td className="py-2 pr-3">
-                  <div className="flex items-center gap-1">
-                    <div className="flex gap-0.5">
-                      {[0, 1, 2, 3, 4].map((i) => (
-                        <div
-                          key={i}
-                          className={`h-2 w-2 rounded-full ${i < c.onboardingSteps ? "bg-primary" : "bg-muted"}`}
-                        />
-                      ))}
-                    </div>
-                    <span className="text-muted-foreground ml-1">{c.onboardingSteps}/5</span>
-                  </div>
+                  {(() => {
+                    const hasMigrationRow = migMap.has(c.id);
+                    if (!hasMigrationRow) {
+                      return <span className="text-muted-foreground italic text-[10px]">Not Started</span>;
+                    }
+                    return (
+                      <div className="flex items-center gap-1">
+                        <div className="flex gap-0.5">
+                          {[0, 1, 2, 3, 4].map((i) => (
+                            <div
+                              key={i}
+                              className={`h-2 w-2 rounded-full ${i < c.onboardingSteps ? "bg-primary" : "bg-muted"}`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-muted-foreground ml-1">{c.onboardingSteps}/5</span>
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td className="py-2 pr-3 text-right text-foreground">{c.trucks}</td>
                 <td className="py-2 pr-3 text-right text-foreground">{c.patients}</td>

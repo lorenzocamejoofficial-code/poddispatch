@@ -435,7 +435,8 @@ export default function PCRPage() {
     return (
       <CrewLayout>
         <div className="flex flex-col items-center justify-center min-h-[50vh] p-6">
-          <p className="text-muted-foreground">Trip not found.</p>
+          <p className="text-muted-foreground font-medium">You are not assigned to this run</p>
+          <p className="text-xs text-muted-foreground mt-1">If you believe this is an error, contact your dispatcher.</p>
           <Button className="mt-4" onClick={() => setSearchParams({})}>Back to Run List</Button>
         </div>
       </CrewLayout>

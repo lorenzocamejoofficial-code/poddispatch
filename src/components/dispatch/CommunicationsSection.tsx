@@ -206,6 +206,27 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
                 </Badge>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
+                {/* Fix 5: Phone-off icon when patient has no phone number */}
+                {(() => {
+                  const cachedPhone = patientPhones.get(run.patientId ?? "");
+                  const noPhone = run.patientId ? cachedPhone === null : true;
+                  // Show warning icon if we know there's no phone (only after first load)
+                  if (noPhone && patientPhones.has(run.patientId ?? "")) {
+                    return (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <PhoneOff className="h-3.5 w-3.5 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">No phone number on file</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  }
+                  return null;
+                })()}
                 <Button
                   variant="outline"
                   size="sm"

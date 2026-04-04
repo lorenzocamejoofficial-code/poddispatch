@@ -78,8 +78,8 @@ export function SaaSMetricsTab() {
           r.updated_at && new Date(r.updated_at) >= thirtyDaysAgo
       );
 
-      const totalAtStart = records.length || 1;
-      const churnRate = (churned.length / totalAtStart) * 100;
+      const totalAtStart = records.length;
+      const churnRate = totalAtStart > 0 ? (churned.length / totalAtStart) * 100 : 0;
 
       // GRR approximation
       const grr = Math.max(0, 100 - churnRate);
