@@ -1095,6 +1095,38 @@ export default function BillingAndClaims() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Fix 19: Orphan secondary claim warning dialog */}
+      <Dialog open={!!orphanWarning} onOpenChange={o => { if (!o) setOrphanWarning(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-[hsl(var(--status-yellow))]" />
+              Linked Secondary Claim
+            </DialogTitle>
+            <DialogDescription>
+              This claim has a linked secondary claim. Changing the status to{" "}
+              <span className="font-semibold text-foreground">{orphanWarning?.newStatus?.replace("_", " ")}</span>{" "}
+              may leave the secondary claim without a valid reference. Do you want to continue?
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            If you proceed, the secondary claim will be moved to <strong>Needs Review</strong> status automatically.
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setOrphanWarning(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                setOrphanWarning(null);
+                await executeClaimSave(true);
+              }}
+            >
+              Continue
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
