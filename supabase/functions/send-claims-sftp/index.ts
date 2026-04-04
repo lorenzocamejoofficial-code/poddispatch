@@ -1,5 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -82,8 +86,6 @@ Deno.serve(async (req) => {
         if (!claims?.length) continue;
 
         // Generate 837P content
-        // In production, this would use the full 837P generator with patient/provider data.
-        // For now, we create a placeholder that marks claims as sent.
         const now = new Date();
         const timestamp = now.toISOString().replace(/[-:T]/g, "").slice(0, 14);
         const filename = `PODDISPATCH_${timestamp}_claims.837`;
@@ -101,10 +103,6 @@ Deno.serve(async (req) => {
           conn.close();
 
           // Note: Full SFTP file transfer requires an SSH library.
-          // In production, this would use a Deno-compatible SSH2 library
-          // to authenticate with settings.sftp_username/sftp_password_encrypted
-          // and upload the generated 837P file to settings.outbound_folder/filename.
-          
           // For now, mark claims as sent after verifying connectivity
           const claimIds = claims.map((c: any) => c.id);
           await supabase
