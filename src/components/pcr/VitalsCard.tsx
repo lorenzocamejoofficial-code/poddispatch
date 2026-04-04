@@ -388,6 +388,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                 <Input type="number" inputMode="numeric" placeholder="98" value={isChipValue(vs.spo2) ? "" : vs.spo2}
                   disabled={isChipValue(vs.spo2) || isSaved}
                   onChange={(e) => updateSet(idx, "spo2", e.target.value)} className={cn("h-11", getFieldBorder("spo2", vs.spo2))} />
+                {getVitalRangeWarning("spo2", vs.spo2) && <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">⚠ {getVitalRangeWarning("spo2", vs.spo2)}</p>}
                 <VitalChips value={vs.spo2} onChange={(v) => updateSet(idx, "spo2", v)} disabled={isSaved} />
               </div>
             </div>
