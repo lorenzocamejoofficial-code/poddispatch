@@ -24,6 +24,7 @@ import { PatientStatusBadge } from "@/components/patients/PatientStatusBadge";
 import { FacilityDropdown } from "@/components/patients/FacilityDropdown";
 import { FacilitySelect } from "@/components/patients/FacilitySelect";
 import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
+import { DocumentAttachments } from "@/components/documents/DocumentAttachments";
 
 type Patient = Tables<"patients">;
 type PatientStatus = Database["public"]["Enums"]["patient_status"];
