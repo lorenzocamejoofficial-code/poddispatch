@@ -409,9 +409,7 @@ export default function DispatchBoard() {
       .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => debouncedFetch())
       .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => debouncedFetch())
       .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides" }, () => debouncedFetch())
-      .subscribe((status) => {
-        console.log("Dispatch board subscription status:", status);
-      });
+      .subscribe();
 
     return () => {
       clearInterval(pollInterval);

@@ -27,8 +27,8 @@ export default function OwnerDashboard() {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 
       const [claimRes, tripRes, truckRes, inspRes] = await Promise.all([
-        supabase.from("claim_records" as any).select("*"),
-        supabase.from("trip_records" as any).select("id, status, run_date, pcr_status, blockers, patient_id").gte("run_date", weekAgo),
+        supabase.from("claim_records" as any).select("*").limit(1000),
+        supabase.from("trip_records" as any).select("id, status, run_date, pcr_status, blockers, patient_id").gte("run_date", weekAgo).limit(1000),
         supabase.from("trucks" as any).select("id, name, active"),
         supabase.from("vehicle_inspections" as any).select("id, truck_id, run_date").eq("run_date", today),
       ]);

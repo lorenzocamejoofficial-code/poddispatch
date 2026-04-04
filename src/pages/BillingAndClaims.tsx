@@ -170,7 +170,7 @@ export default function BillingAndClaims() {
   const fetchData = useCallback(async () => {
     setLoading(true);
 
-    let claimsQuery = supabase.from("claim_records" as any).select("*").order("run_date", { ascending: false });
+    let claimsQuery = supabase.from("claim_records" as any).select("*").order("run_date", { ascending: false }).limit(1000);
     if (simulationRunId) {
       claimsQuery = claimsQuery.eq("simulation_run_id", simulationRunId);
     }
