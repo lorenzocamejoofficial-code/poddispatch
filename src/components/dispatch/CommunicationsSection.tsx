@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import { Phone, PhoneCall, Building2 } from "lucide-react";
+import { Phone, PhoneCall, PhoneOff, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { CallConfirmationDrawer } from "./CallConfirmationDrawer";
 import { CommsOutboxPanel } from "./CommsOutboxPanel";
+import { toast } from "sonner";
 
 interface ActiveRun {
   slotId: string;
