@@ -228,7 +228,15 @@ export function QuickStartWizard({ onComplete }: { onComplete: () => void }) {
               </Button>
             )}
             {step < 4 ? (
-              <Button onClick={() => setStep(s => s + 1)}>
+              <Button onClick={async () => {
+                const nextStep = step + 1;
+                setStep(nextStep);
+                // Fix 4: Persist wizard step to DB
+                const { data: companyId } = await supabase.rpc("get_my_company_id");
+                if (companyId) {
+                  await supabase.from("migration_settings").update({ wizard_step: nextStep } as any).eq("company_id", companyId);
+                }
+              }}>
                 Next <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             ) : (
