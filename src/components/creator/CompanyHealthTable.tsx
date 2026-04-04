@@ -94,6 +94,7 @@ export function CompanyHealthTable() {
         trialDaysLeft,
         subscriptionStatus: sub?.subscription_status ?? null,
         onboardingSteps: steps,
+        hasMigrationRow,
         trucks: truckCounts.get(c.id) ?? 0,
         patients: patientCounts.get(c.id) ?? 0,
         tripsThisMonth: td?.total ?? 0,
