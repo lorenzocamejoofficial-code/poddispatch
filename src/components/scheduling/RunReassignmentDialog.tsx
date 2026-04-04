@@ -69,12 +69,47 @@ export function RunReassignmentDialog({
       });
   }, [leg, targetTruckLegs, pickupTime, step]);
 
+  // Fix 13: Capture slot updated_at when dialog opens for optimistic concurrency
+  const [slotUpdatedAt, setSlotUpdatedAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open && leg) {
+      // Read the current updated_at of the slot being reassigned
+      (async () => {
+        const { data } = await supabase
+          .from("truck_run_slots")
+          .select("updated_at")
+          .eq("leg_id", leg.id)
+          .eq("run_date", selectedDate)
+          .maybeSingle();
+        setSlotUpdatedAt((data as any)?.updated_at ?? null);
+      })();
+    }
+  }, [open, leg, selectedDate]);
+
   const handleConfirm = async () => {
     if (!leg) return;
     setProcessing(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: companyId } = await supabase.rpc("get_my_company_id");
+
+      // Fix 13: Optimistic concurrency check — re-read slot before writing
+      if (sourceTruckId && slotUpdatedAt) {
+        const { data: currentSlot } = await supabase
+          .from("truck_run_slots")
+          .select("updated_at")
+          .eq("leg_id", leg.id)
+          .eq("run_date", selectedDate)
+          .maybeSingle();
+        const currentUpdatedAt = (currentSlot as any)?.updated_at;
+        if (currentUpdatedAt && currentUpdatedAt !== slotUpdatedAt) {
+          toast.error("This run was already modified by another dispatcher — please refresh and try again.");
+          setProcessing(false);
+          onOpenChange(false);
+          return;
+        }
+      }
 
       // 1. Stop any active hold timer on this run
       const { data: activeTimers } = await supabase

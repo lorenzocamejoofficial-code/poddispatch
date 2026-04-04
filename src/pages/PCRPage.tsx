@@ -66,8 +66,74 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
   const [creating, setCreating] = useState<string | null>(null);
   const [dupWarning, setDupWarning] = useState<{ run: RunForPCR; existingTrips: { id: string; pickup_time: string | null; status: string }[] } | null>(null);
   const [inspectionGated, setInspectionGated] = useState(false);
+  const [crewTruckId, setCrewTruckId] = useState<string | null>(null);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
+
+  // Fix 15: Check inspection gate as a reusable function
+  const checkInspectionGate = useCallback(async (truckId: string, companyId: string) => {
+    const { data: template } = await supabase
+      .from("vehicle_inspection_templates" as any)
+      .select("gate_enabled")
+      .eq("truck_id", truckId)
+      .eq("company_id", companyId)
+      .maybeSingle();
+
+    if (!(template as any)?.gate_enabled) {
+      setInspectionGated(false);
+      return false;
+    }
+
+    const { count } = await supabase
+      .from("vehicle_inspections" as any)
+      .select("id", { count: "exact", head: true })
+      .eq("truck_id", truckId)
+      .eq("run_date", today);
+
+    const gated = (count ?? 0) === 0;
+    setInspectionGated(gated);
+    return gated;
+  }, [today]);
+
+  // Fix 15: Realtime subscription + 30s polling for inspection gate unlock
+  useEffect(() => {
+    if (!crewTruckId || !inspectionGated) return;
+
+    // 30-second polling fallback
+    const interval = setInterval(async () => {
+      const { count } = await supabase
+        .from("vehicle_inspections" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("truck_id", crewTruckId)
+        .eq("run_date", today);
+      if ((count ?? 0) > 0) {
+        setInspectionGated(false);
+      }
+    }, 30000);
+
+    // Realtime subscription
+    const channel = supabase
+      .channel(`inspection-gate-${crewTruckId}`)
+      .on(
+        "postgres_changes" as any,
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "vehicle_inspections",
+        },
+        (payload: any) => {
+          if (payload.new?.truck_id === crewTruckId && payload.new?.run_date === today) {
+            setInspectionGated(false);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [crewTruckId, inspectionGated, today]);
 
   useEffect(() => {
     if (!profileId) return;
@@ -81,25 +147,13 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
 
       if (!crewRow) { setRuns([]); setLoading(false); return; }
 
-      // Check inspection gate
-      const { data: template } = await supabase
-        .from("vehicle_inspection_templates" as any)
-        .select("gate_enabled")
-        .eq("truck_id", crewRow.truck_id)
-        .eq("company_id", crewRow.company_id)
-        .maybeSingle();
+      setCrewTruckId(crewRow.truck_id);
 
-      if ((template as any)?.gate_enabled) {
-        const { count } = await supabase
-          .from("vehicle_inspections" as any)
-          .select("id", { count: "exact", head: true })
-          .eq("truck_id", crewRow.truck_id)
-          .eq("run_date", today);
-        if ((count ?? 0) === 0) {
-          setInspectionGated(true);
-          setLoading(false);
-          return;
-        }
+      // Check inspection gate
+      const gated = await checkInspectionGate(crewRow.truck_id, crewRow.company_id);
+      if (gated) {
+        setLoading(false);
+        return;
       }
 
       const { data: slots } = await supabase

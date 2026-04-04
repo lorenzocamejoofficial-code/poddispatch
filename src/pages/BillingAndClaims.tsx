@@ -535,6 +535,9 @@ export default function BillingAndClaims() {
     fetchData();
   };
 
+  // Fix 19: State for orphan secondary claim warning
+  const [orphanWarning, setOrphanWarning] = useState<{ claim: ClaimRecord; newStatus: string } | null>(null);
+
   const openClaim = (claim: ClaimRecord) => {
     setSelectedClaim(claim);
     logAuditEvent({ action: "view", tableName: "claim_records", recordId: claim.id, notes: `Viewed claim for ${claim.patient_name}` });
@@ -548,6 +551,19 @@ export default function BillingAndClaims() {
   };
 
   const saveClaim = async () => {
+    if (!selectedClaim) return;
+
+    // Fix 19: Check if this is a destructive status change on a claim with a linked secondary
+    const isDestructiveChange = (editForm.status === "denied" || editForm.status === "needs_correction") && selectedClaim.status !== editForm.status;
+    if (isDestructiveChange && (selectedClaim as any).secondary_claim_id) {
+      setOrphanWarning({ claim: selectedClaim, newStatus: editForm.status });
+      return;
+    }
+
+    await executeClaimSave();
+  };
+
+  const executeClaimSave = async (handleOrphanSecondary = false) => {
     if (!selectedClaim) return;
     setSavingClaim(true);
     const payload: any = {
@@ -582,6 +598,15 @@ export default function BillingAndClaims() {
     }
 
     await supabase.from("claim_records" as any).update(payload).eq("id", selectedClaim.id);
+
+    // Fix 19: If confirmed, mark the secondary claim as needs_review
+    if (handleOrphanSecondary && (selectedClaim as any).secondary_claim_id) {
+      await supabase.from("claim_records" as any).update({
+        status: "needs_review",
+        denial_reason: "Primary claim was deleted — review required",
+      } as any).eq("id", (selectedClaim as any).secondary_claim_id);
+    }
+
     logAuditEvent({ action: "edit", tableName: "claim_records", recordId: selectedClaim.id, notes: `Updated claim: ${Object.keys(fieldMap).join(", ")}` });
     toast.success("Claim updated");
     setSelectedClaim(null);
