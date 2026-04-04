@@ -610,9 +610,9 @@ export default function TrucksCrews() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {trucks.map((t) => (
-              <div key={t.id} className="rounded-lg border bg-card p-3 space-y-2">
+              <div key={t.id} className={`rounded-lg border bg-card p-3 space-y-2 ${!t.active ? "opacity-60 border-muted" : ""}`}>
                 <div className="flex items-center gap-2">
-                  <Truck className="h-4 w-4 text-primary shrink-0" />
+                  <Truck className={`h-4 w-4 shrink-0 ${t.active ? "text-primary" : "text-muted-foreground"}`} />
                   {editingTruckId === t.id ? (
                     <div className="flex items-center gap-2 flex-1">
                       <Input className="h-7 text-sm flex-1" value={editingTruckName}
@@ -630,10 +630,20 @@ export default function TrucksCrews() {
                   ) : (
                     <>
                       <span className="font-medium text-card-foreground flex-1 truncate">{t.name}</span>
+                      {!t.active && <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground">Inactive</Badge>}
                       {(t as any).vehicle_id && <span className="text-[10px] text-muted-foreground shrink-0">#{(t as any).vehicle_id}</span>}
                       <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); }}>
                         <Pencil className="h-3 w-3" />
                       </Button>
+                      {t.active ? (
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => confirmDeactivateTruck(t.id)} title="Deactivate truck">
+                          <Power className="h-3 w-3 text-[hsl(var(--status-yellow))]" />
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => reactivateTruck(t.id)} title="Reactivate truck">
+                          <Power className="h-3 w-3 text-[hsl(var(--status-green))]" />
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => confirmDeleteTruck(t.id)}>
                         <Trash2 className="h-3 w-3 text-destructive" />
                       </Button>
