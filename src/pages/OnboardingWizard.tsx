@@ -207,7 +207,7 @@ export default function OnboardingWizard() {
         {/* Progress */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">{stepDone.filter(Boolean).length} of 5 steps complete</span>
+            <span className="text-muted-foreground">{stepDone.filter(Boolean).length} of 6 steps complete</span>
             <span className="font-medium">{Math.round(progressPct)}%</span>
           </div>
           <Progress value={progressPct} className="h-2" />
