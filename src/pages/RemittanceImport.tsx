@@ -218,6 +218,8 @@ export default function RemittanceImport() {
       }
 
       // Write remittance file record
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
       await supabase.from("remittance_files" as any).insert({
         file_name: fileName,
         file_content: rawContent,
@@ -225,6 +227,8 @@ export default function RemittanceImport() {
         claims_updated: updated,
         total_paid: totalPaid,
         status: "completed",
+        company_id: companyId,
+        imported_by: currentUser?.id ?? null,
       } as any);
 
       await logAuditEvent({

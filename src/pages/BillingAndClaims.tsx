@@ -630,7 +630,7 @@ export default function BillingAndClaims() {
 
   return (
     <AdminLayout>
-      <Tabs defaultValue="trip-queue" className="space-y-4">
+      <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <TabsList className="flex-wrap">
             <TabsTrigger value="trip-queue"><ClipboardList className="h-3.5 w-3.5 mr-1.5" />Trip Queue</TabsTrigger>
@@ -652,9 +652,14 @@ export default function BillingAndClaims() {
             </Button>
           </a>
           {secondaryOpportunities > 0 && (
-            <Badge variant="secondary" className="text-xs gap-1 bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] border border-[hsl(var(--status-yellow))]/30 cursor-default">
+            <Badge
+              variant="secondary"
+              className="text-xs gap-1 bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] border border-[hsl(var(--status-yellow))]/30 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => { setActiveTab("claims"); setSecondaryFilter(prev => !prev); }}
+            >
               <AlertTriangle className="h-3 w-3" />
               {secondaryOpportunities} secondary {secondaryOpportunities === 1 ? "opportunity" : "opportunities"}
+              {secondaryFilter && <X className="h-3 w-3 ml-0.5" />}
             </Badge>
           )}
           <div className="flex flex-wrap items-center gap-2">
