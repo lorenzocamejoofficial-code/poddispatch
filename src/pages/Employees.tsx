@@ -550,6 +550,7 @@ export default function Employees() {
                         />
                       </td>
                       <td className="px-4 py-3 font-medium text-card-foreground">{e.full_name}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{e.email || "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{e.phone_number || "—"}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -572,6 +573,25 @@ export default function Employees() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
+                          {(userRole === "owner" || userRole === "creator") && e.email && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title="Send password reset email"
+                              onClick={async (ev) => {
+                                ev.stopPropagation();
+                                const { error } = await supabase.auth.resetPasswordForEmail(e.email!);
+                                if (error) {
+                                  toast.error("Failed to send reset email");
+                                } else {
+                                  toast.success("Password reset email sent");
+                                }
+                              }}
+                            >
+                              <KeyRound className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(e)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
