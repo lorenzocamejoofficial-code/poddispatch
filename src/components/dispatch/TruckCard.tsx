@@ -284,10 +284,10 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                   </div>
                 </div>
                 {/* Row 2: time + type */}
-                <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                  {run.pickup_time && <span>{run.pickup_time}</span>}
-                  {(run as any).destination_name && <span className="truncate">→ {(run as any).destination_name}</span>}
-                  <span className="capitalize">{run.trip_type}</span>
+                <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                  {run.pickup_time && <span className="shrink-0">{run.pickup_time}</span>}
+                  {(run as any).destination_name && <span className="break-words">→ {(run as any).destination_name}</span>}
+                  <span className="capitalize shrink-0">{run.trip_type}</span>
                 </div>
                 {/* Expanded details */}
                 {isRunExpanded && !isCancelled && (
