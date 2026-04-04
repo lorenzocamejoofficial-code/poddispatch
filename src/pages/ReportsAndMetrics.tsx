@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TrendingUp, Truck, AlertTriangle, XCircle, CheckCircle, Clock, DollarSign, Activity } from "lucide-react";
+import { TrendingUp, Truck, AlertTriangle, XCircle, CheckCircle, Clock, DollarSign } from "lucide-react";
 import { computeAgingBuckets, computeAverageDaysToPayment } from "@/lib/billing-utils";
 import { isBLegTooEarly } from "@/lib/dialysis-validation";
 import { cn } from "@/lib/utils";
