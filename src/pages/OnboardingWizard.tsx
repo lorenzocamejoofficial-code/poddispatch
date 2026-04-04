@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
-  DollarSign, Truck, Users, Mail, Rocket,
+  DollarSign, Truck, Users, Mail, Rocket, Network,
   CheckCircle2, ArrowRight, ArrowLeft, AlertTriangle,
 } from "lucide-react";
 
@@ -24,6 +24,7 @@ const STEPS = [
   { icon: Users, title: "Add Your First Patient", description: "Enter at least one patient with required billing fields." },
   { icon: Mail, title: "Invite Your Team", description: "Send invitations to your dispatcher and crew members." },
   { icon: Rocket, title: "Run Your First Trip", description: "Complete the full trip lifecycle from scheduling to billing." },
+  { icon: Network, title: "Connect Your Clearinghouse", description: "Link PodDispatch to Office Ally for electronic claims." },
 ];
 
 export default function OnboardingWizard() {
@@ -74,6 +75,17 @@ export default function OnboardingWizard() {
     setRatesLoading(false);
   };
 
+  // Clearinghouse step state
+  const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
+  useEffect(() => {
+    if (!activeCompanyId) return;
+    supabase.from("clearinghouse_settings" as any)
+      .select("is_configured")
+      .eq("company_id", activeCompanyId)
+      .maybeSingle()
+      .then(({ data }) => setClearinghouseConfigured(!!(data as any)?.is_configured));
+  }, [activeCompanyId]);
+
   // Determine which steps are actually done
   const stepDone = [
     progress.step_rates_verified,
@@ -81,6 +93,7 @@ export default function OnboardingWizard() {
     patients.length > 0 || progress.step_patients_added,
     progress.step_team_invited,
     progress.step_first_trip,
+    clearinghouseConfigured || (progress as any).step_clearinghouse_connected,
   ];
 
   // Auto-advance to first incomplete step
@@ -91,7 +104,7 @@ export default function OnboardingWizard() {
     }
   }, [progress.loading]);
 
-  const progressPct = ((stepDone.filter(Boolean).length) / 5) * 100;
+  const progressPct = ((stepDone.filter(Boolean).length) / 6) * 100;
   const StepIcon = STEPS[currentStep].icon;
 
   // Step 1: Confirm rates
@@ -194,7 +207,7 @@ export default function OnboardingWizard() {
         {/* Progress */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">{stepDone.filter(Boolean).length} of 5 steps complete</span>
+            <span className="text-muted-foreground">{stepDone.filter(Boolean).length} of 6 steps complete</span>
             <span className="font-medium">{Math.round(progressPct)}%</span>
           </div>
           <Progress value={progressPct} className="h-2" />
@@ -465,6 +478,34 @@ export default function OnboardingWizard() {
               </div>
             )}
 
+            {/* Step 6: Clearinghouse */}
+            {currentStep === 5 && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  To submit claims electronically you need to connect PodDispatch to your clearinghouse.
+                  We recommend Office Ally which is free for providers. This step takes about 10 minutes.
+                </p>
+                {clearinghouseConfigured ? (
+                  <div className="rounded-lg border border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5 p-3">
+                    <p className="text-sm text-[hsl(var(--status-green))] font-medium">
+                      <CheckCircle2 className="h-4 w-4 inline mr-1" />
+                      Your clearinghouse is connected!
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <Button onClick={() => navigate("/settings")} size="sm" className="gap-2">
+                      <Network className="h-4 w-4" />
+                      Go to Settings → Clearinghouse
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      This step completes automatically when your clearinghouse connection is configured.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Navigation */}
             <div className="flex gap-3 justify-between mt-6 pt-4 border-t">
               <div>
@@ -478,12 +519,20 @@ export default function OnboardingWizard() {
                 {currentStep === 3 && !stepDone[3] && (
                   <Button variant="ghost" onClick={() => setCurrentStep(4)}>Skip for now</Button>
                 )}
-                {currentStep < 4 && stepDone[currentStep] && (
+                {currentStep === 5 && !stepDone[5] && (
+                  <Button variant="ghost" onClick={() => {
+                    progress.markStep("step_clearinghouse_connected" as any, false);
+                    handleFinish();
+                  }}>
+                    Skip for now
+                  </Button>
+                )}
+                {currentStep < 5 && stepDone[currentStep] && (
                   <Button onClick={() => setCurrentStep(s => s + 1)}>
                     Next <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 )}
-                {currentStep === 4 && (
+                {currentStep === 5 && stepDone[5] && (
                   <Button onClick={handleFinish}>
                     Go to Dispatch <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>

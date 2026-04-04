@@ -308,6 +308,7 @@ export type Database = {
           run_date: string
           secondary_claim_generated: boolean | null
           secondary_claim_id: string | null
+          sftp_sent_at: string | null
           simulation_run_id: string | null
           status: Database["public"]["Enums"]["claim_status"]
           stretcher_placement: string | null
@@ -367,6 +368,7 @@ export type Database = {
           run_date: string
           secondary_claim_generated?: boolean | null
           secondary_claim_id?: string | null
+          sftp_sent_at?: string | null
           simulation_run_id?: string | null
           status?: Database["public"]["Enums"]["claim_status"]
           stretcher_placement?: string | null
@@ -426,6 +428,7 @@ export type Database = {
           run_date?: string
           secondary_claim_generated?: boolean | null
           secondary_claim_id?: string | null
+          sftp_sent_at?: string | null
           simulation_run_id?: string | null
           status?: Database["public"]["Enums"]["claim_status"]
           stretcher_placement?: string | null
@@ -470,6 +473,77 @@ export type Database = {
             columns: ["trip_id"]
             isOneToOne: false
             referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clearinghouse_settings: {
+        Row: {
+          auto_receive_enabled: boolean
+          auto_send_enabled: boolean
+          clearinghouse_name: string
+          company_id: string
+          created_at: string
+          id: string
+          inbound_folder: string
+          is_active: boolean
+          is_configured: boolean
+          last_error: string | null
+          last_receive_at: string | null
+          last_send_at: string | null
+          outbound_folder: string
+          sftp_host: string
+          sftp_password_encrypted: string | null
+          sftp_port: number
+          sftp_username: string | null
+          updated_at: string
+        }
+        Insert: {
+          auto_receive_enabled?: boolean
+          auto_send_enabled?: boolean
+          clearinghouse_name?: string
+          company_id: string
+          created_at?: string
+          id?: string
+          inbound_folder?: string
+          is_active?: boolean
+          is_configured?: boolean
+          last_error?: string | null
+          last_receive_at?: string | null
+          last_send_at?: string | null
+          outbound_folder?: string
+          sftp_host?: string
+          sftp_password_encrypted?: string | null
+          sftp_port?: number
+          sftp_username?: string | null
+          updated_at?: string
+        }
+        Update: {
+          auto_receive_enabled?: boolean
+          auto_send_enabled?: boolean
+          clearinghouse_name?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          inbound_folder?: string
+          is_active?: boolean
+          is_configured?: boolean
+          last_error?: string | null
+          last_receive_at?: string | null
+          last_send_at?: string | null
+          outbound_folder?: string
+          sftp_host?: string
+          sftp_password_encrypted?: string | null
+          sftp_port?: number
+          sftp_username?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clearinghouse_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -1429,6 +1503,7 @@ export type Database = {
           onboarding_dismissed: boolean
           parallel_mode: boolean
           start_forward_mode: boolean
+          step_clearinghouse_connected: boolean
           step_first_trip: boolean
           step_patients_added: boolean
           step_rates_verified: boolean
@@ -1445,6 +1520,7 @@ export type Database = {
           onboarding_dismissed?: boolean
           parallel_mode?: boolean
           start_forward_mode?: boolean
+          step_clearinghouse_connected?: boolean
           step_first_trip?: boolean
           step_patients_added?: boolean
           step_rates_verified?: boolean
@@ -1461,6 +1537,7 @@ export type Database = {
           onboarding_dismissed?: boolean
           parallel_mode?: boolean
           start_forward_mode?: boolean
+          step_clearinghouse_connected?: boolean
           step_first_trip?: boolean
           step_patients_added?: boolean
           step_rates_verified?: boolean

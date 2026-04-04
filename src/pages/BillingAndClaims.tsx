@@ -3,6 +3,7 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download, Info, X, FileText, TrendingUp } from "lucide-react";
+import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download, Info, X, FileText, TrendingUp, Send, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
@@ -141,6 +142,7 @@ const CLAIM_COLUMNS: { status: ClaimStatus; label: string; icon: React.ReactNode
 const PAYER_TYPES = ["default", "medicare", "medicaid", "facility", "cash"];
 
 export default function BillingAndClaims() {
+  const { activeCompanyId } = useAuth();
   const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [chargeMaster, setChargeMaster] = useState<ChargeMaster[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,6 +169,9 @@ export default function BillingAndClaims() {
   const [activeTab, setActiveTab] = useState("trip-queue");
   const [secondaryFilter, setSecondaryFilter] = useState(false);
   const { simulationRunId, refreshToken } = useSimulationSession();
+  const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
+  const [sftpSending, setSftpSending] = useState(false);
+  const [sftpReceiving, setSftpReceiving] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -319,7 +324,19 @@ export default function BillingAndClaims() {
     }));
   }, [simulationRunId]);
 
-  useEffect(() => { fetchData(); fetchQueueTrips(); fetchOverrideLogs(); }, [fetchData, fetchQueueTrips, fetchOverrideLogs]);
+  useEffect(() => {
+    fetchData(); fetchQueueTrips(); fetchOverrideLogs();
+    // Check if clearinghouse is configured
+    if (activeCompanyId) {
+      supabase.from("clearinghouse_settings" as any)
+        .select("is_configured")
+        .eq("company_id", activeCompanyId)
+        .maybeSingle()
+        .then(({ data }) => {
+          setClearinghouseConfigured(!!(data as any)?.is_configured);
+        });
+    }
+  }, [fetchData, fetchQueueTrips, fetchOverrideLogs, activeCompanyId]);
 
   useEffect(() => {
     if (!refreshToken) return;
@@ -330,6 +347,46 @@ export default function BillingAndClaims() {
     fetchQueueTrips();
     fetchOverrideLogs();
   }, [refreshToken, fetchData, fetchQueueTrips, fetchOverrideLogs]);
+
+  const handleSendViaSftp = async () => {
+    if (!activeCompanyId) return;
+    setSftpSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-claims-sftp", {
+        body: { company_id: activeCompanyId },
+      });
+      if (error) throw error;
+      if (data?.sent > 0) {
+        toast.success(`Sent ${data.sent} claims via Office Ally`);
+      } else {
+        toast.info("No new claims to send");
+      }
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send claims");
+    }
+    setSftpSending(false);
+  };
+
+  const handleCheckPayments = async () => {
+    if (!activeCompanyId) return;
+    setSftpReceiving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("retrieve-remittance-sftp", {
+        body: { company_id: activeCompanyId },
+      });
+      if (error) throw error;
+      if (data?.received > 0) {
+        toast.success(`Imported ${data.received} payment files`);
+      } else {
+        toast.info("No new payment files found");
+      }
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to check for payments");
+    }
+    setSftpReceiving(false);
+  };
 
   // Helper: build claim data from a trip
   const buildClaimFromTrip = (t: any) => {
@@ -709,6 +766,30 @@ export default function BillingAndClaims() {
               835 Import
             </Button>
           </a>
+          {clearinghouseConfigured && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={handleSendViaSftp}
+                disabled={sftpSending}
+              >
+                {sftpSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                {sftpSending ? "Sending..." : "Send via Office Ally"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={handleCheckPayments}
+                disabled={sftpReceiving}
+              >
+                {sftpReceiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {sftpReceiving ? "Checking..." : "Check for Payments"}
+              </Button>
+            </>
+          )}
           {secondaryOpportunities > 0 && (
             <Badge
               variant="secondary"

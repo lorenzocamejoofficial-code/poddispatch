@@ -1,17 +1,22 @@
 import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { CheckCircle2, ClipboardList } from "lucide-react";
+import { CheckCircle2, ClipboardList, Settings2, Network } from "lucide-react";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { TrialBanner } from "@/components/onboarding/TrialBanner";
+import { ClearinghouseSettings } from "@/components/settings/ClearinghouseSettings";
 
 export default function AdminSettings() {
+  const { role } = useAuth();
+  const isOwner = role === "owner" || role === "creator";
   const [settingsId, setSettingsId] = useState("");
   const [graceWindow, setGraceWindow] = useState("15");
   const [loadTime, setLoadTime] = useState("10");
@@ -106,9 +111,24 @@ export default function AdminSettings() {
 
   return (
     <AdminLayout>
-      <div className="max-w-lg space-y-8">
+      <div className="space-y-6">
         <TrialBanner />
         <OnboardingChecklist />
+
+        <Tabs defaultValue="company" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="company" className="gap-1.5">
+              <Settings2 className="h-3.5 w-3.5" /> Company
+            </TabsTrigger>
+            {isOwner && (
+              <TabsTrigger value="clearinghouse" className="gap-1.5">
+                <Network className="h-3.5 w-3.5" /> Clearinghouse
+              </TabsTrigger>
+            )}
+          </TabsList>
+
+          <TabsContent value="company">
+            <div className="max-w-lg space-y-8">
         <section className="space-y-3">
           <div>
             <h3 className="text-lg font-semibold text-foreground">Company Settings</h3>
@@ -352,6 +372,17 @@ export default function AdminSettings() {
             </Button>
           )}
         </section>
+            </div>
+          </TabsContent>
+
+          {isOwner && (
+            <TabsContent value="clearinghouse">
+              <div className="max-w-2xl">
+                <ClearinghouseSettings />
+              </div>
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
     </AdminLayout>
   );
