@@ -22,8 +22,37 @@ export default function CreatorSettings() {
   const [resetConfirmName, setResetConfirmName] = useState("");
   const [resetting, setResetting] = useState(false);
 
+  const [cacValue, setCacValue] = useState("");
+  const [savingCac, setSavingCac] = useState(false);
+
   const selectedResetCompany = companies.find((c) => c.id === resetCompanyId);
   const resetNameMatch = selectedResetCompany && resetConfirmName === selectedResetCompany.name;
+
+  useEffect(() => {
+    supabase
+      .from("creator_settings")
+      .select("value")
+      .eq("key", "cac_per_customer")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) setCacValue(data.value);
+      });
+  }, []);
+
+  const handleSaveCac = async () => {
+    setSavingCac(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from("creator_settings")
+      .update({ value: cacValue, updated_at: new Date().toISOString(), updated_by: user?.id ?? null })
+      .eq("key", "cac_per_customer");
+    if (error) {
+      toast.error("Failed to save CAC: " + error.message);
+    } else {
+      toast.success("Customer Acquisition Cost updated.");
+    }
+    setSavingCac(false);
+  };
 
   const handleResetCompanyData = async () => {
     if (!resetCompanyId || !resetNameMatch || !selectedResetCompany) return;
