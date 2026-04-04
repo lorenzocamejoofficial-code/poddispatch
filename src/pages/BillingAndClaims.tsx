@@ -766,6 +766,30 @@ export default function BillingAndClaims() {
               835 Import
             </Button>
           </a>
+          {clearinghouseConfigured && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={handleSendViaSftp}
+                disabled={sftpSending}
+              >
+                {sftpSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                {sftpSending ? "Sending..." : "Send via Office Ally"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={handleCheckPayments}
+                disabled={sftpReceiving}
+              >
+                {sftpReceiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {sftpReceiving ? "Checking..." : "Check for Payments"}
+              </Button>
+            </>
+          )}
           {secondaryOpportunities > 0 && (
             <Badge
               variant="secondary"
