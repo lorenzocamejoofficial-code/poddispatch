@@ -372,6 +372,17 @@ export default function AdminSettings() {
             </Button>
           )}
         </section>
+            </div>
+          </TabsContent>
+
+          {isOwner && (
+            <TabsContent value="clearinghouse">
+              <div className="max-w-2xl">
+                <ClearinghouseSettings />
+              </div>
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
     </AdminLayout>
   );
