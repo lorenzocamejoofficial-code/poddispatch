@@ -12,7 +12,7 @@ interface CompanyHealth {
   trialDaysLeft: number | null;
   subscriptionStatus: string | null;
   onboardingSteps: number;
-  trucks: number;
+  hasMigrationRow: boolean;
   patients: number;
   tripsThisMonth: number;
   billingCompleteRate: number;
