@@ -167,6 +167,9 @@ export default function BillingAndClaims() {
   const [activeTab, setActiveTab] = useState("trip-queue");
   const [secondaryFilter, setSecondaryFilter] = useState(false);
   const { simulationRunId, refreshToken } = useSimulationSession();
+  const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
+  const [sftpSending, setSftpSending] = useState(false);
+  const [sftpReceiving, setSftpReceiving] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
