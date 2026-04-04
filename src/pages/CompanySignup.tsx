@@ -347,7 +347,18 @@ export default function CompanySignup() {
                       className="mt-0.5"
                     />
                     <div className="flex-1">
-                      <Label htmlFor={agreement.key} className="text-sm font-medium cursor-pointer">{agreement.label}</Label>
+                      <Label htmlFor={agreement.key} className="text-sm font-medium cursor-pointer">
+                        {agreement.label}{" "}
+                        <a
+                          href={`/legal?tab=${agreement.linkTab}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {agreement.linkText}
+                        </a>
+                      </Label>
                       <Collapsible>
                         <CollapsibleTrigger className="text-xs text-primary hover:underline mt-1">View summary</CollapsibleTrigger>
                         <CollapsibleContent className="mt-2 text-xs text-muted-foreground">{agreement.summary}</CollapsibleContent>
