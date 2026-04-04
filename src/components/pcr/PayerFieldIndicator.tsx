@@ -12,8 +12,8 @@ interface PayerFieldIndicatorProps {
   className?: string;
 }
 
-function normalizePayer(payer: string | null): "medicare" | "medicaid" | "other" {
-  if (!payer) return "medicare"; // default to Medicare requirements
+function normalizePayer(payer: string | null): "medicare" | "medicaid" | "unknown" | "other" {
+  if (!payer) return "unknown"; // no payer linked — only show universal indicators
   const p = payer.toLowerCase();
   if (p.includes("medicaid")) return "medicaid";
   if (p.includes("medicare")) return "medicare";

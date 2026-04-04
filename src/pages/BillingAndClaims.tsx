@@ -499,6 +499,14 @@ export default function BillingAndClaims() {
       await supabase.from("claim_records" as any).insert(allClaims);
     }
 
+    // Fix 3: Warn about $0 claims
+    const zeroClaims = allClaims.filter(c => (c.total_charge ?? 0) === 0);
+    if (zeroClaims.length > 0) {
+      toast.warning(`${zeroClaims.length} claim(s) created with $0.00 total — review the Charge Master to ensure rates are set for these payer types.`, {
+        duration: 10000,
+      });
+    }
+
     // Also refresh existing needs_review claims
     await refreshExistingClaims();
 
@@ -748,18 +756,40 @@ export default function BillingAndClaims() {
                         >
                           <div className="flex items-center justify-between gap-1 mb-1">
                             <p className="text-xs font-semibold text-foreground truncate">{claim.patient_name}</p>
-                            <CleanTripBadge
-                              trip={{
-                                loaded_miles: claim.trip_loaded_miles,
-                                signature_obtained: claim.trip_signature,
-                                pcs_attached: claim.trip_pcs,
-                                origin_type: claim.origin_type,
-                                destination_type: claim.destination_type,
-                                loaded_at: claim.trip_loaded_at,
-                                dropped_at: claim.trip_dropped_at,
-                                trip_type: claim.trip_type,
-                              }}
-                            />
+                            <div className="flex items-center gap-1 shrink-0">
+                              {/* Fix 3: Rate Missing badge for $0 claims */}
+                              {claim.total_charge === 0 && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-400 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20">
+                                  Rate Missing
+                                </Badge>
+                              )}
+                              {/* Fix 11: Stale Export badge */}
+                              {claim.submitted_at && (claim as any).exported_at && (() => {
+                                // Check if trip was updated after claim export
+                                const tripUpdated = (claim as any).trip_updated_at;
+                                const exportedAt = (claim as any).exported_at;
+                                if (tripUpdated && exportedAt && new Date(tripUpdated) > new Date(exportedAt)) {
+                                  return (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-400 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20" title="Export outdated — trip data changed after last export. Regenerate before submitting.">
+                                      Stale Export
+                                    </Badge>
+                                  );
+                                }
+                                return null;
+                              })()}
+                              <CleanTripBadge
+                                trip={{
+                                  loaded_miles: claim.trip_loaded_miles,
+                                  signature_obtained: claim.trip_signature,
+                                  pcs_attached: claim.trip_pcs,
+                                  origin_type: claim.origin_type,
+                                  destination_type: claim.destination_type,
+                                  loaded_at: claim.trip_loaded_at,
+                                  dropped_at: claim.trip_dropped_at,
+                                  trip_type: claim.trip_type,
+                                }}
+                              />
+                            </div>
                           </div>
                           <p className="text-[10px] text-muted-foreground">{claim.run_date}</p>
                           {claim.hcpcs_codes?.length ? (

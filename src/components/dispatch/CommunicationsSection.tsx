@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import { Phone, PhoneCall, Building2 } from "lucide-react";
+import { Phone, PhoneCall, PhoneOff, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { CallConfirmationDrawer } from "./CallConfirmationDrawer";
 import { CommsOutboxPanel } from "./CommsOutboxPanel";
+import { toast } from "sonner";
 
 interface ActiveRun {
   slotId: string;
@@ -118,14 +120,6 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
     }
 
     // Also look up trip_id for the slot
-    const { data: tripData } = await supabase
-      .from("trip_records" as any)
-      .select("id")
-      .eq("run_date", selectedDate)
-      .eq("truck_id", run.truckId)
-      .limit(10);
-
-    // Try to get a more specific match via slot lookup
     const { data: slotTrip } = await supabase
       .from("truck_run_slots")
       .select("leg_id")
@@ -141,6 +135,25 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
         .eq("run_date", selectedDate)
         .maybeSingle();
       tripId = (legTrip as any)?.id ?? null;
+    }
+
+    // Fix 6: Duplicate call check — warn before queuing same call type on same trip today
+    if (tripId) {
+      const today = selectedDate;
+      const { count } = await supabase
+        .from("comms_events" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("trip_id", tripId)
+        .eq("call_type", callType)
+        .gte("created_at", `${today}T00:00:00`)
+        .lte("created_at", `${today}T23:59:59`);
+
+      if ((count ?? 0) > 0) {
+        const confirmed = window.confirm(
+          `A ${callType} call was already queued for this run today. Queue another?`
+        );
+        if (!confirmed) return;
+      }
     }
 
     setSelectedCall({
@@ -193,6 +206,27 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
                 </Badge>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
+                {/* Fix 5: Phone-off icon when patient has no phone number */}
+                {(() => {
+                  const cachedPhone = patientPhones.get(run.patientId ?? "");
+                  const noPhone = run.patientId ? cachedPhone === null : true;
+                  // Show warning icon if we know there's no phone (only after first load)
+                  if (noPhone && patientPhones.has(run.patientId ?? "")) {
+                    return (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <PhoneOff className="h-3.5 w-3.5 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">No phone number on file</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  }
+                  return null;
+                })()}
                 <Button
                   variant="outline"
                   size="sm"

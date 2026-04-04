@@ -26,6 +26,7 @@ interface QuickPatient {
 
 export function QuickStartWizard({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(0);
+  const [stepLoaded, setStepLoaded] = useState(false);
   const [truckCount, setTruckCount] = useState("");
   const [patientCount, setPatientCount] = useState("");
   const [patients, setPatients] = useState<QuickPatient[]>([
@@ -35,6 +36,23 @@ export function QuickStartWizard({ onComplete }: { onComplete: () => void }) {
     { name: "", address: "" },
   ]);
   const [saving, setSaving] = useState(false);
+
+  // Fix 4: Load wizard_step from DB on mount so progress persists across browser closes
+  useState(() => {
+    (async () => {
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      if (!companyId) { setStepLoaded(true); return; }
+      const { data } = await supabase
+        .from("migration_settings")
+        .select("wizard_step")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (data && (data as any).wizard_step > 0) {
+        setStep((data as any).wizard_step);
+      }
+      setStepLoaded(true);
+    })();
+  });
 
   const progress = ((step + 1) / STEPS.length) * 100;
   const StepIcon = STEPS[step].icon;
@@ -205,12 +223,27 @@ export function QuickStartWizard({ onComplete }: { onComplete: () => void }) {
 
           <div className="flex gap-3 justify-end mt-6">
             {step > 0 && (
-              <Button variant="outline" onClick={() => setStep(s => s - 1)}>
+              <Button variant="outline" onClick={async () => {
+                const prevStep = step - 1;
+                setStep(prevStep);
+                const { data: companyId } = await supabase.rpc("get_my_company_id");
+                if (companyId) {
+                  await supabase.from("migration_settings").update({ wizard_step: prevStep } as any).eq("company_id", companyId);
+                }
+              }}>
                 <ArrowLeft className="h-4 w-4 mr-2" /> Back
               </Button>
             )}
             {step < 4 ? (
-              <Button onClick={() => setStep(s => s + 1)}>
+              <Button onClick={async () => {
+                const nextStep = step + 1;
+                setStep(nextStep);
+                // Fix 4: Persist wizard step to DB
+                const { data: companyId } = await supabase.rpc("get_my_company_id");
+                if (companyId) {
+                  await supabase.from("migration_settings").update({ wizard_step: nextStep } as any).eq("company_id", companyId);
+                }
+              }}>
                 Next <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             ) : (

@@ -470,6 +470,16 @@ export default function RemittanceImport() {
               </CardContent>
             </Card>
 
+            {/* Fix 12: Match summary before confirm */}
+            {unmatchedCount > 0 && (
+              <Alert className="border-destructive/30 bg-destructive/5">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                <AlertDescription className="text-sm">
+                  <strong>{matchedCount} of {matchedItems.length} items matched</strong> — {unmatchedCount} item{unmatchedCount !== 1 ? "s" : ""} could not be matched and will be skipped.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Import Actions */}
             <div className="flex items-center justify-between">
               <Button

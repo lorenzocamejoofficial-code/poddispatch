@@ -435,7 +435,8 @@ export default function PCRPage() {
     return (
       <CrewLayout>
         <div className="flex flex-col items-center justify-center min-h-[50vh] p-6">
-          <p className="text-muted-foreground">Trip not found.</p>
+          <p className="text-muted-foreground font-medium">You are not assigned to this run</p>
+          <p className="text-xs text-muted-foreground mt-1">If you believe this is an error, contact your dispatcher.</p>
           <Button className="mt-4" onClick={() => setSearchParams({})}>Back to Run List</Button>
         </div>
       </CrewLayout>
@@ -618,9 +619,9 @@ export default function PCRPage() {
         missing.push(card.label);
       }
     }
-    // Odometer fields required on all PCR types
-    if (!trip.odometer_at_scene) missing.push("Odometer at Scene");
-    if (!trip.odometer_at_destination) missing.push("Odometer at Destination");
+    // Odometer fields required on all PCR types — 0 is valid (trip counter reset)
+    if (trip.odometer_at_scene == null) missing.push("Odometer at Scene");
+    if (trip.odometer_at_destination == null) missing.push("Odometer at Destination");
     // Crew signatures required
     if (assignedCrewCount > 0 && !areAllCrewSigned(trip.signatures_json || [], assignedCrewCount)) {
       missing.push("Crew Signatures");
@@ -821,30 +822,30 @@ export default function PCRPage() {
           })}
         </div>
 
-        {/* Odometer validation indicator */}
+        {/* Odometer validation indicator — 0 is valid (trip counter reset) */}
         {!isReadOnly && (
           <div className={cn("mt-3 rounded-lg border-2 p-3", 
-            trip.odometer_at_scene && trip.odometer_at_destination && Number(trip.odometer_at_destination) > Number(trip.odometer_at_scene)
+            trip.odometer_at_scene != null && trip.odometer_at_destination != null && Number(trip.odometer_at_destination) >= Number(trip.odometer_at_scene)
               ? "border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/10"
               : "border-destructive bg-destructive/5"
           )}>
             <p className="text-xs font-bold text-foreground mb-1">Odometer Readings (Required)</p>
             <div className="flex gap-4 text-xs">
-              <span className={trip.odometer_at_scene ? "text-emerald-600 dark:text-emerald-400" : "text-destructive font-bold"}>
-                At Scene: {trip.odometer_at_scene ?? "Missing"}
+              <span className={trip.odometer_at_scene != null ? "text-emerald-600 dark:text-emerald-400" : "text-destructive font-bold"}>
+                At Scene: {trip.odometer_at_scene != null ? trip.odometer_at_scene : "Missing"}
               </span>
-              <span className={trip.odometer_at_destination ? "text-emerald-600 dark:text-emerald-400" : "text-destructive font-bold"}>
-                At Destination: {trip.odometer_at_destination ?? "Missing"}
+              <span className={trip.odometer_at_destination != null ? "text-emerald-600 dark:text-emerald-400" : "text-destructive font-bold"}>
+                At Destination: {trip.odometer_at_destination != null ? trip.odometer_at_destination : "Missing"}
               </span>
             </div>
             {trip.odometer_at_scene != null && trip.odometer_at_destination != null && (
-              Number(trip.odometer_at_destination) > Number(trip.odometer_at_scene) ? (
+              Number(trip.odometer_at_destination) >= Number(trip.odometer_at_scene) ? (
                 <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-1">
                   ✓ Loaded Miles: {(Number(trip.odometer_at_destination) - Number(trip.odometer_at_scene)).toFixed(1)}
                 </p>
               ) : (
                 <p className="text-xs font-bold text-destructive mt-1">
-                  ⚠ Destination reading must be greater than scene reading
+                  ⚠ Destination reading must be greater than or equal to scene reading
                 </p>
               )
             )}

@@ -78,8 +78,8 @@ export interface PCRTripData {
   patient?: any;
 }
 
-// Auto-save debounce
-let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+// Per-field debounce map — prevents editing one field from canceling a pending save for another
+const fieldSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function usePCRData(tripId: string | null) {
   const [trip, setTrip] = useState<PCRTripData | null>(null);
@@ -178,17 +178,20 @@ export function usePCRData(tripId: string | null) {
       setTrip(prev => prev ? { ...prev, pcr_status: "in_progress" } : prev);
     }
 
-    // Debounced save
-    if (saveTimeout) clearTimeout(saveTimeout);
+    // Per-field debounce — each field has its own independent timer
+    const existingTimer = fieldSaveTimers.get(field);
+    if (existingTimer) clearTimeout(existingTimer);
     setSaving(true);
-    saveTimeout = setTimeout(async () => {
+    const timer = setTimeout(async () => {
+      fieldSaveTimers.delete(field);
       const { error } = await supabase
         .from("trip_records")
         .update({ [field]: value, updated_at: new Date().toISOString(), ...extraFields })
         .eq("id", tripId);
-      setSaving(false);
+      if (fieldSaveTimers.size === 0) setSaving(false);
       if (error) console.error("PCR auto-save error:", error);
     }, 500);
+    fieldSaveTimers.set(field, timer);
   }, [tripId, trip]);
 
   const updateMultipleFields = useCallback(async (fields: Record<string, any>) => {
@@ -202,21 +205,29 @@ export function usePCRData(tripId: string | null) {
       setTrip(prev => prev ? { ...prev, pcr_status: "in_progress" } : prev);
     }
 
-    if (saveTimeout) clearTimeout(saveTimeout);
+    // Use a composite key for multi-field saves
+    const compositeKey = `__multi_${Object.keys(fields).sort().join("_")}`;
+    const existingTimer = fieldSaveTimers.get(compositeKey);
+    if (existingTimer) clearTimeout(existingTimer);
     setSaving(true);
-    saveTimeout = setTimeout(async () => {
+    const timer = setTimeout(async () => {
+      fieldSaveTimers.delete(compositeKey);
       const { error } = await supabase
         .from("trip_records")
         .update({ ...fields, updated_at: new Date().toISOString(), ...extraFields })
         .eq("id", tripId);
-      setSaving(false);
+      if (fieldSaveTimers.size === 0) setSaving(false);
       if (error) console.error("PCR auto-save error:", error);
     }, 500);
+    fieldSaveTimers.set(compositeKey, timer);
   }, [tripId, trip]);
 
   // Record a time event and also push status to trip_records for realtime dispatch
+  // Idempotency guard: if field already has a value, do not overwrite (prevents double-taps)
   const recordTime = useCallback(async (timeField: string, statusUpdate?: string) => {
     if (!tripId) return;
+    // Idempotency: if the field already has a value, skip
+    if (trip && (trip as any)[timeField] != null) return;
     const now = new Date().toISOString();
     const { data: { user } } = await supabase.auth.getUser();
     const updates: Record<string, any> = {

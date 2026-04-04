@@ -217,6 +217,9 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
         <div className="mb-3 flex items-center gap-1.5 text-sm text-muted-foreground">
           <Users className="h-3.5 w-3.5" />
           <span>{crewNames.length > 0 ? crewNames.join(" & ") : "No crew assigned"}</span>
+          {crewNames.length === 0 && !isDown && (
+            <Badge variant="destructive" className="text-[9px] px-1.5 py-0 ml-1">No Crew</Badge>
+          )}
         </div>
 
         {scheduledLegsCount > 0 && (

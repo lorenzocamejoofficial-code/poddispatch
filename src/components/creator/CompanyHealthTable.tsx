@@ -12,6 +12,7 @@ interface CompanyHealth {
   trialDaysLeft: number | null;
   subscriptionStatus: string | null;
   onboardingSteps: number;
+  hasMigrationRow: boolean;
   trucks: number;
   patients: number;
   tripsThisMonth: number;
@@ -85,6 +86,7 @@ export function CompanyHealthTable() {
       const steps = mig
         ? [mig.step_rates_verified, mig.step_trucks_added, mig.step_patients_added, mig.step_team_invited, mig.step_first_trip].filter(Boolean).length
         : 0;
+      const hasMigrationRow = !!mig;
 
       return {
         id: c.id,
@@ -93,6 +95,7 @@ export function CompanyHealthTable() {
         trialDaysLeft,
         subscriptionStatus: sub?.subscription_status ?? null,
         onboardingSteps: steps,
+        hasMigrationRow,
         trucks: truckCounts.get(c.id) ?? 0,
         patients: patientCounts.get(c.id) ?? 0,
         tripsThisMonth: td?.total ?? 0,
@@ -149,17 +152,24 @@ export function CompanyHealthTable() {
                   )}
                 </td>
                 <td className="py-2 pr-3">
-                  <div className="flex items-center gap-1">
-                    <div className="flex gap-0.5">
-                      {[0, 1, 2, 3, 4].map((i) => (
-                        <div
-                          key={i}
-                          className={`h-2 w-2 rounded-full ${i < c.onboardingSteps ? "bg-primary" : "bg-muted"}`}
-                        />
-                      ))}
-                    </div>
-                    <span className="text-muted-foreground ml-1">{c.onboardingSteps}/5</span>
-                  </div>
+                  {(() => {
+                    if (!c.hasMigrationRow) {
+                      return <span className="text-muted-foreground italic text-[10px]">Not Started</span>;
+                    }
+                    return (
+                      <div className="flex items-center gap-1">
+                        <div className="flex gap-0.5">
+                          {[0, 1, 2, 3, 4].map((i) => (
+                            <div
+                              key={i}
+                              className={`h-2 w-2 rounded-full ${i < c.onboardingSteps ? "bg-primary" : "bg-muted"}`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-muted-foreground ml-1">{c.onboardingSteps}/5</span>
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td className="py-2 pr-3 text-right text-foreground">{c.trucks}</td>
                 <td className="py-2 pr-3 text-right text-foreground">{c.patients}</td>
