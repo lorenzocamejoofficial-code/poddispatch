@@ -869,6 +869,45 @@ export default function TrucksCrews() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Deactivate Truck Warning Dialog */}
+        <Dialog open={deactivateDialog} onOpenChange={setDeactivateDialog}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertOctagon className="h-4 w-4 text-[hsl(var(--status-yellow))]" />
+                Deactivate Truck
+              </DialogTitle>
+              <DialogDescription asChild>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p>
+                    <strong className="text-foreground">{trucks.find(t => t.id === deactivateTruckId)?.name}</strong> has runs assigned today.
+                    Deactivating it will hide it from the dispatch board. The following runs will need to be reassigned:
+                  </p>
+                  <ul className="list-disc list-inside space-y-0.5 text-xs">
+                    {deactivateAffectedRuns.map((run, idx) => (
+                      <li key={idx}>
+                        <span className="font-medium text-foreground">{run.patient_name}</span>
+                        {run.pickup_time && <span className="font-mono ml-1">({run.pickup_time})</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setDeactivateDialog(false)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                disabled={deactivating}
+                onClick={() => deactivateTruckId && executeDeactivateTruck(deactivateTruckId)}
+              >
+                <Power className="mr-1.5 h-4 w-4" /> {deactivating ? "Deactivating…" : "Deactivate Anyway"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   );
