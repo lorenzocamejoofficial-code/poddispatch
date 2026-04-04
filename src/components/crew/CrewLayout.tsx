@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCompanyName } from "@/hooks/useCompanyName";
 import { useCrewBadges } from "@/hooks/useCrewBadges";
+import { BugReportDialog } from "@/components/BugReportDialog";
 
 const crewNav = [
   { path: "/crew-dashboard", label: "Crew Dashboard", icon: LayoutDashboard, badgeKey: "dashboard" as const },
