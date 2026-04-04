@@ -212,6 +212,7 @@ export default function BillingAndClaims() {
           trip_loaded_at: tripData?.loaded_at ?? null,
           trip_dropped_at: tripData?.dropped_at ?? null,
           trip_type: tripData?.trip_type ?? c.payer_type ?? null,
+          trip_updated_at: tripData?.updated_at ?? null,
           patient_secondary_payer: patData?.secondary_payer ?? null,
           patient_secondary_member_id: patData?.secondary_member_id ?? null,
           patient_secondary_payer_id: patData?.secondary_payer_id ?? null,
