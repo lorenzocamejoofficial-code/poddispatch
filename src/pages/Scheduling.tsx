@@ -230,13 +230,19 @@ export default function Scheduling() {
 
   // Realtime subscription for operational alerts, crews, and slot updates
   useEffect(() => {
-    const channel = supabase
-      .channel("scheduling-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => fetchOperationalAlerts())
-      .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => refresh())
-      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => refresh())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      const companyFilter = companyId ? `company_id=eq.${companyId}` : undefined;
+
+      channel = supabase
+        .channel("scheduling-realtime")
+        .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts", filter: companyFilter }, () => fetchOperationalAlerts())
+        .on("postgres_changes", { event: "*", schema: "public", table: "crews", filter: companyFilter }, () => refresh())
+        .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots", filter: companyFilter }, () => refresh())
+        .subscribe();
+    })();
+    return () => { if (channel) supabase.removeChannel(channel); };
   }, [fetchOperationalAlerts, refresh]);
 
   const resolveOperationalAlert = async (id: string) => {

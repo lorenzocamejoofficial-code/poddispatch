@@ -572,6 +572,23 @@ export default function BillingAndClaims() {
   const executeClaimSave = async (handleOrphanSecondary = false) => {
     if (!selectedClaim) return;
     setSavingClaim(true);
+
+    // Optimistic concurrency check
+    if (claimOpenedAt) {
+      const { data: currentClaim } = await supabase
+        .from("claim_records" as any)
+        .select("updated_at")
+        .eq("id", selectedClaim.id)
+        .maybeSingle();
+      if (currentClaim && (currentClaim as any).updated_at !== claimOpenedAt) {
+        toast.error("This claim was already updated by another user — refreshing to show current state");
+        setSavingClaim(false);
+        setSelectedClaim(null);
+        fetchData();
+        return;
+      }
+    }
+
     const payload: any = {
       status: editForm.status,
       amount_paid: editForm.amount_paid ? parseFloat(editForm.amount_paid) : null,
