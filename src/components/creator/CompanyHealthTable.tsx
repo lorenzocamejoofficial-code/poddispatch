@@ -85,6 +85,7 @@ export function CompanyHealthTable() {
       const steps = mig
         ? [mig.step_rates_verified, mig.step_trucks_added, mig.step_patients_added, mig.step_team_invited, mig.step_first_trip].filter(Boolean).length
         : 0;
+      const hasMigrationRow = !!mig;
 
       return {
         id: c.id,
