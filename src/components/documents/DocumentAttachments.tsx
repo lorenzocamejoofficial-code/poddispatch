@@ -27,6 +27,8 @@ const DOC_TYPES = [
   { value: "pcs", label: "PCS Form" },
   { value: "standing_order", label: "Standing Order" },
   { value: "dnr", label: "DNR / Advance Directive" },
+  { value: "prior_auth", label: "Prior Authorization" },
+  { value: "insurance_card", label: "Insurance Card" },
   { value: "signed_form", label: "Signed Form" },
   { value: "other", label: "Other" },
 ];
