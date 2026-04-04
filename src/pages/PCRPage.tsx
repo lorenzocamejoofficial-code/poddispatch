@@ -618,9 +618,9 @@ export default function PCRPage() {
         missing.push(card.label);
       }
     }
-    // Odometer fields required on all PCR types
-    if (!trip.odometer_at_scene) missing.push("Odometer at Scene");
-    if (!trip.odometer_at_destination) missing.push("Odometer at Destination");
+    // Odometer fields required on all PCR types — 0 is valid (trip counter reset)
+    if (trip.odometer_at_scene == null) missing.push("Odometer at Scene");
+    if (trip.odometer_at_destination == null) missing.push("Odometer at Destination");
     // Crew signatures required
     if (assignedCrewCount > 0 && !areAllCrewSigned(trip.signatures_json || [], assignedCrewCount)) {
       missing.push("Crew Signatures");
