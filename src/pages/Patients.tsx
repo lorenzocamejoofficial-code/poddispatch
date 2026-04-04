@@ -917,6 +917,19 @@ export default function Patients() {
                     </Collapsible>
                   )}
 
+                  {/* Documents section — visible only when editing */}
+                  {editing && (
+                    <div className="border-t pt-3">
+                      <DocumentAttachments
+                        recordType="patient"
+                        recordId={editing.id}
+                        companyId={activeCompanyId}
+                        allowUpload={true}
+                        allowDelete={true}
+                      />
+                    </div>
+                  )}
+
                   <Button onClick={handleSave}>{editing ? "Save Changes" : "Add Patient"}</Button>
                 </div>
               </DialogContent>
