@@ -535,6 +535,9 @@ export default function BillingAndClaims() {
     fetchData();
   };
 
+  // Fix 19: State for orphan secondary claim warning
+  const [orphanWarning, setOrphanWarning] = useState<{ claim: ClaimRecord; newStatus: string } | null>(null);
+
   const openClaim = (claim: ClaimRecord) => {
     setSelectedClaim(claim);
     logAuditEvent({ action: "view", tableName: "claim_records", recordId: claim.id, notes: `Viewed claim for ${claim.patient_name}` });
@@ -548,6 +551,19 @@ export default function BillingAndClaims() {
   };
 
   const saveClaim = async () => {
+    if (!selectedClaim) return;
+
+    // Fix 19: Check if this is a destructive status change on a claim with a linked secondary
+    const isDestructiveChange = (editForm.status === "denied" || editForm.status === "needs_correction") && selectedClaim.status !== editForm.status;
+    if (isDestructiveChange && (selectedClaim as any).secondary_claim_id) {
+      setOrphanWarning({ claim: selectedClaim, newStatus: editForm.status });
+      return;
+    }
+
+    await executeClaimSave();
+  };
+
+  const executeClaimSave = async (handleOrphanSecondary = false) => {
     if (!selectedClaim) return;
     setSavingClaim(true);
     const payload: any = {
@@ -582,6 +598,15 @@ export default function BillingAndClaims() {
     }
 
     await supabase.from("claim_records" as any).update(payload).eq("id", selectedClaim.id);
+
+    // Fix 19: If confirmed, mark the secondary claim as needs_review
+    if (handleOrphanSecondary && (selectedClaim as any).secondary_claim_id) {
+      await supabase.from("claim_records" as any).update({
+        status: "needs_review",
+        denial_reason: "Primary claim was deleted — review required",
+      } as any).eq("id", (selectedClaim as any).secondary_claim_id);
+    }
+
     logAuditEvent({ action: "edit", tableName: "claim_records", recordId: selectedClaim.id, notes: `Updated claim: ${Object.keys(fieldMap).join(", ")}` });
     toast.success("Claim updated");
     setSelectedClaim(null);
@@ -1066,6 +1091,38 @@ export default function BillingAndClaims() {
             </div>
             <Button className="w-full" onClick={saveRate} disabled={savingRate}>
               {savingRate ? "Saving…" : "Save Rate"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Fix 19: Orphan secondary claim warning dialog */}
+      <Dialog open={!!orphanWarning} onOpenChange={o => { if (!o) setOrphanWarning(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-[hsl(var(--status-yellow))]" />
+              Linked Secondary Claim
+            </DialogTitle>
+            <DialogDescription>
+              This claim has a linked secondary claim. Changing the status to{" "}
+              <span className="font-semibold text-foreground">{orphanWarning?.newStatus?.replace("_", " ")}</span>{" "}
+              may leave the secondary claim without a valid reference. Do you want to continue?
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            If you proceed, the secondary claim will be moved to <strong>Needs Review</strong> status automatically.
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setOrphanWarning(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                setOrphanWarning(null);
+                await executeClaimSave(true);
+              }}
+            >
+              Continue
             </Button>
           </div>
         </DialogContent>
