@@ -351,6 +351,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                 <Input type="number" inputMode="numeric" placeholder="120" value={isChipValue(vs.bp_systolic) ? "" : vs.bp_systolic}
                   disabled={isChipValue(vs.bp_systolic) || isSaved}
                   onChange={(e) => updateSet(idx, "bp_systolic", e.target.value)} className={cn("h-11", getFieldBorder("bp_systolic", vs.bp_systolic))} />
+                {getVitalRangeWarning("bp_systolic", vs.bp_systolic) && <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">⚠ {getVitalRangeWarning("bp_systolic", vs.bp_systolic)}</p>}
                 <VitalChips value={vs.bp_systolic} onChange={(v) => updateSet(idx, "bp_systolic", v)} disabled={isSaved} />
               </div>
               <div className="min-w-0">
@@ -358,6 +359,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                 <Input type="number" inputMode="numeric" placeholder="80" value={isChipValue(vs.bp_diastolic) ? "" : vs.bp_diastolic}
                   disabled={isChipValue(vs.bp_diastolic) || isSaved}
                   onChange={(e) => updateSet(idx, "bp_diastolic", e.target.value)} className={cn("h-11", getFieldBorder("bp_diastolic", vs.bp_diastolic))} />
+                {getVitalRangeWarning("bp_diastolic", vs.bp_diastolic) && <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">⚠ {getVitalRangeWarning("bp_diastolic", vs.bp_diastolic)}</p>}
                 <VitalChips value={vs.bp_diastolic} onChange={(v) => updateSet(idx, "bp_diastolic", v)} disabled={isSaved} />
               </div>
               <div className="min-w-0">
@@ -365,6 +367,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                 <Input type="number" inputMode="numeric" placeholder="72" value={isChipValue(vs.pulse) ? "" : vs.pulse}
                   disabled={isChipValue(vs.pulse) || isSaved}
                   onChange={(e) => updateSet(idx, "pulse", e.target.value)} className={cn("h-11", getFieldBorder("pulse", vs.pulse))} />
+                {getVitalRangeWarning("pulse", vs.pulse) && <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">⚠ {getVitalRangeWarning("pulse", vs.pulse)}</p>}
                 <VitalChips value={vs.pulse} onChange={(v) => updateSet(idx, "pulse", v)} disabled={isSaved} />
               </div>
             </div>
