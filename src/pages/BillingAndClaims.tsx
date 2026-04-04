@@ -499,6 +499,14 @@ export default function BillingAndClaims() {
       await supabase.from("claim_records" as any).insert(allClaims);
     }
 
+    // Fix 3: Warn about $0 claims
+    const zeroClaims = allClaims.filter(c => (c.total_charge ?? 0) === 0);
+    if (zeroClaims.length > 0) {
+      toast.warning(`${zeroClaims.length} claim(s) created with $0.00 total — review the Charge Master to ensure rates are set for these payer types.`, {
+        duration: 10000,
+      });
+    }
+
     // Also refresh existing needs_review claims
     await refreshExistingClaims();
 
