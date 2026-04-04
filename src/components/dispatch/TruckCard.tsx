@@ -240,6 +240,7 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                   isCancelled ? "border-destructive/40 bg-destructive/5 opacity-75" :
                   run.is_current ? "border-primary/30 bg-primary/5" : ""
                 } ${isRunExpanded ? "ring-1 ring-primary/20 shadow-sm" : ""}`}
+                style={isRunExpanded ? { minWidth: 0 } : undefined}
                 onClick={() => setExpandedRunId(isRunExpanded ? null : run.id)}
               >
                 {/* Row 1: name + status */}
