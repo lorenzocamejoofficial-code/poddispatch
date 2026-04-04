@@ -334,6 +334,37 @@ export default function CreatorSettings() {
             </div>
           </CardContent>
         </Card>
+
+        {/* CAC Input */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-primary" />
+              Customer Acquisition Cost (CAC)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Enter your average cost to acquire a new customer. This feeds the LTV:CAC ratio on the SaaS Metrics dashboard.
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="relative w-40">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                <Input
+                  type="number"
+                  min="0"
+                  value={cacValue}
+                  onChange={(e) => setCacValue(e.target.value)}
+                  className="pl-7"
+                  placeholder="0"
+                />
+              </div>
+              <Button size="sm" onClick={handleSaveCac} disabled={savingCac}>
+                {savingCac ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </CreatorLayout>
   );
