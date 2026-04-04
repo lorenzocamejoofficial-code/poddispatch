@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Pencil, Trash2, Mail, Copy, Check, XCircle } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Mail, Copy, Check, XCircle, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
 interface Employee {
