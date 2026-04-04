@@ -2631,6 +2631,47 @@ export type Database = {
           },
         ]
       }
+      support_tickets: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          page_path: string | null
+          status: string
+          trying_to_do: string | null
+          user_id: string
+          what_happened: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          page_path?: string | null
+          status?: string
+          trying_to_do?: string | null
+          user_id: string
+          what_happened?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          page_path?: string | null
+          status?: string
+          trying_to_do?: string | null
+          user_id?: string
+          what_happened?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_creators: {
         Row: {
           created_at: string

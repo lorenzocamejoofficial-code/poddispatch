@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ContextualHelpPanel, HelpIconButton } from "@/components/help/ContextualHelpPanel";
 import { useCompanyName } from "@/hooks/useCompanyName";
+import { BugReportDialog } from "@/components/BugReportDialog";
 
 interface NavItem {
   path: string;
@@ -203,6 +204,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <h2 className="text-lg font-semibold text-foreground flex-1">
             {navItems.find((i) => i.path === location.pathname)?.label ?? "PodDispatch"}
           </h2>
+          <BugReportDialog currentPath={location.pathname} userId={user?.id} />
           <HelpIconButton onClick={() => setHelpOpen(prev => !prev)} />
           <Button
             variant="ghost"
