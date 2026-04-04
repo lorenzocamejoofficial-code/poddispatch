@@ -244,6 +244,7 @@ export default function Patients() {
       secondary_member_id: form.secondary_member_id || null,
       secondary_group_number: form.secondary_group_number || null,
       secondary_payer_id: form.secondary_payer_id || null,
+      secondary_payer_phone: form.secondary_payer_phone || null,
       auth_required: form.auth_required,
       auth_expiration: form.auth_expiration || null,
       trips_per_week_limit: form.trips_per_week_limit ? parseInt(form.trips_per_week_limit) : null,
