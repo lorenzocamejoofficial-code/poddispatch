@@ -63,6 +63,21 @@ const GCS_MOTOR = [
 const REQUIRED_FIELDS = ["bp_systolic", "bp_diastolic", "pulse", "spo2", "respiratory_rate"];
 const OPTIONAL_FIELDS = ["temperature", "blood_glucose", "pain_scale"];
 
+// Fix 10: Vitals range validation — warn but don't block
+function getVitalRangeWarning(field: string, value: string): string | null {
+  if (!value || isChipValue(value as any)) return null;
+  const n = parseFloat(value);
+  if (isNaN(n)) return null;
+  switch (field) {
+    case "pulse": if (n < 20 || n > 250) return `Heart rate ${n} is outside normal range (20–250)`; break;
+    case "bp_systolic": if (n < 40 || n > 300) return `Systolic ${n} is outside normal range (40–300)`; break;
+    case "bp_diastolic": if (n < 20 || n > 200) return `Diastolic ${n} is outside normal range (20–200)`; break;
+    case "spo2": if (n < 50 || n > 100) return `SpO2 ${n}% is outside normal range (50–100)`; break;
+    case "respiratory_rate": if (n < 4 || n > 60) return `Resp rate ${n} is outside normal range (4–60)`; break;
+  }
+  return null;
+}
+
 function isChipValue(v: string): v is ChipValue {
   return CHIP_VALUES.includes(v as ChipValue);
 }
