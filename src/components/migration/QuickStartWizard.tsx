@@ -223,8 +223,16 @@ export function QuickStartWizard({ onComplete }: { onComplete: () => void }) {
 
           <div className="flex gap-3 justify-end mt-6">
             {step > 0 && (
-              <Button variant="outline" onClick={() => setStep(s => s - 1)}>
+              <Button variant="outline" onClick={async () => {
+                const prevStep = step - 1;
+                setStep(prevStep);
+                const { data: companyId } = await supabase.rpc("get_my_company_id");
+                if (companyId) {
+                  await supabase.from("migration_settings").update({ wizard_step: prevStep } as any).eq("company_id", companyId);
+                }
+              }}>
                 <ArrowLeft className="h-4 w-4 mr-2" /> Back
+              </Button>
               </Button>
             )}
             {step < 4 ? (

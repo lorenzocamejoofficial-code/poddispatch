@@ -72,6 +72,13 @@ export function SecondaryClaimPanel({
   }
 
   const handleGenerate = async () => {
+    // Fix 7: Warn if secondary member ID is missing
+    if (!secondaryMemberId) {
+      const confirmed = window.confirm(
+        "Secondary member ID is missing — the claim may be rejected at the clearinghouse. Generate anyway?"
+      );
+      if (!confirmed) return;
+    }
     setGenerating(true);
     try {
       const secondaryCharge = patResp > 0 ? patResp : totalCharge;
