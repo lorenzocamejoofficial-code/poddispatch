@@ -26,8 +26,8 @@ interface Props {
 
 /**
  * Displays required crew signatures matching the number of assigned crew.
- * Each crew member sees a Sign button next to their name.
- * Highlights missing signatures in red.
+ * Any assigned crew member can sign at any point during PCR documentation
+ * (concurrent signing supported — no ordering requirement).
  */
 export function CrewSignaturesSection({ trip, updateField }: Props) {
   const { user } = useAuth();
@@ -61,22 +61,19 @@ export function CrewSignaturesSection({ trip, updateField }: Props) {
   const allSigned = assignedCrew.length > 0 && assignedCrew.every(m => hasSigned(m.id));
   const missingCount = assignedCrew.filter(m => !hasSigned(m.id)).length;
 
+  // Find the current user's crew member record
+  const currentUserMember = assignedCrew.find(m => m.userId === user?.id);
+  const currentUserHasSigned = currentUserMember ? hasSigned(currentUserMember.id) : true;
+
   const handleSign = async (member: CrewMember) => {
-    const sig: CrewSignature = {
-      crew_member_id: member.id,
-      name: member.name,
-      cert_level: member.cert,
-      timestamp: new Date().toISOString(),
-      dataUrl: "", // crew tap-to-sign (no canvas needed for crew attestation)
-    };
     const newSig = {
       id: crypto.randomUUID(),
       type: "Crew Signature",
       name: member.name,
       role: `Crew — ${member.cert}`,
       crew_member_id: member.id,
-      timestamp: sig.timestamp,
-      dataUrl: sig.dataUrl,
+      timestamp: new Date().toISOString(),
+      dataUrl: "",
     };
     const updatedSigs = [...(trip.signatures_json || []), newSig];
     await updateField("signatures_json", updatedSigs);
@@ -97,8 +94,24 @@ export function CrewSignaturesSection({ trip, updateField }: Props) {
         </p>
       </div>
       <p className="text-xs text-muted-foreground">
-        All assigned crew members must sign before the PCR can be submitted.
+        All assigned crew members can sign at any time during documentation.
       </p>
+
+      {/* Sign as Partner — prominent button for current user who hasn't signed */}
+      {currentUserMember && !currentUserHasSigned && (
+        <div className="rounded-md border-2 border-primary/50 bg-primary/5 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">{currentUserMember.name}</p>
+              <p className="text-[10px] text-muted-foreground">{currentUserMember.cert}</p>
+            </div>
+            <Button size="sm" onClick={() => handleSign(currentUserMember)}>
+              <PenTool className="h-3.5 w-3.5 mr-1" />
+              Sign as Partner
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
         {assignedCrew.map(member => {

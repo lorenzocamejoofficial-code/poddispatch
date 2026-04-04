@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Clock, Check, RotateCcw, AlertTriangle } from "lucide-react";
+import { Clock, Check, RotateCcw, AlertTriangle, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
@@ -181,11 +181,17 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
     // Build a single update payload to avoid debounce cancellation
     const updates: Record<string, any> = { [field]: val };
 
-    if (sceneVal !== null && sceneVal !== undefined && destVal !== null && destVal !== undefined && destVal > sceneVal) {
-      updates.loaded_miles = parseFloat((destVal - sceneVal).toFixed(1));
+    // 0 is a valid scene reading (trip counter reset) — only null/undefined means missing
+    const scenePresent = sceneVal !== null && sceneVal !== undefined;
+    const destPresent = destVal !== null && destVal !== undefined;
+
+    if (scenePresent && destPresent && destVal! > sceneVal!) {
+      updates.loaded_miles = parseFloat((destVal! - sceneVal!).toFixed(1));
       setOdometerWarning(null);
-    } else if (sceneVal !== null && destVal !== null && destVal <= sceneVal) {
+    } else if (scenePresent && destPresent && destVal! <= sceneVal!) {
       setOdometerWarning("Check odometer values — destination reading is less than or equal to scene reading.");
+    } else {
+      setOdometerWarning(null);
     }
 
     if (updateMultipleFields) {
@@ -252,15 +258,31 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
                   </span>
                   {recorded && <span className="text-sm font-mono shrink-0">{fmtTime(value)}</span>}
                 </Button>
-                {recorded && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-muted-foreground shrink-0"
-                    onClick={() => setEditingField(isEditing ? null : `${btn.field}-${idx}`)}
-                  >
-                    Edit
-                  </Button>
+              {recorded && !isReadOnly && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground"
+                      onClick={() => setEditingField(isEditing ? null : `${btn.field}-${idx}`)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      title="Clear this time"
+                      onClick={async () => {
+                        await updateField(btn.field, null);
+                        const mirrorField = BILLING_MIRROR[btn.field];
+                        if (mirrorField) await updateField(mirrorField, null);
+                        toast({ title: `${btn.label} cleared` });
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 )}
               </div>
               {isEditing && (
