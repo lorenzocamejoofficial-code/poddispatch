@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ContextualHelpPanel, HelpIconButton } from "@/components/help/ContextualHelpPanel";
 import { useCompanyName } from "@/hooks/useCompanyName";
+import { BugReportDialog } from "@/components/BugReportDialog";
 
 interface NavItem {
   path: string;
