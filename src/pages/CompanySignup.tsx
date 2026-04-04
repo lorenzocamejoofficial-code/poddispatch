@@ -14,21 +14,27 @@ import { US_STATES } from "@/lib/us-states";
 const AGREEMENTS = [
   {
     key: "terms_of_service",
-    label: "I agree to the Terms of Service",
+    label: "I agree to the",
+    linkText: "Terms of Service",
+    linkTab: "terms",
     icon: FileText,
     summary:
       "You agree to use PodDispatch in accordance with our operating guidelines, acceptable use policies, and service limitations.",
   },
   {
     key: "privacy_policy",
-    label: "I agree to the Privacy Policy",
+    label: "I agree to the",
+    linkText: "Privacy Policy",
+    linkTab: "privacy",
     icon: Lock,
     summary:
       "We collect only the data necessary to provide the service. Your company's patient data is encrypted and never shared with third parties.",
   },
   {
     key: "hipaa_responsibilities",
-    label: "I accept the Customer Security & HIPAA Responsibilities",
+    label: "I accept the",
+    linkText: "Customer Security & HIPAA Responsibilities",
+    linkTab: "baa",
     icon: Shield,
     summary:
       "You acknowledge your responsibility to maintain HIPAA compliance within your organization, including proper user access controls, device security, and workforce training.",
