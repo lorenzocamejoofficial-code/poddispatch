@@ -400,6 +400,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                 <Input type="number" inputMode="numeric" placeholder="16" value={isChipValue(vs.respiratory_rate) ? "" : vs.respiratory_rate}
                   disabled={isChipValue(vs.respiratory_rate) || isSaved}
                   onChange={(e) => updateSet(idx, "respiratory_rate", e.target.value)} className={cn("h-11", getFieldBorder("respiratory_rate", vs.respiratory_rate))} />
+                {getVitalRangeWarning("respiratory_rate", vs.respiratory_rate) && <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">⚠ {getVitalRangeWarning("respiratory_rate", vs.respiratory_rate)}</p>}
                 <VitalChips value={vs.respiratory_rate} onChange={(v) => updateSet(idx, "respiratory_rate", v)} disabled={isSaved} />
               </div>
               <div className="min-w-0">
