@@ -79,6 +79,7 @@ export function CrewLayout({ children }: { children: ReactNode }) {
           <h2 className="text-lg font-semibold text-foreground flex-1">
             {crewNav.find(i => i.path === location.pathname)?.label ?? "Crew"}
           </h2>
+          <BugReportDialog currentPath={location.pathname} userId={user?.id} />
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
