@@ -125,7 +125,7 @@ export default function OwnerDashboard() {
         route: "/billing",
       });
     });
-    claims.filter(c => c.status === "paid" && !c.secondary_claim_generated && c.patient_responsibility_amount > 0).slice(0, 10).forEach(c => {
+    claims.filter(c => c.status === "paid" && !c.secondary_claim_generated && c._has_secondary_payer && c.patient_responsibility_amount > 0).slice(0, 10).forEach(c => {
       items.push({
         type: "Secondary",
         description: `Patient responsibility of $${(c.patient_responsibility_amount ?? 0).toFixed(2)} may be covered by secondary insurance`,
