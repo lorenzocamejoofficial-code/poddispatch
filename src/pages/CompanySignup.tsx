@@ -14,21 +14,27 @@ import { US_STATES } from "@/lib/us-states";
 const AGREEMENTS = [
   {
     key: "terms_of_service",
-    label: "I agree to the Terms of Service",
+    label: "I agree to the",
+    linkText: "Terms of Service",
+    linkTab: "terms",
     icon: FileText,
     summary:
       "You agree to use PodDispatch in accordance with our operating guidelines, acceptable use policies, and service limitations.",
   },
   {
     key: "privacy_policy",
-    label: "I agree to the Privacy Policy",
+    label: "I agree to the",
+    linkText: "Privacy Policy",
+    linkTab: "privacy",
     icon: Lock,
     summary:
       "We collect only the data necessary to provide the service. Your company's patient data is encrypted and never shared with third parties.",
   },
   {
     key: "hipaa_responsibilities",
-    label: "I accept the Customer Security & HIPAA Responsibilities",
+    label: "I accept the",
+    linkText: "Customer Security & HIPAA Responsibilities",
+    linkTab: "baa",
     icon: Shield,
     summary:
       "You acknowledge your responsibility to maintain HIPAA compliance within your organization, including proper user access controls, device security, and workforce training.",
@@ -341,7 +347,18 @@ export default function CompanySignup() {
                       className="mt-0.5"
                     />
                     <div className="flex-1">
-                      <Label htmlFor={agreement.key} className="text-sm font-medium cursor-pointer">{agreement.label}</Label>
+                      <Label htmlFor={agreement.key} className="text-sm font-medium cursor-pointer">
+                        {agreement.label}{" "}
+                        <a
+                          href={`/legal?tab=${agreement.linkTab}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {agreement.linkText}
+                        </a>
+                      </Label>
                       <Collapsible>
                         <CollapsibleTrigger className="text-xs text-primary hover:underline mt-1">View summary</CollapsibleTrigger>
                         <CollapsibleContent className="mt-2 text-xs text-muted-foreground">{agreement.summary}</CollapsibleContent>
@@ -401,6 +418,14 @@ export default function CompanySignup() {
             </Button>
           </div>
         )}
+
+        <div className="mt-6 text-center text-xs text-muted-foreground">
+          <a href="/legal?tab=terms" className="hover:underline">Terms of Service</a>
+          <span className="mx-1.5">·</span>
+          <a href="/legal?tab=privacy" className="hover:underline">Privacy Policy</a>
+          <span className="mx-1.5">·</span>
+          <a href="mailto:support@poddispatch.com" className="hover:underline">Contact</a>
+        </div>
       </div>
     </div>
   );

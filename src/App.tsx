@@ -49,6 +49,7 @@ import CrewSchedulePage from "./pages/crew/CrewSchedule";
 import OnboardingWizard from "./pages/OnboardingWizard";
 import TrialExpired from "./pages/TrialExpired";
 import EDIExport from "./pages/EDIExport";
+import LegalPage from "./pages/LegalPage";
 import RemittanceImport from "./pages/RemittanceImport";
 import OwnerDashboard from "./pages/OwnerDashboard";
 import CrewInspectionChecklist from "./components/inspection/CrewInspectionChecklist";
@@ -104,6 +105,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<CompanySignup />} />
+        <Route path="/legal" element={<LegalPage />} />
         <Route path="/invite" element={<AcceptInvite />} />
         {/* Token links redirect to login with crew mode pre-selected */}
         <Route path="/crew/:token" element={<TokenLoginRedirect />} />
