@@ -91,8 +91,7 @@ export default function OwnerDashboard() {
 
   // Card 4 — Secondary Opportunities
   const secondaryOpp = useMemo(() => {
-    // We don't have patient data joined — check fields on claims
-    const eligible = claims.filter(c => c.status === "paid" && !c.secondary_claim_generated && c.patient_responsibility_amount > 0);
+    const eligible = claims.filter(c => c.status === "paid" && !c.secondary_claim_generated && c._has_secondary_payer && c.patient_responsibility_amount > 0);
     return { count: eligible.length, amount: eligible.reduce((s, c) => s + (c.patient_responsibility_amount ?? 0), 0) };
   }, [claims]);
 
