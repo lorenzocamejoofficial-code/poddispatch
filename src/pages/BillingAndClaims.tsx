@@ -726,7 +726,10 @@ export default function BillingAndClaims() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
               {CLAIM_COLUMNS.map(col => {
-                const colClaims = claims.filter(c => c.status === col.status);
+                const colClaims = (secondaryFilter
+                  ? claims.filter(c => c.status === "paid" && c.patient_secondary_payer && !c.secondary_claim_generated)
+                  : claims
+                ).filter(c => c.status === col.status);
                 return (
                   <div key={col.status} className={`rounded-lg border p-3 space-y-2 ${col.color}`}>
                     <div className="flex items-center gap-2 mb-1">
