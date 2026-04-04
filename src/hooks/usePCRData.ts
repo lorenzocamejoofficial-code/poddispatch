@@ -178,17 +178,20 @@ export function usePCRData(tripId: string | null) {
       setTrip(prev => prev ? { ...prev, pcr_status: "in_progress" } : prev);
     }
 
-    // Debounced save
-    if (saveTimeout) clearTimeout(saveTimeout);
+    // Per-field debounce — each field has its own independent timer
+    const existingTimer = fieldSaveTimers.get(field);
+    if (existingTimer) clearTimeout(existingTimer);
     setSaving(true);
-    saveTimeout = setTimeout(async () => {
+    const timer = setTimeout(async () => {
+      fieldSaveTimers.delete(field);
       const { error } = await supabase
         .from("trip_records")
         .update({ [field]: value, updated_at: new Date().toISOString(), ...extraFields })
         .eq("id", tripId);
-      setSaving(false);
+      if (fieldSaveTimers.size === 0) setSaving(false);
       if (error) console.error("PCR auto-save error:", error);
     }, 500);
+    fieldSaveTimers.set(field, timer);
   }, [tripId, trip]);
 
   const updateMultipleFields = useCallback(async (fields: Record<string, any>) => {
