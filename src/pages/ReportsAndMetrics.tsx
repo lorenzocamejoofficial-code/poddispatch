@@ -410,9 +410,9 @@ export default function ReportsAndMetrics() {
             <PageLoader label="Loading performance data…" />
           ) : dailyTruckMetrics.length === 0 ? (
             <EmptyState
-              icon={AlertTriangle}
-              title="No performance data"
-              description="No on-time performance data for this period. Run a simulation to populate metrics."
+              icon={Clock}
+              title="No performance data yet"
+              description="No on-time performance data yet. This will populate as trips are completed and dispatch times are recorded."
             />
           ) : (
             <>
