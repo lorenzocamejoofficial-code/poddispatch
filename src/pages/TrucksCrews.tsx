@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Plus, Truck, Pencil, Trash2, Check, X,
   ChevronLeft, ChevronRight, CalendarDays, Copy,
-  WrenchIcon, AlertOctagon, Users,
+  WrenchIcon, AlertOctagon, Users, Power,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
