@@ -15,6 +15,8 @@ import { TrialBanner } from "@/components/onboarding/TrialBanner";
 import { ClearinghouseSettings } from "@/components/settings/ClearinghouseSettings";
 
 export default function AdminSettings() {
+  const { role } = useAuth();
+  const isOwner = role === "owner" || role === "creator";
   const [settingsId, setSettingsId] = useState("");
   const [graceWindow, setGraceWindow] = useState("15");
   const [loadTime, setLoadTime] = useState("10");
