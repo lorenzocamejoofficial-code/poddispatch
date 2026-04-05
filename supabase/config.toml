@@ -24,11 +24,20 @@ verify_jwt = false
 [functions.validate-invite]
 verify_jwt = false
 
-[functions.test-clearinghouse-connection]
+[functions.test-officeally-connection]
 verify_jwt = false
 
-[functions.send-claims-sftp]
+[functions.send-claims-officeally]
 verify_jwt = false
 
-[functions.retrieve-remittance-sftp]
+[functions.retrieve-remittance-officeally]
+verify_jwt = false
+
+[functions.check-eligibility]
+verify_jwt = false
+
+[functions.simulation-lab]
+verify_jwt = false
+
+[functions.manage-company]
 verify_jwt = false
