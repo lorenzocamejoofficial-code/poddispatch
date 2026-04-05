@@ -170,8 +170,8 @@ export default function BillingAndClaims() {
   const [secondaryFilter, setSecondaryFilter] = useState(false);
   const { simulationRunId, refreshToken } = useSimulationSession();
   const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
-  const [sftpSending, setSftpSending] = useState(false);
-  const [sftpReceiving, setSftpReceiving] = useState(false);
+  const [oaSending, setOaSending] = useState(false);
+  const [oaReceiving, setOaReceiving] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -348,11 +348,11 @@ export default function BillingAndClaims() {
     fetchOverrideLogs();
   }, [refreshToken, fetchData, fetchQueueTrips, fetchOverrideLogs]);
 
-  const handleSendViaSftp = async () => {
+  const handleSendViaOA = async () => {
     if (!activeCompanyId) return;
-    setSftpSending(true);
+    setOaSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-claims-sftp", {
+      const { data, error } = await supabase.functions.invoke("send-claims-officeally", {
         body: { company_id: activeCompanyId },
       });
       if (error) throw error;
@@ -365,14 +365,14 @@ export default function BillingAndClaims() {
     } catch (err: any) {
       toast.error(err.message || "Failed to send claims");
     }
-    setSftpSending(false);
+    setOaSending(false);
   };
 
   const handleCheckPayments = async () => {
     if (!activeCompanyId) return;
-    setSftpReceiving(true);
+    setOaReceiving(true);
     try {
-      const { data, error } = await supabase.functions.invoke("retrieve-remittance-sftp", {
+      const { data, error } = await supabase.functions.invoke("retrieve-remittance-officeally", {
         body: { company_id: activeCompanyId },
       });
       if (error) throw error;
@@ -385,7 +385,7 @@ export default function BillingAndClaims() {
     } catch (err: any) {
       toast.error(err.message || "Failed to check for payments");
     }
-    setSftpReceiving(false);
+    setOaReceiving(false);
   };
 
   // Helper: build claim data from a trip
@@ -772,21 +772,21 @@ export default function BillingAndClaims() {
                 variant="outline"
                 size="sm"
                 className="gap-1.5 text-xs"
-                onClick={handleSendViaSftp}
-                disabled={sftpSending}
+                onClick={handleSendViaOA}
+                disabled={oaSending}
               >
-                {sftpSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                {sftpSending ? "Sending..." : "Send via Office Ally"}
+                {oaSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                {oaSending ? "Sending..." : "Send via Office Ally"}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 className="gap-1.5 text-xs"
                 onClick={handleCheckPayments}
-                disabled={sftpReceiving}
+                disabled={oaReceiving}
               >
-                {sftpReceiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                {sftpReceiving ? "Checking..." : "Check for Payments"}
+                {oaReceiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {oaReceiving ? "Checking..." : "Check for Payments"}
               </Button>
             </>
           )}

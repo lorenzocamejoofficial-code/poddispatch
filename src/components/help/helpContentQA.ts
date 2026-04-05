@@ -154,7 +154,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
     description: "Company operational settings and clearinghouse integration configuration.",
     questions: [
       { q: "What is this page for?", a: "This is where you configure operational parameters like grace windows, service time defaults, session security, and data retention. The Clearinghouse tab lets you connect to Office Ally for automated claim submission and payment retrieval." },
-      { q: "How do I connect to Office Ally?", a: "Go to the Clearinghouse tab and follow the four-step setup wizard. You will create an Office Ally account, enter your SFTP credentials, configure folder paths, and enable automatic processing." },
+      { q: "How do I connect to Office Ally?", a: "Go to the Clearinghouse tab and follow the four-step setup wizard. You will create an Office Ally account, enter your Office Ally login credentials, configure folder paths, and enable automatic processing." },
       { q: "What does the session timeout do?", a: "The session timeout automatically logs users out after 30 minutes of inactivity with a 5-minute warning. This is a HIPAA compliance requirement. Disabling it is not recommended." },
       { q: "What is the data retention policy?", a: "This documents your company's commitment to retaining trip records, PCR data, and billing documents. Medicare requires a minimum 7-year retention period. No records are automatically deleted." },
       { q: "What are system limits?", a: "System limits show the maximum number of admins, crews, trucks, and runs per truck allowed for your deployment. The overload threshold triggers a warning when a truck has more than 8 runs assigned." },
