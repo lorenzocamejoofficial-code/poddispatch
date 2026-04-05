@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Pencil, Trash2, Zap, Clock, AlertTriangle } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Zap, Clock, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
@@ -60,7 +60,7 @@ const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string }[] = [
 ];
 
 export default function Patients() {
-  const { activeCompanyId } = useAuth();
+  const { activeCompanyId, role } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -78,6 +78,12 @@ export default function Patients() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bLegWarnings, setBLegWarnings] = useState<{ pickup_time: string; run_date: string; earliest: string }[]>([]);
+
+  // Eligibility check state
+  const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
+  const [checkingEligibility, setCheckingEligibility] = useState<string | null>(null);
+  const [eligibilityResults, setEligibilityResults] = useState<Map<string, { is_eligible: boolean | null; checked_at: string; summary: string }>>(new Map());
+  const canCheckEligibility = ["owner", "creator", "biller"].includes(role ?? "");
 
   const [form, setForm] = useState({
     first_name: "", last_name: "", dob: "", phone: "", sex: "",
@@ -120,7 +126,61 @@ export default function Patients() {
     setPatients(data ?? []);
   };
 
-  useEffect(() => { fetchPatients(); }, [activeCompanyId]);
+  useEffect(() => {
+    fetchPatients();
+    // Check clearinghouse config
+    if (activeCompanyId) {
+      supabase.from("clearinghouse_settings" as any)
+        .select("is_configured")
+        .eq("company_id", activeCompanyId)
+        .maybeSingle()
+        .then(({ data }) => setClearinghouseConfigured(!!(data as any)?.is_configured));
+      // Load latest eligibility checks
+      supabase.from("eligibility_checks" as any)
+        .select("patient_id, is_eligible, checked_at, response_summary")
+        .eq("company_id", activeCompanyId)
+        .order("checked_at", { ascending: false })
+        .limit(1000)
+        .then(({ data }) => {
+          const map = new Map<string, any>();
+          for (const row of (data ?? []) as any[]) {
+            if (!map.has(row.patient_id)) {
+              map.set(row.patient_id, { is_eligible: row.is_eligible, checked_at: row.checked_at, summary: row.response_summary ?? "" });
+            }
+          }
+          setEligibilityResults(map);
+        });
+    }
+  }, [activeCompanyId]);
+
+  const checkEligibility = async (patientId: string) => {
+    setCheckingEligibility(patientId);
+    try {
+      const { data, error } = await supabase.functions.invoke("check-eligibility", {
+        body: { patient_id: patientId, run_date: new Date().toISOString().split("T")[0] },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        setEligibilityResults(prev => {
+          const next = new Map(prev);
+          next.set(patientId, { is_eligible: data.is_eligible, checked_at: new Date().toISOString(), summary: data.summary ?? "" });
+          return next;
+        });
+        if (data.is_eligible) {
+          toast.success("Coverage verified — active");
+        } else if (data.is_eligible === false) {
+          toast.error("Coverage inactive");
+        } else {
+          toast.info(data.summary || "Eligibility check completed");
+        }
+      } else {
+        toast.error(data?.error || "Eligibility check failed");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Eligibility check failed");
+    }
+    setCheckingEligibility(null);
+  };
 
   const resetForm = () => {
     setForm({
