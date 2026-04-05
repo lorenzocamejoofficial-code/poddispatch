@@ -1117,6 +1117,30 @@ export default function Patients() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
+                          {canCheckEligibility && clearinghouseConfigured && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => checkEligibility(p.id)}
+                              disabled={checkingEligibility === p.id}
+                              title="Check Eligibility"
+                            >
+                              {checkingEligibility === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                            </Button>
+                          )}
+                          {(() => {
+                            const elig = eligibilityResults.get(p.id);
+                            if (!elig) return null;
+                            return elig.is_eligible ? (
+                              <Badge className="bg-[hsl(var(--status-green))]/10 text-[hsl(var(--status-green))] border-[hsl(var(--status-green))]/30 text-[9px] px-1.5 py-0">
+                                Verified
+                              </Badge>
+                            ) : elig.is_eligible === false ? (
+                              <Badge variant="destructive" className="text-[9px] px-1.5 py-0">
+                                Inactive
+                              </Badge>
+                            ) : null;
+                          })()}
                           <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
