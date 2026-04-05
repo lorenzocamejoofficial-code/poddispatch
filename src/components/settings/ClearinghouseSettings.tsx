@@ -118,7 +118,7 @@ export function ClearinghouseSettings() {
     setTesting(true);
     setConnectionStatus("idle");
     try {
-      const { data, error } = await supabase.functions.invoke("test-clearinghouse-connection", {
+      const { data, error } = await supabase.functions.invoke("test-officeally-connection", {
         body: { company_id: activeCompanyId, sftp_username: username, sftp_password: password },
       });
       if (error) throw error;
@@ -152,7 +152,7 @@ export function ClearinghouseSettings() {
 
   const STEPS: { step: Step; label: string; icon: React.ReactNode }[] = [
     { step: 1, label: "Create Account", icon: <ExternalLink className="h-4 w-4" /> },
-    { step: 2, label: "SFTP Credentials", icon: <Shield className="h-4 w-4" /> },
+    { step: 2, label: "Account Credentials", icon: <Shield className="h-4 w-4" /> },
     { step: 3, label: "Configure Folders", icon: <FolderOpen className="h-4 w-4" /> },
     { step: 4, label: "Enable Automation", icon: <Zap className="h-4 w-4" /> },
   ];
@@ -160,7 +160,7 @@ export function ClearinghouseSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-foreground">Clearinghouse Integration</h3>
+        <h3 className="text-lg font-semibold text-foreground">Office Ally Integration</h3>
         <p className="text-sm text-muted-foreground">
           Connect your Office Ally account to automatically send claims and receive payment responses.
         </p>
@@ -239,34 +239,32 @@ export function ClearinghouseSettings() {
 
         {activeStep === 2 && (
           <>
-            <h4 className="font-semibold text-foreground">Step 2 — Get your SFTP credentials</h4>
+            <h4 className="font-semibold text-foreground">Step 2 — Enter your Office Ally credentials</h4>
             <div className="space-y-3 text-sm text-muted-foreground">
               <ol className="list-decimal list-inside space-y-2">
                 <li>Log into your Office Ally account.</li>
-                <li>Go to <strong>My Account → EDI Settings → SFTP Access</strong>.</li>
-                <li>Your SFTP username will be shown there.</li>
-                <li>Contact Office Ally support at <strong>360-975-7000</strong> to request SFTP access if it is not already enabled.</li>
-                <li>They will provide your username and password.</li>
-                <li>Once you have your credentials, enter them below.</li>
+                <li>Use the same username and password you use to sign into Office Ally.</li>
+                <li>Enter your Office Ally account login credentials below.</li>
+                <li>Click <strong>Test Connection</strong> to verify your credentials.</li>
               </ol>
             </div>
             <div className="grid gap-3 max-w-sm">
               <div className="space-y-1.5">
-                <Label>SFTP Username</Label>
+                <Label>Office Ally Username</Label>
                 <Input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Your Office Ally SFTP username"
+                  placeholder="Your Office Ally username"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>SFTP Password</Label>
+                <Label>Office Ally Password</Label>
                 <div className="relative">
                   <Input
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Your Office Ally SFTP password"
+                    placeholder="Your Office Ally password"
                   />
                   <button
                     type="button"
