@@ -5,6 +5,7 @@ import { CHIEF_COMPLAINTS, PHYSICAL_EXAM_SYSTEMS } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
+import { ICD10Picker } from "@/components/pcr/ICD10Picker";
 import { cn } from "@/lib/utils";
 
 interface AssessmentCardProps {
