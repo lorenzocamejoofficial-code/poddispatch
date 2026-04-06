@@ -299,6 +299,7 @@ export type Database = {
           patient_id: string | null
           patient_mobility: string | null
           patient_responsibility_amount: number | null
+          patient_sex: string | null
           payer_claim_control_number: string | null
           payer_name: string | null
           payer_type: string | null
@@ -359,6 +360,7 @@ export type Database = {
           patient_id?: string | null
           patient_mobility?: string | null
           patient_responsibility_amount?: number | null
+          patient_sex?: string | null
           payer_claim_control_number?: string | null
           payer_name?: string | null
           payer_type?: string | null
@@ -419,6 +421,7 @@ export type Database = {
           patient_id?: string | null
           patient_mobility?: string | null
           patient_responsibility_amount?: number | null
+          patient_sex?: string | null
           payer_claim_control_number?: string | null
           payer_name?: string | null
           payer_type?: string | null
@@ -2872,6 +2875,7 @@ export type Database = {
           hcpcs_modifiers: string[] | null
           heart_rate: number | null
           hospital_outcome_json: Json | null
+          icd10_codes: string[] | null
           id: string
           in_service_time: string | null
           is_simulated: boolean
@@ -2936,6 +2940,7 @@ export type Database = {
           vitals_json: Json | null
           vitals_taken_at: string | null
           wait_time_minutes: number | null
+          weight_lbs: number | null
         }
         Insert: {
           airway_json?: Json | null
@@ -2985,6 +2990,7 @@ export type Database = {
           hcpcs_modifiers?: string[] | null
           heart_rate?: number | null
           hospital_outcome_json?: Json | null
+          icd10_codes?: string[] | null
           id?: string
           in_service_time?: string | null
           is_simulated?: boolean
@@ -3049,6 +3055,7 @@ export type Database = {
           vitals_json?: Json | null
           vitals_taken_at?: string | null
           wait_time_minutes?: number | null
+          weight_lbs?: number | null
         }
         Update: {
           airway_json?: Json | null
@@ -3098,6 +3105,7 @@ export type Database = {
           hcpcs_modifiers?: string[] | null
           heart_rate?: number | null
           hospital_outcome_json?: Json | null
+          icd10_codes?: string[] | null
           id?: string
           in_service_time?: string | null
           is_simulated?: boolean
@@ -3162,6 +3170,7 @@ export type Database = {
           vitals_json?: Json | null
           vitals_taken_at?: string | null
           wait_time_minutes?: number | null
+          weight_lbs?: number | null
         }
         Relationships: [
           {
