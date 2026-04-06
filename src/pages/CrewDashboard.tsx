@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { deriveRunStatus } from "@/lib/trip-status";
 import { TimeTapRow } from "@/components/dispatch/TimeTapRow";
 import { useCrewPartner } from "@/hooks/useCrewPartner";
+import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
 
 const TRANSPORT_LABELS: Record<string, string> = {
   dialysis: "Dialysis Transport",
@@ -133,6 +134,7 @@ export default function CrewDashboard() {
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const { partnerName: crewPartnerName, loading: crewPartnerLoading } = useCrewPartner();
+  const [incidentRun, setIncidentRun] = useState<RunCard | null>(null);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
@@ -689,6 +691,19 @@ export default function CrewDashboard() {
                           )}
                         </>
                       )}
+
+                      {/* Report Incident button */}
+                      {!isTerminal && run.tripId && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-12 w-12 border-amber-400/50 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                          onClick={() => setIncidentRun(run)}
+                          title="Report Incident"
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </>
                 )}
@@ -733,6 +748,17 @@ export default function CrewDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Incident Report Form */}
+      <IncidentReportForm
+        open={!!incidentRun}
+        onClose={() => setIncidentRun(null)}
+        defaultTruckId={incidentRun?.truckId}
+        defaultTruckName={truckName}
+        defaultTripId={incidentRun?.tripId}
+        defaultPatientName={incidentRun?.patientName}
+        defaultCompanyId={incidentRun?.companyId}
+      />
     </CrewLayout>
   );
 }

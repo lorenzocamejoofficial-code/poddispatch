@@ -1361,6 +1361,7 @@ export type Database = {
       }
       incident_reports: {
         Row: {
+          additional_personnel: string | null
           company_id: string
           created_at: string
           crew_names: string | null
@@ -1369,12 +1370,19 @@ export type Database = {
           id: string
           incident_date: string
           incident_type: string
+          patient_affected: string | null
           patient_id: string | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
           submitted_by: string
+          trip_id: string | null
           truck_id: string | null
           updated_at: string
         }
         Insert: {
+          additional_personnel?: string | null
           company_id: string
           created_at?: string
           crew_names?: string | null
@@ -1383,12 +1391,19 @@ export type Database = {
           id?: string
           incident_date: string
           incident_type?: string
+          patient_affected?: string | null
           patient_id?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
           submitted_by: string
+          trip_id?: string | null
           truck_id?: string | null
           updated_at?: string
         }
         Update: {
+          additional_personnel?: string | null
           company_id?: string
           created_at?: string
           crew_names?: string | null
@@ -1397,8 +1412,14 @@ export type Database = {
           id?: string
           incident_date?: string
           incident_type?: string
+          patient_affected?: string | null
           patient_id?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
           submitted_by?: string
+          trip_id?: string | null
           truck_id?: string | null
           updated_at?: string
         }
@@ -1408,6 +1429,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_reports_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trip_records"
             referencedColumns: ["id"]
           },
           {
