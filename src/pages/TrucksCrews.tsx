@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { InspectionConfigPanel } from "@/components/inspection/InspectionConfigPanel";
+import { TruckInspectionHistory } from "@/components/inspection/TruckInspectionHistory";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import type { Tables } from "@/integrations/supabase/types";
