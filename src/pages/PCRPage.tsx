@@ -634,7 +634,7 @@ export default function PCRPage() {
       case "equipment": return <EquipmentCard trip={trip} updateField={updateField} />;
       case "signatures": return <SignaturesCard trip={trip} updateField={updateField} legType={activeLegType} />;
       case "narrative": return <NarrativeCard trip={trip} truckName={truckName} updateField={updateField} />;
-      case "billing": return <BillingCard trip={trip} />;
+      case "billing": return <BillingCard trip={trip} updateField={updateField} />;
       case "sending_facility": return <SendingFacilityCard trip={trip} updateField={updateField} tripType={trip.trip_type || trip.pcr_type || ""} />;
       case "assessment": case "chief_complaint": return <AssessmentCard trip={trip} updateField={updateField} />;
       case "physical_exam": return <PhysicalExamCard trip={trip} updateField={updateField} />;
