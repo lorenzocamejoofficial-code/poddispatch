@@ -71,7 +71,7 @@ export default function ComplianceAndQA() {
       <Tabs defaultValue="qa" className="space-y-4">
         <TabsList>
           <TabsTrigger value="qa">QA Queue</TabsTrigger>
-          <TabsTrigger value="incidents"><FileWarning className="h-3.5 w-3.5 mr-1.5" />Incidents {incidents.length > 0 && <span className="ml-1.5 text-[10px]">({incidents.length})</span>}</TabsTrigger>
+          <TabsTrigger value="incidents"><FileWarning className="h-3.5 w-3.5 mr-1.5" />Incidents</TabsTrigger>
           <TabsTrigger value="payer-rules"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Payer Rules</TabsTrigger>
           <TabsTrigger value="inspections"><ClipboardCheck className="h-3.5 w-3.5 mr-1.5" />Vehicle Inspections</TabsTrigger>
         </TabsList>
