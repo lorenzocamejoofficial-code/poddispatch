@@ -95,6 +95,16 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           passed: !!(t.origin_type && t.destination_type),
           detail: t.origin_type && t.destination_type ? `${t.origin_type} → ${t.destination_type}` : undefined,
         },
+        {
+          label: "ICD-10 diagnosis codes present",
+          passed: !!(t.icd10_codes && Array.isArray(t.icd10_codes) && t.icd10_codes.length > 0),
+          detail: t.icd10_codes?.length ? t.icd10_codes.join(", ") : "Diagnosis codes required — open the PCR and add at least one ICD-10 code in the Assessment section",
+        },
+        {
+          label: "Member ID present",
+          passed: !!(t.member_id && String(t.member_id).trim() !== ""),
+          detail: !t.member_id ? "Patient member ID is missing — update the patient record before submitting" : undefined,
+        },
       ];
 
       setItems(checks);

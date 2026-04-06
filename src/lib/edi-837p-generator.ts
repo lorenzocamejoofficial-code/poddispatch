@@ -8,6 +8,7 @@ export interface ClaimForEDI {
   claim_id: string;
   patient_name: string; // "Last, First"
   patient_dob: string; // YYYY-MM-DD
+  patient_sex: string | null; // M, F, or U
   patient_address: string;
   patient_city: string;
   patient_state: string;
@@ -15,6 +16,7 @@ export interface ClaimForEDI {
   member_id: string;
   payer_name: string;
   payer_id: string;
+  payer_type: string; // medicare, medicaid, commercial, etc.
   run_date: string; // YYYY-MM-DD
   hcpcs_codes: string[];
   hcpcs_modifiers: string[];
@@ -24,11 +26,23 @@ export interface ClaimForEDI {
   loaded_miles: number;
   origin_type: string | null;
   destination_type: string | null;
+  origin_address: string | null;
+  origin_city: string | null;
+  origin_state: string | null;
   origin_zip: string | null;
+  destination_address: string | null;
+  destination_city: string | null;
+  destination_state: string | null;
   destination_zip: string | null;
   diagnosis_codes: string[];
   auth_number: string | null;
   icd10_codes: string[];
+  // Medical necessity / CRC fields
+  bed_confined: boolean;
+  requires_monitoring: boolean;
+  stretcher_placement: string | null;
+  oxygen_required: boolean;
+  weight_lbs: number | null;
 }
 
 export interface ProviderInfo {
@@ -93,6 +107,38 @@ function locationTypeCode(type: string | null): string {
   return map[type.toLowerCase()] || "R";
 }
 
+/** Map payer_type to X12 SBR claim filing indicator code */
+function sbrPayerCode(payerType: string | null): string {
+  if (!payerType) return "ZZ";
+  const t = payerType.toLowerCase();
+  if (t === "medicare" || t === "mc") return "MC";
+  if (t === "medicaid" || t === "md") return "MD";
+  if (t === "commercial" || t === "private" || t === "ci") return "CI";
+  return "ZZ";
+}
+
+/** Map patient sex to X12 DMG sex code */
+function dmgSexCode(sex: string | null): string {
+  if (!sex) return "U";
+  const s = sex.toUpperCase();
+  if (s === "M" || s === "MALE") return "M";
+  if (s === "F" || s === "FEMALE") return "F";
+  return "U";
+}
+
+/** Build dynamic CRC condition codes from medical necessity fields */
+function buildCrcCodes(claim: ClaimForEDI): string[] {
+  const codes: string[] = [];
+  const hasAny = claim.bed_confined || claim.requires_monitoring || claim.oxygen_required ||
+    (claim.stretcher_placement && claim.stretcher_placement.toLowerCase() !== "ambulatory");
+  if (hasAny) codes.push("01"); // patient was transported
+  if (claim.bed_confined) codes.push("04"); // patient is bed-confined
+  if (claim.stretcher_placement && claim.stretcher_placement.toLowerCase() !== "ambulatory") codes.push("05"); // stretcher required
+  if (claim.requires_monitoring) codes.push("06"); // monitoring required
+  if (claim.oxygen_required) codes.push("07"); // oxygen required
+  return codes.slice(0, 4); // max 4 condition codes
+}
+
 function splitPatientName(fullName: string): { last: string; first: string } {
   if (fullName.includes(",")) {
     const [last, first] = fullName.split(",").map((s) => s.trim());
@@ -130,7 +176,7 @@ export function generateEDI837P(
       "ZZ",                          // Interchange Sender Qualifier
       pad(submitterInfo.submitter_id, 15), // Interchange Sender ID
       "ZZ",                          // Interchange Receiver Qualifier
-      pad("CLEARINGHOUSE", 15),      // Interchange Receiver ID
+      pad("OFFICEALLY", 15),         // Interchange Receiver ID
       dateStr.slice(2),              // Date (YYMMDD)
       timeStr,                       // Time (HHMM)
       "^",                           // Repetition Separator
@@ -148,7 +194,7 @@ export function generateEDI837P(
       "GS",
       "HC",                          // Functional Identifier Code (Health Care)
       submitterInfo.submitter_id,
-      "CLEARINGHOUSE",
+      "OFFICEALLY",
       dateStr,
       timeStr,
       groupControlNum,
@@ -170,6 +216,8 @@ export function generateEDI837P(
     const { last: patLast, first: patFirst } = splitPatientName(claim.patient_name);
     const diagCodes = [...(claim.icd10_codes || []), ...(claim.diagnosis_codes || [])].filter(Boolean);
     const uniqueDiag = [...new Set(diagCodes)];
+    const payerCode = sbrPayerCode(claim.payer_type);
+    const sexCode = dmgSexCode(claim.patient_sex);
 
     // ST - Transaction Set Header
     addSeg(["ST", "837", stControlNum, "005010X222A1"].join(ES));
@@ -184,7 +232,7 @@ export function generateEDI837P(
     addSeg(["PER", "IC", submitterInfo.contact_name, "TE", submitterInfo.contact_phone.replace(/\D/g, "")].join(ES));
 
     // --- RECEIVER (1000B) ---
-    addSeg(["NM1", "40", "2", "CLEARINGHOUSE", "", "", "", "", "46", "CLEARINGHOUSE"].join(ES));
+    addSeg(["NM1", "40", "2", "OFFICEALLY", "", "", "", "", "46", "OFFICEALLY"].join(ES));
 
     // --- BILLING PROVIDER HL (2000A) ---
     addSeg(["HL", "1", "", "20", "1"].join(ES));
@@ -199,13 +247,13 @@ export function generateEDI837P(
 
     // --- SUBSCRIBER HL (2000B) ---
     addSeg(["HL", "2", "1", "22", "0"].join(ES));
-    addSeg(["SBR", "P", "18", "", "", "", "", "", "", "MC"].join(ES));
+    addSeg(["SBR", "P", "18", "", "", "", "", "", "", payerCode].join(ES));
 
     // --- SUBSCRIBER (2010BA) ---
     addSeg(["NM1", "IL", "1", patLast, patFirst, "", "", "", "MI", claim.member_id].join(ES));
     addSeg(["N3", claim.patient_address || "UNKNOWN"].join(ES));
     addSeg(["N4", claim.patient_city || "UNKNOWN", claim.patient_state || "GA", claim.patient_zip || "00000"].join(ES));
-    addSeg(["DMG", "D8", formatDate8(claim.patient_dob || "1900-01-01")].join(ES));
+    addSeg(["DMG", "D8", formatDate8(claim.patient_dob || "1900-01-01"), sexCode].join(ES));
 
     // --- PAYER (2010BB) ---
     addSeg(["NM1", "PR", "2", claim.payer_name || "MEDICARE", "", "", "", "", "PI", claim.payer_id || "MEDICARE"].join(ES));
@@ -232,8 +280,11 @@ export function generateEDI837P(
     // DTP - Service Date
     addSeg(["DTP", "472", "D8", formatDate8(claim.run_date)].join(ES));
 
-    // CRC - Ambulance Certification (condition codes)
-    addSeg(["CRC", "07", "Y", "01", "04", "05"].join(ES));
+    // CRC - Ambulance Certification (dynamic condition codes)
+    const crcCodes = buildCrcCodes(claim);
+    if (crcCodes.length > 0) {
+      addSeg(["CRC", "07", "Y", ...crcCodes].join(ES));
+    }
 
     // HI - Diagnosis Codes
     if (uniqueDiag.length > 0) {
@@ -257,7 +308,7 @@ export function generateEDI837P(
       [
         "CR1",
         "LB",                        // Weight unit
-        "",                          // Patient weight (optional)
+        claim.weight_lbs ? String(claim.weight_lbs) : "", // Patient weight
         "A",                         // Ambulance transport code
         facilityCode.length >= 2 ? facilityCode : "RD", // Transport reason
         "DH",                        // Distance unit (miles)
@@ -266,6 +317,20 @@ export function generateEDI837P(
         "",                          // Description (optional)
       ].join(ES)
     );
+
+    // --- Loop 2310E: Ambulance Pickup Location ---
+    if (claim.origin_address || claim.origin_zip) {
+      addSeg(["NM1", "PW", "2", "", "", "", "", "", "", ""].join(ES));
+      addSeg(["N3", claim.origin_address || "UNKNOWN"].join(ES));
+      addSeg(["N4", claim.origin_city || "", claim.origin_state || "", claim.origin_zip || ""].join(ES));
+    }
+
+    // --- Loop 2310F: Ambulance Dropoff Location ---
+    if (claim.destination_address || claim.destination_zip) {
+      addSeg(["NM1", "45", "2", "", "", "", "", "", "", ""].join(ES));
+      addSeg(["N3", claim.destination_address || "UNKNOWN"].join(ES));
+      addSeg(["N4", claim.destination_city || "", claim.destination_state || "", claim.destination_zip || ""].join(ES));
+    }
 
     // --- SERVICE LINES (2400) ---
     // Base rate line

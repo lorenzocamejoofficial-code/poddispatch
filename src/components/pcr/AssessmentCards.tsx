@@ -5,6 +5,7 @@ import { CHIEF_COMPLAINTS, PHYSICAL_EXAM_SYSTEMS } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
+import { ICD10Picker } from "@/components/pcr/ICD10Picker";
 import { cn } from "@/lib/utils";
 
 interface AssessmentCardProps {
@@ -67,6 +68,17 @@ export function AssessmentCard({ trip, updateField, requiredFields = ["chief_com
         <Textarea placeholder="Onset, duration..." value={assessment.duration || ""}
           onChange={(e) => updateField("assessment_json", { ...assessment, duration: e.target.value })} rows={2} />
       </div>
+
+      {/* ICD-10 Diagnosis Code Picker */}
+      <ICD10Picker
+        selectedCodes={Array.isArray(trip.icd10_codes) ? trip.icd10_codes : []}
+        onCodesChange={(codes) => updateField("icd10_codes", codes)}
+        required={(() => {
+          const payer = (trip.patient?.primary_payer || "").toLowerCase();
+          return payer.includes("medicare") || payer.includes("medicaid");
+        })()}
+        maxCodes={4}
+      />
     </div>
   );
 }

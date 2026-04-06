@@ -446,8 +446,21 @@ export default function BillingAndClaims() {
         stretcher_placement: t.stretcher_placement ?? null,
         patient_mobility: t.patient_mobility ?? null,
         isolation_precautions: t.isolation_precautions ?? null,
+        // Fix 2: Sync ICD-10 codes and missing fields
+        icd10_codes: t.icd10_codes ?? [],
+        origin_zip: extractZip(t.pickup_location),
+        destination_zip: extractZip(t.destination_location),
+        patient_sex: t.patient?.sex ?? null,
+        auth_number: t.patient?.auth_required ? (t.patient?.prior_auth_number ?? null) : null,
       },
     };
+  };
+
+  // Helper to extract ZIP code from an address string
+  const extractZip = (address: string | null): string | null => {
+    if (!address) return null;
+    const match = address.match(/\b(\d{5})(?:-\d{4})?\b/);
+    return match ? match[1] : null;
   };
 
   // Refresh existing needs_review / needs_correction claims against live trip data
@@ -521,7 +534,7 @@ export default function BillingAndClaims() {
   const syncClaimsFromTrips = async () => {
     const { data: trips } = await supabase
       .from("trip_records" as any)
-      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions")
+      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_number), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions, icd10_codes, weight_lbs")
       .in("status", ["ready_for_billing", "completed"] as any)
       .eq("pcr_status", "submitted");
 

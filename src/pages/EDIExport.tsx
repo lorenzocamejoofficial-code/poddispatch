@@ -96,7 +96,7 @@ export default function EDIExport() {
       if (patientIds.length > 0) {
         const { data: patients } = await supabase
           .from("patients")
-          .select("id, first_name, last_name, dob, pickup_address, member_id, primary_payer")
+          .select("id, first_name, last_name, dob, pickup_address, member_id, primary_payer, sex, prior_auth_number, auth_required")
           .in("id", patientIds);
         (patients || []).forEach((p) => {
           patientsMap[p.id] = p;
@@ -109,7 +109,7 @@ export default function EDIExport() {
       if (tripIds.length > 0) {
         const { data: trips } = await supabase
           .from("trip_records")
-          .select("id, loaded_miles")
+          .select("id, loaded_miles, bed_confined, requires_monitoring, stretcher_placement, oxygen_during_transport, weight_lbs, pickup_location, destination_location")
           .in("id", tripIds);
         (trips || []).forEach((t) => {
           tripsMap[t.id] = t;
@@ -207,33 +207,64 @@ export default function EDIExport() {
 
     setGenerating(true);
     try {
+      // Fetch trip and patient data for EDI generation
+      const selTripIds = [...new Set(selectedClaims.map(c => (c as any).trip_id).filter(Boolean))];
+      const selPatIds = [...new Set(selectedClaims.map(c => (c as any).patient_id).filter(Boolean))];
+      const localTripsMap: Record<string, any> = {};
+      const localPatsMap: Record<string, any> = {};
+      if (selTripIds.length > 0) {
+        const { data: trs } = await supabase.from("trip_records").select("id, loaded_miles, bed_confined, requires_monitoring, stretcher_placement, oxygen_during_transport, weight_lbs, pickup_location, destination_location").in("id", selTripIds);
+        (trs || []).forEach(t => { localTripsMap[t.id] = t; });
+      }
+      if (selPatIds.length > 0) {
+        const { data: ps } = await supabase.from("patients").select("id, sex").in("id", selPatIds);
+        (ps || []).forEach(p => { localPatsMap[p.id] = p; });
+      }
+
       // Build ClaimForEDI array
-      const ediClaims: ClaimForEDI[] = selectedClaims.map((c) => ({
-        claim_id: c.id,
-        patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
-        patient_dob: c.patient_dob || "1900-01-01",
-        patient_address: c.patient_pickup_address || "UNKNOWN",
-        patient_city: "",
-        patient_state: providerInfo.state || "GA",
-        patient_zip: c.origin_zip || "00000",
-        member_id: c.patient_member_id || c.member_id || "UNKNOWN",
-        payer_name: c.payer_name || c.payer_type || "MEDICARE",
-        payer_id: c.payer_type === "medicare" ? "MEDICARE" : c.payer_type === "medicaid" ? "MEDICAID" : c.payer_name || "UNKNOWN",
-        run_date: c.run_date,
-        hcpcs_codes: c.hcpcs_codes || ["A0428"],
-        hcpcs_modifiers: c.hcpcs_modifiers || [],
-        total_charge: c.total_charge || 0,
-        base_charge: c.base_charge || 0,
-        mileage_charge: c.mileage_charge || 0,
-        loaded_miles: c.trip_loaded_miles || 0,
-        origin_type: c.origin_type,
-        destination_type: c.destination_type,
-        origin_zip: c.origin_zip,
-        destination_zip: c.destination_zip,
-        diagnosis_codes: [],
-        auth_number: c.auth_number,
-        icd10_codes: c.icd10_codes || [],
-      }));
+      const ediClaims: ClaimForEDI[] = selectedClaims.map((c) => {
+        const trip = localTripsMap[(c as any).trip_id] || {};
+        const pat = localPatsMap[(c as any).patient_id] || {};
+        return {
+          claim_id: c.id,
+          patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
+          patient_dob: c.patient_dob || "1900-01-01",
+          patient_sex: pat.sex || (c as any).patient_sex || null,
+          patient_address: c.patient_pickup_address || "UNKNOWN",
+          patient_city: "",
+          patient_state: providerInfo.state || "GA",
+          patient_zip: c.origin_zip || "00000",
+          member_id: c.patient_member_id || c.member_id || "UNKNOWN",
+          payer_name: c.payer_name || c.payer_type || "MEDICARE",
+          payer_id: c.payer_type === "medicare" ? "MEDICARE" : c.payer_type === "medicaid" ? "MEDICAID" : c.payer_name || "UNKNOWN",
+          payer_type: c.payer_type || "medicare",
+          run_date: c.run_date,
+          hcpcs_codes: c.hcpcs_codes || ["A0428"],
+          hcpcs_modifiers: c.hcpcs_modifiers || [],
+          total_charge: c.total_charge || 0,
+          base_charge: c.base_charge || 0,
+          mileage_charge: c.mileage_charge || 0,
+          loaded_miles: c.trip_loaded_miles || 0,
+          origin_type: c.origin_type,
+          destination_type: c.destination_type,
+          origin_address: trip.pickup_location || c.patient_pickup_address || null,
+          origin_city: "",
+          origin_state: providerInfo.state || null,
+          origin_zip: c.origin_zip,
+          destination_address: trip.destination_location || null,
+          destination_city: "",
+          destination_state: providerInfo.state || null,
+          destination_zip: c.destination_zip,
+          diagnosis_codes: [],
+          auth_number: c.auth_number,
+          icd10_codes: c.icd10_codes || [],
+          bed_confined: !!trip.bed_confined,
+          requires_monitoring: !!trip.requires_monitoring,
+          stretcher_placement: trip.stretcher_placement || null,
+          oxygen_required: !!trip.oxygen_during_transport,
+          weight_lbs: trip.weight_lbs || null,
+        };
+      });
 
       // Validate
       const allErrors: string[] = [];

@@ -32,6 +32,19 @@ export const HCPCS_CODE_DESCRIPTIONS: Record<string, string> = {
 };
 
 // Auto-derive HCPCS codes from trip data
+/** Map location type string to single-letter CMS ambulance modifier code */
+function locationModifierCode(type: string | null): string {
+  if (!type) return "R";
+  const t = type.toLowerCase();
+  if (t.includes("hospital") || t === "h") return "H";
+  if (t.includes("dialysis") || t === "d") return "D";
+  if (t.includes("nursing") || t.includes("snf") || t === "n") return "N";
+  if (t.includes("scene") || t === "s") return "S";
+  if (t.includes("physician") || t.includes("doctor") || t === "p") return "P";
+  // residence / home / default
+  return "R";
+}
+
 export function computeHcpcsCodes(trip: {
   pcr_type?: string | null;
   service_level?: string | null;
@@ -69,12 +82,16 @@ export function computeHcpcsCodes(trip: {
   // 3. Modifiers
   const modifiers: string[] = [];
 
+  // Origin/Destination modifier pair (e.g. RH, HD, DR) — required by Medicare
+  const originLetter = locationModifierCode(trip.origin_type);
+  const destLetter = locationModifierCode(trip.destination_type);
+  modifiers.push(`${originLetter}${destLetter}`);
+
   // QM — oxygen: check equipment_used_json for oxygen/O2 entries
   let hasOxygen = !!trip.oxygen_required;
   if (!hasOxygen && trip.equipment_used_json) {
     const eq = trip.equipment_used_json;
     if (typeof eq === "object") {
-      // Check if it's an object with oxygen-related keys/values
       const eqStr = JSON.stringify(eq).toLowerCase();
       if (eqStr.includes("oxygen") || eqStr.includes("o2")) {
         hasOxygen = true;
@@ -83,19 +100,7 @@ export function computeHcpcsCodes(trip: {
   }
   if (hasOxygen) modifiers.push("QM");
 
-  // QL — bariatric
-  let isBariatric = !!trip.bariatric;
-  if (!isBariatric && serviceLevel.includes("BARIATRIC")) isBariatric = true;
-  if (!isBariatric && trip.assessment_json) {
-    const assessStr = JSON.stringify(trip.assessment_json).toLowerCase();
-    if (assessStr.includes("bariatric")) isBariatric = true;
-  }
-  if (isBariatric) modifiers.push("QL");
-
-  // TP — wait time
-  if ((trip.wait_time_minutes ?? 0) > 0) modifiers.push("TP");
-
-  // 4. QN — non-emergency dialysis transport
+  // QN — non-emergency dialysis transport
   if (pcrType !== "emergency") {
     const destType = (trip.destination_type ?? "").toLowerCase();
     const origType = (trip.origin_type ?? "").toLowerCase();

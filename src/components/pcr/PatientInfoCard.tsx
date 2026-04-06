@@ -111,12 +111,14 @@ export function PatientInfoCard({ trip, updateField: _updateField }: PatientInfo
           )}
         </div>
         <div>
-          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Weight</p>
-          {patient ? (
-            <p className="text-sm font-medium text-foreground">{patient.weight_lbs ? `${patient.weight_lbs} lbs` : "—"}</p>
-          ) : (
-            <Input type="number" defaultValue="" placeholder="lbs" className="h-9 mt-0.5 text-sm" />
-          )}
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Weight (lbs)</p>
+          <Input
+            type="number"
+            value={trip.weight_lbs ?? patient?.weight_lbs ?? ""}
+            placeholder="lbs"
+            className="h-9 mt-0.5 text-sm"
+            onChange={(e) => _updateField("weight_lbs", e.target.value ? Number(e.target.value) : null)}
+          />
         </div>
         <div className="col-span-2">
           <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Home Address</p>
