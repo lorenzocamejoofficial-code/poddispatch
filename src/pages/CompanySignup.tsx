@@ -437,6 +437,10 @@ export default function CompanySignup() {
                 <p><span className="text-foreground font-medium">Service Area:</span> {serviceAreaType}</p>
                 <p><span className="text-foreground font-medium">Trucks:</span> {truckCount}</p>
                 <p><span className="text-foreground font-medium">Payer Mix:</span> Medicare {payerMix.medicare}% / Medicaid {payerMix.medicaid}% / Facility {payerMix.facility}% / Private {payerMix.private}%</p>
+                {currentSoftware && <p><span className="text-foreground font-medium">Current Software:</span> {currentSoftware}</p>}
+                {yearsInOperation && <p><span className="text-foreground font-medium">Years in Operation:</span> {yearsInOperation}</p>}
+                <p><span className="text-foreground font-medium">In-house Biller:</span> {hasInhouseBiller ? "Yes" : "No"}</p>
+                {hipaaPrivacyOfficer && <p><span className="text-foreground font-medium">HIPAA Privacy Officer:</span> {hipaaPrivacyOfficer}</p>}
                 <p><span className="text-foreground font-medium">Plan:</span> PodDispatch Standard (Build Mode — No Payment Required)</p>
               </div>
               <div className="border-t pt-2">
