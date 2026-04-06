@@ -25,21 +25,10 @@ interface PayerRule {
   requires_auth: boolean;
 }
 
-interface IncidentReport {
-  id: string;
-  incident_date: string;
-  incident_type: string;
-  description: string | null;
-  crew_names: string | null;
-  emergency_services_contacted: boolean;
-  created_at: string;
-}
-
 const PAYER_TYPES = ["medicare", "medicaid", "facility", "cash", "default"];
 
 export default function ComplianceAndQA() {
   const [payerRules, setPayerRules] = useState<PayerRule[]>([]);
-  const [incidents, setIncidents] = useState<IncidentReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingRule, setEditingRule] = useState<PayerRule | null>(null);
   const [ruleForm, setRuleForm] = useState<Partial<PayerRule>>({});
@@ -48,12 +37,8 @@ export default function ComplianceAndQA() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [{ data: ruleRows }, { data: incidentRows }] = await Promise.all([
-      supabase.from("payer_billing_rules" as any).select("*").order("payer_type"),
-      supabase.from("incident_reports").select("*").order("incident_date", { ascending: false }),
-    ]);
+    const { data: ruleRows } = await supabase.from("payer_billing_rules" as any).select("*").order("payer_type");
     setPayerRules((ruleRows ?? []) as any[]);
-    setIncidents((incidentRows ?? []) as any[]);
     setLoading(false);
   }, []);
 
