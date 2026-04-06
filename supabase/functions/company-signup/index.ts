@@ -16,6 +16,7 @@ serve(async (req) => {
     const {
       email, password, fullName, companyName, phone, agreements, clientIp,
       npiNumber, stateOfOperation, serviceAreaType, truckCount, payerMix,
+      currentSoftware, yearsInOperation, hasInhouseBiller, hipaaPrivacyOfficer,
     } = await req.json();
 
     if (!email || !password || !fullName || !companyName) {
@@ -82,6 +83,10 @@ serve(async (req) => {
         payer_mix_facility: payerMix?.facility ?? 0,
         payer_mix_private: payerMix?.private ?? 0,
         truck_count: truckCount || 0,
+        current_software: currentSoftware || null,
+        years_in_operation: yearsInOperation || null,
+        has_inhouse_biller: hasInhouseBiller || false,
+        hipaa_privacy_officer: hipaaPrivacyOfficer || null,
       })
       .select("id")
       .single();

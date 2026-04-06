@@ -8,12 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, XCircle, Trash2, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Trash2, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { CreatorLayout } from "@/components/layout/CreatorLayout";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CompanyVerificationPanel, type VerificationResult } from "@/components/creator/CompanyVerificationPanel";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 interface PendingCompany {
   id: string;
@@ -22,6 +24,12 @@ interface PendingCompany {
   created_at: string;
   onboarding_status: string;
   owner_name?: string;
+  npi_number?: string | null;
+  state_of_operation?: string | null;
+  current_software?: string | null;
+  years_in_operation?: number | null;
+  has_inhouse_biller?: boolean | null;
+  hipaa_privacy_officer?: string | null;
 }
 
 export default function PendingCompaniesAdmin() {
@@ -34,6 +42,8 @@ export default function PendingCompaniesAdmin() {
   const [showRejectInput, setShowRejectInput] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PendingCompany | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
+  const [verificationResults, setVerificationResults] = useState<Record<string, VerificationResult>>({});
 
   useEffect(() => {
     if (!isSystemCreator) { navigate("/"); return; }
@@ -44,21 +54,44 @@ export default function PendingCompaniesAdmin() {
     setLoading(true);
     const { data, error } = await supabase
       .from("companies")
-      .select("id, name, owner_email, created_at, onboarding_status, owner_user_id")
+      .select("id, name, owner_email, created_at, onboarding_status, owner_user_id, npi_number, state_of_operation, current_software, years_in_operation, has_inhouse_biller, hipaa_privacy_officer" as any)
       .in("onboarding_status", ["pending_approval", "rejected", "suspended"])
       .order("created_at", { ascending: false });
 
     if (error) { console.error(error); setLoading(false); return; }
 
-    const ownerIds = (data || []).map(c => c.owner_user_id).filter(Boolean);
+    const ownerIds = (data || []).map((c: any) => c.owner_user_id).filter(Boolean);
     let profileMap: Record<string, string> = {};
     if (ownerIds.length > 0) {
       const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ownerIds);
       if (profiles) profileMap = Object.fromEntries(profiles.map(p => [p.user_id, p.full_name]));
     }
 
-    setCompanies((data || []).map(c => ({ ...c, owner_name: c.owner_user_id ? profileMap[c.owner_user_id] || "—" : "—" })));
+    setCompanies((data || []).map((c: any) => ({
+      ...c,
+      owner_name: c.owner_user_id ? profileMap[c.owner_user_id] || "—" : "—",
+    })));
     setLoading(false);
+  };
+
+  const logVerification = async (companyId: string, action: string) => {
+    const vr = verificationResults[companyId];
+    if (vr) {
+      await logAuditEvent({
+        action: action as any,
+        tableName: "companies",
+        recordId: companyId,
+        newData: {
+          verification_results: {
+            npi: vr.npi,
+            medicare: vr.medicare,
+            oig: vr.oig,
+          },
+          decision: action,
+        },
+        notes: `Company ${action} with verification: NPI=${vr.npi.status}, Medicare=${vr.medicare.status}, OIG=${vr.oig.status}`,
+      });
+    }
   };
 
   const handleApprove = async (companyId: string) => {
@@ -67,6 +100,7 @@ export default function PendingCompaniesAdmin() {
       const { data, error } = await supabase.functions.invoke("manage-company", { body: { companyId, action: "approve" } });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      await logVerification(companyId, "approve");
       toast.success("Company approved and activated!");
       await loadCompanies();
     } catch (err: any) { toast.error(err.message || "Failed to approve"); }
@@ -81,6 +115,7 @@ export default function PendingCompaniesAdmin() {
       const { data, error } = await supabase.functions.invoke("manage-company", { body: { companyId, action: "reject", reason } });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      await logVerification(companyId, "reject");
       toast.success("Company rejected.");
       setShowRejectInput(null);
       await loadCompanies();
@@ -113,14 +148,19 @@ export default function PendingCompaniesAdmin() {
     return "bg-muted text-muted-foreground";
   };
 
+  const toggleExpand = (id: string) => {
+    setExpandedCompany(prev => prev === id ? null : id);
+  };
+
   return (
     <CreatorLayout title="Pending Companies">
       <Collapsible className="mb-4">
         <CollapsibleTrigger className="text-xs text-primary hover:underline">ℹ️ How this works</CollapsibleTrigger>
         <CollapsibleContent className="mt-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
           <p>This page shows companies awaiting your approval. New signups land here with <strong>pending</strong> status.</p>
+          <p>Click a company row to expand the <strong>Verification Panel</strong> with automated NPI, Medicare, and OIG checks.</p>
           <p>Approve to activate a company's workspace, or reject with a reason. You can also permanently delete pending/rejected companies.</p>
-          <p>All actions are logged for audit. Approved companies move to the Company Console.</p>
+          <p>All actions and verification results are logged for audit.</p>
         </CollapsibleContent>
       </Collapsible>
       <Card>
@@ -138,6 +178,7 @@ export default function PendingCompaniesAdmin() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8"></TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead>Owner</TableHead>
                   <TableHead>Email</TableHead>
@@ -148,52 +189,80 @@ export default function PendingCompaniesAdmin() {
               </TableHeader>
               <TableBody>
                 {companies.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell>{c.owner_name}</TableCell>
-                    <TableCell className="text-muted-foreground text-xs">{c.owner_email || "—"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{format(new Date(c.created_at), "MMM d, yyyy")}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={statusColor(c.onboarding_status)}>
-                        {c.onboarding_status.replace(/_/g, " ")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {c.onboarding_status === "pending_approval" && (
-                          <>
-                            <Button size="sm" variant="default" className="gap-1.5" disabled={actionLoading === c.id} onClick={() => handleApprove(c.id)}>
-                              {actionLoading === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />} Approve
-                            </Button>
-                            {showRejectInput === c.id ? (
-                              <div className="flex flex-col gap-1.5 min-w-[200px]">
-                                <Textarea placeholder="Reason for rejection..." className="text-xs h-16" value={rejectReason[c.id] || ""} onChange={(e) => setRejectReason(prev => ({ ...prev, [c.id]: e.target.value }))} />
-                                <div className="flex gap-1.5">
-                                  <Button size="sm" variant="destructive" className="gap-1 flex-1" disabled={actionLoading === c.id} onClick={() => handleReject(c.id)}>Confirm Reject</Button>
-                                  <Button size="sm" variant="ghost" onClick={() => setShowRejectInput(null)}>Cancel</Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <Button size="sm" variant="outline" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => setShowRejectInput(c.id)}>
-                                <XCircle className="h-3 w-3" /> Reject
+                  <>
+                    <TableRow key={c.id} className="cursor-pointer" onClick={() => toggleExpand(c.id)}>
+                      <TableCell className="w-8">
+                        {expandedCompany === c.id
+                          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                        }
+                      </TableCell>
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell>{c.owner_name}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs">{c.owner_email || "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{format(new Date(c.created_at), "MMM d, yyyy")}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={statusColor(c.onboarding_status)}>
+                          {c.onboarding_status.replace(/_/g, " ")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-2">
+                          {c.onboarding_status === "pending_approval" && (
+                            <>
+                              <Button size="sm" variant="default" className="gap-1.5" disabled={actionLoading === c.id} onClick={() => handleApprove(c.id)}>
+                                {actionLoading === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />} Approve
                               </Button>
-                            )}
-                          </>
-                        )}
-                        {canDelete(c.onboarding_status) && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            disabled={actionLoading === c.id}
-                            onClick={() => { setDeleteTarget(c); setDeleteConfirmText(""); }}
-                          >
-                            <Trash2 className="h-3 w-3" /> Delete
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                              {showRejectInput === c.id ? (
+                                <div className="flex flex-col gap-1.5 min-w-[200px]">
+                                  <Textarea placeholder="Reason for rejection..." className="text-xs h-16" value={rejectReason[c.id] || ""} onChange={(e) => setRejectReason(prev => ({ ...prev, [c.id]: e.target.value }))} />
+                                  <div className="flex gap-1.5">
+                                    <Button size="sm" variant="destructive" className="gap-1 flex-1" disabled={actionLoading === c.id} onClick={() => handleReject(c.id)}>Confirm Reject</Button>
+                                    <Button size="sm" variant="ghost" onClick={() => setShowRejectInput(null)}>Cancel</Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <Button size="sm" variant="outline" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => setShowRejectInput(c.id)}>
+                                  <XCircle className="h-3 w-3" /> Reject
+                                </Button>
+                              )}
+                            </>
+                          )}
+                          {canDelete(c.onboarding_status) && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              disabled={actionLoading === c.id}
+                              onClick={() => { setDeleteTarget(c); setDeleteConfirmText(""); }}
+                            >
+                              <Trash2 className="h-3 w-3" /> Delete
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {expandedCompany === c.id && (
+                      <TableRow key={`${c.id}-verify`}>
+                        <TableCell colSpan={7} className="p-4 bg-muted/20">
+                          <CompanyVerificationPanel
+                            company={{
+                              id: c.id,
+                              name: c.name,
+                              npi_number: c.npi_number || null,
+                              state_of_operation: c.state_of_operation || null,
+                              owner_email: c.owner_email,
+                              current_software: c.current_software,
+                              years_in_operation: c.years_in_operation,
+                              has_inhouse_biller: c.has_inhouse_biller,
+                              hipaa_privacy_officer: c.hipaa_privacy_officer,
+                            }}
+                            onVerificationComplete={(r) => setVerificationResults(prev => ({ ...prev, [c.id]: r }))}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
                 ))}
               </TableBody>
             </Table>

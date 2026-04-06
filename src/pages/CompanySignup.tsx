@@ -63,6 +63,12 @@ export default function CompanySignup() {
   const [truckCount, setTruckCount] = useState("");
   const [payerMix, setPayerMix] = useState({ medicare: 40, medicaid: 30, facility: 20, private: 10 });
 
+  // Optional context fields
+  const [currentSoftware, setCurrentSoftware] = useState("");
+  const [yearsInOperation, setYearsInOperation] = useState("");
+  const [hasInhouseBiller, setHasInhouseBiller] = useState(false);
+  const [hipaaPrivacyOfficer, setHipaaPrivacyOfficer] = useState("");
+
   // Agreements
   const [accepted, setAccepted] = useState<Record<string, boolean>>({
     terms_of_service: false,
@@ -123,6 +129,10 @@ export default function CompanySignup() {
             serviceAreaType,
             truckCount: parseInt(truckCount),
             payerMix,
+            currentSoftware: currentSoftware || null,
+            yearsInOperation: yearsInOperation ? parseInt(yearsInOperation) : null,
+            hasInhouseBiller,
+            hipaaPrivacyOfficer: hipaaPrivacyOfficer.trim() || null,
           },
         }
       );
@@ -324,6 +334,40 @@ export default function CompanySignup() {
               ))}
             </div>
 
+            {/* Optional context fields */}
+            <div className="border-t pt-4 space-y-3">
+              <p className="text-xs text-muted-foreground font-medium">Optional — helps us review your application faster</p>
+
+              <div className="space-y-2">
+                <Label>Current Software</Label>
+                <Select value={currentSoftware} onValueChange={setCurrentSoftware}>
+                  <SelectTrigger><SelectValue placeholder="Select current software" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="angeltrack">AngelTrack</SelectItem>
+                    <SelectItem value="zoll">Zoll</SelectItem>
+                    <SelectItem value="manual_spreadsheet">Manual / Spreadsheet</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Years in Operation</Label>
+                <Input type="number" min="0" max="100" value={yearsInOperation} onChange={(e) => setYearsInOperation(e.target.value)} placeholder="e.g. 5" />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Checkbox checked={hasInhouseBiller} onCheckedChange={(v) => setHasInhouseBiller(v === true)} id="inhouse-biller" />
+                <Label htmlFor="inhouse-biller" className="cursor-pointer text-sm">We have an in-house biller</Label>
+              </div>
+
+              <div className="space-y-2">
+                <Label>HIPAA Privacy Officer Name</Label>
+                <Input value={hipaaPrivacyOfficer} onChange={(e) => setHipaaPrivacyOfficer(e.target.value)} placeholder="Full name" />
+              </div>
+            </div>
+
             <Button className="w-full" onClick={validateProfile}>Continue to Agreements</Button>
           </div>
         )}
@@ -393,6 +437,10 @@ export default function CompanySignup() {
                 <p><span className="text-foreground font-medium">Service Area:</span> {serviceAreaType}</p>
                 <p><span className="text-foreground font-medium">Trucks:</span> {truckCount}</p>
                 <p><span className="text-foreground font-medium">Payer Mix:</span> Medicare {payerMix.medicare}% / Medicaid {payerMix.medicaid}% / Facility {payerMix.facility}% / Private {payerMix.private}%</p>
+                {currentSoftware && <p><span className="text-foreground font-medium">Current Software:</span> {currentSoftware}</p>}
+                {yearsInOperation && <p><span className="text-foreground font-medium">Years in Operation:</span> {yearsInOperation}</p>}
+                <p><span className="text-foreground font-medium">In-house Biller:</span> {hasInhouseBiller ? "Yes" : "No"}</p>
+                {hipaaPrivacyOfficer && <p><span className="text-foreground font-medium">HIPAA Privacy Officer:</span> {hipaaPrivacyOfficer}</p>}
                 <p><span className="text-foreground font-medium">Plan:</span> PodDispatch Standard (Build Mode — No Payment Required)</p>
               </div>
               <div className="border-t pt-2">
