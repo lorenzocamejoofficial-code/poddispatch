@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CheckCircle, AlertTriangle, ClipboardCheck, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { INSPECTION_CATEGORIES } from "@/lib/vehicle-inspection-items";
+import { downloadCSV } from "@/lib/csv-export";
 
 interface InspectionRecord {
   id: string;
@@ -36,7 +37,7 @@ export function VehicleInspectionsTab() {
   const [inspections, setInspections] = useState<InspectionRecord[]>([]);
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [trucks, setTrucks] = useState<{ id: string; name: string }[]>([]);
-  const [_loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Filters
@@ -49,13 +50,20 @@ export function VehicleInspectionsTab() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+
+    let inspQuery = supabase
+      .from("vehicle_inspections" as any)
+      .select("*, truck:trucks!vehicle_inspections_truck_id_fkey(name)")
+      .gte("run_date", dateFrom)
+      .lte("run_date", dateTo)
+      .order("run_date", { ascending: false });
+
+    if (truckFilter !== "all") {
+      inspQuery = inspQuery.eq("truck_id", truckFilter);
+    }
+
     const [{ data: inspRows }, { data: alertRows }, { data: truckRows }] = await Promise.all([
-      supabase
-        .from("vehicle_inspections" as any)
-        .select("*, truck:trucks!vehicle_inspections_truck_id_fkey(name)")
-        .gte("run_date", dateFrom)
-        .lte("run_date", dateTo)
-        .order("run_date", { ascending: false }),
+      inspQuery,
       supabase.from("vehicle_inspection_alerts" as any).select("*"),
       supabase.from("trucks").select("id, name").eq("active", true).order("name"),
     ]);
@@ -73,7 +81,7 @@ export function VehicleInspectionsTab() {
       items_checked: r.items_checked ?? [],
     }));
 
-    setInspections(truckFilter === "all" ? mapped : mapped.filter(i => i.truck_id === truckFilter));
+    setInspections(mapped);
     setAlerts((alertRows ?? []) as any[]);
     setTrucks((truckRows ?? []) as any[]);
     setLoading(false);
@@ -82,24 +90,16 @@ export function VehicleInspectionsTab() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const exportCSV = () => {
-    const headers = ["Date", "Truck", "Submitted By", "Submitted At", "Total Items", "Missing", "Status"];
-    const rows = inspections.map(i => [
-      i.run_date,
-      i.truck_name,
-      i.submitted_by_name ?? "",
-      new Date(i.submitted_at).toLocaleString(),
-      i.total_items,
-      i.missing_count,
-      i.status === "has_missing" ? "Has Missing" : "Complete",
-    ]);
-    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `vehicle-inspections-${dateFrom}-to-${dateTo}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const rows = inspections.map(i => ({
+      Date: i.run_date,
+      Truck: i.truck_name,
+      "Submitted By": i.submitted_by_name ?? "",
+      "Submitted At": new Date(i.submitted_at).toLocaleString(),
+      "Total Items": i.total_items,
+      "Flagged Items": i.missing_count,
+      Status: i.status === "has_missing" ? "Has Missing" : "Complete",
+    }));
+    downloadCSV(rows, `vehicle-inspections-${dateFrom}-to-${dateTo}.csv`);
   };
 
   return (
@@ -124,9 +124,12 @@ export function VehicleInspectionsTab() {
             </SelectContent>
           </Select>
         </div>
-        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={exportCSV}>
+        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={exportCSV} disabled={inspections.length === 0}>
           <Download className="h-3 w-3 mr-1" /> Export CSV
         </Button>
+        {!loading && (
+          <span className="text-[10px] text-muted-foreground ml-auto">{inspections.length} record{inspections.length !== 1 ? "s" : ""}</span>
+        )}
       </div>
 
       {/* Table */}
@@ -145,7 +148,7 @@ export function VehicleInspectionsTab() {
                 <th className="px-4 py-3 text-left">Truck</th>
                 <th className="px-4 py-3 text-left">Submitted By</th>
                 <th className="px-4 py-3 text-center">Items</th>
-                <th className="px-4 py-3 text-center">Missing</th>
+                <th className="px-4 py-3 text-center">Flagged</th>
                 <th className="px-4 py-3 text-center">Status</th>
                 <th className="px-4 py-3 text-center">Acknowledged</th>
                 <th className="px-4 py-3" />
@@ -158,82 +161,89 @@ export function VehicleInspectionsTab() {
                 const isExpanded = expandedId === insp.id;
 
                 return (
-                  <tr key={insp.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : insp.id)}>
-                    <td className="px-4 py-3 text-foreground">{insp.run_date}</td>
-                    <td className="px-4 py-3 font-medium text-foreground">{insp.truck_name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{insp.submitted_by_name ?? "—"}</td>
-                    <td className="px-4 py-3 text-center">{insp.total_items}</td>
-                    <td className="px-4 py-3 text-center">
-                      {insp.missing_count > 0 ? (
-                        <span className="text-destructive font-semibold">{insp.missing_count}</span>
-                      ) : "0"}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {insp.status === "has_missing" ? (
-                        <Badge variant="destructive" className="text-[10px]">Has Missing</Badge>
-                      ) : (
-                        <Badge className="text-[10px] bg-[hsl(var(--status-green))] hover:bg-[hsl(var(--status-green))]/90">Complete</Badge>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {inspAlerts.length === 0 ? (
-                        <span className="text-muted-foreground text-xs">—</span>
-                      ) : allAcknowledged ? (
-                        <CheckCircle className="h-4 w-4 text-[hsl(var(--status-green))] mx-auto" />
-                      ) : (
-                        <AlertTriangle className="h-4 w-4 text-destructive mx-auto" />
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                    </td>
-                  </tr>
+                  <Fragment key={insp.id}>
+                    <tr
+                      className="border-b hover:bg-muted/30 cursor-pointer"
+                      onClick={() => setExpandedId(isExpanded ? null : insp.id)}
+                    >
+                      <td className="px-4 py-3 text-foreground">{insp.run_date}</td>
+                      <td className="px-4 py-3 font-medium text-foreground">{insp.truck_name}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{insp.submitted_by_name ?? "—"}</td>
+                      <td className="px-4 py-3 text-center">{insp.total_items}</td>
+                      <td className="px-4 py-3 text-center">
+                        {insp.missing_count > 0 ? (
+                          <span className="text-destructive font-semibold">{insp.missing_count}</span>
+                        ) : "0"}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {insp.status === "has_missing" ? (
+                          <Badge variant="destructive" className="text-[10px]">Has Flags</Badge>
+                        ) : (
+                          <Badge className="text-[10px] bg-[hsl(var(--status-green))] hover:bg-[hsl(var(--status-green))]/90">Complete</Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {inspAlerts.length === 0 ? (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        ) : allAcknowledged ? (
+                          <CheckCircle className="h-4 w-4 text-[hsl(var(--status-green))] mx-auto" />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4 text-destructive mx-auto" />
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                      </td>
+                    </tr>
+
+                    {/* Expanded detail row */}
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={8} className="bg-muted/10 p-0">
+                          <div className="p-4 space-y-3">
+                            <div className="text-xs text-muted-foreground">
+                              Submitted {new Date(insp.submitted_at).toLocaleString()} by {insp.submitted_by_name ?? "Unknown"}
+                            </div>
+                            {INSPECTION_CATEGORIES.map(cat => {
+                              const catItems = insp.items_checked.filter((i: any) => i.category === cat);
+                              if (catItems.length === 0) return null;
+                              return (
+                                <div key={cat}>
+                                  <h5 className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">{cat}</h5>
+                                  <div className="space-y-0.5">
+                                    {catItems.map((item: any) => {
+                                      const alert = inspAlerts.find(a => a.missing_item_label === item.item_label);
+                                      return (
+                                        <div key={item.item_key} className="flex items-start gap-2 text-xs">
+                                          {item.status === "ok" ? (
+                                            <CheckCircle className="h-3 w-3 text-[hsl(var(--status-green))] shrink-0 mt-0.5" />
+                                          ) : (
+                                            <AlertTriangle className="h-3 w-3 text-destructive shrink-0 mt-0.5" />
+                                          )}
+                                          <span className="flex-1 text-foreground">{item.item_label}</span>
+                                          {item.crew_note && <span className="text-muted-foreground italic">Crew: {item.crew_note}</span>}
+                                          {alert?.dispatcher_response && (
+                                            <span className={`font-medium ${alert.dispatcher_response === "cleared" ? "text-[hsl(var(--status-green))]" : "text-destructive"}`}>
+                                              {alert.dispatcher_response === "cleared" ? "Cleared" : "Hold"} by {alert.acknowledged_by_name}
+                                              {alert.dispatcher_note && ` — ${alert.dispatcher_note}`}
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>
           </table>
-
-          {/* Expanded detail */}
-          {expandedId && (() => {
-            const insp = inspections.find(i => i.id === expandedId);
-            if (!insp) return null;
-            const inspAlerts = alerts.filter(a => a.inspection_id === insp.id);
-            return (
-              <div className="border-t bg-muted/10 p-4 space-y-3">
-                {INSPECTION_CATEGORIES.map(cat => {
-                  const catItems = insp.items_checked.filter((i: any) => i.category === cat);
-                  if (catItems.length === 0) return null;
-                  return (
-                    <div key={cat}>
-                      <h5 className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">{cat}</h5>
-                      <div className="space-y-0.5">
-                        {catItems.map((item: any) => {
-                          const alert = inspAlerts.find(a => a.missing_item_label === item.item_label);
-                          return (
-                            <div key={item.item_key} className="flex items-start gap-2 text-xs">
-                              {item.status === "ok" ? (
-                                <CheckCircle className="h-3 w-3 text-[hsl(var(--status-green))] shrink-0 mt-0.5" />
-                              ) : (
-                                <AlertTriangle className="h-3 w-3 text-destructive shrink-0 mt-0.5" />
-                              )}
-                              <span className="flex-1 text-foreground">{item.item_label}</span>
-                              {item.crew_note && <span className="text-muted-foreground italic">Crew: {item.crew_note}</span>}
-                              {alert?.dispatcher_response && (
-                                <span className={`font-medium ${alert.dispatcher_response === "cleared" ? "text-[hsl(var(--status-green))]" : "text-destructive"}`}>
-                                  {alert.dispatcher_response === "cleared" ? "Cleared" : "Hold"} by {alert.acknowledged_by_name}
-                                  {alert.dispatcher_note && ` — ${alert.dispatcher_note}`}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
         </div>
       )}
     </div>

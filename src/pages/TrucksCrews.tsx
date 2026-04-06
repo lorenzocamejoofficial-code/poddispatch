@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { InspectionConfigPanel } from "@/components/inspection/InspectionConfigPanel";
+import { TruckInspectionHistory } from "@/components/inspection/TruckInspectionHistory";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import type { Tables } from "@/integrations/supabase/types";
@@ -681,6 +682,7 @@ export default function TrucksCrews() {
                 </div>
                 {/* Vehicle Inspection Config */}
                 <InspectionConfigPanel truckId={t.id} companyId={(t as any).company_id ?? ""} />
+                <TruckInspectionHistory truckId={t.id} />
               </div>
             ))}
             {trucks.length === 0 && <p className="text-sm text-muted-foreground col-span-full">No trucks yet</p>}
