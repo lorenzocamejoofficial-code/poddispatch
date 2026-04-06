@@ -132,34 +132,8 @@ export default function ComplianceAndQA() {
           </div>
         </TabsContent>
 
-        <TabsContent value="incidents" className="m-0 space-y-4">
-          {loading ? (
-            <PageLoader label="Loading incidents…" />
-          ) : incidents.length === 0 ? (
-            <EmptyState
-              icon={FileWarning}
-              title="No incident reports"
-              description="Incident reports submitted by crew or dispatchers will appear here."
-            />
-          ) : (
-            <div className="space-y-2">
-              {incidents.map(inc => (
-                <div key={inc.id} className="rounded-lg border bg-card p-4 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-foreground">{inc.incident_type}</span>
-                    <span className="text-xs text-muted-foreground">{new Date(inc.incident_date).toLocaleString()}</span>
-                  </div>
-                  {inc.description && <p className="text-xs text-muted-foreground">{inc.description}</p>}
-                  <div className="flex gap-3 text-[10px] text-muted-foreground">
-                    {inc.crew_names && <span>Crew: {inc.crew_names}</span>}
-                    {inc.emergency_services_contacted && (
-                      <span className="text-destructive font-bold">Emergency Services Contacted</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        <TabsContent value="incidents" className="m-0">
+          <IncidentsTab />
         </TabsContent>
 
         <TabsContent value="inspections" className="m-0">
