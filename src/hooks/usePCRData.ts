@@ -71,6 +71,9 @@ export interface PCRTripData {
   kickback_note: string | null;
   kicked_back_by: string | null;
   kicked_back_at: string | null;
+  // ICD-10 and weight
+  icd10_codes: string[];
+  weight_lbs: number | null;
   // Leg info (joined from scheduling_legs)
   leg_type: string | null;
   chair_time: string | null;
@@ -155,6 +158,8 @@ export function usePCRData(tripId: string | null) {
         kickback_note: (data as any).kickback_note ?? null,
         kicked_back_by: (data as any).kicked_back_by ?? null,
         kicked_back_at: (data as any).kicked_back_at ?? null,
+        icd10_codes: Array.isArray((data as any).icd10_codes) ? (data as any).icd10_codes : [],
+        weight_lbs: (data as any).weight_lbs ?? null,
         leg_type,
         chair_time,
         patient,
