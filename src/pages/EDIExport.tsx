@@ -207,10 +207,24 @@ export default function EDIExport() {
 
     setGenerating(true);
     try {
+      // Fetch trip and patient data for EDI generation
+      const selTripIds = [...new Set(selectedClaims.map(c => (c as any).trip_id).filter(Boolean))];
+      const selPatIds = [...new Set(selectedClaims.map(c => (c as any).patient_id).filter(Boolean))];
+      const localTripsMap: Record<string, any> = {};
+      const localPatsMap: Record<string, any> = {};
+      if (selTripIds.length > 0) {
+        const { data: trs } = await supabase.from("trip_records").select("id, loaded_miles, bed_confined, requires_monitoring, stretcher_placement, oxygen_during_transport, weight_lbs, pickup_location, destination_location").in("id", selTripIds);
+        (trs || []).forEach(t => { localTripsMap[t.id] = t; });
+      }
+      if (selPatIds.length > 0) {
+        const { data: ps } = await supabase.from("patients").select("id, sex").in("id", selPatIds);
+        (ps || []).forEach(p => { localPatsMap[p.id] = p; });
+      }
+
       // Build ClaimForEDI array
       const ediClaims: ClaimForEDI[] = selectedClaims.map((c) => {
-        const trip = tripsMap[(c as any).trip_id] || {};
-        const pat = patientsMap[(c as any).patient_id] || {};
+        const trip = localTripsMap[(c as any).trip_id] || {};
+        const pat = localPatsMap[(c as any).patient_id] || {};
         return {
           claim_id: c.id,
           patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
