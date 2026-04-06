@@ -691,6 +691,19 @@ export default function CrewDashboard() {
                           )}
                         </>
                       )}
+
+                      {/* Report Incident button */}
+                      {!isTerminal && run.tripId && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-12 w-12 border-amber-400/50 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                          onClick={() => setIncidentRun(run)}
+                          title="Report Incident"
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </>
                 )}
