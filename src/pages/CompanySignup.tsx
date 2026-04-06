@@ -63,6 +63,12 @@ export default function CompanySignup() {
   const [truckCount, setTruckCount] = useState("");
   const [payerMix, setPayerMix] = useState({ medicare: 40, medicaid: 30, facility: 20, private: 10 });
 
+  // Optional context fields
+  const [currentSoftware, setCurrentSoftware] = useState("");
+  const [yearsInOperation, setYearsInOperation] = useState("");
+  const [hasInhouseBiller, setHasInhouseBiller] = useState(false);
+  const [hipaaPrivacyOfficer, setHipaaPrivacyOfficer] = useState("");
+
   // Agreements
   const [accepted, setAccepted] = useState<Record<string, boolean>>({
     terms_of_service: false,
