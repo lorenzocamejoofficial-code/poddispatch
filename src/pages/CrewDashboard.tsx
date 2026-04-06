@@ -748,6 +748,17 @@ export default function CrewDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Incident Report Form */}
+      <IncidentReportForm
+        open={!!incidentRun}
+        onClose={() => setIncidentRun(null)}
+        defaultTruckId={incidentRun?.truckId}
+        defaultTruckName={truckName}
+        defaultTripId={incidentRun?.tripId}
+        defaultPatientName={incidentRun?.patientName}
+        defaultCompanyId={incidentRun?.companyId}
+      />
     </CrewLayout>
   );
 }
