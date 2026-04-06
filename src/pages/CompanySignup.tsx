@@ -129,6 +129,10 @@ export default function CompanySignup() {
             serviceAreaType,
             truckCount: parseInt(truckCount),
             payerMix,
+            currentSoftware: currentSoftware || null,
+            yearsInOperation: yearsInOperation ? parseInt(yearsInOperation) : null,
+            hasInhouseBiller,
+            hipaaPrivacyOfficer: hipaaPrivacyOfficer.trim() || null,
           },
         }
       );
@@ -328,6 +332,40 @@ export default function CompanySignup() {
                   />
                 </div>
               ))}
+            </div>
+
+            {/* Optional context fields */}
+            <div className="border-t pt-4 space-y-3">
+              <p className="text-xs text-muted-foreground font-medium">Optional — helps us review your application faster</p>
+
+              <div className="space-y-2">
+                <Label>Current Software</Label>
+                <Select value={currentSoftware} onValueChange={setCurrentSoftware}>
+                  <SelectTrigger><SelectValue placeholder="Select current software" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="angeltrack">AngelTrack</SelectItem>
+                    <SelectItem value="zoll">Zoll</SelectItem>
+                    <SelectItem value="manual_spreadsheet">Manual / Spreadsheet</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Years in Operation</Label>
+                <Input type="number" min="0" max="100" value={yearsInOperation} onChange={(e) => setYearsInOperation(e.target.value)} placeholder="e.g. 5" />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Checkbox checked={hasInhouseBiller} onCheckedChange={(v) => setHasInhouseBiller(v === true)} id="inhouse-biller" />
+                <Label htmlFor="inhouse-biller" className="cursor-pointer text-sm">We have an in-house biller</Label>
+              </div>
+
+              <div className="space-y-2">
+                <Label>HIPAA Privacy Officer Name</Label>
+                <Input value={hipaaPrivacyOfficer} onChange={(e) => setHipaaPrivacyOfficer(e.target.value)} placeholder="Full name" />
+              </div>
             </div>
 
             <Button className="w-full" onClick={validateProfile}>Continue to Agreements</Button>
