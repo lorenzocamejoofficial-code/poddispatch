@@ -446,8 +446,21 @@ export default function BillingAndClaims() {
         stretcher_placement: t.stretcher_placement ?? null,
         patient_mobility: t.patient_mobility ?? null,
         isolation_precautions: t.isolation_precautions ?? null,
+        // Fix 2: Sync ICD-10 codes and missing fields
+        icd10_codes: t.icd10_codes ?? [],
+        origin_zip: extractZip(t.pickup_location),
+        destination_zip: extractZip(t.destination_location),
+        patient_sex: t.patient?.sex ?? null,
+        auth_number: t.patient?.auth_required ? (t.patient?.prior_auth_number ?? null) : null,
       },
     };
+  };
+
+  // Helper to extract ZIP code from an address string
+  const extractZip = (address: string | null): string | null => {
+    if (!address) return null;
+    const match = address.match(/\b(\d{5})(?:-\d{4})?\b/);
+    return match ? match[1] : null;
   };
 
   // Refresh existing needs_review / needs_correction claims against live trip data
