@@ -638,12 +638,21 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           created_at: string
+          current_software: string | null
           deleted_at: string | null
           deleted_by: string | null
+          has_inhouse_biller: boolean | null
+          hipaa_privacy_officer: string | null
           id: string
           is_sandbox: boolean
+          medicare_enrolled: boolean | null
+          medicare_specialty: string | null
           name: string
           npi_number: string | null
+          npi_registered_name: string | null
+          npi_verified: boolean | null
+          oig_excluded: boolean | null
+          oig_exclusion_details: string | null
           onboarding_status: Database["public"]["Enums"]["onboarding_status"]
           owner_email: string | null
           owner_user_id: string | null
@@ -659,17 +668,29 @@ export type Database = {
           suspended_by: string | null
           suspended_reason: string | null
           truck_count: number | null
+          verification_checked_at: string | null
+          verified_by: string | null
+          years_in_operation: number | null
         }
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          current_software?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          has_inhouse_biller?: boolean | null
+          hipaa_privacy_officer?: string | null
           id?: string
           is_sandbox?: boolean
+          medicare_enrolled?: boolean | null
+          medicare_specialty?: string | null
           name: string
           npi_number?: string | null
+          npi_registered_name?: string | null
+          npi_verified?: boolean | null
+          oig_excluded?: boolean | null
+          oig_exclusion_details?: string | null
           onboarding_status?: Database["public"]["Enums"]["onboarding_status"]
           owner_email?: string | null
           owner_user_id?: string | null
@@ -685,17 +706,29 @@ export type Database = {
           suspended_by?: string | null
           suspended_reason?: string | null
           truck_count?: number | null
+          verification_checked_at?: string | null
+          verified_by?: string | null
+          years_in_operation?: number | null
         }
         Update: {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          current_software?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          has_inhouse_biller?: boolean | null
+          hipaa_privacy_officer?: string | null
           id?: string
           is_sandbox?: boolean
+          medicare_enrolled?: boolean | null
+          medicare_specialty?: string | null
           name?: string
           npi_number?: string | null
+          npi_registered_name?: string | null
+          npi_verified?: boolean | null
+          oig_excluded?: boolean | null
+          oig_exclusion_details?: string | null
           onboarding_status?: Database["public"]["Enums"]["onboarding_status"]
           owner_email?: string | null
           owner_user_id?: string | null
@@ -711,6 +744,9 @@ export type Database = {
           suspended_by?: string | null
           suspended_reason?: string | null
           truck_count?: number | null
+          verification_checked_at?: string | null
+          verified_by?: string | null
+          years_in_operation?: number | null
         }
         Relationships: []
       }
