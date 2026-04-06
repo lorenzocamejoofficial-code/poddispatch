@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Truck, Users, Loader2, Clock, AlertTriangle, Ban, XCircle } from "lucide-react";
+import { Truck, Users, Loader2, Clock, AlertTriangle, Ban, XCircle, FileWarning } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { CrewLayout } from "@/components/crew/CrewLayout";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { deriveRunStatus } from "@/lib/trip-status";
 import { TimeTapRow } from "@/components/dispatch/TimeTapRow";
 import { useCrewPartner } from "@/hooks/useCrewPartner";
+import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
 
 const TRANSPORT_LABELS: Record<string, string> = {
   dialysis: "Dialysis Transport",
