@@ -41,3 +41,12 @@ verify_jwt = false
 
 [functions.manage-company]
 verify_jwt = false
+
+[functions.verify-npi]
+verify_jwt = false
+
+[functions.verify-medicare]
+verify_jwt = false
+
+[functions.verify-oig]
+verify_jwt = false

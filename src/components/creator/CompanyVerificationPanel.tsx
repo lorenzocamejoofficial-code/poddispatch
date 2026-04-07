@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, AlertTriangle, XCircle, ExternalLink, RefreshCw, Shield } from "lucide-react";
-import { toast } from "sonner";
 
 interface VerificationResult {
   npi: {
@@ -61,7 +60,7 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
       const raw = sessionStorage.getItem(getCacheKey());
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (Date.now() - parsed.ts > 30 * 60 * 1000) return null; // 30min expiry
+      if (Date.now() - parsed.ts > 30 * 60 * 1000) return null;
       return parsed.data;
     } catch { return null; }
   }, [company.id]);
@@ -78,32 +77,24 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
       oig: { status: "pending" },
     };
 
-    // Run all 3 checks in parallel
     await Promise.all([
-      checkNPI(company.npi_number, company.name).then(r => { newResults.npi = r; }),
-      checkMedicare(company.npi_number).then(r => { newResults.medicare = r; }),
-      checkOIG(company.name, company.state_of_operation).then(r => { newResults.oig = r; }),
+      checkNPI(company.npi_number, company.name, company.id).then(r => { newResults.npi = r; }),
+      checkMedicare(company.npi_number, company.id).then(r => { newResults.medicare = r; }),
+      checkOIG(company.name, company.state_of_operation, company.id).then(r => { newResults.oig = r; }),
     ]);
 
     setResults(newResults);
     saveCache(newResults);
     onVerificationComplete?.(newResults);
 
-    // Store results to DB
+    // Store verified_by
     try {
       const { data: { user } } = await supabase.auth.getUser();
       await supabase.from("companies").update({
-        npi_verified: newResults.npi.status === "verified",
-        npi_registered_name: newResults.npi.registeredName || null,
-        medicare_enrolled: newResults.medicare.status === "enrolled",
-        medicare_specialty: newResults.medicare.specialty || null,
-        oig_excluded: newResults.oig.status === "excluded",
-        oig_exclusion_details: newResults.oig.details || null,
-        verification_checked_at: new Date().toISOString(),
         verified_by: user?.id || null,
       } as any).eq("id", company.id);
     } catch (err) {
-      console.error("Failed to store verification results:", err);
+      console.error("Failed to store verified_by:", err);
     }
 
     setLoading(false);
@@ -151,11 +142,7 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
         )}
 
         {/* 1. NPI Verification */}
-        <CheckRow
-          title="NPI Verification"
-          loading={loading && results.npi.status === "pending"}
-          badge={<NPIBadge status={results.npi.status} />}
-        >
+        <CheckRow title="NPI Verification" loading={loading && results.npi.status === "pending"} badge={<NPIBadge status={results.npi.status} />}>
           {results.npi.status !== "pending" && (
             <div className="text-xs space-y-0.5 text-muted-foreground">
               {results.npi.registeredName && <p><span className="font-medium text-foreground">Registered Name:</span> {results.npi.registeredName}</p>}
@@ -169,11 +156,7 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
         </CheckRow>
 
         {/* 2. Medicare Enrollment */}
-        <CheckRow
-          title="Medicare Enrollment"
-          loading={loading && results.medicare.status === "pending"}
-          badge={<MedicareBadge status={results.medicare.status} />}
-        >
+        <CheckRow title="Medicare Enrollment" loading={loading && results.medicare.status === "pending"} badge={<MedicareBadge status={results.medicare.status} />}>
           {results.medicare.status !== "pending" && (
             <div className="text-xs text-muted-foreground">
               {results.medicare.specialty && <p><span className="font-medium text-foreground">Specialty:</span> {results.medicare.specialty}</p>}
@@ -183,11 +166,7 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
         </CheckRow>
 
         {/* 3. OIG Exclusion */}
-        <CheckRow
-          title="OIG Exclusion Check"
-          loading={loading && results.oig.status === "pending"}
-          badge={<OIGBadge status={results.oig.status} />}
-        >
+        <CheckRow title="OIG Exclusion Check" loading={loading && results.oig.status === "pending"} badge={<OIGBadge status={results.oig.status} />}>
           {results.oig.status !== "pending" && (
             <div className="text-xs text-muted-foreground">
               {results.oig.details && <p className="text-destructive font-medium">{results.oig.details}</p>}
@@ -261,10 +240,11 @@ function MedicareBadge({ status }: { status: string }) {
 function OIGBadge({ status }: { status: string }) {
   if (status === "not_excluded") return <Badge className="bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))] text-xs">Not Excluded</Badge>;
   if (status === "excluded") return <Badge className="bg-destructive/15 text-destructive text-xs">OIG Excluded</Badge>;
-  return <Badge variant="outline" className="text-xs">Pending</Badge>;
+  // pending = unknown — never show "Not Excluded" on failure
+  return <Badge variant="outline" className="text-xs">Unknown</Badge>;
 }
 
-// --- API check functions ---
+// --- API check functions via edge functions ---
 
 function getOverallStatus(r: VerificationResult): "pass" | "review" | "fail" | "pending" {
   if (r.npi.status === "pending" || r.medicare.status === "pending" || r.oig.status === "pending") return "pending";
@@ -273,90 +253,42 @@ function getOverallStatus(r: VerificationResult): "pass" | "review" | "fail" | "
   return "pass";
 }
 
-function namesCloselyMatch(a: string, b: string): boolean {
-  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const na = normalize(a);
-  const nb = normalize(b);
-  return na.includes(nb) || nb.includes(na) || na === nb;
-}
-
-async function checkNPI(npi: string | null, companyName: string): Promise<VerificationResult["npi"]> {
+async function checkNPI(npi: string | null, companyName: string, companyId: string): Promise<VerificationResult["npi"]> {
   if (!npi) return { status: "not_found", error: "No NPI number provided" };
   try {
-    const resp = await fetch(`https://npiregistry.cms.hhs.gov/api/?number=${npi}&version=2.1`);
-    const data = await resp.json();
-    if (!data.results || data.results.length === 0) return { status: "not_found" };
-    const r = data.results[0];
-    const basic = r.basic || {};
-    const registeredName = basic.organization_name || `${basic.first_name || ""} ${basic.last_name || ""}`.trim();
-    const addr = r.addresses?.[0] || {};
-    const address = [addr.address_1, addr.city, addr.state, addr.postal_code].filter(Boolean).join(", ");
-    const matched = namesCloselyMatch(registeredName, companyName);
-    return {
-      status: matched ? "verified" : "mismatch",
-      registeredName,
-      address,
-      state: addr.state || "",
-      entityType: basic.enumeration_type === "NPI-2" ? "Organization" : "Individual",
-    };
+    const { data, error } = await supabase.functions.invoke("verify-npi", {
+      body: { npi, company_name: companyName, company_id: companyId },
+    });
+    if (error) throw new Error(error.message);
+    return data;
   } catch (err: any) {
     return { status: "not_found", error: err.message || "NPI lookup failed" };
   }
 }
 
-async function checkMedicare(npi: string | null): Promise<VerificationResult["medicare"]> {
+async function checkMedicare(npi: string | null, companyId: string): Promise<VerificationResult["medicare"]> {
   if (!npi) return { status: "not_enrolled", error: "No NPI number provided" };
   try {
-    const resp = await fetch(`https://data.cms.gov/provider-data/api/1/datastore/query/mj5m-pzi6/0`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        conditions: [{ property: "npi", value: npi, operator: "=" }],
-        limit: 5,
-      }),
+    const { data, error } = await supabase.functions.invoke("verify-medicare", {
+      body: { npi, company_id: companyId },
     });
-    const data = await resp.json();
-    const results = data.results || [];
-    if (results.length === 0) return { status: "not_enrolled" };
-    const specialties = results.map((r: any) => r.provider_type || r.pri_spec || "").filter(Boolean);
-    const isAmbulance = specialties.some((s: string) =>
-      s.toLowerCase().includes("ambulance") || s.toLowerCase().includes("emergency medical")
-    );
-    return {
-      status: isAmbulance ? "enrolled" : "different_specialty",
-      specialty: specialties[0] || "Unknown",
-    };
+    if (error) throw new Error(error.message);
+    return data;
   } catch (err: any) {
     return { status: "not_enrolled", error: err.message || "Medicare lookup failed" };
   }
 }
 
-async function checkOIG(name: string, state: string | null): Promise<VerificationResult["oig"]> {
+async function checkOIG(name: string, state: string | null, companyId: string): Promise<VerificationResult["oig"]> {
   try {
-    const params = new URLSearchParams({ name });
-    if (state) params.set("state", state);
-    const resp = await fetch(`https://ofisapi.oig.hhs.gov/api/exclusions/search?${params.toString()}`);
-    if (!resp.ok) {
-      // OIG API can be flaky — treat non-200 as "couldn't check"
-      return { status: "not_excluded", error: "OIG API unavailable — manual check recommended" };
-    }
-    const data = await resp.json();
-    const results = data.results || data || [];
-    if (!Array.isArray(results) || results.length === 0) return { status: "not_excluded" };
-    // Check for close name match
-    const match = results.find((r: any) => {
-      const rName = (r.busname || r.lastname || "").toLowerCase();
-      return namesCloselyMatch(rName, name);
+    const { data, error } = await supabase.functions.invoke("verify-oig", {
+      body: { name, state, company_id: companyId },
     });
-    if (match) {
-      return {
-        status: "excluded",
-        details: `Excluded: ${match.busname || match.lastname} — ${match.excltype || "Unknown type"} (${match.excldate || "Date unknown"})`,
-      };
-    }
-    return { status: "not_excluded" };
+    if (error) throw new Error(error.message);
+    // Never show "not_excluded" on error — keep as pending/unknown
+    return data;
   } catch (err: any) {
-    return { status: "not_excluded", error: err.message || "OIG lookup failed" };
+    return { status: "pending", error: err.message || "OIG lookup failed" };
   }
 }
 
