@@ -123,7 +123,7 @@ function HoldConfirmButton({ icon, label, confirmLabel, loading, onConfirm }: {
 }
 
 export default function CrewDashboard() {
-  const { user, signOut, profileId } = useAuth();
+  const { user, profileId } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [truckName, setTruckName] = useState("");
@@ -139,6 +139,10 @@ export default function CrewDashboard() {
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const { partnerName: crewPartnerName, loading: crewPartnerLoading } = useCrewPartner();
   const [incidentRun, setIncidentRun] = useState<RunCard | null>(null);
+  const [emergencyTarget, setEmergencyTarget] = useState<RunCard | null>(null);
+  const [resolveOpen, setResolveOpen] = useState(false);
+  const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
+  const emergency = useEmergencyUpgrade(activeCompanyId);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
