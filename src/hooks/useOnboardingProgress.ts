@@ -10,6 +10,7 @@ export interface OnboardingProgress {
   step_first_trip: boolean;
   wizard_completed: boolean;
   onboarding_dismissed: boolean;
+  wizard_step: number;
   loading: boolean;
 }
 
@@ -23,6 +24,7 @@ export function useOnboardingProgress() {
     step_first_trip: false,
     wizard_completed: false,
     onboarding_dismissed: false,
+    wizard_step: 0,
     loading: true,
   });
 
@@ -69,6 +71,7 @@ export function useOnboardingProgress() {
       step_first_trip: stepTrip,
       wizard_completed: (settings as any).wizard_completed || allComplete,
       onboarding_dismissed: (settings as any).onboarding_dismissed || false,
+      wizard_step: (settings as any).wizard_step ?? 0,
       loading: false,
     });
 
