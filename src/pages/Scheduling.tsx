@@ -23,6 +23,7 @@ import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { useAuth } from "@/hooks/useAuth";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
+import { DispatcherCancelDialog } from "@/components/scheduling/DispatcherCancelDialog";
 import { RunPool } from "@/components/scheduling/RunPool";
 import { TemplateControls } from "@/components/scheduling/TemplateControls";
 import { UpcomingNonDialysisPanel } from "@/components/scheduling/UpcomingNonDialysisPanel";
