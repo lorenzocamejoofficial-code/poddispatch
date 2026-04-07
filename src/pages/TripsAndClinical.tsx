@@ -540,7 +540,6 @@ export default function TripsAndClinical() {
                         )}
                       </div>
                     </td>
-                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{trip.loaded_miles ?? "—"}</td>
                     <td className="px-4 py-3">
                       <CleanTripBadge
