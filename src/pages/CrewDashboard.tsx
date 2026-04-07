@@ -439,6 +439,24 @@ export default function CrewDashboard() {
   return (
     <CrewLayout>
       <div className="p-4 space-y-4">
+        {/* Emergency Banner */}
+        {emergency.isActive && (
+          <EmergencyBanner
+            patientName={runs.find(r => r.tripId === emergency.originalTripId)?.patientName ?? "Unknown"}
+            truckName={truckName}
+            upgradeAt={emergency.upgradeAt!}
+            canUndo={emergency.canUndo}
+            secondsRemaining={emergency.secondsRemaining}
+            loading={emergency.loading}
+            onUndo={async () => {
+              const origId = await emergency.undoUpgrade();
+              if (origId) navigate(`/pcr?tripId=${origId}`);
+              return origId;
+            }}
+            onResolve={() => setResolveOpen(true)}
+          />
+        )}
+
       {/* Truck & Partner Header */}
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-center gap-3">
