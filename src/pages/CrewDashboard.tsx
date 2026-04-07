@@ -169,6 +169,9 @@ export default function CrewDashboard() {
     const crewId = crewRow.id;
     const crewCompanyId = crewRow.company_id;
 
+    // Set activeCompanyId for emergency upgrade hook
+    if (crewCompanyId) setActiveCompanyId(crewCompanyId);
+
     const { data: slots } = await supabase
       .from("truck_run_slots")
       .select("id, leg_id, slot_order")
