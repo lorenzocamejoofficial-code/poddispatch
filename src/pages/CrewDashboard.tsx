@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Truck, Users, Loader2, Clock, AlertTriangle, Ban, XCircle } from "lucide-react";
+import { Truck, Users, Loader2, Clock, AlertTriangle, Ban, XCircle, Siren } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { CrewLayout } from "@/components/crew/CrewLayout";
@@ -17,6 +17,7 @@ import { EmergencyUpgradeDialog } from "@/components/emergency/EmergencyUpgradeD
 import { EmergencyBanner } from "@/components/emergency/EmergencyBanner";
 import { EmergencyResolutionModal } from "@/components/emergency/EmergencyResolutionModal";
 import { useEmergencyUpgrade } from "@/hooks/useEmergencyUpgrade";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 const TRANSPORT_LABELS: Record<string, string> = {
   dialysis: "Dialysis Transport",
@@ -139,10 +140,11 @@ export default function CrewDashboard() {
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const { partnerName: crewPartnerName, loading: crewPartnerLoading } = useCrewPartner();
   const [incidentRun, setIncidentRun] = useState<RunCard | null>(null);
-  const [emergencyTarget, setEmergencyTarget] = useState<RunCard | null>(null);
   const [resolveOpen, setResolveOpen] = useState(false);
   const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
   const emergency = useEmergencyUpgrade(activeCompanyId);
+  const [showRunSelector, setShowRunSelector] = useState(false);
+  const [selectedEmergencyRun, setSelectedEmergencyRun] = useState<RunCard | null>(null);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
@@ -460,6 +462,51 @@ export default function CrewDashboard() {
           />
         )}
 
+        {/* Upgrade to Emergency — permanent prominent button */}
+        {(() => {
+          const eligibleRuns = runs.filter(r =>
+            r.tripId &&
+            r.pcrType !== "emergency" &&
+            !["completed", "cancelled", "no_show", "ready_for_billing", "pending_cancellation", "voided", "emergency_upgraded"].includes(r.tripStatus)
+          );
+          const disabled = eligibleRuns.length === 0;
+          const handleClick = () => {
+            if (disabled) return;
+            if (eligibleRuns.length === 1) {
+              setSelectedEmergencyRun(eligibleRuns[0]);
+            } else {
+              setShowRunSelector(true);
+            }
+          };
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full h-12 text-sm font-semibold gap-2 border-destructive/40 text-destructive hover:bg-destructive/5",
+                        disabled && "opacity-50 cursor-not-allowed"
+                      )}
+                      disabled={disabled}
+                      onClick={handleClick}
+                    >
+                      <Siren className="h-4.5 w-4.5" />
+                      Upgrade to Emergency
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                {disabled && (
+                  <TooltipContent>
+                    <p>No active runs today</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          );
+        })()}
+
       {/* Truck & Partner Header */}
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-center gap-3">
@@ -721,32 +768,7 @@ export default function CrewDashboard() {
                         </>
                       )}
 
-                      {/* Emergency Upgrade button */}
-                      {!isTerminal && run.tripId && run.pcrType !== "emergency" && (
-                        <EmergencyUpgradeDialog
-                          open={emergencyTarget?.slotId === run.slotId}
-                          onOpenChange={(o) => { if (!o) setEmergencyTarget(null); }}
-                          patientName={run.patientName}
-                          truckName={truckName}
-                          loading={emergency.loading}
-                          onConfirm={async () => {
-                            const emergId = await emergency.triggerUpgrade(run.tripId!, run.patientName, truckName, run.truckId);
-                            setEmergencyTarget(null);
-                            if (emergId) navigate(`/pcr?tripId=${emergId}`);
-                          }}
-                        />
-                      )}
-                      {!isTerminal && run.tripId && run.pcrType !== "emergency" && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-12 w-12 border-destructive/50 text-destructive hover:bg-destructive/5"
-                          onClick={() => setEmergencyTarget(run)}
-                          title="Upgrade to Emergency"
-                        >
-                          <AlertTriangle className="h-4 w-4" />
-                        </Button>
-                      )}
+                      {/* Emergency Upgrade button removed — now at dashboard level */}
 
                       {/* Report Incident button */}
                       {!isTerminal && run.tripId && (
@@ -814,6 +836,64 @@ export default function CrewDashboard() {
         defaultTripId={incidentRun?.tripId}
         defaultPatientName={incidentRun?.patientName}
         defaultCompanyId={incidentRun?.companyId}
+      />
+
+      {/* Run Selector for Emergency Upgrade */}
+      <Dialog open={showRunSelector} onOpenChange={setShowRunSelector}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Siren className="h-5 w-5" />
+              Which run is being upgraded?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {runs
+              .filter(r =>
+                r.tripId &&
+                r.pcrType !== "emergency" &&
+                !["completed", "cancelled", "no_show", "ready_for_billing", "pending_cancellation", "voided", "emergency_upgraded"].includes(r.tripStatus)
+              )
+              .map(run => (
+                <button
+                  key={run.slotId}
+                  className="w-full rounded-lg border border-border bg-card p-3 text-left hover:border-destructive/50 hover:bg-destructive/5 transition-colors"
+                  onClick={() => {
+                    setShowRunSelector(false);
+                    setSelectedEmergencyRun(run);
+                  }}
+                >
+                  <p className="text-sm font-semibold text-foreground">{run.patientName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {run.pickupTime ? `@ ${run.pickupTime.substring(0, 5)}` : "No time"} · {run.pickupLocation} → {run.destinationLocation}
+                  </p>
+                </button>
+              ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRunSelector(false)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Emergency Upgrade Confirmation Dialog */}
+      <EmergencyUpgradeDialog
+        open={!!selectedEmergencyRun}
+        onOpenChange={(o) => { if (!o) setSelectedEmergencyRun(null); }}
+        patientName={selectedEmergencyRun?.patientName ?? ""}
+        truckName={truckName}
+        loading={emergency.loading}
+        onConfirm={async () => {
+          if (!selectedEmergencyRun?.tripId) return;
+          const emergId = await emergency.triggerUpgrade(
+            selectedEmergencyRun.tripId,
+            selectedEmergencyRun.patientName,
+            truckName,
+            selectedEmergencyRun.truckId
+          );
+          setSelectedEmergencyRun(null);
+          if (emergId) navigate(`/pcr?tripId=${emergId}`);
+        }}
       />
 
       {/* Emergency Resolution Modal */}
