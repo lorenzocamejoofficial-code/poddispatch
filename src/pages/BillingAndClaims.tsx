@@ -537,6 +537,7 @@ export default function BillingAndClaims() {
       .from("trip_records" as any)
       .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_number), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions, icd10_codes, weight_lbs")
       .in("status", ["ready_for_billing", "completed"] as any)
+      .not("status", "eq", "cancelled")
       .eq("pcr_status", "submitted");
 
     if (!trips?.length) { toast.info("No new trips ready for billing"); return; }
