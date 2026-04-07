@@ -99,6 +99,11 @@ export default function Scheduling() {
     refresh, autoGenerateLegs, optimisticUpdateLegs,
   } = useSchedulingStore();
 
+  // Dispatcher cancel dialog state
+  const [dispatcherCancelData, setDispatcherCancelData] = useState<{
+    legId: string; patientName: string; truckId: string; truckName: string; companyId: string | null; tripId: string | null;
+  } | null>(null);
+
   const [generating, setGenerating] = useState(false);
   const [weekView, setWeekView] = useState(true);
   const [weekSummaries, setWeekSummaries] = useState<DaySummary[]>([]);
