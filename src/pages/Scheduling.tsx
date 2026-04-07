@@ -1549,6 +1549,20 @@ export default function Scheduling() {
           </AlertDialogContent>
         </AlertDialog>
 
+        {/* Dispatcher Cancel Dialog */}
+        <DispatcherCancelDialog
+          open={!!dispatcherCancelData}
+          onOpenChange={(o) => { if (!o) setDispatcherCancelData(null); }}
+          legId={dispatcherCancelData?.legId ?? ""}
+          patientName={dispatcherCancelData?.patientName ?? ""}
+          truckId={dispatcherCancelData?.truckId ?? ""}
+          truckName={dispatcherCancelData?.truckName ?? ""}
+          selectedDate={selectedDate}
+          companyId={dispatcherCancelData?.companyId ?? null}
+          tripId={dispatcherCancelData?.tripId ?? null}
+          onCancelled={() => { setDispatcherCancelData(null); refresh(); }}
+        />
+
         {/* Notify Crew Modal */}
         <NotifyCrewModal
           open={notifyModalOpen}
