@@ -197,6 +197,7 @@ interface TruckBuilderProps {
   activeTokens?: ActiveShareToken[];
   operationalAlerts?: OperationalAlert[];
   onLogChange?: (params: { change_type: string; change_summary: string; old_value?: string | null; new_value?: string | null; truck_id?: string | null; leg_id?: string | null }) => Promise<void>;
+  onDispatcherCancel?: (legId: string) => void;
 }
 
 interface TruckRiskData {
@@ -215,7 +216,7 @@ interface HoldTimerData {
   slot_id: string | null;
 }
 
-export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException, onDownCountChange, activeTokens = [], operationalAlerts = [], onLogChange }: TruckBuilderProps) {
+export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException, onDownCountChange, activeTokens = [], operationalAlerts = [], onLogChange, onDispatcherCancel }: TruckBuilderProps) {
   const { addingLeg, setAddingLeg } = useSchedulingStore();
   const [availability, setAvailability] = useState<AvailabilityRecord[]>([]);
   const [truckRisks, setTruckRisks] = useState<Map<string, TruckRiskData>>(new Map());
@@ -604,7 +605,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
               onAssignLeg={assignLeg}
               onRemoveLeg={removeLeg}
               onEditException={onEditException}
-              onCancelLeg={cancelLeg}
+              onCancelLeg={onDispatcherCancel ?? cancelLeg}
               onRestoreLeg={restoreLeg}
               truckAlertCount={truckAlerts.length}
               legAlertIds={truckLegAlertIds}
