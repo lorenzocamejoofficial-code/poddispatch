@@ -4,11 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Truck, Users, Loader2, Clock, AlertTriangle, Ban, XCircle, Siren } from "lucide-react";
+import { Truck, Users, Loader2, Clock, AlertTriangle, Ban, XCircle, Siren, FileWarning } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { cn } from "@/lib/utils";
+import { CancellationDocForm } from "@/components/crew/CancellationDocForm";
 import { deriveRunStatus } from "@/lib/trip-status";
 import { TimeTapRow } from "@/components/dispatch/TimeTapRow";
 import { useCrewPartner } from "@/hooks/useCrewPartner";
@@ -145,6 +146,8 @@ export default function CrewDashboard() {
   const emergency = useEmergencyUpgrade(activeCompanyId);
   const [showRunSelector, setShowRunSelector] = useState(false);
   const [selectedEmergencyRun, setSelectedEmergencyRun] = useState<RunCard | null>(null);
+  const [cancelDocTarget, setCancelDocTarget] = useState<RunCard | null>(null);
+  const [crewProfile, setCrewProfile] = useState<{ full_name: string; cert_level: string } | null>(null);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
@@ -267,6 +270,13 @@ export default function CrewDashboard() {
         id: n.id, message: n.message, notification_type: n.notification_type ?? "general",
         created_at: n.created_at, acknowledged: n.acknowledged,
       })));
+    }
+
+    // Fetch crew profile for cancellation doc form
+    if (profileId) {
+      supabase.from("profiles").select("full_name, cert_level").eq("id", profileId).maybeSingle().then(({ data }) => {
+        if (data) setCrewProfile({ full_name: data.full_name, cert_level: data.cert_level });
+      });
     }
 
     setLoading(false);
