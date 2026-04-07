@@ -309,7 +309,7 @@ export default function CompanySignup() {
             <div className="space-y-3">
               <Label>Primary Payer Mix *</Label>
               <p className="text-xs text-muted-foreground">
-                Approximate percentage of revenue by payer type. Must total 100%.
+                Estimate the percentage of your patients covered by each payer type. This helps us understand your business and does not affect billing calculations. If you are unsure, enter your best estimate — you can update this later.
                 {payerTotal !== 100 && (
                   <span className="text-destructive font-medium"> Currently {payerTotal}%</span>
                 )}
@@ -344,10 +344,19 @@ export default function CompanySignup() {
                   <SelectTrigger><SelectValue placeholder="Select current software" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="angeltrack">AngelTrack</SelectItem>
-                    <SelectItem value="zoll">Zoll</SelectItem>
+                    <SelectItem value="billing_company_only">Billing Company Only</SelectItem>
+                    <SelectItem value="emscharts">emsCharts</SelectItem>
+                    <SelectItem value="eso">ESO</SelectItem>
+                    <SelectItem value="imagetrend">ImageTrend</SelectItem>
                     <SelectItem value="manual_spreadsheet">Manual / Spreadsheet</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="nemsis">NEMSIS Compatible System</SelectItem>
+                    <SelectItem value="nuesoft">Nuesoft</SelectItem>
+                    <SelectItem value="sansio">Sansio</SelectItem>
+                    <SelectItem value="traumasoft">Traumasoft</SelectItem>
+                    <SelectItem value="zoll">Zoll</SelectItem>
+                    <SelectItem value="zoll_rescue">Zoll Rescue</SelectItem>
                     <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
