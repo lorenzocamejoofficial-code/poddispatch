@@ -1534,3 +1534,5 @@ export default function Scheduling() {
   );
 }
 
+  // Dispatcher cancel dialog state
+  const [dispatchCancelLeg, setDispatchCancelLeg] = useState<{ legId: string; patientName: string; truckId: string; truckName: string; companyId: string | null; tripId?: string | null } | null>(null);
