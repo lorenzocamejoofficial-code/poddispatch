@@ -625,6 +625,12 @@ export default function BillingAndClaims() {
     // Also refresh existing needs_review claims
     await refreshExistingClaims();
 
+    // Summary toast
+    const parts: string[] = [];
+    if (cleanClaims.length > 0) parts.push(`${cleanClaims.length} claim(s) created and ready to bill`);
+    if (reviewClaims.length > 0) parts.push(`${reviewClaims.length} claim(s) created with review flags`);
+    if (blockedTrips.length > 0) parts.push(`${blockedTrips.length} trip(s) blocked — documentation incomplete`);
+
     // Void claims for cancelled trips
     const { data: cancelledTrips } = await supabase
       .from("trip_records" as any)
@@ -647,12 +653,6 @@ export default function BillingAndClaims() {
         parts.push(`${claimsToVoid.length} claim(s) voided for cancelled trips`);
       }
     }
-
-    // Summary toast
-    const parts: string[] = [];
-    if (cleanClaims.length > 0) parts.push(`${cleanClaims.length} claim(s) created and ready to bill`);
-    if (reviewClaims.length > 0) parts.push(`${reviewClaims.length} claim(s) created with review flags`);
-    if (blockedTrips.length > 0) parts.push(`${blockedTrips.length} trip(s) blocked — documentation incomplete`);
 
     if (blockedTrips.length > 0) {
       const blockedDetail = blockedTrips
