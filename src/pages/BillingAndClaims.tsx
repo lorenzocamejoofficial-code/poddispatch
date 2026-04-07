@@ -564,7 +564,7 @@ export default function BillingAndClaims() {
 
       // Sync emergency event data to claims
       if (t.emergency_upgrade_at) {
-        claim.has_emergency_event = true;
+        (claim as any).has_emergency_event = true;
         const pickupTime = t.scheduled_pickup_time ?? t.dispatch_time ?? "unknown";
         const upgradeAt = new Date(t.emergency_upgrade_at).toLocaleString();
         const resolution = t.emergency_upgrade_resolution ?? "";
@@ -578,8 +578,8 @@ export default function BillingAndClaims() {
           resType = resolution || "pending";
         }
         const resolvedAt = t.emergency_upgrade_resolved_at ? new Date(t.emergency_upgrade_resolved_at).toLocaleString() : resTime;
-        claim.emergency_event_summary = `Non-emergency transport started at ${pickupTime}. Emergency upgrade triggered at ${upgradeAt}. Resolution — ${resType}${resolvedAt ? ` — at ${resolvedAt}` : ""}.`;
-        claim.emergency_billing_recommendation = t.emergency_billing_recommendation ?? null;
+        (claim as any).emergency_event_summary = `Non-emergency transport started at ${pickupTime}. Emergency upgrade triggered at ${upgradeAt}. Resolution — ${resType}${resolvedAt ? ` — at ${resolvedAt}` : ""}.`;
+        (claim as any).emergency_billing_recommendation = t.emergency_billing_recommendation ?? null;
       }
 
       // Emergency PCR with transfer_of_care or patient_stabilized → needs_review

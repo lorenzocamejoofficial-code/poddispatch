@@ -1,6 +1,6 @@
 import { AlertTriangle, Clock, Timer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { memo, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 interface Alert {
   id: string;
@@ -43,7 +43,7 @@ export function AlertsPanel({ alerts, onDismiss }: AlertsPanelProps) {
       {alerts.map((alert) => {
         const isHoldTimer = !!alert.hold_timer_started_at;
         const isActiveEmergency = alert.message.includes("EMERGENCY UPGRADE") && !alert.message.includes("EMERGENCY RESOLVED") && !alert.message.includes("FALSE TRIGGER VOIDED");
-        const isResolvedEmergency = alert.message.includes("EMERGENCY RESOLVED") || alert.message.includes("FALSE TRIGGER VOIDED");
+        const _isResolvedEmergency = alert.message.includes("EMERGENCY RESOLVED") || alert.message.includes("FALSE TRIGGER VOIDED");
         const isDismissBlocked = isActiveEmergency;
 
         return (
