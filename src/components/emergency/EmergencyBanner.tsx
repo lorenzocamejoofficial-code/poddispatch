@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertTriangle, Loader2, Undo2, Clock } from "lucide-react";
+import { AlertTriangle, Loader2, Undo2 } from "lucide-react";
 
 interface EmergencyBannerProps {
   patientName: string;

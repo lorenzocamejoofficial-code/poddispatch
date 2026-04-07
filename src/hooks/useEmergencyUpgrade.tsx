@@ -17,7 +17,7 @@ interface EmergencyState {
 const UNDO_WINDOW_SECONDS = 120;
 
 export function useEmergencyUpgrade(companyId: string | null) {
-  const { user, profileId } = useAuth();
+  const { user } = useAuth();
   const [state, setState] = useState<EmergencyState>({
     isActive: false,
     originalTripId: null,

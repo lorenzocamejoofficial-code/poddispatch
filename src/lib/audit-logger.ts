@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-type AuditAction = "view" | "edit" | "delete" | "export" | "duplicate_override" | "incident_report" | "vehicle_inspection" | "edi_837p_export";
+type AuditAction = "view" | "edit" | "delete" | "export" | "duplicate_override" | "incident_report" | "vehicle_inspection" | "edi_837p_export" | "emergency_billing_accept" | "emergency_billing_override" | "emergency_billing_escalate" | "emergency_upgrade" | "emergency_void" | "emergency_resolve";
 
 export async function logAuditEvent({
   action,
