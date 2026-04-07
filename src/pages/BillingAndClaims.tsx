@@ -625,6 +625,29 @@ export default function BillingAndClaims() {
     // Also refresh existing needs_review claims
     await refreshExistingClaims();
 
+    // Void claims for cancelled trips
+    const { data: cancelledTrips } = await supabase
+      .from("trip_records" as any)
+      .select("id")
+      .eq("status", "cancelled");
+    if (cancelledTrips?.length) {
+      const cancelledIds = (cancelledTrips as any[]).map((t: any) => t.id);
+      const { data: claimsToVoid } = await supabase
+        .from("claim_records" as any)
+        .select("id")
+        .in("trip_id", cancelledIds)
+        .not("status", "eq", "voided");
+      if (claimsToVoid?.length) {
+        for (const c of claimsToVoid as any[]) {
+          await supabase.from("claim_records" as any).update({
+            status: "voided",
+            notes: "Trip was cancelled — claim voided automatically",
+          } as any).eq("id", c.id);
+        }
+        parts.push(`${claimsToVoid.length} claim(s) voided for cancelled trips`);
+      }
+    }
+
     // Summary toast
     const parts: string[] = [];
     if (cleanClaims.length > 0) parts.push(`${cleanClaims.length} claim(s) created and ready to bill`);
