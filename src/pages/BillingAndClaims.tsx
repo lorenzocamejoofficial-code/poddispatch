@@ -72,6 +72,7 @@ import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 import { SecondaryClaimPanel } from "@/components/billing/SecondaryClaimPanel";
 import { RevenueCycleTab } from "@/components/billing/RevenueCycleTab";
+import { EmergencyEventPanel } from "@/components/billing/EmergencyEventPanel";
 
 type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction" | "needs_review";
 
@@ -550,7 +551,48 @@ export default function BillingAndClaims() {
     const blockedTrips: { id: string; issues: string[] }[] = [];
 
     for (const t of newTrips) {
+      // Emergency event: skip claim creation for emergency PCRs with no_emergency/accidental resolution
+      if (t.is_emergency_pcr) {
+        const resolution = t.emergency_upgrade_resolution ?? "";
+        const resType = (() => { try { return JSON.parse(resolution)?.type; } catch { return resolution; } })();
+        if (resType === "no_emergency" || resType === "accidental_after_window") {
+          continue; // No separate claim for these
+        }
+      }
+
       const { gateResult, claim } = buildClaimFromTrip(t);
+
+      // Sync emergency event data to claims
+      if (t.emergency_upgrade_at) {
+        (claim as any).has_emergency_event = true;
+        const pickupTime = t.scheduled_pickup_time ?? t.dispatch_time ?? "unknown";
+        const upgradeAt = new Date(t.emergency_upgrade_at).toLocaleString();
+        const resolution = t.emergency_upgrade_resolution ?? "";
+        let resType = "pending";
+        let resTime = "";
+        try {
+          const parsed = JSON.parse(resolution);
+          resType = parsed.type?.replace(/_/g, " ") ?? "pending";
+          resTime = parsed.time ? new Date(parsed.time).toLocaleString() : "";
+        } catch {
+          resType = resolution || "pending";
+        }
+        const resolvedAt = t.emergency_upgrade_resolved_at ? new Date(t.emergency_upgrade_resolved_at).toLocaleString() : resTime;
+        (claim as any).emergency_event_summary = `Non-emergency transport started at ${pickupTime}. Emergency upgrade triggered at ${upgradeAt}. Resolution — ${resType}${resolvedAt ? ` — at ${resolvedAt}` : ""}.`;
+        (claim as any).emergency_billing_recommendation = t.emergency_billing_recommendation ?? null;
+      }
+
+      // Emergency PCR with transfer_of_care or patient_stabilized → needs_review
+      if (t.is_emergency_pcr && t.emergency_upgrade_at) {
+        const resolution = t.emergency_upgrade_resolution ?? "";
+        const resType = (() => { try { return JSON.parse(resolution)?.type; } catch { return resolution; } })();
+        if (resType === "transfer_of_care" || resType === "patient_stabilized") {
+          claim.status = "needs_review";
+          claim.notes = `Emergency event requires biller review before submission — resolution: ${resType.replace(/_/g, " ")}`;
+          reviewClaims.push(claim);
+          continue;
+        }
+      }
 
       if (gateResult.level === "blocked") {
         blockedTrips.push({ id: t.id, issues: gateResult.issues });
@@ -1087,6 +1129,10 @@ export default function BillingAndClaims() {
             <DialogDescription>{selectedClaim?.run_date} · {selectedClaim?.payer_type}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* Emergency Event Panel */}
+            {selectedClaim && (selectedClaim as any).has_emergency_event && (
+              <EmergencyEventPanel claim={selectedClaim} onUpdate={fetchData} />
+            )}
             {/* HCPCS + origin/dest info */}
             {selectedClaim && (
               <div className="rounded-md border bg-muted/30 p-3 space-y-2">

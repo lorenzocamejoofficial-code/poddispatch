@@ -425,8 +425,7 @@ export default function PCRPage() {
   const [truckName, setTruckName] = useState("");
   const [crewMembers, setCrewMembers] = useState<{ m1: CrewMember | null; m2: CrewMember | null; m3: CrewMember | null }>({ m1: null, m2: null, m3: null });
   const [submitting, setSubmitting] = useState(false);
-  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
-  const [upgrading, setUpgrading] = useState(false);
+  // showUpgradeDialog and upgrading removed — emergency upgrade now handled via crew dashboard
   const [incidentOpen, setIncidentOpen] = useState(false);
   const [assignedCrewCount, setAssignedCrewCount] = useState(0);
 
@@ -645,24 +644,7 @@ export default function PCRPage() {
     }
   };
 
-  const handleEmergencyUpgrade = async () => {
-    setUpgrading(true);
-    try {
-      const note = `EMERGENCY UPGRADE — ${new Date().toISOString()}`;
-      const existingNotes = trip.necessity_notes || "";
-      await supabase.from("trip_records").update({
-        pcr_type: "emergency",
-        necessity_notes: existingNotes ? `${existingNotes}\n${note}` : note,
-        updated_at: new Date().toISOString(),
-      }).eq("id", trip.id);
-      toast.success("PCR upgraded to Emergency");
-      setShowUpgradeDialog(false);
-      refetch();
-    } catch {
-      toast.error("Failed to upgrade PCR");
-    }
-    setUpgrading(false);
-  };
+  // handleEmergencyUpgrade removed — now handled via crew dashboard useEmergencyUpgrade hook
 
   // Only require completion of sections marked "required" by rules
   const getMissingItems = (): string[] => {

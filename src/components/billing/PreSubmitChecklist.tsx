@@ -29,7 +29,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
     setLoading(true);
 
     (async () => {
-      const [{ data: trip }, { data: patient }] = await Promise.all([
+      const [{ data: trip }, { data: patient }, { data: claimRow }] = await Promise.all([
         supabase
           .from("trip_records" as any)
           .select("*")
@@ -38,6 +38,11 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         patientId
           ? supabase.from("patients").select("*").eq("id", patientId).maybeSingle()
           : Promise.resolve({ data: null }),
+        supabase
+          .from("claim_records" as any)
+          .select("has_emergency_event, emergency_billing_reviewed_at")
+          .eq("trip_id", tripId)
+          .maybeSingle(),
       ]);
 
       if (!trip) {
@@ -106,6 +111,18 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           detail: !t.member_id ? "Patient member ID is missing — update the patient record before submitting" : undefined,
         },
       ];
+
+      // Emergency billing decision check — only applies when claim has emergency event
+      const claim = claimRow as any;
+      if (claim?.has_emergency_event) {
+        checks.push({
+          label: "Emergency billing decision required",
+          passed: !!claim.emergency_billing_reviewed_at,
+          detail: !claim.emergency_billing_reviewed_at
+            ? "This claim involves an emergency event — open the claim detail to review and accept the billing recommendation before submitting"
+            : undefined,
+        });
+      }
 
       setItems(checks);
       setLoading(false);

@@ -1,6 +1,6 @@
 import { AlertTriangle, Clock, Timer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { memo, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 interface Alert {
   id: string;
@@ -42,11 +42,17 @@ export function AlertsPanel({ alerts, onDismiss }: AlertsPanelProps) {
     <div className="space-y-2">
       {alerts.map((alert) => {
         const isHoldTimer = !!alert.hold_timer_started_at;
+        const isActiveEmergency = alert.message.includes("EMERGENCY UPGRADE") && !alert.message.includes("EMERGENCY RESOLVED") && !alert.message.includes("FALSE TRIGGER VOIDED");
+        const _isResolvedEmergency = alert.message.includes("EMERGENCY RESOLVED") || alert.message.includes("FALSE TRIGGER VOIDED");
+        const isDismissBlocked = isActiveEmergency;
+
         return (
           <div
             key={alert.id}
             className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${
-              alert.severity === "red"
+              isActiveEmergency
+                ? "border-2 border-destructive bg-destructive/10 ring-1 ring-destructive/20"
+                : alert.severity === "red"
                 ? "border-[hsl(var(--status-red))]/30 bg-[hsl(var(--status-red))]/5"
                 : "border-[hsl(var(--status-yellow))]/30 bg-[hsl(var(--status-yellow-bg))]"
             }`}
@@ -58,26 +64,36 @@ export function AlertsPanel({ alerts, onDismiss }: AlertsPanelProps) {
             ) : (
               <AlertTriangle
                 className={`mt-0.5 h-4 w-4 shrink-0 ${
+                  isActiveEmergency ? "text-destructive animate-pulse" :
                   alert.severity === "red" ? "text-[hsl(var(--status-red))]" : "text-[hsl(var(--status-yellow))]"
                 }`}
               />
             )}
-            <span className="flex-1 text-foreground">
-              {alert.message}
-              {isHoldTimer && alert.hold_timer_started_at && (
-                <span className="ml-2 text-muted-foreground">
-                  (<LiveElapsed startedAt={alert.hold_timer_started_at} /> elapsed)
-                </span>
+            <div className="flex-1 min-w-0">
+              <span className="text-foreground">
+                {alert.message}
+                {isHoldTimer && alert.hold_timer_started_at && (
+                  <span className="ml-2 text-muted-foreground">
+                    (<LiveElapsed startedAt={alert.hold_timer_started_at} /> elapsed)
+                  </span>
+                )}
+              </span>
+              {isDismissBlocked && (
+                <p className="text-[10px] font-semibold text-destructive mt-1">Waiting for crew resolution</p>
               )}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 shrink-0"
-              onClick={() => onDismiss(alert.id)}
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
+            </div>
+            {isDismissBlocked ? (
+              <span className="shrink-0 text-[10px] font-medium text-destructive/60 px-1">🔒</span>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0"
+                onClick={() => onDismiss(alert.id)}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         );
       })}
