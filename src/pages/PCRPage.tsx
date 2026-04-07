@@ -25,6 +25,7 @@ import { CrewSignaturesSection, areAllCrewSigned } from "@/components/pcr/CrewSi
 import { DocumentAttachments } from "@/components/documents/DocumentAttachments";
 import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
+import { CancellationDocForm } from "@/components/crew/CancellationDocForm";
 import { checkDuplicateTrip } from "@/lib/duplicate-trip-check";
 import { evaluatePCRFieldCompletion } from "@/lib/pcr-field-requirements";
 import { SectionCompletionBadge } from "@/components/pcr/PCRFieldIndicator";
@@ -428,6 +429,7 @@ export default function PCRPage() {
   // showUpgradeDialog and upgrading removed — emergency upgrade now handled via crew dashboard
   const [incidentOpen, setIncidentOpen] = useState(false);
   const [assignedCrewCount, setAssignedCrewCount] = useState(0);
+  const [cancelDocOpen, setCancelDocOpen] = useState(false);
 
   // Central section rules driven by pcr_type
   const sectionRules = usePCRSectionRules(trip?.pcr_type || trip?.trip_type);
@@ -496,18 +498,36 @@ export default function PCRPage() {
     );
   }
 
-  // Check if the run is cancelled — block PCR editing
+  // Check if the run is cancelled — show documentation prompt if PCR was started
   const isTripCancelled = ["cancelled", "pending_cancellation"].includes(trip.status);
+  const needsCancelDoc = isTripCancelled && (trip as any).pcr_status === "cancelled_with_pcr";
+  
   if (isTripCancelled) {
     return (
       <CrewLayout>
         <div className="p-4 max-w-2xl mx-auto space-y-4">
+          {needsCancelDoc && (
+            <div className="rounded-lg border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+                <h2 className="text-sm font-bold text-amber-800 dark:text-amber-300">This run has been cancelled — cancellation documentation is required</h2>
+              </div>
+              <Button
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={() => setCancelDocOpen(true)}
+              >
+                Complete Documentation
+              </Button>
+            </div>
+          )}
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3">
             <Ban className="h-10 w-10 text-destructive mx-auto" />
             <h2 className="text-lg font-bold text-foreground">Run Cancelled</h2>
             <p className="text-sm text-muted-foreground">
               {trip.status === "pending_cancellation"
                 ? "This run has a pending cancellation request. PCR editing is locked until dispatch resolves it."
+                : (trip as any).pcr_status === "cancelled_documented"
+                ? "This run has been cancelled and documentation has been completed."
                 : "This run has been cancelled. The PCR can no longer be edited."}
             </p>
             {(trip as any).cancellation_reason && (
@@ -517,6 +537,17 @@ export default function PCRPage() {
           <Button variant="outline" className="w-full" onClick={() => setSearchParams({})}>
             ← Back to Run List
           </Button>
+
+          <CancellationDocForm
+            open={cancelDocOpen}
+            onOpenChange={setCancelDocOpen}
+            tripId={trip.id}
+            patientName={trip.patient ? `${trip.patient.first_name} ${trip.patient.last_name}` : "Unknown"}
+            cancelledAt={(trip as any).cancelled_at ?? null}
+            crewMemberName={crewMembers.m1?.name ?? crewMembers.m2?.name ?? ""}
+            crewMemberCert={crewMembers.m1?.cert ?? crewMembers.m2?.cert ?? ""}
+            onComplete={() => { setCancelDocOpen(false); refetch(); }}
+          />
         </div>
       </CrewLayout>
     );

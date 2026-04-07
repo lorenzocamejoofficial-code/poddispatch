@@ -524,9 +524,21 @@ export default function TripsAndClinical() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{trip.truck_name}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${STATUS_COLORS[trip.status]}`}>
-                        {STATUS_LABELS[trip.status]}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${STATUS_COLORS[trip.status]}`}>
+                          {STATUS_LABELS[trip.status]}
+                        </span>
+                        {trip.status === "cancelled" && (trip as any).pcr_status === "cancelled_with_pcr" && (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700">
+                            Documentation Required
+                          </span>
+                        )}
+                        {trip.status === "cancelled" && (trip as any).pcr_status === "cancelled_documented" && (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-muted text-muted-foreground border border-border">
+                            Cancelled — Documented
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{trip.loaded_miles ?? "—"}</td>
                     <td className="px-4 py-3">

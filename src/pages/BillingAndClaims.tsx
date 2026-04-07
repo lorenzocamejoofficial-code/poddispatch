@@ -537,6 +537,7 @@ export default function BillingAndClaims() {
       .from("trip_records" as any)
       .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_number), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions, icd10_codes, weight_lbs")
       .in("status", ["ready_for_billing", "completed"] as any)
+      .not("status", "eq", "cancelled")
       .eq("pcr_status", "submitted");
 
     if (!trips?.length) { toast.info("No new trips ready for billing"); return; }
@@ -629,6 +630,29 @@ export default function BillingAndClaims() {
     if (cleanClaims.length > 0) parts.push(`${cleanClaims.length} claim(s) created and ready to bill`);
     if (reviewClaims.length > 0) parts.push(`${reviewClaims.length} claim(s) created with review flags`);
     if (blockedTrips.length > 0) parts.push(`${blockedTrips.length} trip(s) blocked — documentation incomplete`);
+
+    // Void claims for cancelled trips
+    const { data: cancelledTrips } = await supabase
+      .from("trip_records" as any)
+      .select("id")
+      .eq("status", "cancelled");
+    if (cancelledTrips?.length) {
+      const cancelledIds = (cancelledTrips as any[]).map((t: any) => t.id);
+      const { data: claimsToVoid } = await supabase
+        .from("claim_records" as any)
+        .select("id")
+        .in("trip_id", cancelledIds)
+        .not("status", "eq", "voided");
+      if (claimsToVoid?.length) {
+        for (const c of claimsToVoid as any[]) {
+          await supabase.from("claim_records" as any).update({
+            status: "voided",
+            notes: "Trip was cancelled — claim voided automatically",
+          } as any).eq("id", c.id);
+        }
+        parts.push(`${claimsToVoid.length} claim(s) voided for cancelled trips`);
+      }
+    }
 
     if (blockedTrips.length > 0) {
       const blockedDetail = blockedTrips

@@ -99,6 +99,11 @@ export default function Scheduling() {
     refresh, autoGenerateLegs, optimisticUpdateLegs,
   } = useSchedulingStore();
 
+  // Dispatcher cancel dialog state
+  const [dispatcherCancelData, setDispatcherCancelData] = useState<{
+    legId: string; patientName: string; truckId: string; truckName: string; companyId: string | null; tripId: string | null;
+  } | null>(null);
+
   const [generating, setGenerating] = useState(false);
   const [weekView, setWeekView] = useState(true);
   const [weekSummaries, setWeekSummaries] = useState<DaySummary[]>([]);
@@ -1112,6 +1117,28 @@ export default function Scheduling() {
               activeTokens={activeShareTokens}
               operationalAlerts={operationalAlerts}
               onLogChange={logScheduleChange}
+              onDispatcherCancel={async (legId: string) => {
+                const leg = legs.find(l => l.id === legId);
+                if (!leg) return;
+                const truckId = leg.assigned_truck_id ?? "";
+                const truckName = trucks.find(t => t.id === truckId)?.name ?? "Unknown";
+                const { data: companyId } = await supabase.rpc("get_my_company_id");
+                // Look up existing trip_id for this leg + date
+                const { data: tripRow } = await supabase
+                  .from("trip_records" as any)
+                  .select("id")
+                  .eq("leg_id", legId)
+                  .eq("run_date", selectedDate)
+                  .maybeSingle();
+                setDispatcherCancelData({
+                  legId,
+                  patientName: leg.patient_name,
+                  truckId,
+                  truckName,
+                  companyId,
+                  tripId: (tripRow as any)?.id ?? null,
+                });
+              }}
             />
 
             {/* ── TEMPLATE CONTROLS (bottom of truck builder area) ── */}
@@ -1521,6 +1548,20 @@ export default function Scheduling() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Dispatcher Cancel Dialog */}
+        <DispatcherCancelDialog
+          open={!!dispatcherCancelData}
+          onOpenChange={(o) => { if (!o) setDispatcherCancelData(null); }}
+          legId={dispatcherCancelData?.legId ?? ""}
+          patientName={dispatcherCancelData?.patientName ?? ""}
+          truckId={dispatcherCancelData?.truckId ?? ""}
+          truckName={dispatcherCancelData?.truckName ?? ""}
+          selectedDate={selectedDate}
+          companyId={dispatcherCancelData?.companyId ?? null}
+          tripId={dispatcherCancelData?.tripId ?? null}
+          onCancelled={() => { setDispatcherCancelData(null); refresh(); }}
+        />
 
         {/* Notify Crew Modal */}
         <NotifyCrewModal

@@ -9,6 +9,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { cn } from "@/lib/utils";
+import { CancellationDocForm } from "@/components/crew/CancellationDocForm";
 import { deriveRunStatus } from "@/lib/trip-status";
 import { TimeTapRow } from "@/components/dispatch/TimeTapRow";
 import { useCrewPartner } from "@/hooks/useCrewPartner";
@@ -145,6 +146,8 @@ export default function CrewDashboard() {
   const emergency = useEmergencyUpgrade(activeCompanyId);
   const [showRunSelector, setShowRunSelector] = useState(false);
   const [selectedEmergencyRun, setSelectedEmergencyRun] = useState<RunCard | null>(null);
+  const [cancelDocTarget, setCancelDocTarget] = useState<RunCard | null>(null);
+  const [crewProfile, setCrewProfile] = useState<{ full_name: string; cert_level: string } | null>(null);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
@@ -267,6 +270,13 @@ export default function CrewDashboard() {
         id: n.id, message: n.message, notification_type: n.notification_type ?? "general",
         created_at: n.created_at, acknowledged: n.acknowledged,
       })));
+    }
+
+    // Fetch crew profile for cancellation doc form
+    if (profileId) {
+      supabase.from("profiles").select("full_name, cert_level").eq("id", profileId).maybeSingle().then(({ data }) => {
+        if (data) setCrewProfile({ full_name: data.full_name, cert_level: data.cert_level });
+      });
     }
 
     setLoading(false);
@@ -566,6 +576,37 @@ export default function CrewDashboard() {
             })}
           </div>
         )}
+
+        {/* Post-cancellation documentation prompt */}
+        {(() => {
+          const needsDoc = runs.filter(r =>
+            ["cancelled", "pending_cancellation"].includes(r.tripStatus) &&
+            r.pcrStatus === "cancelled_with_pcr" &&
+            r.tripId
+          );
+          if (needsDoc.length === 0) return null;
+          return (
+            <div className="space-y-2">
+              {needsDoc.map(run => (
+                <div key={run.slotId} className="rounded-lg border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 p-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                      Documentation required for cancelled run — {run.patientName}
+                    </p>
+                    <p className="text-xs text-amber-700/80 dark:text-amber-400/70 mt-0.5">This run was cancelled — complete required documentation.</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white"
+                    onClick={() => setCancelDocTarget(run)}
+                  >
+                    Complete Documentation
+                  </Button>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Runs */}
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -894,6 +935,18 @@ export default function CrewDashboard() {
           setSelectedEmergencyRun(null);
           if (emergId) navigate(`/pcr?tripId=${emergId}`);
         }}
+      />
+
+      {/* Cancellation Documentation Form */}
+      <CancellationDocForm
+        open={!!cancelDocTarget}
+        onOpenChange={(o) => { if (!o) setCancelDocTarget(null); }}
+        tripId={cancelDocTarget?.tripId ?? ""}
+        patientName={cancelDocTarget?.patientName ?? ""}
+        cancelledAt={(cancelDocTarget as any)?.cancelledAt ?? null}
+        crewMemberName={crewProfile?.full_name ?? ""}
+        crewMemberCert={crewProfile?.cert_level ?? ""}
+        onComplete={() => { setCancelDocTarget(null); fetchData(); }}
       />
 
       {/* Emergency Resolution Modal */}
