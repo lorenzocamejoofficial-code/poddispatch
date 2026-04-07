@@ -838,6 +838,64 @@ export default function CrewDashboard() {
         defaultCompanyId={incidentRun?.companyId}
       />
 
+      {/* Run Selector for Emergency Upgrade */}
+      <Dialog open={showRunSelector} onOpenChange={setShowRunSelector}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Siren className="h-5 w-5" />
+              Which run is being upgraded?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {runs
+              .filter(r =>
+                r.tripId &&
+                r.pcrType !== "emergency" &&
+                !["completed", "cancelled", "no_show", "ready_for_billing", "pending_cancellation", "voided", "emergency_upgraded"].includes(r.tripStatus)
+              )
+              .map(run => (
+                <button
+                  key={run.slotId}
+                  className="w-full rounded-lg border border-border bg-card p-3 text-left hover:border-destructive/50 hover:bg-destructive/5 transition-colors"
+                  onClick={() => {
+                    setShowRunSelector(false);
+                    setSelectedEmergencyRun(run);
+                  }}
+                >
+                  <p className="text-sm font-semibold text-foreground">{run.patientName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {run.pickupTime ? `@ ${run.pickupTime.substring(0, 5)}` : "No time"} · {run.pickupLocation} → {run.destinationLocation}
+                  </p>
+                </button>
+              ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRunSelector(false)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Emergency Upgrade Confirmation Dialog */}
+      <EmergencyUpgradeDialog
+        open={!!selectedEmergencyRun}
+        onOpenChange={(o) => { if (!o) setSelectedEmergencyRun(null); }}
+        patientName={selectedEmergencyRun?.patientName ?? ""}
+        truckName={truckName}
+        loading={emergency.loading}
+        onConfirm={async () => {
+          if (!selectedEmergencyRun?.tripId) return;
+          const emergId = await emergency.triggerUpgrade(
+            selectedEmergencyRun.tripId,
+            selectedEmergencyRun.patientName,
+            truckName,
+            selectedEmergencyRun.truckId
+          );
+          setSelectedEmergencyRun(null);
+          if (emergId) navigate(`/pcr?tripId=${emergId}`);
+        }}
+      />
+
       {/* Emergency Resolution Modal */}
       <EmergencyResolutionModal
         open={resolveOpen}
