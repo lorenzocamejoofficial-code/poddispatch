@@ -812,6 +812,19 @@ export default function CrewDashboard() {
         defaultPatientName={incidentRun?.patientName}
         defaultCompanyId={incidentRun?.companyId}
       />
+
+      {/* Emergency Resolution Modal */}
+      <EmergencyResolutionModal
+        open={resolveOpen}
+        onOpenChange={setResolveOpen}
+        canUndo={emergency.canUndo}
+        loading={emergency.loading}
+        onResolve={async (type, details) => {
+          const resultId = await emergency.resolveEmergency(type, details);
+          if (resultId) navigate(`/pcr?tripId=${resultId}`);
+          return resultId;
+        }}
+      />
     </CrewLayout>
   );
 }

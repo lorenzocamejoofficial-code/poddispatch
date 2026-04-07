@@ -822,20 +822,7 @@ export default function PCRPage() {
           )}
         </div>
 
-        {/* Emergency Upgrade — compact right-aligned button */}
-        {!isReadOnly && sectionRules.type !== "emergency" && (
-          <div className="flex justify-end mb-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs border-destructive/40 text-destructive hover:bg-destructive/5"
-              onClick={() => setShowUpgradeDialog(true)}
-            >
-              <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
-              Emergency Upgrade
-            </Button>
-          </div>
-        )}
+        {/* Emergency Upgrade removed — now on crew dashboard only */}
 
         <div className="space-y-3">
           {cards.map((card) => {
@@ -958,27 +945,7 @@ export default function PCRPage() {
           </div>
         )}
 
-        {/* Emergency Upgrade Dialog */}
-        <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-destructive" />
-                Upgrade to Emergency
-              </DialogTitle>
-              <DialogDescription>
-                This will upgrade the PCR to Emergency type, unlocking all clinical sections. This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setShowUpgradeDialog(false)}>Cancel</Button>
-              <Button variant="destructive" onClick={handleEmergencyUpgrade} disabled={upgrading}>
-                {upgrading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Confirm Upgrade
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* Emergency Upgrade Dialog removed — now handled via crew dashboard */}
 
         {/* Incident Report Dialog */}
         <IncidentReportForm
