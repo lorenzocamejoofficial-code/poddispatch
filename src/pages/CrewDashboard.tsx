@@ -577,6 +577,37 @@ export default function CrewDashboard() {
           </div>
         )}
 
+        {/* Post-cancellation documentation prompt */}
+        {(() => {
+          const needsDoc = runs.filter(r =>
+            ["cancelled", "pending_cancellation"].includes(r.tripStatus) &&
+            r.pcrStatus === "cancelled_with_pcr" &&
+            r.tripId
+          );
+          if (needsDoc.length === 0) return null;
+          return (
+            <div className="space-y-2">
+              {needsDoc.map(run => (
+                <div key={run.slotId} className="rounded-lg border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 p-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                      Documentation required for cancelled run — {run.patientName}
+                    </p>
+                    <p className="text-xs text-amber-700/80 dark:text-amber-400/70 mt-0.5">This run was cancelled — complete required documentation.</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white"
+                    onClick={() => setCancelDocTarget(run)}
+                  >
+                    Complete Documentation
+                  </Button>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         {/* Runs */}
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Today's Runs · {runs.length}
