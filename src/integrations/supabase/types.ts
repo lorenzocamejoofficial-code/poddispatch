@@ -2924,7 +2924,9 @@ export type Database = {
           blood_pressure: string | null
           cancellation_dispatcher_note: string | null
           cancellation_disputed: boolean | null
+          cancellation_documentation: Json | null
           cancellation_reason: string | null
+          cancellation_source: string | null
           cancellation_verified_at: string | null
           cancellation_verified_by: string | null
           cancelled_at: string | null
@@ -3052,7 +3054,9 @@ export type Database = {
           blood_pressure?: string | null
           cancellation_dispatcher_note?: string | null
           cancellation_disputed?: boolean | null
+          cancellation_documentation?: Json | null
           cancellation_reason?: string | null
+          cancellation_source?: string | null
           cancellation_verified_at?: string | null
           cancellation_verified_by?: string | null
           cancelled_at?: string | null
@@ -3180,7 +3184,9 @@ export type Database = {
           blood_pressure?: string | null
           cancellation_dispatcher_note?: string | null
           cancellation_disputed?: boolean | null
+          cancellation_documentation?: Json | null
           cancellation_reason?: string | null
+          cancellation_source?: string | null
           cancellation_verified_at?: string | null
           cancellation_verified_by?: string | null
           cancelled_at?: string | null

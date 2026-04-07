@@ -31,7 +31,7 @@ export type PCRSectionKey =
   | "medications"
   | "iv_access";
 
-export type PCRType = "dialysis" | "ift" | "discharge" | "outpatient_specialty" | "private_pay" | "emergency";
+export type PCRType = "dialysis" | "ift" | "discharge" | "outpatient_specialty" | "private_pay" | "emergency" | "wound_care";
 
 // Map of card types to section keys for rules lookup
 const CARD_TO_SECTION: Record<string, PCRSectionKey> = {
@@ -212,6 +212,32 @@ const RULES: Record<PCRType, Record<PCRSectionKey, PCRSectionState>> = {
     medications: "required",
     iv_access: "required",
   },
+  wound_care: {
+    patient_info: "required",
+    times: "required",
+    vitals: "required",
+    assessment: "required",
+    medical_history: "required",
+    medical_necessity: "required",
+    esrd_dialysis: "locked",
+    sending_facility: "locked",
+    isolation_precautions: "optional",
+    stretcher_placement: "required",
+    patient_mobility: "required",
+    signatures: "required",
+    receiving_facility_confirmation: "optional",
+    narrative: "required",
+    billing: "required",
+    condition_on_arrival: "required",
+    equipment: "required",
+    physical_exam: "optional",
+    hospital_outcome: "locked",
+    chief_complaint: "required",
+    airway: "locked",
+    procedures: "locked",
+    medications: "locked",
+    iv_access: "locked",
+  },
 };
 
 const LOCKED_REASONS: Record<PCRSectionKey, string> = {
@@ -250,6 +276,7 @@ function normalizePCRType(raw: string | null | undefined): PCRType {
   if (t === "outpatient_specialty" || t === "outpatient") return "outpatient_specialty";
   if (t === "private_pay") return "private_pay";
   if (t === "emergency" || t === "complex") return "emergency";
+  if (t.includes("wound")) return "wound_care";
   return "dialysis";
 }
 

@@ -92,6 +92,10 @@ const PHYSICAL_EXAM_FIELDS: FieldRequirement[] = [
 
 const HOSPITAL_OUTCOME_FIELDS: FieldRequirement[] = [
   { field: "disposition", label: "Disposition", section: "hospital_outcome", check: (t) => hasValue(t.disposition) },
+  { field: "hospital_outcome_destination", label: "Hospital Outcome Destination", section: "hospital_outcome", check: (t) => {
+    const ho = t.hospital_outcome_json || {};
+    return hasValue(ho.destination) || hasValue(ho.hospital_name) || hasValue(t.disposition);
+  }},
 ];
 
 const EQUIPMENT_FIELDS: FieldRequirement[] = [
@@ -126,6 +130,7 @@ const REQUIREMENTS: Record<TransportType, FieldRequirement[]> = {
     ...SIGNATURE_FIELDS,
     ...NARRATIVE_FIELDS,
     ...ASSESSMENT_FIELDS.filter(f => f.field === "chief_complaint"),
+    ...EQUIPMENT_FIELDS,
   ],
   outpatient_specialty: [
     ...TIMES_FIELDS,
@@ -170,6 +175,7 @@ const REQUIREMENTS: Record<TransportType, FieldRequirement[]> = {
     ...EQUIPMENT_FIELDS,
     ...HOSPITAL_OUTCOME_FIELDS,
     ...SENDING_FACILITY_FIELDS,
+    ...CONDITION_FIELDS,
     ...SIGNATURE_FIELDS,
     ...NARRATIVE_FIELDS,
   ],
@@ -189,6 +195,7 @@ const REQUIREMENTS: Record<TransportType, FieldRequirement[]> = {
     ...VITALS_FIELDS,
     ...ASSESSMENT_FIELDS,
     ...PHYSICAL_EXAM_FIELDS,
+    ...CONDITION_FIELDS,
     ...STRETCHER_FIELDS,
     ...ISOLATION_FIELDS,
     ...EQUIPMENT_FIELDS,
