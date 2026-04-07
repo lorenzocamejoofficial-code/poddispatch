@@ -718,6 +718,33 @@ export default function CrewDashboard() {
                         </>
                       )}
 
+                      {/* Emergency Upgrade button */}
+                      {!isTerminal && run.tripId && run.pcrType !== "emergency" && (
+                        <EmergencyUpgradeDialog
+                          open={emergencyTarget?.slotId === run.slotId}
+                          onOpenChange={(o) => { if (!o) setEmergencyTarget(null); }}
+                          patientName={run.patientName}
+                          truckName={truckName}
+                          loading={emergency.loading}
+                          onConfirm={async () => {
+                            const emergId = await emergency.triggerUpgrade(run.tripId!, run.patientName, truckName, run.truckId);
+                            setEmergencyTarget(null);
+                            if (emergId) navigate(`/pcr?tripId=${emergId}`);
+                          }}
+                        />
+                      )}
+                      {!isTerminal && run.tripId && run.pcrType !== "emergency" && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-12 w-12 border-destructive/50 text-destructive hover:bg-destructive/5"
+                          onClick={() => setEmergencyTarget(run)}
+                          title="Upgrade to Emergency"
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                        </Button>
+                      )}
+
                       {/* Report Incident button */}
                       {!isTerminal && run.tripId && (
                         <Button
