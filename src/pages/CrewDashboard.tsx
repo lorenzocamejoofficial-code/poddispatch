@@ -13,6 +13,10 @@ import { deriveRunStatus } from "@/lib/trip-status";
 import { TimeTapRow } from "@/components/dispatch/TimeTapRow";
 import { useCrewPartner } from "@/hooks/useCrewPartner";
 import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
+import { EmergencyUpgradeDialog } from "@/components/emergency/EmergencyUpgradeDialog";
+import { EmergencyBanner } from "@/components/emergency/EmergencyBanner";
+import { EmergencyResolutionModal } from "@/components/emergency/EmergencyResolutionModal";
+import { useEmergencyUpgrade } from "@/hooks/useEmergencyUpgrade";
 
 const TRANSPORT_LABELS: Record<string, string> = {
   dialysis: "Dialysis Transport",
@@ -119,7 +123,7 @@ function HoldConfirmButton({ icon, label, confirmLabel, loading, onConfirm }: {
 }
 
 export default function CrewDashboard() {
-  const { user, signOut, profileId } = useAuth();
+  const { user, profileId } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [truckName, setTruckName] = useState("");
@@ -135,6 +139,10 @@ export default function CrewDashboard() {
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const { partnerName: crewPartnerName, loading: crewPartnerLoading } = useCrewPartner();
   const [incidentRun, setIncidentRun] = useState<RunCard | null>(null);
+  const [emergencyTarget, setEmergencyTarget] = useState<RunCard | null>(null);
+  const [resolveOpen, setResolveOpen] = useState(false);
+  const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
+  const emergency = useEmergencyUpgrade(activeCompanyId);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
@@ -431,6 +439,24 @@ export default function CrewDashboard() {
   return (
     <CrewLayout>
       <div className="p-4 space-y-4">
+        {/* Emergency Banner */}
+        {emergency.isActive && (
+          <EmergencyBanner
+            patientName={runs.find(r => r.tripId === emergency.originalTripId)?.patientName ?? "Unknown"}
+            truckName={truckName}
+            upgradeAt={emergency.upgradeAt!}
+            canUndo={emergency.canUndo}
+            secondsRemaining={emergency.secondsRemaining}
+            loading={emergency.loading}
+            onUndo={async () => {
+              const origId = await emergency.undoUpgrade();
+              if (origId) navigate(`/pcr?tripId=${origId}`);
+              return origId;
+            }}
+            onResolve={() => setResolveOpen(true)}
+          />
+        )}
+
       {/* Truck & Partner Header */}
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-center gap-3">
@@ -692,6 +718,33 @@ export default function CrewDashboard() {
                         </>
                       )}
 
+                      {/* Emergency Upgrade button */}
+                      {!isTerminal && run.tripId && run.pcrType !== "emergency" && (
+                        <EmergencyUpgradeDialog
+                          open={emergencyTarget?.slotId === run.slotId}
+                          onOpenChange={(o) => { if (!o) setEmergencyTarget(null); }}
+                          patientName={run.patientName}
+                          truckName={truckName}
+                          loading={emergency.loading}
+                          onConfirm={async () => {
+                            const emergId = await emergency.triggerUpgrade(run.tripId!, run.patientName, truckName, run.truckId);
+                            setEmergencyTarget(null);
+                            if (emergId) navigate(`/pcr?tripId=${emergId}`);
+                          }}
+                        />
+                      )}
+                      {!isTerminal && run.tripId && run.pcrType !== "emergency" && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-12 w-12 border-destructive/50 text-destructive hover:bg-destructive/5"
+                          onClick={() => setEmergencyTarget(run)}
+                          title="Upgrade to Emergency"
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                        </Button>
+                      )}
+
                       {/* Report Incident button */}
                       {!isTerminal && run.tripId && (
                         <Button
@@ -758,6 +811,19 @@ export default function CrewDashboard() {
         defaultTripId={incidentRun?.tripId}
         defaultPatientName={incidentRun?.patientName}
         defaultCompanyId={incidentRun?.companyId}
+      />
+
+      {/* Emergency Resolution Modal */}
+      <EmergencyResolutionModal
+        open={resolveOpen}
+        onOpenChange={setResolveOpen}
+        canUndo={emergency.canUndo}
+        loading={emergency.loading}
+        onResolve={async (type, details) => {
+          const resultId = await emergency.resolveEmergency(type, details);
+          if (resultId) navigate(`/pcr?tripId=${resultId}`);
+          return resultId;
+        }}
       />
     </CrewLayout>
   );

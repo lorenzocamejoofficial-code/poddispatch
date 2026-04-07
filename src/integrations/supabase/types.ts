@@ -277,9 +277,15 @@ export type Database = {
           destination_type: string | null
           destination_zip: string | null
           edi_acknowledgment_code: string | null
+          emergency_billing_override: string | null
+          emergency_billing_recommendation: string | null
+          emergency_billing_reviewed_at: string | null
+          emergency_billing_reviewed_by: string | null
+          emergency_event_summary: string | null
           expected_revenue: number | null
           exported_at: string | null
           extras_charge: number | null
+          has_emergency_event: boolean
           hcpcs_codes: string[] | null
           hcpcs_modifiers: string[] | null
           icd10_codes: string[] | null
@@ -338,9 +344,15 @@ export type Database = {
           destination_type?: string | null
           destination_zip?: string | null
           edi_acknowledgment_code?: string | null
+          emergency_billing_override?: string | null
+          emergency_billing_recommendation?: string | null
+          emergency_billing_reviewed_at?: string | null
+          emergency_billing_reviewed_by?: string | null
+          emergency_event_summary?: string | null
           expected_revenue?: number | null
           exported_at?: string | null
           extras_charge?: number | null
+          has_emergency_event?: boolean
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
           icd10_codes?: string[] | null
@@ -399,9 +411,15 @@ export type Database = {
           destination_type?: string | null
           destination_zip?: string | null
           edi_acknowledgment_code?: string | null
+          emergency_billing_override?: string | null
+          emergency_billing_recommendation?: string | null
+          emergency_billing_reviewed_at?: string | null
+          emergency_billing_reviewed_by?: string | null
+          emergency_event_summary?: string | null
           expected_revenue?: number | null
           exported_at?: string | null
           extras_charge?: number | null
+          has_emergency_event?: boolean
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
           icd10_codes?: string[] | null
@@ -2930,6 +2948,17 @@ export type Database = {
           disposition: string | null
           documentation_complete: boolean | null
           dropped_at: string | null
+          emergency_billing_override: string | null
+          emergency_billing_recommendation: string | null
+          emergency_billing_reviewed_at: string | null
+          emergency_billing_reviewed_by: string | null
+          emergency_pcr_trip_id: string | null
+          emergency_upgrade_at: string | null
+          emergency_upgrade_resolution: string | null
+          emergency_upgrade_resolved_at: string | null
+          emergency_upgrade_voided: boolean
+          emergency_upgrade_voided_at: string | null
+          emergency_upgrade_voided_by: string | null
           equipment_used_json: Json | null
           esrd_dialysis: boolean | null
           expected_revenue: number | null
@@ -2942,6 +2971,7 @@ export type Database = {
           icd10_codes: string[] | null
           id: string
           in_service_time: string | null
+          is_emergency_pcr: boolean
           is_simulated: boolean
           isolation_precautions: Json | null
           iv_access_json: Json | null
@@ -2963,6 +2993,7 @@ export type Database = {
           odometer_at_scene: number | null
           odometer_in_service: number | null
           origin_type: string | null
+          original_trip_id: string | null
           oxygen_during_transport: boolean | null
           oxygen_saturation: number | null
           patient_contact_time: string | null
@@ -3045,6 +3076,17 @@ export type Database = {
           disposition?: string | null
           documentation_complete?: boolean | null
           dropped_at?: string | null
+          emergency_billing_override?: string | null
+          emergency_billing_recommendation?: string | null
+          emergency_billing_reviewed_at?: string | null
+          emergency_billing_reviewed_by?: string | null
+          emergency_pcr_trip_id?: string | null
+          emergency_upgrade_at?: string | null
+          emergency_upgrade_resolution?: string | null
+          emergency_upgrade_resolved_at?: string | null
+          emergency_upgrade_voided?: boolean
+          emergency_upgrade_voided_at?: string | null
+          emergency_upgrade_voided_by?: string | null
           equipment_used_json?: Json | null
           esrd_dialysis?: boolean | null
           expected_revenue?: number | null
@@ -3057,6 +3099,7 @@ export type Database = {
           icd10_codes?: string[] | null
           id?: string
           in_service_time?: string | null
+          is_emergency_pcr?: boolean
           is_simulated?: boolean
           isolation_precautions?: Json | null
           iv_access_json?: Json | null
@@ -3078,6 +3121,7 @@ export type Database = {
           odometer_at_scene?: number | null
           odometer_in_service?: number | null
           origin_type?: string | null
+          original_trip_id?: string | null
           oxygen_during_transport?: boolean | null
           oxygen_saturation?: number | null
           patient_contact_time?: string | null
@@ -3160,6 +3204,17 @@ export type Database = {
           disposition?: string | null
           documentation_complete?: boolean | null
           dropped_at?: string | null
+          emergency_billing_override?: string | null
+          emergency_billing_recommendation?: string | null
+          emergency_billing_reviewed_at?: string | null
+          emergency_billing_reviewed_by?: string | null
+          emergency_pcr_trip_id?: string | null
+          emergency_upgrade_at?: string | null
+          emergency_upgrade_resolution?: string | null
+          emergency_upgrade_resolved_at?: string | null
+          emergency_upgrade_voided?: boolean
+          emergency_upgrade_voided_at?: string | null
+          emergency_upgrade_voided_by?: string | null
           equipment_used_json?: Json | null
           esrd_dialysis?: boolean | null
           expected_revenue?: number | null
@@ -3172,6 +3227,7 @@ export type Database = {
           icd10_codes?: string[] | null
           id?: string
           in_service_time?: string | null
+          is_emergency_pcr?: boolean
           is_simulated?: boolean
           isolation_precautions?: Json | null
           iv_access_json?: Json | null
@@ -3193,6 +3249,7 @@ export type Database = {
           odometer_at_scene?: number | null
           odometer_in_service?: number | null
           origin_type?: string | null
+          original_trip_id?: string | null
           oxygen_during_transport?: boolean | null
           oxygen_saturation?: number | null
           patient_contact_time?: string | null
@@ -3259,10 +3316,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "trip_records_emergency_pcr_trip_id_fkey"
+            columns: ["emergency_pcr_trip_id"]
+            isOneToOne: false
+            referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "trip_records_leg_id_fkey"
             columns: ["leg_id"]
             isOneToOne: false
             referencedRelation: "scheduling_legs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_records_original_trip_id_fkey"
+            columns: ["original_trip_id"]
+            isOneToOne: false
+            referencedRelation: "trip_records"
             referencedColumns: ["id"]
           },
           {
