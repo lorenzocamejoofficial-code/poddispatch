@@ -937,6 +937,18 @@ export default function CrewDashboard() {
         }}
       />
 
+      {/* Cancellation Documentation Form */}
+      <CancellationDocForm
+        open={!!cancelDocTarget}
+        onOpenChange={(o) => { if (!o) setCancelDocTarget(null); }}
+        tripId={cancelDocTarget?.tripId ?? ""}
+        patientName={cancelDocTarget?.patientName ?? ""}
+        cancelledAt={(cancelDocTarget as any)?.cancelledAt ?? null}
+        crewMemberName={crewProfile?.full_name ?? ""}
+        crewMemberCert={crewProfile?.cert_level ?? ""}
+        onComplete={() => { setCancelDocTarget(null); fetchData(); }}
+      />
+
       {/* Emergency Resolution Modal */}
       <EmergencyResolutionModal
         open={resolveOpen}
