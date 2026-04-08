@@ -187,6 +187,27 @@ export function parseAddressString(addr: string | null | undefined): {
   return { street: addr.trim(), city: "", state: "", zip: "" };
 }
 
+/** Extract facility name from a combined "FacilityName 123 Street City ST 00000" string.
+ *  Returns everything before the first numeric token that starts the street address.
+ *  If nothing precedes the number, returns the full string trimmed. */
+export function extractFacilityName(location: string | null | undefined): string {
+  if (!location || !location.trim()) return "";
+  const trimmed = location.trim();
+  // Find the first word that starts with a digit — that's where the street address begins
+  const match = trimmed.match(/^(.*?)\s+(\d+\s+.*)$/);
+  if (match && match[1].trim()) {
+    return match[1].trim();
+  }
+  // No numeric token found — could be just a name like "Grady Memorial Hospital"
+  // Check if it looks like a parseable address (has state+zip at end)
+  const parsed = parseAddressString(trimmed);
+  if (parsed.state && parsed.street) {
+    // The whole thing is an address with no separate name prefix
+    return "";
+  }
+  return trimmed;
+}
+
 /** Map location type codes to CMS ambulance origin/destination codes */
 function locationTypeCode(type: string | null): string {
   if (!type) return "R";
