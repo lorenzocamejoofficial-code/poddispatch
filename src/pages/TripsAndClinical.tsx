@@ -537,14 +537,30 @@ export default function TripsAndClinical() {
               </thead>
               <tbody>
                 {filtered.map(trip => (
-                  <tr key={trip.id} className="border-b hover:bg-muted/30 transition-colors">
+                  <tr key={trip.id} className={cn("border-b hover:bg-muted/30 transition-colors", (() => {
+                    const todayStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
+                    return trip.run_date < todayStr && ["not_started", "in_progress"].includes((trip as any).pcr_status ?? "") ? "bg-amber-50/50 dark:bg-amber-950/10" : "";
+                  })())}>
                     <td className="px-4 py-3 font-medium text-foreground">
-                      {trip.patient_name}
-                      {authWarning(trip) && (
-                        <span className="ml-1 text-destructive" title="Auth expired">
-                          <AlertTriangle className="inline h-3 w-3" />
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {trip.patient_name}
+                        {authWarning(trip) && (
+                          <span className="text-destructive" title="Auth expired">
+                            <AlertTriangle className="inline h-3 w-3" />
+                          </span>
+                        )}
+                        {(() => {
+                          const todayStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
+                          if (trip.run_date < todayStr && ["not_started", "in_progress"].includes((trip as any).pcr_status ?? "")) {
+                            return (
+                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-destructive/10 text-destructive border border-destructive/30">
+                                Incomplete PCR · {trip.run_date}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{trip.scheduled_pickup_time ?? "—"}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground max-w-[180px] truncate">
