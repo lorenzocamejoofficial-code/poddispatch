@@ -66,6 +66,8 @@ interface RunCard {
   arrivedPickupAt: string | null;
   arrivedDropoffAt: string | null;
   inServiceTime: string | null;
+  // For past incomplete runs merged into the list
+  runDate?: string;
 }
 
 interface HoldTimer {
