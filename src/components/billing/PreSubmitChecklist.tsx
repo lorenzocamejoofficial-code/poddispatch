@@ -40,7 +40,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           : Promise.resolve({ data: null }),
         supabase
           .from("claim_records" as any)
-          .select("has_emergency_event, emergency_billing_reviewed_at")
+          .select("has_emergency_event, emergency_billing_reviewed_at, hcpcs_codes")
           .eq("trip_id", tripId)
           .maybeSingle(),
       ]);
@@ -92,8 +92,8 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         },
         {
           label: "HCPCS codes assigned",
-          passed: !!(t.hcpcs_codes && Array.isArray(t.hcpcs_codes) && t.hcpcs_codes.length > 0),
-          detail: t.hcpcs_codes?.length ? t.hcpcs_codes.join(", ") : undefined,
+          passed: !!(claim?.hcpcs_codes && Array.isArray(claim.hcpcs_codes) && claim.hcpcs_codes.length > 0),
+          detail: claim?.hcpcs_codes?.length ? claim.hcpcs_codes.join(", ") : undefined,
         },
         {
           label: "Origin and destination modifiers present",
