@@ -257,6 +257,88 @@ export default function CrewDashboard() {
       }
     }
 
+    // --- Fetch incomplete PCRs from previous days based on crew history ---
+    const { data: allCrewRows } = await supabase
+      .from("crews")
+      .select("id")
+      .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`);
+
+    const allCrewIds = (allCrewRows ?? []).map(c => c.id);
+
+    if (allCrewIds.length > 0) {
+      const { data: pastIncompleteTrips } = await supabase
+        .from("trip_records")
+        .select("id, leg_id, run_date, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, at_scene_time, patient_contact_time, left_scene_time, arrived_pickup_at, arrived_dropoff_at, in_service_time, scheduled_pickup_time, cancellation_reason, cancellation_disputed, cancellation_dispatcher_note, patient_id, truck_id, crew_id")
+        .in("crew_id", allCrewIds)
+        .in("pcr_status", ["not_started", "in_progress"])
+        .lt("run_date", today);
+
+      if (pastIncompleteTrips && pastIncompleteTrips.length > 0) {
+        const existingTripIds = new Set(cards.map(c => c.tripId).filter(Boolean));
+        const newPast = pastIncompleteTrips.filter((t: any) => !existingTripIds.has(t.id));
+
+        if (newPast.length > 0) {
+          const pastPatientIds = [...new Set(newPast.map((t: any) => t.patient_id).filter(Boolean))] as string[];
+          const { data: pastPatients } = pastPatientIds.length > 0
+            ? await supabase.from("patients").select("id, first_name, last_name").in("id", pastPatientIds)
+            : { data: [] };
+          const pastPatientMap = new Map((pastPatients ?? []).map((p: any) => [p.id, p]));
+
+          for (const trip of newPast) {
+            const patient = pastPatientMap.get((trip as any).patient_id);
+            const patientName = patient
+              ? `${(patient as any).first_name.charAt(0)}. ${(patient as any).last_name}`
+              : "Unknown Patient";
+            cards.push({
+              slotId: trip.id,
+              slotOrder: 0,
+              legId: trip.leg_id ?? "",
+              legType: "—",
+              legTypeRaw: null,
+              patientName,
+              patientHasRecord: !!patient,
+              pickupLocation: (trip as any).pickup_location ?? "—",
+              destinationLocation: (trip as any).destination_location ?? "—",
+              pickupTime: (trip as any).scheduled_pickup_time ?? null,
+              originType: (trip as any).origin_type ?? null,
+              patientPickupAddress: null,
+              patientDropoffFacility: null,
+              patientLocationType: null,
+              patientFacilityName: null,
+              dispatchTime: (trip as any).dispatch_time ?? null,
+              tripType: (trip as any).trip_type ?? null,
+              pcrType: (trip as any).pcr_type ?? null,
+              tripStatus: (trip as any).status ?? "scheduled",
+              tripId: trip.id,
+              truckId: (trip as any).truck_id ?? "",
+              crewId: (trip as any).crew_id ?? "",
+              companyId: (trip as any).company_id ?? crewCompanyId ?? null,
+              pcrStatus: (trip as any).pcr_status ?? "not_started",
+              patientId: (trip as any).patient_id ?? null,
+              cancellationReason: (trip as any).cancellation_reason ?? null,
+              cancellationDisputed: (trip as any).cancellation_disputed ?? false,
+              cancellationDispatcherNote: (trip as any).cancellation_dispatcher_note ?? null,
+              atSceneTime: (trip as any).at_scene_time ?? null,
+              patientContactTime: (trip as any).patient_contact_time ?? null,
+              leftSceneTime: (trip as any).left_scene_time ?? null,
+              arrivedPickupAt: (trip as any).arrived_pickup_at ?? null,
+              arrivedDropoffAt: (trip as any).arrived_dropoff_at ?? null,
+              inServiceTime: (trip as any).in_service_time ?? null,
+              runDate: (trip as any).run_date,
+            });
+          }
+        }
+      }
+    }
+
+    // Sort: most recent first (today's runs by slot order, past runs by date desc)
+    cards.sort((a, b) => {
+      const dateA = a.runDate ?? today;
+      const dateB = b.runDate ?? today;
+      if (dateA !== dateB) return dateB.localeCompare(dateA);
+      return a.slotOrder - b.slotOrder;
+    });
+
     setRuns(cards);
 
     // --- Fetch incomplete PCRs from previous days based on crew history ---
