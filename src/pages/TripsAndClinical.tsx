@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Search, ChevronRight, FileText, Clock, AlertTriangle, XCircle, CheckCircle, ExternalLink, Download } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { TripStatusTimeline } from "@/components/billing/TripStatusTimeline";
 import { LocationTypeSelect } from "@/components/billing/LocationTypeSelect";
@@ -145,8 +146,17 @@ export default function TripsAndClinical() {
       if (simulationRunId) {
         tripQuery = tripQuery.eq("simulation_run_id", simulationRunId);
       }
-      const [{ data: tripRows, error }, { data: facilities }, { data: payerRules }] = await Promise.all([
+
+      // Fix 4: Also fetch past incomplete PCRs (not_started or in_progress before today)
+      const todayDate = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
+      let pastIncompleteQuery = supabase.from("trip_records" as any).select("*")
+        .in("pcr_status", ["not_started", "in_progress"])
+        .lt("run_date", todayDate)
+        .not("status", "in", '("cancelled","no_show")');
+
+      const [{ data: tripRows, error }, { data: pastIncompleteRows }, { data: facilities }, { data: payerRules }] = await Promise.all([
         tripQuery,
+        pastIncompleteQuery,
         supabase.from("facilities" as any).select("name, facility_type"),
         supabase.from("payer_billing_rules" as any).select("*"),
       ]);
@@ -161,8 +171,17 @@ export default function TripsAndClinical() {
       (payerRules ?? []).forEach((r: any) => prMap.set(r.payer_type, r));
       setPayerRulesMap(prMap);
 
-      const patientIds = [...new Set((tripRows as any[]).map((t: any) => t.patient_id).filter(Boolean))];
-      const truckIds = [...new Set((tripRows as any[]).map((t: any) => t.truck_id).filter(Boolean))];
+      // Merge: deduplicate (past incomplete may overlap with current dateFilter)
+      const allTripRows = [...(tripRows as any[])];
+      const existingIds = new Set(allTripRows.map((t: any) => t.id));
+      for (const pt of (pastIncompleteRows ?? []) as any[]) {
+        if (!existingIds.has(pt.id)) {
+          allTripRows.push(pt);
+        }
+      }
+
+      const patientIds = [...new Set(allTripRows.map((t: any) => t.patient_id).filter(Boolean))];
+      const truckIds = [...new Set(allTripRows.map((t: any) => t.truck_id).filter(Boolean))];
 
       const [{ data: pRows }, { data: tRows }] = await Promise.all([
         patientIds.length > 0
@@ -176,7 +195,7 @@ export default function TripsAndClinical() {
       const pMap = new Map((pRows ?? []).map((p: any) => [p.id, p]));
       const tMap = new Map((tRows ?? []).map((t: any) => [t.id, t]));
 
-      const enriched: TripRecord[] = (tripRows as any[]).map((t: any) => {
+      const enriched: TripRecord[] = allTripRows.map((t: any) => {
         const p = pMap.get(t.patient_id) as any;
         const tr = tMap.get(t.truck_id) as any;
         return {
@@ -189,6 +208,16 @@ export default function TripsAndClinical() {
           oxygen_required: p?.oxygen_required ?? false,
           bariatric: p?.bariatric ?? false,
         };
+      });
+
+      // Sort: incomplete PCRs from past first (oldest first), then today's by pickup time
+      enriched.sort((a, b) => {
+        const aIsIncomplete = a.run_date < todayDate && ["not_started", "in_progress"].includes((a as any).pcr_status ?? "");
+        const bIsIncomplete = b.run_date < todayDate && ["not_started", "in_progress"].includes((b as any).pcr_status ?? "");
+        if (aIsIncomplete && !bIsIncomplete) return -1;
+        if (!aIsIncomplete && bIsIncomplete) return 1;
+        if (aIsIncomplete && bIsIncomplete) return a.run_date.localeCompare(b.run_date);
+        return (a.scheduled_pickup_time ?? "").localeCompare(b.scheduled_pickup_time ?? "");
       });
 
       setTrips(enriched);
@@ -509,14 +538,30 @@ export default function TripsAndClinical() {
               </thead>
               <tbody>
                 {filtered.map(trip => (
-                  <tr key={trip.id} className="border-b hover:bg-muted/30 transition-colors">
+                  <tr key={trip.id} className={cn("border-b hover:bg-muted/30 transition-colors", (() => {
+                    const todayStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
+                    return trip.run_date < todayStr && ["not_started", "in_progress"].includes((trip as any).pcr_status ?? "") ? "bg-amber-50/50 dark:bg-amber-950/10" : "";
+                  })())}>
                     <td className="px-4 py-3 font-medium text-foreground">
-                      {trip.patient_name}
-                      {authWarning(trip) && (
-                        <span className="ml-1 text-destructive" title="Auth expired">
-                          <AlertTriangle className="inline h-3 w-3" />
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {trip.patient_name}
+                        {authWarning(trip) && (
+                          <span className="text-destructive" title="Auth expired">
+                            <AlertTriangle className="inline h-3 w-3" />
+                          </span>
+                        )}
+                        {(() => {
+                          const todayStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
+                          if (trip.run_date < todayStr && ["not_started", "in_progress"].includes((trip as any).pcr_status ?? "")) {
+                            return (
+                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-destructive/10 text-destructive border border-destructive/30">
+                                Incomplete PCR · {trip.run_date}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{trip.scheduled_pickup_time ?? "—"}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground max-w-[180px] truncate">

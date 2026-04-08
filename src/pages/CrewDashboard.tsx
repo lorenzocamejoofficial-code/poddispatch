@@ -148,6 +148,7 @@ export default function CrewDashboard() {
   const [selectedEmergencyRun, setSelectedEmergencyRun] = useState<RunCard | null>(null);
   const [cancelDocTarget, setCancelDocTarget] = useState<RunCard | null>(null);
   const [crewProfile, setCrewProfile] = useState<{ full_name: string; cert_level: string } | null>(null);
+  const [incompletePastRuns, setIncompletePastRuns] = useState<(RunCard & { runDate: string })[]>([]);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
@@ -249,6 +250,71 @@ export default function CrewDashboard() {
       };
     });
     setRuns(cards);
+
+    // Fix 1: Fetch incomplete PCRs from previous days
+    const { data: pastIncompleteTrips } = await supabase
+      .from("trip_records")
+      .select("id, leg_id, run_date, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, at_scene_time, patient_contact_time, left_scene_time, arrived_pickup_at, arrived_dropoff_at, in_service_time, scheduled_pickup_time, cancellation_reason, cancellation_disputed, cancellation_dispatcher_note, patient_id, truck_id, crew_id")
+      .eq("truck_id", truckId)
+      .in("pcr_status", ["not_started", "in_progress"])
+      .lt("run_date", today);
+
+    if (pastIncompleteTrips && pastIncompleteTrips.length > 0) {
+      const pastPatientIds = [...new Set(pastIncompleteTrips.map((t: any) => t.patient_id).filter(Boolean))] as string[];
+      const { data: pastPatients } = pastPatientIds.length > 0
+        ? await supabase.from("patients").select("id, first_name, last_name").in("id", pastPatientIds)
+        : { data: [] };
+      const pastPatientMap = new Map((pastPatients ?? []).map((p: any) => [p.id, p]));
+
+      const pastCards = pastIncompleteTrips.map((trip: any) => {
+        const patient = pastPatientMap.get(trip.patient_id);
+        const patientName = patient
+          ? `${(patient as any).first_name.charAt(0)}. ${(patient as any).last_name}`
+          : "Unknown Patient";
+        return {
+          slotId: trip.id,
+          slotOrder: 0,
+          legId: trip.leg_id ?? "",
+          legType: "—" as string,
+          legTypeRaw: null as string | null,
+          patientName,
+          patientHasRecord: !!patient,
+          pickupLocation: trip.pickup_location ?? "—",
+          destinationLocation: trip.destination_location ?? "—",
+          pickupTime: trip.scheduled_pickup_time ?? null,
+          originType: trip.origin_type ?? null,
+          patientPickupAddress: null as string | null,
+          patientDropoffFacility: null as string | null,
+          patientLocationType: null as string | null,
+          patientFacilityName: null as string | null,
+          dispatchTime: trip.dispatch_time ?? null,
+          tripType: trip.trip_type ?? null,
+          pcrType: trip.pcr_type ?? null,
+          tripStatus: trip.status ?? "scheduled",
+          tripId: trip.id as string | null,
+          truckId,
+          crewId,
+          companyId: trip.company_id ?? crewCompanyId ?? null,
+          pcrStatus: trip.pcr_status ?? "not_started",
+          patientId: trip.patient_id ?? null,
+          cancellationReason: trip.cancellation_reason ?? null,
+          cancellationDisputed: trip.cancellation_disputed ?? false,
+          cancellationDispatcherNote: trip.cancellation_dispatcher_note ?? null,
+          atSceneTime: trip.at_scene_time ?? null,
+          patientContactTime: trip.patient_contact_time ?? null,
+          leftSceneTime: trip.left_scene_time ?? null,
+          arrivedPickupAt: trip.arrived_pickup_at ?? null,
+          arrivedDropoffAt: trip.arrived_dropoff_at ?? null,
+          inServiceTime: trip.in_service_time ?? null,
+          runDate: trip.run_date as string,
+        };
+      });
+      // Sort oldest first
+      pastCards.sort((a: any, b: any) => a.runDate.localeCompare(b.runDate));
+      setIncompletePastRuns(pastCards);
+    } else {
+      setIncompletePastRuns([]);
+    }
 
     const tripIds = cards.map(c => c.tripId).filter(Boolean) as string[];
     if (tripIds.length > 0) {
@@ -607,6 +673,48 @@ export default function CrewDashboard() {
             </div>
           );
         })()}
+
+        {/* Incomplete PCRs from previous days */}
+        {incompletePastRuns.length > 0 && (
+          <div className="space-y-2">
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+              <p className="text-sm font-bold text-destructive flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Incomplete PCRs — Action Required
+              </p>
+              <p className="text-xs text-destructive/80 mt-0.5">These PCRs from previous days still need to be completed and submitted.</p>
+            </div>
+            {incompletePastRuns.map((run) => (
+              <div key={run.slotId} className="rounded-lg border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 p-4 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-foreground">{run.patientName}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Run Date: <span className="font-medium text-amber-700 dark:text-amber-400">{run.runDate}</span>
+                      {run.pickupTime && <> · @ {run.pickupTime.substring(0, 5)}</>}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">{run.pickupLocation} → {run.destinationLocation}</p>
+                  </div>
+                  <span className={cn("shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold",
+                    run.pcrStatus === "in_progress"
+                      ? "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700"
+                      : "bg-destructive/10 text-destructive border-destructive/30"
+                  )}>
+                    {run.pcrStatus === "in_progress" ? "In Progress" : "Not Started"}
+                  </span>
+                </div>
+                <Button
+                  className="w-full h-10 text-sm bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={() => {
+                    if (run.tripId) navigate(`/pcr?tripId=${run.tripId}`);
+                  }}
+                >
+                  Complete PCR
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Runs */}
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
