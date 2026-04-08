@@ -164,19 +164,21 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
         .eq("run_date", today)
         .order("slot_order");
 
-      if (!slots?.length) { setRuns([]); setLoading(false); return; }
-
-      const legIds = slots.map(s => s.leg_id);
+      const legIds = (slots ?? []).map(s => s.leg_id);
 
       const [{ data: legs }, { data: trips }] = await Promise.all([
-        supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, is_oneoff, oneoff_name, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)").in("id", legIds),
-        supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason").eq("run_date", today).eq("truck_id", crewRow.truck_id).in("leg_id", legIds),
+        legIds.length > 0
+          ? supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, is_oneoff, oneoff_name, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)").in("id", legIds)
+          : Promise.resolve({ data: [] }),
+        legIds.length > 0
+          ? supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason").eq("run_date", today).eq("truck_id", crewRow.truck_id).in("leg_id", legIds)
+          : Promise.resolve({ data: [] }),
       ]);
 
       const legMap = new Map((legs ?? []).map(l => [l.id, l]));
       const tripMap = new Map((trips ?? []).map(t => [t.leg_id, t]));
 
-      const items: RunForPCR[] = slots.map(slot => {
+      const items: RunForPCR[] = (slots ?? []).map(slot => {
         const leg = legMap.get(slot.leg_id) as any;
         const trip = tripMap.get(slot.leg_id) as any;
         const patient = leg?.patient;
@@ -206,6 +208,49 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
           cancellationReason: trip?.cancellation_reason ?? null,
         };
       });
+
+      // Fix 3: Also fetch incomplete PCRs from previous days for this truck
+      const { data: pastIncomplete } = await supabase
+        .from("trip_records")
+        .select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason, run_date, patient_id, truck_id, crew_id, scheduled_pickup_time, pickup_location, destination_location")
+        .eq("truck_id", crewRow.truck_id)
+        .in("pcr_status", ["not_started", "in_progress"])
+        .lt("run_date", today);
+
+      if (pastIncomplete && pastIncomplete.length > 0) {
+        const pastPatientIds = [...new Set(pastIncomplete.map((t: any) => t.patient_id).filter(Boolean))] as string[];
+        const { data: pastPatients } = pastPatientIds.length > 0
+          ? await supabase.from("patients").select("id, first_name, last_name").in("id", pastPatientIds)
+          : { data: [] };
+        const pastPatientMap = new Map((pastPatients ?? []).map((p: any) => [p.id, p]));
+
+        const pastItems: RunForPCR[] = pastIncomplete.map((trip: any) => {
+          const patient = pastPatientMap.get(trip.patient_id);
+          const patientName = patient
+            ? `${(patient as any).first_name.charAt(0)}. ${(patient as any).last_name}`
+            : "Unknown Patient";
+          return {
+            tripId: trip.id,
+            legId: trip.leg_id ?? "",
+            legType: "—",
+            legTypeRaw: null,
+            patientName: `${patientName} (${trip.run_date})`,
+            pickupTime: trip.scheduled_pickup_time ?? null,
+            pickupLocation: trip.pickup_location ?? "—",
+            destinationLocation: trip.destination_location ?? "—",
+            tripType: trip.trip_type ?? null,
+            pcrStatus: trip.pcr_status ?? "not_started",
+            tripStatus: trip.status ?? "scheduled",
+            truckId: crewRow.truck_id,
+            crewId: trip.crew_id ?? crewRow.id,
+            companyId: trip.company_id ?? crewRow.company_id ?? null,
+            patientId: trip.patient_id ?? null,
+            cancellationReason: trip.cancellation_reason ?? null,
+          };
+        });
+        // Put incomplete past runs at the top
+        items.unshift(...pastItems);
+      }
 
       setRuns(items);
       setLoading(false);
