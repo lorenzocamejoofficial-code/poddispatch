@@ -93,6 +93,42 @@ function controlNumber(): string {
   return padLeft(String(Math.floor(Math.random() * 999999999)), 9);
 }
 
+/** Generate a short human-readable claim reference from UUID and run date */
+function shortClaimRef(claimId: string, runDate: string): string {
+  const datePart = runDate.replace(/-/g, "").slice(2); // YYMMDD
+  const idPart = claimId.replace(/-/g, "").slice(0, 8).toUpperCase();
+  return `${datePart}-${idPart}`;
+}
+
+/** Parse a single address string like "123 Main St, Atlanta, GA 30301" into parts */
+export function parseAddressString(addr: string | null | undefined): {
+  street: string; city: string; state: string; zip: string;
+} {
+  const fallback = { street: "", city: "", state: "", zip: "" };
+  if (!addr || !addr.trim()) return fallback;
+
+  // Try to match: street, city, state ZIP
+  const match = addr.match(/^(.+?),\s*(.+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
+  if (match) {
+    return { street: match[1].trim(), city: match[2].trim(), state: match[3].toUpperCase(), zip: match[4] };
+  }
+
+  // Try: street, city, state (no ZIP)
+  const match2 = addr.match(/^(.+?),\s*(.+?),\s*([A-Z]{2})$/i);
+  if (match2) {
+    return { street: match2[1].trim(), city: match2[2].trim(), state: match2[3].toUpperCase(), zip: "" };
+  }
+
+  // Try: street, city state ZIP (no comma before state)
+  const match3 = addr.match(/^(.+?),\s*(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
+  if (match3) {
+    return { street: match3[1].trim(), city: match3[2].trim(), state: match3[3].toUpperCase(), zip: match3[4] };
+  }
+
+  // Fallback: put everything in street
+  return { street: addr.trim(), city: "", state: "", zip: "" };
+}
+
 /** Map location type codes to CMS ambulance origin/destination codes */
 function locationTypeCode(type: string | null): string {
   if (!type) return "R";
@@ -251,12 +287,17 @@ export function generateEDI837P(
 
     // --- SUBSCRIBER (2010BA) ---
     addSeg(["NM1", "IL", "1", patLast, patFirst, "", "", "", "MI", claim.member_id].join(ES));
-    addSeg(["N3", claim.patient_address || "UNKNOWN"].join(ES));
-    addSeg(["N4", claim.patient_city || "UNKNOWN", claim.patient_state || "GA", claim.patient_zip || "00000"].join(ES));
+    const patAddr = parseAddressString(claim.patient_address);
+    const patStreet = patAddr.street || claim.patient_address || "UNKNOWN";
+    const patCity = claim.patient_city || patAddr.city || "UNKNOWN";
+    const patState = claim.patient_state || patAddr.state || "GA";
+    const patZip = claim.patient_zip || patAddr.zip || "00000";
+    addSeg(["N3", patStreet].join(ES));
+    addSeg(["N4", patCity, patState, patZip].join(ES));
     addSeg(["DMG", "D8", formatDate8(claim.patient_dob || "1900-01-01"), sexCode].join(ES));
 
     // --- PAYER (2010BB) ---
-    addSeg(["NM1", "PR", "2", claim.payer_name || "MEDICARE", "", "", "", "", "PI", claim.payer_id || "MEDICARE"].join(ES));
+    addSeg(["NM1", "PR", "2", (claim.payer_name || "MEDICARE").toUpperCase(), "", "", "", "", "PI", (claim.payer_id || "MEDICARE").toUpperCase()].join(ES));
 
     // --- CLAIM (2300) ---
     const originCode = locationTypeCode(claim.origin_type);
@@ -265,7 +306,7 @@ export function generateEDI837P(
     addSeg(
       [
         "CLM",
-        claim.claim_id,
+        shortClaimRef(claim.claim_id, claim.run_date),
         formatAmount(claim.total_charge),
         "",
         "",
@@ -304,11 +345,12 @@ export function generateEDI837P(
     }
 
     // CR1 - Ambulance Transport Information
+    const weightVal = claim.weight_lbs && claim.weight_lbs > 0 ? String(Math.round(claim.weight_lbs)) : "";
     addSeg(
       [
         "CR1",
-        "LB",                        // Weight unit
-        claim.weight_lbs ? String(claim.weight_lbs) : "", // Patient weight
+        weightVal ? "LB" : "",       // Weight unit (only if weight present)
+        weightVal,                   // Patient weight
         "A",                         // Ambulance transport code
         facilityCode.length >= 2 ? facilityCode : "RD", // Transport reason
         "DH",                        // Distance unit (miles)
@@ -320,16 +362,26 @@ export function generateEDI837P(
 
     // --- Loop 2310E: Ambulance Pickup Location ---
     if (claim.origin_address || claim.origin_zip) {
+      const origAddr = parseAddressString(claim.origin_address);
+      const origStreet = origAddr.street || claim.origin_address || "UNKNOWN";
+      const origCity = claim.origin_city || origAddr.city || "";
+      const origState = claim.origin_state || origAddr.state || "";
+      const origZip = claim.origin_zip || origAddr.zip || "";
       addSeg(["NM1", "PW", "2", "", "", "", "", "", "", ""].join(ES));
-      addSeg(["N3", claim.origin_address || "UNKNOWN"].join(ES));
-      addSeg(["N4", claim.origin_city || "", claim.origin_state || "", claim.origin_zip || ""].join(ES));
+      addSeg(["N3", origStreet].join(ES));
+      addSeg(["N4", origCity, origState, origZip].join(ES));
     }
 
     // --- Loop 2310F: Ambulance Dropoff Location ---
     if (claim.destination_address || claim.destination_zip) {
+      const destAddr = parseAddressString(claim.destination_address);
+      const destStreet = destAddr.street || claim.destination_address || "UNKNOWN";
+      const destCity = claim.destination_city || destAddr.city || "";
+      const destState = claim.destination_state || destAddr.state || "";
+      const destZip = claim.destination_zip || destAddr.zip || "";
       addSeg(["NM1", "45", "2", "", "", "", "", "", "", ""].join(ES));
-      addSeg(["N3", claim.destination_address || "UNKNOWN"].join(ES));
-      addSeg(["N4", claim.destination_city || "", claim.destination_state || "", claim.destination_zip || ""].join(ES));
+      addSeg(["N3", destStreet].join(ES));
+      addSeg(["N4", destCity, destState, destZip].join(ES));
     }
 
     // --- SERVICE LINES (2400) ---
