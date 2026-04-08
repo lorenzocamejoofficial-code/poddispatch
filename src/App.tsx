@@ -280,7 +280,6 @@ function AppRoutes() {
           {/* Crew routes for dispatchers with cert + crew assignment */}
           <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
           <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
-          <Route path="/crew-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
           <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
           <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
           <Route path="/login" element={<Navigate to="/" replace />} />
@@ -349,7 +348,6 @@ function AppRoutes() {
         {/* Crew routes for owners with cert + crew assignment */}
         <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
         <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
-        <Route path="/crew-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
         <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
         <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
         <Route path="/login" element={<Navigate to="/" replace />} />
