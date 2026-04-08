@@ -840,7 +840,17 @@ export default function TripsAndClinical() {
               </div>
             </div>
 
-            {/* HCPCS preview */}
+            {/* ICD-10 Diagnosis Codes */}
+            <ICD10Picker
+              selectedCodes={form.icd10_codes}
+              onCodesChange={(codes) => setForm({ ...form, icd10_codes: codes })}
+              required={(() => {
+                const payer = (selectedTrip?.payer ?? "").toLowerCase();
+                return payer.includes("medicare") || payer.includes("medicaid");
+              })()}
+              maxCodes={4}
+            />
+
             {selectedTrip && (
               <div className="rounded-md border bg-muted/30 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Auto HCPCS Codes</p>
