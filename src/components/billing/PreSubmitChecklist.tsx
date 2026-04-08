@@ -108,8 +108,8 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         },
         {
           label: "Member ID present",
-          passed: !!(t.member_id && String(t.member_id).trim() !== ""),
-          detail: !t.member_id ? "Patient member ID is missing — update the patient record before submitting" : undefined,
+          passed: !!(p?.member_id && String(p.member_id).trim() !== ""),
+          detail: !p?.member_id ? "Patient member ID is missing — update the patient record before submitting" : undefined,
         },
       ];
 
