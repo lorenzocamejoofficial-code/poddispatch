@@ -162,156 +162,173 @@ export default function CrewDashboard() {
       .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
       .maybeSingle();
 
-    if (!crewRow) {
-      setTruckName(""); setPartnerName(""); setRuns([]); setLoading(false); return;
+    let todayTruckId: string | null = null;
+    let todayCrewId: string | null = null;
+    let crewCompanyId: string | null = null;
+
+    if (crewRow) {
+      todayTruckId = crewRow.truck_id;
+      todayCrewId = crewRow.id;
+      crewCompanyId = crewRow.company_id;
+
+      setTruckName((crewRow.truck as any)?.name ?? "");
+      const m1 = crewRow.member1 as any;
+      const m2 = crewRow.member2 as any;
+      setPartnerName((m1?.id === profileId ? m2?.full_name : m1?.full_name) ?? "");
+
+      // Set activeCompanyId for emergency upgrade hook
+      if (crewCompanyId) setActiveCompanyId(crewCompanyId);
+    } else {
+      setTruckName("");
+      setPartnerName("");
     }
 
-    setTruckName((crewRow.truck as any)?.name ?? "");
-    const m1 = crewRow.member1 as any;
-    const m2 = crewRow.member2 as any;
-    setPartnerName((m1?.id === profileId ? m2?.full_name : m1?.full_name) ?? "");
+    const cards: RunCard[] = [];
 
-    const truckId = crewRow.truck_id;
-    const crewId = crewRow.id;
-    const crewCompanyId = crewRow.company_id;
+    // --- Today's runs from truck_run_slots ---
+    if (todayTruckId && todayCrewId) {
+      const { data: slots } = await supabase
+        .from("truck_run_slots")
+        .select("id, leg_id, slot_order")
+        .eq("truck_id", todayTruckId)
+        .eq("run_date", today)
+        .order("slot_order");
 
-    // Set activeCompanyId for emergency upgrade hook
-    if (crewCompanyId) setActiveCompanyId(crewCompanyId);
+      if (slots?.length) {
+        const legIds = slots.map(s => s.leg_id);
 
-    const { data: slots } = await supabase
-      .from("truck_run_slots")
-      .select("id, leg_id, slot_order")
-      .eq("truck_id", truckId)
-      .eq("run_date", today)
-      .order("slot_order");
+        const [{ data: legs }, { data: trips }] = await Promise.all([
+          supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, is_oneoff, oneoff_name, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, pickup_address, dropoff_facility, location_type, facility_id, facility:facilities!patients_facility_id_fkey(name))").in("id", legIds),
+          supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, at_scene_time, patient_contact_time, left_scene_time, arrived_pickup_at, arrived_dropoff_at, in_service_time, scheduled_pickup_time, billing_blocked_reason, cancellation_reason, cancellation_disputed, cancellation_dispatcher_note").eq("run_date", today).eq("truck_id", todayTruckId!).in("leg_id", legIds),
+        ]);
 
-    if (!slots?.length) { setRuns([]); setLoading(false); return; }
+        const legMap = new Map((legs ?? []).map(l => [l.id, l]));
+        const tripMap = new Map((trips ?? []).map(t => [t.leg_id, t]));
 
-    const legIds = slots.map(s => s.leg_id);
+        const formatPatientName = (patient: any, leg: any): { name: string; hasRecord: boolean } => {
+          if (patient?.first_name) {
+            const firstInitial = patient.first_name.charAt(0).toUpperCase();
+            return { name: `${firstInitial}. ${patient.last_name}`, hasRecord: true };
+          }
+          if (leg?.is_oneoff && leg?.oneoff_name) return { name: leg.oneoff_name, hasRecord: false };
+          if (leg?.pickup_location) return { name: leg.pickup_location, hasRecord: false };
+          return { name: "Unknown Patient", hasRecord: false };
+        };
 
-    const [{ data: legs }, { data: trips }] = await Promise.all([
-      supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, is_oneoff, oneoff_name, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, pickup_address, dropoff_facility, location_type, facility_id, facility:facilities!patients_facility_id_fkey(name))").in("id", legIds),
-      supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, at_scene_time, patient_contact_time, left_scene_time, arrived_pickup_at, arrived_dropoff_at, in_service_time, scheduled_pickup_time, billing_blocked_reason, cancellation_reason, cancellation_disputed, cancellation_dispatcher_note").eq("run_date", today).eq("truck_id", truckId).in("leg_id", legIds),
-    ]);
-
-    const legMap = new Map((legs ?? []).map(l => [l.id, l]));
-    const tripMap = new Map((trips ?? []).map(t => [t.leg_id, t]));
-
-    const formatPatientName = (patient: any, leg: any): { name: string; hasRecord: boolean } => {
-      if (patient?.first_name) {
-        const firstInitial = patient.first_name.charAt(0).toUpperCase();
-        return { name: `${firstInitial}. ${patient.last_name}`, hasRecord: true };
+        for (const slot of slots) {
+          const leg = legMap.get(slot.leg_id);
+          const trip = tripMap.get(slot.leg_id);
+          const patient = leg?.patient as any;
+          const { name: patientName, hasRecord } = formatPatientName(patient, leg);
+          const legTypeRaw = (leg as any)?.leg_type ?? null;
+          const legType = legTypeRaw === "a_leg" || legTypeRaw === "A" ? "A" : legTypeRaw === "b_leg" || legTypeRaw === "B" ? "B" : "—";
+          cards.push({
+            slotId: slot.id, slotOrder: slot.slot_order, legId: slot.leg_id,
+            legType, legTypeRaw, patientName, patientHasRecord: hasRecord,
+            pickupLocation: trip?.pickup_location ?? leg?.pickup_location ?? "—",
+            destinationLocation: trip?.destination_location ?? leg?.destination_location ?? "—",
+            pickupTime: leg?.pickup_time ?? null,
+            originType: trip?.origin_type ?? null,
+            patientPickupAddress: patient?.pickup_address ?? null,
+            patientDropoffFacility: patient?.dropoff_facility ?? null,
+            patientLocationType: patient?.location_type ?? null,
+            patientFacilityName: (patient?.facility as any)?.name ?? null,
+            dispatchTime: trip?.dispatch_time ?? null,
+            tripType: trip?.trip_type ?? leg?.trip_type ?? null,
+            pcrType: (trip as any)?.pcr_type ?? null,
+            tripStatus: trip?.status ?? "scheduled",
+            tripId: trip?.id ?? null,
+            truckId: todayTruckId!, crewId: todayCrewId!,
+            companyId: trip?.company_id ?? crewCompanyId ?? null,
+            pcrStatus: (trip as any)?.pcr_status ?? "not_started",
+            patientId: (leg as any)?.patient_id ?? null,
+            cancellationReason: (trip as any)?.cancellation_reason ?? null,
+            cancellationDisputed: (trip as any)?.cancellation_disputed ?? false,
+            cancellationDispatcherNote: (trip as any)?.cancellation_dispatcher_note ?? null,
+            atSceneTime: (trip as any)?.at_scene_time ?? null,
+            patientContactTime: (trip as any)?.patient_contact_time ?? null,
+            leftSceneTime: (trip as any)?.left_scene_time ?? null,
+            arrivedPickupAt: (trip as any)?.arrived_pickup_at ?? null,
+            arrivedDropoffAt: (trip as any)?.arrived_dropoff_at ?? null,
+            inServiceTime: (trip as any)?.in_service_time ?? null,
+          });
+        }
       }
-      // Fallback for one-off runs
-      if (leg?.is_oneoff && leg?.oneoff_name) return { name: leg.oneoff_name, hasRecord: false };
-      if (leg?.pickup_location) return { name: leg.pickup_location, hasRecord: false };
-      return { name: "Unknown Patient", hasRecord: false };
-    };
+    }
 
-    const cards: RunCard[] = slots.map(slot => {
-      const leg = legMap.get(slot.leg_id);
-      const trip = tripMap.get(slot.leg_id);
-      const patient = leg?.patient as any;
-      const { name: patientName, hasRecord } = formatPatientName(patient, leg);
-      const legTypeRaw = (leg as any)?.leg_type ?? null;
-      const legType = legTypeRaw === "a_leg" || legTypeRaw === "A" ? "A" : legTypeRaw === "b_leg" || legTypeRaw === "B" ? "B" : "—";
-      return {
-        slotId: slot.id, slotOrder: slot.slot_order, legId: slot.leg_id,
-        legType,
-        legTypeRaw,
-        patientName,
-        patientHasRecord: hasRecord,
-        pickupLocation: trip?.pickup_location ?? leg?.pickup_location ?? "—",
-        destinationLocation: trip?.destination_location ?? leg?.destination_location ?? "—",
-        pickupTime: leg?.pickup_time ?? null,
-        originType: trip?.origin_type ?? null,
-        patientPickupAddress: patient?.pickup_address ?? null,
-        patientDropoffFacility: patient?.dropoff_facility ?? null,
-        patientLocationType: patient?.location_type ?? null,
-        patientFacilityName: (patient?.facility as any)?.name ?? null,
-        dispatchTime: trip?.dispatch_time ?? null,
-        tripType: trip?.trip_type ?? leg?.trip_type ?? null,
-        pcrType: (trip as any)?.pcr_type ?? null,
-        tripStatus: trip?.status ?? "scheduled",
-        tripId: trip?.id ?? null,
-        truckId, crewId,
-        companyId: trip?.company_id ?? crewCompanyId ?? null,
-        pcrStatus: (trip as any)?.pcr_status ?? "not_started",
-        patientId: (leg as any)?.patient_id ?? null,
-        cancellationReason: (trip as any)?.cancellation_reason ?? null,
-        cancellationDisputed: (trip as any)?.cancellation_disputed ?? false,
-        cancellationDispatcherNote: (trip as any)?.cancellation_dispatcher_note ?? null,
-        atSceneTime: (trip as any)?.at_scene_time ?? null,
-        patientContactTime: (trip as any)?.patient_contact_time ?? null,
-        leftSceneTime: (trip as any)?.left_scene_time ?? null,
-        arrivedPickupAt: (trip as any)?.arrived_pickup_at ?? null,
-        arrivedDropoffAt: (trip as any)?.arrived_dropoff_at ?? null,
-        inServiceTime: (trip as any)?.in_service_time ?? null,
-      };
-    });
     setRuns(cards);
 
-    // Fix 1: Fetch incomplete PCRs from previous days
-    const { data: pastIncompleteTrips } = await supabase
-      .from("trip_records")
-      .select("id, leg_id, run_date, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, at_scene_time, patient_contact_time, left_scene_time, arrived_pickup_at, arrived_dropoff_at, in_service_time, scheduled_pickup_time, cancellation_reason, cancellation_disputed, cancellation_dispatcher_note, patient_id, truck_id, crew_id")
-      .eq("truck_id", truckId)
-      .in("pcr_status", ["not_started", "in_progress"])
-      .lt("run_date", today);
+    // --- Fetch incomplete PCRs from previous days based on crew history ---
+    const { data: allCrewRows } = await supabase
+      .from("crews")
+      .select("id")
+      .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`);
 
-    if (pastIncompleteTrips && pastIncompleteTrips.length > 0) {
-      const pastPatientIds = [...new Set(pastIncompleteTrips.map((t: any) => t.patient_id).filter(Boolean))] as string[];
-      const { data: pastPatients } = pastPatientIds.length > 0
-        ? await supabase.from("patients").select("id, first_name, last_name").in("id", pastPatientIds)
-        : { data: [] };
-      const pastPatientMap = new Map((pastPatients ?? []).map((p: any) => [p.id, p]));
+    const allCrewIds = (allCrewRows ?? []).map(c => c.id);
 
-      const pastCards = pastIncompleteTrips.map((trip: any) => {
-        const patient = pastPatientMap.get(trip.patient_id);
-        const patientName = patient
-          ? `${(patient as any).first_name.charAt(0)}. ${(patient as any).last_name}`
-          : "Unknown Patient";
-        return {
-          slotId: trip.id,
-          slotOrder: 0,
-          legId: trip.leg_id ?? "",
-          legType: "—" as string,
-          legTypeRaw: null as string | null,
-          patientName,
-          patientHasRecord: !!patient,
-          pickupLocation: trip.pickup_location ?? "—",
-          destinationLocation: trip.destination_location ?? "—",
-          pickupTime: trip.scheduled_pickup_time ?? null,
-          originType: trip.origin_type ?? null,
-          patientPickupAddress: null as string | null,
-          patientDropoffFacility: null as string | null,
-          patientLocationType: null as string | null,
-          patientFacilityName: null as string | null,
-          dispatchTime: trip.dispatch_time ?? null,
-          tripType: trip.trip_type ?? null,
-          pcrType: trip.pcr_type ?? null,
-          tripStatus: trip.status ?? "scheduled",
-          tripId: trip.id as string | null,
-          truckId,
-          crewId,
-          companyId: trip.company_id ?? crewCompanyId ?? null,
-          pcrStatus: trip.pcr_status ?? "not_started",
-          patientId: trip.patient_id ?? null,
-          cancellationReason: trip.cancellation_reason ?? null,
-          cancellationDisputed: trip.cancellation_disputed ?? false,
-          cancellationDispatcherNote: trip.cancellation_dispatcher_note ?? null,
-          atSceneTime: trip.at_scene_time ?? null,
-          patientContactTime: trip.patient_contact_time ?? null,
-          leftSceneTime: trip.left_scene_time ?? null,
-          arrivedPickupAt: trip.arrived_pickup_at ?? null,
-          arrivedDropoffAt: trip.arrived_dropoff_at ?? null,
-          inServiceTime: trip.in_service_time ?? null,
-          runDate: trip.run_date as string,
-        };
-      });
-      // Sort oldest first
-      pastCards.sort((a: any, b: any) => a.runDate.localeCompare(b.runDate));
-      setIncompletePastRuns(pastCards);
+    if (allCrewIds.length > 0) {
+      const { data: pastIncompleteTrips } = await supabase
+        .from("trip_records")
+        .select("id, leg_id, run_date, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, at_scene_time, patient_contact_time, left_scene_time, arrived_pickup_at, arrived_dropoff_at, in_service_time, scheduled_pickup_time, cancellation_reason, cancellation_disputed, cancellation_dispatcher_note, patient_id, truck_id, crew_id")
+        .in("crew_id", allCrewIds)
+        .in("pcr_status", ["not_started", "in_progress"])
+        .lt("run_date", today);
+
+      if (pastIncompleteTrips && pastIncompleteTrips.length > 0) {
+        const pastPatientIds = [...new Set(pastIncompleteTrips.map((t: any) => t.patient_id).filter(Boolean))] as string[];
+        const { data: pastPatients } = pastPatientIds.length > 0
+          ? await supabase.from("patients").select("id, first_name, last_name").in("id", pastPatientIds)
+          : { data: [] };
+        const pastPatientMap = new Map((pastPatients ?? []).map((p: any) => [p.id, p]));
+
+        const pastCards = pastIncompleteTrips.map((trip: any) => {
+          const patient = pastPatientMap.get(trip.patient_id);
+          const patientName = patient
+            ? `${(patient as any).first_name.charAt(0)}. ${(patient as any).last_name}`
+            : "Unknown Patient";
+          return {
+            slotId: trip.id,
+            slotOrder: 0,
+            legId: trip.leg_id ?? "",
+            legType: "—" as string,
+            legTypeRaw: null as string | null,
+            patientName,
+            patientHasRecord: !!patient,
+            pickupLocation: trip.pickup_location ?? "—",
+            destinationLocation: trip.destination_location ?? "—",
+            pickupTime: trip.scheduled_pickup_time ?? null,
+            originType: trip.origin_type ?? null,
+            patientPickupAddress: null as string | null,
+            patientDropoffFacility: null as string | null,
+            patientLocationType: null as string | null,
+            patientFacilityName: null as string | null,
+            dispatchTime: trip.dispatch_time ?? null,
+            tripType: trip.trip_type ?? null,
+            pcrType: trip.pcr_type ?? null,
+            tripStatus: trip.status ?? "scheduled",
+            tripId: trip.id as string | null,
+            truckId: trip.truck_id ?? "",
+            crewId: trip.crew_id ?? "",
+            companyId: trip.company_id ?? crewCompanyId ?? null,
+            pcrStatus: trip.pcr_status ?? "not_started",
+            patientId: trip.patient_id ?? null,
+            cancellationReason: trip.cancellation_reason ?? null,
+            cancellationDisputed: trip.cancellation_disputed ?? false,
+            cancellationDispatcherNote: trip.cancellation_dispatcher_note ?? null,
+            atSceneTime: trip.at_scene_time ?? null,
+            patientContactTime: trip.patient_contact_time ?? null,
+            leftSceneTime: trip.left_scene_time ?? null,
+            arrivedPickupAt: trip.arrived_pickup_at ?? null,
+            arrivedDropoffAt: trip.arrived_dropoff_at ?? null,
+            inServiceTime: trip.in_service_time ?? null,
+            runDate: trip.run_date as string,
+          };
+        });
+        pastCards.sort((a: any, b: any) => a.runDate.localeCompare(b.runDate));
+        setIncompletePastRuns(pastCards);
+      } else {
+        setIncompletePastRuns([]);
+      }
     } else {
       setIncompletePastRuns([]);
     }

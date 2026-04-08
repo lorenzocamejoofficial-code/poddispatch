@@ -139,6 +139,9 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
   useEffect(() => {
     if (!profileId) return;
     (async () => {
+      const items: RunForPCR[] = [];
+
+      // --- 1. Try to find today's crew assignment ---
       const { data: crewRow } = await supabase
         .from("crews")
         .select("id, truck_id, company_id, active_date")
@@ -146,110 +149,186 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
         .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
         .maybeSingle();
 
-      if (!crewRow) { setRuns([]); setLoading(false); return; }
+      let todayTruckId: string | null = crewRow?.truck_id ?? null;
+      let todayCrewId: string | null = crewRow?.id ?? null;
+      let todayCompanyId: string | null = crewRow?.company_id ?? null;
 
-      setCrewTruckId(crewRow.truck_id);
+      if (crewRow) {
+        setCrewTruckId(crewRow.truck_id);
 
-      // Check inspection gate
-      const gated = await checkInspectionGate(crewRow.truck_id, crewRow.company_id);
-      if (gated) {
-        setLoading(false);
-        return;
+        // Check inspection gate
+        const gated = await checkInspectionGate(crewRow.truck_id, crewRow.company_id);
+        if (gated) {
+          setLoading(false);
+          return;
+        }
       }
 
-      const { data: slots } = await supabase
-        .from("truck_run_slots")
-        .select("id, leg_id, slot_order")
-        .eq("truck_id", crewRow.truck_id)
-        .eq("run_date", today)
-        .order("slot_order");
+      // --- 2. Get today's runs from truck_run_slots if we have a truck ---
+      if (todayTruckId && todayCrewId) {
+        const { data: slots } = await supabase
+          .from("truck_run_slots")
+          .select("id, leg_id, slot_order")
+          .eq("truck_id", todayTruckId)
+          .eq("run_date", today)
+          .order("slot_order");
 
-      const legIds = (slots ?? []).map(s => s.leg_id);
+        const legIds = (slots ?? []).map(s => s.leg_id);
 
-      const [{ data: legs }, { data: trips }] = await Promise.all([
-        legIds.length > 0
-          ? supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, is_oneoff, oneoff_name, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)").in("id", legIds)
-          : Promise.resolve({ data: [] }),
-        legIds.length > 0
-          ? supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason").eq("run_date", today).eq("truck_id", crewRow.truck_id).in("leg_id", legIds)
-          : Promise.resolve({ data: [] }),
-      ]);
+        const [{ data: legs }, { data: trips }] = await Promise.all([
+          legIds.length > 0
+            ? supabase.from("scheduling_legs").select("id, leg_type, pickup_location, destination_location, pickup_time, trip_type, patient_id, is_oneoff, oneoff_name, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)").in("id", legIds)
+            : Promise.resolve({ data: [] }),
+          legIds.length > 0
+            ? supabase.from("trip_records").select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason").eq("run_date", today).eq("truck_id", todayTruckId!).in("leg_id", legIds)
+            : Promise.resolve({ data: [] }),
+        ]);
 
-      const legMap = new Map((legs ?? []).map(l => [l.id, l]));
-      const tripMap = new Map((trips ?? []).map(t => [t.leg_id, t]));
+        const legMap = new Map((legs ?? []).map(l => [l.id, l]));
+        const tripMap = new Map((trips ?? []).map(t => [t.leg_id, t]));
 
-      const items: RunForPCR[] = (slots ?? []).map(slot => {
-        const leg = legMap.get(slot.leg_id) as any;
-        const trip = tripMap.get(slot.leg_id) as any;
-        const patient = leg?.patient;
-        const patientName = patient?.first_name
-          ? `${patient.first_name.charAt(0)}. ${patient.last_name}`
-          : (leg?.is_oneoff && leg?.oneoff_name) ? leg.oneoff_name
-          : leg?.pickup_location || "Unknown Patient";
-        const legTypeRaw = leg?.leg_type ?? null;
-        const legType = legTypeRaw === "a_leg" || legTypeRaw === "A" ? "A" : legTypeRaw === "b_leg" || legTypeRaw === "B" ? "B" : "—";
+        for (const slot of (slots ?? [])) {
+          const leg = legMap.get(slot.leg_id) as any;
+          const trip = tripMap.get(slot.leg_id) as any;
+          const patient = leg?.patient;
+          const patientName = patient?.first_name
+            ? `${patient.first_name.charAt(0)}. ${patient.last_name}`
+            : (leg?.is_oneoff && leg?.oneoff_name) ? leg.oneoff_name
+            : leg?.pickup_location || "Unknown Patient";
+          const legTypeRaw = leg?.leg_type ?? null;
+          const legType = legTypeRaw === "a_leg" || legTypeRaw === "A" ? "A" : legTypeRaw === "b_leg" || legTypeRaw === "B" ? "B" : "—";
 
-        return {
-          tripId: trip?.id ?? null,
-          legId: slot.leg_id,
-          legType,
-          legTypeRaw,
-          patientName,
-          pickupTime: leg?.pickup_time ?? null,
-          pickupLocation: leg?.pickup_location ?? "—",
-          destinationLocation: leg?.destination_location ?? "—",
-          tripType: trip?.trip_type ?? leg?.trip_type ?? null,
-          pcrStatus: trip?.pcr_status ?? "not_started",
-          tripStatus: trip?.status ?? "scheduled",
-          truckId: crewRow.truck_id,
-          crewId: crewRow.id,
-          companyId: trip?.company_id ?? crewRow.company_id ?? null,
-          patientId: leg?.patient_id ?? null,
-          cancellationReason: trip?.cancellation_reason ?? null,
-        };
-      });
+          items.push({
+            tripId: trip?.id ?? null,
+            legId: slot.leg_id,
+            legType,
+            legTypeRaw,
+            patientName,
+            pickupTime: leg?.pickup_time ?? null,
+            pickupLocation: leg?.pickup_location ?? "—",
+            destinationLocation: leg?.destination_location ?? "—",
+            tripType: trip?.trip_type ?? leg?.trip_type ?? null,
+            pcrStatus: trip?.pcr_status ?? "not_started",
+            tripStatus: trip?.status ?? "scheduled",
+            truckId: todayTruckId!,
+            crewId: todayCrewId!,
+            companyId: trip?.company_id ?? todayCompanyId ?? null,
+            patientId: leg?.patient_id ?? null,
+            cancellationReason: trip?.cancellation_reason ?? null,
+          });
+        }
+      }
 
-      // Fix 3: Also fetch incomplete PCRs from previous days for this truck
-      const { data: pastIncomplete } = await supabase
-        .from("trip_records")
-        .select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason, run_date, patient_id, truck_id, crew_id, scheduled_pickup_time, pickup_location, destination_location")
-        .eq("truck_id", crewRow.truck_id)
-        .in("pcr_status", ["not_started", "in_progress"])
-        .lt("run_date", today);
+      // --- 2b. Fallback: if no crew row today, check trip_records directly ---
+      if (!crewRow) {
+        const { data: directTrips } = await supabase
+          .from("trip_records")
+          .select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason, truck_id, crew_id, scheduled_pickup_time, pickup_location, destination_location, patient_id")
+          .eq("run_date", today)
+          .in("pcr_status", ["not_started", "in_progress"]);
 
-      if (pastIncomplete && pastIncomplete.length > 0) {
-        const pastPatientIds = [...new Set(pastIncomplete.map((t: any) => t.patient_id).filter(Boolean))] as string[];
-        const { data: pastPatients } = pastPatientIds.length > 0
-          ? await supabase.from("patients").select("id, first_name, last_name").in("id", pastPatientIds)
-          : { data: [] };
-        const pastPatientMap = new Map((pastPatients ?? []).map((p: any) => [p.id, p]));
+        // Filter to trips where crew_id matches a crew the user was on
+        if (directTrips && directTrips.length > 0) {
+          const crewIds = [...new Set(directTrips.map((t: any) => t.crew_id).filter(Boolean))] as string[];
+          let userCrewIds = new Set<string>();
+          if (crewIds.length > 0) {
+            const { data: crewRows } = await supabase
+              .from("crews")
+              .select("id")
+              .in("id", crewIds)
+              .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`);
+            userCrewIds = new Set((crewRows ?? []).map(c => c.id));
+          }
 
-        const pastItems: RunForPCR[] = pastIncomplete.map((trip: any) => {
-          const patient = pastPatientMap.get(trip.patient_id);
-          const patientName = patient
-            ? `${(patient as any).first_name.charAt(0)}. ${(patient as any).last_name}`
-            : "Unknown Patient";
-          return {
-            tripId: trip.id,
-            legId: trip.leg_id ?? "",
-            legType: "—",
-            legTypeRaw: null,
-            patientName: `${patientName} (${trip.run_date})`,
-            pickupTime: trip.scheduled_pickup_time ?? null,
-            pickupLocation: trip.pickup_location ?? "—",
-            destinationLocation: trip.destination_location ?? "—",
-            tripType: trip.trip_type ?? null,
-            pcrStatus: trip.pcr_status ?? "not_started",
-            tripStatus: trip.status ?? "scheduled",
-            truckId: crewRow.truck_id,
-            crewId: trip.crew_id ?? crewRow.id,
-            companyId: trip.company_id ?? crewRow.company_id ?? null,
-            patientId: trip.patient_id ?? null,
-            cancellationReason: trip.cancellation_reason ?? null,
-          };
-        });
-        // Put incomplete past runs at the top
-        items.unshift(...pastItems);
+          const relevantTrips = directTrips.filter((t: any) => t.crew_id && userCrewIds.has(t.crew_id));
+          if (relevantTrips.length > 0) {
+            const patientIds = [...new Set(relevantTrips.map((t: any) => t.patient_id).filter(Boolean))] as string[];
+            const { data: patients } = patientIds.length > 0
+              ? await supabase.from("patients").select("id, first_name, last_name").in("id", patientIds)
+              : { data: [] };
+            const patientMap = new Map((patients ?? []).map((p: any) => [p.id, p]));
+
+            for (const trip of relevantTrips) {
+              const p = patientMap.get((trip as any).patient_id);
+              const patientName = p ? `${(p as any).first_name.charAt(0)}. ${(p as any).last_name}` : "Unknown Patient";
+              items.push({
+                tripId: trip.id,
+                legId: (trip as any).leg_id ?? "",
+                legType: "—",
+                legTypeRaw: null,
+                patientName,
+                pickupTime: (trip as any).scheduled_pickup_time ?? null,
+                pickupLocation: (trip as any).pickup_location ?? "—",
+                destinationLocation: (trip as any).destination_location ?? "—",
+                tripType: (trip as any).trip_type ?? null,
+                pcrStatus: (trip as any).pcr_status ?? "not_started",
+                tripStatus: (trip as any).status ?? "scheduled",
+                truckId: (trip as any).truck_id ?? "",
+                crewId: (trip as any).crew_id ?? "",
+                companyId: (trip as any).company_id ?? null,
+                patientId: (trip as any).patient_id ?? null,
+                cancellationReason: (trip as any).cancellation_reason ?? null,
+              });
+            }
+          }
+        }
+      }
+
+      // --- 3. Fetch incomplete PCRs from previous days based on crew history ---
+      const { data: allCrewRows } = await supabase
+        .from("crews")
+        .select("id")
+        .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`);
+
+      const allCrewIds = (allCrewRows ?? []).map(c => c.id);
+
+      if (allCrewIds.length > 0) {
+        const { data: pastIncomplete } = await supabase
+          .from("trip_records")
+          .select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason, run_date, patient_id, truck_id, crew_id, scheduled_pickup_time, pickup_location, destination_location")
+          .in("crew_id", allCrewIds)
+          .in("pcr_status", ["not_started", "in_progress"])
+          .lt("run_date", today);
+
+        if (pastIncomplete && pastIncomplete.length > 0) {
+          const existingTripIds = new Set(items.map(i => i.tripId).filter(Boolean));
+          const newPast = pastIncomplete.filter((t: any) => !existingTripIds.has(t.id));
+
+          if (newPast.length > 0) {
+            const pastPatientIds = [...new Set(newPast.map((t: any) => t.patient_id).filter(Boolean))] as string[];
+            const { data: pastPatients } = pastPatientIds.length > 0
+              ? await supabase.from("patients").select("id, first_name, last_name").in("id", pastPatientIds)
+              : { data: [] };
+            const pastPatientMap = new Map((pastPatients ?? []).map((p: any) => [p.id, p]));
+
+            const pastItems: RunForPCR[] = newPast.map((trip: any) => {
+              const patient = pastPatientMap.get(trip.patient_id);
+              const patientName = patient
+                ? `${(patient as any).first_name.charAt(0)}. ${(patient as any).last_name}`
+                : "Unknown Patient";
+              return {
+                tripId: trip.id,
+                legId: trip.leg_id ?? "",
+                legType: "—",
+                legTypeRaw: null,
+                patientName: `${patientName} (${trip.run_date})`,
+                pickupTime: trip.scheduled_pickup_time ?? null,
+                pickupLocation: trip.pickup_location ?? "—",
+                destinationLocation: trip.destination_location ?? "—",
+                tripType: trip.trip_type ?? null,
+                pcrStatus: trip.pcr_status ?? "not_started",
+                tripStatus: trip.status ?? "scheduled",
+                truckId: trip.truck_id ?? "",
+                crewId: trip.crew_id ?? "",
+                companyId: trip.company_id ?? null,
+                patientId: trip.patient_id ?? null,
+                cancellationReason: trip.cancellation_reason ?? null,
+              };
+            });
+            // Put incomplete past runs at the top
+            items.unshift(...pastItems);
+          }
+        }
       }
 
       setRuns(items);
