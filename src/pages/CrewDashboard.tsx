@@ -148,6 +148,7 @@ export default function CrewDashboard() {
   const [selectedEmergencyRun, setSelectedEmergencyRun] = useState<RunCard | null>(null);
   const [cancelDocTarget, setCancelDocTarget] = useState<RunCard | null>(null);
   const [crewProfile, setCrewProfile] = useState<{ full_name: string; cert_level: string } | null>(null);
+  const [incompletePastRuns, setIncompletePastRuns] = useState<(RunCard & { runDate: string })[]>([]);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
