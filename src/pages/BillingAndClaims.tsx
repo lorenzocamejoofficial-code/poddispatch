@@ -612,6 +612,16 @@ export default function BillingAndClaims() {
     const allClaims = [...cleanClaims, ...reviewClaims];
     if (allClaims.length > 0) {
       await supabase.from("claim_records" as any).insert(allClaims);
+
+      // Write computed HCPCS codes back to trip_records so both tables stay in sync
+      for (const c of allClaims) {
+        if (c.trip_id && c.hcpcs_codes?.length) {
+          await supabase
+            .from("trip_records" as any)
+            .update({ hcpcs_codes: c.hcpcs_codes, hcpcs_modifiers: c.hcpcs_modifiers } as any)
+            .eq("id", c.trip_id);
+        }
+      }
     }
 
     // Fix 3: Warn about $0 claims
