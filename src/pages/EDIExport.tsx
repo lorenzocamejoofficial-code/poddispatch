@@ -96,7 +96,7 @@ export default function EDIExport() {
       if (patientIds.length > 0) {
         const { data: patients } = await supabase
           .from("patients")
-          .select("id, first_name, last_name, dob, pickup_address, member_id, primary_payer, sex, prior_auth_number, auth_required")
+          .select("id, first_name, last_name, dob, pickup_address, member_id, primary_payer, sex, prior_auth_number, auth_required, weight_lbs")
           .in("id", patientIds);
         (patients || []).forEach((p) => {
           patientsMap[p.id] = p;
@@ -217,7 +217,7 @@ export default function EDIExport() {
         (trs || []).forEach(t => { localTripsMap[t.id] = t; });
       }
       if (selPatIds.length > 0) {
-        const { data: ps } = await supabase.from("patients").select("id, sex").in("id", selPatIds);
+        const { data: ps } = await supabase.from("patients").select("id, sex, weight_lbs").in("id", selPatIds);
         (ps || []).forEach(p => { localPatsMap[p.id] = p; });
       }
 
@@ -262,7 +262,7 @@ export default function EDIExport() {
           requires_monitoring: !!trip.requires_monitoring,
           stretcher_placement: trip.stretcher_placement || null,
           oxygen_required: !!trip.oxygen_during_transport,
-          weight_lbs: trip.weight_lbs || null,
+          weight_lbs: trip.weight_lbs || pat.weight_lbs || null,
         };
       });
 
@@ -372,6 +372,15 @@ export default function EDIExport() {
                 <Input
                   value={providerInfo.organization_name}
                   onChange={(e) => setProviderInfo((p) => ({ ...p, organization_name: e.target.value }))}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Street Address *</Label>
+                <Input
+                  value={providerInfo.address}
+                  onChange={(e) => setProviderInfo((p) => ({ ...p, address: e.target.value }))}
+                  placeholder="123 Main St"
                   className="h-8 text-sm"
                 />
               </div>
