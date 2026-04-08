@@ -66,6 +66,8 @@ interface RunCard {
   arrivedPickupAt: string | null;
   arrivedDropoffAt: string | null;
   inServiceTime: string | null;
+  // For past incomplete runs merged into the list
+  runDate?: string;
 }
 
 interface HoldTimer {
@@ -148,7 +150,6 @@ export default function CrewDashboard() {
   const [selectedEmergencyRun, setSelectedEmergencyRun] = useState<RunCard | null>(null);
   const [cancelDocTarget, setCancelDocTarget] = useState<RunCard | null>(null);
   const [crewProfile, setCrewProfile] = useState<{ full_name: string; cert_level: string } | null>(null);
-  const [incompletePastRuns, setIncompletePastRuns] = useState<(RunCard & { runDate: string })[]>([]);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
@@ -256,8 +257,6 @@ export default function CrewDashboard() {
       }
     }
 
-    setRuns(cards);
-
     // --- Fetch incomplete PCRs from previous days based on crew history ---
     const { data: allCrewRows } = await supabase
       .from("crews")
@@ -275,63 +274,72 @@ export default function CrewDashboard() {
         .lt("run_date", today);
 
       if (pastIncompleteTrips && pastIncompleteTrips.length > 0) {
-        const pastPatientIds = [...new Set(pastIncompleteTrips.map((t: any) => t.patient_id).filter(Boolean))] as string[];
-        const { data: pastPatients } = pastPatientIds.length > 0
-          ? await supabase.from("patients").select("id, first_name, last_name").in("id", pastPatientIds)
-          : { data: [] };
-        const pastPatientMap = new Map((pastPatients ?? []).map((p: any) => [p.id, p]));
+        const existingTripIds = new Set(cards.map(c => c.tripId).filter(Boolean));
+        const newPast = pastIncompleteTrips.filter((t: any) => !existingTripIds.has(t.id));
 
-        const pastCards = pastIncompleteTrips.map((trip: any) => {
-          const patient = pastPatientMap.get(trip.patient_id);
-          const patientName = patient
-            ? `${(patient as any).first_name.charAt(0)}. ${(patient as any).last_name}`
-            : "Unknown Patient";
-          return {
-            slotId: trip.id,
-            slotOrder: 0,
-            legId: trip.leg_id ?? "",
-            legType: "—" as string,
-            legTypeRaw: null as string | null,
-            patientName,
-            patientHasRecord: !!patient,
-            pickupLocation: trip.pickup_location ?? "—",
-            destinationLocation: trip.destination_location ?? "—",
-            pickupTime: trip.scheduled_pickup_time ?? null,
-            originType: trip.origin_type ?? null,
-            patientPickupAddress: null as string | null,
-            patientDropoffFacility: null as string | null,
-            patientLocationType: null as string | null,
-            patientFacilityName: null as string | null,
-            dispatchTime: trip.dispatch_time ?? null,
-            tripType: trip.trip_type ?? null,
-            pcrType: trip.pcr_type ?? null,
-            tripStatus: trip.status ?? "scheduled",
-            tripId: trip.id as string | null,
-            truckId: trip.truck_id ?? "",
-            crewId: trip.crew_id ?? "",
-            companyId: trip.company_id ?? crewCompanyId ?? null,
-            pcrStatus: trip.pcr_status ?? "not_started",
-            patientId: trip.patient_id ?? null,
-            cancellationReason: trip.cancellation_reason ?? null,
-            cancellationDisputed: trip.cancellation_disputed ?? false,
-            cancellationDispatcherNote: trip.cancellation_dispatcher_note ?? null,
-            atSceneTime: trip.at_scene_time ?? null,
-            patientContactTime: trip.patient_contact_time ?? null,
-            leftSceneTime: trip.left_scene_time ?? null,
-            arrivedPickupAt: trip.arrived_pickup_at ?? null,
-            arrivedDropoffAt: trip.arrived_dropoff_at ?? null,
-            inServiceTime: trip.in_service_time ?? null,
-            runDate: trip.run_date as string,
-          };
-        });
-        pastCards.sort((a: any, b: any) => a.runDate.localeCompare(b.runDate));
-        setIncompletePastRuns(pastCards);
-      } else {
-        setIncompletePastRuns([]);
+        if (newPast.length > 0) {
+          const pastPatientIds = [...new Set(newPast.map((t: any) => t.patient_id).filter(Boolean))] as string[];
+          const { data: pastPatients } = pastPatientIds.length > 0
+            ? await supabase.from("patients").select("id, first_name, last_name").in("id", pastPatientIds)
+            : { data: [] };
+          const pastPatientMap = new Map((pastPatients ?? []).map((p: any) => [p.id, p]));
+
+          for (const trip of newPast) {
+            const patient = pastPatientMap.get((trip as any).patient_id);
+            const patientName = patient
+              ? `${(patient as any).first_name.charAt(0)}. ${(patient as any).last_name}`
+              : "Unknown Patient";
+            cards.push({
+              slotId: trip.id,
+              slotOrder: 0,
+              legId: trip.leg_id ?? "",
+              legType: "—",
+              legTypeRaw: null,
+              patientName,
+              patientHasRecord: !!patient,
+              pickupLocation: (trip as any).pickup_location ?? "—",
+              destinationLocation: (trip as any).destination_location ?? "—",
+              pickupTime: (trip as any).scheduled_pickup_time ?? null,
+              originType: (trip as any).origin_type ?? null,
+              patientPickupAddress: null,
+              patientDropoffFacility: null,
+              patientLocationType: null,
+              patientFacilityName: null,
+              dispatchTime: (trip as any).dispatch_time ?? null,
+              tripType: (trip as any).trip_type ?? null,
+              pcrType: (trip as any).pcr_type ?? null,
+              tripStatus: (trip as any).status ?? "scheduled",
+              tripId: trip.id,
+              truckId: (trip as any).truck_id ?? "",
+              crewId: (trip as any).crew_id ?? "",
+              companyId: (trip as any).company_id ?? crewCompanyId ?? null,
+              pcrStatus: (trip as any).pcr_status ?? "not_started",
+              patientId: (trip as any).patient_id ?? null,
+              cancellationReason: (trip as any).cancellation_reason ?? null,
+              cancellationDisputed: (trip as any).cancellation_disputed ?? false,
+              cancellationDispatcherNote: (trip as any).cancellation_dispatcher_note ?? null,
+              atSceneTime: (trip as any).at_scene_time ?? null,
+              patientContactTime: (trip as any).patient_contact_time ?? null,
+              leftSceneTime: (trip as any).left_scene_time ?? null,
+              arrivedPickupAt: (trip as any).arrived_pickup_at ?? null,
+              arrivedDropoffAt: (trip as any).arrived_dropoff_at ?? null,
+              inServiceTime: (trip as any).in_service_time ?? null,
+              runDate: (trip as any).run_date,
+            });
+          }
+        }
       }
-    } else {
-      setIncompletePastRuns([]);
     }
+
+    // Sort: most recent first (today's runs by slot order, past runs by date desc)
+    cards.sort((a, b) => {
+      const dateA = a.runDate ?? today;
+      const dateB = b.runDate ?? today;
+      if (dateA !== dateB) return dateB.localeCompare(dateA);
+      return a.slotOrder - b.slotOrder;
+    });
+
+    setRuns(cards);
 
     const tripIds = cards.map(c => c.tripId).filter(Boolean) as string[];
     if (tripIds.length > 0) {
@@ -691,55 +699,13 @@ export default function CrewDashboard() {
           );
         })()}
 
-        {/* Incomplete PCRs from previous days */}
-        {incompletePastRuns.length > 0 && (
-          <div className="space-y-2">
-            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
-              <p className="text-sm font-bold text-destructive flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                Incomplete PCRs — Action Required
-              </p>
-              <p className="text-xs text-destructive/80 mt-0.5">These PCRs from previous days still need to be completed and submitted.</p>
-            </div>
-            {incompletePastRuns.map((run) => (
-              <div key={run.slotId} className="rounded-lg border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 p-4 space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-foreground">{run.patientName}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Run Date: <span className="font-medium text-amber-700 dark:text-amber-400">{run.runDate}</span>
-                      {run.pickupTime && <> · @ {run.pickupTime.substring(0, 5)}</>}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">{run.pickupLocation} → {run.destinationLocation}</p>
-                  </div>
-                  <span className={cn("shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold",
-                    run.pcrStatus === "in_progress"
-                      ? "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700"
-                      : "bg-destructive/10 text-destructive border-destructive/30"
-                  )}>
-                    {run.pcrStatus === "in_progress" ? "In Progress" : "Not Started"}
-                  </span>
-                </div>
-                <Button
-                  className="w-full h-10 text-sm bg-amber-600 hover:bg-amber-700 text-white"
-                  onClick={() => {
-                    if (run.tripId) navigate(`/pcr?tripId=${run.tripId}`);
-                  }}
-                >
-                  Complete PCR
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* Runs */}
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Today's Runs · {runs.length}
+          Your Runs · {runs.length}
         </p>
 
         {runs.length === 0 ? (
-          <p className="py-10 text-center text-muted-foreground">No runs assigned for today.</p>
+          <p className="py-10 text-center text-muted-foreground">No runs assigned.</p>
         ) : (
           runs.map((run) => {
             const pcr = PCR_STATUS_CONFIG[run.pcrStatus] || PCR_STATUS_CONFIG.not_started;
@@ -829,6 +795,9 @@ export default function CrewDashboard() {
                       <p className="font-semibold text-foreground">{run.patientName}</p>
                       {!run.patientHasRecord && <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
                     </div>
+                    {run.runDate && run.runDate !== today && (
+                      <p className="text-[10px] font-medium text-muted-foreground">Run Date: {run.runDate}</p>
+                    )}
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">
                       {timeStr && <><span className="font-medium">@ {timeStr}</span> · </>}
                       {resolvePickup()} → {resolveDropoff()}
