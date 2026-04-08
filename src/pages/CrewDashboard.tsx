@@ -251,6 +251,71 @@ export default function CrewDashboard() {
     });
     setRuns(cards);
 
+    // Fix 1: Fetch incomplete PCRs from previous days
+    const { data: pastIncompleteTrips } = await supabase
+      .from("trip_records")
+      .select("id, leg_id, run_date, status, company_id, pcr_status, trip_type, pcr_type, origin_type, pickup_location, destination_location, dispatch_time, at_scene_time, patient_contact_time, left_scene_time, arrived_pickup_at, arrived_dropoff_at, in_service_time, scheduled_pickup_time, cancellation_reason, cancellation_disputed, cancellation_dispatcher_note, patient_id, truck_id, crew_id")
+      .eq("truck_id", truckId)
+      .in("pcr_status", ["not_started", "in_progress"])
+      .lt("run_date", today);
+
+    if (pastIncompleteTrips && pastIncompleteTrips.length > 0) {
+      const pastPatientIds = [...new Set(pastIncompleteTrips.map((t: any) => t.patient_id).filter(Boolean))] as string[];
+      const { data: pastPatients } = pastPatientIds.length > 0
+        ? await supabase.from("patients").select("id, first_name, last_name").in("id", pastPatientIds)
+        : { data: [] };
+      const pastPatientMap = new Map((pastPatients ?? []).map((p: any) => [p.id, p]));
+
+      const pastCards = pastIncompleteTrips.map((trip: any) => {
+        const patient = pastPatientMap.get(trip.patient_id);
+        const patientName = patient
+          ? `${(patient as any).first_name.charAt(0)}. ${(patient as any).last_name}`
+          : "Unknown Patient";
+        return {
+          slotId: trip.id,
+          slotOrder: 0,
+          legId: trip.leg_id ?? "",
+          legType: "—" as string,
+          legTypeRaw: null as string | null,
+          patientName,
+          patientHasRecord: !!patient,
+          pickupLocation: trip.pickup_location ?? "—",
+          destinationLocation: trip.destination_location ?? "—",
+          pickupTime: trip.scheduled_pickup_time ?? null,
+          originType: trip.origin_type ?? null,
+          patientPickupAddress: null as string | null,
+          patientDropoffFacility: null as string | null,
+          patientLocationType: null as string | null,
+          patientFacilityName: null as string | null,
+          dispatchTime: trip.dispatch_time ?? null,
+          tripType: trip.trip_type ?? null,
+          pcrType: trip.pcr_type ?? null,
+          tripStatus: trip.status ?? "scheduled",
+          tripId: trip.id as string | null,
+          truckId,
+          crewId,
+          companyId: trip.company_id ?? crewCompanyId ?? null,
+          pcrStatus: trip.pcr_status ?? "not_started",
+          patientId: trip.patient_id ?? null,
+          cancellationReason: trip.cancellation_reason ?? null,
+          cancellationDisputed: trip.cancellation_disputed ?? false,
+          cancellationDispatcherNote: trip.cancellation_dispatcher_note ?? null,
+          atSceneTime: trip.at_scene_time ?? null,
+          patientContactTime: trip.patient_contact_time ?? null,
+          leftSceneTime: trip.left_scene_time ?? null,
+          arrivedPickupAt: trip.arrived_pickup_at ?? null,
+          arrivedDropoffAt: trip.arrived_dropoff_at ?? null,
+          inServiceTime: trip.in_service_time ?? null,
+          runDate: trip.run_date as string,
+        };
+      });
+      // Sort oldest first
+      pastCards.sort((a: any, b: any) => a.runDate.localeCompare(b.runDate));
+      setIncompletePastRuns(pastCards);
+    } else {
+      setIncompletePastRuns([]);
+    }
+
     const tripIds = cards.map(c => c.tripId).filter(Boolean) as string[];
     if (tripIds.length > 0) {
       const { data: timers } = await supabase.from("hold_timers").select("id, trip_id, hold_type, started_at, is_active").in("trip_id", tripIds).eq("is_active", true);
