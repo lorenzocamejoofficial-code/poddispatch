@@ -277,6 +277,12 @@ function AppRoutes() {
           <Route path="/migration" element={<MigrationOnboarding />} />
           <Route path="/settings" element={<AdminSettings />} />
           <Route path="/account" element={<AccountSettings />} />
+          {/* Crew routes for dispatchers with cert + crew assignment */}
+          <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
+          <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
+          <Route path="/crew-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
+          <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
+          <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
