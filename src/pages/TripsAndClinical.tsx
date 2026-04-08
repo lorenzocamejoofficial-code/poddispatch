@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Search, ChevronRight, FileText, Clock, AlertTriangle, XCircle, CheckCircle, ExternalLink, Download } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { TripStatusTimeline } from "@/components/billing/TripStatusTimeline";
 import { LocationTypeSelect } from "@/components/billing/LocationTypeSelect";
