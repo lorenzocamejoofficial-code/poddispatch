@@ -114,7 +114,6 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       ];
 
       // Emergency billing decision check — only applies when claim has emergency event
-      const claim = claimRow as any;
       if (claim?.has_emergency_event) {
         checks.push({
           label: "Emergency billing decision required",
