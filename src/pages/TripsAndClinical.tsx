@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { TripStatusTimeline } from "@/components/billing/TripStatusTimeline";
 import { LocationTypeSelect } from "@/components/billing/LocationTypeSelect";
+import { ICD10Picker } from "@/components/pcr/ICD10Picker";
 import {
   computeHcpcsCodes,
   inferLocationType,
@@ -62,6 +63,7 @@ interface TripRecord {
   destination_type: string | null;
   hcpcs_codes: string[] | null;
   hcpcs_modifiers: string[] | null;
+  icd10_codes: string[] | null;
   bed_confined: boolean;
   cannot_transfer_safely: boolean;
   requires_monitoring: boolean;
@@ -137,6 +139,7 @@ export default function TripsAndClinical() {
     origin_type: "", destination_type: "",
     bed_confined: false, cannot_transfer_safely: false, requires_monitoring: false, oxygen_during_transport: false,
     pcr_type: "other",
+    icd10_codes: [] as string[],
   });
 
   const fetchTrips = useCallback(async () => {
@@ -308,6 +311,7 @@ export default function TripsAndClinical() {
       requires_monitoring: trip.requires_monitoring ?? false,
       oxygen_during_transport: trip.oxygen_during_transport ?? false,
       pcr_type: trip.pcr_type ?? "other",
+      icd10_codes: Array.isArray(trip.icd10_codes) ? trip.icd10_codes : [],
     });
   };
 
@@ -399,6 +403,7 @@ export default function TripsAndClinical() {
         requires_monitoring: form.requires_monitoring,
         oxygen_during_transport: form.oxygen_during_transport,
         pcr_type: form.pcr_type,
+        icd10_codes: form.icd10_codes,
       };
 
       // Compute billing block
@@ -410,6 +415,25 @@ export default function TripsAndClinical() {
       payload.billing_blocked_reason = cleanResult.level === "blocked" ? cleanResult.issues.join(", ") : null;
 
       await supabase.from("trip_records" as any).update(payload).eq("id", selectedTrip.id);
+
+      // Also update the linked claim_record with ICD-10 codes and HCPCS codes
+      const { data: linkedClaim } = await supabase
+        .from("claim_records" as any)
+        .select("id")
+        .eq("trip_id", selectedTrip.id)
+        .maybeSingle();
+
+      if (linkedClaim) {
+        await supabase
+          .from("claim_records" as any)
+          .update({
+            icd10_codes: form.icd10_codes,
+            hcpcs_codes: codes,
+            hcpcs_modifiers: modifiers,
+          } as any)
+          .eq("id", (linkedClaim as any).id);
+      }
+
       toast.success("Trip record saved");
       setSelectedTrip(null);
       fetchTrips();
@@ -816,7 +840,17 @@ export default function TripsAndClinical() {
               </div>
             </div>
 
-            {/* HCPCS preview */}
+            {/* ICD-10 Diagnosis Codes */}
+            <ICD10Picker
+              selectedCodes={form.icd10_codes}
+              onCodesChange={(codes) => setForm({ ...form, icd10_codes: codes })}
+              required={(() => {
+                const payer = (selectedTrip?.payer ?? "").toLowerCase();
+                return payer.includes("medicare") || payer.includes("medicaid");
+              })()}
+              maxCodes={4}
+            />
+
             {selectedTrip && (
               <div className="rounded-md border bg-muted/30 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Auto HCPCS Codes</p>

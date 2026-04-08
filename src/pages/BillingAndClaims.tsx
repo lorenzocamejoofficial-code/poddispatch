@@ -480,7 +480,7 @@ export default function BillingAndClaims() {
     const tripIds = (refreshableClaims as any[]).map((c: any) => c.trip_id).filter(Boolean);
     const { data: trips } = await supabase
       .from("trip_records" as any)
-      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions")
+      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_number), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions")
       .in("id", tripIds);
 
     if (!trips?.length) {
@@ -507,6 +507,7 @@ export default function BillingAndClaims() {
           destination_type: claimData.destination_type,
           hcpcs_codes: claimData.hcpcs_codes,
           hcpcs_modifiers: claimData.hcpcs_modifiers,
+          base_charge: claimData.base_charge,
           mileage_charge: claimData.mileage_charge,
           total_charge: claimData.total_charge,
           extras_charge: claimData.extras_charge,
@@ -518,6 +519,12 @@ export default function BillingAndClaims() {
           stretcher_placement: claimData.stretcher_placement,
           patient_mobility: claimData.patient_mobility,
           isolation_precautions: claimData.isolation_precautions,
+          member_id: claimData.member_id,
+          payer_type: claimData.payer_type,
+          payer_name: claimData.payer_name,
+          icd10_codes: claimData.icd10_codes,
+          patient_sex: claimData.patient_sex,
+          auth_number: claimData.auth_number,
         } as any)
         .eq("id", claim.id);
 
