@@ -43,6 +43,9 @@ export interface ClaimForEDI {
   stretcher_placement: string | null;
   oxygen_required: boolean;
   weight_lbs: number | null;
+  // Facility names for 2310E/F loops
+  pickup_facility_name: string | null;
+  dropoff_facility_name: string | null;
 }
 
 export interface ProviderInfo {
@@ -100,29 +103,84 @@ function shortClaimRef(claimId: string, runDate: string): string {
   return `${datePart}-${idPart}`;
 }
 
-/** Parse a single address string like "123 Main St, Atlanta, GA 30301" into parts */
+/** US state abbreviations for no-comma address parsing */
+const US_STATES = new Set([
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
+  "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
+  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT",
+  "VA","WA","WV","WI","WY","DC",
+]);
+
+/** Parse a single address string into street, city, state, ZIP.
+ *  Handles formats:
+ *    "123 Main St, Atlanta, GA 30301"  (comma-delimited)
+ *    "123 Main St Atlanta GA 30301"    (no commas)
+ *    "123 Main St, Atlanta GA 30301"   (partial commas)
+ */
 export function parseAddressString(addr: string | null | undefined): {
   street: string; city: string; state: string; zip: string;
 } {
   const fallback = { street: "", city: "", state: "", zip: "" };
   if (!addr || !addr.trim()) return fallback;
 
-  // Try to match: street, city, state ZIP
-  const match = addr.match(/^(.+?),\s*(.+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
-  if (match) {
-    return { street: match[1].trim(), city: match[2].trim(), state: match[3].toUpperCase(), zip: match[4] };
+  // === Comma-delimited formats ===
+  // street, city, state ZIP
+  const m1 = addr.match(/^(.+?),\s*(.+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
+  if (m1) return { street: m1[1].trim(), city: m1[2].trim(), state: m1[3].toUpperCase(), zip: m1[4] };
+
+  // street, city, state (no ZIP)
+  const m2 = addr.match(/^(.+?),\s*(.+?),\s*([A-Z]{2})$/i);
+  if (m2) return { street: m2[1].trim(), city: m2[2].trim(), state: m2[3].toUpperCase(), zip: "" };
+
+  // street, city state ZIP (comma after street only)
+  const m3 = addr.match(/^(.+?),\s*(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
+  if (m3) return { street: m3[1].trim(), city: m3[2].trim(), state: m3[3].toUpperCase(), zip: m3[4] };
+
+  // street, city state (comma after street, no ZIP)
+  const m3b = addr.match(/^(.+?),\s*(.+?)\s+([A-Z]{2})$/i);
+  if (m3b && US_STATES.has(m3b[3].toUpperCase())) {
+    return { street: m3b[1].trim(), city: m3b[2].trim(), state: m3b[3].toUpperCase(), zip: "" };
   }
 
-  // Try: street, city, state (no ZIP)
-  const match2 = addr.match(/^(.+?),\s*(.+?),\s*([A-Z]{2})$/i);
-  if (match2) {
-    return { street: match2[1].trim(), city: match2[2].trim(), state: match2[3].toUpperCase(), zip: "" };
+  // === No-comma format: "742 Evergreen Terrace Atlanta GA 30301" ===
+  // Find state abbreviation + optional ZIP near the end
+  const m4 = addr.match(/^(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
+  if (m4 && US_STATES.has(m4[2].toUpperCase())) {
+    // m4[1] is "742 Evergreen Terrace Atlanta" — split street from city
+    const prefix = m4[1].trim();
+    const words = prefix.split(/\s+/);
+    // City is the last word(s) before state; heuristic: last word is the city
+    // Try to find the city by checking if the last 1-2 words form a known pattern
+    // Simple approach: last word is city
+    if (words.length >= 2) {
+      // Check for two-word cities (e.g. "San Francisco", "New York")
+      // Use the heuristic that street addresses start with a number
+      const startsWithNumber = /^\d/.test(words[0]);
+      if (startsWithNumber && words.length >= 3) {
+        // Take the last word as city (most common case)
+        const city = words[words.length - 1];
+        const street = words.slice(0, -1).join(" ");
+        return { street, city, state: m4[2].toUpperCase(), zip: m4[3] };
+      }
+      // No leading number — might be a facility name, put it all in street
+      const city = words[words.length - 1];
+      const street = words.slice(0, -1).join(" ");
+      return { street, city, state: m4[2].toUpperCase(), zip: m4[3] };
+    }
+    return { street: prefix, city: "", state: m4[2].toUpperCase(), zip: m4[3] };
   }
 
-  // Try: street, city state ZIP (no comma before state)
-  const match3 = addr.match(/^(.+?),\s*(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
-  if (match3) {
-    return { street: match3[1].trim(), city: match3[2].trim(), state: match3[3].toUpperCase(), zip: match3[4] };
+  // No-comma, state only, no ZIP: "742 Evergreen Terrace Atlanta GA"
+  const m5 = addr.match(/^(.+?)\s+([A-Z]{2})$/i);
+  if (m5 && US_STATES.has(m5[2].toUpperCase())) {
+    const prefix = m5[1].trim();
+    const words = prefix.split(/\s+/);
+    if (words.length >= 2) {
+      const city = words[words.length - 1];
+      const street = words.slice(0, -1).join(" ");
+      return { street, city, state: m5[2].toUpperCase(), zip: "" };
+    }
+    return { street: prefix, city: "", state: m5[2].toUpperCase(), zip: "" };
   }
 
   // Fallback: put everything in street
@@ -361,13 +419,16 @@ export function generateEDI837P(
     );
 
     // --- Loop 2310E: Ambulance Pickup Location ---
-    if (claim.origin_address || claim.origin_zip) {
+    // Omit for Residence origin — no named facility
+    const isResidenceOrigin = claim.origin_type && claim.origin_type.toLowerCase().includes("resid");
+    if (!isResidenceOrigin && (claim.origin_address || claim.origin_zip)) {
       const origAddr = parseAddressString(claim.origin_address);
       const origStreet = origAddr.street || claim.origin_address || "UNKNOWN";
       const origCity = claim.origin_city || origAddr.city || "";
       const origState = claim.origin_state || origAddr.state || "";
       const origZip = claim.origin_zip || origAddr.zip || "";
-      addSeg(["NM1", "PW", "2", "", "", "", "", "", "", ""].join(ES));
+      const origFacName = (claim.pickup_facility_name || "").toUpperCase();
+      addSeg(["NM1", "PW", "2", origFacName, "", "", "", "", "", ""].join(ES));
       addSeg(["N3", origStreet].join(ES));
       addSeg(["N4", origCity, origState, origZip].join(ES));
     }
@@ -379,7 +440,8 @@ export function generateEDI837P(
       const destCity = claim.destination_city || destAddr.city || "";
       const destState = claim.destination_state || destAddr.state || "";
       const destZip = claim.destination_zip || destAddr.zip || "";
-      addSeg(["NM1", "45", "2", "", "", "", "", "", "", ""].join(ES));
+      const destFacName = (claim.dropoff_facility_name || "").toUpperCase();
+      addSeg(["NM1", "45", "2", destFacName, "", "", "", "", "", ""].join(ES));
       addSeg(["N3", destStreet].join(ES));
       addSeg(["N4", destCity, destState, destZip].join(ES));
     }
