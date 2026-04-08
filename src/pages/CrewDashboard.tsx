@@ -339,6 +339,7 @@ export default function CrewDashboard() {
       return a.slotOrder - b.slotOrder;
     });
 
+    setRuns(cards);
 
     const tripIds = cards.map(c => c.tripId).filter(Boolean) as string[];
     if (tripIds.length > 0) {
