@@ -409,7 +409,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
   if (runs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] p-6">
-        <p className="text-muted-foreground text-sm">No runs assigned for today.</p>
+        <p className="text-muted-foreground text-sm">No runs assigned.</p>
       </div>
     );
   }
