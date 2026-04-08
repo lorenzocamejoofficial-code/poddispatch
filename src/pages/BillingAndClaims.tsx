@@ -521,6 +521,14 @@ export default function BillingAndClaims() {
         } as any)
         .eq("id", claim.id);
 
+      // Write computed HCPCS codes back to trip_record
+      if (claim.trip_id && claimData.hcpcs_codes?.length) {
+        await supabase
+          .from("trip_records" as any)
+          .update({ hcpcs_codes: claimData.hcpcs_codes, hcpcs_modifiers: claimData.hcpcs_modifiers } as any)
+          .eq("id", claim.trip_id);
+      }
+
       if (newStatus === "ready_to_bill") upgraded++;
       else stillPending++;
     }
