@@ -674,6 +674,48 @@ export default function CrewDashboard() {
           );
         })()}
 
+        {/* Incomplete PCRs from previous days */}
+        {incompletePastRuns.length > 0 && (
+          <div className="space-y-2">
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+              <p className="text-sm font-bold text-destructive flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Incomplete PCRs — Action Required
+              </p>
+              <p className="text-xs text-destructive/80 mt-0.5">These PCRs from previous days still need to be completed and submitted.</p>
+            </div>
+            {incompletePastRuns.map((run) => (
+              <div key={run.slotId} className="rounded-lg border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 p-4 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-foreground">{run.patientName}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Run Date: <span className="font-medium text-amber-700 dark:text-amber-400">{run.runDate}</span>
+                      {run.pickupTime && <> · @ {run.pickupTime.substring(0, 5)}</>}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">{run.pickupLocation} → {run.destinationLocation}</p>
+                  </div>
+                  <span className={cn("shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold",
+                    run.pcrStatus === "in_progress"
+                      ? "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700"
+                      : "bg-destructive/10 text-destructive border-destructive/30"
+                  )}>
+                    {run.pcrStatus === "in_progress" ? "In Progress" : "Not Started"}
+                  </span>
+                </div>
+                <Button
+                  className="w-full h-10 text-sm bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={() => {
+                    if (run.tripId) navigate(`/pcr?tripId=${run.tripId}`);
+                  }}
+                >
+                  Complete PCR
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Runs */}
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Today's Runs · {runs.length}
