@@ -53,6 +53,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
 
       const t = trip as any;
       const p = patient as any;
+      const claim = claimRow as any;
 
       const checks: ChecklistItem[] = [
         {
