@@ -263,6 +263,8 @@ export default function EDIExport() {
           stretcher_placement: trip.stretcher_placement || null,
           oxygen_required: !!trip.oxygen_during_transport,
           weight_lbs: trip.weight_lbs || pat.weight_lbs || null,
+          pickup_facility_name: trip.pickup_location || null,
+          dropoff_facility_name: trip.destination_location || null,
         };
       });
 
