@@ -53,6 +53,23 @@ import LegalPage from "./pages/LegalPage";
 import RemittanceImport from "./pages/RemittanceImport";
 import OwnerDashboard from "./pages/OwnerDashboard";
 import CrewInspectionChecklist from "./components/inspection/CrewInspectionChecklist";
+import { useCrewViewEligibility } from "./hooks/useCrewViewEligibility";
+
+/** Wrapper that renders crew routes only if the user is eligible (has cert + assigned today) */
+function CrewRouteGate({ children }: { children: React.ReactNode }) {
+  const { profileId } = useAuth();
+  const { eligible, loading } = useCrewViewEligibility(profileId);
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+  if (!eligible) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 // Token links redirect to login with crew mode when unauthenticated
 function TokenLoginRedirect() {
   const { token } = useParams<{ token: string }>();
@@ -282,6 +299,12 @@ function AppRoutes() {
           <Route path="/facilities" element={<FacilitiesPage />} />
           <Route path="/reports" element={<ReportsAndMetrics />} />
           <Route path="/account" element={<AccountSettings />} />
+          {/* Crew routes for billers with cert + crew assignment */}
+          <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
+          <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
+          <Route path="/crew-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
+          <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
+          <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
@@ -317,6 +340,12 @@ function AppRoutes() {
         <Route path="/settings" element={<AdminSettings />} />
         <Route path="/override-monitor" element={<OverrideMonitor />} />
         <Route path="/account" element={<AccountSettings />} />
+        {/* Crew routes for owners with cert + crew assignment */}
+        <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
+        <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
+        <Route path="/crew-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
+        <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
+        <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

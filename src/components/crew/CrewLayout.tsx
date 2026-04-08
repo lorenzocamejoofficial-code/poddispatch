@@ -1,7 +1,7 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, LogOut, Menu, X, Truck, Users, CalendarDays, ClipboardCheck, ArrowLeftRight } from "lucide-react";
+import { LayoutDashboard, FileText, LogOut, Menu, X, Truck, Users, CalendarDays, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCompanyName } from "@/hooks/useCompanyName";
@@ -17,10 +17,9 @@ const crewNav = [
 ];
 
 export function CrewLayout({ children }: { children: ReactNode }) {
-  const { user, signOut, profileId, role } = useAuth();
+  const { user, signOut, profileId } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const isAdminRole = role === "owner" || role === "dispatcher" || role === "biller";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { companyName } = useCompanyName();
   const badges = useCrewBadges(profileId);
@@ -81,17 +80,6 @@ export function CrewLayout({ children }: { children: ReactNode }) {
             {crewNav.find(i => i.path === location.pathname)?.label ?? "Crew"}
           </h2>
           <BugReportDialog currentPath={location.pathname} userId={user?.id} />
-          {isAdminRole && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 text-xs"
-              onClick={() => navigate("/")}
-            >
-              <ArrowLeftRight className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Switch to Admin View</span>
-            </Button>
-          )}
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
