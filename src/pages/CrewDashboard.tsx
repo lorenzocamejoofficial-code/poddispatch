@@ -795,6 +795,9 @@ export default function CrewDashboard() {
                       <p className="font-semibold text-foreground">{run.patientName}</p>
                       {!run.patientHasRecord && <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
                     </div>
+                    {run.runDate && run.runDate !== today && (
+                      <p className="text-[10px] font-medium text-muted-foreground">Run Date: {run.runDate}</p>
+                    )}
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">
                       {timeStr && <><span className="font-medium">@ {timeStr}</span> · </>}
                       {resolvePickup()} → {resolveDropoff()}
