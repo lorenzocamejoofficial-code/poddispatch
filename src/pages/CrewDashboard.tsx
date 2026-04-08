@@ -705,7 +705,7 @@ export default function CrewDashboard() {
         </p>
 
         {runs.length === 0 ? (
-          <p className="py-10 text-center text-muted-foreground">No runs assigned for today.</p>
+          <p className="py-10 text-center text-muted-foreground">No runs assigned.</p>
         ) : (
           runs.map((run) => {
             const pcr = PCR_STATUS_CONFIG[run.pcrStatus] || PCR_STATUS_CONFIG.not_started;
