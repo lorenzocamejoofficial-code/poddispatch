@@ -15,6 +15,7 @@ import {
   generateEDI837P,
   validateClaimForEDI,
   generateEDIFilename,
+  extractFacilityName,
   type ClaimForEDI,
   type ProviderInfo,
   type SubmitterInfo,
