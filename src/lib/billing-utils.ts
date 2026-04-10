@@ -3,12 +3,17 @@
 export const LOCATION_TYPES = [
   "Home",
   "Dialysis Center",
+  "Hospital-Based Dialysis Facility",
+  "Non-Hospital-Based Dialysis Facility",
   "Hospital Inpatient",
   "Hospital Outpatient",
   "Emergency Room",
   "Skilled Nursing Facility (SNF)",
   "Assisted Living",
   "Rehab Facility",
+  "Physician/Doctor Office",
+  "Scene of Accident",
+  "Site of Transfer (IFT)",
   "Other",
 ] as const;
 
@@ -38,12 +43,18 @@ export const HCPCS_CODE_DESCRIPTIONS: Record<string, string> = {
 function locationModifierCode(type: string | null): string {
   if (!type) return "R";
   const t = type.toLowerCase();
-  if (t.includes("hospital") || t === "h") return "H";
+  // Order matters — more specific matches first
+  if (t.includes("hospital-based dialysis") || t === "g") return "G";
+  if (t.includes("non-hospital") && t.includes("dialysis") || t === "j") return "J";
+  if (t.includes("hospital outpatient") || t === "e") return "E";
+  if (t.includes("hospital inpatient") || t.includes("emergency room") || t === "h") return "H";
   if (t.includes("dialysis") || t === "d") return "D";
   if (t.includes("nursing") || t.includes("snf") || t === "n") return "N";
   if (t.includes("scene") || t === "s") return "S";
   if (t.includes("physician") || t.includes("doctor") || t === "p") return "P";
-  // residence / home / default
+  if (t.includes("site of transfer") || t.includes("ift") || t === "i") return "I";
+  if (t.includes("intermediate") || t === "x") return "X";
+  // Residence, Home, Assisted Living, Rehab, Other → R
   return "R";
 }
 

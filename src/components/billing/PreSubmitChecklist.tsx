@@ -55,13 +55,19 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const p = patient as any;
       const claim = claimRow as any;
 
+      const isEmergency = (t.pcr_type ?? "").toLowerCase() === "emergency";
+
       const checks: ChecklistItem[] = [
         {
           label: "PCS on file and not expired",
-          passed: !!(p?.pcs_on_file && (!p?.pcs_expiration_date || new Date(p.pcs_expiration_date) >= new Date(t.run_date))),
-          detail: p?.pcs_on_file
-            ? (p?.pcs_expiration_date ? `Expires ${p.pcs_expiration_date}` : "On file, no expiration")
-            : "Not on file",
+          passed: isEmergency
+            ? true
+            : !!(p?.pcs_on_file && (!p?.pcs_expiration_date || new Date(p.pcs_expiration_date) >= new Date(t.run_date))),
+          detail: isEmergency
+            ? "Not required for emergency transport"
+            : p?.pcs_on_file
+              ? (p?.pcs_expiration_date ? `Expires ${p.pcs_expiration_date}` : "On file, no expiration")
+              : "Not on file",
         },
         {
           label: "At least one medical necessity criterion checked",
