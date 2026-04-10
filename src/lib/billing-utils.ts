@@ -17,15 +17,17 @@ export type LocationType = (typeof LOCATION_TYPES)[number];
 // HCPCS codes for ambulance transport
 export const HCPCS = {
   BLS_NON_EMERGENCY: "A0428",
-  BLS_EMERGENCY: "A0427",
+  BLS_EMERGENCY: "A0429",
   ALS1_NON_EMERGENCY: "A0426",
+  ALS1_EMERGENCY: "A0427",
   ALS2_NON_EMERGENCY: "A0433",
   MILEAGE: "A0425",
 } as const;
 
 export const HCPCS_CODE_DESCRIPTIONS: Record<string, string> = {
-  A0427: "BLS Emergency Transport",
+  A0429: "BLS Emergency Transport",
   A0428: "BLS Non-Emergency Transport",
+  A0427: "ALS1 Emergency Transport",
   A0426: "ALS1 Non-Emergency Transport",
   A0433: "ALS2 Non-Emergency Transport",
   A0425: "Ground Mileage per Statute Mile",
