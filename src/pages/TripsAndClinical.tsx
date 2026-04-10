@@ -279,6 +279,7 @@ export default function TripsAndClinical() {
           supabase.from("trip_records" as any)
             .update({ slot_id: s.id } as any)
             .eq("id", existingTripId)
+            .then()
         );
         continue;
       }
