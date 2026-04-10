@@ -211,15 +211,20 @@ export function extractFacilityName(location: string | null | undefined): string
 /** Map location type codes to CMS ambulance origin/destination codes */
 function locationTypeCode(type: string | null): string {
   if (!type) return "R";
-  const map: Record<string, string> = {
-    hospital: "H", "H": "H",
-    dialysis: "D", dialysis_center: "D", "D": "D",
-    residence: "R", home: "R", "R": "R",
-    nursing: "N", nursing_facility: "N", snf: "N", "N": "N",
-    scene: "S", "S": "S",
-    physician: "P", doctor: "P", "P": "P",
-  };
-  return map[type.toLowerCase()] || "R";
+  const t = type.toLowerCase();
+  // More specific matches first
+  if (t.includes("hospital-based dialysis") || t === "g") return "G";
+  if (t.includes("non-hospital") && t.includes("dialysis") || t === "j") return "J";
+  if (t.includes("hospital outpatient") || t === "e") return "E";
+  if (t.includes("hospital inpatient") || t.includes("emergency room") || t === "h") return "H";
+  if (t.includes("dialysis") || t === "d") return "D";
+  if (t.includes("nursing") || t.includes("snf") || t === "n") return "N";
+  if (t.includes("scene") || t === "s") return "S";
+  if (t.includes("physician") || t.includes("doctor") || t === "p") return "P";
+  if (t.includes("site of transfer") || t.includes("ift") || t === "i") return "I";
+  if (t.includes("intermediate") || t === "x") return "X";
+  // Residence, Home, Assisted Living, Rehab, Other → R
+  return "R";
 }
 
 /** Map payer_type to X12 SBR claim filing indicator code */
