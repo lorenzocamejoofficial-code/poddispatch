@@ -266,7 +266,7 @@ export default function TripsAndClinical() {
     }
 
     const newTrips: any[] = [];
-    const updatePromises: Promise<any>[] = [];
+    const updatePromises: PromiseLike<any>[] = [];
 
     for (const s of slots as any[]) {
       // Already linked by slot_id — skip
