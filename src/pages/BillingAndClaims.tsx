@@ -557,14 +557,20 @@ export default function BillingAndClaims() {
 
     if (!trips?.length) { toast.info("No new trips ready for billing"); return; }
 
-    const { data: existing } = await supabase.from("claim_records" as any).select("trip_id");
+    const { data: existing } = await supabase.from("claim_records" as any).select("trip_id, patient_id, run_date");
     const existingTripIds = new Set((existing ?? []).map((e: any) => e.trip_id));
+
+    // Build a set of patient+date combinations that already have claims
+    const existingPatientDateClaims = new Set(
+      (existing ?? []).filter((e: any) => e.patient_id).map((e: any) => `${e.patient_id}_${e.run_date}`)
+    );
 
     const newTrips = (trips as any[]).filter(t => !existingTripIds.has(t.id));
 
     const cleanClaims: any[] = [];
     const reviewClaims: any[] = [];
     const blockedTrips: { id: string; issues: string[] }[] = [];
+    const duplicateWarnings: string[] = [];
 
     for (const t of newTrips) {
       // Emergency event: skip claim creation for emergency PCRs with no_emergency/accidental resolution
