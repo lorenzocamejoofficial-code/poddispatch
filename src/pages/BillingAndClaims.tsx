@@ -572,7 +572,21 @@ export default function BillingAndClaims() {
     const blockedTrips: { id: string; issues: string[] }[] = [];
     const duplicateWarnings: string[] = [];
 
+    // Track patient+date keys for claims being created in this batch
+    const claimedPatientDates = new Set(existingPatientDateClaims);
+
     for (const t of newTrips) {
+      // Duplicate patient+date detection — skip if a claim already exists for this patient on this date
+      if (t.patient_id) {
+        const patientDateKey = `${t.patient_id}_${t.run_date}`;
+        if (claimedPatientDates.has(patientDateKey)) {
+          const patientName = t.patient ? `${t.patient.first_name ?? ""} ${t.patient.last_name ?? ""}`.trim() : "Unknown";
+          duplicateWarnings.push(`${patientName} on ${t.run_date}`);
+          continue;
+        }
+        claimedPatientDates.add(patientDateKey);
+      }
+
       // Emergency event: skip claim creation for emergency PCRs with no_emergency/accidental resolution
       if (t.is_emergency_pcr) {
         const resolution = t.emergency_upgrade_resolution ?? "";
