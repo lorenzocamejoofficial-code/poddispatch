@@ -364,7 +364,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       return;
     }
     const derived = getOriginDestination(run.tripType ?? "", run.legType);
-    const { data: newTrip, error } = await supabase.from("trip_records").insert({
+    const insertData: any = {
       leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
       company_id: companyId, patient_id: run.patientId,
       run_date: today, status: "scheduled" as any,
@@ -372,7 +372,9 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       scheduled_pickup_time: run.pickupTime, trip_type: run.tripType as any,
       pcr_type: run.tripType as any, pcr_status: "not_started",
       origin_type: derived.origin_type, destination_type: derived.destination_type,
-    }).select("id").single();
+    };
+    if (run.slotId) insertData.slot_id = run.slotId;
+    const { data: newTrip, error } = await supabase.from("trip_records").insert(insertData).select("id").single();
 
     if (error || !newTrip) {
       toast.error(error?.message ?? "Failed to create trip record");
