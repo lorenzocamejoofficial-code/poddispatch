@@ -43,6 +43,7 @@ interface CrewMember { id: string; name: string; cert: string; }
 interface RunForPCR {
   tripId: string | null;
   legId: string;
+  slotId: string | null;
   legType: string;
   patientName: string;
   pickupTime: string | null;
