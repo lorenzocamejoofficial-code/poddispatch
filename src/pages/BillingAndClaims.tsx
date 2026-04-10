@@ -670,11 +670,19 @@ export default function BillingAndClaims() {
     // Also refresh existing needs_review claims
     await refreshExistingClaims();
 
+    // Warn about duplicate trip records that were skipped
+    if (duplicateWarnings.length > 0) {
+      toast.warning(`Duplicate trip records detected — skipped claim creation for: ${duplicateWarnings.join(", ")}. Review and resolve duplicate trips before submitting.`, {
+        duration: 15000,
+      });
+    }
+
     // Summary toast
     const parts: string[] = [];
     if (cleanClaims.length > 0) parts.push(`${cleanClaims.length} claim(s) created and ready to bill`);
     if (reviewClaims.length > 0) parts.push(`${reviewClaims.length} claim(s) created with review flags`);
     if (blockedTrips.length > 0) parts.push(`${blockedTrips.length} trip(s) blocked — documentation incomplete`);
+    if (duplicateWarnings.length > 0) parts.push(`${duplicateWarnings.length} duplicate(s) skipped`);
 
     // Void claims for cancelled trips
     const { data: cancelledTrips } = await supabase
