@@ -43,6 +43,7 @@ interface CrewMember { id: string; name: string; cert: string; }
 interface RunForPCR {
   tripId: string | null;
   legId: string;
+  slotId: string | null;
   legType: string;
   patientName: string;
   pickupTime: string | null;
@@ -201,6 +202,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
           items.push({
             tripId: trip?.id ?? null,
             legId: slot.leg_id,
+            slotId: slot.id,
             legType,
             legTypeRaw,
             patientName,
@@ -254,6 +256,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
               items.push({
                 tripId: trip.id,
                 legId: (trip as any).leg_id ?? "",
+                slotId: null,
                 legType: "—",
                 legTypeRaw: null,
                 patientName,
@@ -309,6 +312,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
               return {
                 tripId: trip.id,
                 legId: trip.leg_id ?? "",
+                slotId: null,
                 legType: "—",
                 legTypeRaw: null,
                 patientName: `${patientName} (${trip.run_date})`,
@@ -360,7 +364,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       return;
     }
     const derived = getOriginDestination(run.tripType ?? "", run.legType);
-    const { data: newTrip, error } = await supabase.from("trip_records").insert({
+    const insertData: any = {
       leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
       company_id: companyId, patient_id: run.patientId,
       run_date: today, status: "scheduled" as any,
@@ -368,7 +372,9 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       scheduled_pickup_time: run.pickupTime, trip_type: run.tripType as any,
       pcr_type: run.tripType as any, pcr_status: "not_started",
       origin_type: derived.origin_type, destination_type: derived.destination_type,
-    }).select("id").single();
+    };
+    if (run.slotId) insertData.slot_id = run.slotId;
+    const { data: newTrip, error } = await supabase.from("trip_records").insert(insertData).select("id").single();
 
     if (error || !newTrip) {
       toast.error(error?.message ?? "Failed to create trip record");

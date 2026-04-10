@@ -256,36 +256,59 @@ export default function TripsAndClinical() {
       .eq("run_date", runDate);
     if (!slots?.length) return;
 
+    // Fetch existing trip records — check both slot_id and leg_id for dedup
     const { data: existing } = await supabase
-      .from("trip_records" as any).select("slot_id").eq("run_date", runDate);
-    const existingSlotIds = new Set((existing ?? []).map((e: any) => e.slot_id));
+      .from("trip_records" as any).select("id, slot_id, leg_id").eq("run_date", runDate);
+    const existingSlotIds = new Set((existing ?? []).map((e: any) => e.slot_id).filter(Boolean));
+    const existingByLegId = new Map<string, string>();
+    for (const e of (existing ?? []) as any[]) {
+      if (e.leg_id && !e.slot_id) existingByLegId.set(e.leg_id, e.id);
+    }
 
-    const newTrips = (slots as any[])
-      .filter(s => !existingSlotIds.has(s.id))
-      .map(s => {
-        const originType = inferLocationType(s.leg?.pickup_location, facilityMap);
-        const destType = inferLocationType(s.leg?.destination_location, facilityMap);
-        return {
-          slot_id: s.id,
-          leg_id: s.leg_id,
-          patient_id: s.leg?.patient_id ?? null,
-          truck_id: s.truck_id,
-          run_date: s.run_date,
-          company_id: s.company_id,
-          status: "assigned",
-          scheduled_pickup_time: s.leg?.pickup_time ?? null,
-          pickup_location: s.leg?.pickup_location ?? null,
-          destination_location: s.leg?.destination_location ?? null,
-          trip_type: s.leg?.trip_type ?? "dialysis",
-          origin_type: originType,
-          destination_type: destType,
-        };
+    const newTrips: any[] = [];
+    const updatePromises: PromiseLike<any>[] = [];
+
+    for (const s of slots as any[]) {
+      // Already linked by slot_id — skip
+      if (existingSlotIds.has(s.id)) continue;
+
+      // Trip exists by leg_id but missing slot_id — backfill slot_id instead of creating duplicate
+      const existingTripId = existingByLegId.get(s.leg_id);
+      if (existingTripId) {
+        updatePromises.push(
+          supabase.from("trip_records" as any)
+            .update({ slot_id: s.id } as any)
+            .eq("id", existingTripId)
+            .then()
+        );
+        continue;
+      }
+
+      // No existing trip — create new one
+      const originType = inferLocationType(s.leg?.pickup_location, facilityMap);
+      const destType = inferLocationType(s.leg?.destination_location, facilityMap);
+      newTrips.push({
+        slot_id: s.id,
+        leg_id: s.leg_id,
+        patient_id: s.leg?.patient_id ?? null,
+        truck_id: s.truck_id,
+        run_date: s.run_date,
+        company_id: s.company_id,
+        status: "assigned",
+        scheduled_pickup_time: s.leg?.pickup_time ?? null,
+        pickup_location: s.leg?.pickup_location ?? null,
+        destination_location: s.leg?.destination_location ?? null,
+        trip_type: s.leg?.trip_type ?? "dialysis",
+        origin_type: originType,
+        destination_type: destType,
       });
+    }
 
+    if (updatePromises.length > 0) await Promise.all(updatePromises);
     if (newTrips.length > 0) {
       await supabase.from("trip_records" as any).insert(newTrips);
-      fetchTrips();
     }
+    if (newTrips.length > 0 || updatePromises.length > 0) fetchTrips();
   };
 
   const openTrip = (trip: TripRecord) => {

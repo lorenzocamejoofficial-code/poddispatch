@@ -557,16 +557,36 @@ export default function BillingAndClaims() {
 
     if (!trips?.length) { toast.info("No new trips ready for billing"); return; }
 
-    const { data: existing } = await supabase.from("claim_records" as any).select("trip_id");
+    const { data: existing } = await supabase.from("claim_records" as any).select("trip_id, patient_id, run_date");
     const existingTripIds = new Set((existing ?? []).map((e: any) => e.trip_id));
+
+    // Build a set of patient+date combinations that already have claims
+    const existingPatientDateClaims = new Set(
+      (existing ?? []).filter((e: any) => e.patient_id).map((e: any) => `${e.patient_id}_${e.run_date}`)
+    );
 
     const newTrips = (trips as any[]).filter(t => !existingTripIds.has(t.id));
 
     const cleanClaims: any[] = [];
     const reviewClaims: any[] = [];
     const blockedTrips: { id: string; issues: string[] }[] = [];
+    const duplicateWarnings: string[] = [];
+
+    // Track patient+date keys for claims being created in this batch
+    const claimedPatientDates = new Set(existingPatientDateClaims);
 
     for (const t of newTrips) {
+      // Duplicate patient+date detection — skip if a claim already exists for this patient on this date
+      if (t.patient_id) {
+        const patientDateKey = `${t.patient_id}_${t.run_date}`;
+        if (claimedPatientDates.has(patientDateKey)) {
+          const patientName = t.patient ? `${t.patient.first_name ?? ""} ${t.patient.last_name ?? ""}`.trim() : "Unknown";
+          duplicateWarnings.push(`${patientName} on ${t.run_date}`);
+          continue;
+        }
+        claimedPatientDates.add(patientDateKey);
+      }
+
       // Emergency event: skip claim creation for emergency PCRs with no_emergency/accidental resolution
       if (t.is_emergency_pcr) {
         const resolution = t.emergency_upgrade_resolution ?? "";
@@ -650,11 +670,19 @@ export default function BillingAndClaims() {
     // Also refresh existing needs_review claims
     await refreshExistingClaims();
 
+    // Warn about duplicate trip records that were skipped
+    if (duplicateWarnings.length > 0) {
+      toast.warning(`Duplicate trip records detected — skipped claim creation for: ${duplicateWarnings.join(", ")}. Review and resolve duplicate trips before submitting.`, {
+        duration: 15000,
+      });
+    }
+
     // Summary toast
     const parts: string[] = [];
     if (cleanClaims.length > 0) parts.push(`${cleanClaims.length} claim(s) created and ready to bill`);
     if (reviewClaims.length > 0) parts.push(`${reviewClaims.length} claim(s) created with review flags`);
     if (blockedTrips.length > 0) parts.push(`${blockedTrips.length} trip(s) blocked — documentation incomplete`);
+    if (duplicateWarnings.length > 0) parts.push(`${duplicateWarnings.length} duplicate(s) skipped`);
 
     // Void claims for cancelled trips
     const { data: cancelledTrips } = await supabase
