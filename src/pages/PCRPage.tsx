@@ -202,6 +202,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
           items.push({
             tripId: trip?.id ?? null,
             legId: slot.leg_id,
+            slotId: slot.id,
             legType,
             legTypeRaw,
             patientName,
@@ -255,6 +256,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
               items.push({
                 tripId: trip.id,
                 legId: (trip as any).leg_id ?? "",
+                slotId: null,
                 legType: "—",
                 legTypeRaw: null,
                 patientName,
@@ -310,6 +312,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
               return {
                 tripId: trip.id,
                 legId: trip.leg_id ?? "",
+                slotId: null,
                 legType: "—",
                 legTypeRaw: null,
                 patientName: `${patientName} (${trip.run_date})`,
