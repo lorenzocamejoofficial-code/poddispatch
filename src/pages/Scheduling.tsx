@@ -469,6 +469,8 @@ export default function Scheduling() {
         oneoff_mobility: "ambulatory",
         oneoff_oxygen: false,
         oneoff_notes: oneoffForm.notes || null,
+        origin_type: oneoffForm.pickup_location_type || null,
+        destination_type: oneoffForm.destination_type || null,
       } as any);
       if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create one-off leg: ${error.message}`); return; }
 
@@ -495,6 +497,8 @@ export default function Scheduling() {
           oneoff_mobility: "ambulatory",
           oneoff_oxygen: false,
           oneoff_notes: oneoffForm.notes || null,
+          origin_type: oneoffForm.destination_type || null,
+          destination_type: oneoffForm.pickup_location_type || null,
         } as any);
       }
 
@@ -533,6 +537,8 @@ export default function Scheduling() {
       notes: legForm.notes || null,
       run_date: selectedDate,
       company_id: companyId,
+      origin_type: legPickupLocationType || null,
+      destination_type: legDestinationType || null,
     } as any);
 
     if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create leg: ${error.message}`); return; }
@@ -552,6 +558,8 @@ export default function Scheduling() {
         notes: legForm.notes || null,
         run_date: selectedDate,
         company_id: companyId,
+        origin_type: legDestinationType || null,
+        destination_type: legPickupLocationType || null,
       } as any);
     }
 
