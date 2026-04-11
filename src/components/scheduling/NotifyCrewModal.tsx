@@ -32,7 +32,7 @@ export function NotifyCrewModal({ open, onOpenChange, selectedDate, onNotified }
       setLoading(true);
       const { data: companyId } = await supabase.rpc("get_my_company_id");
       const { data } = await supabase
-        .from("schedule_change_log" as any)
+        .from("schedule_change_log")
         .select("id, truck_id, change_summary, change_type, created_at")
         .eq("company_id", companyId)
         .is("notified_at", null)
@@ -106,7 +106,7 @@ export function NotifyCrewModal({ open, onOpenChange, selectedDate, onNotified }
       const changeIds = changes.map(c => c.id);
       if (changeIds.length > 0) {
         await supabase
-          .from("schedule_change_log" as any)
+          .from("schedule_change_log")
           .update({ notified_at: new Date().toISOString() })
           .in("id", changeIds);
       }
