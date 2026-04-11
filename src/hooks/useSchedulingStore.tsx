@@ -53,6 +53,9 @@ export interface PatientOption {
   recurrence_start_date: string | null;
   recurrence_end_date: string | null;
   recurrence_days: number[] | null;
+  chair_time_duration_hours: number | null;
+  chair_time_duration_minutes: number | null;
+  location_type: string | null;
 }
 
 export interface TruckOption { id: string; name: string; }
