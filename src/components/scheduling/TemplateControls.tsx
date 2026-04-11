@@ -87,10 +87,8 @@ export function TemplateControls({ selectedDate, trucks, legs, onRefresh }: Prop
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Resolve company_id
-      const { data: profileData } = await supabase
-        .from("profiles").select("company_id").limit(1).single();
-      const companyId = (profileData as any)?.company_id ?? null;
+      // Resolve company_id using standard RPC
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
       if (!companyId) { toast.error("Cannot determine company — are you logged in?"); return; }
 
       // Build mapping: one rule per truck that has assigned legs
@@ -135,10 +133,8 @@ export function TemplateControls({ selectedDate, trucks, legs, onRefresh }: Prop
     setApplying(true);
     setApplyDialogOpen(false);
     try {
-      // Resolve company_id
-      const { data: profileData } = await supabase
-        .from("profiles").select("company_id").limit(1).single();
-      const companyId = (profileData as any)?.company_id ?? null;
+      // Resolve company_id using standard RPC
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
 
       // If rebuild mode: first clear all existing slots for this date
       if (applyMode === "rebuild_all") {

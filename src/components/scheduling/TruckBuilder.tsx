@@ -696,17 +696,19 @@ interface TruckCardProps {
   truckEquipment?: TruckEquipment;
   onSafetyOverride?: (legId: string, reasons: string[]) => void;
   overriddenLegIds?: Set<string>;
+  forceExpanded?: boolean;
 }
 
 const TruckCard = memo(function TruckCard({
   truck, tLegs, crew, downRecord, isDown, hasRunsWhileDown, hasHeavy,
   first, last, hasActiveLink, utilizationColor, unassigned, addingLeg, setAddingLeg,
   onAssignLeg, onRemoveLeg, onEditException, onCancelLeg, onRestoreLeg, truckAlertCount = 0, legAlertIds = new Set(), riskData,
-  crewCapability, truckEquipment, onSafetyOverride, overriddenLegIds = new Set(),
+  crewCapability, truckEquipment, onSafetyOverride, overriddenLegIds = new Set(), forceExpanded = false,
 }: TruckCardProps) {
   const [legsExpanded, setLegsExpanded] = useState(false);
-  const VISIBLE_LEG_COUNT = 2;
-  const visibleLegs = legsExpanded ? tLegs : tLegs.slice(0, VISIBLE_LEG_COUNT);
+  const VISIBLE_LEG_COUNT = 4;
+  const expanded = legsExpanded || forceExpanded;
+  const visibleLegs = expanded ? tLegs : tLegs.slice(0, VISIBLE_LEG_COUNT);
   const hiddenLegCount = tLegs.length - VISIBLE_LEG_COUNT;
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({
@@ -875,8 +877,8 @@ const TruckCard = memo(function TruckCard({
                 onClick={() => setLegsExpanded(!legsExpanded)}
                 className="w-full flex items-center justify-center gap-1 rounded-md border border-dashed border-muted-foreground/30 py-1 text-[10px] text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 transition-colors"
               >
-                <ChevronDown className={`h-2.5 w-2.5 transition-transform ${legsExpanded ? "rotate-180" : ""}`} />
-                {legsExpanded ? "Show less" : `Show ${hiddenLegCount} more`}
+                <ChevronDown className={`h-2.5 w-2.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                {expanded ? "Show less" : `Show ${hiddenLegCount} more`}
               </button>
             )}
             {isOver && !isDown && (

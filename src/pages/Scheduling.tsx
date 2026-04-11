@@ -147,7 +147,7 @@ export default function Scheduling() {
   }) => {
     if (!profileId) return;
     const { data: companyId } = await supabase.rpc("get_my_company_id");
-    await supabase.from("schedule_change_log" as any).insert({
+    await supabase.from("schedule_change_log").insert({
       company_id: companyId,
       truck_id: params.truck_id ?? null,
       leg_id: params.leg_id ?? null,
@@ -975,7 +975,7 @@ export default function Scheduling() {
 
           {weekView ? (
             <Button variant="outline" size="sm" onClick={() => { setCopyTargetWeek(nextWeekStart); setCopyDialogOpen(true); }}>
-              Copy Week Forward
+              Copy Crew Assignments Forward
             </Button>
           ) : (
             <div className="flex flex-wrap gap-2">
@@ -1528,9 +1528,9 @@ export default function Scheduling() {
         <Dialog open={copyDialogOpen} onOpenChange={setCopyDialogOpen}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle>Copy Week Forward</DialogTitle>
+              <DialogTitle>Copy Crew Assignments Forward</DialogTitle>
               <DialogDescription>
-                Copy crew assignments from {weekLabel} to a target week. Existing assignments won't be overwritten.
+                Copy crew-to-truck assignments from {weekLabel} to a target week. This does not copy scheduled runs or patient legs — only which crew members are assigned to which trucks each day. Existing crew assignments in the target week won't be overwritten.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-3 py-2">
@@ -1538,7 +1538,7 @@ export default function Scheduling() {
                 <Label>Target Week (any date in that week)</Label>
                 <Input type="date" value={copyTargetWeek} onChange={(e) => setCopyTargetWeek(e.target.value)} />
               </div>
-              <p className="text-xs text-muted-foreground">After copying, use "Auto-Fill from Templates" on each day to generate patient legs.</p>
+              <p className="text-xs text-muted-foreground">This copies crew assignments only. After copying, use "Auto-Fill from Templates" on each day to generate patient runs.</p>
               <Button onClick={handleCopyWeek} disabled={copying}>
                 {copying ? "Copying..." : "Copy Crew Assignments"}
               </Button>
