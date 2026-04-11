@@ -105,23 +105,35 @@ Deno.serve(async (req) => {
     let legs: any[] = [];
 
     if (legIds.length > 0) {
-      const { data: legData } = await supabaseAdmin
-        .from("scheduling_legs")
-        .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, dob, phone, weight_lbs, notes), is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_notes")
-        .in("id", legIds);
+      // Issue 2: Fetch leg_exceptions for this date alongside leg data
+      const [{ data: legData }, { data: alertData }, { data: tripData }, { data: exceptionData }] = await Promise.all([
+        supabaseAdmin
+          .from("scheduling_legs")
+          .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, dob, phone, weight_lbs, notes), is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_notes")
+          .in("id", legIds),
+        supabaseAdmin
+          .from("operational_alerts")
+          .select("id, leg_id, note, created_at, status")
+          .eq("truck_id", tokenRow.truck_id)
+          .eq("run_date", scheduleDate)
+          .eq("alert_type", "PATIENT_NOT_READY"),
+        supabaseAdmin
+          .from("trip_records")
+          .select("id, leg_id, loaded_miles, signature_obtained, pcs_attached, status, loaded_at, dropped_at, documentation_complete")
+          .eq("truck_id", tokenRow.truck_id)
+          .eq("run_date", scheduleDate),
+        supabaseAdmin
+          .from("leg_exceptions")
+          .select("*")
+          .in("scheduling_leg_id", legIds)
+          .eq("run_date", scheduleDate),
+      ]);
 
-      const { data: alertData } = await supabaseAdmin
-        .from("operational_alerts")
-        .select("id, leg_id, note, created_at, status")
-        .eq("truck_id", tokenRow.truck_id)
-        .eq("run_date", scheduleDate)
-        .eq("alert_type", "PATIENT_NOT_READY");
-
-      const { data: tripData } = await supabaseAdmin
-        .from("trip_records")
-        .select("id, leg_id, loaded_miles, signature_obtained, pcs_attached, status, loaded_at, dropped_at, documentation_complete")
-        .eq("truck_id", tokenRow.truck_id)
-        .eq("run_date", scheduleDate);
+      // Build exception map by scheduling_leg_id
+      const exceptionMap = new Map<string, any>();
+      for (const ex of exceptionData ?? []) {
+        exceptionMap.set(ex.scheduling_leg_id, ex);
+      }
 
       const tripMap = new Map<string, any>();
       for (const t of tripData ?? []) {
@@ -150,6 +162,13 @@ Deno.serve(async (req) => {
           const trip = tripMap.get(l.id) ?? null;
           const activeTimer = trip ? timerByTripId.get(trip.id) ?? null : null;
           const isOneoff = l.is_oneoff ?? false;
+
+          // Apply leg_exceptions overlay
+          const exception = exceptionMap.get(l.id);
+          const effectivePickupTime = exception?.pickup_time ?? l.pickup_time;
+          const effectivePickupLocation = exception?.pickup_location ?? l.pickup_location;
+          const effectiveDestination = exception?.destination_location ?? l.destination_location;
+
           return {
             id: l.id,
             leg_type: l.leg_type,
@@ -157,12 +176,12 @@ Deno.serve(async (req) => {
             patient_dob: l.patient?.dob ?? null,
             patient_phone: l.patient?.phone ?? null,
             patient_notes: isOneoff ? (l.oneoff_notes ?? null) : (l.patient?.notes ?? null),
-            pickup_time: l.pickup_time,
+            pickup_time: effectivePickupTime,
             chair_time: l.chair_time,
-            pickup_location: l.pickup_location,
-            destination_location: l.destination_location,
+            pickup_location: effectivePickupLocation,
+            destination_location: effectiveDestination,
             estimated_duration_minutes: l.estimated_duration_minutes,
-            notes: l.notes ?? null,
+            notes: exception?.notes ?? l.notes ?? null,
             patient_weight: isOneoff ? (l.oneoff_weight_lbs ?? null) : (l.patient?.weight_lbs ?? null),
             slot_id: slotInfo?.slotId ?? null,
             slot_status: slotInfo?.status ?? "pending",
