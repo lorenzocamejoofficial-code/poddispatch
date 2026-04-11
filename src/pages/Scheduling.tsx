@@ -1264,6 +1264,8 @@ export default function Scheduling() {
                       <SelectItem value="ift">IFT</SelectItem>
                       <SelectItem value="discharge">Discharge</SelectItem>
                       <SelectItem value="outpatient">Outpatient</SelectItem>
+                      <SelectItem value="wound_care">Wound Care</SelectItem>
+                      <SelectItem value="emergency">Emergency</SelectItem>
                       <SelectItem value="private_pay">Private Pay</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1386,6 +1388,8 @@ export default function Scheduling() {
                       <SelectItem value="ift">IFT</SelectItem>
                       <SelectItem value="discharge">Discharge</SelectItem>
                       <SelectItem value="outpatient">Outpatient</SelectItem>
+                      <SelectItem value="wound_care">Wound Care</SelectItem>
+                      <SelectItem value="emergency">Emergency</SelectItem>
                       <SelectItem value="private_pay">Private Pay</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1470,10 +1474,10 @@ export default function Scheduling() {
               <div>
                 <Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label>
                 <Input type="time" value={exceptionForm.pickup_time} onChange={(e) => handleExceptionPickupTimeChange(e.target.value)} />
-                {editingExceptionLeg?.leg_type === "b_leg" && bLegEarliest && (
+                {editingExceptionLeg?.leg_type === "B" && bLegEarliest && (
                   <p className="text-[11px] text-muted-foreground mt-1">Earliest valid pickup: {bLegEarliest}</p>
                 )}
-                {editingExceptionLeg?.leg_type === "b_leg" && bLegTooEarly && bLegEarliest && (
+                {editingExceptionLeg?.leg_type === "B" && bLegTooEarly && bLegEarliest && (
                   <p className="text-[11px] text-[hsl(var(--status-yellow))] mt-0.5">
                     <AlertTriangle className="inline h-3 w-3 mr-1" />
                     Too early — patient's treatment ends at approximately {bLegEarliest}. Override required.
