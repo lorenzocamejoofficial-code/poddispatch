@@ -217,7 +217,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
 
   const fetchOptions = useCallback(async () => {
     const [{ data: p }, { data: t }] = await Promise.all([
-      supabase.from("patients").select("id, first_name, last_name, weight_lbs, status, pickup_address, dropoff_facility, chair_time, run_duration_minutes, schedule_days, notes, transport_type, recurrence_start_date, recurrence_end_date, recurrence_days").order("last_name"),
+      supabase.from("patients").select("id, first_name, last_name, weight_lbs, status, pickup_address, dropoff_facility, chair_time, run_duration_minutes, schedule_days, notes, transport_type, recurrence_start_date, recurrence_end_date, recurrence_days, chair_time_duration_hours, chair_time_duration_minutes, location_type").order("last_name"),
       supabase.from("trucks").select("id, name").eq("active", true).order("name"),
     ]);
     setPatients((p ?? []).map((x: any) => ({
@@ -235,6 +235,9 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
       recurrence_start_date: x.recurrence_start_date,
       recurrence_end_date: x.recurrence_end_date,
       recurrence_days: x.recurrence_days ?? null,
+      chair_time_duration_hours: x.chair_time_duration_hours ?? null,
+      chair_time_duration_minutes: x.chair_time_duration_minutes ?? null,
+      location_type: x.location_type ?? null,
     })));
     setTrucks((t ?? []).map((x: any) => ({ id: x.id, name: x.name })));
   }, []);
