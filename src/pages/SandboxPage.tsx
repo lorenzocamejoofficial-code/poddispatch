@@ -216,7 +216,7 @@ function SchedulingSandbox() {
         <div className="flex gap-2 flex-wrap">
           <Button size="sm" variant="default" className="text-xs">+ New Run</Button>
           <Button size="sm" variant="outline" className="text-xs">Auto-Generate from Template</Button>
-          <Button size="sm" variant="outline" className="text-xs">Copy Week Forward</Button>
+          <Button size="sm" variant="outline" className="text-xs">Copy Crew Assignments Forward</Button>
         </div>
       </RoleDisabled>
 
