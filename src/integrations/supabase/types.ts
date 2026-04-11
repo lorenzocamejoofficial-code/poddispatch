@@ -2496,6 +2496,7 @@ export type Database = {
           company_id: string | null
           created_at: string
           destination_location: string
+          destination_type: string | null
           estimated_duration_minutes: number | null
           id: string
           is_oneoff: boolean
@@ -2509,6 +2510,7 @@ export type Database = {
           oneoff_oxygen: boolean | null
           oneoff_pickup_address: string | null
           oneoff_weight_lbs: number | null
+          origin_type: string | null
           patient_id: string | null
           pickup_location: string
           pickup_time: string | null
@@ -2522,6 +2524,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           destination_location: string
+          destination_type?: string | null
           estimated_duration_minutes?: number | null
           id?: string
           is_oneoff?: boolean
@@ -2535,6 +2538,7 @@ export type Database = {
           oneoff_oxygen?: boolean | null
           oneoff_pickup_address?: string | null
           oneoff_weight_lbs?: number | null
+          origin_type?: string | null
           patient_id?: string | null
           pickup_location: string
           pickup_time?: string | null
@@ -2548,6 +2552,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           destination_location?: string
+          destination_type?: string | null
           estimated_duration_minutes?: number | null
           id?: string
           is_oneoff?: boolean
@@ -2561,6 +2566,7 @@ export type Database = {
           oneoff_oxygen?: boolean | null
           oneoff_pickup_address?: string | null
           oneoff_weight_lbs?: number | null
+          origin_type?: string | null
           patient_id?: string | null
           pickup_location?: string
           pickup_time?: string | null

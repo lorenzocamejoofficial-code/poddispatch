@@ -469,6 +469,8 @@ export default function Scheduling() {
         oneoff_mobility: "ambulatory",
         oneoff_oxygen: false,
         oneoff_notes: oneoffForm.notes || null,
+        origin_type: oneoffForm.pickup_location_type || null,
+        destination_type: oneoffForm.destination_type || null,
       } as any);
       if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create one-off leg: ${error.message}`); return; }
 
@@ -495,6 +497,8 @@ export default function Scheduling() {
           oneoff_mobility: "ambulatory",
           oneoff_oxygen: false,
           oneoff_notes: oneoffForm.notes || null,
+          origin_type: oneoffForm.destination_type || null,
+          destination_type: oneoffForm.pickup_location_type || null,
         } as any);
       }
 
@@ -533,6 +537,8 @@ export default function Scheduling() {
       notes: legForm.notes || null,
       run_date: selectedDate,
       company_id: companyId,
+      origin_type: legPickupLocationType || null,
+      destination_type: legDestinationType || null,
     } as any);
 
     if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create leg: ${error.message}`); return; }
@@ -552,6 +558,8 @@ export default function Scheduling() {
         notes: legForm.notes || null,
         run_date: selectedDate,
         company_id: companyId,
+        origin_type: legDestinationType || null,
+        destination_type: legPickupLocationType || null,
       } as any);
     }
 
@@ -620,7 +628,7 @@ export default function Scheduling() {
   // Check B-leg time when exception pickup_time changes
   const handleExceptionPickupTimeChange = async (time: string) => {
     setExceptionForm(f => ({ ...f, pickup_time: time }));
-    if (editingExceptionLeg?.leg_type === "b_leg" && editingExceptionLeg.patient_id) {
+    if (editingExceptionLeg?.leg_type === "B" && editingExceptionLeg.patient_id) {
       const result = await checkBLegTime(editingExceptionLeg.patient_id, time);
       setBLegEarliest(result.earliest);
       setBLegTooEarly(result.tooEarly);
@@ -676,7 +684,7 @@ export default function Scheduling() {
 
   const handleSaveException = async () => {
     // If B-leg and too early, require override
-    if (editingExceptionLeg?.leg_type === "b_leg" && bLegTooEarly && exceptionForm.pickup_time) {
+    if (editingExceptionLeg?.leg_type === "B" && bLegTooEarly && exceptionForm.pickup_time) {
       setBLegOverrideReason("");
       setBLegPendingSave(() => async () => {
         // Save the exception first
@@ -862,6 +870,20 @@ export default function Scheduling() {
     if (targetLegs.length >= 10) { toast.error("Truck is full (10 run slots max)"); return; }
 
     const truckName = trucks.find(t => t.id === targetTruckId)?.name ?? "truck";
+
+    // Issue #6: Check if target truck is marked as down
+    const { data: downRows } = await supabase
+      .from("truck_availability" as any)
+      .select("status, reason")
+      .eq("truck_id", targetTruckId)
+      .lte("start_date", selectedDate)
+      .gte("end_date", selectedDate)
+      .limit(1);
+    const downRecord = ((downRows ?? []) as any[])[0];
+    if (downRecord && (downRecord.status === "down_maintenance" || downRecord.status === "down_out_of_service")) {
+      toast.error(`Cannot assign to ${truckName} — truck is DOWN${downRecord.reason ? `: ${downRecord.reason}` : ""}`);
+      return;
+    }
 
     // If moving from one truck to another, open the reassignment dialog
     if (currentTruckId) {
@@ -1256,6 +1278,8 @@ export default function Scheduling() {
                       <SelectItem value="ift">IFT</SelectItem>
                       <SelectItem value="discharge">Discharge</SelectItem>
                       <SelectItem value="outpatient">Outpatient</SelectItem>
+                      <SelectItem value="wound_care">Wound Care</SelectItem>
+                      <SelectItem value="emergency">Emergency</SelectItem>
                       <SelectItem value="private_pay">Private Pay</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1378,6 +1402,8 @@ export default function Scheduling() {
                       <SelectItem value="ift">IFT</SelectItem>
                       <SelectItem value="discharge">Discharge</SelectItem>
                       <SelectItem value="outpatient">Outpatient</SelectItem>
+                      <SelectItem value="wound_care">Wound Care</SelectItem>
+                      <SelectItem value="emergency">Emergency</SelectItem>
                       <SelectItem value="private_pay">Private Pay</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1462,10 +1488,10 @@ export default function Scheduling() {
               <div>
                 <Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label>
                 <Input type="time" value={exceptionForm.pickup_time} onChange={(e) => handleExceptionPickupTimeChange(e.target.value)} />
-                {editingExceptionLeg?.leg_type === "b_leg" && bLegEarliest && (
+                {editingExceptionLeg?.leg_type === "B" && bLegEarliest && (
                   <p className="text-[11px] text-muted-foreground mt-1">Earliest valid pickup: {bLegEarliest}</p>
                 )}
-                {editingExceptionLeg?.leg_type === "b_leg" && bLegTooEarly && bLegEarliest && (
+                {editingExceptionLeg?.leg_type === "B" && bLegTooEarly && bLegEarliest && (
                   <p className="text-[11px] text-[hsl(var(--status-yellow))] mt-0.5">
                     <AlertTriangle className="inline h-3 w-3 mr-1" />
                     Too early — patient's treatment ends at approximately {bLegEarliest}. Override required.

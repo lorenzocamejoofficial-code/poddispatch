@@ -116,6 +116,7 @@ export default function DispatchBoard() {
       { data: crewCapRows },
       { data: overrideRows },
       { data: holdTimerRows },
+      { data: exceptionRows },
     ] = await Promise.all([
       supabase.from("trucks").select("*").eq("active", true).order("name"),
       supabase
@@ -132,7 +133,13 @@ export default function DispatchBoard() {
         .eq("active_date", selectedDate),
       supabase.from("safety_overrides").select("leg_id").not("leg_id", "is", null),
       supabase.from("hold_timers").select("*").eq("is_active", true),
+      supabase.from("leg_exceptions" as any).select("*").eq("run_date", selectedDate),
     ]);
+
+    // Build exception map by scheduling_leg_id
+    const exceptionMap = new Map<string, any>(
+      ((exceptionRows ?? []) as any[]).map((e: any) => [e.scheduling_leg_id, e])
+    );
 
     const overriddenIds = new Set<string>(
       ((overrideRows ?? []) as any[]).map((r: any) => r.leg_id).filter(Boolean)
@@ -229,10 +236,15 @@ export default function DispatchBoard() {
         const safetyResult = evaluateSafetyRules(patientNeeds, crewCapability, truckEquipment);
         const needsCheck = hasCompletePatientNeeds(patientNeeds);
 
+        // Apply leg_exceptions overlay for this date
+        const legException = exceptionMap.get(leg?.id);
+        const effectivePickupTime = legException?.pickup_time ?? leg?.pickup_time ?? null;
+        const effectiveDestination = legException?.destination_location ?? leg?.destination_location ?? null;
+
         return {
           id: s.id,
           patient_name: patientName,
-          pickup_time: leg?.pickup_time ?? null,
+          pickup_time: effectivePickupTime,
           status: (tripRecord?.status ?? s.status ?? "pending") as RunStatus,
           trip_type: leg?.trip_type ?? "dialysis",
           is_current: false,
@@ -248,7 +260,7 @@ export default function DispatchBoard() {
           safety_reasons: safetyResult.reasons,
           needs_missing: needsCheck.missing,
           is_oneoff: isOneoff,
-          destination_name: leg?.destination_location ?? null,
+          destination_name: effectiveDestination,
           leg_id: leg?.id ?? null,
           // PCR time taps
           dispatch_time: tripRecord?.dispatch_time ?? null,
