@@ -560,11 +560,25 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     setOverrideDialogOpen(true);
   }, [legs]);
 
+  const [allExpanded, setAllExpanded] = useState(false);
+  const anyHasHidden = trucks.some(truck => {
+    const tl = truckLegs(truck.id);
+    return tl.length > 4;
+  });
+
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Truck Builder
-      </h3>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Truck Builder
+        </h3>
+        {anyHasHidden && (
+          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setAllExpanded(!allExpanded)}>
+            <ChevronDown className={`h-3 w-3 transition-transform ${allExpanded ? "rotate-180" : ""}`} />
+            {allExpanded ? "Collapse All" : "Expand All"}
+          </Button>
+        )}
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {trucks.map((truck) => {
           const tLegs = truckLegs(truck.id);
