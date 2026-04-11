@@ -7,7 +7,6 @@ interface Alert {
   message: string;
   severity: "yellow" | "red";
   created_at: string;
-  /** If set, this alert is a live hold-timer alert */
   hold_timer_started_at?: string | null;
 }
 
@@ -42,9 +41,12 @@ export function AlertsPanel({ alerts, onDismiss }: AlertsPanelProps) {
     <div className="space-y-2">
       {alerts.map((alert) => {
         const isHoldTimer = !!alert.hold_timer_started_at;
+        // Issue 5: Detect synthetic hold timer alerts by hold- prefix
+        const isSyntheticHoldTimer = alert.id.startsWith("hold-");
         const isActiveEmergency = alert.message.includes("EMERGENCY UPGRADE") && !alert.message.includes("EMERGENCY RESOLVED") && !alert.message.includes("FALSE TRIGGER VOIDED");
         const _isResolvedEmergency = alert.message.includes("EMERGENCY RESOLVED") || alert.message.includes("FALSE TRIGGER VOIDED");
-        const isDismissBlocked = isActiveEmergency;
+        // Block dismiss for active emergencies AND synthetic hold timer alerts
+        const isDismissBlocked = isActiveEmergency || isSyntheticHoldTimer;
 
         return (
           <div
@@ -78,12 +80,15 @@ export function AlertsPanel({ alerts, onDismiss }: AlertsPanelProps) {
                   </span>
                 )}
               </span>
-              {isDismissBlocked && (
+              {isActiveEmergency && (
                 <p className="text-[10px] font-semibold text-destructive mt-1">Waiting for crew resolution</p>
+              )}
+              {isSyntheticHoldTimer && (
+                <p className="text-[10px] text-muted-foreground mt-1">Resolves automatically when timer ends</p>
               )}
             </div>
             {isDismissBlocked ? (
-              <span className="shrink-0 text-[10px] font-medium text-destructive/60 px-1">🔒</span>
+              <span className="shrink-0 text-[10px] font-medium text-muted-foreground/60 px-1">🔒</span>
             ) : (
               <Button
                 variant="ghost"

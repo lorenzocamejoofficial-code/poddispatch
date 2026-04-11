@@ -66,6 +66,7 @@ interface TruckCardProps {
   onRestoreRun?: (slotId: string) => void;
   readOnly?: boolean;
   overriddenLegIds?: Set<string>;
+  forceExpanded?: boolean;
 }
 
 function BillingStatusDot({ status, issues }: { status: BillingStatus; issues?: string[] }) {
@@ -157,15 +158,16 @@ function BillingPreviewDialog({ run, open, onOpenChange }: { run: RunInfo; open:
   );
 }
 
-export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, overallStatus, downStatus, downReason, revenueStrength, medicareCount = 0, facilityContractCount = 0, onRestoreRun, readOnly = false, overriddenLegIds = new Set() }: TruckCardProps) {
+export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, overallStatus, downStatus, downReason, revenueStrength, medicareCount = 0, facilityContractCount = 0, onRestoreRun, readOnly = false, overriddenLegIds = new Set(), forceExpanded = false }: TruckCardProps) {
   const hasHeavy = runs.some((r) => (r.patient_weight ?? 0) > 200);
   const isDown = !!downStatus;
   const hasRunsWhileDown = isDown && runs.length > 0;
   const [previewRun, setPreviewRun] = useState<RunInfo | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [localExpanded, setLocalExpanded] = useState(false);
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
-  const VISIBLE_COUNT = 2;
-  const visibleRuns = expanded ? runs : runs.slice(0, VISIBLE_COUNT);
+  const VISIBLE_COUNT = 4;
+  const isExpanded = localExpanded || forceExpanded;
+  const visibleRuns = isExpanded ? runs : runs.slice(0, VISIBLE_COUNT);
   const hiddenCount = runs.length - VISIBLE_COUNT;
   return (
     <>
@@ -406,13 +408,13 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
               </div>
               );
             })}
-            {hiddenCount > 0 && (
+            {hiddenCount > 0 && !forceExpanded && (
               <button
-                onClick={() => setExpanded(!expanded)}
+                onClick={() => setLocalExpanded(!localExpanded)}
                 className="w-full flex items-center justify-center gap-1.5 rounded-md border border-dashed border-muted-foreground/30 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 transition-colors"
               >
-                <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
-                {expanded ? "Show less" : `Show ${hiddenCount} more`}
+                <ChevronDown className={`h-3 w-3 transition-transform ${localExpanded ? "rotate-180" : ""}`} />
+                {localExpanded ? "Show less" : `Show ${hiddenCount} more`}
               </button>
             )}
           </div>

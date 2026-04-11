@@ -160,6 +160,19 @@ export default function CrewScheduleAdmin() {
   };
 
   // ─── Section 2: Daily Schedule Text ───
+  // Issue 3: Fetch leg_exceptions for the selected date
+  const [legExceptions, setLegExceptions] = useState<Map<string, any>>(new Map());
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("leg_exceptions" as any).select("*").eq("run_date", scheduleDate);
+      const map = new Map<string, any>();
+      for (const ex of (data ?? []) as any[]) {
+        map.set(ex.scheduling_leg_id, ex);
+      }
+      setLegExceptions(map);
+    })();
+  }, [scheduleDate]);
+
   const generateScheduleText = useCallback(() => {
     if (!scheduleTruckId) return "";
 
@@ -173,9 +186,20 @@ export default function CrewScheduleAdmin() {
 
     if (truckLegs.length === 0) return `Route ${truck.name} — No runs scheduled for ${formattedScheduleDate}`;
 
-    // Determine transport mix
+    // Issue 11: Show specific transport types instead of collapsing to Outpatient
+    const transportTypeLabels: Record<string, string> = {
+      dialysis: "Dialysis",
+      outpatient: "Outpatient",
+      discharge: "Discharge",
+      wound_care: "Wound Care",
+      ift: "IFT",
+      emergency: "Emergency",
+      private_pay: "Private Pay",
+    };
     const types = new Set(truckLegs.map(l => l.trip_type));
-    const transportMix = types.size === 1 ? (types.has("dialysis") ? "Dialysis" : "Outpatient") : "Mix";
+    const transportMix = types.size === 1
+      ? (transportTypeLabels[Array.from(types)[0]] ?? Array.from(types)[0])
+      : "Mix";
 
     const crewNames = crew
       ? `${crew.member1_name ?? "TBD"} / ${crew.member2_name ?? "TBD"}`
@@ -184,11 +208,17 @@ export default function CrewScheduleAdmin() {
     let text = `Route ${truck.name} — ${transportMix}\n${crewNames}\n\n`;
 
     truckLegs.forEach((leg, i) => {
-      const time = leg.pickup_time ?? "TBD";
+      // Issue 3: Apply leg_exceptions overlay
+      const exception = legExceptions.get(leg.id);
+      const effectiveTime = exception?.pickup_time ?? leg.pickup_time ?? "TBD";
+      const effectivePickup = exception?.pickup_location ?? leg.pickup_location;
+      const effectiveDestination = exception?.destination_location ?? leg.destination_location;
+
       const chairInfo = leg.chair_time ? `, CT-${leg.chair_time}` : "";
-      text += `${i + 1}. ${leg.patient_name} ${leg.leg_type} @ ${time}\n`;
-      text += `   ${leg.pickup_location} to ${leg.destination_location}`;
-      text += `${chairInfo}\n\n`;
+      const typeLabel = transportTypeLabels[leg.trip_type] ?? leg.trip_type;
+      text += `${i + 1}. ${leg.patient_name} ${leg.leg_type} @ ${effectiveTime}\n`;
+      text += `   ${effectivePickup} to ${effectiveDestination}`;
+      text += `${chairInfo} · ${typeLabel}\n\n`;
     });
 
     text += `**** Possible Discharges ****\n`;
@@ -197,7 +227,7 @@ export default function CrewScheduleAdmin() {
     text += `# of runs: ${truckLegs.length}`;
 
     return text;
-  }, [scheduleTruckId, trucks, crews, legs, formattedScheduleDate]);
+  }, [scheduleTruckId, trucks, crews, legs, formattedScheduleDate, legExceptions]);
 
   const handleCopySchedule = () => {
     const text = generateScheduleText();
