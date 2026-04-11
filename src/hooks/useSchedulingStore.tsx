@@ -298,10 +298,20 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
 
     for (const p of eligible) {
       const existingLegTypes = existingMap.get(p.id) ?? new Set();
-      const isDialysis = p.transport_type === "dialysis";
-      const tripType = isDialysis ? "dialysis" : "outpatient";
+      // Issue #4: Use patient's actual transport_type instead of collapsing to "outpatient"
+      const tripType = p.transport_type === "adhoc" ? "outpatient" : p.transport_type;
       const duration = p.run_duration_minutes ?? 30;
       const chairTime = p.chair_time ?? null;
+
+      // Issue #3: Use patient-specific treatment duration when available
+      const patientTreatmentMinutes = ((p.chair_time_duration_hours ?? 0) * 60) + (p.chair_time_duration_minutes ?? 0);
+      const isDialysis = p.transport_type === "dialysis";
+      const defaultTreatmentMinutes = isDialysis ? 210 : 60;
+      const treatmentMinutes = patientTreatmentMinutes > 0 ? patientTreatmentMinutes : defaultTreatmentMinutes;
+
+      // Determine origin/destination types for the legs
+      const originType = p.location_type ?? "Residence";
+      const destinationType = "Dialysis Facility"; // Default for A-leg destination
 
       let addedAny = false;
 
@@ -319,49 +329,30 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           notes: p.notes || null,
           run_date: selectedDate,
           company_id: companyId,
+          origin_type: originType,
+          destination_type: destinationType,
         });
         addedAny = true;
       }
 
-      // Issue #8: Auto B-leg for ALL transport types (not just dialysis)
+      // Auto B-leg for ALL transport types
       if (!existingLegTypes.has("B")) {
-        if (isDialysis) {
-          const treatmentMinutes = 210;
-          const bPickupTime = chairTime ? subtractMinutes(chairTime, -treatmentMinutes) : null;
-          newLegs.push({
-            patient_id: p.id,
-            leg_type: "B",
-            pickup_time: bPickupTime,
-            chair_time: null,
-            pickup_location: p.dropoff_facility!,
-            destination_location: p.pickup_address!,
-            trip_type: "dialysis",
-            estimated_duration_minutes: duration,
-            notes: p.notes || null,
-            run_date: selectedDate,
-            company_id: companyId,
-          });
-        } else {
-          // Non-dialysis: B-leg returns patient from facility to home
-          // Estimate B pickup = A pickup + duration + appointment duration (default 60 min)
-          const appointmentMinutes = 60;
-          const bPickupTime = chairTime
-            ? subtractMinutes(chairTime, -(appointmentMinutes))
-            : null;
-          newLegs.push({
-            patient_id: p.id,
-            leg_type: "B",
-            pickup_time: bPickupTime,
-            chair_time: null,
-            pickup_location: p.dropoff_facility!,
-            destination_location: p.pickup_address!,
-            trip_type: tripType,
-            estimated_duration_minutes: duration,
-            notes: p.notes || null,
-            run_date: selectedDate,
-            company_id: companyId,
-          });
-        }
+        const bPickupTime = chairTime ? subtractMinutes(chairTime, -treatmentMinutes) : null;
+        newLegs.push({
+          patient_id: p.id,
+          leg_type: "B",
+          pickup_time: bPickupTime,
+          chair_time: null,
+          pickup_location: p.dropoff_facility!,
+          destination_location: p.pickup_address!,
+          trip_type: tripType,
+          estimated_duration_minutes: duration,
+          notes: p.notes || null,
+          run_date: selectedDate,
+          company_id: companyId,
+          origin_type: destinationType,
+          destination_type: originType,
+        });
         addedAny = true;
       }
 
