@@ -66,6 +66,7 @@ interface TruckCardProps {
   onRestoreRun?: (slotId: string) => void;
   readOnly?: boolean;
   overriddenLegIds?: Set<string>;
+  forceExpanded?: boolean;
 }
 
 function BillingStatusDot({ status, issues }: { status: BillingStatus; issues?: string[] }) {

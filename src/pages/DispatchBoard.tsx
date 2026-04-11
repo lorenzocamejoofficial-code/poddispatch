@@ -6,6 +6,7 @@ import { getLocalToday } from "@/lib/local-date";
 import { supabase } from "@/integrations/supabase/client";
 import { TruckCard } from "@/components/dispatch/TruckCard";
 import { AlertsPanel } from "@/components/dispatch/AlertsPanel";
+import { OperationalAlertsPanel, type OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
 import { PendingCancellationPanel, type PendingCancellation } from "@/components/dispatch/PendingCancellationPanel";
 import { CommunicationsSection } from "@/components/dispatch/CommunicationsSection";
 import { AdminLayout } from "@/components/layout/AdminLayout";
@@ -13,10 +14,12 @@ import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { computeCleanTripStatus } from "@/lib/billing-utils";
 import { computeRevenueStrength, type RevenueStrength } from "@/components/dispatch/RevenueStrengthBadge";
 import { evaluateSafetyRules, hasCompletePatientNeeds, type SafetyStatus } from "@/lib/safety-rules";
+import { ChevronLeft, ChevronRight, CalendarIcon, Expand, Shrink } from "lucide-react";
 
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { TrialBanner } from "@/components/onboarding/TrialBanner";
 import type { Database } from "@/integrations/supabase/types";
+import { toast } from "sonner";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
 type BillingStatus = "clean" | "missing_pcs" | "blocked_auth" | "blocked_other" | "not_ready" | null;
@@ -68,16 +71,20 @@ interface AlertData {
   hold_timer_started_at?: string | null;
 }
 
+// Issue 6: Updated computeOverallStatus — yellow when no runs have progressed past assigned
 function computeOverallStatus(runs: { status: RunStatus }[]): "green" | "yellow" | "red" {
   if (runs.length === 0) return "green";
   const statuses = runs.map((r) => r.status);
-  if (statuses.some((s) => s === "pending")) return "yellow";
+  // Any cancelled or no_show = red
+  // Yellow if ALL runs are still in pre-progress statuses
+  const preProgressStatuses = ["pending", "scheduled", "assigned"];
+  const allPreProgress = statuses.every((s) => preProgressStatuses.includes(s));
+  if (allPreProgress) return "yellow";
   return "green";
 }
 
 function deriveBillingStatus(trip: any, payerRulesMap: Map<string, any>): { status: BillingStatus; issues: string[] } {
   if (!trip) return { status: null, issues: [] };
-  // Only show billing status for completed+ trips
   const completedStatuses = ["completed", "ready_for_billing"];
   if (!completedStatuses.includes(trip.status)) return { status: "not_ready", issues: [] };
 
@@ -97,15 +104,25 @@ function deriveBillingStatus(trip: any, payerRulesMap: Map<string, any>): { stat
 }
 
 export default function DispatchBoard() {
-  const { selectedDate } = useSchedulingStore();
+  const { selectedDate, setSelectedDate } = useSchedulingStore();
   
   const [trucks, setTrucks] = useState<TruckData[]>([]);
   const [alerts, setAlerts] = useState<AlertData[]>([]);
+  const [operationalAlerts, setOperationalAlerts] = useState<OperationalAlert[]>([]);
   const [pendingCancellations, setPendingCancellations] = useState<PendingCancellation[]>([]);
   const [loading, setLoading] = useState(true);
   const [overriddenLegIds, setOverriddenLegIds] = useState<Set<string>>(new Set());
+  const [allExpanded, setAllExpanded] = useState(false);
+
+  // Issue 8: Abort controller ref
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchData = async () => {
+    // Cancel in-flight request
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     const [
       { data: truckRows },
       { data: slotRows },
@@ -117,6 +134,7 @@ export default function DispatchBoard() {
       { data: overrideRows },
       { data: holdTimerRows },
       { data: exceptionRows },
+      { data: opAlertRows },
     ] = await Promise.all([
       supabase.from("trucks").select("*").eq("active", true).order("name"),
       supabase
@@ -134,7 +152,11 @@ export default function DispatchBoard() {
       supabase.from("safety_overrides").select("leg_id").not("leg_id", "is", null),
       supabase.from("hold_timers").select("*").eq("is_active", true),
       supabase.from("leg_exceptions" as any).select("*").eq("run_date", selectedDate),
+      supabase.from("operational_alerts").select("*").eq("run_date", selectedDate).eq("status", "open"),
     ]);
+
+    // Issue 8: If aborted, bail out
+    if (controller.signal.aborted) return;
 
     // Build exception map by scheduling_leg_id
     const exceptionMap = new Map<string, any>(
@@ -150,7 +172,6 @@ export default function DispatchBoard() {
       ((availRows ?? []) as any[]).map((a: any) => [a.truck_id, { status: a.status, reason: a.reason ?? null }])
     );
 
-    // Build trip maps by slot_id and leg_id for billing/time tap lookup
     const tripBySlot = new Map<string, any>();
     const tripByLeg = new Map<string, any>();
     ((tripRows ?? []) as any[]).forEach((t: any) => {
@@ -158,9 +179,33 @@ export default function DispatchBoard() {
       if (t.leg_id) tripByLeg.set(t.leg_id, t);
     });
 
-    // Build payer rules map
     const prMap = new Map<string, any>();
     ((payerRules ?? []) as any[]).forEach((r: any) => prMap.set(r.payer_type, r));
+
+    // Issue 1: Build operational alerts with truck/patient names
+    const opAlertsEnriched: OperationalAlert[] = ((opAlertRows ?? []) as any[]).map((oa: any) => {
+      const truck = (truckRows ?? []).find((t: any) => t.id === oa.truck_id);
+      const slot = ((slotRows ?? []) as any[]).find((s: any) => s.leg_id === oa.leg_id && s.truck_id === oa.truck_id);
+      const leg = slot?.leg as any;
+      const patient = leg?.patient;
+      const patientName = leg?.is_oneoff
+        ? (leg?.oneoff_name ?? "One-Off")
+        : (patient ? `${patient.first_name} ${patient.last_name}` : "Unknown");
+      return {
+        id: oa.id,
+        truck_id: oa.truck_id,
+        leg_id: oa.leg_id,
+        note: oa.note,
+        created_at: oa.created_at,
+        status: oa.status,
+        run_date: oa.run_date,
+        truck_name: truck?.name ?? "Unknown Truck",
+        patient_name: patientName,
+        pickup_time: leg?.pickup_time ?? null,
+        slot_order: slot ? (slot as any).slot_order : null,
+      };
+    });
+    setOperationalAlerts(opAlertsEnriched);
 
     const truckData: TruckData[] = (truckRows ?? []).map((t: any) => {
       const crew = (crewCapRows as any[])?.find((c: any) => c.truck_id === t.id);
@@ -171,7 +216,6 @@ export default function DispatchBoard() {
         if (crew.member3?.full_name) crewNames.push(crew.member3.full_name);
       }
 
-      // Build crew capability + truck equipment for safety checks
       const crewCapability = {
         member1: crew?.member1 ? {
           sex: crew.member1.sex ?? null,
@@ -206,14 +250,12 @@ export default function DispatchBoard() {
           ? (leg?.oneoff_name ?? "One-Off")
           : (patient ? `${patient.first_name} ${patient.last_name}` : "Unknown");
 
-        // Lookup trip record by slot_id first, fallback to leg_id
         const tripRecord = tripBySlot.get(s.id) ?? tripByLeg.get(leg?.id);
         const billingData = deriveBillingStatus(
           tripRecord ? { ...tripRecord, auth_required: patient?.auth_required, auth_expiration: patient?.auth_expiration, payer_type: patient?.primary_payer } : null,
           prMap
         );
 
-        // Evaluate safety
         const patientNeeds = isOneoff ? {
           weight_lbs: leg?.oneoff_weight_lbs ?? null,
           mobility: leg?.oneoff_mobility ?? null,
@@ -236,7 +278,6 @@ export default function DispatchBoard() {
         const safetyResult = evaluateSafetyRules(patientNeeds, crewCapability, truckEquipment);
         const needsCheck = hasCompletePatientNeeds(patientNeeds);
 
-        // Apply leg_exceptions overlay for this date
         const legException = exceptionMap.get(leg?.id);
         const effectivePickupTime = legException?.pickup_time ?? leg?.pickup_time ?? null;
         const effectiveDestination = legException?.destination_location ?? leg?.destination_location ?? null;
@@ -262,7 +303,6 @@ export default function DispatchBoard() {
           is_oneoff: isOneoff,
           destination_name: effectiveDestination,
           leg_id: leg?.id ?? null,
-          // PCR time taps
           dispatch_time: tripRecord?.dispatch_time ?? null,
           arrived_pickup_at: tripRecord?.arrived_pickup_at ?? null,
           at_scene_time: tripRecord?.at_scene_time ?? null,
@@ -274,14 +314,12 @@ export default function DispatchBoard() {
         };
       });
 
-      // Mark first non-completed as "current"
       const doneStatuses = ["completed", "ready_for_billing", "cancelled", "no_show"];
       const currentIdx = truckRuns.findIndex((r) => !doneStatuses.includes(r.status));
       if (currentIdx >= 0) truckRuns[currentIdx].is_current = true;
 
       const avail = availMap.get(t.id);
 
-      // Compute revenue strength
       const medicareCount = truckRuns.filter(r => {
         const trip = truckSlots.find(s => s.id === r.id);
         const patient = (trip?.leg as any)?.patient;
@@ -320,7 +358,6 @@ export default function DispatchBoard() {
       created_at: a.created_at,
     }));
 
-    // Create synthetic alerts from active hold timers
     const holdTimerAlerts: AlertData[] = ((holdTimerRows ?? []) as any[]).map((ht: any) => {
       const trip = ((tripRows ?? []) as any[]).find((t: any) => t.id === ht.trip_id);
       const truck = (truckRows ?? []).find((t: any) => t.id === trip?.truck_id);
@@ -346,9 +383,7 @@ export default function DispatchBoard() {
       (t: any) => t.status === "pending_cancellation"
     );
     const cancellations: PendingCancellation[] = pendingTrips.map((t: any) => {
-      // Find truck name
       const truck = (truckRows ?? []).find((tr: any) => tr.id === t.truck_id);
-      // Find patient name from slot → leg → patient
       const slot = ((slotRows ?? []) as any[]).find((s: any) =>
         s.leg_id === t.leg_id && s.truck_id === t.truck_id
       );
@@ -357,12 +392,10 @@ export default function DispatchBoard() {
       const patientName = patient
         ? `${patient.first_name} ${patient.last_name}`
         : "Unknown Patient";
-      // Find crew member IDs
       const crew = (crewCapRows as any[])?.find((c: any) => c.truck_id === t.truck_id);
       const crewMemberIds: string[] = [];
       if (crew?.member1?.id) crewMemberIds.push(crew.member1.id);
       if (crew?.member2?.id) crewMemberIds.push(crew.member2.id);
-      // Find cancelled_by name
       let cancelledByName = "Crew";
       if (crew?.member1?.id === t.cancelled_by) cancelledByName = crew.member1.full_name;
       else if (crew?.member2?.id === t.cancelled_by) cancelledByName = crew.member2.full_name;
@@ -383,6 +416,16 @@ export default function DispatchBoard() {
     });
     setPendingCancellations(cancellations);
 
+    // Issue 10: Cleanup old dismissed alerts (background, non-blocking)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    supabase
+      .from("alerts")
+      .delete()
+      .eq("dismissed", true)
+      .lt("created_at", thirtyDaysAgo.toISOString())
+      .then(() => {});
+
     setLoading(false);
   };
 
@@ -398,12 +441,10 @@ export default function DispatchBoard() {
     setLoading(true);
     fetchData();
 
-    // Auto-refresh every 30 seconds
     const pollInterval = setInterval(() => {
       fetchDataRef.current();
     }, 30_000);
 
-    // Get company_id for scoped realtime subscriptions
     let channel: ReturnType<typeof supabase.channel> | null = null;
     (async () => {
       const { data: companyId } = await supabase.rpc("get_my_company_id");
@@ -416,10 +457,11 @@ export default function DispatchBoard() {
         .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs", filter: companyFilter }, () => debouncedFetch())
         .on("postgres_changes", { event: "*", schema: "public", table: "alerts", filter: companyFilter }, () => debouncedFetch())
         .on("postgres_changes", { event: "*", schema: "public", table: "crews", filter: companyFilter }, () => debouncedFetch())
-        .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => debouncedFetch())
+        // Issue 9: Scope truck_availability and safety_overrides to company
+        .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability", filter: companyFilter }, () => debouncedFetch())
         .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts", filter: companyFilter }, () => debouncedFetch())
         .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers", filter: companyFilter }, () => debouncedFetch())
-        .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides" }, () => debouncedFetch())
+        .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides", filter: companyFilter }, () => debouncedFetch())
         .subscribe();
     })();
 
@@ -427,6 +469,7 @@ export default function DispatchBoard() {
       clearInterval(pollInterval);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (channel) supabase.removeChannel(channel);
+      if (abortRef.current) abortRef.current.abort();
     };
   }, [selectedDate]);
 
@@ -434,6 +477,28 @@ export default function DispatchBoard() {
     await supabase.from("alerts").update({ dismissed: true }).eq("id", id);
     setAlerts((prev) => prev.filter((a) => a.id !== id));
   };
+
+  // Issue 1: Resolve operational alert
+  const resolveOperationalAlert = async (id: string) => {
+    const { error } = await supabase.from("operational_alerts").update({
+      status: "resolved",
+      resolved_at: new Date().toISOString(),
+      resolved_by: "dispatcher",
+    } as any).eq("id", id);
+    if (error) {
+      toast.error("Failed to resolve alert");
+      return;
+    }
+    setOperationalAlerts((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  // Issue 7: Date navigation helpers
+  const navigateDate = (offset: number) => {
+    const d = new Date(selectedDate + "T12:00:00");
+    d.setDate(d.getDate() + offset);
+    setSelectedDate(d.toISOString().split("T")[0]);
+  };
+  const goToToday = () => setSelectedDate(getLocalToday());
 
   const dateLabel = new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric", year: "numeric",
@@ -451,21 +516,37 @@ export default function DispatchBoard() {
         <div className="space-y-6">
           <TrialBanner />
           <OnboardingChecklist />
-          <div className="flex items-center gap-3">
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Dispatch Board</p>
-              <h2 className="text-lg font-bold text-foreground">
-                {dateLabel}
-                {isToday && (
-                  <span className="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                    Today
-                  </span>
-                )}
-              </h2>
+
+          {/* Issue 7: Date navigation */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigateDate(-1)} title="Previous day">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Dispatch Board</p>
+                <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  {dateLabel}
+                  {isToday && (
+                    <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                      Today
+                    </span>
+                  )}
+                </h2>
+              </div>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigateDate(1)} title="Next day">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              {!isToday && (
+                <Button variant="ghost" size="sm" className="text-xs" onClick={goToToday}>Today</Button>
+              )}
             </div>
-            <Button variant="outline" size="sm" onClick={() => setIncidentOpen(true)} className="text-xs">
-              Report Incident
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setIncidentOpen(true)} className="text-xs">
+                Report Incident
+              </Button>
+            </div>
           </div>
 
           {/* Pending Cancellations */}
@@ -477,6 +558,14 @@ export default function DispatchBoard() {
               <PendingCancellationPanel cancellations={pendingCancellations} onResolved={fetchData} />
             </section>
           )}
+
+          {/* Issue 1: Operational Alerts */}
+          <section>
+            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[hsl(var(--status-red))]">
+              Patient Alerts · {operationalAlerts.filter(a => a.status === "open").length}
+            </h3>
+            <OperationalAlertsPanel alerts={operationalAlerts} onResolve={resolveOperationalAlert} />
+          </section>
 
           {/* Alerts */}
           <section>
@@ -491,9 +580,17 @@ export default function DispatchBoard() {
 
           {/* Trucks */}
           <section>
-            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Trucks
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Trucks
+              </h3>
+              {trucks.some(t => t.runs.length > 4) && (
+                <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={() => setAllExpanded(prev => !prev)}>
+                  {allExpanded ? <Shrink className="h-3 w-3" /> : <Expand className="h-3 w-3" />}
+                  {allExpanded ? "Collapse All" : "Expand All"}
+                </Button>
+              )}
+            </div>
             {trucks.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No trucks configured. Add trucks in the Trucks & Crews section.
@@ -515,6 +612,7 @@ export default function DispatchBoard() {
                     facilityContractCount={t.facilityContractCount}
                     readOnly
                     overriddenLegIds={overriddenLegIds}
+                    forceExpanded={allExpanded}
                   />
                 ))}
               </div>
