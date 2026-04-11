@@ -116,6 +116,7 @@ export default function DispatchBoard() {
       { data: crewCapRows },
       { data: overrideRows },
       { data: holdTimerRows },
+      { data: exceptionRows },
     ] = await Promise.all([
       supabase.from("trucks").select("*").eq("active", true).order("name"),
       supabase
@@ -132,7 +133,13 @@ export default function DispatchBoard() {
         .eq("active_date", selectedDate),
       supabase.from("safety_overrides").select("leg_id").not("leg_id", "is", null),
       supabase.from("hold_timers").select("*").eq("is_active", true),
+      supabase.from("leg_exceptions" as any).select("*").eq("run_date", selectedDate),
     ]);
+
+    // Build exception map by scheduling_leg_id
+    const exceptionMap = new Map<string, any>(
+      ((exceptionRows ?? []) as any[]).map((e: any) => [e.scheduling_leg_id, e])
+    );
 
     const overriddenIds = new Set<string>(
       ((overrideRows ?? []) as any[]).map((r: any) => r.leg_id).filter(Boolean)
