@@ -871,6 +871,20 @@ export default function Scheduling() {
 
     const truckName = trucks.find(t => t.id === targetTruckId)?.name ?? "truck";
 
+    // Issue #6: Check if target truck is marked as down
+    const { data: downRows } = await supabase
+      .from("truck_availability" as any)
+      .select("status, reason")
+      .eq("truck_id", targetTruckId)
+      .lte("start_date", selectedDate)
+      .gte("end_date", selectedDate)
+      .limit(1);
+    const downRecord = ((downRows ?? []) as any[])[0];
+    if (downRecord && (downRecord.status === "down_maintenance" || downRecord.status === "down_out_of_service")) {
+      toast.error(`Cannot assign to ${truckName} — truck is DOWN${downRecord.reason ? `: ${downRecord.reason}` : ""}`);
+      return;
+    }
+
     // If moving from one truck to another, open the reassignment dialog
     if (currentTruckId) {
       setReassignLeg(activeLeg);
