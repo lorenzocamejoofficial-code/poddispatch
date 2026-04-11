@@ -236,10 +236,15 @@ export default function DispatchBoard() {
         const safetyResult = evaluateSafetyRules(patientNeeds, crewCapability, truckEquipment);
         const needsCheck = hasCompletePatientNeeds(patientNeeds);
 
+        // Apply leg_exceptions overlay for this date
+        const legException = exceptionMap.get(leg?.id);
+        const effectivePickupTime = legException?.pickup_time ?? leg?.pickup_time ?? null;
+        const effectiveDestination = legException?.destination_location ?? leg?.destination_location ?? null;
+
         return {
           id: s.id,
           patient_name: patientName,
-          pickup_time: leg?.pickup_time ?? null,
+          pickup_time: effectivePickupTime,
           status: (tripRecord?.status ?? s.status ?? "pending") as RunStatus,
           trip_type: leg?.trip_type ?? "dialysis",
           is_current: false,
@@ -255,7 +260,7 @@ export default function DispatchBoard() {
           safety_reasons: safetyResult.reasons,
           needs_missing: needsCheck.missing,
           is_oneoff: isOneoff,
-          destination_name: leg?.destination_location ?? null,
+          destination_name: effectiveDestination,
           leg_id: leg?.id ?? null,
           // PCR time taps
           dispatch_time: tripRecord?.dispatch_time ?? null,
