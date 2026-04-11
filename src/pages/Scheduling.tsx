@@ -628,7 +628,7 @@ export default function Scheduling() {
   // Check B-leg time when exception pickup_time changes
   const handleExceptionPickupTimeChange = async (time: string) => {
     setExceptionForm(f => ({ ...f, pickup_time: time }));
-    if (editingExceptionLeg?.leg_type === "b_leg" && editingExceptionLeg.patient_id) {
+    if (editingExceptionLeg?.leg_type === "B" && editingExceptionLeg.patient_id) {
       const result = await checkBLegTime(editingExceptionLeg.patient_id, time);
       setBLegEarliest(result.earliest);
       setBLegTooEarly(result.tooEarly);
@@ -684,7 +684,7 @@ export default function Scheduling() {
 
   const handleSaveException = async () => {
     // If B-leg and too early, require override
-    if (editingExceptionLeg?.leg_type === "b_leg" && bLegTooEarly && exceptionForm.pickup_time) {
+    if (editingExceptionLeg?.leg_type === "B" && bLegTooEarly && exceptionForm.pickup_time) {
       setBLegOverrideReason("");
       setBLegPendingSave(() => async () => {
         // Save the exception first
