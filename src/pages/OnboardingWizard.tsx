@@ -77,6 +77,7 @@ export default function OnboardingWizard() {
   const progress = useOnboardingProgress();
   const [currentStep, setCurrentStep] = useState(0);
   const [stepAcknowledged, setStepAcknowledged] = useState<StepAcknowledged>({});
+  const [skipsLoaded, setSkipsLoaded] = useState(false);
   const [initialStepLoaded, setInitialStepLoaded] = useState(false);
 
   // Step 1: Charge master
@@ -103,6 +104,29 @@ export default function OnboardingWizard() {
   const [inviting, setInviting] = useState(false);
 
   // Load data
+  // Load persisted skip state from migration_settings
+  useEffect(() => {
+    if (!activeCompanyId || skipsLoaded) return;
+    (async () => {
+      const { data } = await supabase
+        .from("migration_settings")
+        .select("*")
+        .eq("company_id", activeCompanyId)
+        .maybeSingle();
+      if (data) {
+        const skips: StepAcknowledged = {};
+        if ((data as any).step_0_skipped) skips[0] = true;
+        if ((data as any).step_1_skipped) skips[1] = true;
+        if ((data as any).step_2_skipped) skips[2] = true;
+        if ((data as any).step_3_skipped) skips[3] = true;
+        if ((data as any).step_4_skipped) skips[4] = true;
+        if ((data as any).step_5_skipped) skips[5] = true;
+        setStepAcknowledged(skips);
+      }
+      setSkipsLoaded(true);
+    })();
+  }, [activeCompanyId, skipsLoaded]);
+
   useEffect(() => {
     if (!activeCompanyId) return;
     loadAllData();
@@ -181,8 +205,14 @@ export default function OnboardingWizard() {
   };
 
   // Skip a step
-  const handleSkip = (stepIndex: number) => {
+  const handleSkip = async (stepIndex: number) => {
     setStepAcknowledged(prev => ({ ...prev, [stepIndex]: true }));
+    // Persist skip state to DB so it survives refresh/logout
+    if (activeCompanyId) {
+      await supabase.from("migration_settings").update({
+        [`step_${stepIndex}_skipped`]: true,
+      } as any).eq("company_id", activeCompanyId);
+    }
     toast("Step skipped — you can come back to this later.");
     goNext();
   };
@@ -853,7 +883,7 @@ export default function OnboardingWizard() {
               </div>
               <div className="flex gap-2">
                 {/* Skip buttons for skippable steps */}
-                {[0, 3, 4, 5].includes(currentStep) && !stepDone[currentStep] && !stepAcknowledged[currentStep] && (
+                {[0, 1, 2, 3, 4, 5].includes(currentStep) && !stepDone[currentStep] && !stepAcknowledged[currentStep] && (
                   <Button variant="ghost" onClick={() => handleSkip(currentStep)}>
                     <SkipForward className="h-4 w-4 mr-1" /> Skip for now
                   </Button>

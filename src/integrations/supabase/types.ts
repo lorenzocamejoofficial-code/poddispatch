@@ -1588,6 +1588,12 @@ export type Database = {
           onboarding_dismissed: boolean
           parallel_mode: boolean
           start_forward_mode: boolean
+          step_0_skipped: boolean
+          step_1_skipped: boolean
+          step_2_skipped: boolean
+          step_3_skipped: boolean
+          step_4_skipped: boolean
+          step_5_skipped: boolean
           step_clearinghouse_connected: boolean
           step_first_trip: boolean
           step_patients_added: boolean
@@ -1605,6 +1611,12 @@ export type Database = {
           onboarding_dismissed?: boolean
           parallel_mode?: boolean
           start_forward_mode?: boolean
+          step_0_skipped?: boolean
+          step_1_skipped?: boolean
+          step_2_skipped?: boolean
+          step_3_skipped?: boolean
+          step_4_skipped?: boolean
+          step_5_skipped?: boolean
           step_clearinghouse_connected?: boolean
           step_first_trip?: boolean
           step_patients_added?: boolean
@@ -1622,6 +1634,12 @@ export type Database = {
           onboarding_dismissed?: boolean
           parallel_mode?: boolean
           start_forward_mode?: boolean
+          step_0_skipped?: boolean
+          step_1_skipped?: boolean
+          step_2_skipped?: boolean
+          step_3_skipped?: boolean
+          step_4_skipped?: boolean
+          step_5_skipped?: boolean
           step_clearinghouse_connected?: boolean
           step_first_trip?: boolean
           step_patients_added?: boolean

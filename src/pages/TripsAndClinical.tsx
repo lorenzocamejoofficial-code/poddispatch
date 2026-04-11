@@ -265,6 +265,16 @@ export default function TripsAndClinical() {
       if (e.leg_id && !e.slot_id) existingByLegId.set(e.leg_id, e.id);
     }
 
+    // Look up crew assignments for the trucks on this date
+    const truckIds = [...new Set((slots as any[]).map(s => s.truck_id).filter(Boolean))];
+    const { data: crewRows } = truckIds.length > 0
+      ? await supabase.from("crews").select("id, truck_id").eq("active_date", runDate).in("truck_id", truckIds)
+      : { data: [] };
+    const crewByTruckId = new Map<string, string>();
+    for (const c of (crewRows ?? []) as any[]) {
+      crewByTruckId.set(c.truck_id, c.id);
+    }
+
     const newTrips: any[] = [];
     const updatePromises: PromiseLike<any>[] = [];
 
@@ -272,12 +282,15 @@ export default function TripsAndClinical() {
       // Already linked by slot_id — skip
       if (existingSlotIds.has(s.id)) continue;
 
-      // Trip exists by leg_id but missing slot_id — backfill slot_id instead of creating duplicate
+      // Trip exists by leg_id but missing slot_id — backfill slot_id (and crew_id if missing)
       const existingTripId = existingByLegId.get(s.leg_id);
       if (existingTripId) {
+        const backfill: any = { slot_id: s.id };
+        const crewId = crewByTruckId.get(s.truck_id);
+        if (crewId) backfill.crew_id = crewId;
         updatePromises.push(
           supabase.from("trip_records" as any)
-            .update({ slot_id: s.id } as any)
+            .update(backfill)
             .eq("id", existingTripId)
             .then()
         );
@@ -287,11 +300,13 @@ export default function TripsAndClinical() {
       // No existing trip — create new one
       const originType = inferLocationType(s.leg?.pickup_location, facilityMap);
       const destType = inferLocationType(s.leg?.destination_location, facilityMap);
+      const crewId = crewByTruckId.get(s.truck_id) ?? null;
       newTrips.push({
         slot_id: s.id,
         leg_id: s.leg_id,
         patient_id: s.leg?.patient_id ?? null,
         truck_id: s.truck_id,
+        crew_id: crewId,
         run_date: s.run_date,
         company_id: s.company_id,
         status: "assigned",
