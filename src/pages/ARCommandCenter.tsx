@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { logAuditEvent } from "@/lib/audit-logger";
-import { DenialRecoveryEngine, TimelyFilingBadge, ResubmissionHistory, type DenialRecoveryClaimInput } from "@/components/billing/DenialRecoveryEngine";
+import { DenialRecoveryEngine, TimelyFilingBadge, ResubmissionHistory } from "@/components/billing/DenialRecoveryEngine";
 import { Wrench } from "lucide-react";
 
 /* ---------- types ---------- */
