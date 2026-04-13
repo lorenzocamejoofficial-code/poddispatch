@@ -306,6 +306,7 @@ function AppRoutes() {
             <Route path="/patients" element={<Patients />} />
             <Route path="/trips" element={<TripsAndClinical />} />
             <Route path="/billing" element={<BillingAndClaims />} />
+            <Route path="/ar-command-center" element={<ARCommandCenter />} />
             <Route path="/edi-export" element={<EDIExport />} />
             <Route path="/remittance-import" element={<RemittanceImport />} />
             <Route path="/compliance" element={<ComplianceAndQA />} />
