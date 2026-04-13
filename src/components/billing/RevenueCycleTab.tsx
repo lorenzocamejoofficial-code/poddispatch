@@ -22,6 +22,7 @@ interface ClaimRecord {
   patient_secondary_payer?: string | null;
   secondary_claim_generated?: boolean;
   patient_responsibility_amount?: number | null;
+  run_date?: string;
 }
 
 interface RevenueCycleTabProps {
@@ -33,7 +34,7 @@ export function RevenueCycleTab({ claims }: RevenueCycleTabProps) {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const thisMonthClaims = useMemo(
-    () => claims.filter(c => new Date(c.paid_at || c.submitted_at || Date.now()) >= monthStart),
+    () => claims.filter(c => new Date(c.paid_at || c.submitted_at || `${c.run_date ?? new Date().toISOString().slice(0, 10)}T00:00:00`) >= monthStart),
     [claims, monthStart]
   );
 
@@ -48,7 +49,7 @@ export function RevenueCycleTab({ claims }: RevenueCycleTabProps) {
 
   // AR Aging
   const arAging = useMemo(() => {
-    const submitted = claims.filter(c => c.submitted_at && (c.status === "submitted" || c.status === "ready_to_bill"));
+    const submitted = claims.filter(c => c.submitted_at && c.status === "submitted");
     const buckets = [
       { label: "0–30 days", min: 0, max: 30, count: 0, amount: 0, color: "hsl(var(--status-green))" },
       { label: "31–60 days", min: 31, max: 60, count: 0, amount: 0, color: "hsl(var(--status-yellow))" },
