@@ -53,6 +53,7 @@ import EDIExport from "./pages/EDIExport";
 import LegalPage from "./pages/LegalPage";
 import RemittanceImport from "./pages/RemittanceImport";
 import OwnerDashboard from "./pages/OwnerDashboard";
+import ARCommandCenter from "./pages/ARCommandCenter";
 import CrewInspectionChecklist from "./components/inspection/CrewInspectionChecklist";
 import { useCrewViewEligibility } from "./hooks/useCrewViewEligibility";
 
