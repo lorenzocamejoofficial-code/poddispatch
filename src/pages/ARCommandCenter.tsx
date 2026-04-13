@@ -489,11 +489,16 @@ export default function ARCommandCenter() {
                 </div>
               </div>
 
+              {/* Timely filing deadline */}
+              <div className="flex items-center gap-2">
+                <TimelyFilingBadge runDate={selectedClaim.run_date} />
+              </div>
+
               {/* Denial info */}
               {selectedClaim.denial_code && (
                 <>
                   <Separator />
-                  <div className="space-y-1.5">
+                  <div className="space-y-2.5">
                     <p className="text-sm font-medium text-destructive">Denial: {selectedClaim.denial_code}</p>
                     {denialInfo ? (
                       <div className="rounded-md bg-destructive/5 border border-destructive/20 p-3 text-sm space-y-1">
@@ -503,9 +508,21 @@ export default function ARCommandCenter() {
                     ) : (
                       <p className="text-sm text-muted-foreground">{selectedClaim.denial_reason ?? "No details available"}</p>
                     )}
+                    {selectedClaim.status === "denied" && (
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={() => { setRecoveryClaim(selectedClaim); setRecoveryOpen(true); }}
+                      >
+                        <Wrench className="h-3.5 w-3.5 mr-1.5" /> Recover This Claim
+                      </Button>
+                    )}
                   </div>
                 </>
               )}
+
+              {/* Resubmission History */}
+              <ResubmissionHistory claimId={selectedClaim.id} submittedAt={selectedClaim.submitted_at} />
 
               <Separator />
 
