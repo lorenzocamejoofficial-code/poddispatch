@@ -1402,6 +1402,31 @@ export default function BillingAndClaims() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Denial Recovery Engine */}
+      {recoveryClaimId && (
+        <DenialRecoveryEngine
+          claim={{
+            id: recoveryClaimId.id,
+            trip_id: recoveryClaimId.trip_id,
+            patient_name: recoveryClaimId.patient_name ?? "Unknown",
+            denial_code: recoveryClaimId.denial_code,
+            denial_reason: recoveryClaimId.denial_reason,
+            run_date: recoveryClaimId.run_date,
+            total_charge: recoveryClaimId.total_charge,
+            payer_name: recoveryClaimId.payer_name,
+            payer_type: recoveryClaimId.payer_type,
+            member_id: recoveryClaimId.member_id,
+            resubmission_count: (recoveryClaimId as any).resubmission_count ?? null,
+            resubmitted_at: (recoveryClaimId as any).resubmitted_at ?? null,
+            submitted_at: recoveryClaimId.submitted_at,
+            company_id: (recoveryClaimId as any).company_id ?? null,
+          }}
+          open={!!recoveryClaimId}
+          onOpenChange={open => { if (!open) setRecoveryClaimId(null); }}
+          onComplete={() => { setRecoveryClaimId(null); fetchData(); }}
+        />
+      )}
     </AdminLayout>
   );
 }
