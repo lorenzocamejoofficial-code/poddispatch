@@ -18,6 +18,7 @@ export interface ServiceLine {
 }
 
 export interface ParsedRemittanceItem {
+  patient_control_number: string; // CLP01 — the claim reference from our 837P
   payer_claim_control_number: string;
   patient_member_id: string;
   patient_name: string;
@@ -30,6 +31,7 @@ export interface ParsedRemittanceItem {
   adjustment_groups: AdjustmentGroup[];
   service_lines: ServiceLine[];
   raw_denial_codes: string[]; // e.g. ["CO-45", "PR-1"]
+  payment_date: string; // from BPR16 or DTM, ISO format
 }
 
 const CLP_STATUS_MAP: Record<string, string> = {
@@ -58,14 +60,13 @@ function splitSegments(raw: string): string[] {
     const elementSep = trimmed[3];
     // Count elements to find the end of ISA
     let count = 0;
-    let idx = 0;
     for (let i = 0; i < trimmed.length; i++) {
       if (trimmed[i] === elementSep) {
         count++;
         if (count === 16) {
           // The sub-element separator is the next char, then terminator follows
           // ISA16 is component separator, next char is segment terminator
-          idx = i + 2; // skip ISA16 value
+          const idx = i + 2; // skip ISA16 value
           if (idx < trimmed.length) {
             terminator = trimmed[idx];
             if (terminator === "\r" || terminator === "\n") terminator = "~";
@@ -105,12 +106,19 @@ export function parseEDI835(rawContent: string): ParsedRemittanceItem[] {
   let currentClaim: ParsedRemittanceItem | null = null;
   let payerName = "";
   let payerId = "";
+  let bprPaymentDate = ""; // BPR16 payment date, applies to all claims in the file
 
   for (let i = 0; i < segments.length; i++) {
     const els = parseElements(segments[i]);
     const segId = els[0];
 
-    // BPR — payment header (total payment info) — skip for per-claim parsing
+    // BPR — Financial Information (payment header)
+    if (segId === "BPR") {
+      // BPR16 is the payment/check date in YYYYMMDD format
+      if (els[16]) {
+        bprPaymentDate = formatDateFromEDI(els[16]);
+      }
+    }
 
     // NM1 — Name segments
     if (segId === "NM1") {
@@ -147,6 +155,7 @@ export function parseEDI835(rawContent: string): ParsedRemittanceItem[] {
 
       const statusCode = els[2] || "";
       currentClaim = {
+        patient_control_number: els[1] || "", // CLP01 — our claim reference
         payer_claim_control_number: els[7] || "",
         patient_member_id: "", // filled by NM1*QC or NM1*IL
         patient_name: "",
@@ -159,10 +168,8 @@ export function parseEDI835(rawContent: string): ParsedRemittanceItem[] {
         adjustment_groups: [],
         service_lines: [],
         raw_denial_codes: [],
+        payment_date: bprPaymentDate, // default from BPR, may be overridden by DTM
       };
-
-      // CLP01 often contains the patient control number or claim ID reference
-      // Some payers put member ID here
     }
 
     // CAS — Claim Adjustment Segment
@@ -208,13 +215,8 @@ export function parseEDI835(rawContent: string): ParsedRemittanceItem[] {
       }
     }
 
-    // AMT — supplemental amounts (informational, we capture patient_responsibility if PR already 0)
-    if (segId === "AMT" && currentClaim) {
-      // AMT*AU = coverage amount
-      // Not strictly needed since CLP has the data, but useful for cross-check
-    }
-
-    // MEM/MOA/LQ/HCP — informational segments, captured implicitly via CAS codes
+    // AMT — supplemental amounts (informational)
+    // Not strictly needed since CLP has the data, but useful for cross-check
   }
 
   // Push the last claim
@@ -273,4 +275,15 @@ export function getPrimaryDenialCode(
 export function isValid835(content: string): boolean {
   const trimmed = content.trim();
   return trimmed.includes("ISA") && trimmed.includes("CLP");
+}
+
+/**
+ * Reverse-match a CLP01 patient control number (YYMMDD-XXXXXXXX) to find the
+ * claim UUID prefix. Returns the 8-char hex prefix from the claim UUID.
+ */
+export function parsePatientControlNumber(pcn: string): { datePart: string; idPrefix: string } | null {
+  // Format: YYMMDD-XXXXXXXX
+  const match = pcn.match(/^(\d{6})-([A-Fa-f0-9]{8})$/);
+  if (!match) return null;
+  return { datePart: match[1], idPrefix: match[2].toLowerCase() };
 }
