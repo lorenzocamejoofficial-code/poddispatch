@@ -22,6 +22,7 @@ interface ClaimRecord {
   patient_secondary_payer?: string | null;
   secondary_claim_generated?: boolean;
   patient_responsibility_amount?: number | null;
+  run_date?: string;
 }
 
 interface RevenueCycleTabProps {
@@ -33,7 +34,7 @@ export function RevenueCycleTab({ claims }: RevenueCycleTabProps) {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const thisMonthClaims = useMemo(
-    () => claims.filter(c => new Date(c.paid_at || c.submitted_at || c.submitted_at || `${c.run_date ?? new Date().toISOString().slice(0, 10)}T00:00:00`) >= monthStart),
+    () => claims.filter(c => new Date(c.paid_at || c.submitted_at || `${c.run_date ?? new Date().toISOString().slice(0, 10)}T00:00:00`) >= monthStart),
     [claims, monthStart]
   );
 
