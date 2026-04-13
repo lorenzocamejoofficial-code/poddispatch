@@ -90,41 +90,47 @@ export default function RemittanceImport() {
         let matchedPatientId: string | null = null;
         let hasSecondaryPayer = false;
 
-        // Try matching by member ID + date
-        const remMemberId = rem.patient_member_id?.trim().toUpperCase();
-        const remDate = rem.date_of_service;
-
-        if (remMemberId) {
-          const candidateClaims = claimsList.filter((c: any) => {
-            const cMember = (c.member_id || "").trim().toUpperCase();
-            return cMember === remMemberId && c.run_date === remDate;
+        // Primary match: CLP01 patient control number (YYMMDD-XXXXXXXX)
+        const pcn = parsePatientControlNumber(rem.patient_control_number);
+        if (pcn) {
+          // The id prefix is the first 8 hex chars of the claim UUID (no dashes)
+          const candidate = claimsList.find((c: any) => {
+            const cId = (c.id || "").replace(/-/g, "").slice(0, 8).toLowerCase();
+            return cId === pcn.idPrefix;
           });
+          if (candidate) {
+            matchedClaimId = candidate.id;
+            matchedPatientId = candidate.patient_id;
+          }
+        }
 
-          if (candidateClaims.length === 1) {
-            matchedClaimId = candidateClaims[0].id;
-            matchedPatientId = candidateClaims[0].patient_id;
-          } else if (candidateClaims.length > 1) {
-            // Multiple matches — try to narrow by charge amount
-            const exact = candidateClaims.find(
-              (c: any) => Math.abs((c.total_charge || 0) - rem.charged_amount) < 0.01
-            );
-            if (exact) {
-              matchedClaimId = exact.id;
-              matchedPatientId = exact.patient_id;
-            } else {
+        // Fallback: member_id + date_of_service
+        if (!matchedClaimId) {
+          const remMemberId = rem.patient_member_id?.trim().toUpperCase();
+          const remDate = rem.date_of_service;
+
+          if (remMemberId && remDate) {
+            const candidateClaims = claimsList.filter((c: any) => {
+              const cMember = (c.member_id || "").trim().toUpperCase();
+              return cMember === remMemberId && c.run_date === remDate;
+            });
+
+            if (candidateClaims.length === 1) {
               matchedClaimId = candidateClaims[0].id;
               matchedPatientId = candidateClaims[0].patient_id;
-              errors.push("Multiple claims matched — used first");
-            }
-          } else {
-            // Try matching by member ID alone
-            const byMember = claimsList.filter(
-              (c: any) => (c.member_id || "").trim().toUpperCase() === remMemberId
-            );
-            if (byMember.length === 1) {
-              matchedClaimId = byMember[0].id;
-              matchedPatientId = byMember[0].patient_id;
-              errors.push("Matched by member ID only — date mismatch");
+            } else if (candidateClaims.length > 1) {
+              // Multiple matches — try to narrow by charge amount
+              const exact = candidateClaims.find(
+                (c: any) => Math.abs((c.total_charge || 0) - rem.charged_amount) < 0.01
+              );
+              if (exact) {
+                matchedClaimId = exact.id;
+                matchedPatientId = exact.patient_id;
+              } else {
+                matchedClaimId = candidateClaims[0].id;
+                matchedPatientId = candidateClaims[0].patient_id;
+                errors.push("Multiple claims matched — used first");
+              }
             }
           }
         }
