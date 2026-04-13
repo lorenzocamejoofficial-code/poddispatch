@@ -145,10 +145,13 @@ export default function RemittanceImport() {
           if (pat?.secondary_payer) {
             hasSecondaryPayer = true;
           }
-        } else if (remMemberId) {
-          const pat = memberToPatient.get(remMemberId);
-          if (pat?.secondary_payer) {
-            hasSecondaryPayer = true;
+        } else {
+          const fallbackMemberId = rem.patient_member_id?.trim().toUpperCase();
+          if (fallbackMemberId) {
+            const pat = memberToPatient.get(fallbackMemberId);
+            if (pat?.secondary_payer) {
+              hasSecondaryPayer = true;
+            }
           }
         }
 
