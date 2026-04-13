@@ -262,7 +262,6 @@ function AppRoutes() {
         </Routes>
       </HipaaAcknowledgmentGate>
     );
-    );
   }
 
   // Dispatcher role — dispatch + scheduling + trips + patients, no billing/reports/settings
