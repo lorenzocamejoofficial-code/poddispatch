@@ -54,6 +54,18 @@ export function DispatcherCancelDialog({
       let newPcrStatus = "not_started";
       let existingTripId = tripId;
 
+      // Check for existing trip record by leg_id if no tripId provided
+      if (!existingTripId && legId) {
+        const { data: existingByLeg } = await supabase
+          .from("trip_records" as any)
+          .select("id, pcr_status")
+          .eq("leg_id", legId)
+          .maybeSingle();
+        if (existingByLeg) {
+          existingTripId = (existingByLeg as any).id;
+        }
+      }
+
       if (existingTripId) {
         // Check if PCR was started
         const { data: trip } = await supabase

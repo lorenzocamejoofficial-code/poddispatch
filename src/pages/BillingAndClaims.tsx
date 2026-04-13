@@ -557,15 +557,32 @@ export default function BillingAndClaims() {
 
     if (!trips?.length) { toast.info("No new trips ready for billing"); return; }
 
-    const { data: existing } = await supabase.from("claim_records" as any).select("trip_id, patient_id, run_date");
-    const existingTripIds = new Set((existing ?? []).map((e: any) => e.trip_id));
+    const { data: existing } = await supabase.from("claim_records" as any).select("trip_id, patient_id, run_date, status");
+    const existingTripIds = new Set((existing ?? []).map((e: any) => e.trip_id).filter(Boolean));
 
-    // Build a set of patient+date combinations that already have claims
+    // Build a set of patient+date combinations that already have non-voided claims
     const existingPatientDateClaims = new Set(
-      (existing ?? []).filter((e: any) => e.patient_id).map((e: any) => `${e.patient_id}_${e.run_date}`)
+      (existing ?? []).filter((e: any) => e.patient_id && e.status !== "voided").map((e: any) => `${e.patient_id}_${e.run_date}`)
     );
 
+    // Filter out trips that already have a claim (by trip_id)
     const newTrips = (trips as any[]).filter(t => !existingTripIds.has(t.id));
+
+    // Detect duplicate billable trip records: same patient + same date, both billable
+    const billableByPatientDate = new Map<string, any[]>();
+    for (const t of trips as any[]) {
+      if (!t.patient_id) continue;
+      const key = `${t.patient_id}_${t.run_date}`;
+      if (!billableByPatientDate.has(key)) billableByPatientDate.set(key, []);
+      billableByPatientDate.get(key)!.push(t);
+    }
+    const duplicateBillableWarnings: string[] = [];
+    for (const [, group] of billableByPatientDate) {
+      if (group.length > 1) {
+        const patientName = group[0].patient ? `${group[0].patient.first_name ?? ""} ${group[0].patient.last_name ?? ""}`.trim() : "Unknown";
+        duplicateBillableWarnings.push(`${patientName} on ${group[0].run_date} (${group.length} trip records)`);
+      }
+    }
 
     const cleanClaims: any[] = [];
     const reviewClaims: any[] = [];
