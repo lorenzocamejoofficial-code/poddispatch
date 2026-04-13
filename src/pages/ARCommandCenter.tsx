@@ -568,23 +568,28 @@ export default function ARCommandCenter() {
       </Sheet>
 
       {/* Write-off confirmation */}
-      <ConfirmActionDialog
-        open={writeOffOpen}
-        onOpenChange={setWriteOffOpen}
-        title="Write Off Claim"
-        description={`This will void the claim for ${selectedClaim?.patient_name ?? "this patient"} ($${(selectedClaim?.total_charge ?? 0).toFixed(2)}). This action cannot be undone.`}
-        confirmLabel="Write Off"
-        confirmVariant="destructive"
-        onConfirm={writeOff}
-        disabled={!writeOffReason.trim()}
-      >
-        <Textarea
-          value={writeOffReason}
-          onChange={e => setWriteOffReason(e.target.value)}
-          placeholder="Reason for write-off (required)..."
-          className="min-h-[80px]"
-        />
-      </ConfirmActionDialog>
+      <Dialog open={writeOffOpen} onOpenChange={setWriteOffOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Write Off Claim</DialogTitle>
+            <DialogDescription>
+              This will void the claim for {selectedClaim?.patient_name ?? "this patient"} (${(selectedClaim?.total_charge ?? 0).toFixed(2)}). This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={writeOffReason}
+            onChange={e => setWriteOffReason(e.target.value)}
+            placeholder="Reason for write-off (required)..."
+            className="min-h-[80px]"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWriteOffOpen(false)}>Cancel</Button>
+            <Button variant="destructive" disabled={!writeOffReason.trim() || saving} onClick={writeOff}>
+              Write Off
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
