@@ -145,6 +145,27 @@ export default function CreatorSettings() {
       .eq("role", "owner")
       .maybeSingle();
     const ownerUserId = ownerMembership?.user_id;
+
+    // Count profiles to be deleted for audit log
+    let countQuery = supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", targetCompanyId);
+    if (ownerUserId) countQuery = countQuery.neq("user_id", ownerUserId);
+    const { count: deleteCount } = await countQuery;
+
+    // Audit log BEFORE deletion
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (currentUser) {
+      const targetCompany = companies.find((c) => c.id === targetCompanyId);
+      await supabase.from("audit_logs").insert({
+        action: "creator_clear_employees",
+        actor_user_id: currentUser.id,
+        actor_email: currentUser.email ?? null,
+        company_id: targetCompanyId,
+        table_name: "profiles",
+        notes: `Clearing ${deleteCount ?? 0} non-owner employee profiles from "${targetCompany?.name ?? targetCompanyId}"`,
+        new_data: { profiles_deleted: deleteCount ?? 0 },
+      });
+    }
+
     let query = supabase.from("profiles").delete().eq("company_id", targetCompanyId);
     if (ownerUserId) {
       query = query.neq("user_id", ownerUserId);

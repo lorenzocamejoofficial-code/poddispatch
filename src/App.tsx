@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SchedulingProvider } from "@/hooks/useSchedulingStore";
 import { SimulationSessionProvider } from "@/hooks/useSimulationSession";
+import { HipaaAcknowledgmentGate } from "@/components/compliance/HipaaAcknowledgmentGate";
 import Login from "./pages/Login";
 import DispatchBoard from "./pages/DispatchBoard";
 import CrewView from "./pages/CrewView";
@@ -247,73 +248,79 @@ function AppRoutes() {
   // Crew role — mobile-only view
   if (role === "crew") {
     return (
-      <Routes>
-        <Route path="/" element={<CrewDashboard />} />
-        <Route path="/crew-dashboard" element={<CrewDashboard />} />
-        <Route path="/crew-patients" element={<CrewPatients />} />
-        <Route path="/crew-schedule" element={<CrewSchedulePage />} />
-        <Route path="/pcr" element={<PCRPage />} />
-        <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
-        <Route path="/crew/:token" element={<DailyRunSheet />} />
-        <Route path="/account" element={<AccountSettings />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <HipaaAcknowledgmentGate>
+        <Routes>
+          <Route path="/" element={<CrewDashboard />} />
+          <Route path="/crew-dashboard" element={<CrewDashboard />} />
+          <Route path="/crew-patients" element={<CrewPatients />} />
+          <Route path="/crew-schedule" element={<CrewSchedulePage />} />
+          <Route path="/pcr" element={<PCRPage />} />
+          <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
+          <Route path="/crew/:token" element={<DailyRunSheet />} />
+          <Route path="/account" element={<AccountSettings />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </HipaaAcknowledgmentGate>
     );
   }
 
   // Dispatcher role — dispatch + scheduling + trips + patients, no billing/reports/settings
   if (role === "dispatcher") {
     return (
-      <SchedulingProvider>
-        <Routes>
-          <Route path="/" element={<DispatchBoard />} />
-          <Route path="/scheduling" element={<Scheduling />} />
-          <Route path="/crew-schedule" element={<CrewScheduleAdmin />} />
-          <Route path="/crew/:token" element={<DailyRunSheet />} />
-          <Route path="/patients" element={<Patients />} />
-          <Route path="/facilities" element={<FacilitiesPage />} />
-          <Route path="/employees" element={<Employees />} />
-          <Route path="/trucks" element={<TrucksCrews />} />
-          <Route path="/migration" element={<MigrationOnboarding />} />
-          <Route path="/settings" element={<AdminSettings />} />
-          <Route path="/account" element={<AccountSettings />} />
-          {/* Crew routes for dispatchers with cert + crew assignment */}
-          <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
-          <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
-          <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
-          <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
-          <Route path="/login" element={<Navigate to="/" replace />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </SchedulingProvider>
+      <HipaaAcknowledgmentGate>
+        <SchedulingProvider>
+          <Routes>
+            <Route path="/" element={<DispatchBoard />} />
+            <Route path="/scheduling" element={<Scheduling />} />
+            <Route path="/crew-schedule" element={<CrewScheduleAdmin />} />
+            <Route path="/crew/:token" element={<DailyRunSheet />} />
+            <Route path="/patients" element={<Patients />} />
+            <Route path="/facilities" element={<FacilitiesPage />} />
+            <Route path="/employees" element={<Employees />} />
+            <Route path="/trucks" element={<TrucksCrews />} />
+            <Route path="/migration" element={<MigrationOnboarding />} />
+            <Route path="/settings" element={<AdminSettings />} />
+            <Route path="/account" element={<AccountSettings />} />
+            {/* Crew routes for dispatchers with cert + crew assignment */}
+            <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
+            <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
+            <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
+            <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
+            <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </SchedulingProvider>
+      </HipaaAcknowledgmentGate>
     );
   }
 
   // Biller role — completed trips + claims + compliance + facilities
   if (role === "biller") {
     return (
-      <SchedulingProvider>
-        <Routes>
-          <Route path="/" element={<Navigate to="/trips" replace />} />
-          <Route path="/patients" element={<Patients />} />
-          <Route path="/trips" element={<TripsAndClinical />} />
-          <Route path="/billing" element={<BillingAndClaims />} />
-          <Route path="/edi-export" element={<EDIExport />} />
-          <Route path="/remittance-import" element={<RemittanceImport />} />
-          <Route path="/compliance" element={<ComplianceAndQA />} />
-          <Route path="/facilities" element={<FacilitiesPage />} />
-          <Route path="/reports" element={<ReportsAndMetrics />} />
-          <Route path="/account" element={<AccountSettings />} />
-          {/* Crew routes for billers with cert + crew assignment */}
-          <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
-          <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
-          <Route path="/crew-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
-          <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
-          <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
-          <Route path="/login" element={<Navigate to="/" replace />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </SchedulingProvider>
+      <HipaaAcknowledgmentGate>
+        <SchedulingProvider>
+          <Routes>
+            <Route path="/" element={<Navigate to="/trips" replace />} />
+            <Route path="/patients" element={<Patients />} />
+            <Route path="/trips" element={<TripsAndClinical />} />
+            <Route path="/billing" element={<BillingAndClaims />} />
+            <Route path="/edi-export" element={<EDIExport />} />
+            <Route path="/remittance-import" element={<RemittanceImport />} />
+            <Route path="/compliance" element={<ComplianceAndQA />} />
+            <Route path="/facilities" element={<FacilitiesPage />} />
+            <Route path="/reports" element={<ReportsAndMetrics />} />
+            <Route path="/account" element={<AccountSettings />} />
+            {/* Crew routes for billers with cert + crew assignment */}
+            <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
+            <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
+            <Route path="/crew-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
+            <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
+            <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
+            <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </SchedulingProvider>
+      </HipaaAcknowledgmentGate>
     );
   }
 
