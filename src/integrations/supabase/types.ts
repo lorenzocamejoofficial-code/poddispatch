@@ -69,6 +69,51 @@ export type Database = {
           },
         ]
       }
+      ar_followup_notes: {
+        Row: {
+          claim_id: string
+          company_id: string
+          created_at: string
+          created_by: string
+          created_by_name: string | null
+          id: string
+          note_text: string
+        }
+        Insert: {
+          claim_id: string
+          company_id: string
+          created_at?: string
+          created_by: string
+          created_by_name?: string | null
+          id?: string
+          note_text: string
+        }
+        Update: {
+          claim_id?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          created_by_name?: string | null
+          id?: string
+          note_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ar_followup_notes_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "claim_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ar_followup_notes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -292,6 +337,7 @@ export type Database = {
           id: string
           is_simulated: boolean
           isolation_precautions: Json | null
+          last_contacted_at: string | null
           member_id: string | null
           mileage_charge: number | null
           notes: string | null
@@ -359,6 +405,7 @@ export type Database = {
           id?: string
           is_simulated?: boolean
           isolation_precautions?: Json | null
+          last_contacted_at?: string | null
           member_id?: string | null
           mileage_charge?: number | null
           notes?: string | null
@@ -426,6 +473,7 @@ export type Database = {
           id?: string
           is_simulated?: boolean
           isolation_precautions?: Json | null
+          last_contacted_at?: string | null
           member_id?: string | null
           mileage_charge?: number | null
           notes?: string | null

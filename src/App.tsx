@@ -53,6 +53,7 @@ import EDIExport from "./pages/EDIExport";
 import LegalPage from "./pages/LegalPage";
 import RemittanceImport from "./pages/RemittanceImport";
 import OwnerDashboard from "./pages/OwnerDashboard";
+import ARCommandCenter from "./pages/ARCommandCenter";
 import CrewInspectionChecklist from "./components/inspection/CrewInspectionChecklist";
 import { useCrewViewEligibility } from "./hooks/useCrewViewEligibility";
 
@@ -221,6 +222,7 @@ function AppRoutes() {
           <Route path="/patients" element={<Patients />} />
           <Route path="/trips" element={<TripsAndClinical />} />
           <Route path="/billing" element={<BillingAndClaims />} />
+          <Route path="/ar-command-center" element={<ARCommandCenter />} />
           <Route path="/edi-export" element={<EDIExport />} />
           <Route path="/remittance-import" element={<RemittanceImport />} />
           <Route path="/owner-dashboard" element={<OwnerDashboard />} />
@@ -304,6 +306,7 @@ function AppRoutes() {
             <Route path="/patients" element={<Patients />} />
             <Route path="/trips" element={<TripsAndClinical />} />
             <Route path="/billing" element={<BillingAndClaims />} />
+            <Route path="/ar-command-center" element={<ARCommandCenter />} />
             <Route path="/edi-export" element={<EDIExport />} />
             <Route path="/remittance-import" element={<RemittanceImport />} />
             <Route path="/compliance" element={<ComplianceAndQA />} />
@@ -339,6 +342,7 @@ function AppRoutes() {
         <Route path="/patients" element={<Patients />} />
         <Route path="/trips" element={<TripsAndClinical />} />
         <Route path="/billing" element={<BillingAndClaims />} />
+        <Route path="/ar-command-center" element={<ARCommandCenter />} />
         <Route path="/edi-export" element={<EDIExport />} />
         <Route path="/remittance-import" element={<RemittanceImport />} />
         <Route path="/owner-dashboard" element={<OwnerDashboard />} />
