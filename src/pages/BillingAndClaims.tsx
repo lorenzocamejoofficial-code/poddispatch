@@ -1085,7 +1085,15 @@ export default function BillingAndClaims() {
                           ) : null}
                           <div className="mt-1.5 flex items-center justify-between">
                             <span className="text-xs font-bold text-foreground">${claim.total_charge.toFixed(2)}</span>
-                            {claim.denial_reason && (
+                            {claim.status === "denied" && (
+                              <button
+                                className="text-[10px] font-medium text-primary hover:underline"
+                                onClick={e => { e.stopPropagation(); setRecoveryClaimId(claim); }}
+                              >
+                                <Wrench className="inline h-3 w-3 mr-0.5" />Recover
+                              </button>
+                            )}
+                            {claim.denial_reason && claim.status !== "denied" && (
                               <span className="text-[10px] text-destructive truncate max-w-[80px]">{claim.denial_reason}</span>
                             )}
                           </div>
