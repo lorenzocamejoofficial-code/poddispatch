@@ -20,10 +20,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { DenialRecoveryEngine, TimelyFilingBadge, ResubmissionHistory, type DenialRecoveryClaimInput } from "@/components/billing/DenialRecoveryEngine";
+import { Wrench } from "lucide-react";
 
 /* ---------- types ---------- */
 interface ARClaim {
   id: string;
+  trip_id: string;
   patient_name: string;
   member_id: string | null;
   payer_name: string | null;
@@ -37,6 +40,8 @@ interface ARClaim {
   denial_reason: string | null;
   last_contacted_at: string | null;
   company_id: string | null;
+  resubmission_count: number | null;
+  resubmitted_at: string | null;
   // computed
   days_outstanding: number;
   priority: number;
