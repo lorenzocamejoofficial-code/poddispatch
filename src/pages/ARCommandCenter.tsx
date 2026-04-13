@@ -13,9 +13,13 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PageLoader } from "@/components/ui/page-loader";
 import {
-  DollarSign, AlertTriangle, Clock, TrendingUp, Phone, RotateCcw,
+  DollarSign, AlertTriangle, Clock, TrendingUp, Phone,
   ArrowUpRight, XCircle, Search, Filter,
 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { logAuditEvent } from "@/lib/audit-logger";
