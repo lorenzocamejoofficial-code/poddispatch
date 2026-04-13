@@ -17,6 +17,7 @@ export default function OwnerDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [claims, setClaims] = useState<any[]>([]);
+  const [allDeniedClaims, setAllDeniedClaims] = useState<any[]>([]);
   const [trips, setTrips] = useState<any[]>([]);
   const [trucks, setTrucks] = useState<any[]>([]);
   const [inspections, setInspections] = useState<any[]>([]);
@@ -25,24 +26,35 @@ export default function OwnerDashboard() {
     async function load() {
       const today = new Date().toISOString().slice(0, 10);
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+      const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
 
-      const [claimRes, tripRes, truckRes, inspRes] = await Promise.all([
-        supabase.from("claim_records" as any).select("*").limit(1000),
-        supabase.from("trip_records" as any).select("id, status, run_date, pcr_status, blockers, patient_id").gte("run_date", weekAgo).limit(1000),
+      const [claimRes, deniedRes, tripRes, truckRes, inspRes] = await Promise.all([
+        // Fix 2 & 3: 90-day window + exclude simulated
+        supabase.from("claim_records").select("*").gte("run_date", ninetyDaysAgo).or("is_simulated.eq.false,is_simulated.is.null"),
+        // Fix 2: All unresolved denials regardless of date for action items
+        supabase.from("claim_records").select("*").eq("status", "denied" as any).or("is_simulated.eq.false,is_simulated.is.null").limit(500),
+        // Fix 3: Exclude simulated trips
+        supabase.from("trip_records" as any).select("id, status, run_date, pcr_status, blockers, patient_id, leg_id").gte("run_date", weekAgo).or("is_simulated.eq.false,is_simulated.is.null").limit(1000),
         supabase.from("trucks" as any).select("id, name, active"),
         supabase.from("vehicle_inspections" as any).select("id, truck_id, run_date").eq("run_date", today),
       ]);
 
       const rawClaims = (claimRes.data ?? []) as any[];
+      const rawDenied = (deniedRes.data ?? []) as any[];
 
-      // Join patient secondary_payer data for secondary opportunity detection
-      const patientIds = [...new Set(rawClaims.map((c: any) => c.patient_id).filter(Boolean))];
+      // Join patient data for secondary opportunity detection and doc action items
+      const allPatientIds = [
+        ...new Set([
+          ...rawClaims.map((c: any) => c.patient_id),
+          ...(tripRes.data ?? []).map((t: any) => t.patient_id),
+        ].filter(Boolean))
+      ];
       let patientsMap: Record<string, any> = {};
-      if (patientIds.length > 0) {
+      if (allPatientIds.length > 0) {
         const { data: patients } = await supabase
           .from("patients")
-          .select("id, secondary_payer")
-          .in("id", patientIds);
+          .select("id, secondary_payer, first_name, last_name")
+          .in("id", allPatientIds);
         (patients || []).forEach((p: any) => { patientsMap[p.id] = p; });
       }
 
@@ -52,8 +64,24 @@ export default function OwnerDashboard() {
         _has_secondary_payer: !!patientsMap[c.patient_id]?.secondary_payer,
       }));
 
+      // Enrich denied claims
+      const enrichedDenied = rawDenied.map((c: any) => ({
+        ...c,
+        _has_secondary_payer: !!patientsMap[c.patient_id]?.secondary_payer,
+      }));
+
+      // Enrich trips with patient names for Fix 4
+      const enrichedTrips = ((tripRes.data ?? []) as any[]).map((t: any) => {
+        const pat = patientsMap[t.patient_id];
+        return {
+          ...t,
+          _patient_name: pat ? `${pat.first_name ?? ""} ${pat.last_name ?? ""}`.trim() : null,
+        };
+      });
+
       setClaims(enrichedClaims);
-      setTrips((tripRes.data ?? []) as any[]);
+      setAllDeniedClaims(enrichedDenied);
+      setTrips(enrichedTrips);
       setTrucks((truckRes.data ?? []) as any[]);
       setInspections((inspRes.data ?? []) as any[]);
       setLoading(false);
@@ -62,19 +90,23 @@ export default function OwnerDashboard() {
   }, []);
 
   const today = new Date().toISOString().slice(0, 10);
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
-  // Card 1 — This Week
+  // Fix 1: Scope "This Week" card claims to same 7-day window as trips
+  const weekClaims = claims.filter(c => c.run_date >= weekAgo);
+
+  // Card 1 — This Week (all scoped to 7 days)
   const weekTripsCompleted = trips.filter(t => t.status === "completed" || t.status === "ready_for_billing").length;
-  const claimsReadyToSubmit = claims.filter(c => c.status === "ready_to_bill").length;
-  const claimsSubmitted = claims.filter(c => c.status === "submitted").length;
+  const claimsReadyToSubmit = weekClaims.filter(c => c.status === "ready_to_bill").length;
+  const claimsSubmitted = weekClaims.filter(c => c.status === "submitted").length;
   const weekHealthy = claimsReadyToSubmit <= weekTripsCompleted * 0.3;
 
-  // Card 2 — Money Coming In
+  // Card 2 — Money Coming In (from 90-day dataset)
   const pendingPayment = claims.filter(c => c.status === "submitted").reduce((s, c) => s + (c.total_charge ?? 0), 0);
   const monthCollected = claims.filter(c => c.status === "paid" && c.paid_at && new Date(c.paid_at) >= monthStart).reduce((s, c) => s + (c.amount_paid ?? 0), 0);
 
-  // Card 3 — Denials
+  // Card 3 — Denials (this month from 90-day dataset)
   const monthDenied = claims.filter(c => c.status === "denied" && c.submitted_at && new Date(c.submitted_at) >= monthStart);
   const deniedAmount = monthDenied.reduce((s, c) => s + (c.total_charge ?? 0), 0);
   const totalMonthClaims = claims.filter(c => c.submitted_at && new Date(c.submitted_at) >= monthStart).length;
@@ -103,7 +135,7 @@ export default function OwnerDashboard() {
   const todayInspections = inspections.length;
   const missingInspections = activeTrucks.length - todayInspections;
 
-  // Status line
+  // Fix 5: Status badge uses week-scoped ready-to-submit count
   const issueCount = monthDenied.length + docIssues.length + claimsReadyToSubmit;
   const statusLine = issueCount === 0
     ? "Business is healthy — everything is on track."
@@ -112,10 +144,10 @@ export default function OwnerDashboard() {
       : `Action needed — ${issueCount} items need your attention this week.`;
   const statusHealthy = issueCount <= 3;
 
-  // Action items table
+  // Action items table — uses allDeniedClaims for denials (Fix 2) and enriched trips for doc issues (Fix 4)
   const actionItems = useMemo(() => {
     const items: { type: string; description: string; amount: number; action: string; route: string }[] = [];
-    claims.filter(c => c.status === "denied").forEach(c => {
+    allDeniedClaims.forEach(c => {
       const translation = c.denial_code ? getDenialTranslation(c.denial_code) : null;
       items.push({
         type: "Denied",
@@ -134,17 +166,20 @@ export default function OwnerDashboard() {
         route: "/billing",
       });
     });
-    docIssues.slice(0, 10).forEach(() => {
+    // Fix 4: Show patient name and run date for doc issues
+    docIssues.slice(0, 10).forEach(t => {
+      const name = t._patient_name || "Unknown patient";
+      const date = t.run_date ? new Date(t.run_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
       items.push({
         type: "Documentation",
-        description: "Trip completed but PCR documentation is incomplete",
+        description: `${name}${date ? ` — ${date}` : ""}: PCR documentation is incomplete`,
         amount: 0,
         action: "Fix Documentation",
         route: "/compliance",
       });
     });
     return items.slice(0, 20);
-  }, [claims, docIssues]);
+  }, [allDeniedClaims, claims, docIssues]);
 
   const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
