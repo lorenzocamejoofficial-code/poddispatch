@@ -248,17 +248,20 @@ function AppRoutes() {
   // Crew role — mobile-only view
   if (role === "crew") {
     return (
-      <Routes>
-        <Route path="/" element={<CrewDashboard />} />
-        <Route path="/crew-dashboard" element={<CrewDashboard />} />
-        <Route path="/crew-patients" element={<CrewPatients />} />
-        <Route path="/crew-schedule" element={<CrewSchedulePage />} />
-        <Route path="/pcr" element={<PCRPage />} />
-        <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
-        <Route path="/crew/:token" element={<DailyRunSheet />} />
-        <Route path="/account" element={<AccountSettings />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <HipaaAcknowledgmentGate>
+        <Routes>
+          <Route path="/" element={<CrewDashboard />} />
+          <Route path="/crew-dashboard" element={<CrewDashboard />} />
+          <Route path="/crew-patients" element={<CrewPatients />} />
+          <Route path="/crew-schedule" element={<CrewSchedulePage />} />
+          <Route path="/pcr" element={<PCRPage />} />
+          <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
+          <Route path="/crew/:token" element={<DailyRunSheet />} />
+          <Route path="/account" element={<AccountSettings />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </HipaaAcknowledgmentGate>
+    );
     );
   }
 
