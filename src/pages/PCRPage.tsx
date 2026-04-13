@@ -377,6 +377,20 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     const { data: newTrip, error } = await supabase.from("trip_records").insert(insertData).select("id").single();
 
     if (error || !newTrip) {
+      // Handle unique constraint violation on leg_id — fetch existing record instead
+      if (error?.code === "23505" && run.legId) {
+        const { data: existingTrip } = await supabase
+          .from("trip_records")
+          .select("id")
+          .eq("leg_id", run.legId)
+          .maybeSingle();
+        if (existingTrip) {
+          if (run.legTypeRaw) sessionStorage.setItem("pcr_leg_type", run.legTypeRaw);
+          onSelect(existingTrip.id);
+          setCreating(null);
+          return;
+        }
+      }
       toast.error(error?.message ?? "Failed to create trip record");
       setCreating(null);
       return;

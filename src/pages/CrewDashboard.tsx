@@ -457,7 +457,15 @@ export default function CrewDashboard() {
     setCancelLoading(true);
     try {
       let tripId = cancelTarget.tripId;
-      // Create trip record if it doesn't exist yet
+      // Check for existing trip record by leg_id if no tripId provided
+      if (!tripId && cancelTarget.legId) {
+        const { data: existingByLeg } = await supabase
+          .from("trip_records")
+          .select("id")
+          .eq("leg_id", cancelTarget.legId)
+          .maybeSingle();
+        if (existingByLeg) tripId = existingByLeg.id;
+      }
       if (!tripId) {
         const companyId = cancelTarget.companyId;
         if (!companyId) throw new Error("No company association");
