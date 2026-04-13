@@ -81,14 +81,14 @@ export default function ReportsAndMetrics() {
         { data: allClaimsData },
         { data: dtmData },
       ] = await Promise.all([
-        supabase.from("trip_records" as any).select("id, status, truck_id, pcr_status, at_scene_time, leg_id, run_date").gte("run_date", start).lte("run_date", end),
-        supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, denial_reason, submitted_at, paid_at").gte("run_date", start).lte("run_date", end),
+        supabase.from("trip_records" as any).select("id, status, truck_id, pcr_status, at_scene_time, leg_id, run_date").gte("run_date", start).lte("run_date", end).eq("is_simulated", false),
+        supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, denial_reason, submitted_at, paid_at, trip_id").gte("run_date", start).lte("run_date", end).eq("is_simulated", false),
         supabase.from("operational_alerts" as any).select("id").gte("run_date", start).lte("run_date", end).eq("status", "open"),
-        supabase.from("trucks").select("id, name"),
+        supabase.from("trucks").select("id, name").eq("is_simulated", false),
         // All claims for AR aging (not date filtered)
-        supabase.from("claim_records" as any).select("id, status, total_charge, submitted_at, paid_at"),
+        supabase.from("claim_records" as any).select("id, status, total_charge, submitted_at, paid_at").eq("is_simulated", false),
         // Daily truck metrics for OTP/risk
-        supabase.from("daily_truck_metrics" as any).select("*").gte("run_date", start).lte("run_date", end),
+        supabase.from("daily_truck_metrics" as any).select("*").gte("run_date", start).lte("run_date", end).is("simulation_run_id", null),
       ]);
 
       const tripList = (trips ?? []) as any[];
@@ -175,11 +175,15 @@ export default function ReportsAndMetrics() {
 
       // ── KPI calculations ──
 
-      // 1. Billing Complete Rate
-      const submittedTrips = tripList.filter(t => t.pcr_status === "submitted");
-      const cleanClaims = claimList.filter((c: any) => ["ready_to_bill", "submitted", "paid"].includes(c.status));
-      const billingDen = submittedTrips.length;
-      const billingNum = cleanClaims.length;
+      // 1. Billing Complete Rate — % of completed trips that have a claim in any billable status
+      const completedTrips = tripList.filter(t => ["completed", "ready_for_billing"].includes(t.status));
+      const tripIdsWithClaim = new Set(
+        claimList
+          .filter((c: any) => ["ready_to_bill", "submitted", "paid"].includes(c.status) && c.trip_id)
+          .map((c: any) => c.trip_id)
+      );
+      const billingDen = completedTrips.length;
+      const billingNum = completedTrips.filter(t => tripIdsWithClaim.has(t.id)).length;
       setKpiBilling({
         rate: billingDen > 0 ? Math.round((billingNum / billingDen) * 100) : 0,
         num: billingNum,
@@ -353,22 +357,28 @@ export default function ReportsAndMetrics() {
                         </tr>
                       </thead>
                       <tbody>
-                        {truckMetrics.map(tm => (
-                          <tr key={tm.truck_id} className="border-b hover:bg-muted/30">
-                            <td className="px-4 py-3 font-medium flex items-center gap-2">
-                              <Truck className="h-3.5 w-3.5 text-muted-foreground" />{tm.truck_name}
-                            </td>
-                            <td className="px-4 py-3 text-right">{tm.trip_count}</td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
-                                  <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, (tm.trip_count / 10) * 100)}%` }} />
-                                </div>
-                                <span className="text-xs text-muted-foreground">{Math.min(100, Math.round((tm.trip_count / 10) * 100))}%</span>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                        {(() => {
+                          const maxTrips = Math.max(...truckMetrics.map(t => t.trip_count), 1);
+                          return truckMetrics.map(tm => {
+                            const pct = Math.round((tm.trip_count / maxTrips) * 100);
+                            return (
+                              <tr key={tm.truck_id} className="border-b hover:bg-muted/30">
+                                <td className="px-4 py-3 font-medium flex items-center gap-2">
+                                  <Truck className="h-3.5 w-3.5 text-muted-foreground" />{tm.truck_name}
+                                </td>
+                                <td className="px-4 py-3 text-right">{tm.trip_count}</td>
+                                <td className="px-4 py-3 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
+                                      <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">{pct}%</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()}
                       </tbody>
                     </table>
                   </div>
