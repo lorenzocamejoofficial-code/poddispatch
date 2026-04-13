@@ -297,28 +297,30 @@ function AppRoutes() {
   // Biller role — completed trips + claims + compliance + facilities
   if (role === "biller") {
     return (
-      <SchedulingProvider>
-        <Routes>
-          <Route path="/" element={<Navigate to="/trips" replace />} />
-          <Route path="/patients" element={<Patients />} />
-          <Route path="/trips" element={<TripsAndClinical />} />
-          <Route path="/billing" element={<BillingAndClaims />} />
-          <Route path="/edi-export" element={<EDIExport />} />
-          <Route path="/remittance-import" element={<RemittanceImport />} />
-          <Route path="/compliance" element={<ComplianceAndQA />} />
-          <Route path="/facilities" element={<FacilitiesPage />} />
-          <Route path="/reports" element={<ReportsAndMetrics />} />
-          <Route path="/account" element={<AccountSettings />} />
-          {/* Crew routes for billers with cert + crew assignment */}
-          <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
-          <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
-          <Route path="/crew-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
-          <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
-          <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
-          <Route path="/login" element={<Navigate to="/" replace />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </SchedulingProvider>
+      <HipaaAcknowledgmentGate>
+        <SchedulingProvider>
+          <Routes>
+            <Route path="/" element={<Navigate to="/trips" replace />} />
+            <Route path="/patients" element={<Patients />} />
+            <Route path="/trips" element={<TripsAndClinical />} />
+            <Route path="/billing" element={<BillingAndClaims />} />
+            <Route path="/edi-export" element={<EDIExport />} />
+            <Route path="/remittance-import" element={<RemittanceImport />} />
+            <Route path="/compliance" element={<ComplianceAndQA />} />
+            <Route path="/facilities" element={<FacilitiesPage />} />
+            <Route path="/reports" element={<ReportsAndMetrics />} />
+            <Route path="/account" element={<AccountSettings />} />
+            {/* Crew routes for billers with cert + crew assignment */}
+            <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
+            <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
+            <Route path="/crew-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
+            <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
+            <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
+            <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </SchedulingProvider>
+      </HipaaAcknowledgmentGate>
     );
   }
 
