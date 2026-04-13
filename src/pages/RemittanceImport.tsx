@@ -14,6 +14,7 @@ import {
   mapClaimStatus,
   extractCO45WriteOff,
   getPrimaryDenialCode,
+  parsePatientControlNumber,
   type ParsedRemittanceItem,
 } from "@/lib/edi-835-parser";
 import { getDenialTranslation } from "@/lib/denial-code-translations";
