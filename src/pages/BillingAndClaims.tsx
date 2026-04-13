@@ -154,6 +154,7 @@ export default function BillingAndClaims() {
     amount_paid: "", denial_reason: "", denial_code: "", notes: "",
   });
   const [savingClaim, setSavingClaim] = useState(false);
+  const [recoveryClaimId, setRecoveryClaimId] = useState<ClaimRecord | null>(null);
   const [editingRate, setEditingRate] = useState<ChargeMaster | null>(null);
   const [rateForm, setRateForm] = useState({
     payer_type: "default", base_rate: "", mileage_rate: "", wait_rate_per_min: "",
