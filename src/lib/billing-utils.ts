@@ -657,7 +657,7 @@ export function computeAgingBuckets(claims: {
   ];
 
   for (const c of claims) {
-    if (!["ready_to_bill", "submitted", "needs_correction"].includes(c.status)) continue;
+    if (!["submitted", "needs_correction"].includes(c.status)) continue;
     const submittedDate = c.submitted_at ? new Date(c.submitted_at).getTime() : now;
     const ageDays = Math.floor((now - submittedDate) / DAY);
 
