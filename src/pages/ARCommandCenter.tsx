@@ -20,10 +20,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { DenialRecoveryEngine, TimelyFilingBadge, ResubmissionHistory } from "@/components/billing/DenialRecoveryEngine";
+import { Wrench } from "lucide-react";
 
 /* ---------- types ---------- */
 interface ARClaim {
   id: string;
+  trip_id: string;
   patient_name: string;
   member_id: string | null;
   payer_name: string | null;
@@ -37,6 +40,8 @@ interface ARClaim {
   denial_reason: string | null;
   last_contacted_at: string | null;
   company_id: string | null;
+  resubmission_count: number | null;
+  resubmitted_at: string | null;
   // computed
   days_outstanding: number;
   priority: number;
@@ -114,13 +119,15 @@ export default function ARCommandCenter() {
   const [filterPayer, setFilterPayer] = useState<string>("all");
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   const [writeOffReason, setWriteOffReason] = useState("");
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryClaim, setRecoveryClaim] = useState<ARClaim | null>(null);
 
   /* -- fetch claims -- */
   const fetchClaims = useCallback(async () => {
     if (!activeCompanyId) return;
     const { data, error } = await supabase
       .from("claim_records")
-      .select("id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, last_contacted_at, company_id, member_id, patient_id")
+      .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at")
       .eq("company_id", activeCompanyId)
       .eq("is_simulated", false)
       .in("status", ["submitted", "denied", "needs_correction"] as any)
@@ -482,11 +489,16 @@ export default function ARCommandCenter() {
                 </div>
               </div>
 
+              {/* Timely filing deadline */}
+              <div className="flex items-center gap-2">
+                <TimelyFilingBadge runDate={selectedClaim.run_date} />
+              </div>
+
               {/* Denial info */}
               {selectedClaim.denial_code && (
                 <>
                   <Separator />
-                  <div className="space-y-1.5">
+                  <div className="space-y-2.5">
                     <p className="text-sm font-medium text-destructive">Denial: {selectedClaim.denial_code}</p>
                     {denialInfo ? (
                       <div className="rounded-md bg-destructive/5 border border-destructive/20 p-3 text-sm space-y-1">
@@ -496,9 +508,21 @@ export default function ARCommandCenter() {
                     ) : (
                       <p className="text-sm text-muted-foreground">{selectedClaim.denial_reason ?? "No details available"}</p>
                     )}
+                    {selectedClaim.status === "denied" && (
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={() => { setRecoveryClaim(selectedClaim); setRecoveryOpen(true); }}
+                      >
+                        <Wrench className="h-3.5 w-3.5 mr-1.5" /> Recover This Claim
+                      </Button>
+                    )}
                   </div>
                 </>
               )}
+
+              {/* Resubmission History */}
+              <ResubmissionHistory claimId={selectedClaim.id} submittedAt={selectedClaim.submitted_at} />
 
               <Separator />
 
@@ -590,6 +614,16 @@ export default function ARCommandCenter() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Denial Recovery Engine */}
+      {recoveryClaim && (
+        <DenialRecoveryEngine
+          claim={recoveryClaim}
+          open={recoveryOpen}
+          onOpenChange={open => { setRecoveryOpen(open); if (!open) setRecoveryClaim(null); }}
+          onComplete={() => { fetchClaims(); setSelectedClaim(null); }}
+        />
+      )}
     </AdminLayout>
   );
 }

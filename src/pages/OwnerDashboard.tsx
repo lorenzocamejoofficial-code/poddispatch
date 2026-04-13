@@ -127,6 +127,15 @@ export default function OwnerDashboard() {
     return { count: eligible.length, amount: eligible.reduce((s, c) => s + (c.patient_responsibility_amount ?? 0), 0) };
   }, [claims]);
 
+  // Card — Denial Recovery
+  const denialRecovery = useMemo(() => {
+    const recoverable = allDeniedClaims.filter(c => {
+      const t = c.denial_code ? getDenialTranslation(c.denial_code) : null;
+      return t?.is_recoverable;
+    });
+    return { count: recoverable.length, amount: recoverable.reduce((s: number, c: any) => s + (c.total_charge ?? 0), 0) };
+  }, [allDeniedClaims]);
+
   // Card 5 — Documentation
   const docIssues = trips.filter(t => (t.status === "completed" || t.status === "ready_for_billing") && t.pcr_status !== "submitted" && t.pcr_status !== "complete");
 
@@ -297,7 +306,31 @@ export default function OwnerDashboard() {
             </CardContent>
           </Card>
 
-          {/* Card 5 — Documentation */}
+          {/* Card 5 — Denial Recovery */}
+          <Card className={denialRecovery.count > 0 ? "border-destructive/40" : ""}>
+            <CardContent className="pt-5 pb-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <XCircle className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm font-semibold">Denial Recovery</p>
+                {denialRecovery.count > 0 && <div className="ml-auto h-2 w-2 rounded-full bg-destructive" />}
+              </div>
+              {denialRecovery.count > 0 ? (
+                <>
+                  <div className="flex justify-between items-baseline">
+                    <p className="text-xs text-muted-foreground">{denialRecovery.count} recoverable claims</p>
+                    <p className="text-lg font-bold text-destructive">${fmt(denialRecovery.amount)}</p>
+                  </div>
+                  <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => navigate("/ar-command-center")}>
+                    <ArrowRight className="h-3 w-3 mr-1" />Open AR Command Center
+                  </Button>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground py-2">No recoverable denials right now</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Card 6 — Documentation */}
           <Card className={docIssues.length > 0 ? "border-[hsl(var(--status-yellow))]/40" : ""}>
             <CardContent className="pt-5 pb-4 space-y-3">
               <div className="flex items-center gap-2">

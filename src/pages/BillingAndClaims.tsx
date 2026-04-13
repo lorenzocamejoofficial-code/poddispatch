@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download, Info, X, FileText, TrendingUp, Send, Loader2 } from "lucide-react";
+import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download, Info, X, FileText, TrendingUp, Send, Loader2, Wrench } from "lucide-react";
+import { DenialRecoveryEngine } from "@/components/billing/DenialRecoveryEngine";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
@@ -153,6 +154,7 @@ export default function BillingAndClaims() {
     amount_paid: "", denial_reason: "", denial_code: "", notes: "",
   });
   const [savingClaim, setSavingClaim] = useState(false);
+  const [recoveryClaimId, setRecoveryClaimId] = useState<ClaimRecord | null>(null);
   const [editingRate, setEditingRate] = useState<ChargeMaster | null>(null);
   const [rateForm, setRateForm] = useState({
     payer_type: "default", base_rate: "", mileage_rate: "", wait_rate_per_min: "",
@@ -1083,7 +1085,15 @@ export default function BillingAndClaims() {
                           ) : null}
                           <div className="mt-1.5 flex items-center justify-between">
                             <span className="text-xs font-bold text-foreground">${claim.total_charge.toFixed(2)}</span>
-                            {claim.denial_reason && (
+                            {claim.status === "denied" && (
+                              <button
+                                className="text-[10px] font-medium text-primary hover:underline"
+                                onClick={e => { e.stopPropagation(); setRecoveryClaimId(claim); }}
+                              >
+                                <Wrench className="inline h-3 w-3 mr-0.5" />Recover
+                              </button>
+                            )}
+                            {claim.denial_reason && claim.status !== "denied" && (
                               <span className="text-[10px] text-destructive truncate max-w-[80px]">{claim.denial_reason}</span>
                             )}
                           </div>
@@ -1392,6 +1402,31 @@ export default function BillingAndClaims() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Denial Recovery Engine */}
+      {recoveryClaimId && (
+        <DenialRecoveryEngine
+          claim={{
+            id: recoveryClaimId.id,
+            trip_id: recoveryClaimId.trip_id,
+            patient_name: recoveryClaimId.patient_name ?? "Unknown",
+            denial_code: recoveryClaimId.denial_code,
+            denial_reason: recoveryClaimId.denial_reason,
+            run_date: recoveryClaimId.run_date,
+            total_charge: recoveryClaimId.total_charge,
+            payer_name: recoveryClaimId.payer_name,
+            payer_type: recoveryClaimId.payer_type,
+            member_id: recoveryClaimId.member_id,
+            resubmission_count: (recoveryClaimId as any).resubmission_count ?? null,
+            resubmitted_at: (recoveryClaimId as any).resubmitted_at ?? null,
+            submitted_at: recoveryClaimId.submitted_at,
+            company_id: (recoveryClaimId as any).company_id ?? null,
+          }}
+          open={!!recoveryClaimId}
+          onOpenChange={open => { if (!open) setRecoveryClaimId(null); }}
+          onComplete={() => { setRecoveryClaimId(null); fetchData(); }}
+        />
+      )}
     </AdminLayout>
   );
 }
