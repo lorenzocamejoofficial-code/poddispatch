@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SchedulingProvider } from "@/hooks/useSchedulingStore";
 import { SimulationSessionProvider } from "@/hooks/useSimulationSession";
+import { HipaaAcknowledgmentGate } from "@/components/compliance/HipaaAcknowledgmentGate";
 import Login from "./pages/Login";
 import DispatchBoard from "./pages/DispatchBoard";
 import CrewView from "./pages/CrewView";
