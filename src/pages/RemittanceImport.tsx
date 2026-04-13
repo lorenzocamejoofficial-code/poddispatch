@@ -190,24 +190,32 @@ export default function RemittanceImport() {
           .filter((a) => a.group_code === "PR")
           .reduce((sum, a) => sum + a.amount, 0);
 
+        // Use actual payment date from 835 (BPR16 or DTM), fall back to today
+        const paymentDateISO = rem.payment_date
+          ? `${rem.payment_date}T00:00:00Z`
+          : new Date().toISOString();
+        const remittanceDateStr = rem.payment_date || new Date().toISOString().slice(0, 10);
+
         const updatePayload: Record<string, any> = {
           amount_paid: rem.paid_amount,
           allowed_amount: rem.charged_amount - co45,
           write_off_amount: co45 > 0 ? co45 : null,
           patient_responsibility_amount: prAmount > 0 ? prAmount : null,
           adjustment_codes: adjustmentCodes,
-          remittance_date: new Date().toISOString().slice(0, 10),
+          remittance_date: remittanceDateStr,
           payer_claim_control_number: rem.payer_claim_control_number || null,
           status: newStatus,
         };
 
         if (newStatus === "paid") {
-          updatePayload.paid_at = new Date().toISOString();
+          updatePayload.paid_at = paymentDateISO;
         }
 
         if (primaryDenial && (newStatus === "denied" || newStatus === "needs_correction")) {
           updatePayload.denial_code = primaryDenial.code;
-          updatePayload.denial_reason = primaryDenial.reason;
+          // Store plain English explanation; fall back to raw code if unrecognized
+          const translation = getDenialTranslation(primaryDenial.code);
+          updatePayload.denial_reason = translation?.plain_english_explanation ?? primaryDenial.code;
         }
 
         // Flag secondary opportunity
