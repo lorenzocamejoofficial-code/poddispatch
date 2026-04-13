@@ -119,13 +119,15 @@ export default function ARCommandCenter() {
   const [filterPayer, setFilterPayer] = useState<string>("all");
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   const [writeOffReason, setWriteOffReason] = useState("");
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryClaim, setRecoveryClaim] = useState<ARClaim | null>(null);
 
   /* -- fetch claims -- */
   const fetchClaims = useCallback(async () => {
     if (!activeCompanyId) return;
     const { data, error } = await supabase
       .from("claim_records")
-      .select("id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, last_contacted_at, company_id, member_id, patient_id")
+      .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at")
       .eq("company_id", activeCompanyId)
       .eq("is_simulated", false)
       .in("status", ["submitted", "denied", "needs_correction"] as any)
