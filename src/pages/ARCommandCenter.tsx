@@ -75,29 +75,29 @@ function computePriority(claim: {
   const daysSinceDOS = (Date.now() - dosDate.getTime()) / (1000 * 60 * 60 * 24);
   const daysToDeadline = filingLimit - daysSinceDOS;
 
-  // 1. Timely filing risk — within 30 days of payer-specific deadline
+  // 1. Filing Deadline — within 30 days of payer-specific deadline
   if (daysToDeadline <= 30) {
-    return { priority: 1, label: "Timely Filing Risk", color: "destructive" };
+    return { priority: 1, label: "Filing Deadline", color: "destructive" };
   }
 
-  // 2. Follow up required — submitted > 45 days, no payment or denial
-  if (claim.status === "submitted" && claim.days_outstanding > 45) {
-    return { priority: 2, label: "Follow Up Required", color: "warning" };
-  }
-
-  // 3. Denied — recoverable
+  // 2. Denied — Action Required
   if (claim.status === "denied" && claim.denial_code && isRecoverable(claim.denial_code)) {
-    return { priority: 3, label: "Denial — Recoverable", color: "warning" };
+    return { priority: 2, label: "Denied — Action Required", color: "warning" };
   }
 
-  // 4. Aging — monitor (submitted > 31 days)
+  // 3. No Response — 45+ Days
+  if (claim.status === "submitted" && claim.days_outstanding > 45) {
+    return { priority: 3, label: "No Response — 45+ Days", color: "warning" };
+  }
+
+  // 4. Aging — Monitor (submitted > 31 days)
   if (claim.status === "submitted" && claim.days_outstanding > 31) {
     return { priority: 4, label: "Aging — Monitor", color: "secondary" };
   }
 
-  // 5. Needs correction
+  // 5. Follow Up
   if (claim.status === "needs_correction") {
-    return { priority: 5, label: "Correction Needed", color: "secondary" };
+    return { priority: 5, label: "Follow Up", color: "secondary" };
   }
 
   // Default: low priority
@@ -418,11 +418,11 @@ export default function ARCommandCenter() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Priorities</SelectItem>
-                  <SelectItem value="Timely Filing Risk">Timely Filing Risk</SelectItem>
-                  <SelectItem value="Follow Up Required">Follow Up Required</SelectItem>
-                  <SelectItem value="Denial — Recoverable">Denial — Recoverable</SelectItem>
+                  <SelectItem value="Filing Deadline">Filing Deadline</SelectItem>
+                  <SelectItem value="Denied — Action Required">Denied — Action Required</SelectItem>
+                  <SelectItem value="No Response — 45+ Days">No Response — 45+ Days</SelectItem>
                   <SelectItem value="Aging — Monitor">Aging — Monitor</SelectItem>
-                  <SelectItem value="Correction Needed">Correction Needed</SelectItem>
+                  <SelectItem value="Follow Up">Follow Up</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={filterPayer} onValueChange={setFilterPayer}>
