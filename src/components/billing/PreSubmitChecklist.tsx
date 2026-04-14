@@ -170,8 +170,8 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
     })();
   }, [open, tripId, patientId, activeCompanyId]);
 
-  const allPassed = items.length > 0 && items.every(i => i.passed);
-  const failedCount = items.filter(i => !i.passed).length;
+  const allPassed = items.length > 0 && items.every(i => i.passed || i.isWarning);
+  const failedCount = items.filter(i => !i.passed && !i.isWarning).length;
 
   const handleSubmit = async () => {
     setSubmitting(true);
