@@ -327,6 +327,9 @@ export default function ARCommandCenter() {
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-foreground">AR Command Center</h1>
 
+        {/* Biller Task Queue */}
+        <BillerTaskQueue />
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
