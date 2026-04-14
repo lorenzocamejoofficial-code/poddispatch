@@ -130,17 +130,29 @@ export default function ARCommandCenter() {
   /* -- fetch claims -- */
   const fetchClaims = useCallback(async () => {
     if (!activeCompanyId) return;
-    const { data, error } = await supabase
-      .from("claim_records")
-      .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at")
-      .eq("company_id", activeCompanyId)
-      .eq("is_simulated", false)
-      .in("status", ["submitted", "denied", "needs_correction"] as any)
-      .order("run_date", { ascending: true });
+    const [{ data, error }, { data: payerDir }] = await Promise.all([
+      supabase
+        .from("claim_records")
+        .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at")
+        .eq("company_id", activeCompanyId)
+        .eq("is_simulated", false)
+        .in("status", ["submitted", "denied", "needs_correction"] as any)
+        .order("run_date", { ascending: true }),
+      supabase
+        .from("payer_directory")
+        .select("payer_type, timely_filing_days")
+        .eq("company_id", activeCompanyId),
+    ]);
 
     if (error) {
       console.error("Failed to load AR claims:", error);
       return;
+    }
+
+    // Build payer filing limit map
+    const filingMap: Record<string, number> = {};
+    for (const p of payerDir ?? []) {
+      if (p.payer_type) filingMap[p.payer_type.toLowerCase()] = p.timely_filing_days ?? 365;
     }
 
     // Fetch patient names for all claims
@@ -158,7 +170,8 @@ export default function ARCommandCenter() {
 
     const mapped: ARClaim[] = (data ?? []).map((c: any) => {
       const days = daysFromSubmission(c.submitted_at);
-      const pri = computePriority({ ...c, days_outstanding: days });
+      const filingLimitDays = filingMap[(c.payer_type ?? "").toLowerCase()] ?? 365;
+      const pri = computePriority({ ...c, days_outstanding: days, filing_limit_days: filingLimitDays });
       return {
         ...c,
         patient_name: patientMap[c.patient_id] ?? "Unknown Patient",
