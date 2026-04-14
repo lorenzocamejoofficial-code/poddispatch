@@ -12,6 +12,7 @@ import {
   CalendarCheck, DollarSign, XCircle, Shield, FileText, Truck,
   ArrowRight, AlertTriangle, CheckCircle, Clock
 } from "lucide-react";
+import { MissingMoneySummary } from "@/components/billing/MissingMoneyPanel";
 
 export default function OwnerDashboard() {
   const navigate = useNavigate();
@@ -378,6 +379,9 @@ export default function OwnerDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Missing Money Detection */}
+        <MissingMoneySummary />
 
         {/* Action Items */}
         {actionItems.length > 0 && (
