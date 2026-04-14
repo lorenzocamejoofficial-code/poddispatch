@@ -22,6 +22,7 @@ import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translati
 import { logAuditEvent } from "@/lib/audit-logger";
 import { DenialRecoveryEngine, TimelyFilingBadge, ResubmissionHistory } from "@/components/billing/DenialRecoveryEngine";
 import { PayerContactLookup } from "@/components/billing/PayerDirectoryTab";
+import { BillerTaskQueue } from "@/components/billing/BillerTaskQueue";
 import { Wrench } from "lucide-react";
 
 /* ---------- types ---------- */
