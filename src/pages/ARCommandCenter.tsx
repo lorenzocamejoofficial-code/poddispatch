@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { DenialRecoveryEngine, TimelyFilingBadge, ResubmissionHistory } from "@/components/billing/DenialRecoveryEngine";
+import { PayerContactLookup } from "@/components/billing/PayerDirectoryTab";
 import { Wrench } from "lucide-react";
 
 /* ---------- types ---------- */
@@ -487,6 +488,13 @@ export default function ARCommandCenter() {
                   <p className="text-muted-foreground">Last Contacted</p>
                   <p className="font-medium">{selectedClaim.last_contacted_at ? new Date(selectedClaim.last_contacted_at).toLocaleDateString() : "Never"}</p>
                 </div>
+              </div>
+
+              {/* Payer Contact */}
+              <Separator />
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Payer Contact</p>
+                <PayerContactLookup payerType={selectedClaim.payer_type} payerName={selectedClaim.payer_name} />
               </div>
 
               {/* Timely filing deadline */}
