@@ -9,9 +9,10 @@ export interface SidebarBadgeCounts {
   overrides: number;
   compliance: number;
   trips: number;
+  arTasks: number;
 }
 
-const EMPTY: SidebarBadgeCounts = { dispatch: 0, billing: 0, overrides: 0, compliance: 0, trips: 0 };
+const EMPTY: SidebarBadgeCounts = { dispatch: 0, billing: 0, overrides: 0, compliance: 0, trips: 0, arTasks: 0 };
 
 /* ── localStorage helpers for last-seen timestamps ── */
 
@@ -105,6 +106,14 @@ export function useSidebarBadges(role: string | null) {
       jobs.push(
         countAfter("qa_reviews", { status: "pending" }, seenCompliance).then(c => { next.compliance = c; })
       );
+      // AR tasks pending count
+      jobs.push((async () => {
+        const { count } = await supabase
+          .from("biller_tasks")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending");
+        next.arTasks = count ?? 0;
+      })());
       // Trips: completed but missing docs, created/updated after last seen
       jobs.push((async () => {
         let q = supabase
@@ -170,6 +179,8 @@ export function getBadgeForPath(path: string, counts: SidebarBadgeCounts): numbe
       return counts.compliance;
     case "/trips":
       return counts.trips;
+    case "/ar-command-center":
+      return counts.arTasks;
     default:
       return 0;
   }
