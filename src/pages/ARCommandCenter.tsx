@@ -126,6 +126,7 @@ export default function ARCommandCenter() {
   const [writeOffReason, setWriteOffReason] = useState("");
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [recoveryClaim, setRecoveryClaim] = useState<ARClaim | null>(null);
+  const [workQueueRefreshKey, setWorkQueueRefreshKey] = useState(0);
 
   /* -- fetch claims -- */
   const fetchClaims = useCallback(async () => {
@@ -223,9 +224,23 @@ export default function ARCommandCenter() {
       created_by_name: profile?.full_name ?? user.email ?? "Unknown",
     });
 
+    // Auto-complete follow-up biller_tasks for this claim
+    await supabase
+      .from("biller_tasks")
+      .update({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        completed_by: user.id,
+        dismiss_reason: "Auto-completed when follow-up note was logged.",
+      } as any)
+      .eq("claim_id", selectedClaim.id)
+      .in("task_type", ["follow_up_14", "follow_up_45"])
+      .in("status", ["pending", "in_progress"]);
+
     setNewNote("");
     await fetchNotes(selectedClaim.id);
     setSaving(false);
+    setWorkQueueRefreshKey(k => k + 1);
     toast.success("Note logged");
   };
 
@@ -353,7 +368,7 @@ export default function ARCommandCenter() {
           </TabsList>
 
           <TabsContent value="todays-work" className="space-y-4">
-            <BillingWorkQueue onOpenClaim={(claimId) => {
+            <BillingWorkQueue refreshKey={workQueueRefreshKey} onOpenClaim={(claimId) => {
               const claim = claims.find(c => c.id === claimId);
               if (claim) setSelectedClaim(claim);
             }} />
@@ -665,7 +680,7 @@ export default function ARCommandCenter() {
           claim={recoveryClaim}
           open={recoveryOpen}
           onOpenChange={open => { setRecoveryOpen(open); if (!open) setRecoveryClaim(null); }}
-          onComplete={() => { fetchClaims(); setSelectedClaim(null); }}
+          onComplete={() => { fetchClaims(); setSelectedClaim(null); setWorkQueueRefreshKey(k => k + 1); }}
         />
       )}
     </AdminLayout>
