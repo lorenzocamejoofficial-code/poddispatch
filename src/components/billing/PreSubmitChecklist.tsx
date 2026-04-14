@@ -32,7 +32,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
     setLoading(true);
 
     (async () => {
-      const [{ data: trip }, { data: patient }, { data: claimRow }] = await Promise.all([
+      const [{ data: trip }, { data: patient }, { data: claimRow }, { data: payerDir }] = await Promise.all([
         supabase
           .from("trip_records" as any)
           .select("*")
@@ -43,9 +43,12 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           : Promise.resolve({ data: null }),
         supabase
           .from("claim_records" as any)
-          .select("has_emergency_event, emergency_billing_reviewed_at, hcpcs_codes")
+          .select("has_emergency_event, emergency_billing_reviewed_at, hcpcs_codes, payer_type")
           .eq("trip_id", tripId)
           .maybeSingle(),
+        activeCompanyId
+          ? supabase.from("payer_directory").select("payer_type, timely_filing_days").eq("company_id", activeCompanyId)
+          : Promise.resolve({ data: [] }),
       ]);
 
       if (!trip) {
