@@ -21,6 +21,8 @@ import {
   type BillingOverrideLike,
 } from "@/lib/billing-utils";
 import { BillerPCROverridePanel } from "@/components/billing/BillerPCROverridePanel";
+import { computeClaimScore, getScoreAppearance, getScoreBgClass, type ClaimScoreResult } from "@/lib/claim-score";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface TripForQueue {
   id: string;
