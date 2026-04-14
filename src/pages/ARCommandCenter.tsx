@@ -16,6 +16,7 @@ import {
   DollarSign, AlertTriangle, Clock, TrendingUp, Phone,
   ArrowUpRight, XCircle, Search, Filter,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
@@ -23,6 +24,7 @@ import { logAuditEvent } from "@/lib/audit-logger";
 import { DenialRecoveryEngine, TimelyFilingBadge, ResubmissionHistory } from "@/components/billing/DenialRecoveryEngine";
 import { PayerContactLookup } from "@/components/billing/PayerDirectoryTab";
 import { BillerTaskQueue } from "@/components/billing/BillerTaskQueue";
+import { BillingWorkQueue } from "@/components/billing/BillingWorkQueue";
 import { Wrench } from "lucide-react";
 
 /* ---------- types ---------- */
