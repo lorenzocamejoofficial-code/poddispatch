@@ -167,6 +167,85 @@ export type Database = {
           },
         ]
       }
+      biller_tasks: {
+        Row: {
+          assigned_to: string | null
+          claim_id: string | null
+          company_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          description: string | null
+          dismiss_reason: string | null
+          due_date: string
+          id: string
+          priority: number
+          status: string
+          task_type: string
+          title: string
+          trip_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          claim_id?: string | null
+          company_id: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          description?: string | null
+          dismiss_reason?: string | null
+          due_date?: string
+          id?: string
+          priority?: number
+          status?: string
+          task_type: string
+          title: string
+          trip_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          claim_id?: string | null
+          company_id?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          description?: string | null
+          dismiss_reason?: string | null
+          due_date?: string
+          id?: string
+          priority?: number
+          status?: string
+          task_type?: string
+          title?: string
+          trip_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "biller_tasks_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "claim_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "biller_tasks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "biller_tasks_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_overrides: {
         Row: {
           created_at: string
@@ -3968,6 +4047,7 @@ export type Database = {
         Args: { p_reason: string; p_trip_id: string }
         Returns: Json
       }
+      generate_biller_tasks: { Args: never; Returns: undefined }
       get_my_company_id: { Args: never; Returns: string }
       get_my_role: { Args: never; Returns: string }
       has_role: {

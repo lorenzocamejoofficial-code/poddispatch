@@ -22,6 +22,7 @@ import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translati
 import { logAuditEvent } from "@/lib/audit-logger";
 import { DenialRecoveryEngine, TimelyFilingBadge, ResubmissionHistory } from "@/components/billing/DenialRecoveryEngine";
 import { PayerContactLookup } from "@/components/billing/PayerDirectoryTab";
+import { BillerTaskQueue } from "@/components/billing/BillerTaskQueue";
 import { Wrench } from "lucide-react";
 
 /* ---------- types ---------- */
@@ -325,6 +326,9 @@ export default function ARCommandCenter() {
     <AdminLayout>
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-foreground">AR Command Center</h1>
+
+        {/* Biller Task Queue */}
+        <BillerTaskQueue />
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
