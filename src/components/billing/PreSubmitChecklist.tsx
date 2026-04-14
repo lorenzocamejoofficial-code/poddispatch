@@ -136,10 +136,39 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         });
       }
 
+      // Timely filing deadline check
+      if (t.run_date) {
+        const payerType = (claim?.payer_type ?? p?.primary_payer ?? "").toLowerCase();
+        const filingMap: Record<string, number> = {};
+        for (const pd of payerDir ?? []) {
+          if (pd.payer_type) filingMap[pd.payer_type.toLowerCase()] = pd.timely_filing_days ?? 365;
+        }
+        const filingLimit = filingMap[payerType] ?? 365;
+        const dosDate = new Date(t.run_date);
+        const deadlineDate = new Date(dosDate.getTime() + filingLimit * 24 * 60 * 60 * 1000);
+        const daysRemaining = Math.floor((deadlineDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+
+        if (daysRemaining < 0) {
+          checks.push({
+            label: "Timely filing deadline may have passed",
+            passed: false,
+            isWarning: true,
+            detail: `Filing deadline was ${Math.abs(daysRemaining)} days ago based on payer rules (${filingLimit}-day limit). Verify before submitting.`,
+          });
+        } else if (daysRemaining <= 60) {
+          checks.push({
+            label: "Timely filing deadline approaching",
+            passed: true,
+            isWarning: true,
+            detail: `${daysRemaining} days remaining based on payer rules (${filingLimit}-day limit)`,
+          });
+        }
+      }
+
       setItems(checks);
       setLoading(false);
     })();
-  }, [open, tripId, patientId]);
+  }, [open, tripId, patientId, activeCompanyId]);
 
   const allPassed = items.length > 0 && items.every(i => i.passed);
   const failedCount = items.filter(i => !i.passed).length;
