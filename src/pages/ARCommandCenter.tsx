@@ -68,14 +68,15 @@ function computePriority(claim: {
   denial_code: string | null;
   payer_type: string | null;
   days_outstanding: number;
+  filing_limit_days?: number;
 }): { priority: number; label: string; color: string } {
   const dosDate = new Date(claim.run_date);
-  const monthsSinceDOS = (Date.now() - dosDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
+  const filingLimit = claim.filing_limit_days ?? 365;
+  const daysSinceDOS = (Date.now() - dosDate.getTime()) / (1000 * 60 * 60 * 24);
+  const daysToDeadline = filingLimit - daysSinceDOS;
 
-  // 1. Timely filing risk
-  const isMedicare = (claim.payer_type ?? "").toLowerCase().includes("medicare");
-  const isMedicaid = (claim.payer_type ?? "").toLowerCase().includes("medicaid");
-  if ((isMedicare && monthsSinceDOS >= 10) || (isMedicaid && monthsSinceDOS >= 10) || monthsSinceDOS >= 10) {
+  // 1. Timely filing risk — within 30 days of payer-specific deadline
+  if (daysToDeadline <= 30) {
     return { priority: 1, label: "Timely Filing Risk", color: "destructive" };
   }
 
