@@ -420,6 +420,11 @@ export default function CrewDashboard() {
     setHoldLoading(timerId);
     try {
       await supabase.from("hold_timers").update({ is_active: false, resolved_at: new Date().toISOString() }).eq("id", timerId);
+      // Accumulate wait minutes to trip record (fire-and-forget)
+      try {
+        const { accumulateWaitMinutes } = await import("@/lib/hold-timer-utils");
+        await accumulateWaitMinutes(timerId);
+      } catch (e) { console.error("Wait accumulation failed (non-blocking):", e); }
       toast({ title: "Hold resolved" });
       await fetchData();
     } catch (err: any) {

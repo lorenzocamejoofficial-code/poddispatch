@@ -153,10 +153,16 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
           .eq("is_active", true)
           .in("hold_type", holdTypesToStop);
         if (timers && timers.length > 0) {
+          const timerIds = timers.map(t => t.id);
           await supabase
             .from("hold_timers")
             .update({ is_active: false, resolved_at: new Date().toISOString() } as any)
-            .in("id", timers.map(t => t.id));
+            .in("id", timerIds);
+          // Accumulate wait minutes (fire-and-forget)
+          try {
+            const { accumulateWaitMinutesBatch } = await import("@/lib/hold-timer-utils");
+            await accumulateWaitMinutesBatch(timerIds);
+          } catch (e) { console.error("Wait accumulation failed (non-blocking):", e); }
           // Also auto-dismiss related alerts
           await supabase
             .from("alerts")

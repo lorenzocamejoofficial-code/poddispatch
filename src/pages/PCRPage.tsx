@@ -874,6 +874,35 @@ export default function PCRPage() {
         });
       }
 
+      // Fire-and-forget: create biller task for new claim
+      try {
+        const patientName = trip.patient
+          ? `${trip.patient.first_name} ${trip.patient.last_name}`
+          : "Unknown Patient";
+        // Only insert if no pending/in_progress task of this type exists for this trip
+        const { data: existing } = await supabase
+          .from("biller_tasks")
+          .select("id")
+          .eq("trip_id", trip.id)
+          .eq("task_type", "new_claim_ready")
+          .in("status", ["pending", "in_progress"])
+          .limit(1);
+        if (!existing || existing.length === 0) {
+          await supabase.from("biller_tasks").insert({
+            company_id: trip.company_id,
+            trip_id: trip.id,
+            task_type: "new_claim_ready",
+            priority: 4,
+            title: "New trip ready to bill",
+            description: `${patientName} — ${trip.run_date}`,
+            status: "pending",
+            due_date: new Date().toISOString().split("T")[0],
+          });
+        }
+      } catch (taskErr) {
+        console.error("Failed to create biller task (non-blocking):", taskErr);
+      }
+
       toast.success("PCR submitted — trip is ready for billing!");
       navigate("/crew-dashboard");
     } catch (err: any) {

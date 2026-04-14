@@ -463,6 +463,27 @@ Deno.serve(async (req) => {
         return dbErrorResponse("Failed to resolve timer", resolveErr);
       }
 
+      // Accumulate wait minutes to trip record (fire-and-forget)
+      try {
+        const elapsedMs = new Date(now).getTime() - new Date(timer.started_at).getTime();
+        const elapsedMinutes = Math.max(0, Math.round(elapsedMs / 60000));
+        if (elapsedMinutes > 0 && timer.trip_id) {
+          const { data: tripRec } = await supabaseAdmin
+            .from("trip_records")
+            .select("wait_time_minutes")
+            .eq("id", timer.trip_id)
+            .maybeSingle();
+          const currentMinutes = Number((tripRec as any)?.wait_time_minutes ?? 0);
+          await supabaseAdmin
+            .from("trip_records")
+            .update({ wait_time_minutes: currentMinutes + elapsedMinutes })
+            .eq("id", timer.trip_id);
+        }
+      } catch (e) {
+        // Non-blocking — don't fail the timer resolution
+        console.error("Failed to accumulate wait minutes:", e);
+      }
+
       // Insert end event
       await supabaseAdmin.from("trip_events").insert({
         company_id: timer.company_id,
