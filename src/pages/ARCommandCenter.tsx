@@ -521,7 +521,7 @@ export default function ARCommandCenter() {
 
               {/* Timely filing deadline */}
               <div className="flex items-center gap-2">
-                <TimelyFilingBadge runDate={selectedClaim.run_date} />
+                <TimelyFilingBadge runDate={selectedClaim.run_date} payerType={selectedClaim.payer_type} companyId={selectedClaim.company_id} />
               </div>
 
               {/* Denial info */}
