@@ -332,123 +332,139 @@ export default function ARCommandCenter() {
         {/* Biller Task Queue */}
         <BillerTaskQueue />
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="rounded-lg bg-primary/10 p-2"><DollarSign className="h-5 w-5 text-primary" /></div>
-              <div>
-                <p className="text-xs text-muted-foreground">Total Outstanding</p>
-                <p className="text-xl font-bold">${totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="rounded-lg bg-amber-500/10 p-2"><AlertTriangle className="h-5 w-5 text-amber-600" /></div>
-              <div>
-                <p className="text-xs text-muted-foreground">Claims Requiring Action</p>
-                <p className="text-xl font-bold">{actionToday}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="rounded-lg bg-destructive/10 p-2"><Clock className="h-5 w-5 text-destructive" /></div>
-              <div>
-                <p className="text-xs text-muted-foreground">Timely Filing Risk</p>
-                <p className="text-xl font-bold">${timelyFilingRisk.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="rounded-lg bg-emerald-500/10 p-2"><TrendingUp className="h-5 w-5 text-emerald-600" /></div>
-              <div>
-                <p className="text-xs text-muted-foreground">Recovered This Month</p>
-                <p className="text-xl font-bold">${recoveredThisMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <Tabs defaultValue="todays-work" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="todays-work">Today's Work</TabsTrigger>
+            <TabsTrigger value="all-claims">All Claims</TabsTrigger>
+          </TabsList>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search patient or member ID..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Select value={filterPriority} onValueChange={setFilterPriority}>
-            <SelectTrigger className="w-[200px]">
-              <Filter className="h-3.5 w-3.5 mr-1.5" />
-              <SelectValue placeholder="Priority filter" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Priorities</SelectItem>
-              <SelectItem value="Timely Filing Risk">Timely Filing Risk</SelectItem>
-              <SelectItem value="Follow Up Required">Follow Up Required</SelectItem>
-              <SelectItem value="Denial — Recoverable">Denial — Recoverable</SelectItem>
-              <SelectItem value="Aging — Monitor">Aging — Monitor</SelectItem>
-              <SelectItem value="Correction Needed">Correction Needed</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filterPayer} onValueChange={setFilterPayer}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="All Payers" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Payers</SelectItem>
-              {payers.map(p => <SelectItem key={p} value={p!}>{p}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <span className="text-sm text-muted-foreground">{filtered.length} claims</span>
-        </div>
+          <TabsContent value="todays-work" className="space-y-4">
+            <BillingWorkQueue onOpenClaim={(claimId) => {
+              const claim = claims.find(c => c.id === claimId);
+              if (claim) setSelectedClaim(claim);
+            }} />
+          </TabsContent>
 
-        {/* Worklist Table */}
-        <div className="rounded-lg border bg-card overflow-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="text-left p-3 font-medium">Patient</th>
-                <th className="text-left p-3 font-medium">Payer</th>
-                <th className="text-left p-3 font-medium">DOS</th>
-                <th className="text-right p-3 font-medium">Billed</th>
-                <th className="text-right p-3 font-medium">Days Out</th>
-                <th className="text-left p-3 font-medium">Status</th>
-                <th className="text-left p-3 font-medium">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 && (
-                <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">No claims requiring AR follow-up</td></tr>
-              )}
-              {filtered.map(claim => (
-                <tr
-                  key={claim.id}
-                  className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
-                  onClick={() => setSelectedClaim(claim)}
-                >
-                  <td className="p-3 font-medium">{claim.patient_name}</td>
-                  <td className="p-3 text-muted-foreground">{claim.payer_name ?? "—"}</td>
-                  <td className="p-3 text-muted-foreground">{claim.run_date}</td>
-                  <td className="p-3 text-right">${(claim.total_charge ?? 0).toFixed(2)}</td>
-                  <td className="p-3 text-right">{claim.days_outstanding}</td>
-                  <td className="p-3"><Badge variant="outline" className="text-xs">{claim.status}</Badge></td>
-                  <td className="p-3">
-                    <Badge variant={claim.priority_color as any} className="text-xs whitespace-nowrap">
-                      {claim.priority_label}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          <TabsContent value="all-claims" className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="rounded-lg bg-primary/10 p-2"><DollarSign className="h-5 w-5 text-primary" /></div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Outstanding</p>
+                    <p className="text-xl font-bold">${totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="rounded-lg bg-amber-500/10 p-2"><AlertTriangle className="h-5 w-5 text-amber-600" /></div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Claims Requiring Action</p>
+                    <p className="text-xl font-bold">{actionToday}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="rounded-lg bg-destructive/10 p-2"><Clock className="h-5 w-5 text-destructive" /></div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Timely Filing Risk</p>
+                    <p className="text-xl font-bold">${timelyFilingRisk.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="rounded-lg bg-emerald-500/10 p-2"><TrendingUp className="h-5 w-5 text-emerald-600" /></div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Recovered This Month</p>
+                    <p className="text-xl font-bold">${recoveredThisMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-wrap gap-3 items-center">
+              <div className="relative flex-1 min-w-[200px] max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search patient or member ID..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={filterPriority} onValueChange={setFilterPriority}>
+                <SelectTrigger className="w-[200px]">
+                  <Filter className="h-3.5 w-3.5 mr-1.5" />
+                  <SelectValue placeholder="Priority filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="Timely Filing Risk">Timely Filing Risk</SelectItem>
+                  <SelectItem value="Follow Up Required">Follow Up Required</SelectItem>
+                  <SelectItem value="Denial — Recoverable">Denial — Recoverable</SelectItem>
+                  <SelectItem value="Aging — Monitor">Aging — Monitor</SelectItem>
+                  <SelectItem value="Correction Needed">Correction Needed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterPayer} onValueChange={setFilterPayer}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Payers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Payers</SelectItem>
+                  {payers.map(p => <SelectItem key={p} value={p!}>{p}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <span className="text-sm text-muted-foreground">{filtered.length} claims</span>
+            </div>
+
+            {/* Worklist Table */}
+            <div className="rounded-lg border bg-card overflow-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left p-3 font-medium">Patient</th>
+                    <th className="text-left p-3 font-medium">Payer</th>
+                    <th className="text-left p-3 font-medium">DOS</th>
+                    <th className="text-right p-3 font-medium">Billed</th>
+                    <th className="text-right p-3 font-medium">Days Out</th>
+                    <th className="text-left p-3 font-medium">Status</th>
+                    <th className="text-left p-3 font-medium">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 && (
+                    <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">No claims requiring AR follow-up</td></tr>
+                  )}
+                  {filtered.map(claim => (
+                    <tr
+                      key={claim.id}
+                      className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
+                      onClick={() => setSelectedClaim(claim)}
+                    >
+                      <td className="p-3 font-medium">{claim.patient_name}</td>
+                      <td className="p-3 text-muted-foreground">{claim.payer_name ?? "—"}</td>
+                      <td className="p-3 text-muted-foreground">{claim.run_date}</td>
+                      <td className="p-3 text-right">${(claim.total_charge ?? 0).toFixed(2)}</td>
+                      <td className="p-3 text-right">{claim.days_outstanding}</td>
+                      <td className="p-3"><Badge variant="outline" className="text-xs">{claim.status}</Badge></td>
+                      <td className="p-3">
+                        <Badge variant={claim.priority_color as any} className="text-xs whitespace-nowrap">
+                          {claim.priority_label}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Detail Sheet */}
