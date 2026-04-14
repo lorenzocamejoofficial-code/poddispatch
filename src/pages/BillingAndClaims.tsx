@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download, Info, X, FileText, TrendingUp, Send, Loader2, Wrench } from "lucide-react";
+import { MissingMoneyDetail } from "@/components/billing/MissingMoneyPanel";
 import { DenialRecoveryEngine } from "@/components/billing/DenialRecoveryEngine";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -912,6 +913,7 @@ export default function BillingAndClaims() {
             <TabsTrigger value="overrides-log"><ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Overrides Log</TabsTrigger>
             <TabsTrigger value="charge-master"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Charge Master</TabsTrigger>
             <TabsTrigger value="revenue-cycle"><TrendingUp className="h-3.5 w-3.5 mr-1.5" />Revenue Cycle</TabsTrigger>
+            <TabsTrigger value="missing-money"><DollarSign className="h-3.5 w-3.5 mr-1.5" />Missing Money</TabsTrigger>
           </TabsList>
           <a href="/edi-export">
             <Button variant="outline" size="sm" className="gap-1.5 text-xs">
@@ -1230,6 +1232,11 @@ export default function BillingAndClaims() {
         {/* Revenue Cycle */}
         <TabsContent value="revenue-cycle" className="m-0">
           <RevenueCycleTab claims={claims} />
+        </TabsContent>
+
+        {/* Missing Money */}
+        <TabsContent value="missing-money" className="m-0">
+          <MissingMoneyDetail />
         </TabsContent>
       </Tabs>
 
