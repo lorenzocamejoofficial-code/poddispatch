@@ -369,6 +369,7 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                       const hasOverride = overrideHistory.has(trip.id);
                       const allBlockers = [...(trip.queueBlockers ?? []), ...(trip.blockers ?? [])].filter(Boolean);
                       const uniqueBlockers = [...new Set(allBlockers)];
+                      const tripScore = scoreMap.get(trip.id);
                       return (
                         <div key={trip.id} className="rounded-md border bg-card hover:border-primary/40 hover:shadow-sm transition-all">
                           <button
@@ -378,6 +379,31 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                             <div className="flex items-center justify-between gap-1 mb-1">
                               <p className="text-xs font-semibold text-foreground truncate">{trip.patient_name}</p>
                               <div className="flex items-center gap-1">
+                                {tripScore && (
+                                  <TooltipProvider delayDuration={200}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Badge variant="outline" className={`text-[9px] ${tripScore.color} ${getScoreBgClass(tripScore.score)}`}>
+                                          {tripScore.score}% {tripScore.label}
+                                        </Badge>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="left" className="max-w-[260px]">
+                                        <p className="text-xs font-semibold mb-1">Claim Score: {tripScore.score}%</p>
+                                        {tripScore.deductions.length === 0 ? (
+                                          <p className="text-xs text-muted-foreground">No issues found</p>
+                                        ) : (
+                                          <ul className="space-y-0.5">
+                                            {tripScore.deductions.map((d, i) => (
+                                              <li key={i} className="text-xs text-muted-foreground">
+                                                −{d.points}: {d.reason}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
                                 {hasOverride && (
                                   <Badge variant="outline" className="text-[9px] border-[hsl(var(--status-yellow))]/40 text-[hsl(var(--status-yellow))]">
                                     <ShieldAlert className="h-2.5 w-2.5 mr-0.5" />Override
