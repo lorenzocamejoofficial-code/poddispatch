@@ -10,6 +10,7 @@ interface ChecklistItem {
   label: string;
   passed: boolean;
   detail?: string;
+  isWarning?: boolean; // soft warning — does not block submission
 }
 
 interface PreSubmitChecklistProps {
