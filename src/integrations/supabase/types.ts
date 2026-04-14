@@ -2077,6 +2077,59 @@ export type Database = {
           },
         ]
       }
+      payer_directory: {
+        Row: {
+          claims_address: string | null
+          company_id: string
+          created_at: string
+          fax_number: string | null
+          id: string
+          notes: string | null
+          payer_name: string
+          payer_type: string | null
+          phone_number: string | null
+          portal_url: string | null
+          timely_filing_days: number | null
+          updated_at: string
+        }
+        Insert: {
+          claims_address?: string | null
+          company_id: string
+          created_at?: string
+          fax_number?: string | null
+          id?: string
+          notes?: string | null
+          payer_name: string
+          payer_type?: string | null
+          phone_number?: string | null
+          portal_url?: string | null
+          timely_filing_days?: number | null
+          updated_at?: string
+        }
+        Update: {
+          claims_address?: string | null
+          company_id?: string
+          created_at?: string
+          fax_number?: string | null
+          id?: string
+          notes?: string | null
+          payer_name?: string
+          payer_type?: string | null
+          phone_number?: string | null
+          portal_url?: string | null
+          timely_filing_days?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payer_directory_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           active: boolean
