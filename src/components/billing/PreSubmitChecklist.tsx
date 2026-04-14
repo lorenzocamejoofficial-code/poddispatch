@@ -168,7 +168,17 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       }
 
       // Compute claim score
-      const payerRulesObj = payerRules ? { requires_pcs: payerRules.requires_pcs } : null;
+      const claimPayerType = (claim?.payer_type ?? p?.primary_payer ?? "").toLowerCase();
+      let payerRulesObj: Record<string, any> | null = null;
+      if (activeCompanyId && claimPayerType) {
+        const { data: pr } = await supabase
+          .from("payer_billing_rules")
+          .select("requires_pcs")
+          .eq("company_id", activeCompanyId)
+          .eq("payer_type", claimPayerType)
+          .maybeSingle();
+        if (pr) payerRulesObj = pr;
+      }
       setClaimScore(computeClaimScore(t, p, payerRulesObj));
 
       setItems(checks);
