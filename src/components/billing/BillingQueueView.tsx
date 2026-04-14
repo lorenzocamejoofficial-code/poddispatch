@@ -205,6 +205,16 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
   const pcrResult = selectedTrip ? evaluatePcrCompleteness(selectedTrip) : null;
   const selectedOverride = selectedTrip ? overrideHistory.get(selectedTrip.id) : null;
 
+  // Compute claim scores for all trips (lightweight — uses data already in memory)
+  const scoreMap = useMemo(() => {
+    const map = new Map<string, ClaimScoreResult>();
+    for (const trip of completedTrips) {
+      const payerRules = payerRulesMap.get(trip.payer ?? "") ?? null;
+      map.set(trip.id, computeClaimScore(trip, null, payerRules));
+    }
+    return map;
+  }, [completedTrips, payerRulesMap]);
+
   const handleOverride = async () => {
     if (!selectedTrip || !overrideReason.trim()) {
       toast.error("Override reason is required");
