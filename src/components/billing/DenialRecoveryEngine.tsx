@@ -340,6 +340,19 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: 
       created_by_name: name,
     });
 
+    // Auto-complete denial_unworked biller_tasks for this claim
+    await supabase
+      .from("biller_tasks")
+      .update({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        completed_by: user?.id,
+        dismiss_reason: "Auto-completed when claim was marked for resubmission.",
+      } as any)
+      .eq("claim_id", claim.id)
+      .eq("task_type", "denial_unworked")
+      .in("status", ["pending", "in_progress"]);
+
     await logAuditEvent({
       action: "edit",
       tableName: "claim_records",

@@ -205,15 +205,32 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
   const pcrResult = selectedTrip ? evaluatePcrCompleteness(selectedTrip) : null;
   const selectedOverride = selectedTrip ? overrideHistory.get(selectedTrip.id) : null;
 
-  // Compute claim scores for all trips (lightweight — uses data already in memory)
+  // Fetch patient data for accurate claim scoring (PCS check)
+  const [patientMap, setPatientMap] = useState<Record<string, { pcs_on_file: boolean | null; pcs_expiration_date: string | null }>>({});
+  useEffect(() => {
+    const patientIds = [...new Set(completedTrips.map(t => t.patient_id).filter(Boolean))] as string[];
+    if (patientIds.length === 0) { setPatientMap({}); return; }
+    supabase
+      .from("patients")
+      .select("id, pcs_on_file, pcs_expiration_date")
+      .in("id", patientIds)
+      .then(({ data }) => {
+        const map: Record<string, { pcs_on_file: boolean | null; pcs_expiration_date: string | null }> = {};
+        for (const p of data ?? []) map[p.id] = { pcs_on_file: p.pcs_on_file, pcs_expiration_date: p.pcs_expiration_date };
+        setPatientMap(map);
+      });
+  }, [completedTrips]);
+
+  // Compute claim scores for all trips
   const scoreMap = useMemo(() => {
     const map = new Map<string, ClaimScoreResult>();
     for (const trip of completedTrips) {
       const payerRules = payerRulesMap.get(trip.payer ?? "") ?? null;
-      map.set(trip.id, computeClaimScore(trip, null, payerRules));
+      const patient = trip.patient_id ? patientMap[trip.patient_id] ?? null : null;
+      map.set(trip.id, computeClaimScore(trip, patient, payerRules));
     }
     return map;
-  }, [completedTrips, payerRulesMap]);
+  }, [completedTrips, payerRulesMap, patientMap]);
 
   const handleOverride = async () => {
     if (!selectedTrip || !overrideReason.trim()) {
