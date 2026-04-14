@@ -213,35 +213,43 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         ) : (
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              {items.map((item, i) => (
+              {items.map((item, i) => {
+                const isWarn = item.isWarning && !item.passed;
+                const isWarnPassed = item.isWarning && item.passed;
+                const borderClass = isWarn
+                  ? "border-amber-500/30 bg-amber-500/5"
+                  : isWarnPassed
+                    ? "border-amber-500/30 bg-amber-500/5"
+                    : item.passed
+                      ? "border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5"
+                      : "border-destructive/30 bg-destructive/5";
+                return (
                 <div
                   key={i}
-                  className={`flex items-start gap-2.5 rounded-md border p-2.5 ${
-                    item.passed
-                      ? "border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5"
-                      : "border-destructive/30 bg-destructive/5"
-                  }`}
+                  className={`flex items-start gap-2.5 rounded-md border p-2.5 ${borderClass}`}
                 >
-                  {item.passed ? (
+                  {isWarn ? (
+                    <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                  ) : isWarnPassed ? (
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  ) : item.passed ? (
                     <CheckCircle className="h-4 w-4 text-[hsl(var(--status-green))] shrink-0 mt-0.5" />
                   ) : (
                     <XCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-medium ${item.passed ? "text-foreground" : "text-destructive"}`}>
+                    <p className={`text-xs font-medium ${isWarn ? "text-destructive" : isWarnPassed ? "text-amber-600" : item.passed ? "text-foreground" : "text-destructive"}`}>
                       {item.label}
                     </p>
-                    {item.detail && !item.passed && (
+                    {item.detail && (
                       <p className="text-[10px] text-muted-foreground mt-0.5">
-                        Missing: {item.detail}
+                        {!item.passed && !item.isWarning ? "Missing: " : ""}{item.detail}
                       </p>
-                    )}
-                    {item.detail && item.passed && (
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{item.detail}</p>
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {allPassed ? (
