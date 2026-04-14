@@ -22,7 +22,7 @@ interface PreSubmitChecklistProps {
 }
 
 export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSubmit }: PreSubmitChecklistProps) {
-  const [items, setItems] = useState<ChecklistItem[]>([]);
+  const { activeCompanyId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
