@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText, Pencil, RotateCcw, ClipboardCheck } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText, Pencil, RotateCcw, ClipboardCheck, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { KickbackDialog } from "@/components/billing/KickbackDialog";
 import { Button } from "@/components/ui/button";
