@@ -167,6 +167,10 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         }
       }
 
+      // Compute claim score
+      const payerRulesObj = payerRules ? { requires_pcs: payerRules.requires_pcs } : null;
+      setClaimScore(computeClaimScore(t, p, payerRulesObj));
+
       setItems(checks);
       setLoading(false);
     })();
