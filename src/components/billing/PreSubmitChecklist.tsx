@@ -228,6 +228,29 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           </div>
         ) : (
           <div className="space-y-4 py-2">
+            {/* Claim Score */}
+            {claimScore && (
+              <div className={`rounded-md border p-3 space-y-2 ${getScoreBgClass(claimScore.score)}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm font-bold ${claimScore.color}`}>
+                    Claim Score: {claimScore.score}% — {claimScore.label}
+                  </span>
+                </div>
+                {claimScore.deductions.length > 0 && (
+                  <div className="space-y-1">
+                    {claimScore.deductions.map((d, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs">
+                        <XCircle className="h-3 w-3 text-destructive shrink-0 mt-0.5" />
+                        <span className="text-muted-foreground">
+                          <span className="font-medium text-destructive">−{d.points}</span> {d.reason}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5">
               {items.map((item, i) => {
                 const isWarn = item.isWarning && !item.passed;
