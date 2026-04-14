@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PageLoader } from "@/components/ui/page-loader";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
@@ -171,7 +172,9 @@ export default function BillingAndClaims() {
   const setDateFilter = setSharedDate;
   const [overrideLogs, setOverrideLogs] = useState<any[]>([]);
   const [overrideLogSort, setOverrideLogSort] = useState<"date" | "user" | "reason">("date");
-  const [activeTab, setActiveTab] = useState("trip-queue");
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") ?? "trip-queue";
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [secondaryFilter, setSecondaryFilter] = useState(false);
   const { simulationRunId, refreshToken } = useSimulationSession();
   const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
