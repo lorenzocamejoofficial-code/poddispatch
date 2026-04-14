@@ -40,9 +40,10 @@ const PRIORITY_CONFIG: Record<number, { icon: typeof AlertTriangle; color: strin
 
 interface BillingWorkQueueProps {
   onOpenClaim?: (claimId: string) => void;
+  refreshKey?: number;
 }
 
-export function BillingWorkQueue({ onOpenClaim }: BillingWorkQueueProps) {
+export function BillingWorkQueue({ onOpenClaim, refreshKey }: BillingWorkQueueProps) {
   const { activeCompanyId } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<WorkItem[]>([]);
@@ -267,7 +268,7 @@ export function BillingWorkQueue({ onOpenClaim }: BillingWorkQueueProps) {
     setLoading(false);
   }, [activeCompanyId]);
 
-  useEffect(() => { fetchWorkItems(); }, [fetchWorkItems]);
+  useEffect(() => { fetchWorkItems(); }, [fetchWorkItems, refreshKey]);
 
   const totalAtRisk = useMemo(() => items.reduce((s, i) => s + i.amount, 0), [items]);
 

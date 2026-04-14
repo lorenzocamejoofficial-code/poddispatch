@@ -157,6 +157,9 @@ export function BillerTaskQueue() {
           <Switch id="show-resolved" checked={showResolved} onCheckedChange={setShowResolved} />
         </div>
       </div>
+      <p className="text-xs text-muted-foreground">
+        These tasks were auto-generated based on claim activity. Working a claim in Today's Work does not automatically complete its task — mark tasks complete after you have taken action.
+      </p>
 
       <div className="grid gap-2">
         {activeTasks.map(task => {
