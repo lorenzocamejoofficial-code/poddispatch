@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertTriangle, Clock, FileWarning, DollarSign,
-  ArrowRight, ClipboardList, FileX,
+  ArrowRight, ClipboardList,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
