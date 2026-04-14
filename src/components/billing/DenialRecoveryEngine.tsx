@@ -128,9 +128,9 @@ const FIELDS_FOR_DENIAL: Record<string, string[]> = {
 };
 
 /* ---------- timely filing ---------- */
-function getTimelyFilingDeadline(runDate: string): Date {
+function getTimelyFilingDeadline(runDate: string, filingDays: number = 365): Date {
   const d = new Date(runDate + "T00:00:00");
-  d.setFullYear(d.getFullYear() + 1);
+  d.setDate(d.getDate() + filingDays);
   return d;
 }
 
@@ -553,11 +553,32 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: 
 }
 
 /* ---------- Timely Filing Badge (reusable) ---------- */
-export function TimelyFilingBadge({ runDate }: { runDate: string }) {
-  const deadline = getTimelyFilingDeadline(runDate);
+export function TimelyFilingBadge({ runDate, payerType, companyId }: { runDate: string; payerType?: string | null; companyId?: string | null }) {
+  const [filingDays, setFilingDays] = useState(365);
+  const [payerLabel, setPayerLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!payerType || !companyId) return;
+    supabase
+      .from("payer_directory")
+      .select("payer_name, timely_filing_days")
+      .eq("company_id", companyId)
+      .eq("payer_type", payerType.toLowerCase())
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setFilingDays(data.timely_filing_days ?? 365);
+          setPayerLabel(data.payer_name);
+        }
+      });
+  }, [payerType, companyId]);
+
+  const deadline = getTimelyFilingDeadline(runDate, filingDays);
   const daysRemaining = Math.max(0, Math.floor((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  const tooltipText = payerLabel ? `${payerLabel}: ${filingDays} days from DOS` : `Default: ${filingDays} days from DOS`;
+
   return (
-    <Badge variant="outline" className={`text-[10px] ${getDeadlineBadgeColor(daysRemaining)}`}>
+    <Badge variant="outline" className={`text-[10px] ${getDeadlineBadgeColor(daysRemaining)}`} title={tooltipText}>
       <Clock className="h-3 w-3 mr-1" />
       {daysRemaining}d to file
     </Badge>

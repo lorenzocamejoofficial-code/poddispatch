@@ -68,14 +68,15 @@ function computePriority(claim: {
   denial_code: string | null;
   payer_type: string | null;
   days_outstanding: number;
+  filing_limit_days?: number;
 }): { priority: number; label: string; color: string } {
   const dosDate = new Date(claim.run_date);
-  const monthsSinceDOS = (Date.now() - dosDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
+  const filingLimit = claim.filing_limit_days ?? 365;
+  const daysSinceDOS = (Date.now() - dosDate.getTime()) / (1000 * 60 * 60 * 24);
+  const daysToDeadline = filingLimit - daysSinceDOS;
 
-  // 1. Timely filing risk
-  const isMedicare = (claim.payer_type ?? "").toLowerCase().includes("medicare");
-  const isMedicaid = (claim.payer_type ?? "").toLowerCase().includes("medicaid");
-  if ((isMedicare && monthsSinceDOS >= 10) || (isMedicaid && monthsSinceDOS >= 10) || monthsSinceDOS >= 10) {
+  // 1. Timely filing risk — within 30 days of payer-specific deadline
+  if (daysToDeadline <= 30) {
     return { priority: 1, label: "Timely Filing Risk", color: "destructive" };
   }
 
@@ -129,17 +130,29 @@ export default function ARCommandCenter() {
   /* -- fetch claims -- */
   const fetchClaims = useCallback(async () => {
     if (!activeCompanyId) return;
-    const { data, error } = await supabase
-      .from("claim_records")
-      .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at")
-      .eq("company_id", activeCompanyId)
-      .eq("is_simulated", false)
-      .in("status", ["submitted", "denied", "needs_correction"] as any)
-      .order("run_date", { ascending: true });
+    const [{ data, error }, { data: payerDir }] = await Promise.all([
+      supabase
+        .from("claim_records")
+        .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at")
+        .eq("company_id", activeCompanyId)
+        .eq("is_simulated", false)
+        .in("status", ["submitted", "denied", "needs_correction"] as any)
+        .order("run_date", { ascending: true }),
+      supabase
+        .from("payer_directory")
+        .select("payer_type, timely_filing_days")
+        .eq("company_id", activeCompanyId),
+    ]);
 
     if (error) {
       console.error("Failed to load AR claims:", error);
       return;
+    }
+
+    // Build payer filing limit map
+    const filingMap: Record<string, number> = {};
+    for (const p of payerDir ?? []) {
+      if (p.payer_type) filingMap[p.payer_type.toLowerCase()] = p.timely_filing_days ?? 365;
     }
 
     // Fetch patient names for all claims
@@ -157,7 +170,8 @@ export default function ARCommandCenter() {
 
     const mapped: ARClaim[] = (data ?? []).map((c: any) => {
       const days = daysFromSubmission(c.submitted_at);
-      const pri = computePriority({ ...c, days_outstanding: days });
+      const filingLimitDays = filingMap[(c.payer_type ?? "").toLowerCase()] ?? 365;
+      const pri = computePriority({ ...c, days_outstanding: days, filing_limit_days: filingLimitDays });
       return {
         ...c,
         patient_name: patientMap[c.patient_id] ?? "Unknown Patient",
@@ -521,7 +535,7 @@ export default function ARCommandCenter() {
 
               {/* Timely filing deadline */}
               <div className="flex items-center gap-2">
-                <TimelyFilingBadge runDate={selectedClaim.run_date} />
+                <TimelyFilingBadge runDate={selectedClaim.run_date} payerType={selectedClaim.payer_type} companyId={selectedClaim.company_id} />
               </div>
 
               {/* Denial info */}
