@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText, Pencil, RotateCcw, ClipboardCheck } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText, Pencil, RotateCcw, ClipboardCheck, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { KickbackDialog } from "@/components/billing/KickbackDialog";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,8 @@ import {
   type BillingOverrideLike,
 } from "@/lib/billing-utils";
 import { BillerPCROverridePanel } from "@/components/billing/BillerPCROverridePanel";
+import { computeClaimScore, getScoreAppearance, getScoreBgClass, type ClaimScoreResult } from "@/lib/claim-score";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface TripForQueue {
   id: string;
@@ -203,6 +205,16 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
   const pcrResult = selectedTrip ? evaluatePcrCompleteness(selectedTrip) : null;
   const selectedOverride = selectedTrip ? overrideHistory.get(selectedTrip.id) : null;
 
+  // Compute claim scores for all trips (lightweight — uses data already in memory)
+  const scoreMap = useMemo(() => {
+    const map = new Map<string, ClaimScoreResult>();
+    for (const trip of completedTrips) {
+      const payerRules = payerRulesMap.get(trip.payer ?? "") ?? null;
+      map.set(trip.id, computeClaimScore(trip, null, payerRules));
+    }
+    return map;
+  }, [completedTrips, payerRulesMap]);
+
   const handleOverride = async () => {
     if (!selectedTrip || !overrideReason.trim()) {
       toast.error("Override reason is required");
@@ -357,6 +369,7 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                       const hasOverride = overrideHistory.has(trip.id);
                       const allBlockers = [...(trip.queueBlockers ?? []), ...(trip.blockers ?? [])].filter(Boolean);
                       const uniqueBlockers = [...new Set(allBlockers)];
+                      const tripScore = scoreMap.get(trip.id);
                       return (
                         <div key={trip.id} className="rounded-md border bg-card hover:border-primary/40 hover:shadow-sm transition-all">
                           <button
@@ -366,6 +379,31 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                             <div className="flex items-center justify-between gap-1 mb-1">
                               <p className="text-xs font-semibold text-foreground truncate">{trip.patient_name}</p>
                               <div className="flex items-center gap-1">
+                                {tripScore && (
+                                  <TooltipProvider delayDuration={200}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Badge variant="outline" className={`text-[9px] ${tripScore.color} ${getScoreBgClass(tripScore.score)}`}>
+                                          {tripScore.score}% {tripScore.label}
+                                        </Badge>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="left" className="max-w-[260px]">
+                                        <p className="text-xs font-semibold mb-1">Claim Score: {tripScore.score}%</p>
+                                        {tripScore.deductions.length === 0 ? (
+                                          <p className="text-xs text-muted-foreground">No issues found</p>
+                                        ) : (
+                                          <ul className="space-y-0.5">
+                                            {tripScore.deductions.map((d, i) => (
+                                              <li key={i} className="text-xs text-muted-foreground">
+                                                −{d.points}: {d.reason}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
                                 {hasOverride && (
                                   <Badge variant="outline" className="text-[9px] border-[hsl(var(--status-yellow))]/40 text-[hsl(var(--status-yellow))]">
                                     <ShieldAlert className="h-2.5 w-2.5 mr-0.5" />Override
@@ -460,6 +498,36 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                   )}
                 </div>
               )}
+
+              {/* Claim Score */}
+              {(() => {
+                const detailScore = scoreMap.get(selectedTrip.id);
+                if (!detailScore) return null;
+                return (
+                  <div className={`rounded-md border p-3 space-y-2 ${getScoreBgClass(detailScore.score)}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-sm font-bold ${detailScore.color}`}>
+                        Claim Score: {detailScore.score}% — {detailScore.label}
+                      </span>
+                    </div>
+                    {detailScore.deductions.length > 0 && (
+                      <div className="space-y-1">
+                        {detailScore.deductions.map((d, i) => (
+                          <div key={i} className="flex items-start gap-2 text-xs">
+                            <XCircle className="h-3 w-3 text-destructive shrink-0 mt-0.5" />
+                            <span className="text-muted-foreground">
+                              <span className="font-medium text-destructive">−{d.points}</span> {d.reason}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {detailScore.deductions.length === 0 && (
+                      <p className="text-xs text-muted-foreground">All documentation checks passed.</p>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Status banner */}
               <div className={`rounded-md border p-3 ${QUEUE_CONFIG[selectedQueueInfo.status].className}`}>

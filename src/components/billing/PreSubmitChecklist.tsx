@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { computeClaimScore, getScoreBgClass, type ClaimScoreResult } from "@/lib/claim-score";
 
 interface ChecklistItem {
   label: string;
@@ -26,6 +27,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
   const [items, setItems] = useState<ChecklistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [claimScore, setClaimScore] = useState<ClaimScoreResult | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -165,6 +167,20 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         }
       }
 
+      // Compute claim score
+      const claimPayerType = (claim?.payer_type ?? p?.primary_payer ?? "").toLowerCase();
+      let payerRulesObj: Record<string, any> | null = null;
+      if (activeCompanyId && claimPayerType) {
+        const { data: pr } = await supabase
+          .from("payer_billing_rules")
+          .select("requires_pcs")
+          .eq("company_id", activeCompanyId)
+          .eq("payer_type", claimPayerType)
+          .maybeSingle();
+        if (pr) payerRulesObj = pr;
+      }
+      setClaimScore(computeClaimScore(t, p, payerRulesObj));
+
       setItems(checks);
       setLoading(false);
     })();
@@ -212,6 +228,29 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           </div>
         ) : (
           <div className="space-y-4 py-2">
+            {/* Claim Score */}
+            {claimScore && (
+              <div className={`rounded-md border p-3 space-y-2 ${getScoreBgClass(claimScore.score)}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-sm font-bold ${claimScore.color}`}>
+                    Claim Score: {claimScore.score}% — {claimScore.label}
+                  </span>
+                </div>
+                {claimScore.deductions.length > 0 && (
+                  <div className="space-y-1">
+                    {claimScore.deductions.map((d, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs">
+                        <XCircle className="h-3 w-3 text-destructive shrink-0 mt-0.5" />
+                        <span className="text-muted-foreground">
+                          <span className="font-medium text-destructive">−{d.points}</span> {d.reason}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5">
               {items.map((item, i) => {
                 const isWarn = item.isWarning && !item.passed;
