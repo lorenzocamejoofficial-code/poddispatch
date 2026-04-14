@@ -499,6 +499,36 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
                 </div>
               )}
 
+              {/* Claim Score */}
+              {(() => {
+                const detailScore = scoreMap.get(selectedTrip.id);
+                if (!detailScore) return null;
+                return (
+                  <div className={`rounded-md border p-3 space-y-2 ${getScoreBgClass(detailScore.score)}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-sm font-bold ${detailScore.color}`}>
+                        Claim Score: {detailScore.score}% — {detailScore.label}
+                      </span>
+                    </div>
+                    {detailScore.deductions.length > 0 && (
+                      <div className="space-y-1">
+                        {detailScore.deductions.map((d, i) => (
+                          <div key={i} className="flex items-start gap-2 text-xs">
+                            <XCircle className="h-3 w-3 text-destructive shrink-0 mt-0.5" />
+                            <span className="text-muted-foreground">
+                              <span className="font-medium text-destructive">−{d.points}</span> {d.reason}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {detailScore.deductions.length === 0 && (
+                      <p className="text-xs text-muted-foreground">All documentation checks passed.</p>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Status banner */}
               <div className={`rounded-md border p-3 ${QUEUE_CONFIG[selectedQueueInfo.status].className}`}>
                 <div className="flex items-center gap-2">
