@@ -31,7 +31,7 @@ export const HoldTimerIndicator = memo(function HoldTimerIndicator({
       ? "border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]"
       : "border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))]";
 
-  const label = holdType === "wait_patient" ? "Patient Wait" : "Offload Wait";
+  const label = (holdType === "wait_patient" || holdType === "patient_not_ready") ? "Patient Wait" : "Facility Delay";
 
   return (
     <div className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold ${colorClasses} animate-pulse`}>
