@@ -858,7 +858,8 @@ export default function PCRPage() {
   };
 
   const handleSubmit = async () => {
-    const missing = getMissingItems();
+    // In QA fix mode, skip crew signature requirement
+    const missing = isQaFixMode ? getMissingItems().filter(m => m !== "Crew Signatures") : getMissingItems();
     if (missing.length > 0) {
       toast.error(`Complete these sections first: ${missing.join(", ")}`);
       return;
@@ -881,13 +882,32 @@ export default function PCRPage() {
         updated_by: profileId,
       } as any).eq("id", trip.id);
 
-      // Auto-create QA review
+      // If QA fix mode, resolve the associated QA review
+      if (isQaFixMode && qaReviewId) {
+        await supabase.from("qa_reviews" as any).update({
+          status: "fixed",
+          qa_notes: "PCR corrected and resubmitted by admin/biller",
+          reviewed_at: new Date().toISOString(),
+        }).eq("id", qaReviewId);
+      }
+
+      // Auto-create QA review for the resubmission
       if (trip.company_id) {
         await supabase.from("qa_reviews").insert({
           company_id: trip.company_id,
           trip_id: trip.id,
-          flag_reason: isKickedBack ? "PCR resubmitted after kickback — pending QA review" : "PCR auto-submitted — pending QA review",
-          status: "pending",
+          flag_reason: isQaFixMode ? "PCR corrected by admin/biller — resubmitted for billing" : isKickedBack ? "PCR resubmitted after kickback — pending QA review" : "PCR auto-submitted — pending QA review",
+          status: isQaFixMode ? "approved" : "pending",
+        });
+      }
+
+      // Audit log for QA fix
+      if (isQaFixMode) {
+        await logAuditEvent({
+          action: "qa_pcr_fix",
+          tableName: "trip_records",
+          recordId: trip.id,
+          notes: `PCR corrected and resubmitted via QA fix mode`,
         });
       }
 
@@ -896,7 +916,6 @@ export default function PCRPage() {
         const patientName = trip.patient
           ? `${trip.patient.first_name} ${trip.patient.last_name}`
           : "Unknown Patient";
-        // Only insert if no pending/in_progress task of this type exists for this trip
         const { data: existing } = await supabase
           .from("biller_tasks")
           .select("id")
@@ -920,9 +939,14 @@ export default function PCRPage() {
         console.error("Failed to create biller task (non-blocking):", taskErr);
       }
 
-      toast.success("PCR submitted — trip is ready for billing!");
-      navigate("/crew-dashboard");
-    } catch (err: any) {
+      if (isQaFixMode) {
+        toast.success("PCR corrected and resubmitted — trip is ready for billing!");
+        navigate("/compliance");
+      } else {
+        toast.success("PCR submitted — trip is ready for billing!");
+        navigate("/crew-dashboard");
+      }
+    } catch {
       toast.error("Failed to submit PCR");
     }
     setSubmitting(false);
