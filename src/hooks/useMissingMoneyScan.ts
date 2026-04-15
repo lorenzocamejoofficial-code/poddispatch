@@ -319,6 +319,17 @@ export function useMissingMoneyScan() {
 
   useEffect(() => {
     runScan();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") runScan();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", runScan);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", runScan);
+    };
   }, [runScan]);
 
   const hasIssues = categories.some((c) => c.count > 0);
