@@ -623,8 +623,18 @@ export default function PCRPage() {
     });
   }, [trip?.id, profileId]);
 
-  // If no tripId, show run selector
+  // If no tripId, show run selector (crew mode only)
   if (!tripId) {
+    if (isQaFixMode) {
+      return (
+        <AdminLayout>
+          <div className="flex flex-col items-center justify-center min-h-[50vh] p-6">
+            <p className="text-muted-foreground font-medium">No trip selected for QA fix</p>
+            <Button className="mt-4" onClick={() => navigate("/compliance")}>Back to QA Queue</Button>
+          </div>
+        </AdminLayout>
+      );
+    }
     return (
       <CrewLayout>
         <PCRRunSelector onSelect={(id) => setSearchParams({ tripId: id })} />
@@ -633,18 +643,18 @@ export default function PCRPage() {
   }
 
   if (loading) {
-    return <CrewLayout><div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div></CrewLayout>;
+    return <Layout><div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div></Layout>;
   }
 
   if (!trip) {
     return (
-      <CrewLayout>
+      <Layout>
         <div className="flex flex-col items-center justify-center min-h-[50vh] p-6">
-          <p className="text-muted-foreground font-medium">You are not assigned to this run</p>
-          <p className="text-xs text-muted-foreground mt-1">If you believe this is an error, contact your dispatcher.</p>
-          <Button className="mt-4" onClick={() => setSearchParams({})}>Back to Run List</Button>
+          <p className="text-muted-foreground font-medium">{isQaFixMode ? "Trip record not found" : "You are not assigned to this run"}</p>
+          <p className="text-xs text-muted-foreground mt-1">{isQaFixMode ? "The trip may have been deleted." : "If you believe this is an error, contact your dispatcher."}</p>
+          <Button className="mt-4" onClick={() => isQaFixMode ? navigate("/compliance") : setSearchParams({})}>{isQaFixMode ? "Back to QA Queue" : "Back to Run List"}</Button>
         </div>
-      </CrewLayout>
+      </Layout>
     );
   }
 
