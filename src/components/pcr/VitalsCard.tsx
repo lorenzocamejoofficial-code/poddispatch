@@ -269,17 +269,21 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
         const gcsTotal = getGCSTotal(vs.gcs_eyes, vs.gcs_verbal, vs.gcs_motor);
         const gcsSeverity = gcsTotal !== null ? getGCSSeverity(gcsTotal) : null;
         const isSaved = vs.saved;
+        const isEditing = editingSetId === vs.id;
+        const isLocked = isSaved && !isEditing;
         const setErrors_ = errors[vs.id] || [];
 
         return (
-          <div key={vs.id} className={cn("rounded-lg border p-3 sm:p-4 space-y-4", isSaved && "border-emerald-300 dark:border-emerald-700 bg-emerald-50/30 dark:bg-emerald-900/10")}>
+          <div key={vs.id} className={cn("rounded-lg border p-3 sm:p-4 space-y-4", isSaved && !isEditing && "border-emerald-300 dark:border-emerald-700 bg-emerald-50/30 dark:bg-emerald-900/10", isEditing && "border-amber-400 dark:border-amber-600 bg-amber-50/20 dark:bg-amber-900/10")}>
             <div className="flex items-start justify-between gap-2">
               <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-wrap min-w-0">
-                {isSaved && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                {isSaved && !isEditing && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                {isEditing && <Pencil className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />}
                 <p className="text-xs font-bold text-primary uppercase tracking-wider">
                   {idx === 0 ? "Initial Vitals" : `Repeat Vitals #${idx + 1}`}
+                  {isEditing && <span className="text-amber-600 dark:text-amber-400 ml-1">· Editing</span>}
                 </p>
-                {isSaved && vs.timestamp && editingTimestamp !== vs.id && (
+                {isSaved && vs.timestamp && editingTimestamp !== vs.id && !isEditing && (
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <span className="hidden sm:inline">·</span> {new Date(vs.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}
                     <button
@@ -313,11 +317,23 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                   </div>
                 )}
               </div>
-              {sets.length > 1 && !isSaved && (
-                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeSet(idx)}>
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                </Button>
-              )}
+              <div className="flex items-center gap-1">
+                {isSaved && !isEditing && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground hover:text-primary" onClick={() => setEditingSetId(vs.id)}>
+                    <Pencil className="h-3 w-3" /> Edit
+                  </Button>
+                )}
+                {isEditing && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setEditingSetId(null)}>
+                    Cancel
+                  </Button>
+                )}
+                {sets.length > 1 && !isSaved && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeSet(idx)}>
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Validation errors */}
