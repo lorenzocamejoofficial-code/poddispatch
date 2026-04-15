@@ -165,10 +165,19 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
   const [previewRun, setPreviewRun] = useState<RunInfo | null>(null);
   const [localExpanded, setLocalExpanded] = useState(false);
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
-  const VISIBLE_COUNT = 4;
+  const VISIBLE_COUNT = 3;
+
+  // Sort: completed/cancelled runs sink to bottom, active runs stay in slot order
+  const TERMINAL_STATUSES = new Set(["completed", "cancelled", "no_show"]);
+  const sortedRuns = [...runs].sort((a, b) => {
+    const aTerminal = TERMINAL_STATUSES.has(a.status) ? 1 : 0;
+    const bTerminal = TERMINAL_STATUSES.has(b.status) ? 1 : 0;
+    return aTerminal - bTerminal;
+  });
+
   const isExpanded = localExpanded || forceExpanded;
-  const visibleRuns = isExpanded ? runs : runs.slice(0, VISIBLE_COUNT);
-  const hiddenCount = runs.length - VISIBLE_COUNT;
+  const visibleRuns = isExpanded ? sortedRuns : sortedRuns.slice(0, VISIBLE_COUNT);
+  const hiddenCount = sortedRuns.length - VISIBLE_COUNT;
   return (
     <>
       <div className={`rounded-lg border bg-card p-4 shadow-sm ${isDown ? "border-destructive/40 bg-destructive/5" : ""}`}>
