@@ -713,11 +713,12 @@ export default function PCRPage() {
     );
   }
 
-  // Medic selection prompt
-  const isReadOnly = trip.pcr_status === "submitted";
+  // Medic selection prompt — skip in QA fix mode (admin doesn't need to select medic)
+  // In QA fix mode, override read-only so admins can edit submitted PCRs
+  const isReadOnly = isQaFixMode ? false : trip.pcr_status === "submitted";
   const isKickedBack = trip.pcr_status === "kicked_back";
 
-  if (!trip.attending_medic_id) {
+  if (!trip.attending_medic_id && !isQaFixMode) {
     const handleMedicSelect = async (medic: CrewMember) => {
       await updateMultipleFields({
         attending_medic_id: medic.id,
