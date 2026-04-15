@@ -33,7 +33,8 @@ function formatTime(t: string | null): string {
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
-function shorten(s: string): string {
+function shorten(s: string | null | undefined): string {
+  if (!s) return "Unknown";
   // Strip street number and cut at comma for brevity
   return s.replace(/^\d+\s/, "").split(",")[0];
 }
@@ -81,7 +82,7 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
       // Fetch non-dialysis scheduling legs in window
       const { data: legData } = await supabase
         .from("scheduling_legs")
-        .select("id, run_date, patient_id, pickup_time, pickup_location, destination_location, trip_type, leg_type, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, status)")
+        .select("id, run_date, patient_id, pickup_time, pickup_location, destination_location, trip_type, leg_type, is_oneoff, oneoff_name, oneoff_pickup_address, oneoff_dropoff_address, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, status, pickup_address, dropoff_facility)")
         .neq("trip_type", "dialysis")
         .gte("run_date", today)
         .lte("run_date", endStr)
@@ -111,17 +112,34 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
       }
 
       // Build display items
-      const items: UpcomingLeg[] = activeLegData.map((l: any) => ({
-        id: l.id,
-        run_date: l.run_date,
-        patient_name: l.patient ? `${l.patient.first_name} ${l.patient.last_name}` : "Unknown",
-        pickup_time: l.pickup_time,
-        pickup_location: l.pickup_location,
-        destination_location: l.destination_location,
-        trip_type: l.trip_type,
-        leg_type: l.leg_type,
-        assigned_truck_name: slotMap.get(l.id) ?? null,
-      }));
+      const items: UpcomingLeg[] = activeLegData.map((l: any) => {
+        // Resolve name: patient join first, then oneoff_name fallback
+        const patientName = l.patient
+          ? `${l.patient.first_name} ${l.patient.last_name}`
+          : l.oneoff_name || "Unknown";
+
+        // Resolve locations: leg fields first, then oneoff fields, then patient fields
+        const pickup = l.pickup_location
+          || l.oneoff_pickup_address
+          || l.patient?.pickup_address
+          || null;
+        const destination = l.destination_location
+          || l.oneoff_dropoff_address
+          || l.patient?.dropoff_facility
+          || null;
+
+        return {
+          id: l.id,
+          run_date: l.run_date,
+          patient_name: patientName,
+          pickup_time: l.pickup_time,
+          pickup_location: pickup,
+          destination_location: destination,
+          trip_type: l.trip_type,
+          leg_type: l.leg_type,
+          assigned_truck_name: slotMap.get(l.id) ?? null,
+        };
+      });
 
       // Sort: soonest date → earliest pickup → unassigned first
       items.sort((a, b) => {
