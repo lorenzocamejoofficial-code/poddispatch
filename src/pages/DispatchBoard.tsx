@@ -366,7 +366,7 @@ export default function DispatchBoard() {
       const patient = leg?.patient;
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
       const truckName = truck?.name ?? "Unknown Truck";
-      const holdLabel = ht.hold_type === "wait_patient" ? "Patient Wait" : "Offload Wait";
+      const holdLabel = (ht.hold_type === "wait_patient" || ht.hold_type === "patient_not_ready") ? "Patient Not Ready" : "Facility Delay";
       return {
         id: `hold-${ht.id}`,
         message: `${holdLabel} — ${truckName} · ${patientName}`,

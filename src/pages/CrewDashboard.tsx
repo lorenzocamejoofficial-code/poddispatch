@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Truck, Users, Loader2, Clock, AlertTriangle, Ban, XCircle, Siren } from "lucide-react";
+import { Truck, Users, Loader2, Clock, AlertTriangle, Ban, XCircle, Siren, UserX } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { CrewLayout } from "@/components/crew/CrewLayout";
@@ -94,21 +94,29 @@ interface NotificationRow {
   acknowledged: boolean;
 }
 
-function HoldConfirmButton({ icon, label, confirmLabel, loading, onConfirm }: {
+function HoldConfirmButton({ icon, label, confirmLabel, loading, onConfirm, buttonLabel, colorClass }: {
   icon: React.ReactNode;
   label: string;
   confirmLabel: string;
   loading: boolean;
   onConfirm: () => void;
+  buttonLabel?: string;
+  colorClass?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
+      <button
+        className={cn(
+          "flex flex-col items-center justify-center gap-0.5 rounded-lg border h-14 w-14 text-[8px] font-semibold leading-tight disabled:opacity-50",
+          colorClass ?? "border-[hsl(var(--status-red))]/50 text-[hsl(var(--status-red))] hover:bg-[hsl(var(--status-red))]/5"
+        )}
         disabled={loading}
-        onClick={(e) => { e.stopPropagation(); setOpen(true); }}>
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+      >
         {icon}
-      </Button>
+        {buttonLabel && <span className="truncate max-w-[48px] text-center">{buttonLabel}</span>}
+      </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-xs" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
@@ -883,22 +891,22 @@ export default function CrewDashboard() {
                     <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       {/* Cancel Trip button */}
                       {!isTerminal && ["not_started", "in_progress"].includes(run.pcrStatus) && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-12 w-12 border-destructive/50 text-destructive hover:bg-destructive/5"
+                        <button
+                          className="flex flex-col items-center justify-center gap-0.5 rounded-lg border h-14 w-14 text-[8px] font-semibold leading-tight border-destructive/50 text-destructive hover:bg-destructive/5"
                           onClick={() => { setCancelTarget(run); setCancelReason(""); }}
-                          title="Cancel Trip"
                         >
                           <XCircle className="h-4 w-4" />
-                        </Button>
+                          <span>Cancel</span>
+                        </button>
                       )}
 
                       {run.tripId && !isTerminal && !activeHold && (
                         <>
                           {["arrived_pickup", "en_route"].includes(run.tripStatus) && (
                             <HoldConfirmButton
-                              icon={<AlertTriangle className="h-4 w-4" />}
+                              icon={<UserX className="h-4 w-4" />}
+                              buttonLabel="Not Ready"
+                              colorClass="border-[hsl(var(--status-red))]/50 text-[hsl(var(--status-red))] hover:bg-[hsl(var(--status-red))]/5"
                               label="Start Patient Not Ready timer?"
                               confirmLabel="Start Timer"
                               loading={holdLoading === `${run.tripId}-patient_not_ready`}
@@ -908,6 +916,8 @@ export default function CrewDashboard() {
                           {["arrived_dropoff", "loaded"].includes(run.tripStatus) && (
                             <HoldConfirmButton
                               icon={<Clock className="h-4 w-4" />}
+                              buttonLabel="Fac. Delay"
+                              colorClass="border-[hsl(var(--status-yellow))]/50 text-[hsl(var(--status-yellow))] hover:bg-[hsl(var(--status-yellow))]/5"
                               label="Start Facility Delay timer?"
                               confirmLabel="Start Timer"
                               loading={holdLoading === `${run.tripId}-facility_delay`}
@@ -917,19 +927,15 @@ export default function CrewDashboard() {
                         </>
                       )}
 
-                      {/* Emergency Upgrade button removed — now at dashboard level */}
-
                       {/* Report Incident button */}
                       {!isTerminal && run.tripId && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-12 w-12 border-amber-400/50 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                        <button
+                          className="flex flex-col items-center justify-center gap-0.5 rounded-lg border h-14 w-14 text-[8px] font-semibold leading-tight border-amber-400/50 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20"
                           onClick={() => setIncidentRun(run)}
-                          title="Report Incident"
                         >
                           <AlertTriangle className="h-4 w-4" />
-                        </Button>
+                          <span>Incident</span>
+                        </button>
                       )}
                     </div>
                   </>
