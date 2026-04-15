@@ -366,26 +366,26 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Systolic <PCRTooltip text={PCR_TOOLTIPS.systolic} /></label>
                 <Input type="number" inputMode="numeric" placeholder="120" value={isChipValue(vs.bp_systolic) ? "" : vs.bp_systolic}
-                  disabled={isChipValue(vs.bp_systolic) || isSaved}
+                  disabled={isChipValue(vs.bp_systolic) || isLocked}
                   onChange={(e) => updateSet(idx, "bp_systolic", e.target.value)} className={cn("h-11", getFieldBorder("bp_systolic", vs.bp_systolic))} />
                 {getVitalRangeWarning("bp_systolic", vs.bp_systolic) && <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">⚠ {getVitalRangeWarning("bp_systolic", vs.bp_systolic)}</p>}
-                <VitalChips value={vs.bp_systolic} onChange={(v) => updateSet(idx, "bp_systolic", v)} disabled={isSaved} />
+                <VitalChips value={vs.bp_systolic} onChange={(v) => updateSet(idx, "bp_systolic", v)} disabled={isLocked} />
               </div>
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Diastolic <PCRTooltip text={PCR_TOOLTIPS.diastolic} /></label>
                 <Input type="number" inputMode="numeric" placeholder="80" value={isChipValue(vs.bp_diastolic) ? "" : vs.bp_diastolic}
-                  disabled={isChipValue(vs.bp_diastolic) || isSaved}
+                  disabled={isChipValue(vs.bp_diastolic) || isLocked}
                   onChange={(e) => updateSet(idx, "bp_diastolic", e.target.value)} className={cn("h-11", getFieldBorder("bp_diastolic", vs.bp_diastolic))} />
                 {getVitalRangeWarning("bp_diastolic", vs.bp_diastolic) && <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">⚠ {getVitalRangeWarning("bp_diastolic", vs.bp_diastolic)}</p>}
-                <VitalChips value={vs.bp_diastolic} onChange={(v) => updateSet(idx, "bp_diastolic", v)} disabled={isSaved} />
+                <VitalChips value={vs.bp_diastolic} onChange={(v) => updateSet(idx, "bp_diastolic", v)} disabled={isLocked} />
               </div>
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Pulse <PCRTooltip text={PCR_TOOLTIPS.pulse} /></label>
                 <Input type="number" inputMode="numeric" placeholder="72" value={isChipValue(vs.pulse) ? "" : vs.pulse}
-                  disabled={isChipValue(vs.pulse) || isSaved}
+                  disabled={isChipValue(vs.pulse) || isLocked}
                   onChange={(e) => updateSet(idx, "pulse", e.target.value)} className={cn("h-11", getFieldBorder("pulse", vs.pulse))} />
                 {getVitalRangeWarning("pulse", vs.pulse) && <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">⚠ {getVitalRangeWarning("pulse", vs.pulse)}</p>}
-                <VitalChips value={vs.pulse} onChange={(v) => updateSet(idx, "pulse", v)} disabled={isSaved} />
+                <VitalChips value={vs.pulse} onChange={(v) => updateSet(idx, "pulse", v)} disabled={isLocked} />
               </div>
             </div>
 
@@ -393,7 +393,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-3">
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Pulse Quality <PCRTooltip text={PCR_TOOLTIPS.pulse_quality} /></label>
-                <Select value={vs.pulse_quality} onValueChange={(v) => updateSet(idx, "pulse_quality", v)} disabled={isSaved}>
+                <Select value={vs.pulse_quality} onValueChange={(v) => updateSet(idx, "pulse_quality", v)} disabled={isLocked}>
                   <SelectTrigger className="h-11"><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
                     {PULSE_QUALITY.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
@@ -406,7 +406,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                   disabled={isChipValue(vs.spo2) || isSaved}
                   onChange={(e) => updateSet(idx, "spo2", e.target.value)} className={cn("h-11", getFieldBorder("spo2", vs.spo2))} />
                 {getVitalRangeWarning("spo2", vs.spo2) && <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">⚠ {getVitalRangeWarning("spo2", vs.spo2)}</p>}
-                <VitalChips value={vs.spo2} onChange={(v) => updateSet(idx, "spo2", v)} disabled={isSaved} />
+                <VitalChips value={vs.spo2} onChange={(v) => updateSet(idx, "spo2", v)} disabled={isLocked} />
               </div>
             </div>
 
@@ -415,14 +415,14 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Resp Rate <PCRTooltip text={PCR_TOOLTIPS.resp_rate} /></label>
                 <Input type="number" inputMode="numeric" placeholder="16" value={isChipValue(vs.respiratory_rate) ? "" : vs.respiratory_rate}
-                  disabled={isChipValue(vs.respiratory_rate) || isSaved}
+                  disabled={isChipValue(vs.respiratory_rate) || isLocked}
                   onChange={(e) => updateSet(idx, "respiratory_rate", e.target.value)} className={cn("h-11", getFieldBorder("respiratory_rate", vs.respiratory_rate))} />
                 {getVitalRangeWarning("respiratory_rate", vs.respiratory_rate) && <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">⚠ {getVitalRangeWarning("respiratory_rate", vs.respiratory_rate)}</p>}
-                <VitalChips value={vs.respiratory_rate} onChange={(v) => updateSet(idx, "respiratory_rate", v)} disabled={isSaved} />
+                <VitalChips value={vs.respiratory_rate} onChange={(v) => updateSet(idx, "respiratory_rate", v)} disabled={isLocked} />
               </div>
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Resp Quality <PCRTooltip text={PCR_TOOLTIPS.resp_quality} /></label>
-                <Select value={vs.respiratory_quality} onValueChange={(v) => updateSet(idx, "respiratory_quality", v)} disabled={isSaved}>
+                <Select value={vs.respiratory_quality} onValueChange={(v) => updateSet(idx, "respiratory_quality", v)} disabled={isLocked}>
                   <SelectTrigger className="h-11"><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
                     {RESPIRATORY_QUALITY.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
@@ -436,23 +436,23 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Temp °F <PCRTooltip text={PCR_TOOLTIPS.temp} /></label>
                 <Input type="number" inputMode="decimal" placeholder="98.6" value={isChipValue(vs.temperature) ? "" : vs.temperature}
-                  disabled={isChipValue(vs.temperature) || isSaved}
+                  disabled={isChipValue(vs.temperature) || isLocked}
                   onChange={(e) => updateSet(idx, "temperature", e.target.value)} className={cn("h-11", getFieldBorder("temperature", vs.temperature))} />
-                <VitalChips value={vs.temperature} onChange={(v) => updateSet(idx, "temperature", v)} disabled={isSaved} />
+                <VitalChips value={vs.temperature} onChange={(v) => updateSet(idx, "temperature", v)} disabled={isLocked} />
               </div>
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">BGL <PCRTooltip text={PCR_TOOLTIPS.bgl} /></label>
                 <Input type="number" inputMode="numeric" placeholder="100" value={isChipValue(vs.blood_glucose) ? "" : vs.blood_glucose}
-                  disabled={isChipValue(vs.blood_glucose) || isSaved}
+                  disabled={isChipValue(vs.blood_glucose) || isLocked}
                   onChange={(e) => updateSet(idx, "blood_glucose", e.target.value)} className={cn("h-11", getFieldBorder("blood_glucose", vs.blood_glucose))} />
-                <VitalChips value={vs.blood_glucose} onChange={(v) => updateSet(idx, "blood_glucose", v)} disabled={isSaved} />
+                <VitalChips value={vs.blood_glucose} onChange={(v) => updateSet(idx, "blood_glucose", v)} disabled={isLocked} />
               </div>
               <div className="min-w-0">
                 <label className="text-sm font-medium text-muted-foreground flex items-center">Pain (0-10) <PCRTooltip text={PCR_TOOLTIPS.pain} /></label>
                 <Input type="number" inputMode="numeric" placeholder="0" min="0" max="10" value={isChipValue(vs.pain_scale) ? "" : vs.pain_scale}
-                  disabled={isChipValue(vs.pain_scale) || isSaved}
+                  disabled={isChipValue(vs.pain_scale) || isLocked}
                   onChange={(e) => updateSet(idx, "pain_scale", e.target.value)} className={cn("h-11", getFieldBorder("pain_scale", vs.pain_scale))} />
-                <VitalChips value={vs.pain_scale} onChange={(v) => updateSet(idx, "pain_scale", v)} disabled={isSaved} />
+                <VitalChips value={vs.pain_scale} onChange={(v) => updateSet(idx, "pain_scale", v)} disabled={isLocked} />
               </div>
             </div>
 
@@ -482,7 +482,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="min-w-0">
                       <label className="text-sm font-medium text-muted-foreground flex items-center">Eye (E) <PCRTooltip text={PCR_TOOLTIPS.gcs_eye} /></label>
-                      <Select value={vs.gcs_eyes} onValueChange={(v) => updateSet(idx, "gcs_eyes", v)} disabled={isSaved}>
+                      <Select value={vs.gcs_eyes} onValueChange={(v) => updateSet(idx, "gcs_eyes", v)} disabled={isLocked}>
                         <SelectTrigger className={cn("h-11", getGcsFieldBorder(vs.gcs_eyes))}><SelectValue placeholder="E" /></SelectTrigger>
                         <SelectContent>
                           {GCS_EYE.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
@@ -491,7 +491,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                     </div>
                     <div className="min-w-0">
                       <label className="text-sm font-medium text-muted-foreground flex items-center">Verbal (V) <PCRTooltip text={PCR_TOOLTIPS.gcs_verbal} /></label>
-                      <Select value={vs.gcs_verbal} onValueChange={(v) => updateSet(idx, "gcs_verbal", v)} disabled={isSaved}>
+                      <Select value={vs.gcs_verbal} onValueChange={(v) => updateSet(idx, "gcs_verbal", v)} disabled={isLocked}>
                         <SelectTrigger className={cn("h-11", getGcsFieldBorder(vs.gcs_verbal))}><SelectValue placeholder="V" /></SelectTrigger>
                         <SelectContent>
                           {GCS_VERBAL.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
@@ -500,7 +500,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                     </div>
                     <div className="min-w-0">
                       <label className="text-sm font-medium text-muted-foreground flex items-center">Motor (M) <PCRTooltip text={PCR_TOOLTIPS.gcs_motor} /></label>
-                      <Select value={vs.gcs_motor} onValueChange={(v) => updateSet(idx, "gcs_motor", v)} disabled={isSaved}>
+                      <Select value={vs.gcs_motor} onValueChange={(v) => updateSet(idx, "gcs_motor", v)} disabled={isLocked}>
                         <SelectTrigger className={cn("h-11", getGcsFieldBorder(vs.gcs_motor))}><SelectValue placeholder="M" /></SelectTrigger>
                         <SelectContent>
                           {GCS_MOTOR.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
