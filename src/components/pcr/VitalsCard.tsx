@@ -552,7 +552,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
       })}
 
       {/* Only show Add Another after at least one is saved and no unsaved drafts exist */}
-      {savedCount > 0 && sets.every(s => s.saved) && (
+      {savedCount > 0 && sets.every(s => s.saved) && !editingSetId && (
         <Button variant="outline" className="w-full" onClick={addSet}>
           <Plus className="h-4 w-4 mr-2" /> Add Another Vitals Set
         </Button>
