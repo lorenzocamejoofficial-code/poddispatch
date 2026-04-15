@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePCRData } from "@/hooks/usePCRData";
 import { usePCRSectionRules } from "@/hooks/usePCRSectionRules";
 import { CrewLayout } from "@/components/crew/CrewLayout";
+import { AdminLayout } from "@/components/layout/AdminLayout";
 import { MedicSelector } from "@/components/pcr/MedicSelector";
 import { TimesCard } from "@/components/pcr/TimesCard";
 import { getTimeSequenceWarnings } from "@/components/pcr/TimesCard";
@@ -561,6 +562,8 @@ export default function PCRPage() {
   const navigate = useNavigate();
 
   const tripId = searchParams.get("tripId");
+  const isQaFixMode = searchParams.get("mode") === "qa-fix";
+  const qaReviewId = searchParams.get("qaReviewId");
   const { trip, loading, saving, updateField, updateMultipleFields, recordTime, refetch } = usePCRData(tripId);
 
   // Resolve leg type from joined data or sessionStorage fallback
@@ -574,6 +577,9 @@ export default function PCRPage() {
   const [incidentOpen, setIncidentOpen] = useState(false);
   const [assignedCrewCount, setAssignedCrewCount] = useState(0);
   const [cancelDocOpen, setCancelDocOpen] = useState(false);
+
+  // Wrapper component to choose layout
+  const Layout = isQaFixMode ? AdminLayout : CrewLayout;
 
   // Central section rules driven by pcr_type
   const sectionRules = usePCRSectionRules(trip?.pcr_type || trip?.trip_type);
@@ -617,8 +623,18 @@ export default function PCRPage() {
     });
   }, [trip?.id, profileId]);
 
-  // If no tripId, show run selector
+  // If no tripId, show run selector (crew mode only)
   if (!tripId) {
+    if (isQaFixMode) {
+      return (
+        <AdminLayout>
+          <div className="flex flex-col items-center justify-center min-h-[50vh] p-6">
+            <p className="text-muted-foreground font-medium">No trip selected for QA fix</p>
+            <Button className="mt-4" onClick={() => navigate("/compliance")}>Back to QA Queue</Button>
+          </div>
+        </AdminLayout>
+      );
+    }
     return (
       <CrewLayout>
         <PCRRunSelector onSelect={(id) => setSearchParams({ tripId: id })} />
@@ -627,18 +643,18 @@ export default function PCRPage() {
   }
 
   if (loading) {
-    return <CrewLayout><div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div></CrewLayout>;
+    return <Layout><div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div></Layout>;
   }
 
   if (!trip) {
     return (
-      <CrewLayout>
+      <Layout>
         <div className="flex flex-col items-center justify-center min-h-[50vh] p-6">
-          <p className="text-muted-foreground font-medium">You are not assigned to this run</p>
-          <p className="text-xs text-muted-foreground mt-1">If you believe this is an error, contact your dispatcher.</p>
-          <Button className="mt-4" onClick={() => setSearchParams({})}>Back to Run List</Button>
+          <p className="text-muted-foreground font-medium">{isQaFixMode ? "Trip record not found" : "You are not assigned to this run"}</p>
+          <p className="text-xs text-muted-foreground mt-1">{isQaFixMode ? "The trip may have been deleted." : "If you believe this is an error, contact your dispatcher."}</p>
+          <Button className="mt-4" onClick={() => isQaFixMode ? navigate("/compliance") : setSearchParams({})}>{isQaFixMode ? "Back to QA Queue" : "Back to Run List"}</Button>
         </div>
-      </CrewLayout>
+      </Layout>
     );
   }
 
@@ -646,7 +662,7 @@ export default function PCRPage() {
   const isTripCancelled = ["cancelled", "pending_cancellation"].includes(trip.status);
   const needsCancelDoc = isTripCancelled && (trip as any).pcr_status === "cancelled_with_pcr";
   
-  if (isTripCancelled) {
+  if (isTripCancelled && !isQaFixMode) {
     return (
       <CrewLayout>
         <div className="p-4 max-w-2xl mx-auto space-y-4">
@@ -697,11 +713,12 @@ export default function PCRPage() {
     );
   }
 
-  // Medic selection prompt
-  const isReadOnly = trip.pcr_status === "submitted";
+  // Medic selection prompt — skip in QA fix mode (admin doesn't need to select medic)
+  // In QA fix mode, override read-only so admins can edit submitted PCRs
+  const isReadOnly = isQaFixMode ? false : trip.pcr_status === "submitted";
   const isKickedBack = trip.pcr_status === "kicked_back";
 
-  if (!trip.attending_medic_id) {
+  if (!trip.attending_medic_id && !isQaFixMode) {
     const handleMedicSelect = async (medic: CrewMember) => {
       await updateMultipleFields({
         attending_medic_id: medic.id,
@@ -841,7 +858,8 @@ export default function PCRPage() {
   };
 
   const handleSubmit = async () => {
-    const missing = getMissingItems();
+    // In QA fix mode, skip crew signature requirement
+    const missing = isQaFixMode ? getMissingItems().filter(m => m !== "Crew Signatures") : getMissingItems();
     if (missing.length > 0) {
       toast.error(`Complete these sections first: ${missing.join(", ")}`);
       return;
@@ -864,13 +882,32 @@ export default function PCRPage() {
         updated_by: profileId,
       } as any).eq("id", trip.id);
 
-      // Auto-create QA review
+      // If QA fix mode, resolve the associated QA review
+      if (isQaFixMode && qaReviewId) {
+        await supabase.from("qa_reviews" as any).update({
+          status: "fixed",
+          qa_notes: "PCR corrected and resubmitted by admin/biller",
+          reviewed_at: new Date().toISOString(),
+        }).eq("id", qaReviewId);
+      }
+
+      // Auto-create QA review for the resubmission
       if (trip.company_id) {
         await supabase.from("qa_reviews").insert({
           company_id: trip.company_id,
           trip_id: trip.id,
-          flag_reason: isKickedBack ? "PCR resubmitted after kickback — pending QA review" : "PCR auto-submitted — pending QA review",
-          status: "pending",
+          flag_reason: isQaFixMode ? "PCR corrected by admin/biller — resubmitted for billing" : isKickedBack ? "PCR resubmitted after kickback — pending QA review" : "PCR auto-submitted — pending QA review",
+          status: isQaFixMode ? "approved" : "pending",
+        });
+      }
+
+      // Audit log for QA fix
+      if (isQaFixMode) {
+        await logAuditEvent({
+          action: "qa_pcr_fix",
+          tableName: "trip_records",
+          recordId: trip.id,
+          notes: `PCR corrected and resubmitted via QA fix mode`,
         });
       }
 
@@ -879,7 +916,6 @@ export default function PCRPage() {
         const patientName = trip.patient
           ? `${trip.patient.first_name} ${trip.patient.last_name}`
           : "Unknown Patient";
-        // Only insert if no pending/in_progress task of this type exists for this trip
         const { data: existing } = await supabase
           .from("biller_tasks")
           .select("id")
@@ -903,9 +939,14 @@ export default function PCRPage() {
         console.error("Failed to create biller task (non-blocking):", taskErr);
       }
 
-      toast.success("PCR submitted — trip is ready for billing!");
-      navigate("/crew-dashboard");
-    } catch (err: any) {
+      if (isQaFixMode) {
+        toast.success("PCR corrected and resubmitted — trip is ready for billing!");
+        navigate("/compliance");
+      } else {
+        toast.success("PCR submitted — trip is ready for billing!");
+        navigate("/crew-dashboard");
+      }
+    } catch {
       toast.error("Failed to submit PCR");
     }
     setSubmitting(false);
@@ -915,7 +956,7 @@ export default function PCRPage() {
   if (activeCard) {
     const cardConfig = cards.find(c => c.type === activeCard);
     return (
-      <CrewLayout>
+      <Layout>
         <div className="p-4 pb-24 min-h-screen">
           <button onClick={() => setActiveCard(null)} className="mb-3 flex items-center gap-1 text-sm text-muted-foreground">
             <ChevronLeft className="h-4 w-4" /> Back to PCR
@@ -933,7 +974,7 @@ export default function PCRPage() {
             {renderCard(activeCard)}
           </fieldset>
         </div>
-      </CrewLayout>
+      </Layout>
     );
   }
 
@@ -948,8 +989,28 @@ export default function PCRPage() {
   const timeWarningCount = getTimeSequenceWarnings(trip).size;
 
   return (
-    <CrewLayout>
-      <div className="p-4 pb-24 min-h-screen">
+    <Layout>
+      <div className={cn("p-4 pb-24 min-h-screen", isQaFixMode ? "max-w-3xl mx-auto" : "")}>
+        {/* QA Fix mode banner */}
+        {isQaFixMode && (
+          <div className="mb-4 rounded-lg border-2 border-primary bg-primary/5 p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <AlertCircle className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">QA Fix Mode</p>
+                <p className="text-xs text-muted-foreground">
+                  Edit this PCR to resolve QA flags. Changes will resubmit the PCR for billing.
+                </p>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" className="mt-2 text-xs" onClick={() => navigate("/compliance")}>
+              <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Back to QA Queue
+            </Button>
+          </div>
+        )}
+
         {/* Kickback checklist — dynamic resolution tracking */}
         {isKickedBack && <KickbackChecklist trip={trip} />}
 
@@ -1126,7 +1187,7 @@ export default function PCRPage() {
               onClick={handleSubmit}
             >
               {submitting ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Send className="h-5 w-5 mr-2" />}
-              Submit PCR
+              {isQaFixMode ? "Save & Resubmit PCR" : "Submit PCR"}
             </Button>
           </div>
         )}
@@ -1141,6 +1202,6 @@ export default function PCRPage() {
           defaultPatientName={trip.patient ? `${trip.patient.first_name} ${trip.patient.last_name}` : undefined}
         />
       </div>
-    </CrewLayout>
+    </Layout>
   );
 }
