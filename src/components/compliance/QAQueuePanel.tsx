@@ -11,6 +11,20 @@ import { checkTrip, type QAFlag, type TripForQA } from "@/lib/qa-anomaly-checks"
 import { FlagOverrideDialog } from "./FlagOverrideDialog";
 import { logAuditEvent } from "@/lib/audit-logger";
 
+/** Format a date string smartly: "Today", "Yesterday", or "Apr 7, 2026" */
+function formatQADate(dateStr: string): string {
+  if (!dateStr || dateStr === "—") return "—";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((today.getTime() - target.getTime()) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 interface EnrichedQAReview {
   id: string;
   trip_id: string;
@@ -93,14 +107,6 @@ export function QAQueuePanel() {
 
       const { data: companyId } = await supabase.rpc("get_my_company_id");
 
-      // Clear old pending auto-flags
-      await supabase
-        .from("qa_reviews" as any)
-        .delete()
-        .eq("company_id", companyId)
-        .eq("status", "pending")
-        .not("flag_type", "is", null);
-
       // Fetch related data
       const patientIds = [...new Set((trips as any[]).map((t: any) => t.patient_id).filter(Boolean))];
       const { data: patients } = patientIds.length > 0
@@ -140,11 +146,47 @@ export function QAQueuePanel() {
         allFlags.push(...checkTrip(trip as TripForQA, patient, (payerRules ?? []) as any[], weeklyCount));
       }
 
+      // Build a set of flag_type keys that currently exist in the fresh scan
+      const currentFlagSet = new Set(allFlags.map(f => `${f.trip_id}::${f.flag_type}`));
+
+      // Fetch ALL existing pending flags for this company
+      const { data: existingPending } = await supabase
+        .from("qa_reviews" as any)
+        .select("id, trip_id, flag_type, status")
+        .eq("status", "pending")
+        .not("flag_type", "is", null);
+
+      // Auto-resolve pending flags where the underlying issue no longer exists
+      const staleIds = (existingPending ?? [])
+        .filter((r: any) => !currentFlagSet.has(`${r.trip_id}::${r.flag_type}`))
+        .map((r: any) => r.id);
+
+      if (staleIds.length > 0) {
+        for (let i = 0; i < staleIds.length; i += 100) {
+          await supabase.from("qa_reviews" as any).update({
+            status: "auto_resolved",
+            qa_notes: "Issue no longer detected — auto-resolved on re-scan",
+            reviewed_at: new Date().toISOString(),
+          }).in("id", staleIds.slice(i, i + 100));
+        }
+      }
+
+      // Delete existing pending auto-flags that STILL have issues (will be re-inserted fresh)
+      const stillPendingIds = (existingPending ?? [])
+        .filter((r: any) => currentFlagSet.has(`${r.trip_id}::${r.flag_type}`))
+        .map((r: any) => r.id);
+
+      if (stillPendingIds.length > 0) {
+        for (let i = 0; i < stillPendingIds.length; i += 100) {
+          await supabase.from("qa_reviews" as any).delete().in("id", stillPendingIds.slice(i, i + 100));
+        }
+      }
+
       // Filter out flags that were already fixed or overridden
       const { data: resolvedReviews } = await supabase
         .from("qa_reviews" as any)
         .select("trip_id, flag_type, status")
-        .in("status", ["fixed", "overridden"]);
+        .in("status", ["fixed", "overridden", "auto_resolved"]);
 
       const resolvedSet = new Set(
         (resolvedReviews ?? []).map((r: any) => `${r.trip_id}::${r.flag_type}`)
@@ -152,11 +194,17 @@ export function QAQueuePanel() {
 
       const newFlags = allFlags.filter(f => !resolvedSet.has(`${f.trip_id}::${f.flag_type}`));
 
+      const resolvedCount = staleIds.length;
       if (newFlags.length > 0) {
         for (let i = 0; i < newFlags.length; i += 100) {
           await supabase.from("qa_reviews" as any).insert(newFlags.slice(i, i + 100));
         }
-        toast.success(`Flagged ${newFlags.length} issue(s) across ${new Set(newFlags.map(f => f.trip_id)).size} trip(s)`);
+        const msg = resolvedCount > 0
+          ? `Flagged ${newFlags.length} issue(s), auto-resolved ${resolvedCount} corrected issue(s)`
+          : `Flagged ${newFlags.length} issue(s) across ${new Set(newFlags.map(f => f.trip_id)).size} trip(s)`;
+        toast.success(msg);
+      } else if (resolvedCount > 0) {
+        toast.success(`All issues resolved — ${resolvedCount} stale flag(s) cleared`);
       } else {
         toast.info("No issues found — all trips passed QA checks");
       }
@@ -252,10 +300,12 @@ export function QAQueuePanel() {
                 <div key={item.id} className="flex items-center gap-3 rounded-lg border bg-card/50 p-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground">{item.patient_name}</p>
-                    <p className="text-xs text-muted-foreground">{item.run_date} · {item.flag_reason}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Run: {formatQADate(item.run_date)} · Resolved: {formatQADate(item.created_at)} · {item.flag_reason}
+                    </p>
                   </div>
                   <Badge variant="outline" className="text-[10px] capitalize shrink-0">
-                    {item.status.replace("_", " ")}
+                    {item.status.replace(/_/g, " ")}
                   </Badge>
                 </div>
               ))}
@@ -297,7 +347,7 @@ function FlagSection({ title, items, severity, onFix, onOverride }: {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium text-foreground">{item.patient_name}</span>
-                <span className="text-xs text-muted-foreground">{item.run_date}</span>
+                <span className="text-xs text-muted-foreground">{formatQADate(item.run_date)}</span>
                 {item.truck_name !== "—" && <span className="text-xs text-muted-foreground">· {item.truck_name}</span>}
               </div>
               <p className="text-xs text-muted-foreground mt-1">{item.flag_reason}</p>
