@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { PCRCardType } from "@/lib/pcr-dropdowns";
+import { buildTimestampForRunDate } from "@/lib/pcr-time";
 
 export interface PCRTripData {
   id: string;
@@ -233,7 +234,7 @@ export function usePCRData(tripId: string | null) {
     if (!tripId) return;
     // Idempotency: if the field already has a value, skip
     if (trip && (trip as any)[timeField] != null) return;
-    const now = new Date().toISOString();
+    const now = buildTimestampForRunDate(trip?.run_date);
     const { data: { user } } = await supabase.auth.getUser();
     const updates: Record<string, any> = {
       [timeField]: now,

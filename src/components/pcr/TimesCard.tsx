@@ -9,6 +9,7 @@ import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { buildTimestampForRunDate, buildTimestampFromRunDateAndTime } from "@/lib/pcr-time";
 
 // Deduplicated unique fields in chronological order
 
@@ -130,7 +131,7 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
     // Write billing-mirror field with the same timestamp
     const mirrorField = BILLING_MIRROR[field];
     if (mirrorField) {
-      const now = new Date().toISOString();
+      const now = buildTimestampForRunDate(trip.run_date);
       await updateField(mirrorField, now);
     }
 
@@ -299,11 +300,8 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
                     defaultValue={value ? new Date(value).toTimeString().slice(0, 5) : ""}
                     onChange={(e) => {
                       if (e.target.value) {
-                        // Use the trip's run_date so corrections stay on the correct day
-                        const runDate = trip.run_date ? new Date(trip.run_date + "T00:00:00") : new Date();
-                        const [h, m] = e.target.value.split(":");
-                        runDate.setHours(parseInt(h), parseInt(m), 0, 0);
-                        const iso = runDate.toISOString();
+                        const iso = buildTimestampFromRunDateAndTime(trip.run_date, e.target.value);
+                        if (!iso) return;
                         const mirrorField = BILLING_MIRROR[btn.field];
                         if (mirrorField && updateMultipleFields) {
                           updateMultipleFields({ [btn.field]: iso, [mirrorField]: iso });
