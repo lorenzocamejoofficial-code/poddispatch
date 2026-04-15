@@ -67,128 +67,64 @@ export default function CrewPatients() {
 
   const today = toDateString(new Date());
 
-  useEffect(() => {
+  const fetchPatients = useCallback(async () => {
     if (!profileId) return;
-    (async () => {
-      // 1. Find crew's truck for today
-      const { data: crewRow } = await supabase
-        .from("crews")
-        .select("truck_id")
-        .eq("active_date", today)
-        .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
-        .maybeSingle();
+    setLoading(true);
 
-      if (!crewRow) { setPatients([]); setLoading(false); return; }
+    // 1. Find crew's truck for today
+    const { data: crewRow } = await supabase
+      .from("crews")
+      .select("truck_id")
+      .eq("active_date", today)
+      .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
+      .maybeSingle();
 
-      // 2. Get leg ids from today's truck run slots
-      const { data: slots } = await supabase
-        .from("truck_run_slots")
-        .select("leg_id")
-        .eq("truck_id", crewRow.truck_id)
-        .eq("run_date", today);
+    if (!crewRow) { setPatients([]); setLoading(false); return; }
 
-      if (!slots?.length) { setPatients([]); setLoading(false); return; }
+    // 2. Get leg ids from today's truck run slots
+    const { data: slots } = await supabase
+      .from("truck_run_slots")
+      .select("leg_id")
+      .eq("truck_id", crewRow.truck_id)
+      .eq("run_date", today);
 
-      const legIds = slots.map(s => s.leg_id);
+    if (!slots?.length) { setPatients([]); setLoading(false); return; }
 
-      // 3. Get patient ids from scheduling legs
-      const { data: legs } = await supabase
-        .from("scheduling_legs")
-        .select("patient_id")
-        .in("id", legIds)
-        .not("patient_id", "is", null);
+    const legIds = slots.map(s => s.leg_id);
 
-      const patientIds = [...new Set((legs ?? []).map(l => l.patient_id).filter(Boolean))] as string[];
+    // 3. Get patient ids from scheduling legs
+    const { data: legs } = await supabase
+      .from("scheduling_legs")
+      .select("patient_id")
+      .in("id", legIds)
+      .not("patient_id", "is", null);
 
-      if (!patientIds.length) { setPatients([]); setLoading(false); return; }
+    const patientIds = [...new Set((legs ?? []).map(l => l.patient_id).filter(Boolean))] as string[];
 
-      // 4. Fetch only those patients
-      const { data } = await supabase
-        .from("patients")
-        .select("id, first_name, last_name, transport_type, phone, schedule_days, pickup_address, dropoff_facility, sex, weight_lbs, mobility, oxygen_required, bariatric, stair_chair_required, notes, primary_payer, member_id, recurrence_days")
-        .in("id", patientIds)
-        .order("last_name", { ascending: true });
+    if (!patientIds.length) { setPatients([]); setLoading(false); return; }
 
-      setPatients((data as Patient[]) ?? []);
-      setLoading(false);
-    })();
+    // 4. Fetch only those patients
+    const { data } = await supabase
+      .from("patients")
+      .select("id, first_name, last_name, transport_type, phone, schedule_days, pickup_address, dropoff_facility, sex, weight_lbs, mobility, oxygen_required, bariatric, stair_chair_required, notes, primary_payer, member_id, recurrence_days")
+      .in("id", patientIds)
+      .order("last_name", { ascending: true });
 
-    // Realtime: refetch when slots or legs change
+    setPatients((data as Patient[]) ?? []);
+    setLoading(false);
+  }, [profileId, today]);
+
+  useEffect(() => {
+    fetchPatients();
+
     const channel = supabase.channel("crew-patients-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => {
-        if (!profileId) return;
-        // Re-run the fetch
-        setLoading(true);
-        (async () => {
-          const { data: crewRow } = await supabase
-            .from("crews")
-            .select("truck_id")
-            .eq("active_date", today)
-            .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
-            .maybeSingle();
-          if (!crewRow) { setPatients([]); setLoading(false); return; }
-          const { data: slots } = await supabase
-            .from("truck_run_slots")
-            .select("leg_id")
-            .eq("truck_id", crewRow.truck_id)
-            .eq("run_date", today);
-          if (!slots?.length) { setPatients([]); setLoading(false); return; }
-          const legIds = slots.map(s => s.leg_id);
-          const { data: legs } = await supabase
-            .from("scheduling_legs")
-            .select("patient_id")
-            .in("id", legIds)
-            .not("patient_id", "is", null);
-          const patientIds = [...new Set((legs ?? []).map(l => l.patient_id).filter(Boolean))] as string[];
-          if (!patientIds.length) { setPatients([]); setLoading(false); return; }
-          const { data } = await supabase
-            .from("patients")
-            .select("id, first_name, last_name, transport_type, phone, schedule_days, pickup_address, dropoff_facility, sex, weight_lbs, mobility, oxygen_required, bariatric, stair_chair_required, notes, primary_payer, member_id, recurrence_days")
-            .in("id", patientIds)
-            .order("last_name", { ascending: true });
-          setPatients((data as Patient[]) ?? []);
-          setLoading(false);
-        })();
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs" }, () => {
-        // Also refetch when legs change (patient_id might be set)
-        if (!profileId) return;
-        setLoading(true);
-        (async () => {
-          const { data: crewRow } = await supabase
-            .from("crews")
-            .select("truck_id")
-            .eq("active_date", today)
-            .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
-            .maybeSingle();
-          if (!crewRow) { setPatients([]); setLoading(false); return; }
-          const { data: slots } = await supabase
-            .from("truck_run_slots")
-            .select("leg_id")
-            .eq("truck_id", crewRow.truck_id)
-            .eq("run_date", today);
-          if (!slots?.length) { setPatients([]); setLoading(false); return; }
-          const legIds = slots.map(s => s.leg_id);
-          const { data: legs } = await supabase
-            .from("scheduling_legs")
-            .select("patient_id")
-            .in("id", legIds)
-            .not("patient_id", "is", null);
-          const patientIds = [...new Set((legs ?? []).map(l => l.patient_id).filter(Boolean))] as string[];
-          if (!patientIds.length) { setPatients([]); setLoading(false); return; }
-          const { data } = await supabase
-            .from("patients")
-            .select("id, first_name, last_name, transport_type, phone, schedule_days, pickup_address, dropoff_facility, sex, weight_lbs, mobility, oxygen_required, bariatric, stair_chair_required, notes, primary_payer, member_id, recurrence_days")
-            .in("id", patientIds)
-            .order("last_name", { ascending: true });
-          setPatients((data as Patient[]) ?? []);
-          setLoading(false);
-        })();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => fetchPatients())
+      .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs" }, () => fetchPatients())
+      .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, () => fetchPatients())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [profileId, today]);
+  }, [fetchPatients]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return patients;
