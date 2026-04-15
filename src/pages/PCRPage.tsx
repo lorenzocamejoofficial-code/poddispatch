@@ -1187,7 +1187,7 @@ export default function PCRPage() {
               onClick={handleSubmit}
             >
               {submitting ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Send className="h-5 w-5 mr-2" />}
-              Submit PCR
+              {isQaFixMode ? "Save & Resubmit PCR" : "Submit PCR"}
             </Button>
           </div>
         )}
