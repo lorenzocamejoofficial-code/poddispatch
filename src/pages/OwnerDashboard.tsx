@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { PageLoader } from "@/components/ui/page-loader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,7 +23,7 @@ export default function OwnerDashboard() {
   const [trucks, setTrucks] = useState<any[]>([]);
   const [inspections, setInspections] = useState<any[]>([]);
 
-  useEffect(() => {
+  const loadData = useCallback(async () => {
     async function load() {
       const today = new Date().toISOString().slice(0, 10);
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
@@ -89,6 +89,26 @@ export default function OwnerDashboard() {
     }
     load();
   }, []);
+
+  // Refresh data when page regains focus (user navigated back from another page)
+  useEffect(() => {
+    loadData();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") loadData();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", loadData);
+
+    // Also poll every 60s for realtime-like freshness
+    const interval = setInterval(loadData, 60_000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", loadData);
+      clearInterval(interval);
+    };
+  }, [loadData]);
 
   const today = new Date().toISOString().slice(0, 10);
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
