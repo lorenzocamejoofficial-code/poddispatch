@@ -11,6 +11,20 @@ import { checkTrip, type QAFlag, type TripForQA } from "@/lib/qa-anomaly-checks"
 import { FlagOverrideDialog } from "./FlagOverrideDialog";
 import { logAuditEvent } from "@/lib/audit-logger";
 
+/** Format a date string smartly: "Today", "Yesterday", or "Apr 7, 2026" */
+function formatQADate(dateStr: string): string {
+  if (!dateStr || dateStr === "—") return "—";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((today.getTime() - target.getTime()) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 interface EnrichedQAReview {
   id: string;
   trip_id: string;
@@ -286,10 +300,12 @@ export function QAQueuePanel() {
                 <div key={item.id} className="flex items-center gap-3 rounded-lg border bg-card/50 p-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground">{item.patient_name}</p>
-                    <p className="text-xs text-muted-foreground">{item.run_date} · {item.flag_reason}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Run: {formatQADate(item.run_date)} · Resolved: {formatQADate(item.created_at)} · {item.flag_reason}
+                    </p>
                   </div>
                   <Badge variant="outline" className="text-[10px] capitalize shrink-0">
-                    {item.status.replace("_", " ")}
+                    {item.status.replace(/_/g, " ")}
                   </Badge>
                 </div>
               ))}
@@ -331,7 +347,7 @@ function FlagSection({ title, items, severity, onFix, onOverride }: {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium text-foreground">{item.patient_name}</span>
-                <span className="text-xs text-muted-foreground">{item.run_date}</span>
+                <span className="text-xs text-muted-foreground">{formatQADate(item.run_date)}</span>
                 {item.truck_name !== "—" && <span className="text-xs text-muted-foreground">· {item.truck_name}</span>}
               </div>
               <p className="text-xs text-muted-foreground mt-1">{item.flag_reason}</p>
