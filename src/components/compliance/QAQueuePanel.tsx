@@ -140,11 +140,23 @@ export function QAQueuePanel() {
         allFlags.push(...checkTrip(trip as TripForQA, patient, (payerRules ?? []) as any[], weeklyCount));
       }
 
-      if (allFlags.length > 0) {
-        for (let i = 0; i < allFlags.length; i += 100) {
-          await supabase.from("qa_reviews" as any).insert(allFlags.slice(i, i + 100));
+      // Filter out flags that were already fixed or overridden
+      const { data: resolvedReviews } = await supabase
+        .from("qa_reviews" as any)
+        .select("trip_id, flag_type, status")
+        .in("status", ["fixed", "overridden"]);
+
+      const resolvedSet = new Set(
+        (resolvedReviews ?? []).map((r: any) => `${r.trip_id}::${r.flag_type}`)
+      );
+
+      const newFlags = allFlags.filter(f => !resolvedSet.has(`${f.trip_id}::${f.flag_type}`));
+
+      if (newFlags.length > 0) {
+        for (let i = 0; i < newFlags.length; i += 100) {
+          await supabase.from("qa_reviews" as any).insert(newFlags.slice(i, i + 100));
         }
-        toast.success(`Flagged ${allFlags.length} issue(s) across ${new Set(allFlags.map(f => f.trip_id)).size} trip(s)`);
+        toast.success(`Flagged ${newFlags.length} issue(s) across ${new Set(newFlags.map(f => f.trip_id)).size} trip(s)`);
       } else {
         toast.info("No issues found — all trips passed QA checks");
       }
