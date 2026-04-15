@@ -932,7 +932,7 @@ export default function PCRPage() {
   if (activeCard) {
     const cardConfig = cards.find(c => c.type === activeCard);
     return (
-      <CrewLayout>
+      <Layout>
         <div className="p-4 pb-24 min-h-screen">
           <button onClick={() => setActiveCard(null)} className="mb-3 flex items-center gap-1 text-sm text-muted-foreground">
             <ChevronLeft className="h-4 w-4" /> Back to PCR
@@ -950,7 +950,7 @@ export default function PCRPage() {
             {renderCard(activeCard)}
           </fieldset>
         </div>
-      </CrewLayout>
+      </Layout>
     );
   }
 
@@ -965,7 +965,7 @@ export default function PCRPage() {
   const timeWarningCount = getTimeSequenceWarnings(trip).size;
 
   return (
-    <CrewLayout>
+    <Layout>
       <div className="p-4 pb-24 min-h-screen">
         {/* Kickback checklist — dynamic resolution tracking */}
         {isKickedBack && <KickbackChecklist trip={trip} />}
@@ -1158,6 +1158,6 @@ export default function PCRPage() {
           defaultPatientName={trip.patient ? `${trip.patient.first_name} ${trip.patient.last_name}` : undefined}
         />
       </div>
-    </CrewLayout>
+    </Layout>
   );
 }
