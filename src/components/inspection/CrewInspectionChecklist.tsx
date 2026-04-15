@@ -130,7 +130,8 @@ export default function CrewInspectionChecklist() {
       .single();
 
     if (error) {
-      toast.error("Failed to submit inspection");
+      console.error("Inspection submit error:", error.message, error.details, error.hint);
+      toast.error("Failed to submit inspection", { description: error.message });
       setSubmitting(false);
       return;
     }
