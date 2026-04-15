@@ -299,10 +299,11 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
                     defaultValue={value ? new Date(value).toTimeString().slice(0, 5) : ""}
                     onChange={(e) => {
                       if (e.target.value) {
-                        const todayDate = new Date();
+                        // Use the trip's run_date so corrections stay on the correct day
+                        const runDate = trip.run_date ? new Date(trip.run_date + "T00:00:00") : new Date();
                         const [h, m] = e.target.value.split(":");
-                        todayDate.setHours(parseInt(h), parseInt(m), 0, 0);
-                        const iso = todayDate.toISOString();
+                        runDate.setHours(parseInt(h), parseInt(m), 0, 0);
+                        const iso = runDate.toISOString();
                         const mirrorField = BILLING_MIRROR[btn.field];
                         if (mirrorField && updateMultipleFields) {
                           updateMultipleFields({ [btn.field]: iso, [mirrorField]: iso });
