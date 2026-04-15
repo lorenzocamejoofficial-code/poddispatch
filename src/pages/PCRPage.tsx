@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePCRData } from "@/hooks/usePCRData";
 import { usePCRSectionRules } from "@/hooks/usePCRSectionRules";
 import { CrewLayout } from "@/components/crew/CrewLayout";
+import { AdminLayout } from "@/components/layout/AdminLayout";
 import { MedicSelector } from "@/components/pcr/MedicSelector";
 import { TimesCard } from "@/components/pcr/TimesCard";
 import { getTimeSequenceWarnings } from "@/components/pcr/TimesCard";
