@@ -990,7 +990,27 @@ export default function PCRPage() {
 
   return (
     <Layout>
-      <div className="p-4 pb-24 min-h-screen">
+      <div className={cn("p-4 pb-24 min-h-screen", isQaFixMode ? "max-w-3xl mx-auto" : "")}>
+        {/* QA Fix mode banner */}
+        {isQaFixMode && (
+          <div className="mb-4 rounded-lg border-2 border-primary bg-primary/5 p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <AlertCircle className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">QA Fix Mode</p>
+                <p className="text-xs text-muted-foreground">
+                  Edit this PCR to resolve QA flags. Changes will resubmit the PCR for billing.
+                </p>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" className="mt-2 text-xs" onClick={() => navigate("/compliance")}>
+              <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Back to QA Queue
+            </Button>
+          </div>
+        )}
+
         {/* Kickback checklist — dynamic resolution tracking */}
         {isKickedBack && <KickbackChecklist trip={trip} />}
 
