@@ -154,6 +154,7 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [editingTimestamp, setEditingTimestamp] = useState<string | null>(null);
   const [editTimeValue, setEditTimeValue] = useState("");
+  const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const savedCount = sets.filter(s => s.saved).length;
 
   const persistToDb = (updated: VitalSet[]) => {
