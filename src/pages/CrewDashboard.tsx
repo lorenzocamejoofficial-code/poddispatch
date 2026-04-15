@@ -94,21 +94,29 @@ interface NotificationRow {
   acknowledged: boolean;
 }
 
-function HoldConfirmButton({ icon, label, confirmLabel, loading, onConfirm }: {
+function HoldConfirmButton({ icon, label, confirmLabel, loading, onConfirm, buttonLabel, colorClass }: {
   icon: React.ReactNode;
   label: string;
   confirmLabel: string;
   loading: boolean;
   onConfirm: () => void;
+  buttonLabel?: string;
+  colorClass?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="outline" size="icon" className="h-12 w-12 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
+      <button
+        className={cn(
+          "flex flex-col items-center justify-center gap-0.5 rounded-lg border h-14 w-14 text-[8px] font-semibold leading-tight disabled:opacity-50",
+          colorClass ?? "border-[hsl(var(--status-red))]/50 text-[hsl(var(--status-red))] hover:bg-[hsl(var(--status-red))]/5"
+        )}
         disabled={loading}
-        onClick={(e) => { e.stopPropagation(); setOpen(true); }}>
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+      >
         {icon}
-      </Button>
+        {buttonLabel && <span className="truncate max-w-[48px] text-center">{buttonLabel}</span>}
+      </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-xs" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
