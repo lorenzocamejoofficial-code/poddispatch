@@ -662,7 +662,7 @@ export default function PCRPage() {
   const isTripCancelled = ["cancelled", "pending_cancellation"].includes(trip.status);
   const needsCancelDoc = isTripCancelled && (trip as any).pcr_status === "cancelled_with_pcr";
   
-  if (isTripCancelled) {
+  if (isTripCancelled && !isQaFixMode) {
     return (
       <CrewLayout>
         <div className="p-4 max-w-2xl mx-auto space-y-4">
