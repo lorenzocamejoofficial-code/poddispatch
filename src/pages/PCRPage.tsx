@@ -562,6 +562,8 @@ export default function PCRPage() {
   const navigate = useNavigate();
 
   const tripId = searchParams.get("tripId");
+  const isQaFixMode = searchParams.get("mode") === "qa-fix";
+  const qaReviewId = searchParams.get("qaReviewId");
   const { trip, loading, saving, updateField, updateMultipleFields, recordTime, refetch } = usePCRData(tripId);
 
   // Resolve leg type from joined data or sessionStorage fallback
@@ -575,6 +577,9 @@ export default function PCRPage() {
   const [incidentOpen, setIncidentOpen] = useState(false);
   const [assignedCrewCount, setAssignedCrewCount] = useState(0);
   const [cancelDocOpen, setCancelDocOpen] = useState(false);
+
+  // Wrapper component to choose layout
+  const Layout = isQaFixMode ? AdminLayout : CrewLayout;
 
   // Central section rules driven by pcr_type
   const sectionRules = usePCRSectionRules(trip?.pcr_type || trip?.trip_type);
