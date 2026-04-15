@@ -180,7 +180,7 @@ export function QAQueuePanel() {
   const getFixRoute = (item: EnrichedQAReview): string => {
     if (item.flag_type === "pcs_missing_expired") return "/patients";
     if (item.flag_type === "weekly_transport_limit") return "/trips";
-    return `/pcr?tripId=${item.trip_id}`;
+    return `/pcr?tripId=${item.trip_id}&mode=qa-fix&qaReviewId=${item.id}`;
   };
 
   const redPending = qaItems.filter(q => q.status === "pending" && q.severity === "red");
