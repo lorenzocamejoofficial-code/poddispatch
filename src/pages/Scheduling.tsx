@@ -502,10 +502,7 @@ export default function Scheduling() {
         } as any);
       }
 
-      await logScheduleChange({
-        change_type: "run_added",
-        change_summary: `New ${pendingLegType}-leg run added for ${oneoffForm.name} at ${oneoffForm.pickup_time || "TBD"}${oneoffForm.needs_b_leg ? " (+ B-leg)" : ""}`,
-      });
+      // No schedule change log for initial creation — notify only on edits after assignment
       toast.success(`One-off ${pendingLegType}-Leg created${oneoffForm.needs_b_leg ? " + B-leg" : ""}`);
       setDialogOpen(false);
       refresh();
@@ -564,10 +561,7 @@ export default function Scheduling() {
     }
 
     const patientName = patient?.name ?? "Unknown";
-    await logScheduleChange({
-      change_type: "run_added",
-      change_summary: `New ${pendingLegType}-leg run added for ${patientName} at ${legForm.pickup_time || "TBD"}${legNeedsBLeg ? " (+ B-leg)" : ""}`,
-    });
+    // No schedule change log for initial creation — notify only on edits after assignment
 
     toast.success(`${pendingLegType}-Leg created${legNeedsBLeg ? " + B-leg" : ""}`);
     setDialogOpen(false);
