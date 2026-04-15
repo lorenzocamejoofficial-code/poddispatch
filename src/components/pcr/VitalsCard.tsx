@@ -519,6 +519,34 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                 Save Vitals
               </Button>
             )}
+            {/* Save Changes button when editing a saved set */}
+            {isEditing && (
+              <Button className="w-full h-12 text-base gap-2" variant="default" onClick={() => {
+                const vs2 = sets[idx];
+                const missing: string[] = [];
+                const check = (field: string, label: string) => {
+                  const val = (vs2 as any)[field];
+                  if (!hasValue(val) && !isChipValue(val)) missing.push(label);
+                };
+                check("bp_systolic", "Systolic BP");
+                check("bp_diastolic", "Diastolic BP");
+                check("pulse", "Heart Rate / Pulse");
+                check("respiratory_rate", "Respiratory Rate");
+                check("spo2", "SpO2");
+                if (missing.length > 0) {
+                  setErrors(prev => ({ ...prev, [vs2.id]: missing }));
+                  toast({ title: "Required vitals missing", description: `Please fill in: ${missing.join(", ")}`, variant: "destructive" });
+                  return;
+                }
+                persistToDb(sets);
+                setEditingSetId(null);
+                setErrors(prev => { const n = { ...prev }; delete n[vs2.id]; return n; });
+                toast({ title: `Vitals set ${idx + 1} updated` });
+              }}>
+                <Save className="h-4 w-4" />
+                Save Changes
+              </Button>
+            )}
           </div>
         );
       })}
