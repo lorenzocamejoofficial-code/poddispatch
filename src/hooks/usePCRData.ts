@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { PCRCardType } from "@/lib/pcr-dropdowns";
 import { buildTimestampForRunDate } from "@/lib/pcr-time";
 
 export interface PCRTripData {
