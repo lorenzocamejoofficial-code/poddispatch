@@ -3197,6 +3197,7 @@ export type Database = {
           in_service_time: string | null
           is_emergency_pcr: boolean
           is_simulated: boolean
+          is_unscheduled: boolean | null
           isolation_precautions: Json | null
           iv_access_json: Json | null
           kickback_note: string | null
@@ -3327,6 +3328,7 @@ export type Database = {
           in_service_time?: string | null
           is_emergency_pcr?: boolean
           is_simulated?: boolean
+          is_unscheduled?: boolean | null
           isolation_precautions?: Json | null
           iv_access_json?: Json | null
           kickback_note?: string | null
@@ -3457,6 +3459,7 @@ export type Database = {
           in_service_time?: string | null
           is_emergency_pcr?: boolean
           is_simulated?: boolean
+          is_unscheduled?: boolean | null
           isolation_precautions?: Json | null
           iv_access_json?: Json | null
           kickback_note?: string | null
