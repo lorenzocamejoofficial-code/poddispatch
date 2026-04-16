@@ -25,12 +25,15 @@ const STANDARD_NECESSITY_ITEMS = [
   { field: "oxygen_during_transport", label: "Oxygen required during transport" },
 ] as const;
 
+// Wound-care criteria are stored in the same boolean columns the pre-submit checklist
+// reads (bed_confined / cannot_transfer_safely / requires_monitoring / oxygen_during_transport).
+// We re-label them with wound-care language so the wording fits the transport context,
+// but the underlying field names match the columns that actually exist on trip_records.
 const WOUND_CARE_NECESSITY_ITEMS = [
-  { field: "wc_unsafe_positioning", label: "Patient cannot maintain safe positioning in standard vehicle due to wound location" },
-  { field: "wc_sterile_dressing", label: "Wound requires monitoring or sterile dressing maintenance during transport" },
-  { field: "wc_wound_vac_drainage", label: "Patient on wound VAC or has active drainage requiring oversight during transit" },
-  { field: "wc_dehiscence_risk", label: "Patient condition (diabetic neuropathy, PVD, osteomyelitis, post-surgical) creates risk of wound injury or dehiscence during movement" },
-  { field: "wc_stretcher_required", label: "Patient requires stretcher positioning that cannot be achieved in a wheelchair van or standard vehicle" },
+  { field: "cannot_transfer_safely", label: "Patient cannot maintain safe positioning in standard vehicle due to wound location" },
+  { field: "requires_monitoring", label: "Wound requires monitoring or sterile dressing maintenance during transport" },
+  { field: "oxygen_during_transport", label: "Patient on wound VAC, active drainage, or oxygen requiring oversight during transit" },
+  { field: "bed_confined", label: "Patient requires stretcher positioning (cannot use wheelchair van or standard vehicle) due to wound or dehiscence risk" },
 ] as const;
 
 interface Props {
