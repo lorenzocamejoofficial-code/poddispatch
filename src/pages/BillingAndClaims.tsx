@@ -219,7 +219,7 @@ export default function BillingAndClaims() {
         const patData = pMap.get(c.patient_id) as any;
         return {
           ...c,
-          patient_name: patData?.name ?? "Unknown",
+          patient_name: patData?.name ?? (tripData?.leg?.is_oneoff ? tripData.leg.oneoff_name : null) ?? "Unknown",
           trip_loaded_miles: tripData?.loaded_miles ?? null,
           trip_signature: tripData?.signature_obtained ?? false,
           trip_pcs: tripData?.pcs_attached ?? false,
