@@ -47,9 +47,11 @@ interface SortableLegItemProps {
 }
 
 const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, overridden, onRemove, onEditException, onCancel, onRestore, onSafetyOverride }: SortableLegItemProps) {
+  const isCompleted = leg.slot_status === "completed";
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: leg.id,
     data: { type: "assigned-leg", leg },
+    disabled: isCompleted,
   });
 
   const style = {
@@ -67,30 +69,33 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
       ref={setNodeRef}
       style={style}
       className={`rounded-md border px-2 py-1.5 text-xs ${
+        isCompleted ? "bg-[hsl(var(--status-green))]/5 border-[hsl(var(--status-green))]/40" :
         isCancelled ? "bg-destructive/10 border-destructive/40 opacity-75" :
         "bg-card"
       } ${
-        !isCancelled && hasAlert ? "border-[hsl(var(--status-red))]/50 bg-[hsl(var(--status-red))]/5" :
-        !isCancelled && leg.has_exception ? "border-primary/40" : ""
+        !isCancelled && !isCompleted && hasAlert ? "border-[hsl(var(--status-red))]/50 bg-[hsl(var(--status-red))]/5" :
+        !isCancelled && !isCompleted && leg.has_exception ? "border-primary/40" : ""
       } ${isDragging ? "shadow-md ring-1 ring-primary/30" : ""}`}
     >
       {/* Top row: drag handle, leg badge, name, time */}
       <div className="flex items-center gap-1.5 min-w-0">
-        <button
-          {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none shrink-0"
-          tabIndex={-1}
-        >
-          <GripVertical className="h-3 w-3" />
-        </button>
+        {!isCompleted && (
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none shrink-0"
+            tabIndex={-1}
+          >
+            <GripVertical className="h-3 w-3" />
+          </button>
+        )}
         <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
           leg.leg_type === "A" ? "bg-primary/10 text-primary" : "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]"
         }`}>{leg.leg_type}</span>
         <span className={`truncate font-medium ${isCancelled ? "line-through text-muted-foreground" : "text-card-foreground"}`}>{leg.patient_name}</span>
         {leg.pickup_time && <span className="text-muted-foreground shrink-0 ml-auto">{leg.pickup_time}</span>}
         <div className="flex items-center gap-0.5 shrink-0">
-          {isCancelled ? (
+          {isCompleted ? null : isCancelled ? (
             onRestore && (
               <Button variant="ghost" size="sm" className="h-5 text-[10px] text-primary hover:text-primary px-1.5" onClick={onRestore} title="Restore this run">
                 Undo
@@ -123,6 +128,9 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
       )}
       {/* Third row: badges */}
       <div className="flex flex-wrap items-center gap-1 mt-1 pl-5">
+        {isCompleted && (
+          <span className="rounded-full bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))] px-1.5 py-0.5 text-[9px] font-bold shrink-0">COMPLETED</span>
+        )}
         {leg.is_oneoff && (
           <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
         )}
@@ -137,12 +145,12 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
         )}
         {isHeavy && <Zap className="h-3 w-3 text-[hsl(var(--status-yellow))] shrink-0" aria-label="Electric stretcher required" />}
         {leg.has_exception && <GitBranch className="h-3 w-3 text-primary shrink-0" aria-label="Exception override active" />}
-        {hasAlert && (
+        {hasAlert && !isCompleted && (
           <span className="rounded-full bg-[hsl(var(--status-red))]/15 px-1.5 py-0.5 text-[9px] font-bold text-[hsl(var(--status-red))] shrink-0">
             NOT READY
           </span>
         )}
-        {safetyStatus && (
+        {safetyStatus && !isCompleted && (
           <SafetyClassificationBadge
             status={safetyStatus}
             reasons={safetyReasons ?? []}
@@ -460,15 +468,23 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   }, [pendingAssign, overrideReason, doAssignLeg, legs, onRefresh]);
 
   const removeLeg = useCallback(async (legId: string) => {
+    const leg = legs.find(l => l.id === legId);
+    if (leg?.slot_status === "completed") {
+      toast.error("Cannot remove a completed run");
+      return;
+    }
     await supabase.from("truck_run_slots").delete().eq("leg_id", legId).eq("run_date", selectedDate);
     toast.success("Leg removed from truck");
     onRefresh();
-  }, [selectedDate, onRefresh]);
+  }, [selectedDate, onRefresh, legs]);
 
   const cancelLeg = useCallback(async (legId: string) => {
     const leg = legs.find(l => l.id === legId);
     if (!leg) return;
-
+    if (leg.slot_status === "completed") {
+      toast.error("Cannot cancel a completed run");
+      return;
+    }
     const { data: { user } } = await supabase.auth.getUser();
 
     // Set slot status to 'cancelled' instead of deleting
