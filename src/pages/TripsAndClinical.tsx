@@ -346,9 +346,9 @@ export default function TripsAndClinical() {
     const autoDest = trip.destination_type || inferLocationType(trip.destination_location, facilityMap) || "";
     setForm({
       loaded_miles: trip.loaded_miles?.toString() ?? "",
-      loaded_at: trip.loaded_at ? new Date(trip.loaded_at).toISOString().slice(0, 16) : "",
-      dropped_at: trip.dropped_at ? new Date(trip.dropped_at).toISOString().slice(0, 16) : "",
-      dispatch_time: trip.dispatch_time ? new Date(trip.dispatch_time).toISOString().slice(0, 16) : "",
+      loaded_at: isoToLocalDatetimeInput(trip.loaded_at),
+      dropped_at: isoToLocalDatetimeInput(trip.dropped_at),
+      dispatch_time: isoToLocalDatetimeInput(trip.dispatch_time),
       wait_time_minutes: trip.wait_time_minutes?.toString() ?? "",
       signature_obtained: trip.signature_obtained,
       pcs_attached: trip.pcs_attached,
