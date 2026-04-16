@@ -468,6 +468,18 @@ export default function Scheduling() {
         toast.error("Name, pickup location, and destination are required");
         return;
       }
+      if (!oneoffForm.dob) { toast.error("DOB is required for one-off runs"); return; }
+      if (!oneoffForm.sex) { toast.error("Sex is required for one-off runs"); return; }
+      if (!oneoffForm.member_id || !oneoffForm.member_id.trim()) { toast.error("Member ID is required for one-off runs"); return; }
+      // 837P completeness warning (non-blocking)
+      const missingForClaim: string[] = [];
+      if (!oneoffForm.name?.trim()) missingForClaim.push("name");
+      if (!oneoffForm.dob) missingForClaim.push("DOB");
+      if (!oneoffForm.member_id?.trim()) missingForClaim.push("member ID");
+      if (!oneoffForm.primary_payer) missingForClaim.push("primary payer");
+      if (missingForClaim.length > 0) {
+        toast.warning(`Claim will be incomplete — missing: ${missingForClaim.join(", ")}. Update before billing.`);
+      }
       const normalizedTripType = normalizeTripType(oneoffForm.trip_type);
       const { data: companyId } = await supabase.rpc("get_my_company_id");
       const { error } = await supabase.from("scheduling_legs").insert({
@@ -1439,8 +1451,19 @@ export default function Scheduling() {
                     <Label htmlFor="oneoff-o2" className="cursor-pointer text-sm">Oxygen Required</Label>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Primary Payer</Label><Input value={oneoffForm.primary_payer} onChange={(e) => setOneoffForm(f => ({ ...f, primary_payer: e.target.value }))} placeholder="e.g. Medicaid" /></div>
-                    <div><Label>Member ID</Label><Input value={oneoffForm.member_id} onChange={(e) => setOneoffForm(f => ({ ...f, member_id: e.target.value }))} placeholder="e.g. GA2024-883341" /></div>
+                    <div>
+                      <Label>Primary Payer <span className="text-destructive">*</span></Label>
+                      <Select value={oneoffForm.primary_payer} onValueChange={(v) => setOneoffForm(f => ({ ...f, primary_payer: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="medicare">Medicare</SelectItem>
+                          <SelectItem value="medicaid">Medicaid</SelectItem>
+                          <SelectItem value="facility">Facility</SelectItem>
+                          <SelectItem value="cash">Cash</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div><Label>Member ID <span className="text-destructive">*</span></Label><Input value={oneoffForm.member_id} onChange={(e) => setOneoffForm(f => ({ ...f, member_id: e.target.value }))} placeholder="e.g. GA2024-883341" /></div>
                   </div>
                 </div>
 
