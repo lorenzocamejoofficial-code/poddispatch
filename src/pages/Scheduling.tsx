@@ -1451,8 +1451,19 @@ export default function Scheduling() {
                     <Label htmlFor="oneoff-o2" className="cursor-pointer text-sm">Oxygen Required</Label>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Primary Payer</Label><Input value={oneoffForm.primary_payer} onChange={(e) => setOneoffForm(f => ({ ...f, primary_payer: e.target.value }))} placeholder="e.g. Medicaid" /></div>
-                    <div><Label>Member ID</Label><Input value={oneoffForm.member_id} onChange={(e) => setOneoffForm(f => ({ ...f, member_id: e.target.value }))} placeholder="e.g. GA2024-883341" /></div>
+                    <div>
+                      <Label>Primary Payer <span className="text-destructive">*</span></Label>
+                      <Select value={oneoffForm.primary_payer} onValueChange={(v) => setOneoffForm(f => ({ ...f, primary_payer: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="medicare">Medicare</SelectItem>
+                          <SelectItem value="medicaid">Medicaid</SelectItem>
+                          <SelectItem value="facility">Facility</SelectItem>
+                          <SelectItem value="cash">Cash</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div><Label>Member ID <span className="text-destructive">*</span></Label><Input value={oneoffForm.member_id} onChange={(e) => setOneoffForm(f => ({ ...f, member_id: e.target.value }))} placeholder="e.g. GA2024-883341" /></div>
                   </div>
                 </div>
 
