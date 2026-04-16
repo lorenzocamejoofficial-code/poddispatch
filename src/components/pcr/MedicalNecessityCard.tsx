@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MEDICAL_NECESSITY_REASONS } from "@/lib/pcr-dropdowns";
+import { MEDICAL_NECESSITY_REASONS, WOUND_CARE_NECESSITY_REASONS } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
@@ -13,15 +13,24 @@ const NECESSITY_TEMPLATES: Record<string, string> = {
   ift: "Patient requires interfacility transfer for medical care not available at the originating facility. Patient's condition requires ambulance transport as any other means of transportation would endanger the patient's health. Patient requires medical monitoring during transport.",
   discharge: "Patient is being discharged from medical facility and requires ambulance transport to destination. Patient's condition prevents safe transport by any other means. Patient requires stretcher transport due to medical condition.",
   outpatient: "Patient requires transport to outpatient medical appointment. Patient's medical condition necessitates ambulance transport as other transportation methods would endanger the patient's health. Patient is unable to safely use alternative transportation.",
+  wound_care: "Patient requires transport to wound care appointment. Wound location, condition, or treatment requirements (e.g., sterile dressing, wound VAC, active drainage) make ambulance transport medically necessary. Alternative transportation would risk wound injury, dehiscence, or contamination.",
   private_pay: "Patient requires medical transport. Stretcher transport is medically necessary due to patient's condition and mobility limitations.",
   emergency: "Patient presents with acute medical condition requiring emergency transport. Immediate ambulance transport is medically necessary.",
 };
 
-const NECESSITY_ITEMS = [
+const STANDARD_NECESSITY_ITEMS = [
   { field: "bed_confined", label: "Patient is bed-confined at origin" },
   { field: "cannot_transfer_safely", label: "Cannot safely transfer without stretcher" },
   { field: "requires_monitoring", label: "Patient requires medical monitoring during transport" },
   { field: "oxygen_during_transport", label: "Oxygen required during transport" },
+] as const;
+
+const WOUND_CARE_NECESSITY_ITEMS = [
+  { field: "wc_unsafe_positioning", label: "Patient cannot maintain safe positioning in standard vehicle due to wound location" },
+  { field: "wc_sterile_dressing", label: "Wound requires monitoring or sterile dressing maintenance during transport" },
+  { field: "wc_wound_vac_drainage", label: "Patient on wound VAC or has active drainage requiring oversight during transit" },
+  { field: "wc_dehiscence_risk", label: "Patient condition (diabetic neuropathy, PVD, osteomyelitis, post-surgical) creates risk of wound injury or dehiscence during movement" },
+  { field: "wc_stretcher_required", label: "Patient requires stretcher positioning that cannot be achieved in a wheelchair van or standard vehicle" },
 ] as const;
 
 interface Props {
@@ -35,9 +44,13 @@ export function MedicalNecessityCard({ trip, updateField, updateMultipleFields, 
   const filledRef = useRef<string | null>(null);
 
   const transportType = trip.trip_type ?? "dialysis";
-  const templateKey = transportType === "outpatient_specialty" ? "outpatient" : transportType;
+  const isWoundCare = String(transportType).toLowerCase().includes("wound");
+  const templateKey = isWoundCare ? "wound_care" : (transportType === "outpatient_specialty" ? "outpatient" : transportType);
   const template = NECESSITY_TEMPLATES[templateKey] ?? NECESSITY_TEMPLATES.dialysis;
   const templateLabel = templateKey.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+  const necessityItems = isWoundCare ? WOUND_CARE_NECESSITY_ITEMS : STANDARD_NECESSITY_ITEMS;
+  const reasonOptions = isWoundCare ? WOUND_CARE_NECESSITY_REASONS : MEDICAL_NECESSITY_REASONS;
 
   useEffect(() => {
     if (!trip.id || filledRef.current === trip.id) return;
@@ -57,7 +70,7 @@ export function MedicalNecessityCard({ trip, updateField, updateMultipleFields, 
 
   const isReq = (f: string) => requiredFields.includes(f);
   const reasonFilled = !!trip.medical_necessity_reason;
-  const checklistFilled = !!(trip.bed_confined || trip.cannot_transfer_safely || trip.requires_monitoring || trip.oxygen_during_transport);
+  const checklistFilled = necessityItems.some(i => !!trip[i.field]);
 
   return (
     <div className="space-y-4">
@@ -69,7 +82,7 @@ export function MedicalNecessityCard({ trip, updateField, updateMultipleFields, 
         <Select value={trip.medical_necessity_reason || ""} onValueChange={(v) => updateField("medical_necessity_reason", v)}>
           <SelectTrigger className={cn("h-12 text-base", isReq("medical_necessity_reason") ? (reasonFilled ? "border-emerald-400" : "border-destructive/50") : "")}><SelectValue placeholder="Select reason..." /></SelectTrigger>
           <SelectContent>
-            {MEDICAL_NECESSITY_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+            {reasonOptions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -77,14 +90,14 @@ export function MedicalNecessityCard({ trip, updateField, updateMultipleFields, 
       {/* Medical necessity checklist */}
       <div>
         <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2 flex items-center">
-          Medical Necessity Criteria
+          {isWoundCare ? "Wound Care Necessity Criteria" : "Medical Necessity Criteria"}
           {isReq("necessity_checklist") && <PCRFieldDot filled={checklistFilled} />}
         </label>
         {isReq("necessity_checklist") && !checklistFilled && (
           <p className="text-[10px] text-destructive mb-2">At least one criterion must be checked</p>
         )}
         <div className="space-y-3">
-          {NECESSITY_ITEMS.map(item => (
+          {necessityItems.map(item => (
             <label key={item.field} className="flex items-start gap-3 cursor-pointer">
               <Checkbox
                 checked={!!trip[item.field]}
@@ -127,7 +140,6 @@ export function MedicalNecessityCard({ trip, updateField, updateMultipleFields, 
         </div>
       )}
 
-      {/* Show notes section even without a reason selected, for template auto-fill */}
       {!trip.medical_necessity_reason && (
         <div>
           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 flex items-center">

@@ -59,6 +59,11 @@ export function NarrativeCard({ trip, truckName, updateField, required = true }:
       sendingFacility: trip.sending_facility_json || {},
       hospitalOutcome: trip.hospital_outcome_json || {},
       attendingMedicName: trip.attending_medic_name,
+      wc_unsafe_positioning: !!trip.wc_unsafe_positioning,
+      wc_sterile_dressing: !!trip.wc_sterile_dressing,
+      wc_wound_vac_drainage: !!trip.wc_wound_vac_drainage,
+      wc_dehiscence_risk: !!trip.wc_dehiscence_risk,
+      wc_stretcher_required: !!trip.wc_stretcher_required,
     });
     updateField("narrative", text);
   };

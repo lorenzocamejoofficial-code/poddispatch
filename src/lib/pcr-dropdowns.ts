@@ -23,6 +23,34 @@ export const MEDICAL_NECESSITY_REASONS = [
   "Other",
 ];
 
+export const WOUND_CARE_NECESSITY_REASONS = [
+  "Patient cannot maintain safe positioning in standard vehicle due to wound location",
+  "Wound requires monitoring or sterile dressing maintenance during transport",
+  "Patient on wound VAC or has active drainage requiring oversight during transit",
+  "Patient condition (diabetic neuropathy, peripheral vascular disease, osteomyelitis, post-surgical) creates risk of wound injury or dehiscence during movement",
+  "Patient requires stretcher positioning that cannot be achieved in a wheelchair van or standard vehicle",
+  "Other",
+];
+
+export const WOUND_TYPES = [
+  "Diabetic ulcer",
+  "Venous stasis ulcer",
+  "Arterial ulcer",
+  "Pressure ulcer",
+  "Surgical wound",
+  "Traumatic wound",
+  "Burn",
+  "Other",
+];
+
+export const PRESSURE_ULCER_STAGES = [
+  "Stage 1",
+  "Stage 2",
+  "Stage 3",
+  "Stage 4",
+  "Unstageable",
+];
+
 export const LEVEL_OF_CONSCIOUSNESS = [
   { value: "alert_ox4", label: "Alert and Oriented x4 (person, place, time, event)", narrative: "alert and oriented to person, place, time, and event" },
   { value: "alert_ox3", label: "Alert and Oriented x3", narrative: "alert and oriented to person, place, and time" },
