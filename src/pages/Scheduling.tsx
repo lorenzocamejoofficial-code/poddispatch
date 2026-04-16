@@ -333,7 +333,7 @@ export default function Scheduling() {
   const [isOneOff, setIsOneOff] = useState(false);
   const [oneoffForm, setOneoffForm] = useState({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
-    pickup_time: "", notes: "",
+    pickup_time: "", notes: "", service_level: "BLS",
     pickup_location_type: "", destination_type: "",
     needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
     // Demographics for PCR carry-over
@@ -342,7 +342,7 @@ export default function Scheduling() {
   });
   const resetOneoffForm = () => setOneoffForm({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
-    pickup_time: "", notes: "",
+    pickup_time: "", notes: "", service_level: "BLS",
     pickup_location_type: "", destination_type: "",
     needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
     dob: "", sex: "", weight_lbs: "", mobility: "ambulatory", oxygen: false,
