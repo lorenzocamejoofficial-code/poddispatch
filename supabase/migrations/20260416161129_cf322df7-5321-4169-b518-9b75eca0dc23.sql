@@ -1,0 +1,1 @@
+ALTER TYPE trip_type ADD VALUE 'woundcare';
