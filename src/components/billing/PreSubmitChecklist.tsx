@@ -241,7 +241,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardCheck className="h-5 w-5 text-primary" />
@@ -251,6 +251,14 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
             All items must pass before this claim can be submitted.
           </DialogDescription>
         </DialogHeader>
+
+        {!loading && pcsApplicable && tripId && (
+          <BillerPcsPanel
+            tripId={tripId}
+            patientId={patientId ?? null}
+            onCompleted={() => setRefreshTick(t => t + 1)}
+          />
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
