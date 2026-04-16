@@ -33,6 +33,7 @@ import {
   PCR_TYPES,
   LOCATION_TYPES,
 } from "@/lib/billing-utils";
+import { isoToLocalDatetimeInput, localDatetimeInputToIso } from "@/lib/pcr-time";
 
 type TripStatus = "scheduled" | "assigned" | "en_route" | "arrived_pickup" | "loaded" | "arrived_dropoff" | "completed" | "ready_for_billing" | "cancelled" | "no_show" | "patient_not_ready" | "facility_delay";
 
@@ -345,9 +346,9 @@ export default function TripsAndClinical() {
     const autoDest = trip.destination_type || inferLocationType(trip.destination_location, facilityMap) || "";
     setForm({
       loaded_miles: trip.loaded_miles?.toString() ?? "",
-      loaded_at: trip.loaded_at ? new Date(trip.loaded_at).toISOString().slice(0, 16) : "",
-      dropped_at: trip.dropped_at ? new Date(trip.dropped_at).toISOString().slice(0, 16) : "",
-      dispatch_time: trip.dispatch_time ? new Date(trip.dispatch_time).toISOString().slice(0, 16) : "",
+      loaded_at: isoToLocalDatetimeInput(trip.loaded_at),
+      dropped_at: isoToLocalDatetimeInput(trip.dropped_at),
+      dispatch_time: isoToLocalDatetimeInput(trip.dispatch_time),
       wait_time_minutes: trip.wait_time_minutes?.toString() ?? "",
       signature_obtained: trip.signature_obtained,
       pcs_attached: trip.pcs_attached,
@@ -432,9 +433,9 @@ export default function TripsAndClinical() {
       // (syncClaimsFromTrips / refreshExistingClaims). This page no longer touches claim_records.
       const payload: any = {
         loaded_miles: miles,
-        loaded_at: form.loaded_at ? new Date(form.loaded_at).toISOString() : null,
-        dropped_at: form.dropped_at ? new Date(form.dropped_at).toISOString() : null,
-        dispatch_time: form.dispatch_time ? new Date(form.dispatch_time).toISOString() : null,
+        loaded_at: localDatetimeInputToIso(form.loaded_at),
+        dropped_at: localDatetimeInputToIso(form.dropped_at),
+        dispatch_time: localDatetimeInputToIso(form.dispatch_time),
         wait_time_minutes: form.wait_time_minutes ? parseInt(form.wait_time_minutes) : null,
         signature_obtained: form.signature_obtained,
         pcs_attached: form.pcs_attached,

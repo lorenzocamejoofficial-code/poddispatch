@@ -37,6 +37,37 @@ export function buildTimestampForRunDate(
   return anchored.toISOString();
 }
 
+/**
+ * Convert a UTC ISO timestamp into the `YYYY-MM-DDTHH:mm` string
+ * that an `<input type="datetime-local">` expects, using the user's
+ * LOCAL timezone (not UTC). Returns "" when the input is empty.
+ *
+ * Why: `new Date(iso).toISOString().slice(0,16)` produces a UTC string
+ * which the input then renders as if it were local time, shifting the
+ * displayed (and later re-saved) value by the UTC offset.
+ */
+export function isoToLocalDatetimeInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
+/**
+ * Convert a `<input type="datetime-local">` string (interpreted in the
+ * user's LOCAL timezone) back into a UTC ISO string for storage.
+ */
+export function localDatetimeInputToIso(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const d = new Date(value); // datetime-local strings are parsed as local time
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
 export function buildTimestampFromRunDateAndTime(
   runDate: string | null | undefined,
   timeValue: string,
