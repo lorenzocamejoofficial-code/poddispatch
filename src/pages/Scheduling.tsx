@@ -1377,6 +1377,46 @@ export default function Scheduling() {
                 <div><Label>Destination Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_dropoff} /></Label><Input value={oneoffForm.destination_location} onChange={(e) => setOneoffForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /></div>
                 <div><Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label><Input type="time" value={oneoffForm.pickup_time} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
 
+                {/* Patient Demographics for PCR */}
+                <div className="rounded-md border bg-muted/20 p-3 space-y-3">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Patient Demographics (for PCR)</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Date of Birth</Label><Input type="date" value={oneoffForm.dob} onChange={(e) => setOneoffForm(f => ({ ...f, dob: e.target.value }))} /></div>
+                    <div>
+                      <Label>Sex</Label>
+                      <Select value={oneoffForm.sex || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, sex: v === "none" ? "" : v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— Select —</SelectItem>
+                          <SelectItem value="M">Male</SelectItem>
+                          <SelectItem value="F">Female</SelectItem>
+                          <SelectItem value="U">Unknown</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div><Label>Weight (lbs)</Label><Input type="number" value={oneoffForm.weight_lbs} onChange={(e) => setOneoffForm(f => ({ ...f, weight_lbs: e.target.value }))} placeholder="lbs" /></div>
+                    <div>
+                      <Label>Mobility</Label>
+                      <Select value={oneoffForm.mobility} onValueChange={(v) => setOneoffForm(f => ({ ...f, mobility: v }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ambulatory">Ambulatory</SelectItem>
+                          <SelectItem value="wheelchair">Wheelchair</SelectItem>
+                          <SelectItem value="stretcher">Stretcher</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Switch checked={oneoffForm.oxygen} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, oxygen: v }))} id="oneoff-o2" />
+                    <Label htmlFor="oneoff-o2" className="cursor-pointer text-sm">Oxygen Required</Label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Primary Payer</Label><Input value={oneoffForm.primary_payer} onChange={(e) => setOneoffForm(f => ({ ...f, primary_payer: e.target.value }))} placeholder="e.g. Medicaid" /></div>
+                    <div><Label>Member ID</Label><Input value={oneoffForm.member_id} onChange={(e) => setOneoffForm(f => ({ ...f, member_id: e.target.value }))} placeholder="e.g. GA2024-883341" /></div>
+                  </div>
+                </div>
+
                 {/* B-leg toggle */}
                 <div className="flex items-center gap-3 rounded-md border bg-muted/30 px-3 py-2">
                   <Switch checked={oneoffForm.needs_b_leg} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, needs_b_leg: v }))} id="oneoff-bleg" />
