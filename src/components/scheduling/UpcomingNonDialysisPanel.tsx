@@ -102,15 +102,27 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
 
       // Fetch truck slot assignments for those leg ids
       const legIds = activeLegData.map((l: any) => l.id);
-      const { data: slotData } = await supabase
-        .from("truck_run_slots")
-        .select("leg_id, truck_id, truck:trucks!truck_run_slots_truck_id_fkey(name)")
-        .in("leg_id", legIds);
+      const [{ data: slotData }, { data: tripData }] = await Promise.all([
+        supabase
+          .from("truck_run_slots")
+          .select("leg_id, truck_id, status, truck:trucks!truck_run_slots_truck_id_fkey(name)")
+          .in("leg_id", legIds),
+        supabase
+          .from("trip_records")
+          .select("leg_id, status")
+          .in("leg_id", legIds)
+          .in("status", ["completed", "ready_for_billing", "submitted", "paid"]),
+      ]);
 
-      const slotMap = new Map<string, string>();
+      const slotMap = new Map<string, { truckName: string; slotStatus: string }>();
       for (const s of slotData ?? []) {
-        slotMap.set(s.leg_id, (s as any).truck?.name ?? "Unknown truck");
+        slotMap.set(s.leg_id, {
+          truckName: (s as any).truck?.name ?? "Unknown truck",
+          slotStatus: (s as any).status ?? "pending",
+        });
       }
+
+      const completedLegIds = new Set((tripData ?? []).map((t: any) => t.leg_id));
 
       // Build display items
       const items: UpcomingLeg[] = activeLegData.map((l: any) => {
