@@ -38,6 +38,12 @@ interface NarrativeInput {
   hospitalOutcome: any;
   // Medic
   attendingMedicName: string | null;
+  // Wound care criteria flags
+  wc_unsafe_positioning?: boolean;
+  wc_sterile_dressing?: boolean;
+  wc_wound_vac_drainage?: boolean;
+  wc_dehiscence_risk?: boolean;
+  wc_stretcher_required?: boolean;
 }
 
 function fmtTime(ts: string | null): string {
