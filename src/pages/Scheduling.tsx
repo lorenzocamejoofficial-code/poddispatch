@@ -4,6 +4,7 @@ import { getLocalToday } from "@/lib/local-date";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AddressComboInput } from "@/components/scheduling/AddressComboInput";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -1573,8 +1574,8 @@ export default function Scheduling() {
                     </Select>
                   </div>
                 </div>
-                <div><Label>Pickup Address *</Label><Input value={legForm.pickup_location} onChange={(e) => setLegForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="123 Main St, Atlanta GA" /></div>
-                <div><Label>Destination Address *</Label><Input value={legForm.destination_location} onChange={(e) => setLegForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /></div>
+                <div><Label>Pickup Address *</Label><AddressComboInput value={legForm.pickup_location} onChange={(v) => setLegForm(f => ({ ...f, pickup_location: v }))} placeholder="Type or select from patient addresses" suggestions={(() => { const p = patients.find(x => x.id === legForm.patient_id); if (!p) return []; const opts = []; if (p.pickup_address) opts.push({ label: "Home Address", value: p.pickup_address }); if (p.dropoff_facility) opts.push({ label: "Facility", value: p.dropoff_facility }); return opts; })()} /></div>
+                <div><Label>Destination Address *</Label><AddressComboInput value={legForm.destination_location} onChange={(v) => setLegForm(f => ({ ...f, destination_location: v }))} placeholder="Type or select from patient addresses" suggestions={(() => { const p = patients.find(x => x.id === legForm.patient_id); if (!p) return []; const opts = []; if (p.dropoff_facility) opts.push({ label: "Facility", value: p.dropoff_facility }); if (p.pickup_address) opts.push({ label: "Home Address", value: p.pickup_address }); return opts; })()} /></div>
                 <div><Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label><Input type="time" value={legForm.pickup_time} onChange={(e) => setLegForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
 
                 {/* B-leg toggle */}
