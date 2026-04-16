@@ -350,6 +350,11 @@ export default function Scheduling() {
     primary_payer: "", member_id: "",
   });
 
+  const normalizeTripType = (tripType: string) => {
+    if (tripType === "wound_care") return "woundcare";
+    return tripType;
+  };
+
   // Existing patient form extra state
   const [legPickupLocationType, setLegPickupLocationType] = useState("");
   const [legDestinationType, setLegDestinationType] = useState("");
@@ -377,7 +382,6 @@ export default function Scheduling() {
     target === "existing" ? setCopySearching(true) : setOneoffCopySearching(true);
     try {
       const { data: companyId } = await supabase.rpc("get_my_company_id");
-      // Search scheduling_legs joining patients for name match, or oneoff_name match
       const { data } = await supabase
         .from("scheduling_legs")
         .select("id, run_date, leg_type, pickup_time, pickup_location, destination_location, trip_type, estimated_duration_minutes, notes, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_dob, oneoff_sex, oneoff_primary_payer, oneoff_member_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)")
@@ -401,16 +405,17 @@ export default function Scheduling() {
   }, [selectedDate]);
 
   const applyCopyResult = (result: any, target: "existing" | "oneoff") => {
+    const normalizedTripType = normalizeTripType(result.trip_type ?? "dialysis");
+
     if (target === "oneoff") {
       setOneoffForm(f => ({
         ...f,
         name: result.is_oneoff ? (result.oneoff_name ?? "") : (result.patient ? `${result.patient.first_name} ${result.patient.last_name}` : ""),
         pickup_location: result.pickup_location ?? "",
         destination_location: result.destination_location ?? "",
-        trip_type: result.trip_type ?? "dialysis",
+        trip_type: normalizedTripType,
         pickup_time: result.pickup_time ?? "",
         notes: result.notes ?? "",
-        // Carry over demographics from previous one-off
         weight_lbs: result.oneoff_weight_lbs != null ? String(result.oneoff_weight_lbs) : "",
         mobility: result.oneoff_mobility ?? "ambulatory",
         oxygen: result.oneoff_oxygen ?? false,
@@ -426,7 +431,7 @@ export default function Scheduling() {
         ...f,
         pickup_location: result.pickup_location ?? "",
         destination_location: result.destination_location ?? "",
-        trip_type: result.trip_type ?? "dialysis",
+        trip_type: normalizedTripType,
         pickup_time: result.pickup_time ?? "",
         notes: result.notes ?? "",
         estimated_duration_minutes: result.estimated_duration_minutes?.toString() ?? "",
@@ -463,6 +468,7 @@ export default function Scheduling() {
         toast.error("Name, pickup location, and destination are required");
         return;
       }
+      const normalizedTripType = normalizeTripType(oneoffForm.trip_type);
       const { data: companyId } = await supabase.rpc("get_my_company_id");
       const { error } = await supabase.from("scheduling_legs").insert({
         patient_id: null,
@@ -471,7 +477,7 @@ export default function Scheduling() {
         chair_time: null,
         pickup_location: oneoffForm.pickup_location,
         destination_location: oneoffForm.destination_location,
-        trip_type: oneoffForm.trip_type as any,
+        trip_type: normalizedTripType as any,
         estimated_duration_minutes: null,
         notes: oneoffForm.notes || null,
         run_date: selectedDate,
@@ -494,7 +500,6 @@ export default function Scheduling() {
       } as any);
       if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create one-off leg: ${error.message}`); return; }
 
-      // Auto-create B-leg if toggle is on
       if (oneoffForm.needs_b_leg) {
         const bDuration = (parseInt(oneoffForm.b_leg_duration_hours) || 0) * 60 + (parseInt(oneoffForm.b_leg_duration_minutes) || 0);
         await supabase.from("scheduling_legs").insert({
@@ -504,7 +509,7 @@ export default function Scheduling() {
           chair_time: null,
           pickup_location: oneoffForm.destination_location,
           destination_location: oneoffForm.pickup_location,
-          trip_type: oneoffForm.trip_type as any,
+          trip_type: normalizedTripType as any,
           estimated_duration_minutes: bDuration || null,
           notes: oneoffForm.notes || null,
           run_date: selectedDate,
@@ -527,7 +532,6 @@ export default function Scheduling() {
         } as any);
       }
 
-      // No schedule change log for initial creation — notify only on edits after assignment
       toast.success(`One-off ${pendingLegType}-Leg created${oneoffForm.needs_b_leg ? " + B-leg" : ""}`);
       setDialogOpen(false);
       refresh();
@@ -544,7 +548,7 @@ export default function Scheduling() {
       toast.warning(`Warning: ${patient.name} is ${patient.status.replace("_", " ")}. Scheduling anyway.`);
     }
 
-    // Resolve company_id for RLS via secure RPC
+    const normalizedTripType = normalizeTripType(legForm.trip_type);
     const { data: companyId } = await supabase.rpc("get_my_company_id");
 
     const { error } = await supabase.from("scheduling_legs").insert({
@@ -554,7 +558,7 @@ export default function Scheduling() {
       chair_time: legForm.chair_time || null,
       pickup_location: legForm.pickup_location,
       destination_location: legForm.destination_location,
-      trip_type: legForm.trip_type as any,
+      trip_type: normalizedTripType as any,
       estimated_duration_minutes: legForm.estimated_duration_minutes ? parseInt(legForm.estimated_duration_minutes) : null,
       notes: legForm.notes || null,
       run_date: selectedDate,
@@ -566,7 +570,6 @@ export default function Scheduling() {
 
     if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create leg: ${error.message}`); return; }
 
-    // Auto-create B-leg if toggle is on
     if (legNeedsBLeg) {
       const bDuration = (parseInt(legBLegDurationHours) || 0) * 60 + (parseInt(legBLegDurationMinutes) || 0);
       await supabase.from("scheduling_legs").insert({
@@ -576,7 +579,7 @@ export default function Scheduling() {
         chair_time: null,
         pickup_location: legForm.destination_location,
         destination_location: legForm.pickup_location,
-        trip_type: legForm.trip_type as any,
+        trip_type: normalizedTripType as any,
         estimated_duration_minutes: bDuration || null,
         notes: legForm.notes || null,
         run_date: selectedDate,
@@ -588,7 +591,6 @@ export default function Scheduling() {
     }
 
     const patientName = patient?.name ?? "Unknown";
-    // No schedule change log for initial creation — notify only on edits after assignment
 
     toast.success(`${pendingLegType}-Leg created${legNeedsBLeg ? " + B-leg" : ""}`);
     setDialogOpen(false);
