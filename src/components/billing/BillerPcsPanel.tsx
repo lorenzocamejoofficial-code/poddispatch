@@ -62,7 +62,7 @@ export function BillerPcsPanel({ tripId, patientId, onCompleted }: Props) {
         .eq("trip_id", tripId)
         .maybeSingle(),
     ]);
-    setDocs((docRows as UploadedDoc[]) ?? []);
+    setDocs(((docRows as unknown) as UploadedDoc[]) ?? []);
     const c = claim as any;
     if (c) {
       setForm({
