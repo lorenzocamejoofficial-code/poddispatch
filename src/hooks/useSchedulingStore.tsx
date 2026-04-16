@@ -155,7 +155,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   const resetLegForm = useCallback(() => setLegForm(emptyForm), []);
 
   const fetchLegs = useCallback(async () => {
-    const [{ data }, { data: slots }, { data: exceptions }] = await Promise.all([
+    const [{ data }, { data: slots }, { data: exceptions }, { data: tripRows }] = await Promise.all([
       supabase
         .from("scheduling_legs")
         .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, status, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric), is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes")
@@ -169,7 +169,26 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         .from("leg_exceptions")
         .select("*")
         .eq("run_date", selectedDate),
+      supabase
+        .from("trip_records")
+        .select("leg_id, status")
+        .eq("run_date", selectedDate)
+        .in("status", ["ready_for_billing", "submitted", "paid", "completed"] as any),
     ]);
+
+    // Build a set of leg_ids that have completed trips
+    const completedLegIds = new Set((tripRows ?? []).map((t: any) => t.leg_id).filter(Boolean));
+
+    // Auto-sync: mark any pending slots as completed if their trip is done
+    const slotsToSync = (slots ?? []).filter((s: any) =>
+      completedLegIds.has(s.leg_id) && (s as any).status === "pending"
+    );
+    if (slotsToSync.length > 0) {
+      // Fire-and-forget background sync
+      Promise.all(slotsToSync.map((s: any) =>
+        supabase.from("truck_run_slots").update({ status: "completed" } as any).eq("leg_id", s.leg_id).eq("run_date", selectedDate)
+      ));
+    }
 
     const slotMap = new Map((slots ?? []).map((s) => [s.leg_id, { truck_id: s.truck_id, slot_order: s.slot_order, status: (s as any).status ?? "pending" }]));
     const exceptionMap = new Map((exceptions ?? []).map((e: any) => [e.scheduling_leg_id, e]));
