@@ -552,6 +552,16 @@ export function validateClaimForEDI(claim: ClaimForEDI): string[] {
   if (!claim.total_charge || claim.total_charge <= 0) errors.push("Invalid charge amount");
   if (!claim.hcpcs_codes?.length) errors.push("Missing HCPCS codes");
   if (!claim.payer_name && !claim.payer_id) errors.push("Missing payer information");
+
+  // Patient address — require non-empty street, city, and ZIP. Resolve from
+  // dedicated fields first, fall back to parsing the combined address string.
+  const parsed = parseAddressString(claim.patient_address);
+  const street = (claim.patient_address ?? "").trim() || parsed.street;
+  const city = (claim.patient_city ?? "").trim() || parsed.city;
+  const zip = (claim.patient_zip ?? "").trim() || parsed.zip;
+  if (!street.trim() || !city.trim() || !zip.trim()) {
+    errors.push("Patient address incomplete — update patient record before submitting.");
+  }
   return errors;
 }
 
