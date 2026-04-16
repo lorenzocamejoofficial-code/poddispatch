@@ -603,12 +603,33 @@ export default function BillingAndClaims() {
       if (!billableByPatientDate.has(key)) billableByPatientDate.set(key, []);
       billableByPatientDate.get(key)!.push(t);
     }
+    // Only flag true duplicates. A round trip (A-leg + B-leg) is two distinct
+    // trip_records on the same date for the same patient and is the normal case
+    // for dialysis / discharge / IFT — it must NOT trigger this warning.
+    // Two trips are considered legitimate legs of a round trip when they:
+    //   - have different leg_id values (different scheduling legs), AND
+    //   - have reversed origin/destination types (e.g. Home→Dialysis + Dialysis→Home)
+    const isReversedRoute = (a: any, b: any) =>
+      !!a.origin_type && !!a.destination_type && !!b.origin_type && !!b.destination_type &&
+      String(a.origin_type).toLowerCase() === String(b.destination_type).toLowerCase() &&
+      String(a.destination_type).toLowerCase() === String(b.origin_type).toLowerCase();
+
     const duplicateBillableWarnings: string[] = [];
     for (const [, group] of billableByPatientDate) {
-      if (group.length > 1) {
-        const patientName = group[0].patient ? `${group[0].patient.first_name ?? ""} ${group[0].patient.last_name ?? ""}`.trim() : (group[0].leg?.is_oneoff ? group[0].leg.oneoff_name : "Unknown");
-        duplicateBillableWarnings.push(`${patientName} on ${group[0].run_date} (${group.length} trip records)`);
+      if (group.length <= 1) continue;
+
+      // Exact A/B-leg pair is fine — skip silently
+      if (group.length === 2) {
+        const [a, b] = group;
+        const distinctLegs = a.leg_id && b.leg_id && a.leg_id !== b.leg_id;
+        if (distinctLegs && isReversedRoute(a, b)) continue;
       }
+
+      // 3+ trips, or 2 trips that aren't a clean reversed pair → real duplicate suspicion
+      const patientName = group[0].patient
+        ? `${group[0].patient.first_name ?? ""} ${group[0].patient.last_name ?? ""}`.trim()
+        : (group[0].leg?.is_oneoff ? group[0].leg.oneoff_name : "Unknown");
+      duplicateBillableWarnings.push(`${patientName} on ${group[0].run_date} (${group.length} trip records)`);
     }
 
     const cleanClaims: any[] = [];
