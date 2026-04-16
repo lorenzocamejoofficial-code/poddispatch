@@ -607,6 +607,10 @@ export default function Scheduling() {
 
   // Open exception edit dialog
   const openExceptionEdit = (leg: LegDisplay) => {
+    if (leg.slot_status === "completed") {
+      toast.error("Cannot edit a completed run");
+      return;
+    }
     setEditingExceptionLeg(leg);
     setExceptionForm({
       pickup_time: leg.pickup_time ?? "",
@@ -614,6 +618,7 @@ export default function Scheduling() {
       destination_location: leg.destination_location,
       notes: leg.notes ?? "",
     });
+    setExceptionNewDate("");
     setBLegEarliest(null);
     setBLegTooEarly(false);
     setExceptionDialogOpen(true);
