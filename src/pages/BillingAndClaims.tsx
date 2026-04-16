@@ -240,7 +240,7 @@ export default function BillingAndClaims() {
   const fetchQueueTrips = useCallback(async () => {
     let tripQuery = supabase
       .from("trip_records" as any)
-      .select("*")
+      .select("*, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer)")
       .eq("run_date", dateFilter)
       .or("status.in.(completed,ready_for_billing),claim_ready.eq.true")
       .order("scheduled_pickup_time");
