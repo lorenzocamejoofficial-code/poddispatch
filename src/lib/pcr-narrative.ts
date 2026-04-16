@@ -132,14 +132,11 @@ export function generateNarrative(input: NarrativeInput): string {
 
     // Wound-care-specific medical necessity criteria
     const wcCriteria: string[] = [];
-    if (input["wc_unsafe_positioning" as any] || (input as any).wc_unsafe_positioning) wcCriteria.push("patient cannot maintain safe positioning in a standard vehicle due to wound location");
-    const anyInput: any = input;
-    if (anyInput.wc_unsafe_positioning) wcCriteria.push("patient cannot maintain safe positioning in a standard vehicle due to wound location");
-    if (anyInput.wc_sterile_dressing) wcCriteria.push("wound requires monitoring or sterile dressing maintenance during transport");
-    if (anyInput.wc_wound_vac_drainage) wcCriteria.push("patient is on wound VAC or has active drainage requiring oversight during transit");
-    if (anyInput.wc_dehiscence_risk) wcCriteria.push("patient condition creates risk of wound injury or dehiscence during movement");
-    if (anyInput.wc_stretcher_required) wcCriteria.push("patient requires stretcher positioning unachievable in a wheelchair van or standard vehicle");
-    // de-dup
+    if (input.wc_unsafe_positioning) wcCriteria.push("patient cannot maintain safe positioning in a standard vehicle due to wound location");
+    if (input.wc_sterile_dressing) wcCriteria.push("wound requires monitoring or sterile dressing maintenance during transport");
+    if (input.wc_wound_vac_drainage) wcCriteria.push("patient is on wound VAC or has active drainage requiring oversight during transit");
+    if (input.wc_dehiscence_risk) wcCriteria.push("patient condition creates risk of wound injury or dehiscence during movement");
+    if (input.wc_stretcher_required) wcCriteria.push("patient requires stretcher positioning unachievable in a wheelchair van or standard vehicle");
     const uniqueCriteria = Array.from(new Set(wcCriteria));
 
     if (uniqueCriteria.length > 0) {
