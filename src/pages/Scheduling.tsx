@@ -639,6 +639,42 @@ export default function Scheduling() {
     if (!editingExceptionLeg) return;
     setSavingException(true);
     try {
+      // If date is being changed, move the leg to the new date
+      if (exceptionNewDate && exceptionNewDate !== selectedDate) {
+        // Update the scheduling_leg's run_date
+        const { error: legErr } = await supabase
+          .from("scheduling_legs")
+          .update({ run_date: exceptionNewDate } as any)
+          .eq("id", editingExceptionLeg.id);
+        if (legErr) { toast.error("Failed to move run to new date"); return; }
+
+        // Remove from current truck assignment (goes to pool on new date)
+        if (editingExceptionLeg.assigned_truck_id) {
+          await supabase.from("truck_run_slots").delete().eq("leg_id", editingExceptionLeg.id).eq("run_date", selectedDate);
+        }
+
+        // Clean up any exception for the old date
+        await supabase
+          .from("leg_exceptions" as any)
+          .delete()
+          .eq("scheduling_leg_id", editingExceptionLeg.id)
+          .eq("run_date", selectedDate);
+
+        await logScheduleChange({
+          change_type: "run_date_changed",
+          change_summary: `${editingExceptionLeg.patient_name} moved from ${selectedDate} to ${exceptionNewDate}`,
+          old_value: selectedDate,
+          new_value: exceptionNewDate,
+          truck_id: editingExceptionLeg.assigned_truck_id ?? null,
+          leg_id: editingExceptionLeg.id,
+        });
+
+        toast.success(`Run moved to ${exceptionNewDate} — it will appear in that day's run pool`);
+        setExceptionDialogOpen(false);
+        refresh();
+        return;
+      }
+
       const payload: any = {
         scheduling_leg_id: editingExceptionLeg.id,
         run_date: selectedDate,
