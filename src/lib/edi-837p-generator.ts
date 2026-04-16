@@ -377,10 +377,12 @@ export function generateEDI837P(
     // --- SUBSCRIBER (2010BA) ---
     addSeg(["NM1", "IL", "1", patLast, patFirst, "", "", "", "MI", claim.member_id].join(ES));
     const patAddr = parseAddressString(claim.patient_address);
-    const patStreet = patAddr.street || claim.patient_address || "UNKNOWN";
-    const patCity = claim.patient_city || patAddr.city || "UNKNOWN";
-    const patState = claim.patient_state || patAddr.state || "GA";
-    const patZip = claim.patient_zip || patAddr.zip || "00000";
+    // Do NOT substitute "UNKNOWN" — claims with incomplete addresses must be
+    // blocked upstream by validateClaimForEDI.
+    const patStreet = (claim.patient_address && patAddr.street) || patAddr.street || (claim.patient_address ?? "").trim();
+    const patCity = (claim.patient_city || patAddr.city || "").trim();
+    const patState = (claim.patient_state || patAddr.state || "").trim();
+    const patZip = (claim.patient_zip || patAddr.zip || "").trim();
     addSeg(["N3", patStreet].join(ES));
     addSeg(["N4", patCity, patState, patZip].join(ES));
     addSeg(["DMG", "D8", formatDate8(claim.patient_dob || "1900-01-01"), sexCode].join(ES));
