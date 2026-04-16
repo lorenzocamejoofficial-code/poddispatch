@@ -333,7 +333,7 @@ export default function Scheduling() {
   const [isOneOff, setIsOneOff] = useState(false);
   const [oneoffForm, setOneoffForm] = useState({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
-    pickup_time: "", notes: "",
+    pickup_time: "", notes: "", service_level: "BLS",
     pickup_location_type: "", destination_type: "",
     needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
     // Demographics for PCR carry-over
@@ -342,7 +342,7 @@ export default function Scheduling() {
   });
   const resetOneoffForm = () => setOneoffForm({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
-    pickup_time: "", notes: "",
+    pickup_time: "", notes: "", service_level: "BLS",
     pickup_location_type: "", destination_type: "",
     needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
     dob: "", sex: "", weight_lbs: "", mobility: "ambulatory", oxygen: false,
@@ -489,6 +489,7 @@ export default function Scheduling() {
         oneoff_member_id: oneoffForm.member_id || null,
         origin_type: oneoffForm.pickup_location_type || null,
         destination_type: oneoffForm.destination_type || null,
+        service_level: oneoffForm.service_level || "BLS",
       } as any);
       if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create one-off leg: ${error.message}`); return; }
 
@@ -521,6 +522,7 @@ export default function Scheduling() {
           oneoff_member_id: oneoffForm.member_id || null,
           origin_type: oneoffForm.destination_type || null,
           destination_type: oneoffForm.pickup_location_type || null,
+          service_level: oneoffForm.service_level || "BLS",
         } as any);
       }
 
@@ -558,6 +560,7 @@ export default function Scheduling() {
       company_id: companyId,
       origin_type: legPickupLocationType || null,
       destination_type: legDestinationType || null,
+      service_level: legForm.service_level || "BLS",
     } as any);
 
     if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create leg: ${error.message}`); return; }
@@ -579,6 +582,7 @@ export default function Scheduling() {
         company_id: companyId,
         origin_type: legDestinationType || null,
         destination_type: legPickupLocationType || null,
+        service_level: legForm.service_level || "BLS",
       } as any);
     }
 
@@ -1334,7 +1338,7 @@ export default function Scheduling() {
                 <div><Label>Patient Name *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_name} /></Label><Input value={oneoffForm.name} onChange={(e) => setOneoffForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. John Smith" /></div>
                 <div>
                   <Label>Transport Type<PCRTooltip text={ADMIN_TOOLTIPS.trip_type} /></Label>
-                  <Select value={oneoffForm.trip_type} onValueChange={(v) => setOneoffForm(f => ({ ...f, trip_type: v }))}>
+                  <Select value={oneoffForm.trip_type} onValueChange={(v) => setOneoffForm(f => ({ ...f, trip_type: v, service_level: (v === "ift" || v === "ift_discharge") ? "ALS1" : "BLS" }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="dialysis">Dialysis</SelectItem>
@@ -1344,6 +1348,18 @@ export default function Scheduling() {
                       <SelectItem value="wound_care">Wound Care</SelectItem>
                       <SelectItem value="emergency">Emergency</SelectItem>
                       <SelectItem value="private_pay">Private Pay</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Service Level</Label>
+                  <Select value={oneoffForm.service_level} onValueChange={(v) => setOneoffForm(f => ({ ...f, service_level: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BLS">BLS</SelectItem>
+                      <SelectItem value="ALS1">ALS1</SelectItem>
+                      <SelectItem value="ALS2">ALS2</SelectItem>
+                      <SelectItem value="bariatric">Bariatric</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1498,7 +1514,7 @@ export default function Scheduling() {
                 </div>
                 <div>
                   <Label>Transport Type<PCRTooltip text={ADMIN_TOOLTIPS.trip_type} /></Label>
-                  <Select value={legForm.trip_type} onValueChange={(v) => setLegForm(f => ({ ...f, trip_type: v }))}>
+                  <Select value={legForm.trip_type} onValueChange={(v) => setLegForm(f => ({ ...f, trip_type: v, service_level: (v === "ift" || v === "ift_discharge") ? "ALS1" : "BLS" }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="dialysis">Dialysis</SelectItem>
@@ -1508,6 +1524,18 @@ export default function Scheduling() {
                       <SelectItem value="wound_care">Wound Care</SelectItem>
                       <SelectItem value="emergency">Emergency</SelectItem>
                       <SelectItem value="private_pay">Private Pay</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Service Level</Label>
+                  <Select value={legForm.service_level} onValueChange={(v) => setLegForm(f => ({ ...f, service_level: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BLS">BLS</SelectItem>
+                      <SelectItem value="ALS1">ALS1</SelectItem>
+                      <SelectItem value="ALS2">ALS2</SelectItem>
+                      <SelectItem value="bariatric">Bariatric</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
