@@ -558,6 +558,7 @@ export default function Scheduling() {
       company_id: companyId,
       origin_type: legPickupLocationType || null,
       destination_type: legDestinationType || null,
+      service_level: legForm.service_level || "BLS",
     } as any);
 
     if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create leg: ${error.message}`); return; }
@@ -579,6 +580,7 @@ export default function Scheduling() {
         company_id: companyId,
         origin_type: legDestinationType || null,
         destination_type: legPickupLocationType || null,
+        service_level: legForm.service_level || "BLS",
       } as any);
     }
 
