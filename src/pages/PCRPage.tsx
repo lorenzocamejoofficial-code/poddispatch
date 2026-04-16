@@ -388,6 +388,13 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       service_level: serviceLevel,
       is_unscheduled: isUnscheduled,
     };
+    // Auto-apply ICD-10 N18.6 (End-stage renal disease) for dialysis runs.
+    // ESRD is the standard billable diagnosis CMS recognizes for routine dialysis
+    // transport, so crews should not have to enter it manually and the pre-submit
+    // checklist's ICD-10 check passes without crew action.
+    if (String(run.tripType ?? "").toLowerCase() === "dialysis") {
+      insertData.icd10_codes = ["N18.6"];
+    }
     if (run.slotId) insertData.slot_id = run.slotId;
     const { data: newTrip, error } = await supabase.from("trip_records").insert(insertData).select("id").single();
 

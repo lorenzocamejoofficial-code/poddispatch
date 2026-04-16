@@ -79,8 +79,24 @@ export function BillerPcsPanel({ tripId, patientId, onCompleted }: Props) {
   useEffect(() => { load(); }, [load]);
 
   const handleDownload = async (doc: UploadedDoc) => {
-    const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_path, 300);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    // Open a tab synchronously to avoid popup blockers, then navigate it
+    // once the signed URL resolves. If signing fails, close the tab and toast.
+    const newTab = window.open("about:blank", "_blank");
+    const { data, error } = await supabase.storage.from("documents").createSignedUrl(doc.file_path, 300);
+    if (error || !data?.signedUrl) {
+      newTab?.close();
+      toast.error(error?.message ?? "Could not open document — file may be missing from storage");
+      return;
+    }
+    if (newTab) {
+      newTab.location.href = data.signedUrl;
+    } else {
+      const a = document.createElement("a");
+      a.href = data.signedUrl;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.click();
+    }
   };
 
   const handleSave = async () => {
