@@ -489,6 +489,7 @@ export default function Scheduling() {
         oneoff_member_id: oneoffForm.member_id || null,
         origin_type: oneoffForm.pickup_location_type || null,
         destination_type: oneoffForm.destination_type || null,
+        service_level: oneoffForm.service_level || "BLS",
       } as any);
       if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create one-off leg: ${error.message}`); return; }
 
@@ -521,6 +522,7 @@ export default function Scheduling() {
           oneoff_member_id: oneoffForm.member_id || null,
           origin_type: oneoffForm.destination_type || null,
           destination_type: oneoffForm.pickup_location_type || null,
+          service_level: oneoffForm.service_level || "BLS",
         } as any);
       }
 
