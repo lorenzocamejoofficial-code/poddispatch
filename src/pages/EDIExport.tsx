@@ -141,7 +141,7 @@ export default function EDIExport() {
           patient_first_name: pat.first_name ?? (isOneoff ? oneoffFirst : undefined),
           patient_last_name: pat.last_name ?? (isOneoff ? oneoffLast : undefined),
           patient_dob: pat.dob ?? (isOneoff ? leg?.oneoff_dob : undefined),
-          patient_pickup_address: pat.pickup_address,
+          patient_pickup_address: pat.pickup_address ?? oneoffAddress ?? undefined,
           patient_member_id: pat.member_id || c.member_id || (isOneoff ? leg?.oneoff_member_id : null),
           patient_primary_payer: pat.primary_payer ?? (isOneoff ? leg?.oneoff_primary_payer : null),
           trip_loaded_miles: trip.loaded_miles,
