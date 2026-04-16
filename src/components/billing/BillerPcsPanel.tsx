@@ -120,6 +120,17 @@ export function BillerPcsPanel({ tripId, patientId, onCompleted }: Props) {
         pcs_completed_by: user?.id ?? null,
       } as any)
       .eq("trip_id", tripId);
+
+    // Also flip the trip_record's pcs_attached flag so the Trip Queue / billing
+    // gates immediately recognize PCS as satisfied without a re-sync. The clinical
+    // PCS upload from the crew and the biller-entered PCS both count toward this flag.
+    if (!error) {
+      await supabase
+        .from("trip_records" as any)
+        .update({ pcs_attached: true } as any)
+        .eq("id", tripId);
+    }
+
     setSaving(false);
     if (error) {
       toast.error("Could not save PCS details");

@@ -80,13 +80,14 @@ function computeQueueDetails(
   trip: TripForQueue,
   payerRules: any,
   overrideMap?: Map<string, BillingOverrideRecord>,
+  pcsResolved?: boolean,
 ): {
   status: BillingQueueStatus;
   missing: string[];
   blockers: string[];
 } {
   // Active override always wins.
-  const status = computeBillingQueueStatus(trip, payerRules, overrideMap);
+  const status = computeBillingQueueStatus(trip, payerRules, overrideMap, pcsResolved);
   if (status === "ready") {
     return { status, missing: [], blockers: [] };
   }
@@ -97,7 +98,12 @@ function computeQueueDetails(
 
   // Read persisted readiness state from trip_record (set by Trips & Clinical / PCR submit).
   // Trip Queue no longer recomputes the gate independently — single source of truth.
-  const persistedBlockers = (trip.blockers ?? []).filter(b => !!b);
+  // Filter out PCS-related blockers when PCS has been resolved by patient record or biller entry.
+  const persistedBlockers = (trip.blockers ?? []).filter(b => {
+    if (!b) return false;
+    if (pcsResolved && /pcs/i.test(b)) return false;
+    return true;
+  });
 
   if (trip.claim_ready) {
     return { status: "ready", missing: [], blockers: [] };
@@ -106,7 +112,11 @@ function computeQueueDetails(
   if (trip.billing_blocked_reason) {
     const issues = persistedBlockers.length > 0
       ? persistedBlockers
-      : trip.billing_blocked_reason.split(",").map(s => s.trim()).filter(Boolean);
+      : trip.billing_blocked_reason
+          .split(",")
+          .map(s => s.trim())
+          .filter(s => s && !(pcsResolved && /pcs/i.test(s)));
+    if (issues.length === 0) return { status: "ready", missing: [], blockers: [] };
     return { status: "blocked", missing: [], blockers: issues };
   }
 
@@ -184,6 +194,54 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
   const completedTrips = trips.filter(t => ["completed", "ready_for_billing"].includes(t.status) || t.claim_ready);
   const queueDataReady = overrideHistoryLoaded || completedTrips.length === 0;
 
+  // Fetch patient PCS info AND biller-entered PCS from claim records — both count
+  // toward "PCS resolved" for the queue gate. We fetch these BEFORE grouping so
+  // PCS-satisfied trips immediately move out of "Blocked".
+  const [patientMap, setPatientMap] = useState<Record<string, { pcs_on_file: boolean | null; pcs_expiration_date: string | null }>>({});
+  const [claimPcsMap, setClaimPcsMap] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const patientIds = [...new Set(completedTrips.map(t => t.patient_id).filter(Boolean))] as string[];
+    const tripIds = completedTrips.map(t => t.id);
+
+    const patientFetch = patientIds.length > 0
+      ? supabase.from("patients").select("id, pcs_on_file, pcs_expiration_date").in("id", patientIds)
+      : Promise.resolve({ data: [] as any[] });
+
+    const claimFetch = tripIds.length > 0
+      ? supabase
+          .from("claim_records" as any)
+          .select("trip_id, pcs_physician_name, pcs_physician_npi, pcs_certification_date, pcs_diagnosis")
+          .in("trip_id", tripIds)
+      : Promise.resolve({ data: [] as any[] });
+
+    Promise.all([patientFetch, claimFetch]).then(([{ data: pData }, { data: cData }]) => {
+      const pMap: Record<string, { pcs_on_file: boolean | null; pcs_expiration_date: string | null }> = {};
+      for (const p of pData ?? []) pMap[p.id] = { pcs_on_file: p.pcs_on_file, pcs_expiration_date: p.pcs_expiration_date };
+      const cMap: Record<string, boolean> = {};
+      for (const c of (cData ?? []) as any[]) {
+        cMap[c.trip_id] = !!(c.pcs_physician_name && c.pcs_physician_npi && c.pcs_certification_date && c.pcs_diagnosis);
+      }
+      setPatientMap(pMap);
+      setClaimPcsMap(cMap);
+    });
+  }, [completedTrips]);
+
+  // Per-trip PCS resolution: patient has valid PCS on file OR biller filled PCS on the claim.
+  const pcsResolvedMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const trip of completedTrips) {
+      const patient = trip.patient_id ? patientMap[trip.patient_id] ?? null : null;
+      const patientPcsValid = !!(
+        patient?.pcs_on_file &&
+        (!patient?.pcs_expiration_date || new Date(patient.pcs_expiration_date) >= new Date(trip.run_date))
+      );
+      const billerPcsComplete = !!claimPcsMap[trip.id];
+      map.set(trip.id, patientPcsValid || billerPcsComplete);
+    }
+    return map;
+  }, [completedTrips, patientMap, claimPcsMap]);
+
   const grouped: Record<BillingQueueStatus, Array<TripForQueue & { queueMissing: string[]; queueBlockers: string[] }>> = {
     ready: [],
     review: [],
@@ -193,34 +251,20 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
   if (queueDataReady) {
     for (const trip of completedTrips) {
       const payerRules = payerRulesMap.get(trip.payer ?? "") ?? null;
-      const { status, missing, blockers } = computeQueueDetails(trip, payerRules, overrideHistory);
+      const { status, missing, blockers } = computeQueueDetails(trip, payerRules, overrideHistory, pcsResolvedMap.get(trip.id));
       grouped[status].push({ ...trip, queueMissing: missing, queueBlockers: blockers });
     }
   }
 
   const selectedQueueInfo = selectedTrip && queueDataReady
-    ? computeQueueDetails(selectedTrip, payerRulesMap.get(selectedTrip.payer ?? "") ?? null, overrideHistory)
+    ? computeQueueDetails(selectedTrip, payerRulesMap.get(selectedTrip.payer ?? "") ?? null, overrideHistory, pcsResolvedMap.get(selectedTrip.id))
     : null;
 
   const pcrRules = selectedTrip ? getPcrRules(selectedTrip.pcr_type) : [];
   const pcrResult = selectedTrip ? evaluatePcrCompleteness(selectedTrip) : null;
   const selectedOverride = selectedTrip ? overrideHistory.get(selectedTrip.id) : null;
 
-  // Fetch patient data for accurate claim scoring (PCS check)
-  const [patientMap, setPatientMap] = useState<Record<string, { pcs_on_file: boolean | null; pcs_expiration_date: string | null }>>({});
-  useEffect(() => {
-    const patientIds = [...new Set(completedTrips.map(t => t.patient_id).filter(Boolean))] as string[];
-    if (patientIds.length === 0) { setPatientMap({}); return; }
-    supabase
-      .from("patients")
-      .select("id, pcs_on_file, pcs_expiration_date")
-      .in("id", patientIds)
-      .then(({ data }) => {
-        const map: Record<string, { pcs_on_file: boolean | null; pcs_expiration_date: string | null }> = {};
-        for (const p of data ?? []) map[p.id] = { pcs_on_file: p.pcs_on_file, pcs_expiration_date: p.pcs_expiration_date };
-        setPatientMap(map);
-      });
-  }, [completedTrips]);
+  // (PCS-resolution data is fetched above, before queue grouping.)
 
   // Compute claim scores for all trips
   const scoreMap = useMemo(() => {

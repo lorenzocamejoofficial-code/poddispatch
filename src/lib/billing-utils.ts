@@ -292,10 +292,10 @@ export function computeCleanTripStatus(trip: {
   requires_timestamps?: boolean;
   requires_miles?: boolean;
   requires_auth?: boolean;
-} | null, authInfo?: {
+  } | null, authInfo?: {
   auth_required?: boolean;
   auth_expiration?: string | null;
-} | null): CleanTripResult {
+} | null, pcsResolved?: boolean): CleanTripResult {
   const structured: CleanTripIssue[] = [];
 
   // Always required for billing
@@ -314,13 +314,20 @@ export function computeCleanTripStatus(trip: {
     }
   }
 
-  // PCS is only relevant for IFT and discharge transports
-  const requiresPCSCheck = ["ift", "discharge"].includes(trip.trip_type ?? "");
+  // PCS is relevant for IFT, discharge, wound care, and outpatient specialty transports.
+  // PCS is considered resolved when (a) the trip has pcs_attached, (b) the patient has a
+  // valid PCS on file, or (c) the biller has filled in PCS data on the claim record.
+  // The caller is responsible for passing pcsResolved=true in (b) and (c).
+  const tripTypeLower = String(trip.trip_type ?? "").toLowerCase();
+  const requiresPCSCheck = ["ift", "ift_discharge", "discharge", "wound_care", "outpatient_specialty"].some(
+    t => tripTypeLower === t || tripTypeLower.includes(t),
+  );
+  const pcsSatisfied = !!trip.pcs_attached || !!pcsResolved;
 
   // Payer rule checks
   if (payerRules) {
     if (payerRules.requires_signature && !trip.signature_obtained) structured.push({ field: "signature_obtained", message: "Signature required by payer", severity: "blocker" });
-    if (payerRules.requires_pcs && requiresPCSCheck && !trip.pcs_attached) structured.push({ field: "pcs_attached", message: "PCS required by payer", severity: "blocker" });
+    if (payerRules.requires_pcs && requiresPCSCheck && !pcsSatisfied) structured.push({ field: "pcs_attached", message: "PCS required by payer", severity: "blocker" });
     if (payerRules.requires_necessity_note) {
       if (!trip.necessity_notes && !trip.clinical_note) structured.push({ field: "necessity_notes", message: "Clinical justification note required", severity: "blocker" });
       const hasChecklist = trip.bed_confined || trip.cannot_transfer_safely || trip.requires_monitoring || trip.oxygen_during_transport;
@@ -330,7 +337,7 @@ export function computeCleanTripStatus(trip: {
   } else {
     // Default checks without payer rules
     if (!trip.signature_obtained) structured.push({ field: "signature_obtained", message: "No signature", severity: "warning" });
-    if (requiresPCSCheck && !trip.pcs_attached) structured.push({ field: "pcs_attached", message: "No PCS", severity: "warning" });
+    if (requiresPCSCheck && !pcsSatisfied) structured.push({ field: "pcs_attached", message: "No PCS", severity: "warning" });
   }
 
   // New field checks
@@ -510,6 +517,7 @@ export function computeBillingQueueStatus(
     requires_auth?: boolean;
   } | null,
   overrideMap?: Map<string, BillingOverrideLike>,
+  pcsResolved?: boolean,
 ): BillingQueueStatus {
   const activeOverride = overrideMap?.get(trip.id);
   if (trip.claim_ready || (activeOverride && activeOverride.is_active !== false)) {
@@ -520,11 +528,12 @@ export function computeBillingQueueStatus(
     return "blocked";
   }
 
-  const pcrResult = evaluatePcrCompleteness(trip);
+  const pcrResult = evaluatePcrCompleteness({ ...trip, pcs_attached: trip.pcs_attached || pcsResolved });
   const cleanResult = computeCleanTripStatus(
     trip,
     payerRules,
-    { auth_required: trip.auth_required, auth_expiration: trip.auth_expiration }
+    { auth_required: trip.auth_required, auth_expiration: trip.auth_expiration },
+    pcsResolved,
   );
 
   if (cleanResult.level === "blocked") return "blocked";
