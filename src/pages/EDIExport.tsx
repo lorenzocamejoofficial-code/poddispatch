@@ -16,6 +16,7 @@ import {
   validateClaimForEDI,
   generateEDIFilename,
   extractFacilityName,
+  parseAddressString,
   type ClaimForEDI,
   type ProviderInfo,
   type SubmitterInfo,
@@ -236,15 +237,20 @@ export default function EDIExport() {
       const ediClaims: ClaimForEDI[] = selectedClaims.map((c) => {
         const trip = localTripsMap[(c as any).trip_id] || {};
         const pat = localPatsMap[(c as any).patient_id] || {};
+        // Parse the patient pickup address into street/city/state/zip — never
+        // substitute placeholders. validateClaimForEDI will block export if any
+        // of street/city/zip is missing.
+        const rawPatientAddr = String(c.patient_pickup_address ?? "").trim();
+        const parsedPat = parseAddressString(rawPatientAddr);
         return {
           claim_id: c.id,
           patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
           patient_dob: c.patient_dob || "1900-01-01",
           patient_sex: pat.sex || (c as any).patient_sex || null,
-          patient_address: c.patient_pickup_address || "UNKNOWN",
-          patient_city: "",
-          patient_state: providerInfo.state || "GA",
-          patient_zip: c.origin_zip || "00000",
+          patient_address: parsedPat.street || rawPatientAddr,
+          patient_city: parsedPat.city || "",
+          patient_state: parsedPat.state || providerInfo.state || "",
+          patient_zip: parsedPat.zip || c.origin_zip || "",
           member_id: c.patient_member_id || c.member_id || "UNKNOWN",
           payer_name: c.payer_name || c.payer_type || "MEDICARE",
           payer_id: c.payer_type === "medicare" ? "MEDICARE" : c.payer_type === "medicaid" ? "MEDICAID" : c.payer_name || "UNKNOWN",

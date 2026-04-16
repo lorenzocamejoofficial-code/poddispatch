@@ -377,10 +377,12 @@ export function generateEDI837P(
     // --- SUBSCRIBER (2010BA) ---
     addSeg(["NM1", "IL", "1", patLast, patFirst, "", "", "", "MI", claim.member_id].join(ES));
     const patAddr = parseAddressString(claim.patient_address);
-    const patStreet = patAddr.street || claim.patient_address || "UNKNOWN";
-    const patCity = claim.patient_city || patAddr.city || "UNKNOWN";
-    const patState = claim.patient_state || patAddr.state || "GA";
-    const patZip = claim.patient_zip || patAddr.zip || "00000";
+    // Do NOT substitute "UNKNOWN" — claims with incomplete addresses must be
+    // blocked upstream by validateClaimForEDI.
+    const patStreet = (claim.patient_address && patAddr.street) || patAddr.street || (claim.patient_address ?? "").trim();
+    const patCity = (claim.patient_city || patAddr.city || "").trim();
+    const patState = (claim.patient_state || patAddr.state || "").trim();
+    const patZip = (claim.patient_zip || patAddr.zip || "").trim();
     addSeg(["N3", patStreet].join(ES));
     addSeg(["N4", patCity, patState, patZip].join(ES));
     addSeg(["DMG", "D8", formatDate8(claim.patient_dob || "1900-01-01"), sexCode].join(ES));
@@ -423,10 +425,10 @@ export function generateEDI837P(
         return `${qualifier}${SE_SEP}${code.replace(/\./g, "")}`;
       });
       addSeg(["HI", ...hiElements].join(ES));
-    } else {
-      // Default ESRD diagnosis if none provided
-      addSeg(["HI", `ABK${SE_SEP}N186`].join(ES));
     }
+    // No fallback diagnosis here. ICD-10 codes must be set upstream — dialysis
+    // runs auto-apply N18.6 in the claim builder; all other transport types
+    // require the biller to enter a diagnosis manually before export.
 
     // REF - Prior Authorization
     if (claim.auth_number) {
@@ -550,6 +552,16 @@ export function validateClaimForEDI(claim: ClaimForEDI): string[] {
   if (!claim.total_charge || claim.total_charge <= 0) errors.push("Invalid charge amount");
   if (!claim.hcpcs_codes?.length) errors.push("Missing HCPCS codes");
   if (!claim.payer_name && !claim.payer_id) errors.push("Missing payer information");
+
+  // Patient address — require non-empty street, city, and ZIP. Resolve from
+  // dedicated fields first, fall back to parsing the combined address string.
+  const parsed = parseAddressString(claim.patient_address);
+  const street = (claim.patient_address ?? "").trim() || parsed.street;
+  const city = (claim.patient_city ?? "").trim() || parsed.city;
+  const zip = (claim.patient_zip ?? "").trim() || parsed.zip;
+  if (!street.trim() || !city.trim() || !zip.trim()) {
+    errors.push("Patient address incomplete — update patient record before submitting.");
+  }
   return errors;
 }
 
