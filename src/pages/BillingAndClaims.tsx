@@ -397,8 +397,11 @@ export default function BillingAndClaims() {
   };
 
   // Helper: build claim data from a trip
+  // Supports oneoff runs by falling back to scheduling_legs oneoff fields
   const buildClaimFromTrip = (t: any) => {
-    const payerType = t.patient?.primary_payer ?? "default";
+    const leg = t.leg as any;
+    const isOneoff = !t.patient_id && leg?.is_oneoff;
+    const payerType = t.patient?.primary_payer ?? (isOneoff ? leg?.oneoff_primary_payer : null) ?? "default";
     const payerRules = payerRulesMap.get(payerType) ?? null;
     const authInfo = t.patient ? { auth_required: t.patient.auth_required, auth_expiration: t.patient.auth_expiration } : null;
     const gateResult = computeCleanTripStatus(t, payerRules, authInfo);
@@ -407,7 +410,7 @@ export default function BillingAndClaims() {
     const base = rate?.base_rate ?? 0;
     const miles = Number(t.loaded_miles ?? 0) * Number(rate?.mileage_rate ?? 0);
     const wait = Number(t.wait_time_minutes ?? 0) * Number(rate?.wait_rate_per_min ?? 0);
-    const extras = (t.patient?.oxygen_required ? Number(rate?.oxygen_fee ?? 0) : 0)
+    const extras = (t.patient?.oxygen_required || (isOneoff && leg?.oneoff_oxygen) ? Number(rate?.oxygen_fee ?? 0) : 0)
       + (t.patient?.bariatric ? Number(rate?.bariatric_fee ?? 0) : 0);
 
     const { codes, modifiers: mods } = computeHcpcsCodes({
@@ -415,7 +418,7 @@ export default function BillingAndClaims() {
       service_level: t.service_level,
       loaded_miles: t.loaded_miles,
       wait_time_minutes: t.wait_time_minutes,
-      oxygen_required: t.patient?.oxygen_required,
+      oxygen_required: t.patient?.oxygen_required || (isOneoff && leg?.oneoff_oxygen),
       bariatric: t.patient?.bariatric,
       equipment_used_json: t.equipment_used_json,
       destination_type: t.destination_type,
@@ -436,7 +439,7 @@ export default function BillingAndClaims() {
         company_id: t.company_id,
         payer_type: payerType,
         payer_name: payerType,
-        member_id: t.patient?.member_id ?? null,
+        member_id: t.patient?.member_id ?? (isOneoff ? leg?.oneoff_member_id : null) ?? null,
         base_charge: base,
         mileage_charge: miles,
         extras_charge: extras + wait,
@@ -454,11 +457,10 @@ export default function BillingAndClaims() {
         stretcher_placement: t.stretcher_placement ?? null,
         patient_mobility: t.patient_mobility ?? null,
         isolation_precautions: t.isolation_precautions ?? null,
-        // Fix 2: Sync ICD-10 codes and missing fields
         icd10_codes: t.icd10_codes ?? [],
         origin_zip: extractZip(t.pickup_location),
         destination_zip: extractZip(t.destination_location),
-        patient_sex: t.patient?.sex ?? null,
+        patient_sex: t.patient?.sex ?? (isOneoff ? leg?.oneoff_sex : null) ?? null,
         auth_number: t.patient?.auth_required ? (t.patient?.prior_auth_number ?? null) : null,
       },
     };
