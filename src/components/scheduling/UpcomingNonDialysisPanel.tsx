@@ -125,12 +125,10 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
 
       // Build display items
       const items: UpcomingLeg[] = activeLegData.map((l: any) => {
-        // Resolve name: patient join first, then oneoff_name fallback
         const patientName = l.patient
           ? `${l.patient.first_name} ${l.patient.last_name}`
           : l.oneoff_name || "Unknown";
 
-        // Resolve locations: leg fields first, then oneoff fields, then patient fields
         const pickup = l.pickup_location
           || l.oneoff_pickup_address
           || l.patient?.pickup_address
@@ -139,6 +137,11 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
           || l.oneoff_dropoff_address
           || l.patient?.dropoff_facility
           || null;
+
+        const slot = slotMap.get(l.id);
+        const tripStatus = (tripData ?? []).find((t: any) => t.leg_id === l.id)?.status;
+        const terminalStatuses = ["completed", "ready_for_billing", "submitted", "paid"];
+        const isCompleted = slot?.slotStatus === "completed" || terminalStatuses.includes(tripStatus ?? "");
 
         return {
           id: l.id,
@@ -149,14 +152,16 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
           destination_location: destination,
           trip_type: l.trip_type,
           leg_type: l.leg_type,
-          assigned_truck_name: slotMap.get(l.id) ?? null,
+          assigned_truck_name: slot?.truckName ?? null,
+          is_completed: isCompleted,
         };
       });
 
-      // Sort: soonest date → earliest pickup → unassigned first
+      // Sort: soonest date → earliest pickup → completed last → unassigned first
       items.sort((a, b) => {
         if (a.run_date !== b.run_date) return a.run_date.localeCompare(b.run_date);
-        // Unassigned floats up
+        // Completed sinks to bottom
+        if (a.is_completed !== b.is_completed) return a.is_completed ? 1 : -1;
         const aUnassigned = !a.assigned_truck_name ? 0 : 1;
         const bUnassigned = !b.assigned_truck_name ? 0 : 1;
         if (aUnassigned !== bUnassigned) return aUnassigned - bUnassigned;
