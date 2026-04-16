@@ -46,6 +46,11 @@ export interface ClaimForEDI {
   // Facility names for 2310E/F loops
   pickup_facility_name: string | null;
   dropoff_facility_name: string | null;
+  // PCS — Physician Certification Statement (biller-entered)
+  pcs_physician_name?: string | null;
+  pcs_physician_npi?: string | null;
+  pcs_certification_date?: string | null; // YYYY-MM-DD
+  pcs_diagnosis?: string | null;
 }
 
 export interface ProviderInfo {
@@ -426,6 +431,21 @@ export function generateEDI837P(
     // REF - Prior Authorization
     if (claim.auth_number) {
       addSeg(["REF", "G1", claim.auth_number].join(ES));
+    }
+
+    // PCS Certification Date — REF*9F (Referral Number) carries certification metadata when present
+    if (claim.pcs_certification_date) {
+      addSeg(["DTP", "439", "D8", formatDate8(claim.pcs_certification_date)].join(ES));
+    }
+
+    // Loop 2310A — Referring/Ordering Physician (PCS signing physician)
+    if (claim.pcs_physician_npi && /^\d{10}$/.test(claim.pcs_physician_npi)) {
+      const physName = (claim.pcs_physician_name || "PHYSICIAN").toUpperCase();
+      // Split "Dr. Jane Smith" → last/first best-effort
+      const parts = physName.replace(/^DR\.?\s+/i, "").split(/\s+/);
+      const physLast = parts.length > 1 ? parts[parts.length - 1] : physName;
+      const physFirst = parts.length > 1 ? parts.slice(0, -1).join(" ") : "";
+      addSeg(["NM1", "DK", "1", physLast, physFirst, "", "", "", "XX", claim.pcs_physician_npi].join(ES));
     }
 
     // CR1 - Ambulance Transport Information
