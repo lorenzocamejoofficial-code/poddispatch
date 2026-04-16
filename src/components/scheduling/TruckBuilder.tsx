@@ -468,15 +468,23 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   }, [pendingAssign, overrideReason, doAssignLeg, legs, onRefresh]);
 
   const removeLeg = useCallback(async (legId: string) => {
+    const leg = legs.find(l => l.id === legId);
+    if (leg?.slot_status === "completed") {
+      toast.error("Cannot remove a completed run");
+      return;
+    }
     await supabase.from("truck_run_slots").delete().eq("leg_id", legId).eq("run_date", selectedDate);
     toast.success("Leg removed from truck");
     onRefresh();
-  }, [selectedDate, onRefresh]);
+  }, [selectedDate, onRefresh, legs]);
 
   const cancelLeg = useCallback(async (legId: string) => {
     const leg = legs.find(l => l.id === legId);
     if (!leg) return;
-
+    if (leg.slot_status === "completed") {
+      toast.error("Cannot cancel a completed run");
+      return;
+    }
     const { data: { user } } = await supabase.auth.getUser();
 
     // Set slot status to 'cancelled' instead of deleting
