@@ -77,13 +77,14 @@ export interface LegFormState {
   trip_type: string;
   estimated_duration_minutes: string;
   notes: string;
+  service_level: string;
 }
 
 const emptyForm: LegFormState = {
   patient_id: "", pickup_time: "", chair_time: "",
   pickup_location: "", destination_location: "",
   trip_type: "dialysis", estimated_duration_minutes: "",
-  notes: "",
+  notes: "", service_level: "BLS",
 };
 
 /* ── Helper: check if a weekday matches schedule_days ── */
@@ -350,6 +351,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           company_id: companyId,
           origin_type: originType,
           destination_type: destinationType,
+          service_level: "BLS",
         });
         addedAny = true;
       }
@@ -371,6 +373,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           company_id: companyId,
           origin_type: destinationType,
           destination_type: originType,
+          service_level: "BLS",
         });
         addedAny = true;
       }
