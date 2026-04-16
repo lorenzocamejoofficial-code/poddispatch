@@ -500,7 +500,7 @@ export default function BillingAndClaims() {
       return;
     }
 
-    const tripIds = (refreshableClaims as any[]).map((c: any) => c.trip_id).filter(Boolean);
+    const tripIds = filtered.map((c: any) => c.trip_id).filter(Boolean);
     const { data: trips } = await supabase
       .from("trip_records" as any)
       .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_number), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions")
@@ -515,12 +515,16 @@ export default function BillingAndClaims() {
     let upgraded = 0;
     let stillPending = 0;
 
-    for (const claim of refreshableClaims as any[]) {
+    for (const claim of filtered as any[]) {
       const t = tripMap.get(claim.trip_id);
       if (!t) continue;
 
       const { gateResult, claim: claimData } = buildClaimFromTrip(t);
-      const newStatus = gateResult.level === "clean" ? "ready_to_bill" : "needs_review";
+      // Preserve submitted/denied status — only upgrade workable claim states.
+      const upgradable = ["ready_to_bill", "needs_review", "needs_correction"].includes(claim.status);
+      const newStatus = upgradable
+        ? (gateResult.level === "clean" ? "ready_to_bill" : "needs_review")
+        : claim.status;
 
       await supabase
         .from("claim_records" as any)
