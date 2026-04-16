@@ -401,12 +401,16 @@ export default function BillingAndClaims() {
   const buildClaimFromTrip = (t: any) => {
     const leg = t.leg as any;
     const isOneoff = !t.patient_id && leg?.is_oneoff;
-    const payerType = t.patient?.primary_payer ?? (isOneoff ? leg?.oneoff_primary_payer : null) ?? "default";
-    const payerRules = payerRulesMap.get(payerType) ?? null;
+    const rawPayerType = t.patient?.primary_payer ?? (isOneoff ? leg?.oneoff_primary_payer : null) ?? "default";
+    // Normalize payer_type to lowercase so rate lookup is consistent across all transport types.
+    // Charge master rows are stored lowercase; patient/oneoff payer values may be capitalized.
+    const payerType = String(rawPayerType).toLowerCase().trim();
+    const payerRules = payerRulesMap.get(payerType) ?? payerRulesMap.get(rawPayerType) ?? null;
     const authInfo = t.patient ? { auth_required: t.patient.auth_required, auth_expiration: t.patient.auth_expiration } : null;
     const gateResult = computeCleanTripStatus(t, payerRules, authInfo);
 
-    const rate = chargeMaster.find(r => r.payer_type === payerType) ?? chargeMaster.find(r => r.payer_type === "default");
+    const rate = chargeMaster.find(r => String(r.payer_type).toLowerCase() === payerType)
+      ?? chargeMaster.find(r => String(r.payer_type).toLowerCase() === "default");
     const base = rate?.base_rate ?? 0;
     const miles = Number(t.loaded_miles ?? 0) * Number(rate?.mileage_rate ?? 0);
     const wait = Number(t.wait_time_minutes ?? 0) * Number(rate?.wait_rate_per_min ?? 0);
