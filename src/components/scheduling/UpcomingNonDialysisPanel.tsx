@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ChevronDown, ChevronUp, ArrowRight, ExternalLink, AlertCircle } from "lucide-react";
@@ -17,6 +17,7 @@ interface UpcomingLeg {
   trip_type: string;
   leg_type: string;
   assigned_truck_name: string | null;
+  is_completed: boolean;
 }
 
 /* ── helpers ── */
@@ -101,24 +102,33 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
 
       // Fetch truck slot assignments for those leg ids
       const legIds = activeLegData.map((l: any) => l.id);
-      const { data: slotData } = await supabase
-        .from("truck_run_slots")
-        .select("leg_id, truck_id, truck:trucks!truck_run_slots_truck_id_fkey(name)")
-        .in("leg_id", legIds);
+      const [{ data: slotData }, { data: tripData }] = await Promise.all([
+        supabase
+          .from("truck_run_slots")
+          .select("leg_id, truck_id, status, truck:trucks!truck_run_slots_truck_id_fkey(name)")
+          .in("leg_id", legIds),
+        supabase
+          .from("trip_records")
+          .select("leg_id, status")
+          .in("leg_id", legIds),
+      ]);
 
-      const slotMap = new Map<string, string>();
+      const slotMap = new Map<string, { truckName: string; slotStatus: string }>();
       for (const s of slotData ?? []) {
-        slotMap.set(s.leg_id, (s as any).truck?.name ?? "Unknown truck");
+        slotMap.set(s.leg_id, {
+          truckName: (s as any).truck?.name ?? "Unknown truck",
+          slotStatus: (s as any).status ?? "pending",
+        });
       }
+
+      const completedLegIds = new Set((tripData ?? []).map((t: any) => t.leg_id));
 
       // Build display items
       const items: UpcomingLeg[] = activeLegData.map((l: any) => {
-        // Resolve name: patient join first, then oneoff_name fallback
         const patientName = l.patient
           ? `${l.patient.first_name} ${l.patient.last_name}`
           : l.oneoff_name || "Unknown";
 
-        // Resolve locations: leg fields first, then oneoff fields, then patient fields
         const pickup = l.pickup_location
           || l.oneoff_pickup_address
           || l.patient?.pickup_address
@@ -127,6 +137,11 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
           || l.oneoff_dropoff_address
           || l.patient?.dropoff_facility
           || null;
+
+        const slot = slotMap.get(l.id);
+        const tripStatus = (tripData ?? []).find((t: any) => t.leg_id === l.id)?.status;
+        const terminalStatuses = ["completed", "ready_for_billing", "submitted", "paid"];
+        const isCompleted = slot?.slotStatus === "completed" || terminalStatuses.includes(tripStatus ?? "");
 
         return {
           id: l.id,
@@ -137,14 +152,16 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
           destination_location: destination,
           trip_type: l.trip_type,
           leg_type: l.leg_type,
-          assigned_truck_name: slotMap.get(l.id) ?? null,
+          assigned_truck_name: slot?.truckName ?? null,
+          is_completed: isCompleted,
         };
       });
 
-      // Sort: soonest date → earliest pickup → unassigned first
+      // Sort: soonest date → earliest pickup → completed last → unassigned first
       items.sort((a, b) => {
         if (a.run_date !== b.run_date) return a.run_date.localeCompare(b.run_date);
-        // Unassigned floats up
+        // Completed sinks to bottom
+        if (a.is_completed !== b.is_completed) return a.is_completed ? 1 : -1;
         const aUnassigned = !a.assigned_truck_name ? 0 : 1;
         const bUnassigned = !b.assigned_truck_name ? 0 : 1;
         if (aUnassigned !== bUnassigned) return aUnassigned - bUnassigned;
@@ -165,13 +182,16 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
       .channel("upcoming-non-dialysis")
       .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs" }, fetchLegs)
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, fetchLegs)
+      .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, fetchLegs)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchLegs]);
 
-  const displayed = unassignedOnly ? legs.filter(l => !l.assigned_truck_name) : legs;
-  const unassignedCount = legs.filter(l => !l.assigned_truck_name).length;
-  const totalCount = legs.length;
+  const nonCompleted = legs.filter(l => !l.is_completed);
+  const displayed = unassignedOnly ? nonCompleted.filter(l => !l.assigned_truck_name) : nonCompleted;
+  const unassignedCount = nonCompleted.filter(l => !l.assigned_truck_name).length;
+  const totalCount = nonCompleted.length;
+  const completedCount = legs.filter(l => l.is_completed).length;
 
   return (
     <section className="rounded-lg border bg-card overflow-hidden">
@@ -190,6 +210,11 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
           )}
           {totalCount > 0 && !unassignedOnly && (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{totalCount} total</Badge>
+          )}
+          {completedCount > 0 && (
+            <Badge className="bg-[hsl(var(--status-green))]/10 text-[hsl(var(--status-green))] border-[hsl(var(--status-green))]/25 text-[10px] px-1.5 py-0">
+              {completedCount} completed
+            </Badge>
           )}
         </div>
         <div className="flex items-center gap-2">
