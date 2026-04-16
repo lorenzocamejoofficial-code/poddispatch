@@ -272,10 +272,17 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
     for (const trip of completedTrips) {
       const payerRules = payerRulesMap.get(trip.payer ?? "") ?? null;
       const patient = trip.patient_id ? patientMap[trip.patient_id] ?? null : null;
-      map.set(trip.id, computeClaimScore(trip, patient, payerRules));
+      const scorePatient = (pcsResolvedMap.get(trip.id) || !!trip.pcs_attached)
+        ? {
+            ...(patient ?? {}),
+            pcs_on_file: true,
+            pcs_expiration_date: patient?.pcs_expiration_date ?? null,
+          }
+        : patient;
+      map.set(trip.id, computeClaimScore(trip, scorePatient, payerRules));
     }
     return map;
-  }, [completedTrips, payerRulesMap, patientMap]);
+  }, [completedTrips, payerRulesMap, patientMap, pcsResolvedMap]);
 
   const handleOverride = async () => {
     if (!selectedTrip || !overrideReason.trim()) {
