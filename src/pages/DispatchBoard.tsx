@@ -360,11 +360,17 @@ export default function DispatchBoard() {
 
     const holdTimerAlerts: AlertData[] = ((holdTimerRows ?? []) as any[]).map((ht: any) => {
       const trip = ((tripRows ?? []) as any[]).find((t: any) => t.id === ht.trip_id);
-      const truck = (truckRows ?? []).find((t: any) => t.id === trip?.truck_id);
-      const slot = ((slotRows ?? []) as any[]).find((s: any) => s.truck_id === trip?.truck_id && s.leg_id === trip?.leg_id);
+      // Try slot_id from hold_timer first, then fall back to trip's leg/truck lookup
+      const slot =
+        ((slotRows ?? []) as any[]).find((s: any) => s.id === ht.slot_id) ??
+        ((slotRows ?? []) as any[]).find((s: any) => s.leg_id === trip?.leg_id) ??
+        ((slotRows ?? []) as any[]).find((s: any) => s.truck_id === trip?.truck_id && s.leg_id === trip?.leg_id);
       const leg = slot?.leg as any;
+      const truck = (truckRows ?? []).find((t: any) => t.id === (trip?.truck_id ?? slot?.truck_id));
       const patient = leg?.patient;
-      const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
+      const patientName = leg?.is_oneoff
+        ? (leg?.oneoff_name ?? "One-Off")
+        : (patient ? `${patient.first_name} ${patient.last_name}` : "Unknown Patient");
       const truckName = truck?.name ?? "Unknown Truck";
       const holdLabel = (ht.hold_type === "wait_patient" || ht.hold_type === "patient_not_ready") ? "Patient Not Ready" : "Facility Delay";
       return {
