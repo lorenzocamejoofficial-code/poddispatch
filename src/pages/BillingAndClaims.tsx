@@ -588,7 +588,7 @@ export default function BillingAndClaims() {
     const duplicateBillableWarnings: string[] = [];
     for (const [, group] of billableByPatientDate) {
       if (group.length > 1) {
-        const patientName = group[0].patient ? `${group[0].patient.first_name ?? ""} ${group[0].patient.last_name ?? ""}`.trim() : "Unknown";
+        const patientName = group[0].patient ? `${group[0].patient.first_name ?? ""} ${group[0].patient.last_name ?? ""}`.trim() : (group[0].leg?.is_oneoff ? group[0].leg.oneoff_name : "Unknown");
         duplicateBillableWarnings.push(`${patientName} on ${group[0].run_date} (${group.length} trip records)`);
       }
     }
@@ -606,7 +606,7 @@ export default function BillingAndClaims() {
       if (t.patient_id) {
         const patientDateKey = `${t.patient_id}_${t.run_date}`;
         if (claimedPatientDates.has(patientDateKey)) {
-          const patientName = t.patient ? `${t.patient.first_name ?? ""} ${t.patient.last_name ?? ""}`.trim() : "Unknown";
+          const patientName = t.patient ? `${t.patient.first_name ?? ""} ${t.patient.last_name ?? ""}`.trim() : (t.leg?.is_oneoff ? t.leg.oneoff_name : "Unknown");
           duplicateWarnings.push(`${patientName} on ${t.run_date}`);
           continue;
         }
