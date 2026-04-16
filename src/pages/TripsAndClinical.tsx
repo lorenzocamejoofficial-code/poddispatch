@@ -185,27 +185,34 @@ export default function TripsAndClinical() {
 
       const patientIds = [...new Set(allTripRows.map((t: any) => t.patient_id).filter(Boolean))];
       const truckIds = [...new Set(allTripRows.map((t: any) => t.truck_id).filter(Boolean))];
+      const legIds = [...new Set(allTripRows.filter((t: any) => !t.patient_id && t.leg_id).map((t: any) => t.leg_id))];
 
-      const [{ data: pRows }, { data: tRows }] = await Promise.all([
+      const [{ data: pRows }, { data: tRows }, { data: legRows }] = await Promise.all([
         patientIds.length > 0
           ? supabase.from("patients").select("id, first_name, last_name, primary_payer, auth_expiration, auth_required, oxygen_required, bariatric").in("id", patientIds)
           : Promise.resolve({ data: [] }),
         truckIds.length > 0
           ? supabase.from("trucks").select("id, name").in("id", truckIds)
           : Promise.resolve({ data: [] }),
+        legIds.length > 0
+          ? supabase.from("scheduling_legs").select("id, is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_dob, oneoff_member_id, oneoff_sex").in("id", legIds)
+          : Promise.resolve({ data: [] }),
       ]);
 
       const pMap = new Map((pRows ?? []).map((p: any) => [p.id, p]));
       const tMap = new Map((tRows ?? []).map((t: any) => [t.id, t]));
+      const legMap = new Map((legRows ?? []).map((l: any) => [l.id, l]));
 
       const enriched: TripRecord[] = allTripRows.map((t: any) => {
         const p = pMap.get(t.patient_id) as any;
         const tr = tMap.get(t.truck_id) as any;
+        const leg = !p ? legMap.get(t.leg_id) as any : null;
+        const isOneoff = !p && leg?.is_oneoff;
         return {
           ...t,
-          patient_name: p ? `${p.first_name} ${p.last_name}` : "Unknown",
+          patient_name: p ? `${p.first_name} ${p.last_name}` : (isOneoff && leg?.oneoff_name ? leg.oneoff_name : "Unknown"),
           truck_name: tr?.name ?? "Unassigned",
-          payer: p?.primary_payer ?? "—",
+          payer: p?.primary_payer ?? (isOneoff ? leg?.oneoff_primary_payer ?? "—" : "—"),
           auth_expiration: p?.auth_expiration ?? null,
           auth_required: p?.auth_required ?? false,
           oxygen_required: p?.oxygen_required ?? false,
