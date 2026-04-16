@@ -121,7 +121,18 @@ export function HospitalOutcomeCard({ trip, updateField, requiredFields = ["disp
     <div className="space-y-3">
       <div>
         <label className="text-[10px] font-medium text-muted-foreground block mb-1">Time Admitted to ER</label>
-        <Input type="time" value={ho.time_admitted || ""} onChange={(e) => update("time_admitted", e.target.value)} className="h-10" />
+        <div className="flex gap-2">
+          <Input type="time" value={ho.time_admitted || ""} onChange={(e) => update("time_admitted", e.target.value)} className="h-10 flex-1" />
+          {ho.time_admitted && (
+            <button
+              type="button"
+              onClick={() => update("time_admitted", "")}
+              className="h-10 px-3 text-xs font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
       <div>
         <label className="text-[10px] font-medium text-muted-foreground block mb-1">Chief Complaint at Arrival</label>
