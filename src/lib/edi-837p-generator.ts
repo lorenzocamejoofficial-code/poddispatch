@@ -605,18 +605,40 @@ export function generateEDI837P(
   return segments.join("\n");
 }
 
-/** Validate claims have minimum required data for 837P export */
-export function validateClaimForEDI(claim: ClaimForEDI): string[] {
+/** Validate claims have minimum required data for 837P export.
+ *  Hard blockers — claim file will not generate if any of these fail.
+ *  Pass billingState (provider/company state) for state-specific timely filing rules.
+ */
+export function validateClaimForEDI(claim: ClaimForEDI, billingState?: string | null): string[] {
   const errors: string[] = [];
-  if (!claim.member_id) errors.push("Missing member ID");
-  if (!claim.patient_name) errors.push("Missing patient name");
+  if (!claim.member_id || !String(claim.member_id).trim() || String(claim.member_id).trim().toUpperCase() === "UNKNOWN") {
+    errors.push("Missing member ID");
+  }
   if (!claim.run_date) errors.push("Missing service date");
   if (!claim.total_charge || claim.total_charge <= 0) errors.push("Invalid charge amount");
   if (!claim.hcpcs_codes?.length) errors.push("Missing HCPCS codes");
   if (!claim.payer_name && !claim.payer_id) errors.push("Missing payer information");
 
-  // Patient address — require non-empty street, city, and ZIP. Resolve from
-  // dedicated fields first, fall back to parsing the combined address string.
+  // Patient name — both first and last required. splitPatientName uses "UNKNOWN"
+  // as a placeholder when parsing fails, so check for that explicitly.
+  const { last, first } = splitPatientName(claim.patient_name || "");
+  if (!claim.patient_name?.trim() || last === "UNKNOWN" || first === "UNKNOWN") {
+    errors.push("Missing patient first or last name");
+  }
+
+  // Patient DOB — required, must not be the 1900-01-01 placeholder
+  const dob = (claim.patient_dob || "").trim();
+  if (!dob || dob === "1900-01-01" || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+    errors.push("Missing patient date of birth");
+  }
+
+  // Patient sex — required, must be M or F (not U/null)
+  const sex = (claim.patient_sex || "").toUpperCase();
+  if (sex !== "M" && sex !== "F" && sex !== "MALE" && sex !== "FEMALE") {
+    errors.push("Missing patient sex");
+  }
+
+  // Patient address — require non-empty street, city, and ZIP.
   const parsed = parseAddressString(claim.patient_address);
   const street = (claim.patient_address ?? "").trim() || parsed.street;
   const city = (claim.patient_city ?? "").trim() || parsed.city;
@@ -624,6 +646,18 @@ export function validateClaimForEDI(claim: ClaimForEDI): string[] {
   if (!street.trim() || !city.trim() || !zip.trim()) {
     errors.push("Patient address incomplete — update patient record before submitting.");
   }
+
+  // Timely filing — block if DOS is past payer's filing limit
+  if (claim.run_date && /^\d{4}-\d{2}-\d{2}$/.test(claim.run_date)) {
+    const limit = timelyFilingDays(claim.payer_type, billingState ?? null);
+    const dos = new Date(claim.run_date + "T00:00:00");
+    const deadline = new Date(dos.getTime() + limit * 24 * 60 * 60 * 1000);
+    if (Date.now() > deadline.getTime()) {
+      const daysOver = Math.floor((Date.now() - deadline.getTime()) / (1000 * 60 * 60 * 24));
+      errors.push(`Timely filing deadline passed — DOS ${claim.run_date} is ${daysOver} days past the ${limit}-day limit for ${claim.payer_type ?? "payer"}.`);
+    }
+  }
+
   return errors;
 }
 
