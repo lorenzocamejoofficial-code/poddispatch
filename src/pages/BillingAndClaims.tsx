@@ -274,9 +274,9 @@ export default function BillingAndClaims() {
         const tr = tMap.get(t.truck_id) as any;
         return {
           ...t,
-          patient_name: p ? `${p.first_name} ${p.last_name}` : "Unknown",
+          patient_name: p ? `${p.first_name} ${p.last_name}` : ((t as any).leg?.is_oneoff ? (t as any).leg.oneoff_name : "Unknown"),
           truck_name: tr?.name ?? "Unassigned",
-          payer: p?.primary_payer ?? "—",
+          payer: p?.primary_payer ?? ((t as any).leg?.is_oneoff ? (t as any).leg.oneoff_primary_payer : null) ?? "—",
           auth_expiration: p?.auth_expiration ?? null,
           auth_required: p?.auth_required ?? false,
         };
