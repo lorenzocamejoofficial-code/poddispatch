@@ -251,17 +251,67 @@ function dmgSexCode(sex: string | null): string {
   return "U";
 }
 
-/** Build dynamic CRC condition codes from medical necessity fields */
+/** Build dynamic CRC condition codes from medical necessity / transport fields.
+ *  Spec-compliant CMS ambulance certification codes:
+ *    01 — patient admitted to a hospital (destination = hospital inpatient/ER)
+ *    04 — bed confined before AND after transport
+ *    05 — bed confined before transport only
+ *    06 — bed confined after transport only
+ *    07 — transferred to a non-hospital facility (e.g. SNF, dialysis)
+ *    08 — interfacility transport, patient is a hospital inpatient
+ *    09 — patient moved by stretcher
+ *  Oxygen is NOT a valid CRC certification condition and is intentionally omitted.
+ */
 function buildCrcCodes(claim: ClaimForEDI): string[] {
   const codes: string[] = [];
-  const hasAny = claim.bed_confined || claim.requires_monitoring || claim.oxygen_required ||
-    (claim.stretcher_placement && claim.stretcher_placement.toLowerCase() !== "ambulatory");
-  if (hasAny) codes.push("01"); // patient was transported
-  if (claim.bed_confined) codes.push("04"); // patient is bed-confined
-  if (claim.stretcher_placement && claim.stretcher_placement.toLowerCase() !== "ambulatory") codes.push("05"); // stretcher required
-  if (claim.requires_monitoring) codes.push("06"); // monitoring required
-  if (claim.oxygen_required) codes.push("07"); // oxygen required
-  return codes.slice(0, 4); // max 4 condition codes
+  const dest = (claim.destination_type || "").toLowerCase();
+  const stretcher = (claim.stretcher_placement || "").toLowerCase();
+
+  // 01 — admitted to hospital (destination is hospital)
+  if (dest.includes("hospital") && !dest.includes("hospital-based dialysis")) {
+    codes.push("01");
+  }
+  // 04 — bed confined before and after (we only track a single flag, treat as both)
+  if (claim.bed_confined) codes.push("04");
+  // 07 — transferred to non-hospital facility (SNF, dialysis, etc.)
+  if (
+    dest.includes("nursing") ||
+    dest.includes("snf") ||
+    dest.includes("dialysis") ||
+    dest === "n" ||
+    dest === "j" ||
+    dest === "g"
+  ) {
+    codes.push("07");
+  }
+  // 09 — moved by stretcher
+  if (stretcher && stretcher !== "ambulatory") codes.push("09");
+
+  return [...new Set(codes)].slice(0, 4); // dedupe + cap at 4
+}
+
+/** Map ICD-10 + transport context to CR1-04 ambulance transport reason code (A–E).
+ *    A — transported to nearest facility for care of symptoms (default)
+ *    B — transported for benefit of preferred physician
+ *    C — transported for nearness of family members
+ *    D — transported for care of a specialist or specialized equipment
+ *    E — other reason
+ */
+function buildCr1ReasonCode(claim: ClaimForEDI): string {
+  const dest = (claim.destination_type || "").toLowerCase();
+  // Dialysis = specialized equipment
+  if (dest.includes("dialysis") || dest === "j" || dest === "g") return "D";
+  return "A";
+}
+
+/** Timely filing limit in days by payer + state. */
+function timelyFilingDays(payerType: string | null, state: string | null): number {
+  const t = (payerType || "").toLowerCase();
+  const s = (state || "").toUpperCase();
+  if (t === "medicaid" && s === "GA") return 180; // Georgia Medicaid: 6 months
+  if (t === "medicare") return 365; // Medicare: 12 months
+  if (t === "medicaid") return 365; // default Medicaid
+  return 365;
 }
 
 function splitPatientName(fullName: string): { last: string; first: string } {
