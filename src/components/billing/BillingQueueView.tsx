@@ -80,13 +80,14 @@ function computeQueueDetails(
   trip: TripForQueue,
   payerRules: any,
   overrideMap?: Map<string, BillingOverrideRecord>,
+  pcsResolved?: boolean,
 ): {
   status: BillingQueueStatus;
   missing: string[];
   blockers: string[];
 } {
   // Active override always wins.
-  const status = computeBillingQueueStatus(trip, payerRules, overrideMap);
+  const status = computeBillingQueueStatus(trip, payerRules, overrideMap, pcsResolved);
   if (status === "ready") {
     return { status, missing: [], blockers: [] };
   }
@@ -97,7 +98,12 @@ function computeQueueDetails(
 
   // Read persisted readiness state from trip_record (set by Trips & Clinical / PCR submit).
   // Trip Queue no longer recomputes the gate independently — single source of truth.
-  const persistedBlockers = (trip.blockers ?? []).filter(b => !!b);
+  // Filter out PCS-related blockers when PCS has been resolved by patient record or biller entry.
+  const persistedBlockers = (trip.blockers ?? []).filter(b => {
+    if (!b) return false;
+    if (pcsResolved && /pcs/i.test(b)) return false;
+    return true;
+  });
 
   if (trip.claim_ready) {
     return { status: "ready", missing: [], blockers: [] };
@@ -106,7 +112,11 @@ function computeQueueDetails(
   if (trip.billing_blocked_reason) {
     const issues = persistedBlockers.length > 0
       ? persistedBlockers
-      : trip.billing_blocked_reason.split(",").map(s => s.trim()).filter(Boolean);
+      : trip.billing_blocked_reason
+          .split(",")
+          .map(s => s.trim())
+          .filter(s => s && !(pcsResolved && /pcs/i.test(s)));
+    if (issues.length === 0) return { status: "ready", missing: [], blockers: [] };
     return { status: "blocked", missing: [], blockers: issues };
   }
 
