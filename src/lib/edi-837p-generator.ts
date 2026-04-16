@@ -501,14 +501,17 @@ export function generateEDI837P(
     }
 
     // CR1 - Ambulance Transport Information
+    // CR1-04 must be a single-letter transport reason code (A–E), NOT the
+    // origin/destination facility modifier (which belongs on the SV1 line).
     const weightVal = claim.weight_lbs && claim.weight_lbs > 0 ? String(Math.round(claim.weight_lbs)) : "";
+    const cr1Reason = buildCr1ReasonCode(claim);
     addSeg(
       [
         "CR1",
         weightVal ? "LB" : "",       // Weight unit (only if weight present)
         weightVal,                   // Patient weight
         "A",                         // Ambulance transport code
-        facilityCode.length >= 2 ? facilityCode : "RD", // Transport reason
+        cr1Reason,                   // Transport reason A–E
         "DH",                        // Distance unit (miles)
         claim.loaded_miles > 0 ? String(claim.loaded_miles) : "1",
         "",                          // Description (optional)
@@ -545,14 +548,22 @@ export function generateEDI837P(
     }
 
     // --- SERVICE LINES (2400) ---
+    // Independent ambulance suppliers must append QN to every HCPCS line.
+    // Origin/destination modifier is required on every ambulance line as well.
+    const ensureQn = (mods: string[]): string[] => {
+      const set = new Set(mods.map(m => m.toUpperCase().trim()).filter(Boolean));
+      set.add("QN");
+      return [...set];
+    };
+    const baseModSet = ensureQn([facilityCode, ...(claim.hcpcs_modifiers || [])]);
+
     // Base rate line
     if (claim.base_charge > 0) {
       const baseHcpcs = claim.hcpcs_codes?.[0] || "A0428";
-      const mods = claim.hcpcs_modifiers || [];
       addSeg(["LX", "1"].join(ES));
       const sv1Parts = [
         "SV1",
-        `HC${SE_SEP}${baseHcpcs}${mods.length > 0 ? SE_SEP + mods.join(SE_SEP) : ""}`,
+        `HC${SE_SEP}${baseHcpcs}${baseModSet.length > 0 ? SE_SEP + baseModSet.join(SE_SEP) : ""}`,
         formatAmount(claim.base_charge),
         "UN",
         "1",
@@ -562,13 +573,14 @@ export function generateEDI837P(
       addSeg(["DTP", "472", "D8", formatDate8(claim.run_date)].join(ES));
     }
 
-    // Mileage line
+    // Mileage line — must also carry QN + origin/destination modifier
     if (claim.mileage_charge > 0 && claim.loaded_miles > 0) {
+      const mileageMods = ensureQn([facilityCode]);
       addSeg(["LX", "2"].join(ES));
       addSeg(
         [
           "SV1",
-          `HC${SE_SEP}A0425`,
+          `HC${SE_SEP}A0425${mileageMods.length > 0 ? SE_SEP + mileageMods.join(SE_SEP) : ""}`,
           formatAmount(claim.mileage_charge),
           "UN",
           String(Math.ceil(claim.loaded_miles)),
