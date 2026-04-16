@@ -587,10 +587,31 @@ export default function BillingAndClaims() {
     const { data: existing } = await supabase.from("claim_records" as any).select("trip_id, patient_id, run_date, status");
     const existingTripIds = new Set((existing ?? []).map((e: any) => e.trip_id).filter(Boolean));
 
-    // Build a set of patient+date combinations that already have non-voided claims
-    const existingPatientDateClaims = new Set(
-      (existing ?? []).filter((e: any) => e.patient_id && e.status !== "voided").map((e: any) => `${e.patient_id}_${e.run_date}`)
-    );
+    // Build a set of leg_id values from existing non-voided claims (via their trip_records)
+    // so legitimate A/B-leg pairs aren't falsely flagged as duplicates.
+    const existingClaimTripIds = (existing ?? [])
+      .filter((e: any) => e.trip_id && e.status !== "voided")
+      .map((e: any) => e.trip_id);
+    const existingClaimLegIds = new Set<string>();
+    if (existingClaimTripIds.length > 0) {
+      const { data: existingClaimTrips } = await supabase
+        .from("trip_records" as any)
+        .select("id, leg_id")
+        .in("id", existingClaimTripIds);
+      for (const t of (existingClaimTrips ?? []) as any[]) {
+        if (t.leg_id) existingClaimLegIds.add(t.leg_id);
+      }
+    }
+
+    // Build patient+date map of existing non-voided claims (with leg_id + route info)
+    // so we can distinguish a true duplicate from a valid reverse-leg pair.
+    const existingByPatientDate = new Map<string, any[]>();
+    for (const e of (existing ?? []) as any[]) {
+      if (!e.patient_id || e.status === "voided") continue;
+      const key = `${e.patient_id}_${e.run_date}`;
+      if (!existingByPatientDate.has(key)) existingByPatientDate.set(key, []);
+      existingByPatientDate.get(key)!.push(e);
+    }
 
     // Filter out trips that already have a claim (by trip_id)
     const newTrips = (trips as any[]).filter(t => !existingTripIds.has(t.id));
@@ -638,18 +659,43 @@ export default function BillingAndClaims() {
     const duplicateWarnings: string[] = [];
 
     // Track patient+date keys for claims being created in this batch
-    const claimedPatientDates = new Set(existingPatientDateClaims);
+    const claimedThisBatchByPatientDate = new Map<string, any[]>();
 
     for (const t of newTrips) {
-      // Duplicate patient+date detection — skip if a claim already exists for this patient on this date
+      // Duplicate detection — only skip if this trip's leg_id already has a claim,
+      // or if a same-patient/same-date claim exists with the SAME route direction
+      // (legitimate A-leg + B-leg pairs have reversed routes and must both be billed).
+      if (t.leg_id && existingClaimLegIds.has(t.leg_id)) {
+        const patientName = t.patient ? `${t.patient.first_name ?? ""} ${t.patient.last_name ?? ""}`.trim() : (t.leg?.is_oneoff ? t.leg.oneoff_name : "Unknown");
+        duplicateWarnings.push(`${patientName} on ${t.run_date}`);
+        continue;
+      }
+
       if (t.patient_id) {
         const patientDateKey = `${t.patient_id}_${t.run_date}`;
-        if (claimedPatientDates.has(patientDateKey)) {
+        const existingForKey = existingByPatientDate.get(patientDateKey) ?? [];
+        const batchForKey = claimedThisBatchByPatientDate.get(patientDateKey) ?? [];
+        const conflicts = [...existingForKey, ...batchForKey];
+
+        // Check for a same-direction conflict (same origin/destination types as this trip)
+        const sameDirectionConflict = conflicts.some((c: any) =>
+          c.origin_type && c.destination_type && t.origin_type && t.destination_type &&
+          String(c.origin_type).toLowerCase() === String(t.origin_type).toLowerCase() &&
+          String(c.destination_type).toLowerCase() === String(t.destination_type).toLowerCase()
+        );
+
+        if (sameDirectionConflict) {
           const patientName = t.patient ? `${t.patient.first_name ?? ""} ${t.patient.last_name ?? ""}`.trim() : (t.leg?.is_oneoff ? t.leg.oneoff_name : "Unknown");
           duplicateWarnings.push(`${patientName} on ${t.run_date}`);
           continue;
         }
-        claimedPatientDates.add(patientDateKey);
+
+        if (!claimedThisBatchByPatientDate.has(patientDateKey)) claimedThisBatchByPatientDate.set(patientDateKey, []);
+        claimedThisBatchByPatientDate.get(patientDateKey)!.push({
+          origin_type: t.origin_type,
+          destination_type: t.destination_type,
+          leg_id: t.leg_id,
+        });
       }
 
       // Emergency event: skip claim creation for emergency PCRs with no_emergency/accidental resolution
