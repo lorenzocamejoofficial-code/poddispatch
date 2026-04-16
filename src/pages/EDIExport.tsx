@@ -104,15 +104,15 @@ export default function EDIExport() {
         });
       }
 
-      // Fetch associated trips for loaded_miles
+      // Fetch associated trips for loaded_miles + oneoff leg data
       const tripIds = [...new Set(rawClaims.map((c) => c.trip_id).filter(Boolean))];
       let tripsMap: Record<string, any> = {};
       if (tripIds.length > 0) {
         const { data: trips } = await supabase
           .from("trip_records")
-          .select("id, loaded_miles, bed_confined, requires_monitoring, stretcher_placement, oxygen_during_transport, weight_lbs, pickup_location, destination_location")
+          .select("id, loaded_miles, bed_confined, requires_monitoring, stretcher_placement, oxygen_during_transport, weight_lbs, pickup_location, destination_location, leg_id, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_dob, oneoff_primary_payer, oneoff_member_id, oneoff_sex)")
           .in("id", tripIds);
-        (trips || []).forEach((t) => {
+        (trips || []).forEach((t: any) => {
           tripsMap[t.id] = t;
         });
       }
@@ -120,14 +120,24 @@ export default function EDIExport() {
       const enriched = rawClaims.map((c: any) => {
         const pat = patientsMap[c.patient_id] || {};
         const trip = tripsMap[c.trip_id] || {};
+        const leg = trip.leg as any;
+        const isOneoff = !c.patient_id && leg?.is_oneoff;
+        // For oneoff, split oneoff_name into first/last
+        let oneoffFirst = "";
+        let oneoffLast = "";
+        if (isOneoff && leg?.oneoff_name) {
+          const parts = leg.oneoff_name.trim().split(/\s+/);
+          oneoffFirst = parts[0] ?? "";
+          oneoffLast = parts.slice(1).join(" ") || "";
+        }
         return {
           ...c,
-          patient_first_name: pat.first_name,
-          patient_last_name: pat.last_name,
-          patient_dob: pat.dob,
+          patient_first_name: pat.first_name ?? (isOneoff ? oneoffFirst : undefined),
+          patient_last_name: pat.last_name ?? (isOneoff ? oneoffLast : undefined),
+          patient_dob: pat.dob ?? (isOneoff ? leg?.oneoff_dob : undefined),
           patient_pickup_address: pat.pickup_address,
-          patient_member_id: pat.member_id || c.member_id,
-          patient_primary_payer: pat.primary_payer,
+          patient_member_id: pat.member_id || c.member_id || (isOneoff ? leg?.oneoff_member_id : null),
+          patient_primary_payer: pat.primary_payer ?? (isOneoff ? leg?.oneoff_primary_payer : null),
           trip_loaded_miles: trip.loaded_miles,
         };
       });
