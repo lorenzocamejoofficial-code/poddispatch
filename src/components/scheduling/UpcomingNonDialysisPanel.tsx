@@ -110,8 +110,7 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
         supabase
           .from("trip_records")
           .select("leg_id, status")
-          .in("leg_id", legIds)
-          .in("status", ["completed", "ready_for_billing", "submitted", "paid"]),
+          .in("leg_id", legIds),
       ]);
 
       const slotMap = new Map<string, { truckName: string; slotStatus: string }>();
