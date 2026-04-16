@@ -83,12 +83,15 @@ export function computeClaimScore(
   if (!isEmergency) {
     const pcsRequired = payerRules?.requires_pcs !== false; // default true
     if (pcsRequired) {
-      const pcsOnFile = patient?.pcs_on_file;
-      const pcsExpired =
+      const tripPcsAttached = !!trip.pcs_attached;
+      const patientPcsExpired = !!(
         patient?.pcs_expiration_date &&
         trip.run_date &&
-        new Date(patient.pcs_expiration_date) < new Date(trip.run_date);
-      if (!pcsOnFile || pcsExpired) {
+        new Date(patient.pcs_expiration_date) < new Date(trip.run_date)
+      );
+      const patientHasValidPcs = !!patient?.pcs_on_file && !patientPcsExpired;
+
+      if (!tripPcsAttached && !patientHasValidPcs) {
         deduct(15, "PCS missing or expired — required by this payer.");
       }
     }

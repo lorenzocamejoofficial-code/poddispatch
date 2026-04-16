@@ -273,8 +273,15 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         }
       }
 
-      // Compute claim score (uses same payer rules object)
-      setClaimScore(computeClaimScore(t, p, payerRulesObj as any));
+      // Compute claim score using the same PCS resolution paths as the checklist.
+      const scorePatient = (patientPcsValid || billerPcsComplete || !!t.pcs_attached)
+        ? {
+            ...(p ?? {}),
+            pcs_on_file: true,
+            pcs_expiration_date: patientPcsValid ? p?.pcs_expiration_date ?? null : null,
+          }
+        : p;
+      setClaimScore(computeClaimScore(t, scorePatient, payerRulesObj as any));
 
       setItems(checks);
       setLoading(false);
