@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
+import { deriveServiceLevel, deriveHcpcsBaseCode } from "@/lib/transport-context";
+import { HCPCS_CODE_DESCRIPTIONS } from "@/lib/billing-utils";
 
 interface Props { trip: any; updateField?: (field: string, value: any) => Promise<void>; readOnly?: boolean; }
 
@@ -23,17 +25,11 @@ export function BillingCard({ trip, updateField, readOnly = false }: Props) {
     }
   }, [trip.odometer_at_scene, trip.odometer_at_destination, trip.loaded_miles, updateField]);
 
-  // Auto-derive HCPCS — use pcr_type (authoritative) instead of trip_type
-  let hcpcs = "A0428"; // BLS default
-  let serviceLevel = "BLS";
-  const transportType = (trip.pcr_type || trip.trip_type || "").toLowerCase();
-  if (transportType.includes("emergency")) {
-    hcpcs = "A0429";
-    serviceLevel = "BLS Emergency";
-  } else if (transportType.includes("ift") || transportType.includes("als")) {
-    hcpcs = "A0426";
-    serviceLevel = "ALS1";
-  }
+  // Derive service level and HCPCS from the run record — single source of truth
+  const isEmergency = (trip.pcr_type || trip.trip_type || "").toLowerCase() === "emergency";
+  const serviceLevel = deriveServiceLevel(trip.trip_type || trip.pcr_type, trip.service_level);
+  const hcpcs = deriveHcpcsBaseCode(serviceLevel, isEmergency);
+  const serviceLevelLabel = isEmergency ? `${serviceLevel} Emergency` : serviceLevel;
 
   const odomScene = trip.odometer_at_scene;
   const odomDest = trip.odometer_at_destination;
@@ -97,10 +93,11 @@ export function BillingCard({ trip, updateField, readOnly = false }: Props) {
         <div>
           <p className="text-[10px] font-medium text-muted-foreground uppercase">HCPCS Code</p>
           <p className="text-sm font-bold text-foreground">{hcpcs}</p>
+          <p className="text-[9px] text-muted-foreground">{HCPCS_CODE_DESCRIPTIONS[hcpcs] ?? ""}</p>
         </div>
         <div>
           <p className="text-[10px] font-medium text-muted-foreground uppercase">Service Level</p>
-          <p className="text-sm font-medium text-foreground">{serviceLevel}</p>
+          <p className="text-sm font-medium text-foreground">{serviceLevelLabel}</p>
         </div>
         <div>
           <p className="text-[10px] font-medium text-muted-foreground uppercase">Mileage Code</p>
@@ -129,6 +126,9 @@ export function BillingCard({ trip, updateField, readOnly = false }: Props) {
         )}
         {patient?.standing_order && (
           <Badge variant="outline" className="text-xs border-emerald-300 text-emerald-700">Standing Order</Badge>
+        )}
+        {trip.is_unscheduled && (
+          <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">Same-Day / Unscheduled</Badge>
         )}
       </div>
     </div>
