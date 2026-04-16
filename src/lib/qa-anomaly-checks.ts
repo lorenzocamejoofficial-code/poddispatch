@@ -26,6 +26,10 @@ export interface TripForQA {
   requires_monitoring: boolean | null;
   oxygen_during_transport: boolean | null;
   signatures_json: any;
+  service_level: string | null;
+  pcr_type: string | null;
+  trip_type: string | null;
+  is_unscheduled: boolean | null;
 }
 
 interface PatientForQA {
@@ -83,11 +87,17 @@ export function checkTrip(
     push(flags, trip.id, cid, "Both odometer readings are missing. At least scene and destination odometer values are required for a completed trip.", "red", "missing_odometers");
   }
 
-  if (patient) {
+  // PCS check — skip for emergency and unscheduled transports
+  const isEmergency = (trip.pcr_type ?? trip.trip_type ?? "").toLowerCase() === "emergency";
+  const isUnscheduled = !!trip.is_unscheduled;
+
+  if (patient && !isEmergency) {
     const rule = payerRules.find(r => r.payer_type === (patient.primary_payer ?? "default"));
     if (rule?.requires_pcs) {
       if (!patient.pcs_on_file || (patient.pcs_expiration_date && patient.pcs_expiration_date < trip.run_date)) {
-        push(flags, trip.id, cid, "PCS is missing or expired for this patient. An active Physician Certification Statement is required by the payer for billing.", "red", "pcs_missing_expired");
+        const severity = isUnscheduled ? "yellow" : "red";
+        const suffix = isUnscheduled ? " (Same-day unscheduled — may be waived.)" : "";
+        push(flags, trip.id, cid, `PCS is missing or expired for this patient. An active Physician Certification Statement is required by the payer for billing.${suffix}`, severity, "pcs_missing_expired");
       }
     }
   }
