@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { computeClaimScore, getScoreBgClass, type ClaimScoreResult } from "@/lib/claim-score";
-
+import { BillerPcsPanel } from "@/components/billing/BillerPcsPanel";
 interface ChecklistItem {
   label: string;
   passed: boolean;
@@ -28,6 +28,8 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [claimScore, setClaimScore] = useState<ClaimScoreResult | null>(null);
+  const [pcsApplicable, setPcsApplicable] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -37,7 +39,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const [{ data: trip }, { data: patient }, { data: claimRow }, { data: payerDir }] = await Promise.all([
         supabase
           .from("trip_records" as any)
-          .select("*")
+          .select("*, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_member_id, oneoff_primary_payer)")
           .eq("id", tripId)
           .maybeSingle(),
         patientId
@@ -45,7 +47,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           : Promise.resolve({ data: null }),
         supabase
           .from("claim_records" as any)
-          .select("has_emergency_event, emergency_billing_reviewed_at, hcpcs_codes, payer_type")
+          .select("has_emergency_event, emergency_billing_reviewed_at, hcpcs_codes, payer_type, member_id, icd10_codes, pcs_physician_name, pcs_physician_npi, pcs_certification_date, pcs_diagnosis")
           .eq("trip_id", tripId)
           .maybeSingle(),
         activeCompanyId
@@ -66,24 +68,49 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const isEmergency = (t.pcr_type ?? "").toLowerCase() === "emergency";
       const isUnscheduled = !!t.is_unscheduled;
       const pcsSkippable = isEmergency || isUnscheduled;
+      setPcsApplicable(!pcsSkippable);
+
+      // Biller-entered PCS satisfies the PCS check (overrides patient-record PCS)
+      const billerPcsComplete = !!(claim?.pcs_physician_name && claim?.pcs_physician_npi && claim?.pcs_certification_date && claim?.pcs_diagnosis);
+
+      // Member ID — for one-off runs, falls back to claim.member_id (which carries from leg.oneoff_member_id) and leg.oneoff_member_id directly
+      const effectiveMemberId = (p?.member_id && String(p.member_id).trim())
+        || (claim?.member_id && String(claim.member_id).trim())
+        || (t.leg?.oneoff_member_id && String(t.leg.oneoff_member_id).trim())
+        || "";
+
+      // ICD-10 — read from trip first, fall back to claim record
+      const effectiveIcd10: string[] = (Array.isArray(t.icd10_codes) && t.icd10_codes.length > 0)
+        ? t.icd10_codes
+        : (Array.isArray(claim?.icd10_codes) ? claim.icd10_codes : []);
+
+      // Medical necessity — booleans OR free-text reason from PCR
+      const hasNecessity = !!(t.bed_confined || t.cannot_transfer_safely || t.requires_monitoring || t.oxygen_during_transport
+        || (t.medical_necessity_reason && String(t.medical_necessity_reason).trim())
+        || (t.necessity_notes && String(t.necessity_notes).trim()));
 
       const checks: ChecklistItem[] = [
         {
           label: "PCS on file and not expired",
           passed: pcsSkippable
             ? true
-            : !!(p?.pcs_on_file && (!p?.pcs_expiration_date || new Date(p.pcs_expiration_date) >= new Date(t.run_date))),
+            : billerPcsComplete
+              ? true
+              : !!(p?.pcs_on_file && (!p?.pcs_expiration_date || new Date(p.pcs_expiration_date) >= new Date(t.run_date))),
           detail: isEmergency
             ? "Not required for emergency transport"
             : isUnscheduled
             ? "Same-day unscheduled — PCS not required at submission"
+            : billerPcsComplete
+              ? `Completed by biller — ${claim.pcs_physician_name}, NPI ${claim.pcs_physician_npi}`
             : p?.pcs_on_file
               ? (p?.pcs_expiration_date ? `Expires ${p.pcs_expiration_date}` : "On file, no expiration")
-              : "Not on file",
+              : "Not on file — use the PCS panel below to enter physician details, or upload a PCS form",
         },
         {
           label: "At least one medical necessity criterion checked",
-          passed: !!(t.bed_confined || t.cannot_transfer_safely || t.requires_monitoring || t.oxygen_during_transport),
+          passed: hasNecessity,
+          detail: hasNecessity ? undefined : "Open the PCR Medical Necessity card and check at least one criterion",
         },
         {
           label: "All required timestamps present",
@@ -121,13 +148,13 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         },
         {
           label: "ICD-10 diagnosis codes present",
-          passed: !!(t.icd10_codes && Array.isArray(t.icd10_codes) && t.icd10_codes.length > 0),
-          detail: t.icd10_codes?.length ? t.icd10_codes.join(", ") : "Diagnosis codes required — open the PCR and add at least one ICD-10 code in the Assessment section",
+          passed: effectiveIcd10.length > 0,
+          detail: effectiveIcd10.length > 0 ? effectiveIcd10.join(", ") : "Diagnosis codes required — open the PCR and add at least one ICD-10 code in the Assessment section",
         },
         {
           label: "Member ID present",
-          passed: !!(p?.member_id && String(p.member_id).trim() !== ""),
-          detail: !p?.member_id ? "Patient member ID is missing — update the patient record before submitting" : undefined,
+          passed: effectiveMemberId !== "",
+          detail: effectiveMemberId !== "" ? effectiveMemberId : "Member ID is missing — update the patient record (or one-off run details) before submitting",
         },
       ];
 
@@ -188,7 +215,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       setItems(checks);
       setLoading(false);
     })();
-  }, [open, tripId, patientId, activeCompanyId]);
+  }, [open, tripId, patientId, activeCompanyId, refreshTick]);
 
   const allPassed = items.length > 0 && items.every(i => i.passed || i.isWarning);
   const failedCount = items.filter(i => !i.passed && !i.isWarning).length;
@@ -214,7 +241,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardCheck className="h-5 w-5 text-primary" />
@@ -224,6 +251,14 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
             All items must pass before this claim can be submitted.
           </DialogDescription>
         </DialogHeader>
+
+        {!loading && pcsApplicable && tripId && (
+          <BillerPcsPanel
+            tripId={tripId}
+            patientId={patientId ?? null}
+            onCompleted={() => setRefreshTick(t => t + 1)}
+          />
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">

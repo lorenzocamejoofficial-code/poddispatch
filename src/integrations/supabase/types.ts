@@ -434,6 +434,12 @@ export type Database = {
           payer_claim_control_number: string | null
           payer_name: string | null
           payer_type: string | null
+          pcs_certification_date: string | null
+          pcs_completed_at: string | null
+          pcs_completed_by: string | null
+          pcs_diagnosis: string | null
+          pcs_physician_name: string | null
+          pcs_physician_npi: string | null
           remittance_date: string | null
           resubmission_count: number | null
           resubmitted_at: string | null
@@ -502,6 +508,12 @@ export type Database = {
           payer_claim_control_number?: string | null
           payer_name?: string | null
           payer_type?: string | null
+          pcs_certification_date?: string | null
+          pcs_completed_at?: string | null
+          pcs_completed_by?: string | null
+          pcs_diagnosis?: string | null
+          pcs_physician_name?: string | null
+          pcs_physician_npi?: string | null
           remittance_date?: string | null
           resubmission_count?: number | null
           resubmitted_at?: string | null
@@ -570,6 +582,12 @@ export type Database = {
           payer_claim_control_number?: string | null
           payer_name?: string | null
           payer_type?: string | null
+          pcs_certification_date?: string | null
+          pcs_completed_at?: string | null
+          pcs_completed_by?: string | null
+          pcs_diagnosis?: string | null
+          pcs_physician_name?: string | null
+          pcs_physician_npi?: string | null
           remittance_date?: string | null
           resubmission_count?: number | null
           resubmitted_at?: string | null

@@ -276,6 +276,10 @@ export default function EDIExport() {
           weight_lbs: trip.weight_lbs || pat.weight_lbs || null,
           pickup_facility_name: extractFacilityName(trip.pickup_location) || null,
           dropoff_facility_name: extractFacilityName(trip.destination_location) || null,
+          pcs_physician_name: (c as any).pcs_physician_name ?? null,
+          pcs_physician_npi: (c as any).pcs_physician_npi ?? null,
+          pcs_certification_date: (c as any).pcs_certification_date ?? null,
+          pcs_diagnosis: (c as any).pcs_diagnosis ?? null,
         };
       });
 
