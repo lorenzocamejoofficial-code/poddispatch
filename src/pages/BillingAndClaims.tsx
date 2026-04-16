@@ -397,6 +397,23 @@ export default function BillingAndClaims() {
   };
 
   // Helper: build claim data from a trip
+  // Validates that a patient address string contains street + city + ZIP.
+  // Returns null when complete, or a human message when incomplete.
+  const validatePatientAddress = (addr: string | null | undefined): string | null => {
+    const raw = (addr ?? "").trim();
+    if (!raw) return "Patient address incomplete — update patient record before submitting.";
+    // Require a 5-digit ZIP, at least one comma OR multi-word street, and a city token.
+    const hasZip = /\b\d{5}(?:-\d{4})?\b/.test(raw);
+    const tokens = raw.split(/[,\s]+/).filter(Boolean);
+    const hasStreet = /\d/.test(raw) && tokens.length >= 2;
+    // City heuristic: at least 3 distinct comma/space tokens beyond ZIP
+    const hasCity = tokens.length >= 3;
+    if (!hasZip || !hasStreet || !hasCity) {
+      return "Patient address incomplete — update patient record before submitting.";
+    }
+    return null;
+  };
+
   // Supports oneoff runs by falling back to scheduling_legs oneoff fields
   const buildClaimFromTrip = (t: any) => {
     const leg = t.leg as any;
