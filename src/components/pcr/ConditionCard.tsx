@@ -1,6 +1,7 @@
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { LEVEL_OF_CONSCIOUSNESS, SKIN_CONDITIONS, TRANSPORT_CONDITIONS } from "@/lib/pcr-dropdowns";
+import { LEVEL_OF_CONSCIOUSNESS, SKIN_CONDITIONS, TRANSPORT_CONDITIONS, WOUND_TYPES, PRESSURE_ULCER_STAGES } from "@/lib/pcr-dropdowns";
 
 const DESTINATION_CONDITIONS = [
   "Alert/Oriented",
