@@ -336,12 +336,17 @@ export default function Scheduling() {
     pickup_time: "", notes: "",
     pickup_location_type: "", destination_type: "",
     needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
+    // Demographics for PCR carry-over
+    dob: "", sex: "", weight_lbs: "", mobility: "ambulatory", oxygen: false,
+    primary_payer: "", member_id: "",
   });
   const resetOneoffForm = () => setOneoffForm({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
     pickup_time: "", notes: "",
     pickup_location_type: "", destination_type: "",
     needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
+    dob: "", sex: "", weight_lbs: "", mobility: "ambulatory", oxygen: false,
+    primary_payer: "", member_id: "",
   });
 
   // Existing patient form extra state
@@ -466,10 +471,14 @@ export default function Scheduling() {
         oneoff_name: oneoffForm.name,
         oneoff_pickup_address: oneoffForm.pickup_location,
         oneoff_dropoff_address: oneoffForm.destination_location,
-        oneoff_weight_lbs: null,
-        oneoff_mobility: "ambulatory",
-        oneoff_oxygen: false,
+        oneoff_weight_lbs: oneoffForm.weight_lbs ? Number(oneoffForm.weight_lbs) : null,
+        oneoff_mobility: oneoffForm.mobility || "ambulatory",
+        oneoff_oxygen: oneoffForm.oxygen,
         oneoff_notes: oneoffForm.notes || null,
+        oneoff_dob: oneoffForm.dob || null,
+        oneoff_sex: oneoffForm.sex || null,
+        oneoff_primary_payer: oneoffForm.primary_payer || null,
+        oneoff_member_id: oneoffForm.member_id || null,
         origin_type: oneoffForm.pickup_location_type || null,
         destination_type: oneoffForm.destination_type || null,
       } as any);
@@ -494,10 +503,14 @@ export default function Scheduling() {
           oneoff_name: oneoffForm.name,
           oneoff_pickup_address: oneoffForm.destination_location,
           oneoff_dropoff_address: oneoffForm.pickup_location,
-          oneoff_weight_lbs: null,
-          oneoff_mobility: "ambulatory",
-          oneoff_oxygen: false,
+          oneoff_weight_lbs: oneoffForm.weight_lbs ? Number(oneoffForm.weight_lbs) : null,
+          oneoff_mobility: oneoffForm.mobility || "ambulatory",
+          oneoff_oxygen: oneoffForm.oxygen,
           oneoff_notes: oneoffForm.notes || null,
+          oneoff_dob: oneoffForm.dob || null,
+          oneoff_sex: oneoffForm.sex || null,
+          oneoff_primary_payer: oneoffForm.primary_payer || null,
+          oneoff_member_id: oneoffForm.member_id || null,
           origin_type: oneoffForm.destination_type || null,
           destination_type: oneoffForm.pickup_location_type || null,
         } as any);
