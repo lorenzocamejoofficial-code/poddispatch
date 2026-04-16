@@ -2683,12 +2683,16 @@ export type Database = {
           is_simulated: boolean
           leg_type: Database["public"]["Enums"]["leg_type"]
           notes: string | null
+          oneoff_dob: string | null
           oneoff_dropoff_address: string | null
+          oneoff_member_id: string | null
           oneoff_mobility: string | null
           oneoff_name: string | null
           oneoff_notes: string | null
           oneoff_oxygen: boolean | null
           oneoff_pickup_address: string | null
+          oneoff_primary_payer: string | null
+          oneoff_sex: string | null
           oneoff_weight_lbs: number | null
           origin_type: string | null
           patient_id: string | null
@@ -2711,12 +2715,16 @@ export type Database = {
           is_simulated?: boolean
           leg_type: Database["public"]["Enums"]["leg_type"]
           notes?: string | null
+          oneoff_dob?: string | null
           oneoff_dropoff_address?: string | null
+          oneoff_member_id?: string | null
           oneoff_mobility?: string | null
           oneoff_name?: string | null
           oneoff_notes?: string | null
           oneoff_oxygen?: boolean | null
           oneoff_pickup_address?: string | null
+          oneoff_primary_payer?: string | null
+          oneoff_sex?: string | null
           oneoff_weight_lbs?: number | null
           origin_type?: string | null
           patient_id?: string | null
@@ -2739,12 +2747,16 @@ export type Database = {
           is_simulated?: boolean
           leg_type?: Database["public"]["Enums"]["leg_type"]
           notes?: string | null
+          oneoff_dob?: string | null
           oneoff_dropoff_address?: string | null
+          oneoff_member_id?: string | null
           oneoff_mobility?: string | null
           oneoff_name?: string | null
           oneoff_notes?: string | null
           oneoff_oxygen?: boolean | null
           oneoff_pickup_address?: string | null
+          oneoff_primary_payer?: string | null
+          oneoff_sex?: string | null
           oneoff_weight_lbs?: number | null
           origin_type?: string | null
           patient_id?: string | null
