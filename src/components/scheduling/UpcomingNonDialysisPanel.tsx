@@ -211,6 +211,11 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
           {totalCount > 0 && !unassignedOnly && (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{totalCount} total</Badge>
           )}
+          {completedCount > 0 && (
+            <Badge className="bg-[hsl(var(--status-green))]/10 text-[hsl(var(--status-green))] border-[hsl(var(--status-green))]/25 text-[10px] px-1.5 py-0">
+              {completedCount} completed
+            </Badge>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-muted-foreground">
