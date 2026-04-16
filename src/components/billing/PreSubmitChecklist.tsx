@@ -65,9 +65,40 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const p = patient as any;
       const claim = claimRow as any;
 
+      // Resolve payer rules from Compliance & QA (payer_billing_rules) first — single source of truth.
+      const claimPayerType = String(claim?.payer_type ?? p?.primary_payer ?? "").toLowerCase().trim();
+      let payerRulesObj: {
+        requires_pcs?: boolean | null;
+        requires_signature?: boolean | null;
+        requires_timestamps?: boolean | null;
+        requires_miles?: boolean | null;
+        requires_necessity_note?: boolean | null;
+        requires_auth?: boolean | null;
+      } | null = null;
+      if (activeCompanyId && claimPayerType) {
+        const { data: pr } = await supabase
+          .from("payer_billing_rules")
+          .select("requires_pcs, requires_signature, requires_timestamps, requires_miles, requires_necessity_note, requires_auth")
+          .eq("company_id", activeCompanyId)
+          .eq("payer_type", claimPayerType)
+          .maybeSingle();
+        if (pr) payerRulesObj = pr;
+      }
+
+      // Default to "required" if a column is null/missing — payer rules default-on for safety.
+      const ruleOn = (v: boolean | null | undefined) => v !== false;
+      const need = {
+        pcs: ruleOn(payerRulesObj?.requires_pcs),
+        signature: ruleOn(payerRulesObj?.requires_signature),
+        timestamps: ruleOn(payerRulesObj?.requires_timestamps),
+        miles: ruleOn(payerRulesObj?.requires_miles),
+        necessity: ruleOn(payerRulesObj?.requires_necessity_note),
+        auth: ruleOn(payerRulesObj?.requires_auth),
+      };
+
       const isEmergency = (t.pcr_type ?? "").toLowerCase() === "emergency";
       const isUnscheduled = !!t.is_unscheduled;
-      const pcsSkippable = isEmergency || isUnscheduled;
+      const pcsSkippable = isEmergency || isUnscheduled || !need.pcs;
       setPcsApplicable(!pcsSkippable);
 
       // Biller-entered PCS satisfies the PCS check (overrides patient-record PCS)
@@ -89,8 +120,11 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         || (t.medical_necessity_reason && String(t.medical_necessity_reason).trim())
         || (t.necessity_notes && String(t.necessity_notes).trim()));
 
-      const checks: ChecklistItem[] = [
-        {
+      const checks: ChecklistItem[] = [];
+
+      // PCS — gated by payer rule
+      if (need.pcs) {
+        checks.push({
           label: "PCS on file and not expired",
           passed: pcsSkippable
             ? true
@@ -106,13 +140,21 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
             : p?.pcs_on_file
               ? (p?.pcs_expiration_date ? `Expires ${p.pcs_expiration_date}` : "On file, no expiration")
               : "Not on file — use the PCS panel below to enter physician details, or upload a PCS form",
-        },
-        {
+        });
+      }
+
+      // Medical necessity — gated by payer rule
+      if (need.necessity) {
+        checks.push({
           label: "At least one medical necessity criterion checked",
           passed: hasNecessity,
           detail: hasNecessity ? undefined : "Open the PCR Medical Necessity card and check at least one criterion",
-        },
-        {
+        });
+      }
+
+      // Timestamps — gated by payer rule
+      if (need.timestamps) {
+        checks.push({
           label: "All required timestamps present",
           passed: !!(t.dispatch_time && t.at_scene_time && t.left_scene_time && t.arrived_dropoff_at && t.in_service_time),
           detail: [
@@ -122,41 +164,61 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
             !t.arrived_dropoff_at && "At Destination",
             !t.in_service_time && "In Service",
           ].filter(Boolean).join(", ") || undefined,
-        },
-        {
+        });
+      }
+
+      // Crew signature — gated by payer rule
+      if (need.signature) {
+        checks.push({
           label: "Crew signature present",
           passed: !!(t.signatures_json && Array.isArray(t.signatures_json) && t.signatures_json.length > 0),
-        },
-        {
+        });
+      }
+
+      // Loaded miles + odometers — gated by payer rule
+      if (need.miles) {
+        checks.push({
           label: "Loaded miles recorded",
           passed: !!(t.loaded_miles && Number(t.loaded_miles) > 0),
           detail: t.loaded_miles ? `${t.loaded_miles} miles` : undefined,
-        },
-        {
+        });
+        checks.push({
           label: "Odometer readings present",
           passed: !!(t.odometer_at_scene != null && t.odometer_at_destination != null),
-        },
-        {
-          label: "HCPCS codes assigned",
-          passed: !!(claim?.hcpcs_codes && Array.isArray(claim.hcpcs_codes) && claim.hcpcs_codes.length > 0),
-          detail: claim?.hcpcs_codes?.length ? claim.hcpcs_codes.join(", ") : undefined,
-        },
-        {
-          label: "Origin and destination modifiers present",
-          passed: !!(t.origin_type && t.destination_type),
-          detail: t.origin_type && t.destination_type ? `${t.origin_type} → ${t.destination_type}` : undefined,
-        },
-        {
-          label: "ICD-10 diagnosis codes present",
-          passed: effectiveIcd10.length > 0,
-          detail: effectiveIcd10.length > 0 ? effectiveIcd10.join(", ") : "Diagnosis codes required — open the PCR and add at least one ICD-10 code in the Assessment section",
-        },
-        {
-          label: "Member ID present",
-          passed: effectiveMemberId !== "",
-          detail: effectiveMemberId !== "" ? effectiveMemberId : "Member ID is missing — update the patient record (or one-off run details) before submitting",
-        },
-      ];
+        });
+      }
+
+      // Authorization — gated by payer rule
+      if (need.auth && p?.auth_required) {
+        const hasAuth = !!(p?.prior_auth_number && (!p?.auth_expiration || new Date(p.auth_expiration) >= new Date(t.run_date)));
+        checks.push({
+          label: "Prior authorization on file and not expired",
+          passed: hasAuth,
+          detail: hasAuth ? undefined : "Patient requires authorization — add a valid prior auth number on the patient record",
+        });
+      }
+
+      // HCPCS, modifiers, ICD-10, member ID — always required for any payable claim
+      checks.push({
+        label: "HCPCS codes assigned",
+        passed: !!(claim?.hcpcs_codes && Array.isArray(claim.hcpcs_codes) && claim.hcpcs_codes.length > 0),
+        detail: claim?.hcpcs_codes?.length ? claim.hcpcs_codes.join(", ") : undefined,
+      });
+      checks.push({
+        label: "Origin and destination modifiers present",
+        passed: !!(t.origin_type && t.destination_type),
+        detail: t.origin_type && t.destination_type ? `${t.origin_type} → ${t.destination_type}` : undefined,
+      });
+      checks.push({
+        label: "ICD-10 diagnosis codes present",
+        passed: effectiveIcd10.length > 0,
+        detail: effectiveIcd10.length > 0 ? effectiveIcd10.join(", ") : "Diagnosis codes required — open the PCR and add at least one ICD-10 code in the Assessment section",
+      });
+      checks.push({
+        label: "Member ID present",
+        passed: effectiveMemberId !== "",
+        detail: effectiveMemberId !== "" ? effectiveMemberId : "Member ID is missing — update the patient record (or one-off run details) before submitting",
+      });
 
       // Emergency billing decision check — only applies when claim has emergency event
       if (claim?.has_emergency_event) {
@@ -171,12 +233,11 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
 
       // Timely filing deadline check
       if (t.run_date) {
-        const payerType = (claim?.payer_type ?? p?.primary_payer ?? "").toLowerCase();
         const filingMap: Record<string, number> = {};
         for (const pd of payerDir ?? []) {
           if (pd.payer_type) filingMap[pd.payer_type.toLowerCase()] = pd.timely_filing_days ?? 365;
         }
-        const filingLimit = filingMap[payerType] ?? 365;
+        const filingLimit = filingMap[claimPayerType] ?? 365;
         const dosDate = new Date(t.run_date);
         const deadlineDate = new Date(dosDate.getTime() + filingLimit * 24 * 60 * 60 * 1000);
         const daysRemaining = Math.floor((deadlineDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -198,19 +259,8 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         }
       }
 
-      // Compute claim score
-      const claimPayerType = (claim?.payer_type ?? p?.primary_payer ?? "").toLowerCase();
-      let payerRulesObj: Record<string, any> | null = null;
-      if (activeCompanyId && claimPayerType) {
-        const { data: pr } = await supabase
-          .from("payer_billing_rules")
-          .select("requires_pcs")
-          .eq("company_id", activeCompanyId)
-          .eq("payer_type", claimPayerType)
-          .maybeSingle();
-        if (pr) payerRulesObj = pr;
-      }
-      setClaimScore(computeClaimScore(t, p, payerRulesObj));
+      // Compute claim score (uses same payer rules object)
+      setClaimScore(computeClaimScore(t, p, payerRulesObj as any));
 
       setItems(checks);
       setLoading(false);

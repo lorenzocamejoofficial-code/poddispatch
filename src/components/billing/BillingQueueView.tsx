@@ -85,6 +85,7 @@ function computeQueueDetails(
   missing: string[];
   blockers: string[];
 } {
+  // Active override always wins.
   const status = computeBillingQueueStatus(trip, payerRules, overrideMap);
   if (status === "ready") {
     return { status, missing: [], blockers: [] };
@@ -94,23 +95,23 @@ function computeQueueDetails(
     return { status: "blocked", missing: [], blockers: ["Trip not completed"] };
   }
 
-  const pcrResult = evaluatePcrCompleteness(trip);
-  const cleanResult = computeCleanTripStatus(
-    trip,
-    payerRules,
-    { auth_required: trip.auth_required, auth_expiration: trip.auth_expiration }
-  );
+  // Read persisted readiness state from trip_record (set by Trips & Clinical / PCR submit).
+  // Trip Queue no longer recomputes the gate independently — single source of truth.
+  const persistedBlockers = (trip.blockers ?? []).filter(b => !!b);
 
-  const missing = pcrResult.missing.map(m => m.label);
-  const blockers = [...(trip.blockers ?? [])];
+  if (trip.claim_ready) {
+    return { status: "ready", missing: [], blockers: [] };
+  }
 
-  if (cleanResult.level === "blocked") {
-    return { status: "blocked", missing, blockers: [...blockers, ...cleanResult.issues] };
+  if (trip.billing_blocked_reason) {
+    const issues = persistedBlockers.length > 0
+      ? persistedBlockers
+      : trip.billing_blocked_reason.split(",").map(s => s.trim()).filter(Boolean);
+    return { status: "blocked", missing: [], blockers: issues };
   }
-  if (!pcrResult.passed || cleanResult.level === "review") {
-    return { status: "review", missing, blockers };
-  }
-  return { status: "ready", missing: [], blockers: [] };
+
+  // No hard blocker but not yet ready — surface the persisted blockers as review items.
+  return { status: "review", missing: [], blockers: persistedBlockers };
 }
 
 const QUEUE_CONFIG: Record<BillingQueueStatus, {
