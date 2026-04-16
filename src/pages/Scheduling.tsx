@@ -275,6 +275,7 @@ export default function Scheduling() {
   const [exceptionForm, setExceptionForm] = useState({
     pickup_time: "", pickup_location: "", destination_location: "", notes: "",
   });
+  const [exceptionNewDate, setExceptionNewDate] = useState("");
   const [savingException, setSavingException] = useState(false);
 
   // B-leg validation state
