@@ -447,11 +447,12 @@ export default function BillingAndClaims() {
       assessment_json: t.assessment_json,
     });
 
-    // Address validation — patient must have a complete street address. Oneoff runs
-    // use the leg pickup address; recurring runs use the patient record. If incomplete,
-    // force needs_review and surface a specific blocker so it can't be exported.
+    // Address validation — patient must have a complete street address. One-off runs
+    // store the patient address on the trip itself (pickup_location), with the leg's
+    // oneoff_pickup_address as a fallback. Recurring runs use the patient record.
+    // If incomplete, force needs_review and surface a specific blocker so it can't be exported.
     const patientAddress = isOneoff
-      ? (leg?.oneoff_pickup_address ?? null)
+      ? (t.pickup_location ?? leg?.oneoff_pickup_address ?? null)
       : (t.patient?.pickup_address ?? null);
     const addressIssue = validatePatientAddress(patientAddress);
 

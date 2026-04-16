@@ -111,7 +111,7 @@ export default function EDIExport() {
       if (tripIds.length > 0) {
         const { data: trips } = await supabase
           .from("trip_records")
-          .select("id, loaded_miles, bed_confined, requires_monitoring, stretcher_placement, oxygen_during_transport, weight_lbs, pickup_location, destination_location, leg_id, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_dob, oneoff_primary_payer, oneoff_member_id, oneoff_sex)")
+          .select("id, loaded_miles, bed_confined, requires_monitoring, stretcher_placement, oxygen_during_transport, weight_lbs, pickup_location, destination_location, leg_id, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_dob, oneoff_primary_payer, oneoff_member_id, oneoff_sex, oneoff_pickup_address)")
           .in("id", tripIds);
         (trips || []).forEach((t: any) => {
           tripsMap[t.id] = t;
@@ -123,6 +123,11 @@ export default function EDIExport() {
         const trip = tripsMap[c.trip_id] || {};
         const leg = trip.leg as any;
         const isOneoff = !c.patient_id && leg?.is_oneoff;
+        // One-off patients have no patient record — pickup address lives on the trip
+        // itself (pickup_location), with leg.oneoff_pickup_address as fallback.
+        const oneoffAddress = isOneoff
+          ? (trip.pickup_location ?? leg?.oneoff_pickup_address ?? null)
+          : null;
         // For oneoff, split oneoff_name into first/last
         let oneoffFirst = "";
         let oneoffLast = "";
@@ -136,7 +141,7 @@ export default function EDIExport() {
           patient_first_name: pat.first_name ?? (isOneoff ? oneoffFirst : undefined),
           patient_last_name: pat.last_name ?? (isOneoff ? oneoffLast : undefined),
           patient_dob: pat.dob ?? (isOneoff ? leg?.oneoff_dob : undefined),
-          patient_pickup_address: pat.pickup_address,
+          patient_pickup_address: pat.pickup_address ?? oneoffAddress ?? undefined,
           patient_member_id: pat.member_id || c.member_id || (isOneoff ? leg?.oneoff_member_id : null),
           patient_primary_payer: pat.primary_payer ?? (isOneoff ? leg?.oneoff_primary_payer : null),
           trip_loaded_miles: trip.loaded_miles,

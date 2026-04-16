@@ -236,8 +236,12 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
 
       // Patient address — must have street + city + ZIP. Blocks export and the
       // 837P generator so we never write "UNKNOWN" to N3/N4 segments.
+      // One-off runs: address lives on the trip itself (pickup_location), with
+      // leg.oneoff_pickup_address as a fallback. Regular runs use the patient record.
       const patientAddrRaw = String(
-        (t.leg?.is_oneoff ? t.leg?.oneoff_pickup_address : p?.pickup_address) ?? ""
+        (t.leg?.is_oneoff
+          ? (t.pickup_location ?? t.leg?.oneoff_pickup_address)
+          : p?.pickup_address) ?? ""
       ).trim();
       const hasZip = /\b\d{5}(?:-\d{4})?\b/.test(patientAddrRaw);
       const tokens = patientAddrRaw.split(/[,\s]+/).filter(Boolean);
