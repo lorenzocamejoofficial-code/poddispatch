@@ -425,10 +425,10 @@ export function generateEDI837P(
         return `${qualifier}${SE_SEP}${code.replace(/\./g, "")}`;
       });
       addSeg(["HI", ...hiElements].join(ES));
-    } else {
-      // Default ESRD diagnosis if none provided
-      addSeg(["HI", `ABK${SE_SEP}N186`].join(ES));
     }
+    // No fallback diagnosis here. ICD-10 codes must be set upstream — dialysis
+    // runs auto-apply N18.6 in the claim builder; all other transport types
+    // require the biller to enter a diagnosis manually before export.
 
     // REF - Prior Authorization
     if (claim.auth_number) {
