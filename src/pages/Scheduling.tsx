@@ -379,7 +379,7 @@ export default function Scheduling() {
       // Search scheduling_legs joining patients for name match, or oneoff_name match
       const { data } = await supabase
         .from("scheduling_legs")
-        .select("id, run_date, leg_type, pickup_time, pickup_location, destination_location, trip_type, estimated_duration_minutes, notes, is_oneoff, oneoff_name, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)")
+        .select("id, run_date, leg_type, pickup_time, pickup_location, destination_location, trip_type, estimated_duration_minutes, notes, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_dob, oneoff_sex, oneoff_primary_payer, oneoff_member_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)")
         .eq("company_id", companyId)
         .lt("run_date", selectedDate)
         .order("run_date", { ascending: false })
@@ -409,6 +409,14 @@ export default function Scheduling() {
         trip_type: result.trip_type ?? "dialysis",
         pickup_time: result.pickup_time ?? "",
         notes: result.notes ?? "",
+        // Carry over demographics from previous one-off
+        weight_lbs: result.oneoff_weight_lbs != null ? String(result.oneoff_weight_lbs) : "",
+        mobility: result.oneoff_mobility ?? "ambulatory",
+        oxygen: result.oneoff_oxygen ?? false,
+        dob: result.oneoff_dob ?? "",
+        sex: result.oneoff_sex ?? "",
+        primary_payer: result.oneoff_primary_payer ?? "",
+        member_id: result.oneoff_member_id ?? "",
       }));
       setOneoffCopySearchOpen(false);
       setOneoffCopySearchQuery("");
