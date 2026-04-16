@@ -1,0 +1,1 @@
+UPDATE public.trip_records SET dispatch_time = '2026-04-16 17:00:00+00', updated_at = now() WHERE id = 'ce3a2325-0de2-43b0-b8f6-98de03956022';
