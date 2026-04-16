@@ -364,7 +364,19 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       setCreating(null);
       return;
     }
-    const derived = getOriginDestination(run.tripType ?? "", run.legType);
+    // Fetch the scheduling_leg to get origin/destination types, service_level, is_unscheduled
+    const { data: legData } = await supabase
+      .from("scheduling_legs")
+      .select("origin_type, destination_type, service_level, is_unscheduled")
+      .eq("id", run.legId)
+      .maybeSingle();
+
+    const fallbackDerived = getOriginDestination(run.tripType ?? "", run.legType);
+    const originType = (legData as any)?.origin_type || fallbackDerived.origin_type;
+    const destinationType = (legData as any)?.destination_type || fallbackDerived.destination_type;
+    const serviceLevel = (legData as any)?.service_level || null;
+    const isUnscheduled = (legData as any)?.is_unscheduled || false;
+
     const insertData: any = {
       leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
       company_id: companyId, patient_id: run.patientId,
@@ -372,7 +384,9 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       pickup_location: run.pickupLocation, destination_location: run.destinationLocation,
       scheduled_pickup_time: run.pickupTime, trip_type: run.tripType as any,
       pcr_type: run.tripType as any, pcr_status: "not_started",
-      origin_type: derived.origin_type, destination_type: derived.destination_type,
+      origin_type: originType, destination_type: destinationType,
+      service_level: serviceLevel,
+      is_unscheduled: isUnscheduled,
     };
     if (run.slotId) insertData.slot_id = run.slotId;
     const { data: newTrip, error } = await supabase.from("trip_records").insert(insertData).select("id").single();

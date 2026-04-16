@@ -259,7 +259,7 @@ export default function TripsAndClinical() {
   const syncSlotsToTrips = async (runDate: string) => {
     const { data: slots } = await supabase
       .from("truck_run_slots")
-      .select("id, leg_id, truck_id, run_date, company_id, leg:scheduling_legs!truck_run_slots_leg_id_fkey(patient_id, pickup_time, pickup_location, destination_location, trip_type)")
+      .select("id, leg_id, truck_id, run_date, company_id, leg:scheduling_legs!truck_run_slots_leg_id_fkey(patient_id, pickup_time, pickup_location, destination_location, trip_type, origin_type, destination_type, service_level, is_unscheduled)")
       .eq("run_date", runDate);
     if (!slots?.length) return;
 
@@ -304,9 +304,11 @@ export default function TripsAndClinical() {
         continue;
       }
 
-      // No existing trip — create new one
-      const originType = inferLocationType(s.leg?.pickup_location, facilityMap);
-      const destType = inferLocationType(s.leg?.destination_location, facilityMap);
+      // No existing trip — create new one, cascading all metadata from scheduling_leg
+      const legOrigin = (s.leg as any)?.origin_type;
+      const legDest = (s.leg as any)?.destination_type;
+      const originType = legOrigin || inferLocationType(s.leg?.pickup_location, facilityMap);
+      const destType = legDest || inferLocationType(s.leg?.destination_location, facilityMap);
       const crewId = crewByTruckId.get(s.truck_id) ?? null;
       newTrips.push({
         slot_id: s.id,
@@ -321,6 +323,9 @@ export default function TripsAndClinical() {
         pickup_location: s.leg?.pickup_location ?? null,
         destination_location: s.leg?.destination_location ?? null,
         trip_type: s.leg?.trip_type ?? "dialysis",
+        pcr_type: s.leg?.trip_type ?? "dialysis",
+        service_level: (s.leg as any)?.service_level ?? null,
+        is_unscheduled: (s.leg as any)?.is_unscheduled ?? false,
         origin_type: originType,
         destination_type: destType,
       });

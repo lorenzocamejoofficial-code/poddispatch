@@ -64,15 +64,19 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const claim = claimRow as any;
 
       const isEmergency = (t.pcr_type ?? "").toLowerCase() === "emergency";
+      const isUnscheduled = !!t.is_unscheduled;
+      const pcsSkippable = isEmergency || isUnscheduled;
 
       const checks: ChecklistItem[] = [
         {
           label: "PCS on file and not expired",
-          passed: isEmergency
+          passed: pcsSkippable
             ? true
             : !!(p?.pcs_on_file && (!p?.pcs_expiration_date || new Date(p.pcs_expiration_date) >= new Date(t.run_date))),
           detail: isEmergency
             ? "Not required for emergency transport"
+            : isUnscheduled
+            ? "Same-day unscheduled — PCS not required at submission"
             : p?.pcs_on_file
               ? (p?.pcs_expiration_date ? `Expires ${p.pcs_expiration_date}` : "On file, no expiration")
               : "Not on file",

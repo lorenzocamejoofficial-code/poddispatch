@@ -2681,6 +2681,7 @@ export type Database = {
           id: string
           is_oneoff: boolean
           is_simulated: boolean
+          is_unscheduled: boolean | null
           leg_type: Database["public"]["Enums"]["leg_type"]
           notes: string | null
           oneoff_dob: string | null
@@ -2699,6 +2700,7 @@ export type Database = {
           pickup_location: string
           pickup_time: string | null
           run_date: string
+          service_level: string | null
           simulation_run_id: string | null
           trip_type: Database["public"]["Enums"]["trip_type"]
           updated_at: string
@@ -2713,6 +2715,7 @@ export type Database = {
           id?: string
           is_oneoff?: boolean
           is_simulated?: boolean
+          is_unscheduled?: boolean | null
           leg_type: Database["public"]["Enums"]["leg_type"]
           notes?: string | null
           oneoff_dob?: string | null
@@ -2731,6 +2734,7 @@ export type Database = {
           pickup_location: string
           pickup_time?: string | null
           run_date?: string
+          service_level?: string | null
           simulation_run_id?: string | null
           trip_type?: Database["public"]["Enums"]["trip_type"]
           updated_at?: string
@@ -2745,6 +2749,7 @@ export type Database = {
           id?: string
           is_oneoff?: boolean
           is_simulated?: boolean
+          is_unscheduled?: boolean | null
           leg_type?: Database["public"]["Enums"]["leg_type"]
           notes?: string | null
           oneoff_dob?: string | null
@@ -2763,6 +2768,7 @@ export type Database = {
           pickup_location?: string
           pickup_time?: string | null
           run_date?: string
+          service_level?: string | null
           simulation_run_id?: string | null
           trip_type?: Database["public"]["Enums"]["trip_type"]
           updated_at?: string
