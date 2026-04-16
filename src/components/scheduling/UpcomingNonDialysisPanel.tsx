@@ -182,6 +182,7 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
       .channel("upcoming-non-dialysis")
       .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs" }, fetchLegs)
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, fetchLegs)
+      .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, fetchLegs)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchLegs]);
