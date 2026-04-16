@@ -447,12 +447,23 @@ export default function BillingAndClaims() {
       assessment_json: t.assessment_json,
     });
 
-    const claimStatus = gateResult.level === "blocked" ? "needs_review" : gateResult.level === "review" ? "needs_review" : "ready_to_bill";
-    const claimNotes = gateResult.level !== "clean" ? JSON.stringify(gateResult.issues) : null;
+    // Address validation — patient must have a complete street address. Oneoff runs
+    // use the leg pickup address; recurring runs use the patient record. If incomplete,
+    // force needs_review and surface a specific blocker so it can't be exported.
+    const patientAddress = isOneoff
+      ? (leg?.oneoff_pickup_address ?? null)
+      : (t.patient?.pickup_address ?? null);
+    const addressIssue = validatePatientAddress(patientAddress);
+
+    const claimStatus = (gateResult.level === "blocked" || gateResult.level === "review" || addressIssue) ? "needs_review" : "ready_to_bill";
+    const issuesList = [...gateResult.issues];
+    if (addressIssue) issuesList.push(addressIssue);
+    const claimNotes = (issuesList.length > 0) ? JSON.stringify(issuesList) : null;
 
     return {
       gateResult,
       payerType,
+      addressIssue,
       claim: {
         trip_id: t.id,
         patient_id: t.patient_id,
@@ -478,11 +489,13 @@ export default function BillingAndClaims() {
         stretcher_placement: t.stretcher_placement ?? null,
         patient_mobility: t.patient_mobility ?? null,
         isolation_precautions: t.isolation_precautions ?? null,
-        // Auto-apply N18.6 (ESRD) for dialysis runs missing ICD-10 — the only billable
-        // diagnosis CMS recognizes for routine dialysis transport.
+        // Auto-apply N18.6 (ESRD) ONLY for dialysis runs missing ICD-10 — the only
+        // billable diagnosis CMS recognizes for routine dialysis transport.
+        // For all other transport types (wound care, discharge, IFT, same-day
+        // unscheduled), do NOT auto-apply any code — biller must enter manually.
         icd10_codes: (Array.isArray(t.icd10_codes) && t.icd10_codes.length > 0)
           ? t.icd10_codes
-          : (String(t.trip_type ?? t.pcr_type ?? "").toLowerCase().includes("dialysis") ? ["N18.6"] : []),
+          : (String(t.trip_type ?? t.pcr_type ?? "").toLowerCase() === "dialysis" ? ["N18.6"] : []),
         origin_zip: extractZip(t.pickup_location),
         destination_zip: extractZip(t.destination_location),
         patient_sex: t.patient?.sex ?? (isOneoff ? leg?.oneoff_sex : null) ?? null,
