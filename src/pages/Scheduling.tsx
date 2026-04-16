@@ -1338,7 +1338,7 @@ export default function Scheduling() {
                 <div><Label>Patient Name *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_name} /></Label><Input value={oneoffForm.name} onChange={(e) => setOneoffForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. John Smith" /></div>
                 <div>
                   <Label>Transport Type<PCRTooltip text={ADMIN_TOOLTIPS.trip_type} /></Label>
-                  <Select value={oneoffForm.trip_type} onValueChange={(v) => setOneoffForm(f => ({ ...f, trip_type: v }))}>
+                  <Select value={oneoffForm.trip_type} onValueChange={(v) => setOneoffForm(f => ({ ...f, trip_type: v, service_level: (v === "ift" || v === "ift_discharge") ? "ALS1" : "BLS" }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="dialysis">Dialysis</SelectItem>
@@ -1348,6 +1348,18 @@ export default function Scheduling() {
                       <SelectItem value="wound_care">Wound Care</SelectItem>
                       <SelectItem value="emergency">Emergency</SelectItem>
                       <SelectItem value="private_pay">Private Pay</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Service Level</Label>
+                  <Select value={oneoffForm.service_level} onValueChange={(v) => setOneoffForm(f => ({ ...f, service_level: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BLS">BLS</SelectItem>
+                      <SelectItem value="ALS1">ALS1</SelectItem>
+                      <SelectItem value="ALS2">ALS2</SelectItem>
+                      <SelectItem value="bariatric">Bariatric</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1502,7 +1514,7 @@ export default function Scheduling() {
                 </div>
                 <div>
                   <Label>Transport Type<PCRTooltip text={ADMIN_TOOLTIPS.trip_type} /></Label>
-                  <Select value={legForm.trip_type} onValueChange={(v) => setLegForm(f => ({ ...f, trip_type: v }))}>
+                  <Select value={legForm.trip_type} onValueChange={(v) => setLegForm(f => ({ ...f, trip_type: v, service_level: (v === "ift" || v === "ift_discharge") ? "ALS1" : "BLS" }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="dialysis">Dialysis</SelectItem>
@@ -1512,6 +1524,18 @@ export default function Scheduling() {
                       <SelectItem value="wound_care">Wound Care</SelectItem>
                       <SelectItem value="emergency">Emergency</SelectItem>
                       <SelectItem value="private_pay">Private Pay</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Service Level</Label>
+                  <Select value={legForm.service_level} onValueChange={(v) => setLegForm(f => ({ ...f, service_level: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BLS">BLS</SelectItem>
+                      <SelectItem value="ALS1">ALS1</SelectItem>
+                      <SelectItem value="ALS2">ALS2</SelectItem>
+                      <SelectItem value="bariatric">Bariatric</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
