@@ -109,9 +109,61 @@ export function generateNarrative(input: NarrativeInput): string {
   const examStr = buildExamNarrative(input.physicalExam || {});
   const equipStr = buildEquipmentString(input.equipment);
 
-  if (type.includes("dialysis") || type.includes("outpatient") || type.includes("wound")) {
-    const transportDesc = type.includes("dialysis") ? "scheduled non-emergency dialysis transport" :
-      type.includes("wound") ? "scheduled wound care transport" : "scheduled outpatient transport";
+  if (type.includes("wound")) {
+    const coa = input.conditionOnArrival || {};
+    const woundType = coa.wound_type === "Other" ? (coa.wound_type_other || "wound") : (coa.wound_type || "wound");
+    const woundStage = coa.pressure_ulcer_stage ? ` (${coa.pressure_ulcer_stage})` : "";
+    const woundLoc = coa.wound_location ? ` located at ${coa.wound_location}` : "";
+    const mobility = coa.patient_mobility || coa.mobility || "";
+
+    let narrative = `Unit ${input.truckName} was dispatched at ${fmtTime(input.dispatchTime)} for a scheduled wound care transport. `;
+    narrative += `Crew made patient contact at ${fmtTime(input.patientContactTime || input.atSceneTime)} at ${input.pickupAddress}. `;
+    narrative += `Patient is a ${ageStr} ${sexStr}`.trim();
+    narrative += ` presenting for scheduled wound care treatment. `;
+
+    narrative += `Patient has a documented ${woundType.toLowerCase()}${woundStage}${woundLoc}. `;
+    if (coa.wound_notes) narrative += `${coa.wound_notes}. `;
+
+    // Wound-care-specific medical necessity criteria
+    const wcCriteria: string[] = [];
+    if (input["wc_unsafe_positioning" as any] || (input as any).wc_unsafe_positioning) wcCriteria.push("patient cannot maintain safe positioning in a standard vehicle due to wound location");
+    const anyInput: any = input;
+    if (anyInput.wc_unsafe_positioning) wcCriteria.push("patient cannot maintain safe positioning in a standard vehicle due to wound location");
+    if (anyInput.wc_sterile_dressing) wcCriteria.push("wound requires monitoring or sterile dressing maintenance during transport");
+    if (anyInput.wc_wound_vac_drainage) wcCriteria.push("patient is on wound VAC or has active drainage requiring oversight during transit");
+    if (anyInput.wc_dehiscence_risk) wcCriteria.push("patient condition creates risk of wound injury or dehiscence during movement");
+    if (anyInput.wc_stretcher_required) wcCriteria.push("patient requires stretcher positioning unachievable in a wheelchair van or standard vehicle");
+    // de-dup
+    const uniqueCriteria = Array.from(new Set(wcCriteria));
+
+    if (uniqueCriteria.length > 0) {
+      narrative += `Ambulance transport is medically necessary because ${uniqueCriteria.join("; ")}. `;
+    } else if (input.medicalNecessityReason) {
+      narrative += `Ambulance transport is medically necessary: ${input.medicalNecessityReason.toLowerCase()}. `;
+    }
+
+    if (mobility) narrative += `Patient mobility: ${String(mobility).toLowerCase()}. `;
+
+    if (loc) narrative += `On assessment, patient was ${loc}`;
+    if (skin) narrative += `, skin ${skin}`;
+    narrative += ". ";
+
+    if (vitalsStr) narrative += `Vital signs: ${vitalsStr}. `;
+    if (equipStr) narrative += `Equipment: ${equipStr}. `;
+
+    narrative += `Wound integrity maintained throughout transport. Patient transported without incident to ${input.destination}, arriving at ${fmtTime(input.atDestinationTime || input.leftSceneTime)}. `;
+    narrative += `Transfer of care given to wound care facility staff at ${fmtTime(input.atDestinationTime)}. `;
+    narrative += `Crew returned to service at ${fmtTime(input.inServiceTime)}.`;
+
+    if (input.attendingMedicName) {
+      narrative += `\n\nAttending Medic: ${input.attendingMedicName}`;
+    }
+
+    return narrative;
+  }
+
+  if (type.includes("dialysis") || type.includes("outpatient")) {
+    const transportDesc = type.includes("dialysis") ? "scheduled non-emergency dialysis transport" : "scheduled outpatient transport";
 
     let narrative = `Unit ${input.truckName} was dispatched at ${fmtTime(input.dispatchTime)} for a ${transportDesc}. `;
     narrative += `Crew made patient contact at ${fmtTime(input.patientContactTime || input.atSceneTime)} at ${input.pickupAddress}. `;

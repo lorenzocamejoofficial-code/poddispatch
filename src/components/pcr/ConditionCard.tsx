@@ -24,6 +24,7 @@ interface ConditionCardProps {
 
 export function ConditionOnArrivalCard({ trip, updateField, requiredFields = ["level_of_consciousness", "skin_condition", "condition_at_destination"] }: ConditionCardProps) {
   const coa = trip.condition_on_arrival || {};
+  const isWoundCare = String(trip.trip_type ?? "").toLowerCase().includes("wound");
 
   const updateCOA = (key: string, value: any) => {
     const updated = { ...coa, [key]: value };
@@ -67,6 +68,65 @@ export function ConditionOnArrivalCard({ trip, updateField, requiredFields = ["l
           </SelectContent>
         </Select>
       </div>
+
+      {isWoundCare && (
+        <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Wound Details</p>
+          <div>
+            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Wound Type</label>
+            <Select value={coa.wound_type || ""} onValueChange={(v) => updateCOA("wound_type", v)}>
+              <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select wound type..." /></SelectTrigger>
+              <SelectContent>
+                {WOUND_TYPES.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {coa.wound_type === "Pressure ulcer" && (
+            <div>
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Pressure Ulcer Stage</label>
+              <Select value={coa.pressure_ulcer_stage || ""} onValueChange={(v) => updateCOA("pressure_ulcer_stage", v)}>
+                <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select stage..." /></SelectTrigger>
+                <SelectContent>
+                  {PRESSURE_ULCER_STAGES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {coa.wound_type === "Other" && (
+            <div>
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Specify Wound Type</label>
+              <Input
+                placeholder="Specify wound type..."
+                value={coa.wound_type_other || ""}
+                onChange={(e) => updateCOA("wound_type_other", e.target.value)}
+                className="h-12 text-base"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Wound Location</label>
+            <Input
+              placeholder="e.g., Right lateral malleolus, sacrum, left heel..."
+              value={coa.wound_location || ""}
+              onChange={(e) => updateCOA("wound_location", e.target.value)}
+              className="h-12 text-base"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Wound Notes</label>
+            <Textarea
+              placeholder="Drainage, odor, dressing type, wound VAC settings, etc."
+              value={coa.wound_notes || ""}
+              onChange={(e) => updateCOA("wound_notes", e.target.value)}
+              rows={2}
+            />
+          </div>
+        </div>
+      )}
 
       <div>
         <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Patient Presentation</label>
