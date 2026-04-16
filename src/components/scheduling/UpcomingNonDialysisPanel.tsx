@@ -186,9 +186,11 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
     return () => { supabase.removeChannel(channel); };
   }, [fetchLegs]);
 
-  const displayed = unassignedOnly ? legs.filter(l => !l.assigned_truck_name) : legs;
-  const unassignedCount = legs.filter(l => !l.assigned_truck_name).length;
-  const totalCount = legs.length;
+  const nonCompleted = legs.filter(l => !l.is_completed);
+  const displayed = unassignedOnly ? nonCompleted.filter(l => !l.assigned_truck_name) : nonCompleted;
+  const unassignedCount = nonCompleted.filter(l => !l.assigned_truck_name).length;
+  const totalCount = nonCompleted.length;
+  const completedCount = legs.filter(l => l.is_completed).length;
 
   return (
     <section className="rounded-lg border bg-card overflow-hidden">
