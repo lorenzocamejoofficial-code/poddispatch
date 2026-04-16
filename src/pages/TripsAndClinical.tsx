@@ -426,14 +426,10 @@ export default function TripsAndClinical() {
     setSaving(true);
     try {
       const miles = form.loaded_miles ? parseFloat(form.loaded_miles) : null;
-      const { codes, modifiers } = computeHcpcsCodes({
-        service_level: form.service_level,
-        loaded_miles: miles,
-        wait_time_minutes: form.wait_time_minutes ? parseInt(form.wait_time_minutes) : null,
-        oxygen_required: selectedTrip.oxygen_required,
-        bariatric: selectedTrip.bariatric,
-      });
 
+      // Trips & Clinical writes ONLY clinical fields to trip_records.
+      // HCPCS code computation and claim_records updates are owned by Billing & Claims
+      // (syncClaimsFromTrips / refreshExistingClaims). This page no longer touches claim_records.
       const payload: any = {
         loaded_miles: miles,
         loaded_at: form.loaded_at ? new Date(form.loaded_at).toISOString() : null,
@@ -446,8 +442,6 @@ export default function TripsAndClinical() {
         service_level: form.service_level,
         origin_type: form.origin_type || null,
         destination_type: form.destination_type || null,
-        hcpcs_codes: codes,
-        hcpcs_modifiers: modifiers,
         bed_confined: form.bed_confined,
         cannot_transfer_safely: form.cannot_transfer_safely,
         requires_monitoring: form.requires_monitoring,
@@ -456,33 +450,17 @@ export default function TripsAndClinical() {
         icd10_codes: form.icd10_codes,
       };
 
-      // Compute billing block
+      // Persist billing readiness state on trip_record so downstream views read one source of truth.
       const cleanResult = computeCleanTripStatus(
         { ...selectedTrip, ...payload },
         payerRulesMap.get(selectedTrip.payer ?? "") ?? null,
         { auth_required: selectedTrip.auth_required, auth_expiration: selectedTrip.auth_expiration }
       );
       payload.billing_blocked_reason = cleanResult.level === "blocked" ? cleanResult.issues.join(", ") : null;
+      payload.claim_ready = cleanResult.level === "clean";
+      payload.blockers = cleanResult.level === "clean" ? [] : cleanResult.issues;
 
       await supabase.from("trip_records" as any).update(payload).eq("id", selectedTrip.id);
-
-      // Also update the linked claim_record with ICD-10 codes and HCPCS codes
-      const { data: linkedClaim } = await supabase
-        .from("claim_records" as any)
-        .select("id")
-        .eq("trip_id", selectedTrip.id)
-        .maybeSingle();
-
-      if (linkedClaim) {
-        await supabase
-          .from("claim_records" as any)
-          .update({
-            icd10_codes: form.icd10_codes,
-            hcpcs_codes: codes,
-            hcpcs_modifiers: modifiers,
-          } as any)
-          .eq("id", (linkedClaim as any).id);
-      }
 
       toast.success("Trip record saved");
       setSelectedTrip(null);

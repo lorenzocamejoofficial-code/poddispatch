@@ -274,11 +274,16 @@ export function BillingWorkQueue({ onOpenClaim, refreshKey }: BillingWorkQueuePr
 
   const handleAction = (item: WorkItem) => {
     if (item.type === "claim" && item.claimId) {
-      onOpenClaim?.(item.claimId);
+      // If parent provided an in-page handler (AR Command Center), let it open the sheet inline.
+      if (onOpenClaim) {
+        onOpenClaim(item.claimId);
+      } else {
+        navigate(`/billing?claimId=${item.claimId}`);
+      }
     } else if (item.type === "trip" && item.tripId) {
-      navigate("/billing-and-claims?tab=trip-queue");
+      navigate("/billing?tab=trip-queue");
     } else if (item.type === "pcr" && item.tripId) {
-      navigate(`/pcr/${item.tripId}`);
+      navigate(`/pcr?tripId=${item.tripId}`);
     }
   };
 

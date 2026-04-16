@@ -63,7 +63,7 @@ export function QAQueuePanel() {
     const { data: tripRows } = tripIds.length > 0
       ? await supabase
           .from("trip_records" as any)
-          .select("id, run_date, truck_id, patient:patients!trip_records_patient_id_fkey(first_name, last_name)")
+          .select("id, run_date, truck_id, patient_id, leg_id, patient:patients!trip_records_patient_id_fkey(first_name, last_name), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name)")
           .in("id", tripIds)
       : { data: [] };
 
@@ -74,18 +74,32 @@ export function QAQueuePanel() {
       : { data: [] };
     const truckMap = new Map((truckRows ?? []).map((t: any) => [t.id, t.name]));
 
-    setQaItems(
-      (qaRows as any[]).map((q: any) => {
+    // Resolve patient name from patient record OR one-off leg name.
+    // QA rows are excluded when trip has neither a patient_id nor a leg_id (orphaned trip records),
+    // and when the resolved name would be "Unknown".
+    const resolved = (qaRows as any[])
+      .map((q: any) => {
         const t = tripMap.get(q.trip_id) as any;
+        if (!t) return null;
+        if (!t.patient_id && !t.leg_id) return null;
+
+        const patientName = t.patient
+          ? `${t.patient.first_name ?? ""} ${t.patient.last_name ?? ""}`.trim()
+          : (t.leg?.is_oneoff ? (t.leg.oneoff_name ?? "").trim() : "");
+
+        if (!patientName) return null;
+
         return {
           ...q,
           severity: q.severity ?? "yellow",
-          patient_name: t?.patient ? `${t.patient.first_name} ${t.patient.last_name}` : "Unknown",
-          run_date: t?.run_date ?? "—",
-          truck_name: t?.truck_id ? (truckMap.get(t.truck_id) ?? "—") : "—",
+          patient_name: patientName,
+          run_date: t.run_date ?? "—",
+          truck_name: t.truck_id ? (truckMap.get(t.truck_id) ?? "—") : "—",
         };
-      }),
-    );
+      })
+      .filter(Boolean) as EnrichedQAReview[];
+
+    setQaItems(resolved);
     setLoading(false);
   }, []);
 
