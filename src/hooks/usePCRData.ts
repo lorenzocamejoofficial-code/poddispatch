@@ -104,13 +104,14 @@ export function usePCRData(tripId: string | null) {
     }
 
     if (data) {
-      // Fetch leg data for leg_type and chair_time
+      // Fetch leg data for leg_type, chair_time, and one-off patient info
       let leg_type: string | null = null;
       let chair_time: string | null = null;
+      let legRow: any = null;
       if (data.leg_id) {
         const { data: legData, error: legErr } = await supabase
           .from("scheduling_legs")
-          .select("leg_type, chair_time")
+          .select("leg_type, chair_time, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes, oneoff_dob, oneoff_sex, oneoff_primary_payer, oneoff_member_id, oneoff_pickup_address, oneoff_dropoff_address")
           .eq("id", data.leg_id)
           .maybeSingle();
         if (legErr) {
@@ -118,10 +119,11 @@ export function usePCRData(tripId: string | null) {
         } else if (legData) {
           leg_type = legData.leg_type ?? null;
           chair_time = legData.chair_time ?? null;
+          legRow = legData;
         }
       }
 
-      // Fetch patient data
+      // Fetch patient data — or build synthetic patient from one-off fields
       let patient = null;
       if (data.patient_id) {
         const { data: pData, error: pErr } = await supabase
@@ -133,6 +135,30 @@ export function usePCRData(tripId: string | null) {
           console.error("Patient fetch error for patient_id", data.patient_id, pErr);
         }
         patient = pData;
+      } else if (legRow?.is_oneoff) {
+        // Build a synthetic patient object from one-off scheduling leg fields
+        const nameParts = (legRow.oneoff_name ?? "").split(" ");
+        patient = {
+          first_name: nameParts[0] || "Unknown",
+          last_name: nameParts.slice(1).join(" ") || "",
+          dob: legRow.oneoff_dob ?? null,
+          sex: legRow.oneoff_sex ?? null,
+          weight_lbs: legRow.oneoff_weight_lbs ?? null,
+          mobility: legRow.oneoff_mobility ?? null,
+          oxygen_required: legRow.oneoff_oxygen ?? false,
+          primary_payer: legRow.oneoff_primary_payer ?? null,
+          member_id: legRow.oneoff_member_id ?? null,
+          pickup_address: legRow.oneoff_pickup_address ?? null,
+          notes: legRow.oneoff_notes ?? null,
+          // Fields that don't apply to one-off but PatientInfoCard checks
+          auth_required: false,
+          auth_expiration: null,
+          bariatric: false,
+          stair_chair_required: false,
+          standing_order: false,
+          secondary_payer: null,
+          secondary_member_id: null,
+        };
       } else {
         console.warn(`Trip ${tripId} has no patient_id — patient info card will be empty`);
       }

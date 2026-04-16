@@ -336,12 +336,17 @@ export default function Scheduling() {
     pickup_time: "", notes: "",
     pickup_location_type: "", destination_type: "",
     needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
+    // Demographics for PCR carry-over
+    dob: "", sex: "", weight_lbs: "", mobility: "ambulatory", oxygen: false,
+    primary_payer: "", member_id: "",
   });
   const resetOneoffForm = () => setOneoffForm({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
     pickup_time: "", notes: "",
     pickup_location_type: "", destination_type: "",
     needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
+    dob: "", sex: "", weight_lbs: "", mobility: "ambulatory", oxygen: false,
+    primary_payer: "", member_id: "",
   });
 
   // Existing patient form extra state
@@ -374,7 +379,7 @@ export default function Scheduling() {
       // Search scheduling_legs joining patients for name match, or oneoff_name match
       const { data } = await supabase
         .from("scheduling_legs")
-        .select("id, run_date, leg_type, pickup_time, pickup_location, destination_location, trip_type, estimated_duration_minutes, notes, is_oneoff, oneoff_name, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)")
+        .select("id, run_date, leg_type, pickup_time, pickup_location, destination_location, trip_type, estimated_duration_minutes, notes, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_dob, oneoff_sex, oneoff_primary_payer, oneoff_member_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)")
         .eq("company_id", companyId)
         .lt("run_date", selectedDate)
         .order("run_date", { ascending: false })
@@ -404,6 +409,14 @@ export default function Scheduling() {
         trip_type: result.trip_type ?? "dialysis",
         pickup_time: result.pickup_time ?? "",
         notes: result.notes ?? "",
+        // Carry over demographics from previous one-off
+        weight_lbs: result.oneoff_weight_lbs != null ? String(result.oneoff_weight_lbs) : "",
+        mobility: result.oneoff_mobility ?? "ambulatory",
+        oxygen: result.oneoff_oxygen ?? false,
+        dob: result.oneoff_dob ?? "",
+        sex: result.oneoff_sex ?? "",
+        primary_payer: result.oneoff_primary_payer ?? "",
+        member_id: result.oneoff_member_id ?? "",
       }));
       setOneoffCopySearchOpen(false);
       setOneoffCopySearchQuery("");
@@ -466,10 +479,14 @@ export default function Scheduling() {
         oneoff_name: oneoffForm.name,
         oneoff_pickup_address: oneoffForm.pickup_location,
         oneoff_dropoff_address: oneoffForm.destination_location,
-        oneoff_weight_lbs: null,
-        oneoff_mobility: "ambulatory",
-        oneoff_oxygen: false,
+        oneoff_weight_lbs: oneoffForm.weight_lbs ? Number(oneoffForm.weight_lbs) : null,
+        oneoff_mobility: oneoffForm.mobility || "ambulatory",
+        oneoff_oxygen: oneoffForm.oxygen,
         oneoff_notes: oneoffForm.notes || null,
+        oneoff_dob: oneoffForm.dob || null,
+        oneoff_sex: oneoffForm.sex || null,
+        oneoff_primary_payer: oneoffForm.primary_payer || null,
+        oneoff_member_id: oneoffForm.member_id || null,
         origin_type: oneoffForm.pickup_location_type || null,
         destination_type: oneoffForm.destination_type || null,
       } as any);
@@ -494,10 +511,14 @@ export default function Scheduling() {
           oneoff_name: oneoffForm.name,
           oneoff_pickup_address: oneoffForm.destination_location,
           oneoff_dropoff_address: oneoffForm.pickup_location,
-          oneoff_weight_lbs: null,
-          oneoff_mobility: "ambulatory",
-          oneoff_oxygen: false,
+          oneoff_weight_lbs: oneoffForm.weight_lbs ? Number(oneoffForm.weight_lbs) : null,
+          oneoff_mobility: oneoffForm.mobility || "ambulatory",
+          oneoff_oxygen: oneoffForm.oxygen,
           oneoff_notes: oneoffForm.notes || null,
+          oneoff_dob: oneoffForm.dob || null,
+          oneoff_sex: oneoffForm.sex || null,
+          oneoff_primary_payer: oneoffForm.primary_payer || null,
+          oneoff_member_id: oneoffForm.member_id || null,
           origin_type: oneoffForm.destination_type || null,
           destination_type: oneoffForm.pickup_location_type || null,
         } as any);
@@ -1363,6 +1384,46 @@ export default function Scheduling() {
                 <div><Label>Pickup Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_pickup} /></Label><Input value={oneoffForm.pickup_location} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="123 Main St, Atlanta GA" /></div>
                 <div><Label>Destination Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_dropoff} /></Label><Input value={oneoffForm.destination_location} onChange={(e) => setOneoffForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /></div>
                 <div><Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label><Input type="time" value={oneoffForm.pickup_time} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
+
+                {/* Patient Demographics for PCR */}
+                <div className="rounded-md border bg-muted/20 p-3 space-y-3">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Patient Demographics (for PCR)</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Date of Birth</Label><Input type="date" value={oneoffForm.dob} onChange={(e) => setOneoffForm(f => ({ ...f, dob: e.target.value }))} /></div>
+                    <div>
+                      <Label>Sex</Label>
+                      <Select value={oneoffForm.sex || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, sex: v === "none" ? "" : v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— Select —</SelectItem>
+                          <SelectItem value="M">Male</SelectItem>
+                          <SelectItem value="F">Female</SelectItem>
+                          <SelectItem value="U">Unknown</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div><Label>Weight (lbs)</Label><Input type="number" value={oneoffForm.weight_lbs} onChange={(e) => setOneoffForm(f => ({ ...f, weight_lbs: e.target.value }))} placeholder="lbs" /></div>
+                    <div>
+                      <Label>Mobility</Label>
+                      <Select value={oneoffForm.mobility} onValueChange={(v) => setOneoffForm(f => ({ ...f, mobility: v }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ambulatory">Ambulatory</SelectItem>
+                          <SelectItem value="wheelchair">Wheelchair</SelectItem>
+                          <SelectItem value="stretcher">Stretcher</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Switch checked={oneoffForm.oxygen} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, oxygen: v }))} id="oneoff-o2" />
+                    <Label htmlFor="oneoff-o2" className="cursor-pointer text-sm">Oxygen Required</Label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Primary Payer</Label><Input value={oneoffForm.primary_payer} onChange={(e) => setOneoffForm(f => ({ ...f, primary_payer: e.target.value }))} placeholder="e.g. Medicaid" /></div>
+                    <div><Label>Member ID</Label><Input value={oneoffForm.member_id} onChange={(e) => setOneoffForm(f => ({ ...f, member_id: e.target.value }))} placeholder="e.g. GA2024-883341" /></div>
+                  </div>
+                </div>
 
                 {/* B-leg toggle */}
                 <div className="flex items-center gap-3 rounded-md border bg-muted/30 px-3 py-2">
