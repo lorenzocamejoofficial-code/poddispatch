@@ -433,9 +433,9 @@ export default function TripsAndClinical() {
       // (syncClaimsFromTrips / refreshExistingClaims). This page no longer touches claim_records.
       const payload: any = {
         loaded_miles: miles,
-        loaded_at: form.loaded_at ? new Date(form.loaded_at).toISOString() : null,
-        dropped_at: form.dropped_at ? new Date(form.dropped_at).toISOString() : null,
-        dispatch_time: form.dispatch_time ? new Date(form.dispatch_time).toISOString() : null,
+        loaded_at: localDatetimeInputToIso(form.loaded_at),
+        dropped_at: localDatetimeInputToIso(form.dropped_at),
+        dispatch_time: localDatetimeInputToIso(form.dispatch_time),
         wait_time_minutes: form.wait_time_minutes ? parseInt(form.wait_time_minutes) : null,
         signature_obtained: form.signature_obtained,
         pcs_attached: form.pcs_attached,
