@@ -68,6 +68,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const isEmergency = (t.pcr_type ?? "").toLowerCase() === "emergency";
       const isUnscheduled = !!t.is_unscheduled;
       const pcsSkippable = isEmergency || isUnscheduled;
+      setPcsApplicable(!pcsSkippable);
 
       // Biller-entered PCS satisfies the PCS check (overrides patient-record PCS)
       const billerPcsComplete = !!(claim?.pcs_physician_name && claim?.pcs_physician_npi && claim?.pcs_certification_date && claim?.pcs_diagnosis);
@@ -214,7 +215,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       setItems(checks);
       setLoading(false);
     })();
-  }, [open, tripId, patientId, activeCompanyId]);
+  }, [open, tripId, patientId, activeCompanyId, refreshTick]);
 
   const allPassed = items.length > 0 && items.every(i => i.passed || i.isWarning);
   const failedCount = items.filter(i => !i.passed && !i.isWarning).length;
