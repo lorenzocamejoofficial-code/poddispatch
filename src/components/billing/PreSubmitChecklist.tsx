@@ -98,8 +98,17 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
 
       const isEmergency = (t.pcr_type ?? "").toLowerCase() === "emergency";
       const isUnscheduled = !!t.is_unscheduled;
-      const pcsSkippable = isEmergency || isUnscheduled || !need.pcs;
-      setPcsApplicable(!pcsSkippable);
+      const tripTypeLower = String(t.trip_type ?? t.pcr_type ?? "").toLowerCase();
+      const isDialysis = tripTypeLower === "dialysis" || tripTypeLower.includes("dialysis");
+
+      // Patient-level PCS satisfies the check (and hides the biller panel) for any
+      // run whose patient already has PCS on file and not expired. Most common on
+      // dialysis but applies to any standing-PCS patient.
+      const patientPcsValid = !!(p?.pcs_on_file && (!p?.pcs_expiration_date || new Date(p.pcs_expiration_date) >= new Date(t.run_date)));
+      const pcsSkippable = isEmergency || isUnscheduled || !need.pcs || patientPcsValid;
+      // Hide the biller PCS data-entry panel when PCS is already covered by the
+      // patient record, when the payer doesn't require it, or for emergency/unscheduled runs.
+      setPcsApplicable(need.pcs && !isEmergency && !isUnscheduled && !patientPcsValid);
 
       // Biller-entered PCS satisfies the PCS check (overrides patient-record PCS)
       const billerPcsComplete = !!(claim?.pcs_physician_name && claim?.pcs_physician_npi && claim?.pcs_certification_date && claim?.pcs_diagnosis);
@@ -110,10 +119,15 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         || (t.leg?.oneoff_member_id && String(t.leg.oneoff_member_id).trim())
         || "";
 
-      // ICD-10 — read from trip first, fall back to claim record
-      const effectiveIcd10: string[] = (Array.isArray(t.icd10_codes) && t.icd10_codes.length > 0)
+      // ICD-10 — read from trip first, fall back to claim record. Dialysis runs
+      // auto-apply N18.6 (ESRD) so the check passes without crew action even on
+      // older trips that pre-date the auto-apply behavior.
+      let effectiveIcd10: string[] = (Array.isArray(t.icd10_codes) && t.icd10_codes.length > 0)
         ? t.icd10_codes
         : (Array.isArray(claim?.icd10_codes) ? claim.icd10_codes : []);
+      if (effectiveIcd10.length === 0 && isDialysis) {
+        effectiveIcd10 = ["N18.6"];
+      }
 
       // Medical necessity — booleans OR free-text reason from PCR
       const hasNecessity = !!(t.bed_confined || t.cannot_transfer_safely || t.requires_monitoring || t.oxygen_during_transport
@@ -130,15 +144,15 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
             ? true
             : billerPcsComplete
               ? true
-              : !!(p?.pcs_on_file && (!p?.pcs_expiration_date || new Date(p.pcs_expiration_date) >= new Date(t.run_date))),
+              : false,
           detail: isEmergency
             ? "Not required for emergency transport"
             : isUnscheduled
             ? "Same-day unscheduled — PCS not required at submission"
+            : patientPcsValid
+              ? (p?.pcs_expiration_date ? `On file — expires ${p.pcs_expiration_date}` : "On file, no expiration")
             : billerPcsComplete
               ? `Completed by biller — ${claim.pcs_physician_name}, NPI ${claim.pcs_physician_npi}`
-            : p?.pcs_on_file
-              ? (p?.pcs_expiration_date ? `Expires ${p.pcs_expiration_date}` : "On file, no expiration")
               : "Not on file — use the PCS panel below to enter physician details, or upload a PCS form",
         });
       }

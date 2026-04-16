@@ -461,7 +461,11 @@ export default function BillingAndClaims() {
         stretcher_placement: t.stretcher_placement ?? null,
         patient_mobility: t.patient_mobility ?? null,
         isolation_precautions: t.isolation_precautions ?? null,
-        icd10_codes: t.icd10_codes ?? [],
+        // Auto-apply N18.6 (ESRD) for dialysis runs missing ICD-10 — the only billable
+        // diagnosis CMS recognizes for routine dialysis transport.
+        icd10_codes: (Array.isArray(t.icd10_codes) && t.icd10_codes.length > 0)
+          ? t.icd10_codes
+          : (String(t.trip_type ?? t.pcr_type ?? "").toLowerCase().includes("dialysis") ? ["N18.6"] : []),
         origin_zip: extractZip(t.pickup_location),
         destination_zip: extractZip(t.destination_location),
         patient_sex: t.patient?.sex ?? (isOneoff ? leg?.oneoff_sex : null) ?? null,
@@ -477,20 +481,26 @@ export default function BillingAndClaims() {
     return match ? match[1] : null;
   };
 
-  // Refresh existing needs_review / needs_correction claims against live trip data
+  // Refresh existing claims against live trip data. Includes any non-finalized claim
+  // (not paid, not voided) plus any claim still missing HCPCS codes — that way claims
+  // created before recent fixes get repaired on the next Sync.
   const refreshExistingClaims = async () => {
-    // Get refreshable claims
     const { data: refreshableClaims } = await supabase
       .from("claim_records" as any)
-      .select("id, trip_id, status")
-      .in("status", ["needs_review", "needs_correction"]);
+      .select("id, trip_id, status, hcpcs_codes")
+      .not("status", "in", "(paid,voided)");
 
-    if (!refreshableClaims?.length) {
+    const filtered = (refreshableClaims ?? []).filter((c: any) =>
+      ["ready_to_bill", "needs_review", "needs_correction", "submitted", "denied"].includes(c.status)
+      || !Array.isArray(c.hcpcs_codes) || c.hcpcs_codes.length === 0
+    );
+
+    if (!filtered.length) {
       toast.info("No claims need refreshing");
       return;
     }
 
-    const tripIds = (refreshableClaims as any[]).map((c: any) => c.trip_id).filter(Boolean);
+    const tripIds = filtered.map((c: any) => c.trip_id).filter(Boolean);
     const { data: trips } = await supabase
       .from("trip_records" as any)
       .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_number), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions")
@@ -505,12 +515,16 @@ export default function BillingAndClaims() {
     let upgraded = 0;
     let stillPending = 0;
 
-    for (const claim of refreshableClaims as any[]) {
+    for (const claim of filtered as any[]) {
       const t = tripMap.get(claim.trip_id);
       if (!t) continue;
 
       const { gateResult, claim: claimData } = buildClaimFromTrip(t);
-      const newStatus = gateResult.level === "clean" ? "ready_to_bill" : "needs_review";
+      // Preserve submitted/denied status — only upgrade workable claim states.
+      const upgradable = ["ready_to_bill", "needs_review", "needs_correction"].includes(claim.status);
+      const newStatus = upgradable
+        ? (gateResult.level === "clean" ? "ready_to_bill" : "needs_review")
+        : claim.status;
 
       await supabase
         .from("claim_records" as any)
