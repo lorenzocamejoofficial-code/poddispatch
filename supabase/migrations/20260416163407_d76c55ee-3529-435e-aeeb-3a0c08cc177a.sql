@@ -1,0 +1,1 @@
+ALTER TABLE public.trip_records ADD COLUMN IF NOT EXISTS is_unscheduled BOOLEAN DEFAULT FALSE;
