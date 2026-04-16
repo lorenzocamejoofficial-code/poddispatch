@@ -587,10 +587,31 @@ export default function BillingAndClaims() {
     const { data: existing } = await supabase.from("claim_records" as any).select("trip_id, patient_id, run_date, status");
     const existingTripIds = new Set((existing ?? []).map((e: any) => e.trip_id).filter(Boolean));
 
-    // Build a set of patient+date combinations that already have non-voided claims
-    const existingPatientDateClaims = new Set(
-      (existing ?? []).filter((e: any) => e.patient_id && e.status !== "voided").map((e: any) => `${e.patient_id}_${e.run_date}`)
-    );
+    // Build a set of leg_id values from existing non-voided claims (via their trip_records)
+    // so legitimate A/B-leg pairs aren't falsely flagged as duplicates.
+    const existingClaimTripIds = (existing ?? [])
+      .filter((e: any) => e.trip_id && e.status !== "voided")
+      .map((e: any) => e.trip_id);
+    const existingClaimLegIds = new Set<string>();
+    if (existingClaimTripIds.length > 0) {
+      const { data: existingClaimTrips } = await supabase
+        .from("trip_records" as any)
+        .select("id, leg_id")
+        .in("id", existingClaimTripIds);
+      for (const t of (existingClaimTrips ?? []) as any[]) {
+        if (t.leg_id) existingClaimLegIds.add(t.leg_id);
+      }
+    }
+
+    // Build patient+date map of existing non-voided claims (with leg_id + route info)
+    // so we can distinguish a true duplicate from a valid reverse-leg pair.
+    const existingByPatientDate = new Map<string, any[]>();
+    for (const e of (existing ?? []) as any[]) {
+      if (!e.patient_id || e.status === "voided") continue;
+      const key = `${e.patient_id}_${e.run_date}`;
+      if (!existingByPatientDate.has(key)) existingByPatientDate.set(key, []);
+      existingByPatientDate.get(key)!.push(e);
+    }
 
     // Filter out trips that already have a claim (by trip_id)
     const newTrips = (trips as any[]).filter(t => !existingTripIds.has(t.id));
