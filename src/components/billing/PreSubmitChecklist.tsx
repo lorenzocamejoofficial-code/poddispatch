@@ -28,6 +28,8 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [claimScore, setClaimScore] = useState<ClaimScoreResult | null>(null);
+  const [pcsApplicable, setPcsApplicable] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (!open) return;
