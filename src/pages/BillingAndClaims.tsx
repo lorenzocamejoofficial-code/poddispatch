@@ -206,7 +206,7 @@ export default function BillingAndClaims() {
         ? supabase.from("patients").select("id, first_name, last_name, secondary_payer, secondary_member_id, secondary_payer_id").in("id", patientIds)
         : Promise.resolve({ data: [] }),
       tripIds.length > 0
-        ? supabase.from("trip_records" as any).select("id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type, updated_at").in("id", tripIds)
+        ? supabase.from("trip_records" as any).select("id, leg_id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type, updated_at, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name)").in("id", tripIds)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -219,7 +219,7 @@ export default function BillingAndClaims() {
         const patData = pMap.get(c.patient_id) as any;
         return {
           ...c,
-          patient_name: patData?.name ?? "Unknown",
+          patient_name: patData?.name ?? (tripData?.leg?.is_oneoff ? tripData.leg.oneoff_name : null) ?? "Unknown",
           trip_loaded_miles: tripData?.loaded_miles ?? null,
           trip_signature: tripData?.signature_obtained ?? false,
           trip_pcs: tripData?.pcs_attached ?? false,
@@ -240,7 +240,7 @@ export default function BillingAndClaims() {
   const fetchQueueTrips = useCallback(async () => {
     let tripQuery = supabase
       .from("trip_records" as any)
-      .select("*")
+      .select("*, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer)")
       .eq("run_date", dateFilter)
       .or("status.in.(completed,ready_for_billing),claim_ready.eq.true")
       .order("scheduled_pickup_time");
@@ -274,9 +274,9 @@ export default function BillingAndClaims() {
         const tr = tMap.get(t.truck_id) as any;
         return {
           ...t,
-          patient_name: p ? `${p.first_name} ${p.last_name}` : "Unknown",
+          patient_name: p ? `${p.first_name} ${p.last_name}` : ((t as any).leg?.is_oneoff ? (t as any).leg.oneoff_name : "Unknown"),
           truck_name: tr?.name ?? "Unassigned",
-          payer: p?.primary_payer ?? "—",
+          payer: p?.primary_payer ?? ((t as any).leg?.is_oneoff ? (t as any).leg.oneoff_primary_payer : null) ?? "—",
           auth_expiration: p?.auth_expiration ?? null,
           auth_required: p?.auth_required ?? false,
         };
@@ -397,8 +397,11 @@ export default function BillingAndClaims() {
   };
 
   // Helper: build claim data from a trip
+  // Supports oneoff runs by falling back to scheduling_legs oneoff fields
   const buildClaimFromTrip = (t: any) => {
-    const payerType = t.patient?.primary_payer ?? "default";
+    const leg = t.leg as any;
+    const isOneoff = !t.patient_id && leg?.is_oneoff;
+    const payerType = t.patient?.primary_payer ?? (isOneoff ? leg?.oneoff_primary_payer : null) ?? "default";
     const payerRules = payerRulesMap.get(payerType) ?? null;
     const authInfo = t.patient ? { auth_required: t.patient.auth_required, auth_expiration: t.patient.auth_expiration } : null;
     const gateResult = computeCleanTripStatus(t, payerRules, authInfo);
@@ -407,7 +410,7 @@ export default function BillingAndClaims() {
     const base = rate?.base_rate ?? 0;
     const miles = Number(t.loaded_miles ?? 0) * Number(rate?.mileage_rate ?? 0);
     const wait = Number(t.wait_time_minutes ?? 0) * Number(rate?.wait_rate_per_min ?? 0);
-    const extras = (t.patient?.oxygen_required ? Number(rate?.oxygen_fee ?? 0) : 0)
+    const extras = (t.patient?.oxygen_required || (isOneoff && leg?.oneoff_oxygen) ? Number(rate?.oxygen_fee ?? 0) : 0)
       + (t.patient?.bariatric ? Number(rate?.bariatric_fee ?? 0) : 0);
 
     const { codes, modifiers: mods } = computeHcpcsCodes({
@@ -415,7 +418,7 @@ export default function BillingAndClaims() {
       service_level: t.service_level,
       loaded_miles: t.loaded_miles,
       wait_time_minutes: t.wait_time_minutes,
-      oxygen_required: t.patient?.oxygen_required,
+      oxygen_required: t.patient?.oxygen_required || (isOneoff && leg?.oneoff_oxygen),
       bariatric: t.patient?.bariatric,
       equipment_used_json: t.equipment_used_json,
       destination_type: t.destination_type,
@@ -436,7 +439,7 @@ export default function BillingAndClaims() {
         company_id: t.company_id,
         payer_type: payerType,
         payer_name: payerType,
-        member_id: t.patient?.member_id ?? null,
+        member_id: t.patient?.member_id ?? (isOneoff ? leg?.oneoff_member_id : null) ?? null,
         base_charge: base,
         mileage_charge: miles,
         extras_charge: extras + wait,
@@ -454,11 +457,10 @@ export default function BillingAndClaims() {
         stretcher_placement: t.stretcher_placement ?? null,
         patient_mobility: t.patient_mobility ?? null,
         isolation_precautions: t.isolation_precautions ?? null,
-        // Fix 2: Sync ICD-10 codes and missing fields
         icd10_codes: t.icd10_codes ?? [],
         origin_zip: extractZip(t.pickup_location),
         destination_zip: extractZip(t.destination_location),
-        patient_sex: t.patient?.sex ?? null,
+        patient_sex: t.patient?.sex ?? (isOneoff ? leg?.oneoff_sex : null) ?? null,
         auth_number: t.patient?.auth_required ? (t.patient?.prior_auth_number ?? null) : null,
       },
     };
@@ -487,7 +489,7 @@ export default function BillingAndClaims() {
     const tripIds = (refreshableClaims as any[]).map((c: any) => c.trip_id).filter(Boolean);
     const { data: trips } = await supabase
       .from("trip_records" as any)
-      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_number), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions")
+      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_number), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions")
       .in("id", tripIds);
 
     if (!trips?.length) {
@@ -557,7 +559,7 @@ export default function BillingAndClaims() {
   const syncClaimsFromTrips = async () => {
     const { data: trips } = await supabase
       .from("trip_records" as any)
-      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_number), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions, icd10_codes, weight_lbs")
+      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_number), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions, icd10_codes, weight_lbs")
       .in("status", ["ready_for_billing", "completed"] as any)
       .not("status", "eq", "cancelled")
       .eq("pcr_status", "submitted");
@@ -586,7 +588,7 @@ export default function BillingAndClaims() {
     const duplicateBillableWarnings: string[] = [];
     for (const [, group] of billableByPatientDate) {
       if (group.length > 1) {
-        const patientName = group[0].patient ? `${group[0].patient.first_name ?? ""} ${group[0].patient.last_name ?? ""}`.trim() : "Unknown";
+        const patientName = group[0].patient ? `${group[0].patient.first_name ?? ""} ${group[0].patient.last_name ?? ""}`.trim() : (group[0].leg?.is_oneoff ? group[0].leg.oneoff_name : "Unknown");
         duplicateBillableWarnings.push(`${patientName} on ${group[0].run_date} (${group.length} trip records)`);
       }
     }
@@ -604,7 +606,7 @@ export default function BillingAndClaims() {
       if (t.patient_id) {
         const patientDateKey = `${t.patient_id}_${t.run_date}`;
         if (claimedPatientDates.has(patientDateKey)) {
-          const patientName = t.patient ? `${t.patient.first_name ?? ""} ${t.patient.last_name ?? ""}`.trim() : "Unknown";
+          const patientName = t.patient ? `${t.patient.first_name ?? ""} ${t.patient.last_name ?? ""}`.trim() : (t.leg?.is_oneoff ? t.leg.oneoff_name : "Unknown");
           duplicateWarnings.push(`${patientName} on ${t.run_date}`);
           continue;
         }

@@ -156,17 +156,25 @@ export default function ARCommandCenter() {
       if (p.payer_type) filingMap[p.payer_type.toLowerCase()] = p.timely_filing_days ?? 365;
     }
 
-    // Fetch patient names for all claims
+    // Fetch patient names for all claims; also get oneoff names from scheduling_legs via trip
     const patientIds = [...new Set((data ?? []).map((c: any) => c.patient_id).filter(Boolean))];
+    const tripIds = [...new Set((data ?? []).map((c: any) => c.trip_id).filter(Boolean))];
     let patientMap: Record<string, string> = {};
-    if (patientIds.length > 0) {
-      const { data: patients } = await supabase
-        .from("patients")
-        .select("id, first_name, last_name")
-        .in("id", patientIds);
-      for (const p of patients ?? []) {
-        patientMap[p.id] = `${p.first_name} ${p.last_name}`;
-      }
+    let tripLegMap: Record<string, any> = {};
+
+    const [{ data: patients }, { data: tripLegs }] = await Promise.all([
+      patientIds.length > 0
+        ? supabase.from("patients").select("id, first_name, last_name").in("id", patientIds)
+        : Promise.resolve({ data: [] as any[] }),
+      tripIds.length > 0
+        ? supabase.from("trip_records" as any).select("id, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name)").in("id", tripIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+    for (const p of patients ?? []) {
+      patientMap[p.id] = `${p.first_name} ${p.last_name}`;
+    }
+    for (const t of (tripLegs ?? []) as any[]) {
+      if (t.leg?.is_oneoff) tripLegMap[t.id] = t.leg.oneoff_name;
     }
 
     const mapped: ARClaim[] = (data ?? []).map((c: any) => {
@@ -175,7 +183,7 @@ export default function ARCommandCenter() {
       const pri = computePriority({ ...c, days_outstanding: days, filing_limit_days: filingLimitDays });
       return {
         ...c,
-        patient_name: patientMap[c.patient_id] ?? "Unknown Patient",
+        patient_name: patientMap[c.patient_id] ?? tripLegMap[c.trip_id] ?? "Unknown Patient",
         days_outstanding: days,
         priority: pri.priority,
         priority_label: pri.label,
