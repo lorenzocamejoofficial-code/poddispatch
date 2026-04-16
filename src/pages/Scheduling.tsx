@@ -1522,35 +1522,48 @@ export default function Scheduling() {
             </DialogHeader>
             <div className="grid gap-3 py-2">
               <div>
-                <Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label>
-                <Input type="time" value={exceptionForm.pickup_time} onChange={(e) => handleExceptionPickupTimeChange(e.target.value)} />
-                {editingExceptionLeg?.leg_type === "B" && bLegEarliest && (
-                  <p className="text-[11px] text-muted-foreground mt-1">Earliest valid pickup: {bLegEarliest}</p>
-                )}
-                {editingExceptionLeg?.leg_type === "B" && bLegTooEarly && bLegEarliest && (
-                  <p className="text-[11px] text-[hsl(var(--status-yellow))] mt-0.5">
-                    <AlertTriangle className="inline h-3 w-3 mr-1" />
-                    Too early — patient's treatment ends at approximately {bLegEarliest}. Override required.
+                <Label>Move to Different Date</Label>
+                <Input type="date" value={exceptionNewDate} onChange={(e) => setExceptionNewDate(e.target.value)} />
+                {exceptionNewDate && exceptionNewDate !== selectedDate && (
+                  <p className="text-[11px] text-primary mt-1">
+                    This run will be unassigned from its current truck and moved to <strong>{exceptionNewDate}</strong>'s run pool.
                   </p>
                 )}
               </div>
-              <div>
-                <Label>Pickup Location</Label>
-                <Input value={exceptionForm.pickup_location} onChange={(e) => setExceptionForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="e.g. City Hospital, Room 204" />
-              </div>
-              <div>
-                <Label>Destination</Label>
-                <Input value={exceptionForm.destination_location} onChange={(e) => setExceptionForm(f => ({ ...f, destination_location: e.target.value }))} />
-              </div>
-              <div>
-                <Label>Notes for crew (this date only)</Label>
-                <Textarea value={exceptionForm.notes} onChange={(e) => setExceptionForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
-              </div>
+              {(!exceptionNewDate || exceptionNewDate === selectedDate) && (
+                <>
+                  <div>
+                    <Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label>
+                    <Input type="time" value={exceptionForm.pickup_time} onChange={(e) => handleExceptionPickupTimeChange(e.target.value)} />
+                    {editingExceptionLeg?.leg_type === "B" && bLegEarliest && (
+                      <p className="text-[11px] text-muted-foreground mt-1">Earliest valid pickup: {bLegEarliest}</p>
+                    )}
+                    {editingExceptionLeg?.leg_type === "B" && bLegTooEarly && bLegEarliest && (
+                      <p className="text-[11px] text-[hsl(var(--status-yellow))] mt-0.5">
+                        <AlertTriangle className="inline h-3 w-3 mr-1" />
+                        Too early — patient's treatment ends at approximately {bLegEarliest}. Override required.
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Label>Pickup Location</Label>
+                    <Input value={exceptionForm.pickup_location} onChange={(e) => setExceptionForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="e.g. City Hospital, Room 204" />
+                  </div>
+                  <div>
+                    <Label>Destination</Label>
+                    <Input value={exceptionForm.destination_location} onChange={(e) => setExceptionForm(f => ({ ...f, destination_location: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label>Notes for crew (this date only)</Label>
+                    <Textarea value={exceptionForm.notes} onChange={(e) => setExceptionForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
+                  </div>
+                </>
+              )}
               <div className="flex gap-2">
                 <Button onClick={handleSaveException} disabled={savingException} className="flex-1">
-                  {savingException ? "Saving..." : "Save Exception"}
+                  {savingException ? "Saving..." : exceptionNewDate && exceptionNewDate !== selectedDate ? "Move Run" : "Save Exception"}
                 </Button>
-                {editingExceptionLeg?.has_exception && (
+                {editingExceptionLeg?.has_exception && (!exceptionNewDate || exceptionNewDate === selectedDate) && (
                   <Button variant="outline" onClick={handleDeleteException} className="text-destructive border-destructive/40">
                     Remove Exception
                   </Button>
