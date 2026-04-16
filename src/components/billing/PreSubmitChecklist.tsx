@@ -295,6 +295,40 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         }
       }
 
+      // RSNAT prior-auth threshold check — Medicare repetitive non-emergency
+      // ambulance transport. If the patient has 40+ one-way trips or 20+ round
+      // trips in any 60-day window ending on this DOS, prior auth is required
+      // and the UTN must appear in REF*G1 before submission.
+      if (claimPayerType === "medicare" && patientId && t.run_date) {
+        const dosTime = new Date(t.run_date).getTime();
+        const windowStart = new Date(dosTime - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const windowEnd = new Date(dosTime).toISOString().slice(0, 10);
+        const { data: priorTrips } = await supabase
+          .from("trip_records")
+          .select("id, leg_id")
+          .eq("patient_id", patientId)
+          .gte("run_date", windowStart)
+          .lte("run_date", windowEnd);
+        const oneWayCount = (priorTrips ?? []).length;
+        // Round-trip approximation: trips that share a leg_id pair as A/B legs
+        const legIds = (priorTrips ?? []).map(r => r.leg_id).filter(Boolean) as string[];
+        const roundTripCount = Math.floor(legIds.length / 2);
+        const hasUtn = !!(claim?.auth_number && String(claim.auth_number).trim());
+        if (oneWayCount >= 40 || roundTripCount >= 20) {
+          checks.push({
+            label: hasUtn
+              ? "RSNAT prior auth on file (Medicare repetitive transport)"
+              : "RSNAT prior auth may be required",
+            passed: hasUtn,
+            isWarning: true,
+            detail: hasUtn
+              ? `UTN on file (${claim.auth_number}). ${oneWayCount} one-way / ~${roundTripCount} round trips in last 60 days.`
+              : `Patient has ${oneWayCount} one-way / ~${roundTripCount} round trips in last 60 days. Medicare requires prior authorization (UTN in REF*G1) at 40+ one-way or 20+ round trips. Add an auth number before submitting.`,
+          });
+        }
+      }
+
+
       // Compute claim score using the same PCS resolution paths as the checklist.
       const scorePatient = (patientPcsValid || billerPcsComplete || !!t.pcs_attached)
         ? {

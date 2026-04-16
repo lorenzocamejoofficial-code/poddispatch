@@ -251,17 +251,67 @@ function dmgSexCode(sex: string | null): string {
   return "U";
 }
 
-/** Build dynamic CRC condition codes from medical necessity fields */
+/** Build dynamic CRC condition codes from medical necessity / transport fields.
+ *  Spec-compliant CMS ambulance certification codes:
+ *    01 — patient admitted to a hospital (destination = hospital inpatient/ER)
+ *    04 — bed confined before AND after transport
+ *    05 — bed confined before transport only
+ *    06 — bed confined after transport only
+ *    07 — transferred to a non-hospital facility (e.g. SNF, dialysis)
+ *    08 — interfacility transport, patient is a hospital inpatient
+ *    09 — patient moved by stretcher
+ *  Oxygen is NOT a valid CRC certification condition and is intentionally omitted.
+ */
 function buildCrcCodes(claim: ClaimForEDI): string[] {
   const codes: string[] = [];
-  const hasAny = claim.bed_confined || claim.requires_monitoring || claim.oxygen_required ||
-    (claim.stretcher_placement && claim.stretcher_placement.toLowerCase() !== "ambulatory");
-  if (hasAny) codes.push("01"); // patient was transported
-  if (claim.bed_confined) codes.push("04"); // patient is bed-confined
-  if (claim.stretcher_placement && claim.stretcher_placement.toLowerCase() !== "ambulatory") codes.push("05"); // stretcher required
-  if (claim.requires_monitoring) codes.push("06"); // monitoring required
-  if (claim.oxygen_required) codes.push("07"); // oxygen required
-  return codes.slice(0, 4); // max 4 condition codes
+  const dest = (claim.destination_type || "").toLowerCase();
+  const stretcher = (claim.stretcher_placement || "").toLowerCase();
+
+  // 01 — admitted to hospital (destination is hospital)
+  if (dest.includes("hospital") && !dest.includes("hospital-based dialysis")) {
+    codes.push("01");
+  }
+  // 04 — bed confined before and after (we only track a single flag, treat as both)
+  if (claim.bed_confined) codes.push("04");
+  // 07 — transferred to non-hospital facility (SNF, dialysis, etc.)
+  if (
+    dest.includes("nursing") ||
+    dest.includes("snf") ||
+    dest.includes("dialysis") ||
+    dest === "n" ||
+    dest === "j" ||
+    dest === "g"
+  ) {
+    codes.push("07");
+  }
+  // 09 — moved by stretcher
+  if (stretcher && stretcher !== "ambulatory") codes.push("09");
+
+  return [...new Set(codes)].slice(0, 4); // dedupe + cap at 4
+}
+
+/** Map ICD-10 + transport context to CR1-04 ambulance transport reason code (A–E).
+ *    A — transported to nearest facility for care of symptoms (default)
+ *    B — transported for benefit of preferred physician
+ *    C — transported for nearness of family members
+ *    D — transported for care of a specialist or specialized equipment
+ *    E — other reason
+ */
+function buildCr1ReasonCode(claim: ClaimForEDI): string {
+  const dest = (claim.destination_type || "").toLowerCase();
+  // Dialysis = specialized equipment
+  if (dest.includes("dialysis") || dest === "j" || dest === "g") return "D";
+  return "A";
+}
+
+/** Timely filing limit in days by payer + state. */
+function timelyFilingDays(payerType: string | null, state: string | null): number {
+  const t = (payerType || "").toLowerCase();
+  const s = (state || "").toUpperCase();
+  if (t === "medicaid" && s === "GA") return 180; // Georgia Medicaid: 6 months
+  if (t === "medicare") return 365; // Medicare: 12 months
+  if (t === "medicaid") return 365; // default Medicaid
+  return 365;
 }
 
 function splitPatientName(fullName: string): { last: string; first: string } {
@@ -451,14 +501,17 @@ export function generateEDI837P(
     }
 
     // CR1 - Ambulance Transport Information
+    // CR1-04 must be a single-letter transport reason code (A–E), NOT the
+    // origin/destination facility modifier (which belongs on the SV1 line).
     const weightVal = claim.weight_lbs && claim.weight_lbs > 0 ? String(Math.round(claim.weight_lbs)) : "";
+    const cr1Reason = buildCr1ReasonCode(claim);
     addSeg(
       [
         "CR1",
         weightVal ? "LB" : "",       // Weight unit (only if weight present)
         weightVal,                   // Patient weight
         "A",                         // Ambulance transport code
-        facilityCode.length >= 2 ? facilityCode : "RD", // Transport reason
+        cr1Reason,                   // Transport reason A–E
         "DH",                        // Distance unit (miles)
         claim.loaded_miles > 0 ? String(claim.loaded_miles) : "1",
         "",                          // Description (optional)
@@ -495,14 +548,22 @@ export function generateEDI837P(
     }
 
     // --- SERVICE LINES (2400) ---
+    // Independent ambulance suppliers must append QN to every HCPCS line.
+    // Origin/destination modifier is required on every ambulance line as well.
+    const ensureQn = (mods: string[]): string[] => {
+      const set = new Set(mods.map(m => m.toUpperCase().trim()).filter(Boolean));
+      set.add("QN");
+      return [...set];
+    };
+    const baseModSet = ensureQn([facilityCode, ...(claim.hcpcs_modifiers || [])]);
+
     // Base rate line
     if (claim.base_charge > 0) {
       const baseHcpcs = claim.hcpcs_codes?.[0] || "A0428";
-      const mods = claim.hcpcs_modifiers || [];
       addSeg(["LX", "1"].join(ES));
       const sv1Parts = [
         "SV1",
-        `HC${SE_SEP}${baseHcpcs}${mods.length > 0 ? SE_SEP + mods.join(SE_SEP) : ""}`,
+        `HC${SE_SEP}${baseHcpcs}${baseModSet.length > 0 ? SE_SEP + baseModSet.join(SE_SEP) : ""}`,
         formatAmount(claim.base_charge),
         "UN",
         "1",
@@ -512,13 +573,14 @@ export function generateEDI837P(
       addSeg(["DTP", "472", "D8", formatDate8(claim.run_date)].join(ES));
     }
 
-    // Mileage line
+    // Mileage line — must also carry QN + origin/destination modifier
     if (claim.mileage_charge > 0 && claim.loaded_miles > 0) {
+      const mileageMods = ensureQn([facilityCode]);
       addSeg(["LX", "2"].join(ES));
       addSeg(
         [
           "SV1",
-          `HC${SE_SEP}A0425`,
+          `HC${SE_SEP}A0425${mileageMods.length > 0 ? SE_SEP + mileageMods.join(SE_SEP) : ""}`,
           formatAmount(claim.mileage_charge),
           "UN",
           String(Math.ceil(claim.loaded_miles)),
@@ -543,18 +605,40 @@ export function generateEDI837P(
   return segments.join("\n");
 }
 
-/** Validate claims have minimum required data for 837P export */
-export function validateClaimForEDI(claim: ClaimForEDI): string[] {
+/** Validate claims have minimum required data for 837P export.
+ *  Hard blockers — claim file will not generate if any of these fail.
+ *  Pass billingState (provider/company state) for state-specific timely filing rules.
+ */
+export function validateClaimForEDI(claim: ClaimForEDI, billingState?: string | null): string[] {
   const errors: string[] = [];
-  if (!claim.member_id) errors.push("Missing member ID");
-  if (!claim.patient_name) errors.push("Missing patient name");
+  if (!claim.member_id || !String(claim.member_id).trim() || String(claim.member_id).trim().toUpperCase() === "UNKNOWN") {
+    errors.push("Missing member ID");
+  }
   if (!claim.run_date) errors.push("Missing service date");
   if (!claim.total_charge || claim.total_charge <= 0) errors.push("Invalid charge amount");
   if (!claim.hcpcs_codes?.length) errors.push("Missing HCPCS codes");
   if (!claim.payer_name && !claim.payer_id) errors.push("Missing payer information");
 
-  // Patient address — require non-empty street, city, and ZIP. Resolve from
-  // dedicated fields first, fall back to parsing the combined address string.
+  // Patient name — both first and last required. splitPatientName uses "UNKNOWN"
+  // as a placeholder when parsing fails, so check for that explicitly.
+  const { last, first } = splitPatientName(claim.patient_name || "");
+  if (!claim.patient_name?.trim() || last === "UNKNOWN" || first === "UNKNOWN") {
+    errors.push("Missing patient first or last name");
+  }
+
+  // Patient DOB — required, must not be the 1900-01-01 placeholder
+  const dob = (claim.patient_dob || "").trim();
+  if (!dob || dob === "1900-01-01" || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+    errors.push("Missing patient date of birth");
+  }
+
+  // Patient sex — required, must be M or F (not U/null)
+  const sex = (claim.patient_sex || "").toUpperCase();
+  if (sex !== "M" && sex !== "F" && sex !== "MALE" && sex !== "FEMALE") {
+    errors.push("Missing patient sex");
+  }
+
+  // Patient address — require non-empty street, city, and ZIP.
   const parsed = parseAddressString(claim.patient_address);
   const street = (claim.patient_address ?? "").trim() || parsed.street;
   const city = (claim.patient_city ?? "").trim() || parsed.city;
@@ -562,6 +646,18 @@ export function validateClaimForEDI(claim: ClaimForEDI): string[] {
   if (!street.trim() || !city.trim() || !zip.trim()) {
     errors.push("Patient address incomplete — update patient record before submitting.");
   }
+
+  // Timely filing — block if DOS is past payer's filing limit
+  if (claim.run_date && /^\d{4}-\d{2}-\d{2}$/.test(claim.run_date)) {
+    const limit = timelyFilingDays(claim.payer_type, billingState ?? null);
+    const dos = new Date(claim.run_date + "T00:00:00");
+    const deadline = new Date(dos.getTime() + limit * 24 * 60 * 60 * 1000);
+    if (Date.now() > deadline.getTime()) {
+      const daysOver = Math.floor((Date.now() - deadline.getTime()) / (1000 * 60 * 60 * 24));
+      errors.push(`Timely filing deadline passed — DOS ${claim.run_date} is ${daysOver} days past the ${limit}-day limit for ${claim.payer_type ?? "payer"}.`);
+    }
+  }
+
   return errors;
 }
 
