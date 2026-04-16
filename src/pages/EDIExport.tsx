@@ -294,10 +294,10 @@ export default function EDIExport() {
         };
       });
 
-      // Validate
+      // Validate (pass billing state for state-specific timely filing rules)
       const allErrors: string[] = [];
       ediClaims.forEach((ec, i) => {
-        const errs = validateClaimForEDI(ec);
+        const errs = validateClaimForEDI(ec, providerInfo.state);
         if (errs.length > 0) {
           allErrors.push(`Claim ${i + 1} (${ec.patient_name}): ${errs.join(", ")}`);
         }
