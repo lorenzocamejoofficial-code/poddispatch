@@ -234,6 +234,24 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         detail: effectiveMemberId !== "" ? effectiveMemberId : "Member ID is missing — update the patient record (or one-off run details) before submitting",
       });
 
+      // Patient address — must have street + city + ZIP. Blocks export and the
+      // 837P generator so we never write "UNKNOWN" to N3/N4 segments.
+      const patientAddrRaw = String(
+        (t.leg?.is_oneoff ? t.leg?.oneoff_pickup_address : p?.pickup_address) ?? ""
+      ).trim();
+      const hasZip = /\b\d{5}(?:-\d{4})?\b/.test(patientAddrRaw);
+      const tokens = patientAddrRaw.split(/[,\s]+/).filter(Boolean);
+      const hasStreet = /\d/.test(patientAddrRaw) && tokens.length >= 2;
+      const hasCity = tokens.length >= 3;
+      const addressComplete = !!patientAddrRaw && hasZip && hasStreet && hasCity;
+      checks.push({
+        label: "Patient address complete (street, city, ZIP)",
+        passed: addressComplete,
+        detail: addressComplete
+          ? patientAddrRaw
+          : "Patient address incomplete — update patient record before submitting.",
+      });
+
       // Emergency billing decision check — only applies when claim has emergency event
       if (claim?.has_emergency_event) {
         checks.push({
