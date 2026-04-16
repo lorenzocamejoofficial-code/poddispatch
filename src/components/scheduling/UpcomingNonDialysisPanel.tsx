@@ -17,6 +17,7 @@ interface UpcomingLeg {
   trip_type: string;
   leg_type: string;
   assigned_truck_name: string | null;
+  is_completed: boolean;
 }
 
 /* ── helpers ── */
