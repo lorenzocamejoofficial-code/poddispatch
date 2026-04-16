@@ -830,6 +830,12 @@ export default function Scheduling() {
       sourceData?.leg ?? legs.find(l => l.id === active.id);
     if (!activeLeg) return;
 
+    // Block dragging completed runs
+    if (activeLeg.slot_status === "completed") {
+      toast.error("Cannot move a completed run");
+      return;
+    }
+
     const activeId = active.id as string;
     const overId = over.id as string;
 
