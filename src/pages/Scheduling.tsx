@@ -468,6 +468,18 @@ export default function Scheduling() {
         toast.error("Name, pickup location, and destination are required");
         return;
       }
+      if (!oneoffForm.dob) { toast.error("DOB is required for one-off runs"); return; }
+      if (!oneoffForm.sex) { toast.error("Sex is required for one-off runs"); return; }
+      if (!oneoffForm.member_id || !oneoffForm.member_id.trim()) { toast.error("Member ID is required for one-off runs"); return; }
+      // 837P completeness warning (non-blocking)
+      const missingForClaim: string[] = [];
+      if (!oneoffForm.name?.trim()) missingForClaim.push("name");
+      if (!oneoffForm.dob) missingForClaim.push("DOB");
+      if (!oneoffForm.member_id?.trim()) missingForClaim.push("member ID");
+      if (!oneoffForm.primary_payer) missingForClaim.push("primary payer");
+      if (missingForClaim.length > 0) {
+        toast.warning(`Claim will be incomplete — missing: ${missingForClaim.join(", ")}. Update before billing.`);
+      }
       const normalizedTripType = normalizeTripType(oneoffForm.trip_type);
       const { data: companyId } = await supabase.rpc("get_my_company_id");
       const { error } = await supabase.from("scheduling_legs").insert({
