@@ -334,6 +334,13 @@ export default function ARCommandCenter() {
     });
   }, [claims, filterPriority, filterPayer, search]);
 
+  // Pagination — keeps DOM render small as AR queue grows past hundreds of rows
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  useEffect(() => { setPage(1); }, [search, filterPriority, filterPayer, pageSize]);
+  const pageStart = (page - 1) * pageSize;
+  const paginatedClaims = useMemo(() => filtered.slice(pageStart, pageStart + pageSize), [filtered, pageStart, pageSize]);
+
   /* -- summary cards -- */
   const totalOutstanding = claims.reduce((sum, c) => sum + ((c.total_charge ?? 0) - (c.amount_paid ?? 0)), 0);
   const actionToday = claims.filter(c => c.priority <= 3).length;
