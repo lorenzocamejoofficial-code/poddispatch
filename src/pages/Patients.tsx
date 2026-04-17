@@ -1031,7 +1031,7 @@ export default function Patients() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => {
+                {paginated.map((p) => {
                   const isHeavy = (p.weight_lbs ?? 0) > 200;
                   const isInactive = (p as any).status !== "active";
                   const tType = (p as any).transport_type ?? "dialysis";
