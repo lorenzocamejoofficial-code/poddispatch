@@ -100,8 +100,9 @@ export default function OwnerDashboard() {
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("focus", loadData);
 
-    // Also poll every 60s for realtime-like freshness
-    const interval = setInterval(loadData, 60_000);
+    // Slow safety-net refresh every 5 minutes (visibility/focus listeners above
+    // already refresh when the user comes back to the tab — no need to thrash every minute).
+    const interval = setInterval(loadData, 300_000);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
