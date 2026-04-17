@@ -479,7 +479,7 @@ export default function ARCommandCenter() {
                   {filtered.length === 0 && (
                     <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">No claims requiring AR follow-up</td></tr>
                   )}
-                  {filtered.map(claim => (
+                  {paginatedClaims.map(claim => (
                     <tr
                       key={claim.id}
                       className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
@@ -500,6 +500,15 @@ export default function ARCommandCenter() {
                   ))}
                 </tbody>
               </table>
+              {filtered.length > 0 && (
+                <TablePagination
+                  page={page}
+                  pageSize={pageSize}
+                  totalItems={filtered.length}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                />
+              )}
             </div>
           </TabsContent>
         </Tabs>
