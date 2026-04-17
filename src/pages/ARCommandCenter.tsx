@@ -26,6 +26,7 @@ import { PayerContactLookup } from "@/components/billing/PayerDirectoryTab";
 import { BillerTaskQueue } from "@/components/billing/BillerTaskQueue";
 import { BillingWorkQueue } from "@/components/billing/BillingWorkQueue";
 import { Wrench } from "lucide-react";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 /* ---------- types ---------- */
 interface ARClaim {
