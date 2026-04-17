@@ -68,6 +68,14 @@ export function CrewLayout({ children }: { children: ReactNode }) {
             className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
             <LogOut className="h-4 w-4" /> Sign Out
           </button>
+          <a
+            href="/legal"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-xs font-medium text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+          >
+            Legal & Compliance
+          </a>
         </div>
       </aside>
 

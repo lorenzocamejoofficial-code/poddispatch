@@ -121,6 +121,24 @@ export default function AccountSettings() {
             </form>
           </CardContent>
         </Card>
+
+        {/* Legal & Compliance */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Legal & Compliance</CardTitle>
+            <CardDescription className="text-xs">Terms of Service, Privacy Policy, BAA, Acceptable Use, Clearinghouse Disclaimer, Data Retention, and Incident Response.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <a
+              href="/legal"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-primary hover:underline"
+            >
+              View Legal & Compliance documents →
+            </a>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -124,7 +124,7 @@ serve(async (req) => {
     for (const type of agreementTypes) {
       await supabaseAdmin.from("legal_acceptances").insert({
         company_id: companyId, user_id: userId, agreement_type: type,
-        agreement_version: "1.0", accepted_ip: clientIp || null,
+        agreement_version: "2.0", accepted_ip: clientIp || null,
       });
     }
 
