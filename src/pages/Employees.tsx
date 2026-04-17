@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Plus, Search, Pencil, Trash2, Mail, Copy, Check, XCircle, KeyRound } from "lucide-react";
 import { toast } from "sonner";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 interface Employee {
   id: string;
@@ -358,11 +359,18 @@ export default function Employees() {
     setBulkDeleting(false);
   };
 
-  const filtered = employees.filter((e) => {
+  const filtered = useMemo(() => employees.filter((e) => {
     if (!showInactive && !e.active) return false;
     return e.full_name.toLowerCase().includes(search.toLowerCase()) ||
       (e.phone_number ?? "").includes(search);
-  });
+  }), [employees, showInactive, search]);
+
+  // Pagination — keeps DOM small as employee directories grow
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  useEffect(() => { setPage(1); }, [search, showInactive, pageSize]);
+  const pageStart = (page - 1) * pageSize;
+  const paginated = useMemo(() => filtered.slice(pageStart, pageStart + pageSize), [filtered, pageStart, pageSize]);
 
   // ── Selection helpers ──
   const allFilteredSelected = filtered.length > 0 && filtered.every((e) => selected.has(e.id));
@@ -538,7 +546,7 @@ export default function Employees() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((e) => {
+                {paginated.map((e) => {
                   const isChecked = selected.has(e.id);
                   return (
                     <tr key={e.id} className={`border-b last:border-0 transition-colors ${!e.active ? "opacity-50" : ""} ${isChecked ? "bg-primary/5" : ""}`}>
@@ -614,6 +622,15 @@ export default function Employees() {
               </tbody>
             </table>
           </div>
+          {filtered.length > 0 && (
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={filtered.length}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          )}
         </div>
 
         {/* ── Pending Invites Section ── */}

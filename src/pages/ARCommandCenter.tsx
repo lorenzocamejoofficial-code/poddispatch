@@ -26,6 +26,7 @@ import { PayerContactLookup } from "@/components/billing/PayerDirectoryTab";
 import { BillerTaskQueue } from "@/components/billing/BillerTaskQueue";
 import { BillingWorkQueue } from "@/components/billing/BillingWorkQueue";
 import { Wrench } from "lucide-react";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 /* ---------- types ---------- */
 interface ARClaim {
@@ -333,6 +334,13 @@ export default function ARCommandCenter() {
     });
   }, [claims, filterPriority, filterPayer, search]);
 
+  // Pagination — keeps DOM render small as AR queue grows past hundreds of rows
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  useEffect(() => { setPage(1); }, [search, filterPriority, filterPayer, pageSize]);
+  const pageStart = (page - 1) * pageSize;
+  const paginatedClaims = useMemo(() => filtered.slice(pageStart, pageStart + pageSize), [filtered, pageStart, pageSize]);
+
   /* -- summary cards -- */
   const totalOutstanding = claims.reduce((sum, c) => sum + ((c.total_charge ?? 0) - (c.amount_paid ?? 0)), 0);
   const actionToday = claims.filter(c => c.priority <= 3).length;
@@ -478,7 +486,7 @@ export default function ARCommandCenter() {
                   {filtered.length === 0 && (
                     <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">No claims requiring AR follow-up</td></tr>
                   )}
-                  {filtered.map(claim => (
+                  {paginatedClaims.map(claim => (
                     <tr
                       key={claim.id}
                       className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
@@ -499,6 +507,15 @@ export default function ARCommandCenter() {
                   ))}
                 </tbody>
               </table>
+              {filtered.length > 0 && (
+                <TablePagination
+                  page={page}
+                  pageSize={pageSize}
+                  totalItems={filtered.length}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                />
+              )}
             </div>
           </TabsContent>
         </Tabs>

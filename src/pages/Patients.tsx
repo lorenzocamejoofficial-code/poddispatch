@@ -25,6 +25,7 @@ import { FacilityDropdown } from "@/components/patients/FacilityDropdown";
 import { FacilitySelect } from "@/components/patients/FacilitySelect";
 import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
 import { DocumentAttachments } from "@/components/documents/DocumentAttachments";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 type Patient = Tables<"patients">;
 type PatientStatus = Database["public"]["Enums"]["patient_status"];
@@ -122,7 +123,9 @@ export default function Patients() {
   });
 
   const fetchPatients = async () => {
-    const { data } = await supabase.from("patients").select("*").order("last_name");
+    // Cap initial transfer at 2000 patients to keep memory + render reasonable.
+    // Pagination below ensures only ~50 rows render at a time.
+    const { data } = await supabase.from("patients").select("*").order("last_name").limit(2000);
     setPatients(data ?? []);
   };
 
@@ -449,12 +452,19 @@ export default function Patients() {
   };
 
   // ── Selection helpers ──
-  const filtered = patients.filter((p) => {
+  const filtered = useMemo(() => patients.filter((p) => {
     const q = search.toLowerCase();
     const nameMatch = `${p.first_name} ${p.last_name}`.toLowerCase().includes(q);
     const statusMatch = statusFilter === "all" || (p as any).status === statusFilter;
     return nameMatch && statusMatch;
-  });
+  }), [patients, search, statusFilter]);
+
+  // Pagination — keeps rendered DOM small even with 1000+ patients
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  useEffect(() => { setPage(1); }, [search, statusFilter, pageSize]);
+  const pageStart = (page - 1) * pageSize;
+  const paginated = useMemo(() => filtered.slice(pageStart, pageStart + pageSize), [filtered, pageStart, pageSize]);
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.id));
   const someSelected = selected.size > 0;
@@ -1021,7 +1031,7 @@ export default function Patients() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => {
+                {paginated.map((p) => {
                   const isHeavy = (p.weight_lbs ?? 0) > 200;
                   const isInactive = (p as any).status !== "active";
                   const tType = (p as any).transport_type ?? "dialysis";
@@ -1163,6 +1173,15 @@ export default function Patients() {
               </tbody>
             </table>
           </div>
+          {filtered.length > 0 && (
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={filtered.length}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          )}
         </div>
       </div>
 
