@@ -622,6 +622,15 @@ export default function Employees() {
               </tbody>
             </table>
           </div>
+          {filtered.length > 0 && (
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={filtered.length}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
+          )}
         </div>
 
         {/* ── Pending Invites Section ── */}
