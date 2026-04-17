@@ -397,20 +397,38 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     Promise.all([fetchLegs(), fetchOptions(), fetchCrews()]).finally(() => setLoading(false));
 
-    // Realtime: re-fetch when any scheduling, crew, or trip status data changes
-    const channel = supabase
-      .channel("scheduling-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs" }, () => fetchLegs())
-      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => fetchLegs())
-      .on("postgres_changes", { event: "*", schema: "public", table: "leg_exceptions" }, () => fetchLegs())
-      .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, () => fetchLegs())
-      .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => fetchCrews())
-      .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => fetchCrews())
-      .on("postgres_changes", { event: "*", schema: "public", table: "trucks" }, () => fetchOptions())
-      .on("postgres_changes", { event: "*", schema: "public", table: "patients" }, () => { fetchOptions(); fetchLegs(); })
-      .subscribe();
+    // Debounce realtime bursts so a flurry of row changes triggers one refetch, not many.
+    let legsT: ReturnType<typeof setTimeout> | null = null;
+    let crewsT: ReturnType<typeof setTimeout> | null = null;
+    let optionsT: ReturnType<typeof setTimeout> | null = null;
+    const dbLegs = () => { if (legsT) clearTimeout(legsT); legsT = setTimeout(() => fetchLegs(), 500); };
+    const dbCrews = () => { if (crewsT) clearTimeout(crewsT); crewsT = setTimeout(() => fetchCrews(), 500); };
+    const dbOptions = () => { if (optionsT) clearTimeout(optionsT); optionsT = setTimeout(() => fetchOptions(), 500); };
 
-    return () => { supabase.removeChannel(channel); };
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      const f = companyId ? `company_id=eq.${companyId}` : undefined;
+
+      channel = supabase
+        .channel(`scheduling-realtime-${selectedDate}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs", filter: f }, dbLegs)
+        .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots", filter: f }, dbLegs)
+        .on("postgres_changes", { event: "*", schema: "public", table: "leg_exceptions" }, dbLegs)
+        .on("postgres_changes", { event: "*", schema: "public", table: "trip_records", filter: f }, dbLegs)
+        .on("postgres_changes", { event: "*", schema: "public", table: "crews", filter: f }, dbCrews)
+        .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability", filter: f }, dbCrews)
+        .on("postgres_changes", { event: "*", schema: "public", table: "trucks", filter: f }, dbOptions)
+        .on("postgres_changes", { event: "*", schema: "public", table: "patients", filter: f }, () => { dbOptions(); dbLegs(); })
+        .subscribe();
+    })();
+
+    return () => {
+      if (legsT) clearTimeout(legsT);
+      if (crewsT) clearTimeout(crewsT);
+      if (optionsT) clearTimeout(optionsT);
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [selectedDate, fetchLegs, fetchOptions, fetchCrews]);
 
   const optimisticUpdateLegs = useCallback(

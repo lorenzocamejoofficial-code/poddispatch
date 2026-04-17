@@ -383,15 +383,25 @@ export default function CrewDashboard() {
 
   useEffect(() => {
     fetchData();
-    const channel = supabase.channel("crew-dash-v2")
-      .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs" }, () => fetchData())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const debounced = () => { if (t) clearTimeout(t); t = setTimeout(() => fetchData(), 500); };
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      const f = companyId ? `company_id=eq.${companyId}` : undefined;
+      channel = supabase.channel("crew-dash-v2")
+        .on("postgres_changes", { event: "*", schema: "public", table: "trip_records", filter: f }, debounced)
+        .on("postgres_changes", { event: "*", schema: "public", table: "hold_timers", filter: f }, debounced)
+        .on("postgres_changes", { event: "*", schema: "public", table: "alerts", filter: f }, debounced)
+        .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, debounced)
+        .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots", filter: f }, debounced)
+        .on("postgres_changes", { event: "*", schema: "public", table: "scheduling_legs", filter: f }, debounced)
+        .subscribe();
+    })();
+    return () => {
+      if (t) clearTimeout(t);
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [fetchData]);
 
   // Auto-open PCR when navigated from schedule tab with state — redirect to PCR tab
@@ -405,10 +415,12 @@ export default function CrewDashboard() {
     }
   }, [runs, location.state]);
 
+  // Tick once a minute (not every second) — hold timer labels are minute-resolution.
+  // This avoids re-rendering the entire CrewDashboard every second while a timer is active.
   const [, setTick] = useState(0);
   useEffect(() => {
     if (holdTimers.length === 0) return;
-    const iv = setInterval(() => setTick(t => t + 1), 1000);
+    const iv = setInterval(() => setTick(t => t + 1), 30_000);
     return () => clearInterval(iv);
   }, [holdTimers.length]);
 

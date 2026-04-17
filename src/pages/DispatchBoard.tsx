@@ -447,9 +447,11 @@ export default function DispatchBoard() {
     setLoading(true);
     fetchData();
 
+    // Removed 30s polling — realtime + debouncedFetch already cover refresh.
+    // Keep a slow safety net every 5min in case of dropped subscription.
     const pollInterval = setInterval(() => {
       fetchDataRef.current();
-    }, 30_000);
+    }, 300_000);
 
     let channel: ReturnType<typeof supabase.channel> | null = null;
     (async () => {
