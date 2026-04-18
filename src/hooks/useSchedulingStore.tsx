@@ -302,6 +302,23 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
 
     if (eligible.length === 0) return 0;
 
+    // Fetch per-weekday overrides for the eligible patients on the selectedDate's weekday.
+    const weekday = new Date(selectedDate + "T12:00:00").getDay();
+    const eligibleIds = eligible.map((p) => p.id);
+    const { data: overrideRows } = await supabase
+      .from("patient_schedule_overrides" as any)
+      .select("patient_id, chair_time, duration_hours, duration_minutes")
+      .in("patient_id", eligibleIds)
+      .eq("weekday", weekday);
+    const overrideMap = new Map<string, { chair_time: string | null; duration_hours: number | null; duration_minutes: number | null }>();
+    for (const r of (overrideRows ?? []) as any[]) {
+      overrideMap.set(r.patient_id, {
+        chair_time: r.chair_time,
+        duration_hours: r.duration_hours,
+        duration_minutes: r.duration_minutes,
+      });
+    }
+
     const { data: existingLegs } = await supabase
       .from("scheduling_legs")
       .select("patient_id, leg_type")
@@ -321,13 +338,23 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
       // Issue #4: Use patient's actual transport_type instead of collapsing to "outpatient"
       const tripType = p.transport_type === "adhoc" ? "outpatient" : p.transport_type;
       const duration = p.run_duration_minutes ?? 30;
-      const chairTime = p.chair_time ?? null;
 
-      // Issue #3: Use patient-specific treatment duration when available
-      const patientTreatmentMinutes = ((p.chair_time_duration_hours ?? 0) * 60) + (p.chair_time_duration_minutes ?? 0);
+      // Apply per-day override if present, otherwise fall back to patient default.
+      const ovr = overrideMap.get(p.id);
+      const chairTime = (ovr?.chair_time ?? p.chair_time) ?? null;
+
+      // Issue #3: Use patient-specific treatment duration when available.
+      // Per-day override wins; otherwise use patient default; otherwise transport-type default.
+      const baseTreatmentMinutes = ((p.chair_time_duration_hours ?? 0) * 60) + (p.chair_time_duration_minutes ?? 0);
+      const overrideTreatmentMinutes = ovr
+        ? ((ovr.duration_hours ?? 0) * 60) + (ovr.duration_minutes ?? 0)
+        : 0;
       const isDialysis = p.transport_type === "dialysis";
       const defaultTreatmentMinutes = isDialysis ? 210 : 60;
-      const treatmentMinutes = patientTreatmentMinutes > 0 ? patientTreatmentMinutes : defaultTreatmentMinutes;
+      const treatmentMinutes =
+        overrideTreatmentMinutes > 0 ? overrideTreatmentMinutes
+        : baseTreatmentMinutes > 0 ? baseTreatmentMinutes
+        : defaultTreatmentMinutes;
 
       // Determine origin/destination types for the legs
       const originType = p.location_type ?? "Residence";

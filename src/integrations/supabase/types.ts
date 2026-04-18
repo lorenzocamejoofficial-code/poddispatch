@@ -1941,6 +1941,57 @@ export type Database = {
           },
         ]
       }
+      patient_schedule_overrides: {
+        Row: {
+          chair_time: string | null
+          company_id: string
+          created_at: string
+          duration_hours: number | null
+          duration_minutes: number | null
+          id: string
+          patient_id: string
+          updated_at: string
+          weekday: number
+        }
+        Insert: {
+          chair_time?: string | null
+          company_id: string
+          created_at?: string
+          duration_hours?: number | null
+          duration_minutes?: number | null
+          id?: string
+          patient_id: string
+          updated_at?: string
+          weekday: number
+        }
+        Update: {
+          chair_time?: string | null
+          company_id?: string
+          created_at?: string
+          duration_hours?: number | null
+          duration_minutes?: number | null
+          id?: string
+          patient_id?: string
+          updated_at?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_schedule_overrides_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_schedule_overrides_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           a_leg_pickup_time: string | null

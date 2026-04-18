@@ -26,6 +26,7 @@ import { FacilitySelect } from "@/components/patients/FacilitySelect";
 import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
 import { DocumentAttachments } from "@/components/documents/DocumentAttachments";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { PatientScheduleOverridesEditor, saveScheduleOverrides, type ScheduleOverride } from "@/components/patients/PatientScheduleOverridesEditor";
 
 type Patient = Tables<"patients">;
 type PatientStatus = Database["public"]["Enums"]["patient_status"];
@@ -60,6 +61,15 @@ const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string }[] = [
   { value: "private_pay", label: "Private Pay" },
 ];
 
+function computeActiveWeekdays(transportType: string, scheduleDays: string, recurrenceDays: number[]): number[] {
+  if (transportType === "dialysis") {
+    if (scheduleDays === "MWF") return [1, 3, 5];
+    if (scheduleDays === "TTS") return [2, 4, 6];
+    return [];
+  }
+  return recurrenceDays ?? [];
+}
+
 export default function Patients() {
   const { activeCompanyId, role } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -85,6 +95,9 @@ export default function Patients() {
   const [checkingEligibility, setCheckingEligibility] = useState<string | null>(null);
   const [eligibilityResults, setEligibilityResults] = useState<Map<string, { is_eligible: boolean | null; checked_at: string; summary: string }>>(new Map());
   const canCheckEligibility = ["owner", "creator", "biller"].includes(role ?? "");
+
+  // Per-day chair time / duration overrides (optional)
+  const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverride[]>([]);
 
   const [form, setForm] = useState({
     first_name: "", last_name: "", dob: "", phone: "", sex: "",
@@ -217,6 +230,7 @@ export default function Patients() {
     });
     setEditing(null);
     setBLegWarnings([]);
+    setScheduleOverrides([]);
   };
 
   const openEdit = (p: Patient) => {
@@ -410,8 +424,28 @@ export default function Patients() {
       }
     } else {
       payload.company_id = activeCompanyId;
-      await supabase.from("patients").insert(payload);
+      const { data: inserted } = await supabase.from("patients").insert(payload).select("id").single();
+      if (inserted?.id && activeCompanyId) {
+        const activeDays = computeActiveWeekdays(form.transport_type, form.schedule_days, form.recurrence_days);
+        await saveScheduleOverrides({
+          patientId: inserted.id,
+          companyId: activeCompanyId,
+          activeWeekdays: activeDays,
+          overrides: scheduleOverrides,
+        });
+      }
       toast.success("Patient added");
+    }
+
+    // Persist per-day overrides for existing patient
+    if (editing && activeCompanyId) {
+      const activeDays = computeActiveWeekdays(form.transport_type, form.schedule_days, form.recurrence_days);
+      await saveScheduleOverrides({
+        patientId: editing.id,
+        companyId: activeCompanyId,
+        activeWeekdays: activeDays,
+        overrides: scheduleOverrides,
+      });
     }
 
     setDialogOpen(false);
@@ -755,6 +789,17 @@ export default function Patients() {
                             </div>
                           </div>
                         )}
+
+                        {/* Per-day chair time / duration overrides (optional) */}
+                        <PatientScheduleOverridesEditor
+                          patientId={editing?.id ?? null}
+                          activeWeekdays={computeActiveWeekdays(form.transport_type, form.schedule_days, form.recurrence_days)}
+                          defaultChairTime={form.chair_time}
+                          defaultDurationHours={form.chair_time_duration_hours}
+                          defaultDurationMinutes={form.chair_time_duration_minutes}
+                          value={scheduleOverrides}
+                          onChange={setScheduleOverrides}
+                        />
 
                         <div className="grid grid-cols-2 gap-3">
                           <div>
