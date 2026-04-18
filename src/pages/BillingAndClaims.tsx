@@ -1157,8 +1157,8 @@ export default function BillingAndClaims() {
           )}
           <div className="flex flex-wrap items-center gap-2">
             <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-40 h-9" />
-            <Button size="sm" onClick={syncClaimsFromTrips}>
-              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Sync from Trips
+            <Button size="sm" variant="outline" onClick={scanForMissingClaims} title="Diagnostic: finds submitted PCRs without a claim record. Claims are auto-created by the database trigger; this scan should always come back clean.">
+              <ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Scan for Missing Claims
             </Button>
             <Button size="sm" variant="outline" onClick={refreshExistingClaims}>
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Refresh Existing Claims
