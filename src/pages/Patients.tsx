@@ -87,6 +87,9 @@ export default function Patients() {
   const [eligibilityResults, setEligibilityResults] = useState<Map<string, { is_eligible: boolean | null; checked_at: string; summary: string }>>(new Map());
   const canCheckEligibility = ["owner", "creator", "biller"].includes(role ?? "");
 
+  // Per-day chair time / duration overrides (optional)
+  const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverride[]>([]);
+
   const [form, setForm] = useState({
     first_name: "", last_name: "", dob: "", phone: "", sex: "",
     pickup_address: "", dropoff_facility: "", chair_time: "",
