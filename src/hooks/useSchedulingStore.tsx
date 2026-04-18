@@ -172,12 +172,12 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         .eq("run_date", selectedDate),
       supabase
         .from("trip_records")
-        .select("leg_id, status")
+        .select("leg_id, pcr_status")
         .eq("run_date", selectedDate)
-        .in("status", ["ready_for_billing", "submitted", "paid", "completed"] as any),
+        .eq("pcr_status", "submitted"),
     ]);
 
-    // Build a set of leg_ids that have completed trips
+    // A run is "completed" only when its PCR has been submitted
     const completedLegIds = new Set((tripRows ?? []).map((t: any) => t.leg_id).filter(Boolean));
 
     // Auto-sync: mark any pending slots as completed if their trip is done
