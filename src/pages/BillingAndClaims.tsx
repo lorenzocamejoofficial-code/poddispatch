@@ -518,12 +518,15 @@ export default function BillingAndClaims() {
   const refreshExistingClaims = async () => {
     const { data: refreshableClaims } = await supabase
       .from("claim_records" as any)
-      .select("id, trip_id, status, hcpcs_codes")
+      .select("id, trip_id, status, hcpcs_codes, hcpcs_manually_set")
       .not("status", "in", "(paid,voided)");
 
+    // Skip claims where the biller has manually set HCPCS — protect their edits from being overwritten.
     const filtered = (refreshableClaims ?? []).filter((c: any) =>
-      ["ready_to_bill", "needs_review", "needs_correction", "submitted", "denied"].includes(c.status)
-      || !Array.isArray(c.hcpcs_codes) || c.hcpcs_codes.length === 0
+      !c.hcpcs_manually_set && (
+        ["ready_to_bill", "needs_review", "needs_correction", "submitted", "denied"].includes(c.status)
+        || !Array.isArray(c.hcpcs_codes) || c.hcpcs_codes.length === 0
+      )
     );
 
     if (!filtered.length) {
