@@ -1,12 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
-import { Phone, PhoneCall, PhoneOff, Building2 } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Phone, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { CallConfirmationDrawer } from "./CallConfirmationDrawer";
 import { CommsOutboxPanel } from "./CommsOutboxPanel";
-import { toast } from "sonner";
+import { PlaceCallDialog, type PlaceCallRun, type PlaceCallTruck } from "./PlaceCallDialog";
 
 interface ActiveRun {
   slotId: string;
@@ -38,8 +37,8 @@ interface CommunicationsSectionProps {
 }
 
 export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSectionProps) {
-  const [activeRuns, setActiveRuns] = useState<ActiveRun[]>([]);
   const [facilities, setFacilities] = useState<Map<string, { id: string; name: string; phone: string | null }>>(new Map());
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedCall, setSelectedCall] = useState<{
     run: ActiveRun;
@@ -48,84 +47,92 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
   const [patientPhones, setPatientPhones] = useState<Map<string, string | null>>(new Map());
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Build active runs from truck data
+  const doneStatuses = useMemo(
+    () => new Set(["completed", "ready_for_billing", "cancelled", "no_show"]),
+    [],
+  );
+
+  // Build the truck → active runs structure for the picker
+  const trucksForPicker: PlaceCallTruck[] = useMemo(() => {
+    return trucks
+      .map((t) => ({
+        id: t.id,
+        name: t.name,
+        runs: t.runs
+          .filter((r) => !doneStatuses.has(r.status))
+          .map<PlaceCallRun>((r) => ({
+            slotId: r.id,
+            patientName: r.patient_name,
+            pickupTime: r.pickup_time,
+            status: r.status,
+            destinationName: r.destination_name ?? null,
+          })),
+      }))
+      .filter((t) => t.runs.length > 0);
+  }, [trucks, doneStatuses]);
+
+  const totalActive = useMemo(
+    () => trucksForPicker.reduce((sum, t) => sum + t.runs.length, 0),
+    [trucksForPicker],
+  );
+
+  // Fetch facilities once we have any active run
   useEffect(() => {
-    const runs: ActiveRun[] = [];
-    const doneStatuses = ["completed", "ready_for_billing", "cancelled", "no_show"];
-
-    trucks.forEach((truck) => {
-      truck.runs.forEach((run) => {
-        if (!doneStatuses.includes(run.status)) {
-          runs.push({
-            slotId: run.id,
-            tripId: null, // We'll look up trip IDs when needed
-            patientName: run.patient_name,
-            patientId: null,
-            truckName: truck.name,
-            truckId: truck.id,
-            pickupTime: run.pickup_time,
-            status: run.status,
-            destinationName: run.destination_name ?? null,
-            facilityId: null,
-          });
-        }
-      });
-    });
-
-    setActiveRuns(runs);
-  }, [trucks]);
-
-  // Fetch facilities and patient data for active runs
-  useEffect(() => {
-    if (activeRuns.length === 0) return;
-
-    const fetchFacilities = async () => {
+    if (totalActive === 0) return;
+    (async () => {
       const { data } = await supabase
         .from("facilities")
         .select("id, name, phone")
         .eq("active", true);
-
-      const facilityMap = new Map<string, { id: string; name: string; phone: string | null }>();
+      const map = new Map<string, { id: string; name: string; phone: string | null }>();
       (data ?? []).forEach((f) => {
-        facilityMap.set(f.name.toLowerCase(), { id: f.id, name: f.name, phone: f.phone });
+        map.set(f.name.toLowerCase(), { id: f.id, name: f.name, phone: f.phone });
       });
-      setFacilities(facilityMap);
+      setFacilities(map);
+    })();
+  }, [totalActive]);
+
+  const startCall = useCallback(async (
+    truckId: string,
+    truckName: string,
+    pickRun: PlaceCallRun,
+    callType: "patient" | "facility",
+    facility: { id: string; name: string; phone: string | null } | null,
+  ) => {
+    let run: ActiveRun = {
+      slotId: pickRun.slotId,
+      tripId: null,
+      patientName: pickRun.patientName,
+      patientId: null,
+      truckName,
+      truckId,
+      pickupTime: pickRun.pickupTime,
+      status: pickRun.status,
+      destinationName: pickRun.destinationName,
+      facilityId: facility?.id ?? null,
     };
 
-    fetchFacilities();
-  }, [activeRuns.length]);
-
-  // Look up facility match for a run's destination
-  const getFacilityForRun = useCallback((run: ActiveRun) => {
-    if (!run.destinationName) return null;
-    return facilities.get(run.destinationName.toLowerCase()) ?? null;
-  }, [facilities]);
-
-  const handleCallClick = async (run: ActiveRun, callType: "patient" | "facility") => {
-    // Fetch patient phone if calling patient and we don't have it cached
+    // Patient phone lookup
     if (callType === "patient") {
-      // Look up patient_id and phone from scheduling_legs → patients via slot
       const { data: slotData } = await supabase
         .from("truck_run_slots")
         .select("leg_id, leg:scheduling_legs!truck_run_slots_leg_id_fkey(patient_id, patient:patients!scheduling_legs_patient_id_fkey(id, phone, first_name, last_name))")
         .eq("id", run.slotId)
         .eq("run_date", selectedDate)
         .maybeSingle();
-
-      const patient = (slotData?.leg as any)?.patient;
+      const patient: any = (slotData?.leg as any)?.patient;
       if (patient) {
         setPatientPhones((prev) => new Map(prev).set(patient.id, patient.phone ?? null));
         run = { ...run, patientId: patient.id };
       }
     }
 
-    // Also look up trip_id for the slot
+    // Resolve trip_id for this slot
     const { data: slotTrip } = await supabase
       .from("truck_run_slots")
       .select("leg_id")
       .eq("id", run.slotId)
       .maybeSingle();
-
     let tripId: string | null = null;
     if (slotTrip?.leg_id) {
       const { data: legTrip } = await supabase
@@ -137,7 +144,7 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
       tripId = (legTrip as any)?.id ?? null;
     }
 
-    // Fix 6: Duplicate call check — warn before queuing same call type on same trip today
+    // Duplicate-call warning
     if (tripId) {
       const today = selectedDate;
       const { count } = await supabase
@@ -147,28 +154,27 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
         .eq("call_type", callType)
         .gte("created_at", `${today}T00:00:00`)
         .lte("created_at", `${today}T23:59:59`);
-
       if ((count ?? 0) > 0) {
         const confirmed = window.confirm(
-          `A ${callType} call was already queued for this run today. Queue another?`
+          `A ${callType} call was already queued for this run today. Queue another?`,
         );
         if (!confirmed) return;
       }
     }
 
-    setSelectedCall({
-      run: { ...run, tripId, patientId: run.patientId ?? (selectedCall?.run?.patientId ?? null) },
-      callType,
-    });
+    setSelectedCall({ run: { ...run, tripId }, callType });
     setDrawerOpen(true);
-  };
+  }, [selectedDate]);
 
-  const handleCallQueued = () => {
-    setRefreshKey((k) => k + 1);
-  };
+  const handleCallQueued = () => setRefreshKey((k) => k + 1);
 
-  // Auto-collapse when no active runs
-  if (activeRuns.length === 0) return null;
+  // Section is hidden entirely when no active runs
+  if (totalActive === 0) return null;
+
+  const facilityForSelected = (() => {
+    if (!selectedCall?.run.destinationName) return null;
+    return facilities.get(selectedCall.run.destinationName.toLowerCase()) ?? null;
+  })();
 
   return (
     <section>
@@ -178,90 +184,36 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
           Communications
         </h3>
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary">
-          {activeRuns.length} active
+          {totalActive} active
         </Badge>
       </div>
 
-      <div className="space-y-1.5 rounded-lg border bg-card p-3">
-        {activeRuns.map((run) => {
-          const facility = getFacilityForRun(run);
-          return (
-            <div
-              key={run.slotId}
-              className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm bg-background"
-            >
-              <div className="flex-1 min-w-0">
-                <span className="font-medium text-card-foreground">{run.patientName}</span>
-                <span className="mx-1.5 text-muted-foreground">·</span>
-                <span className="text-muted-foreground">{run.truckName}</span>
-                {run.pickupTime && (
-                  <>
-                    <span className="mx-1.5 text-muted-foreground">·</span>
-                    <span className="text-muted-foreground">{run.pickupTime}</span>
-                  </>
-                )}
-                <span className="mx-1.5 text-muted-foreground">·</span>
-                <Badge variant="outline" className="text-[9px] px-1 py-0">
-                  {run.status.replace(/_/g, " ")}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {/* Fix 5: Phone-off icon when patient has no phone number */}
-                {(() => {
-                  const cachedPhone = patientPhones.get(run.patientId ?? "");
-                  const noPhone = run.patientId ? cachedPhone === null : true;
-                  // Show warning icon if we know there's no phone (only after first load)
-                  if (noPhone && patientPhones.has(run.patientId ?? "")) {
-                    return (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <PhoneOff className="h-3.5 w-3.5 text-muted-foreground" />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="text-xs">No phone number on file</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    );
-                  }
-                  return null;
-                })()}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs gap-1 px-2"
-                  onClick={() => handleCallClick(run, "patient")}
-                >
-                  <PhoneCall className="h-3 w-3" />
-                  Call Patient
-                </Button>
-                {facility && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs gap-1 px-2"
-                    onClick={() =>
-                      handleCallClick(
-                        { ...run, facilityId: facility.id },
-                        "facility"
-                      )
-                    }
-                  >
-                    <Building2 className="h-3 w-3" />
-                    Call Facility
-                  </Button>
-                )}
-              </div>
-            </div>
-          );
-        })}
+      <div className="rounded-lg border bg-card p-3 space-y-3">
+        <Button
+          onClick={() => setPickerOpen(true)}
+          className="w-full h-11 gap-2"
+        >
+          <PhoneCall className="h-4 w-4" />
+          Place Call
+        </Button>
+        <p className="text-[11px] text-muted-foreground text-center -mt-1">
+          Pick a truck, then a run, then who to call.
+        </p>
 
         {/* Queued Calls Outbox */}
         <CommsOutboxPanel selectedDate={selectedDate} refreshKey={refreshKey} />
       </div>
 
-      {/* Call Confirmation Drawer */}
+      {/* Truck → Run → Type picker */}
+      <PlaceCallDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        trucks={trucksForPicker}
+        facilities={facilities}
+        onPick={startCall}
+      />
+
+      {/* Existing call confirmation drawer */}
       {selectedCall && (
         <CallConfirmationDrawer
           open={drawerOpen}
@@ -270,16 +222,8 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
           patientName={selectedCall.run.patientName}
           patientPhone={patientPhones.get(selectedCall.run.patientId ?? "") ?? null}
           patientId={selectedCall.run.patientId}
-          facilityName={
-            selectedCall.callType === "facility"
-              ? getFacilityForRun(selectedCall.run)?.name ?? null
-              : null
-          }
-          facilityPhone={
-            selectedCall.callType === "facility"
-              ? getFacilityForRun(selectedCall.run)?.phone ?? null
-              : null
-          }
+          facilityName={selectedCall.callType === "facility" ? facilityForSelected?.name ?? null : null}
+          facilityPhone={selectedCall.callType === "facility" ? facilityForSelected?.phone ?? null : null}
           facilityId={selectedCall.run.facilityId}
           pickupTime={selectedCall.run.pickupTime}
           truckId={selectedCall.run.truckId}
