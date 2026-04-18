@@ -221,6 +221,7 @@ export default function Patients() {
     });
     setEditing(null);
     setBLegWarnings([]);
+    setScheduleOverrides([]);
   };
 
   const openEdit = (p: Patient) => {
@@ -414,8 +415,28 @@ export default function Patients() {
       }
     } else {
       payload.company_id = activeCompanyId;
-      await supabase.from("patients").insert(payload);
+      const { data: inserted } = await supabase.from("patients").insert(payload).select("id").single();
+      if (inserted?.id && activeCompanyId) {
+        const activeDays = computeActiveWeekdays(form.transport_type, form.schedule_days, form.recurrence_days);
+        await saveScheduleOverrides({
+          patientId: inserted.id,
+          companyId: activeCompanyId,
+          activeWeekdays: activeDays,
+          overrides: scheduleOverrides,
+        });
+      }
       toast.success("Patient added");
+    }
+
+    // Persist per-day overrides for existing patient
+    if (editing && activeCompanyId) {
+      const activeDays = computeActiveWeekdays(form.transport_type, form.schedule_days, form.recurrence_days);
+      await saveScheduleOverrides({
+        patientId: editing.id,
+        companyId: activeCompanyId,
+        activeWeekdays: activeDays,
+        overrides: scheduleOverrides,
+      });
     }
 
     setDialogOpen(false);
