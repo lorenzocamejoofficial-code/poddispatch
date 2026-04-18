@@ -512,9 +512,76 @@ export default function BillingAndClaims() {
     return match ? match[1] : null;
   };
 
+  // Diagnostic-only: scans for completed PCRs that somehow have no claim record and
+  // routes any findings into the Compliance & QA queue as `missing_claim` flags.
+  // In a healthy system (with the auto_create_claim_on_pcr_submit trigger) this list
+  // should always be empty. This function NEVER inserts claim_records.
+  const scanForMissingClaims = async () => {
+    const { data: companyId } = await supabase.rpc("get_my_company_id");
+    if (!companyId) {
+      toast.error("Unable to determine company scope");
+      return;
+    }
+
+    const { data: trips } = await supabase
+      .from("trip_records" as any)
+      .select("id, company_id, run_date, patient_id")
+      .eq("pcr_status", "submitted")
+      .not("status", "eq", "cancelled");
+
+    if (!trips?.length) {
+      toast.success("Scan complete — no submitted PCRs found");
+      return;
+    }
+
+    const tripIds = (trips as any[]).map(t => t.id);
+    const { data: existingClaims } = await supabase
+      .from("claim_records" as any)
+      .select("trip_id")
+      .in("trip_id", tripIds);
+    const claimedTripIds = new Set((existingClaims ?? []).map((c: any) => c.trip_id).filter(Boolean));
+
+    const orphans = (trips as any[]).filter(t => !claimedTripIds.has(t.id));
+
+    if (orphans.length === 0) {
+      toast.success("✓ Scan complete — every submitted PCR has a claim record");
+      return;
+    }
+
+    // Don't create duplicate missing_claim flags
+    const { data: existingFlags } = await supabase
+      .from("qa_reviews" as any)
+      .select("trip_id")
+      .eq("flag_type", "missing_claim")
+      .eq("status", "pending")
+      .in("trip_id", orphans.map(o => o.id));
+    const alreadyFlagged = new Set((existingFlags ?? []).map((f: any) => f.trip_id));
+
+    const newFlags = orphans
+      .filter(o => !alreadyFlagged.has(o.id))
+      .map(o => ({
+        trip_id: o.id,
+        company_id: o.company_id,
+        flag_reason: "PCR submitted but no claim record exists. The auto-create trigger may have failed — investigate before manually creating a claim.",
+        severity: "red",
+        flag_type: "missing_claim",
+        status: "pending",
+      }));
+
+    if (newFlags.length > 0) {
+      await supabase.from("qa_reviews" as any).insert(newFlags as any);
+    }
+
+    toast.warning(
+      `⚠ Found ${orphans.length} submitted PCR${orphans.length === 1 ? "" : "s"} with no claim record — ${newFlags.length} routed to the Compliance & QA queue.`,
+      { duration: 12000 }
+    );
+  };
+
   // Refresh existing claims against live trip data. Includes any non-finalized claim
   // (not paid, not voided) plus any claim still missing HCPCS codes — that way claims
   // created before recent fixes get repaired on the next Sync.
+  // Skips claims where hcpcs_manually_set is true to preserve biller edits.
   const refreshExistingClaims = async () => {
     const { data: refreshableClaims } = await supabase
       .from("claim_records" as any)
