@@ -61,6 +61,15 @@ const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string }[] = [
   { value: "private_pay", label: "Private Pay" },
 ];
 
+function computeActiveWeekdays(transportType: string, scheduleDays: string, recurrenceDays: number[]): number[] {
+  if (transportType === "dialysis") {
+    if (scheduleDays === "MWF") return [1, 3, 5];
+    if (scheduleDays === "TTS") return [2, 4, 6];
+    return [];
+  }
+  return recurrenceDays ?? [];
+}
+
 export default function Patients() {
   const { activeCompanyId, role } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
