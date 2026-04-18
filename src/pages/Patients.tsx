@@ -26,6 +26,7 @@ import { FacilitySelect } from "@/components/patients/FacilitySelect";
 import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
 import { DocumentAttachments } from "@/components/documents/DocumentAttachments";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { PatientScheduleOverridesEditor, saveScheduleOverrides, type ScheduleOverride } from "@/components/patients/PatientScheduleOverridesEditor";
 
 type Patient = Tables<"patients">;
 type PatientStatus = Database["public"]["Enums"]["patient_status"];
