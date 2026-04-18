@@ -790,6 +790,17 @@ export default function Patients() {
                           </div>
                         )}
 
+                        {/* Per-day chair time / duration overrides (optional) */}
+                        <PatientScheduleOverridesEditor
+                          patientId={editing?.id ?? null}
+                          activeWeekdays={computeActiveWeekdays(form.transport_type, form.schedule_days, form.recurrence_days)}
+                          defaultChairTime={form.chair_time}
+                          defaultDurationHours={form.chair_time_duration_hours}
+                          defaultDurationMinutes={form.chair_time_duration_minutes}
+                          value={scheduleOverrides}
+                          onChange={setScheduleOverrides}
+                        />
+
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label>Recurrence Start Date</Label>
