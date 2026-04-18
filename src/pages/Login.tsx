@@ -29,15 +29,18 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [companyName, setCompanyName] = useState("PodDispatch");
-  const { user, role, isSystemCreator, activeCompanyId, loading: authLoading, signIn } = useAuth();
+  const { user, role, isSystemCreator, activeCompanyId, loading: authLoading, membershipLoaded, signIn } = useAuth();
   const navigate = useNavigate();
 
   // If coming from a token link, store it for post-login redirect
   const tokenRedirect = searchParams.get("token_redirect");
 
-  // Redirect when authenticated and role is resolved
+  // Redirect when authenticated AND membership data is fully resolved.
+  // Waiting for membershipLoaded prevents redirecting to /create-company
+  // (or any wrong path) before role/activeCompanyId have actually loaded,
+  // which previously caused a brief 404 flash.
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading || !user || !membershipLoaded) return;
 
     if (!isSystemCreator && !activeCompanyId) {
       navigate("/create-company", { replace: true });
@@ -51,7 +54,7 @@ export default function Login() {
     }
 
     navigate(getRoleLanding(role, isSystemCreator), { replace: true });
-  }, [user, role, isSystemCreator, activeCompanyId, authLoading, navigate, tokenRedirect]);
+  }, [user, role, isSystemCreator, activeCompanyId, authLoading, membershipLoaded, navigate, tokenRedirect]);
 
   useEffect(() => {
     supabase
