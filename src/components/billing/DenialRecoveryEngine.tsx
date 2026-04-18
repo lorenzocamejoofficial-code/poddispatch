@@ -265,6 +265,18 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: 
     if (Object.keys(changes).length > 0) {
       await supabase.from("trip_records" as any).update(updates).eq("id", claim.trip_id);
 
+      // If the biller manually corrected HCPCS codes, mirror them onto the claim and
+      // mark hcpcs_manually_set = true so the bulk Refresh Existing Claims action
+      // never overwrites these edits.
+      if ("hcpcs_codes" in changes) {
+        await supabase.from("claim_records" as any)
+          .update({
+            hcpcs_codes: changes.hcpcs_codes.new,
+            hcpcs_manually_set: true,
+          } as any)
+          .eq("id", claim.id);
+      }
+
       // Log to billing_overrides like BillerPCROverridePanel
       await supabase.from("billing_overrides").insert({
         trip_id: claim.trip_id,

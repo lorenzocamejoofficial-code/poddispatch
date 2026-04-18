@@ -411,6 +411,7 @@ export type Database = {
           extras_charge: number | null
           has_emergency_event: boolean
           hcpcs_codes: string[] | null
+          hcpcs_manually_set: boolean
           hcpcs_modifiers: string[] | null
           icd10_codes: string[] | null
           id: string
@@ -485,6 +486,7 @@ export type Database = {
           extras_charge?: number | null
           has_emergency_event?: boolean
           hcpcs_codes?: string[] | null
+          hcpcs_manually_set?: boolean
           hcpcs_modifiers?: string[] | null
           icd10_codes?: string[] | null
           id?: string
@@ -559,6 +561,7 @@ export type Database = {
           extras_charge?: number | null
           has_emergency_event?: boolean
           hcpcs_codes?: string[] | null
+          hcpcs_manually_set?: boolean
           hcpcs_modifiers?: string[] | null
           icd10_codes?: string[] | null
           id?: string
