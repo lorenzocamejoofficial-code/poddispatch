@@ -61,11 +61,14 @@ const CUSTOM_DAY_OPTIONS = [
   { value: 6, label: "Sat" },
 ];
 
-type TransportType = "dialysis" | "outpatient" | "private_pay" | "psych_transport";
+type TransportType = "dialysis" | "outpatient" | "private_pay" | "psych_transport" | "wound_care" | "ift" | "discharge";
 
 const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string }[] = [
   { value: "dialysis", label: "Dialysis" },
-  { value: "outpatient", label: "Outpatient / Wound Care" },
+  { value: "outpatient", label: "Outpatient" },
+  { value: "wound_care", label: "Wound Care" },
+  { value: "ift", label: "IFT (Inter-facility)" },
+  { value: "discharge", label: "Hospital Discharge" },
   { value: "private_pay", label: "Private Pay" },
   { value: "psych_transport", label: "Psych / Behavioral Transport" },
 ];
