@@ -3204,6 +3204,7 @@ export type Database = {
       }
       trip_records: {
         Row: {
+          aed_used: boolean | null
           airway_json: Json | null
           arrived_dropoff_at: string | null
           arrived_pickup_at: string | null
@@ -3213,6 +3214,30 @@ export type Database = {
           attending_medic_id: string | null
           attending_medic_name: string | null
           bed_confined: boolean | null
+          bh_1013_received: boolean | null
+          bh_authorization_type: string | null
+          bh_authorizing_facility: string | null
+          bh_authorizing_physician_name: string | null
+          bh_authorizing_physician_npi: string | null
+          bh_behavioral_assessment: string[] | null
+          bh_form_signed_at: string | null
+          bh_law_enforcement_present: boolean | null
+          bh_neurovascular_check_times: string | null
+          bh_neurovascular_checks_documented: boolean | null
+          bh_officer_agency: string | null
+          bh_officer_badge: string | null
+          bh_officer_name: string | null
+          bh_patient_response_to_restraints: string | null
+          bh_psych_medications: string | null
+          bh_receiving_clinician: string | null
+          bh_receiving_facility: string | null
+          bh_recent_medication_changes: boolean | null
+          bh_recent_medication_changes_detail: string | null
+          bh_report_given_to: string | null
+          bh_report_time: string | null
+          bh_restraint_applied_at: string | null
+          bh_restraint_reason: string | null
+          bh_restraint_type: string | null
           billing_blocked_reason: string | null
           blockers: string[] | null
           blood_pressure: string | null
@@ -3308,6 +3333,7 @@ export type Database = {
           procedures_json: Json | null
           requires_monitoring: boolean | null
           respiration_rate: number | null
+          restraints_applied: boolean | null
           revenue_risk_score: number | null
           run_date: string
           scheduled_dropoff_time: string | null
@@ -3335,6 +3361,7 @@ export type Database = {
           weight_lbs: number | null
         }
         Insert: {
+          aed_used?: boolean | null
           airway_json?: Json | null
           arrived_dropoff_at?: string | null
           arrived_pickup_at?: string | null
@@ -3344,6 +3371,30 @@ export type Database = {
           attending_medic_id?: string | null
           attending_medic_name?: string | null
           bed_confined?: boolean | null
+          bh_1013_received?: boolean | null
+          bh_authorization_type?: string | null
+          bh_authorizing_facility?: string | null
+          bh_authorizing_physician_name?: string | null
+          bh_authorizing_physician_npi?: string | null
+          bh_behavioral_assessment?: string[] | null
+          bh_form_signed_at?: string | null
+          bh_law_enforcement_present?: boolean | null
+          bh_neurovascular_check_times?: string | null
+          bh_neurovascular_checks_documented?: boolean | null
+          bh_officer_agency?: string | null
+          bh_officer_badge?: string | null
+          bh_officer_name?: string | null
+          bh_patient_response_to_restraints?: string | null
+          bh_psych_medications?: string | null
+          bh_receiving_clinician?: string | null
+          bh_receiving_facility?: string | null
+          bh_recent_medication_changes?: boolean | null
+          bh_recent_medication_changes_detail?: string | null
+          bh_report_given_to?: string | null
+          bh_report_time?: string | null
+          bh_restraint_applied_at?: string | null
+          bh_restraint_reason?: string | null
+          bh_restraint_type?: string | null
           billing_blocked_reason?: string | null
           blockers?: string[] | null
           blood_pressure?: string | null
@@ -3439,6 +3490,7 @@ export type Database = {
           procedures_json?: Json | null
           requires_monitoring?: boolean | null
           respiration_rate?: number | null
+          restraints_applied?: boolean | null
           revenue_risk_score?: number | null
           run_date?: string
           scheduled_dropoff_time?: string | null
@@ -3466,6 +3518,7 @@ export type Database = {
           weight_lbs?: number | null
         }
         Update: {
+          aed_used?: boolean | null
           airway_json?: Json | null
           arrived_dropoff_at?: string | null
           arrived_pickup_at?: string | null
@@ -3475,6 +3528,30 @@ export type Database = {
           attending_medic_id?: string | null
           attending_medic_name?: string | null
           bed_confined?: boolean | null
+          bh_1013_received?: boolean | null
+          bh_authorization_type?: string | null
+          bh_authorizing_facility?: string | null
+          bh_authorizing_physician_name?: string | null
+          bh_authorizing_physician_npi?: string | null
+          bh_behavioral_assessment?: string[] | null
+          bh_form_signed_at?: string | null
+          bh_law_enforcement_present?: boolean | null
+          bh_neurovascular_check_times?: string | null
+          bh_neurovascular_checks_documented?: boolean | null
+          bh_officer_agency?: string | null
+          bh_officer_badge?: string | null
+          bh_officer_name?: string | null
+          bh_patient_response_to_restraints?: string | null
+          bh_psych_medications?: string | null
+          bh_receiving_clinician?: string | null
+          bh_receiving_facility?: string | null
+          bh_recent_medication_changes?: boolean | null
+          bh_recent_medication_changes_detail?: string | null
+          bh_report_given_to?: string | null
+          bh_report_time?: string | null
+          bh_restraint_applied_at?: string | null
+          bh_restraint_reason?: string | null
+          bh_restraint_type?: string | null
           billing_blocked_reason?: string | null
           blockers?: string[] | null
           blood_pressure?: string | null
@@ -3570,6 +3647,7 @@ export type Database = {
           procedures_json?: Json | null
           requires_monitoring?: boolean | null
           respiration_rate?: number | null
+          restraints_applied?: boolean | null
           revenue_risk_score?: number | null
           run_date?: string
           scheduled_dropoff_time?: string | null

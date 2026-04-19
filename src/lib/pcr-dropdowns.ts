@@ -1,12 +1,15 @@
 // Comprehensive clinical dropdown options for PCR system
 
 export const CHIEF_COMPLAINTS = [
-  "Abdominal Pain", "Altered Mental Status", "Back Pain", "Breathing Difficulty / Dyspnea",
-  "Cardiac Arrest", "Chest Pain", "CVA / Stroke Symptoms", "Dizziness / Syncope",
-  "Extremity Weakness", "Fall / Injury", "General Weakness", "Headache",
-  "Hyperglycemia / Hypoglycemia", "Hypertension", "Nausea / Vomiting",
-  "No Complaint (routine transport)", "Pain — specify location", "Respiratory Distress",
-  "Seizure", "Sepsis / Infection", "Transfer / No Complaint", "Trauma", "Other",
+  "Abdominal Pain", "Altered Mental Status", "Back Pain", "Behavioral / Psychiatric Emergency",
+  "Breathing Difficulty / Dyspnea", "Cardiac Arrest", "Catheter Issue", "Chest Pain",
+  "CVA / Stroke Symptoms", "Dizziness / Syncope", "Extremity Weakness", "Fall / Injury",
+  "Fall Without Injury", "General Weakness", "Headache", "Hospice / Palliative Transport",
+  "Hyperglycemia / Hypoglycemia", "Hypertension", "Involuntary Psychiatric Hold Transport",
+  "Nausea / Vomiting", "No Complaint (routine transport)", "Oncology Transport",
+  "Pain — specify location", "Post-Op Recovery Transport", "Respiratory Distress",
+  "Seizure", "Sepsis / Infection", "Bariatric Transport", "Tracheostomy Concern",
+  "Transfer / No Complaint", "Trauma", "Wound Check / Dressing Change", "Other",
 ];
 
 export const PRIMARY_IMPRESSIONS = [
@@ -33,6 +36,19 @@ export const PRIMARY_IMPRESSIONS = [
   "Other",
 ];
 
+// Psych-transport-specific primary impressions (shown in addition for psych_transport)
+export const PSYCH_PRIMARY_IMPRESSIONS = [
+  "Acute Psychosis",
+  "Suicidal Ideation",
+  "Homicidal Ideation",
+  "Manic Episode",
+  "Acute Anxiety / Panic",
+  "Substance Intoxication",
+  "Substance Withdrawal",
+  "Behavioral Agitation",
+  "Depression with Functional Impairment",
+];
+
 export const MEDICAL_NECESSITY_REASONS = [
   "Patient cannot sit safely in upright position",
   "Patient requires monitoring enroute",
@@ -44,6 +60,14 @@ export const MEDICAL_NECESSITY_REASONS = [
   "Patient has severe weakness — unable to ambulate",
   "Patient is bedbound",
   "Patient requires IV access or medication administration enroute",
+  "Patient requires continuous oxygen titration during transport",
+  "Patient at risk for aspiration without maintained positioning",
+  "Patient requires suctioning en route",
+  "Patient on continuous cardiac monitoring",
+  "Wheelchair cannot accommodate patient's medical equipment",
+  "Severe pain that worsens with any position change other than supine",
+  "Patient is behaviorally agitated and requires monitoring for safety of patient and crew",
+  "Patient is on involuntary psychiatric hold and requires secure transport",
   "Other",
 ];
 
@@ -80,14 +104,21 @@ export const LEVEL_OF_CONSCIOUSNESS = [
   { value: "alert_ox3", label: "Alert and Oriented x3", narrative: "alert and oriented to person, place, and time" },
   { value: "alert_ox2", label: "Alert and Oriented x2", narrative: "alert and oriented to person and place" },
   { value: "alert_ox1", label: "Alert and Oriented x1", narrative: "alert and oriented to person only" },
+  { value: "baseline_self_only", label: "Baseline cognitive impairment — oriented to self only", narrative: "at baseline cognitive impairment, oriented to self only" },
+  { value: "non_verbal_baseline", label: "Non-verbal at baseline", narrative: "non-verbal at baseline" },
+  { value: "sedated", label: "Sedated", narrative: "sedated" },
+  { value: "sleeping_arousable", label: "Sleeping but arousable", narrative: "sleeping but arousable" },
+  { value: "combative", label: "Combative", narrative: "combative" },
   { value: "confused", label: "Confused", narrative: "confused" },
   { value: "verbal_only", label: "Verbal Response Only", narrative: "responsive to verbal stimuli only" },
+  { value: "unresponsive_verbal_only", label: "Unresponsive to verbal stimuli only", narrative: "unresponsive to verbal stimuli only" },
   { value: "pain_only", label: "Pain Response Only", narrative: "responsive to painful stimuli only" },
   { value: "unresponsive", label: "Unresponsive", narrative: "unresponsive" },
 ];
 
 export const SKIN_CONDITIONS = [
   { value: "normal", label: "Normal (warm, dry, pink)", narrative: "warm, dry, and pink" },
+  { value: "dry_intact", label: "Dry, intact", narrative: "dry and intact" },
   { value: "pale", label: "Pale", narrative: "pale" },
   { value: "cyanotic", label: "Cyanotic", narrative: "cyanotic" },
   { value: "diaphoretic", label: "Diaphoretic", narrative: "diaphoretic" },
@@ -96,6 +127,13 @@ export const SKIN_CONDITIONS = [
   { value: "jaundiced", label: "Jaundiced", narrative: "jaundiced" },
   { value: "cool_dry", label: "Cool and Dry", narrative: "cool and dry" },
   { value: "hot_dry", label: "Hot and Dry", narrative: "hot and dry" },
+  { value: "fragile_tears", label: "Fragile, tears noted", narrative: "fragile with skin tears noted" },
+  { value: "bruising", label: "Bruising present", narrative: "bruising present" },
+  { value: "rash", label: "Rash", narrative: "rash present" },
+  { value: "edematous", label: "Edematous", narrative: "edematous" },
+  { value: "surgical_dressing_intact", label: "Surgical site visible — dressing intact", narrative: "surgical site visible with dressing intact" },
+  { value: "tenting", label: "Tenting / poor turgor", narrative: "skin tenting noted, poor turgor" },
+  { value: "petechiae", label: "Petechiae", narrative: "petechiae present" },
 ];
 
 export const RESPIRATORY_QUALITY = [
@@ -107,6 +145,14 @@ export const RESPIRATORY_QUALITY = [
   { value: "absent", label: "Absent", narrative: "absent" },
   { value: "irregular", label: "Irregular", narrative: "irregular" },
   { value: "assisted", label: "Assisted (BVM/oxygen)", narrative: "assisted via BVM/oxygen" },
+  { value: "trach_patent", label: "Tracheostomy patent", narrative: "tracheostomy patent" },
+  { value: "trach_secretions", label: "Tracheostomy with secretions", narrative: "tracheostomy with secretions noted" },
+  { value: "vent_dependent", label: "Ventilator dependent", narrative: "ventilator dependent" },
+  { value: "accessory_muscle", label: "Accessory muscle use", narrative: "accessory muscle use noted" },
+  { value: "retractions", label: "Retractions", narrative: "retractions noted" },
+  { value: "nasal_flaring", label: "Nasal flaring", narrative: "nasal flaring noted" },
+  { value: "pursed_lip", label: "Pursed lip breathing", narrative: "pursed lip breathing" },
+  { value: "apneic", label: "Apneic episodes", narrative: "apneic episodes observed" },
 ];
 
 export const PULSE_QUALITY = [
@@ -114,22 +160,38 @@ export const PULSE_QUALITY = [
   { value: "weak_regular", label: "Weak and Regular", narrative: "weak and regular" },
   { value: "strong_irregular", label: "Strong and Irregular", narrative: "strong and irregular" },
   { value: "weak_irregular", label: "Weak and Irregular", narrative: "weak and irregular" },
+  { value: "bounding", label: "Bounding", narrative: "bounding" },
+  { value: "thready", label: "Thready", narrative: "thready" },
+  { value: "palpated_radial", label: "Palpated only — radial", narrative: "palpated only at radial" },
+  { value: "per_monitor", label: "Per monitor only", narrative: "per cardiac monitor only" },
   { value: "absent", label: "Absent", narrative: "absent" },
 ];
 
 export const OXYGEN_DELIVERY = [
-  "Nasal Cannula", "Simple Face Mask", "Non-Rebreather Mask",
+  "Nasal Cannula", "Simple Face Mask", "Non-Rebreather Mask", "Venturi Mask",
+  "Blow-By", "Trach Collar (humidified)", "BiPAP",
   "BVM Assisted Ventilation", "Tracheostomy Mask", "CPAP", "High Flow Nasal Cannula",
+  "Patient's own home oxygen — continued", "Vent circuit",
 ];
 
+// SINGLE source of truth for patient position (replaces both PATIENT_POSITIONS and StretcherMobilityCard.POSITION_OPTIONS)
 export const PATIENT_POSITIONS = [
-  "Supine", "Semi-Fowlers", "Fowlers", "Left Lateral Recumbent",
-  "Right Lateral Recumbent", "Prone", "Trendelenburg",
+  "Supine (flat)",
+  "Semi-Fowlers (30°)",
+  "Fowlers (45°)",
+  "High Fowlers (90°)",
+  "Left lateral recovery position",
+  "Trendelenburg",
+  "Reverse Trendelenburg",
+  "Position of comfort",
 ];
 
 export const TRANSPORT_CONDITIONS = [
   "Condition Unchanged", "Condition Improved", "Condition Deteriorated",
   "Patient Refused Treatment", "Patient Became Unresponsive Enroute",
+  "Tolerated transport well", "Anxious during transport", "Motion sickness",
+  "Required suctioning", "Required additional oxygen during transport",
+  "Vital signs deteriorated requiring intervention",
 ];
 
 export const DISPOSITIONS = [
@@ -138,9 +200,133 @@ export const DISPOSITIONS = [
   "Patient Transferred to Higher Level of Care",
   "Patient Deceased on Scene",
   "Cancelled Prior to Arrival",
+  "AMA — Against Medical Advice",
+  "Diverted to Different Destination",
+  "Patient Eloped",
+  "Released at Scene to Family",
+  "Transferred to Law Enforcement",
+  "Cancelled at Scene — No Patient Contact",
+  "Cancelled by Sending Facility",
 ];
 
 export const STRETCHER_TYPES = ["Power Stretcher", "Manual Stretcher", "Bariatric Stretcher"];
+
+// --- Centralized lists previously declared inline in components ---
+
+// From StretcherMobilityCard.tsx
+export const STRETCHER_OPTIONS = [
+  "Draw Sheet",
+  "Manual Lift",
+  "Mechanical Lift",
+  "Backboard",
+  "First Responders / Fire / Rescue",
+  "Slider Board",
+  "Hover Mat (air-assisted lateral transfer)",
+  "Patient self-transferred with assist",
+  "Pivot transfer",
+  "Two-person lift",
+  "Stand and pivot",
+];
+
+// From StretcherMobilityCard.tsx
+export const MOBILITY_OPTIONS = [
+  "Requires Maximum Assistance",
+  "Unable to Ambulate",
+  "Assisted Ambulation",
+  "Independent with Device",
+  "Bedbound",
+  "Wheelchair-bound — cannot transfer",
+  "Walker — independent",
+  "Cane",
+  "One-person assist",
+  "Two-person assist",
+  "Hoyer / mechanical lift required",
+];
+
+// From IsolationPrecautionsCard.tsx — expanded
+export const PRECAUTION_TYPES = [
+  "MRSA", "VRE", "C-Diff", "Hepatitis", "COVID-19", "HIV",
+  "Tuberculosis (airborne)", "Influenza", "RSV", "ESBL", "CRE",
+  "Norovirus", "Shingles / Zoster", "Pertussis", "Measles", "Other",
+];
+
+// New — precaution level (Contact / Droplet / Airborne / Standard)
+export const PRECAUTION_LEVELS = ["Standard", "Contact", "Droplet", "Airborne"];
+
+// From ConditionCard.tsx
+export const DESTINATION_CONDITIONS = [
+  "Alert/Oriented",
+  "Confused",
+  "Unresponsive",
+  "Unchanged from arrival",
+  "Improved from arrival",
+  "Deteriorated from arrival",
+];
+
+// From FacilityCards.tsx (discharge destination)
+export const DISCHARGE_DESTINATION_TYPES = [
+  "Home",
+  "SNF / Nursing Facility",
+  "Assisted Living",
+  "Another Hospital",
+  "Hospice",
+  "Group Home",
+  "Acute Rehab (IRF)",
+  "Other",
+];
+
+// From TimesCard.tsx — expanded
+export const LOCATION_TYPE_OPTIONS = [
+  "Residence",
+  "SNF",
+  "Assisted Living",
+  "Hospital",
+  "Dialysis Facility",
+  "Outpatient Specialty",
+  "Mental Health Facility",
+  "Hospice",
+  "Acute Rehab (IRF)",
+  "LTACH",
+  "Wound Care Center",
+  "Cancer Center / Infusion",
+  "Independent Living",
+  "Group Home",
+  "Correctional Facility",
+  "Scene of Injury",
+  "Other",
+];
+
+// --- Behavioral Health Transport options ---
+
+export const BH_AUTHORIZATION_TYPES = [
+  "Voluntary",
+  "Involuntary — 1013 (Georgia form)",
+  "Involuntary — 2013 (Georgia form)",
+  "Law enforcement custody",
+  "Court ordered",
+];
+
+export const BH_BEHAVIORAL_ASSESSMENT = [
+  "Calm / cooperative",
+  "Agitated — verbal only",
+  "Agitated — physical threats",
+  "Actively combative",
+  "Passively resistant",
+  "Unresponsive",
+  "Psychotic features present",
+  "Suicidal ideation reported",
+  "Homicidal ideation reported",
+  "Disorganized thought",
+  "Responding to internal stimuli",
+];
+
+export const BH_RESTRAINT_TYPES = [
+  "Soft wrist restraints",
+  "Hard restraints",
+  "Sheet wrap",
+  "Law enforcement restraints",
+  "Chemical restraint — medication given",
+];
 
 // Physical exam findings by body system
 export const PHYSICAL_EXAM_SYSTEMS: Record<string, { findings: { value: string; label: string; narrative: string; abnormal: boolean }[] }> = {
@@ -220,7 +406,7 @@ export type PCRCardType =
   | "signatures" | "narrative" | "billing" | "sending_facility" | "assessment"
   | "physical_exam" | "hospital_outcome" | "chief_complaint" | "airway"
   | "procedures" | "medications" | "iv_access" | "medical_necessity"
-  | "stretcher_mobility" | "isolation_precautions";
+  | "stretcher_mobility" | "isolation_precautions" | "behavioral_health";
 
 export interface PCRCardConfig {
   type: PCRCardType;
@@ -348,12 +534,25 @@ export const PCR_CARDS_BY_TRANSPORT: Record<string, PCRCardConfig[]> = {
     { type: "hospital_outcome", label: "Hospital Outcome", required: true },
     ...COMMON_END,
   ],
+  psych_transport: [
+    { type: "times", label: "Times", required: true },
+    { type: "patient_info", label: "Patient Info", required: true },
+    { type: "behavioral_health", label: "Behavioral Health Transport", required: true },
+    { type: "vitals", label: "Vitals", required: true },
+    { type: "assessment", label: "Assessment / Primary Impression", required: true },
+    { type: "medical_necessity", label: "Medical Necessity", required: true },
+    { type: "stretcher_mobility", label: "Stretcher & Mobility", required: true },
+    { type: "isolation_precautions", label: "Isolation Precautions", required: false },
+    { type: "equipment", label: "Equipment in Use", required: true },
+    ...COMMON_END,
+  ],
 };
 
 // Get the transport type key for PCR cards lookup
 export function getPCRTransportKey(tripType: string | null): string {
   if (!tripType) return "dialysis";
   const t = tripType.toLowerCase();
+  if (t.includes("psych") || t.includes("behavioral")) return "psych_transport";
   if (t.includes("ift") || t.includes("discharge")) return "ift_discharge";
   if (t.includes("emergency") || t.includes("complex")) return "emergency";
   if (t.includes("outpatient") || t.includes("appointment")) return "outpatient";
