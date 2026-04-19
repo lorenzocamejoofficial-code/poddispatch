@@ -161,8 +161,23 @@ export function hasCompletePatientNeeds(patient: PatientNeeds): { complete: bool
   return { complete: missing.length === 0, missing };
 }
 
-// PCR type-based required fields
-export type PcrType = "nemt_dialysis" | "ift_discharge" | "emergency_ems" | "other";
+// PCR type-based required fields. Mirrors the transport types used by
+// pcr-field-requirements.ts so safety/billing checks stay aligned.
+export type PcrType =
+  | "dialysis"
+  | "ift"
+  | "ift_discharge"
+  | "discharge"
+  | "outpatient"
+  | "outpatient_specialty"
+  | "wound_care"
+  | "emergency"
+  | "private_pay"
+  | "psych_transport"
+  // Legacy aliases — kept so older callers keep compiling
+  | "nemt_dialysis"
+  | "emergency_ems"
+  | "other";
 
 export interface PcrRequiredFields {
   field: string;
@@ -181,33 +196,86 @@ export function getPcrRequiredFields(pcrType: PcrType | null): PcrRequiredFields
     { field: "signature_obtained", label: "Signature", required: true },
   ];
 
-  switch (pcrType) {
-    case "nemt_dialysis":
+  // Normalize legacy aliases
+  const normalized: PcrType = pcrType === "nemt_dialysis"
+    ? "dialysis"
+    : pcrType === "emergency_ems"
+      ? "emergency"
+      : (pcrType as PcrType);
+
+  switch (normalized) {
+    case "dialysis":
       return [
         ...base,
         { field: "pcs_attached", label: "PCS document", required: true },
         { field: "necessity_checklist", label: "Medical necessity flag", required: true },
         { field: "necessity_notes", label: "Clinical justification", required: true },
+        { field: "icd10_codes", label: "ICD-10 (N18.6 / Z99.2)", required: true },
       ];
-    case "ift_discharge":
+    case "ift":
       return [
         ...base,
-        { field: "pcs_attached", label: "PCS document", required: true },
+        { field: "facility_name", label: "Sending facility", required: true },
+        { field: "chief_complaint", label: "Chief complaint", required: true },
+        { field: "primary_impression", label: "Primary impression", required: true },
         { field: "necessity_checklist", label: "Medical necessity flag", required: true },
-        { field: "clinical_note", label: "Discharge clinical note", required: true },
+        { field: "disposition", label: "Hospital outcome / disposition", required: true },
       ];
-    case "emergency_ems":
+    case "ift_discharge":
+    case "discharge":
+      return [
+        ...base,
+        { field: "facility_name", label: "Sending facility", required: true },
+        { field: "sending_physician_name", label: "Sending physician", required: true },
+        { field: "discharge_reason", label: "Discharge reason", required: true },
+        { field: "pcs_attached", label: "PCS document", required: true },
+        { field: "disposition", label: "Disposition", required: true },
+        { field: "necessity_checklist", label: "Medical necessity flag", required: true },
+      ];
+    case "outpatient":
+    case "outpatient_specialty":
+      return [
+        ...base,
+        { field: "necessity_checklist", label: "Medical necessity flag", required: true },
+        { field: "chief_complaint", label: "Chief complaint", required: true },
+      ];
+    case "wound_care":
+      return [
+        ...base,
+        { field: "wound_type", label: "Wound type", required: true },
+        { field: "wound_location", label: "Wound location", required: true },
+        { field: "wound_stage_or_size", label: "Wound stage / size", required: true },
+        { field: "necessity_checklist", label: "Medical necessity flag", required: true },
+      ];
+    case "emergency":
       return [
         ...base,
         { field: "vitals", label: "Vitals captured", required: true },
+        { field: "chief_complaint", label: "Chief complaint", required: true },
+        { field: "primary_impression", label: "Primary impression", required: true },
+        { field: "icd10_codes", label: "ICD-10 codes", required: true },
         { field: "clinical_note", label: "Clinical narrative", required: true },
       ];
-    case "other":
-    default:
+    case "psych_transport":
       return [
         ...base,
-        { field: "pcs_attached", label: "PCS document", required: false },
-        { field: "necessity_checklist", label: "Medical necessity flag", required: false },
+        { field: "bh_authorization_type", label: "Transport authorization type", required: true },
+        { field: "bh_behavioral_assessment", label: "Behavioral assessment", required: true },
+        { field: "chief_complaint", label: "Chief complaint", required: true },
+        { field: "primary_impression", label: "Primary impression", required: true },
+        { field: "icd10_codes", label: "ICD-10 codes", required: true },
       ];
+    case "private_pay":
+      return [
+        // private pay skips payer-specific items; keep timestamps/miles/signature
+        ...base,
+      ];
+    case "other":
+      return base;
+    default: {
+      // eslint-disable-next-line no-console
+      console.warn(`[safety-rules] getPcrRequiredFields: unknown PCR type "${pcrType}" — returning empty list`);
+      return [];
+    }
   }
 }
