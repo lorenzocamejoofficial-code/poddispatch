@@ -371,9 +371,20 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     // claim trigger has data to work with.
     const { data: legData } = await supabase
       .from("scheduling_legs")
-      .select("origin_type, destination_type, service_level, is_unscheduled, is_oneoff, oneoff_name, oneoff_dob, oneoff_sex, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_primary_payer, oneoff_member_id, oneoff_pickup_address, oneoff_dropoff_address, oneoff_notes")
+      .select("origin_type, destination_type, service_level, is_unscheduled, is_oneoff, oneoff_name, oneoff_dob, oneoff_sex, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_primary_payer, oneoff_member_id, oneoff_pickup_address, oneoff_dropoff_address, oneoff_notes, oneoff_sending_facility_name, oneoff_sending_physician_name, oneoff_sending_physician_npi, oneoff_discharge_reason, oneoff_pcs_obtained, oneoff_bh_authorization_type, oneoff_bh_1013_received, oneoff_bh_authorizing_facility, oneoff_bh_authorizing_physician_name, oneoff_law_enforcement_present, oneoff_wound_type, oneoff_wound_location, oneoff_wound_stage, chair_time")
       .eq("id", run.legId)
       .maybeSingle();
+
+    // Pre-fill from patient defaults when this is a patient-linked run
+    let patientDefaults: any = null;
+    if (run.patientId) {
+      const { data: pd } = await supabase
+        .from("patients")
+        .select("icd10_codes, default_chief_complaint, default_primary_impression, default_medical_necessity_reason, default_bed_confined, default_cannot_transfer, default_requires_monitoring, default_oxygen_transport, default_bh_authorization_type, default_bh_authorizing_facility, default_bh_authorizing_physician_name, default_bh_authorizing_physician_npi, default_wound_type, default_wound_location, transport_type")
+        .eq("id", run.patientId)
+        .maybeSingle();
+      patientDefaults = pd;
+    }
 
     const fallbackDerived = getOriginDestination(run.tripType ?? "", run.legType);
     const originType = (legData as any)?.origin_type || fallbackDerived.origin_type;
@@ -381,6 +392,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     const serviceLevel = (legData as any)?.service_level || null;
     const isUnscheduled = (legData as any)?.is_unscheduled || false;
     const isOneoff = !!(legData as any)?.is_oneoff;
+    const tripTypeKey = String(run.tripType ?? "").toLowerCase();
 
     const insertData: any = {
       leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
@@ -390,7 +402,6 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       scheduled_pickup_time: run.pickupTime,
       // trip_type is the canonical source of truth for transport classification.
       // pcr_type is written with the same value for backward compatibility only.
-      // All new readers should prefer trip_type and treat pcr_type as a fallback.
       trip_type: run.tripType as any,
       pcr_type: run.tripType as any, // DEPRECATED — mirror of trip_type
       pcr_status: "not_started",
@@ -399,9 +410,30 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       is_unscheduled: isUnscheduled,
     };
 
-    // Fix 3: materialize one-off leg data onto the trip record so the PCR has
-    // patient demographics + payer + member_id without re-typing, and so the
-    // auto-create claim trigger can resolve payer/member from the trip directly.
+    // Pre-fill from patient defaults (patient-linked runs)
+    if (patientDefaults) {
+      const pd = patientDefaults;
+      if (pd.icd10_codes && pd.icd10_codes.length > 0) insertData.icd10_codes = pd.icd10_codes;
+      if (pd.default_chief_complaint) insertData.chief_complaint = pd.default_chief_complaint;
+      if (pd.default_primary_impression) insertData.primary_impression = pd.default_primary_impression;
+      if (pd.default_medical_necessity_reason) insertData.medical_necessity_reason = pd.default_medical_necessity_reason;
+      if (pd.default_bed_confined) insertData.bed_confined = true;
+      if (pd.default_cannot_transfer) insertData.cannot_transfer_safely = true;
+      if (pd.default_requires_monitoring) insertData.requires_monitoring = true;
+      if (pd.default_oxygen_transport) insertData.oxygen_during_transport = true;
+      if (tripTypeKey === "psych_transport") {
+        if (pd.default_bh_authorization_type) insertData.bh_authorization_type = pd.default_bh_authorization_type;
+        if (pd.default_bh_authorizing_facility) insertData.bh_authorizing_facility = pd.default_bh_authorizing_facility;
+        if (pd.default_bh_authorizing_physician_name) insertData.bh_authorizing_physician_name = pd.default_bh_authorizing_physician_name;
+        if (pd.default_bh_authorizing_physician_npi) insertData.bh_authorizing_physician_npi = pd.default_bh_authorizing_physician_npi;
+      }
+      if (tripTypeKey === "wound_care" || tripTypeKey === "woundcare" || tripTypeKey === "outpatient") {
+        if (pd.default_wound_type) insertData.wound_type = pd.default_wound_type;
+        if (pd.default_wound_location) insertData.wound_location = pd.default_wound_location;
+      }
+    }
+
+    // Materialize one-off leg data onto the trip record
     if (isOneoff && legData) {
       const ld = legData as any;
       insertData.patient_name_override = ld.oneoff_name ?? null;
@@ -410,27 +442,39 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       insertData.weight_lbs = ld.oneoff_weight_lbs ?? null;
       insertData.mobility_override = ld.oneoff_mobility ?? null;
       insertData.oxygen_required = ld.oneoff_oxygen ?? null;
-      // Stored lowercase to match the canonical claim format (Fix 4).
       insertData.primary_payer = ld.oneoff_primary_payer
         ? String(ld.oneoff_primary_payer).toLowerCase().trim()
         : null;
       insertData.member_id = ld.oneoff_member_id ?? null;
-      // Only fill pickup/destination from oneoff if not already provided
       if (!insertData.pickup_location && ld.oneoff_pickup_address) {
         insertData.pickup_location = ld.oneoff_pickup_address;
       }
       if (!insertData.destination_location && ld.oneoff_dropoff_address) {
         insertData.destination_location = ld.oneoff_dropoff_address;
       }
-      if (ld.oneoff_notes) {
-        insertData.narrative = ld.oneoff_notes;
-      }
+      if (ld.oneoff_notes) insertData.narrative = ld.oneoff_notes;
+
+      // Transport-specific one-off fields → trip_records
+      const sendingFacility: any = {};
+      if (ld.oneoff_sending_facility_name) sendingFacility.facility_name = ld.oneoff_sending_facility_name;
+      if (ld.oneoff_sending_physician_name) sendingFacility.physician_name = ld.oneoff_sending_physician_name;
+      if (ld.oneoff_sending_physician_npi) sendingFacility.physician_npi = ld.oneoff_sending_physician_npi;
+      if (ld.oneoff_discharge_reason) sendingFacility.discharge_reason = ld.oneoff_discharge_reason;
+      if (Object.keys(sendingFacility).length > 0) insertData.sending_facility_json = sendingFacility;
+      if (ld.oneoff_pcs_obtained) insertData.pcs_attached = true;
+
+      if (ld.oneoff_bh_authorization_type) insertData.bh_authorization_type = ld.oneoff_bh_authorization_type;
+      if (ld.oneoff_bh_1013_received) insertData.bh_1013_received = true;
+      if (ld.oneoff_bh_authorizing_facility) insertData.bh_authorizing_facility = ld.oneoff_bh_authorizing_facility;
+      if (ld.oneoff_bh_authorizing_physician_name) insertData.bh_authorizing_physician_name = ld.oneoff_bh_authorizing_physician_name;
+      if (ld.oneoff_law_enforcement_present) insertData.bh_law_enforcement_present = true;
+
+      if (ld.oneoff_wound_type) insertData.wound_type = ld.oneoff_wound_type;
+      if (ld.oneoff_wound_location) insertData.wound_location = ld.oneoff_wound_location;
+      if (ld.oneoff_wound_stage) insertData.wound_stage = ld.oneoff_wound_stage;
     }
-    // Auto-apply ICD-10 N18.6 (End-stage renal disease) for dialysis runs.
-    // ESRD is the standard billable diagnosis CMS recognizes for routine dialysis
-    // transport, so crews should not have to enter it manually and the pre-submit
-    // checklist's ICD-10 check passes without crew action.
-    if (String(run.tripType ?? "").toLowerCase() === "dialysis") {
+    // Auto-apply ICD-10 N18.6 (ESRD) for dialysis runs when no codes were carried forward
+    if (tripTypeKey === "dialysis" && (!insertData.icd10_codes || insertData.icd10_codes.length === 0)) {
       insertData.icd10_codes = ["N18.6"];
     }
     if (run.slotId) insertData.slot_id = run.slotId;

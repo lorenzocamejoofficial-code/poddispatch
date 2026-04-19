@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
+import { BH_AUTHORIZATION_TYPES, WOUND_TYPES, PRESSURE_ULCER_STAGES } from "@/lib/pcr-dropdowns";
 import { useAuth } from "@/hooks/useAuth";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
 import { DispatcherCancelDialog } from "@/components/scheduling/DispatcherCancelDialog";
@@ -340,6 +341,17 @@ export default function Scheduling() {
     // Demographics for PCR carry-over
     dob: "", sex: "", weight_lbs: "", mobility: "ambulatory", oxygen: false,
     primary_payer: "", member_id: "",
+    // IFT / discharge specific
+    sending_facility_name: "", sending_physician_name: "", sending_physician_npi: "",
+    discharge_reason: "", pcs_obtained: false,
+    // Behavioral health (psych_transport) specific
+    bh_authorization_type: "", bh_1013_received: false,
+    bh_authorizing_facility: "", bh_authorizing_physician_name: "",
+    law_enforcement_present: false,
+    // Wound care specific
+    wound_type: "", wound_location: "", wound_stage: "",
+    // Dialysis specific
+    chair_time: "",
   });
   const resetOneoffForm = () => setOneoffForm({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
@@ -348,6 +360,13 @@ export default function Scheduling() {
     needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
     dob: "", sex: "", weight_lbs: "", mobility: "ambulatory", oxygen: false,
     primary_payer: "", member_id: "",
+    sending_facility_name: "", sending_physician_name: "", sending_physician_npi: "",
+    discharge_reason: "", pcs_obtained: false,
+    bh_authorization_type: "", bh_1013_received: false,
+    bh_authorizing_facility: "", bh_authorizing_physician_name: "",
+    law_enforcement_present: false,
+    wound_type: "", wound_location: "", wound_stage: "",
+    chair_time: "",
   });
 
   /**
@@ -497,7 +516,6 @@ export default function Scheduling() {
         patient_id: null,
         leg_type: pendingLegType as any,
         pickup_time: oneoffForm.pickup_time || null,
-        chair_time: null,
         pickup_location: oneoffForm.pickup_location,
         destination_location: oneoffForm.destination_location,
         trip_type: normalizedTripType as any,
@@ -521,6 +539,21 @@ export default function Scheduling() {
         origin_type: oneoffForm.pickup_location_type || null,
         destination_type: oneoffForm.destination_type || null,
         service_level: oneoffForm.service_level || "BLS",
+        // Transport-specific oneoff fields
+        oneoff_sending_facility_name: oneoffForm.sending_facility_name || null,
+        oneoff_sending_physician_name: oneoffForm.sending_physician_name || null,
+        oneoff_sending_physician_npi: oneoffForm.sending_physician_npi || null,
+        oneoff_discharge_reason: oneoffForm.discharge_reason || null,
+        oneoff_pcs_obtained: oneoffForm.pcs_obtained,
+        oneoff_bh_authorization_type: oneoffForm.bh_authorization_type || null,
+        oneoff_bh_1013_received: oneoffForm.bh_1013_received,
+        oneoff_bh_authorizing_facility: oneoffForm.bh_authorizing_facility || null,
+        oneoff_bh_authorizing_physician_name: oneoffForm.bh_authorizing_physician_name || null,
+        oneoff_law_enforcement_present: oneoffForm.law_enforcement_present,
+        oneoff_wound_type: oneoffForm.wound_type || null,
+        oneoff_wound_location: oneoffForm.wound_location || null,
+        oneoff_wound_stage: oneoffForm.wound_stage || null,
+        chair_time: oneoffForm.chair_time || null,
       } as any);
       if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create one-off leg: ${error.message}`); return; }
 
@@ -530,7 +563,6 @@ export default function Scheduling() {
           patient_id: null,
           leg_type: "B" as any,
           pickup_time: oneoffForm.b_leg_pickup_time || null,
-          chair_time: null,
           pickup_location: oneoffForm.destination_location,
           destination_location: oneoffForm.pickup_location,
           trip_type: normalizedTripType as any,
@@ -553,6 +585,21 @@ export default function Scheduling() {
           origin_type: oneoffForm.destination_type || null,
           destination_type: oneoffForm.pickup_location_type || null,
           service_level: oneoffForm.service_level || "BLS",
+          // Carry transport-specific fields onto the return leg too
+          oneoff_sending_facility_name: oneoffForm.sending_facility_name || null,
+          oneoff_sending_physician_name: oneoffForm.sending_physician_name || null,
+          oneoff_sending_physician_npi: oneoffForm.sending_physician_npi || null,
+          oneoff_discharge_reason: oneoffForm.discharge_reason || null,
+          oneoff_pcs_obtained: oneoffForm.pcs_obtained,
+          oneoff_bh_authorization_type: oneoffForm.bh_authorization_type || null,
+          oneoff_bh_1013_received: oneoffForm.bh_1013_received,
+          oneoff_bh_authorizing_facility: oneoffForm.bh_authorizing_facility || null,
+          oneoff_bh_authorizing_physician_name: oneoffForm.bh_authorizing_physician_name || null,
+          oneoff_law_enforcement_present: oneoffForm.law_enforcement_present,
+          oneoff_wound_type: oneoffForm.wound_type || null,
+          oneoff_wound_location: oneoffForm.wound_location || null,
+          oneoff_wound_stage: oneoffForm.wound_stage || null,
+          chair_time: oneoffForm.chair_time || null,
         } as any);
       }
 
@@ -1428,6 +1475,72 @@ export default function Scheduling() {
                 <div><Label>Pickup Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_pickup} /></Label><Input value={oneoffForm.pickup_location} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="123 Main St, Atlanta GA" /></div>
                 <div><Label>Destination Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_dropoff} /></Label><Input value={oneoffForm.destination_location} onChange={(e) => setOneoffForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /></div>
                 <div><Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label><Input type="time" value={oneoffForm.pickup_time} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
+
+                {/* Transport-type-specific fields */}
+                {(oneoffForm.trip_type === "ift" || oneoffForm.trip_type === "ift_discharge" || oneoffForm.trip_type === "discharge") && (
+                  <div className="space-y-3 rounded-md border border-dashed p-3">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">IFT / Discharge Details</p>
+                    <div><Label>Sending Facility Name</Label><Input value={oneoffForm.sending_facility_name} onChange={(e) => setOneoffForm(f => ({ ...f, sending_facility_name: e.target.value }))} /></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>Sending Physician Name</Label><Input value={oneoffForm.sending_physician_name} onChange={(e) => setOneoffForm(f => ({ ...f, sending_physician_name: e.target.value }))} /></div>
+                      <div><Label>Sending Physician NPI</Label><Input value={oneoffForm.sending_physician_npi} onChange={(e) => setOneoffForm(f => ({ ...f, sending_physician_npi: e.target.value }))} /></div>
+                    </div>
+                    <div><Label>Discharge Reason</Label><Textarea rows={2} value={oneoffForm.discharge_reason} onChange={(e) => setOneoffForm(f => ({ ...f, discharge_reason: e.target.value }))} /></div>
+                    <div className="flex items-center gap-3"><Switch checked={oneoffForm.pcs_obtained} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, pcs_obtained: v }))} id="oneoff-pcs" /><Label htmlFor="oneoff-pcs" className="cursor-pointer text-sm">PCS Obtained</Label></div>
+                  </div>
+                )}
+                {oneoffForm.trip_type === "psych_transport" && (
+                  <div className="space-y-3 rounded-md border border-dashed p-3">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Behavioral Health Details</p>
+                    <div>
+                      <Label>Authorization Type</Label>
+                      <Select value={oneoffForm.bh_authorization_type || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, bh_authorization_type: v === "none" ? "" : v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— None —</SelectItem>
+                          {BH_AUTHORIZATION_TYPES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-3"><Switch checked={oneoffForm.bh_1013_received} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, bh_1013_received: v }))} id="oneoff-1013" /><Label htmlFor="oneoff-1013" className="cursor-pointer text-sm">1013 Received</Label></div>
+                    <div><Label>Authorizing Facility</Label><Input value={oneoffForm.bh_authorizing_facility} onChange={(e) => setOneoffForm(f => ({ ...f, bh_authorizing_facility: e.target.value }))} /></div>
+                    <div><Label>Authorizing Physician Name</Label><Input value={oneoffForm.bh_authorizing_physician_name} onChange={(e) => setOneoffForm(f => ({ ...f, bh_authorizing_physician_name: e.target.value }))} /></div>
+                    <div className="flex items-center gap-3"><Switch checked={oneoffForm.law_enforcement_present} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, law_enforcement_present: v }))} id="oneoff-leo" /><Label htmlFor="oneoff-leo" className="cursor-pointer text-sm">Law Enforcement Present</Label></div>
+                  </div>
+                )}
+                {(oneoffForm.trip_type === "wound_care" || oneoffForm.trip_type === "woundcare") && (
+                  <div className="space-y-3 rounded-md border border-dashed p-3">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Wound Care Details</p>
+                    <div>
+                      <Label>Wound Type</Label>
+                      <Select value={oneoffForm.wound_type || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, wound_type: v === "none" ? "" : v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— None —</SelectItem>
+                          {WOUND_TYPES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div><Label>Wound Location</Label><Input value={oneoffForm.wound_location} onChange={(e) => setOneoffForm(f => ({ ...f, wound_location: e.target.value }))} placeholder="e.g. left heel, sacrum" /></div>
+                    <div>
+                      <Label>Wound Stage</Label>
+                      <Select value={oneoffForm.wound_stage || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, wound_stage: v === "none" ? "" : v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— None —</SelectItem>
+                          {PRESSURE_ULCER_STAGES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+                {oneoffForm.trip_type === "dialysis" && (
+                  <div className="space-y-2 rounded-md border border-dashed p-3">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Dialysis Details</p>
+                    <div><Label>Chair Time</Label><Input type="time" value={oneoffForm.chair_time} onChange={(e) => setOneoffForm(f => ({ ...f, chair_time: e.target.value }))} /></div>
+                    <p className="text-[11px] text-muted-foreground">Confirm <span className="font-mono">N18.6</span> (ESRD) or <span className="font-mono">Z99.2</span> is on the patient's standing ICD-10 codes.</p>
+                  </div>
+                )}
 
                 {/* Patient Demographics for PCR */}
                 <div className="rounded-md border bg-muted/20 p-3 space-y-3">

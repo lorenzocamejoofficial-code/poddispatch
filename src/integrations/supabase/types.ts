@@ -2003,11 +2003,25 @@ export type Database = {
           chair_time_duration_minutes: number | null
           company_id: string | null
           created_at: string
+          default_bed_confined: boolean | null
+          default_bh_authorization_type: string | null
+          default_bh_authorizing_facility: string | null
+          default_bh_authorizing_physician_name: string | null
+          default_bh_authorizing_physician_npi: string | null
+          default_cannot_transfer: boolean | null
+          default_chief_complaint: string | null
+          default_medical_necessity_reason: string | null
+          default_oxygen_transport: boolean | null
+          default_primary_impression: string | null
+          default_requires_monitoring: boolean | null
+          default_wound_location: string | null
+          default_wound_type: string | null
           dialysis_window_minutes: number
           dob: string | null
           dropoff_facility: string | null
           facility_id: string | null
           first_name: string
+          icd10_codes: string[] | null
           id: string
           is_simulated: boolean
           last_name: string
@@ -2060,11 +2074,25 @@ export type Database = {
           chair_time_duration_minutes?: number | null
           company_id?: string | null
           created_at?: string
+          default_bed_confined?: boolean | null
+          default_bh_authorization_type?: string | null
+          default_bh_authorizing_facility?: string | null
+          default_bh_authorizing_physician_name?: string | null
+          default_bh_authorizing_physician_npi?: string | null
+          default_cannot_transfer?: boolean | null
+          default_chief_complaint?: string | null
+          default_medical_necessity_reason?: string | null
+          default_oxygen_transport?: boolean | null
+          default_primary_impression?: string | null
+          default_requires_monitoring?: boolean | null
+          default_wound_location?: string | null
+          default_wound_type?: string | null
           dialysis_window_minutes?: number
           dob?: string | null
           dropoff_facility?: string | null
           facility_id?: string | null
           first_name: string
+          icd10_codes?: string[] | null
           id?: string
           is_simulated?: boolean
           last_name: string
@@ -2117,11 +2145,25 @@ export type Database = {
           chair_time_duration_minutes?: number | null
           company_id?: string | null
           created_at?: string
+          default_bed_confined?: boolean | null
+          default_bh_authorization_type?: string | null
+          default_bh_authorizing_facility?: string | null
+          default_bh_authorizing_physician_name?: string | null
+          default_bh_authorizing_physician_npi?: string | null
+          default_cannot_transfer?: boolean | null
+          default_chief_complaint?: string | null
+          default_medical_necessity_reason?: string | null
+          default_oxygen_transport?: boolean | null
+          default_primary_impression?: string | null
+          default_requires_monitoring?: boolean | null
+          default_wound_location?: string | null
+          default_wound_type?: string | null
           dialysis_window_minutes?: number
           dob?: string | null
           dropoff_facility?: string | null
           facility_id?: string | null
           first_name?: string
+          icd10_codes?: string[] | null
           id?: string
           is_simulated?: boolean
           last_name?: string
@@ -2756,17 +2798,30 @@ export type Database = {
           is_unscheduled: boolean | null
           leg_type: Database["public"]["Enums"]["leg_type"]
           notes: string | null
+          oneoff_bh_1013_received: boolean | null
+          oneoff_bh_authorization_type: string | null
+          oneoff_bh_authorizing_facility: string | null
+          oneoff_bh_authorizing_physician_name: string | null
+          oneoff_discharge_reason: string | null
           oneoff_dob: string | null
           oneoff_dropoff_address: string | null
+          oneoff_law_enforcement_present: boolean | null
           oneoff_member_id: string | null
           oneoff_mobility: string | null
           oneoff_name: string | null
           oneoff_notes: string | null
           oneoff_oxygen: boolean | null
+          oneoff_pcs_obtained: boolean | null
           oneoff_pickup_address: string | null
           oneoff_primary_payer: string | null
+          oneoff_sending_facility_name: string | null
+          oneoff_sending_physician_name: string | null
+          oneoff_sending_physician_npi: string | null
           oneoff_sex: string | null
           oneoff_weight_lbs: number | null
+          oneoff_wound_location: string | null
+          oneoff_wound_stage: string | null
+          oneoff_wound_type: string | null
           origin_type: string | null
           patient_id: string | null
           pickup_location: string
@@ -2790,17 +2845,30 @@ export type Database = {
           is_unscheduled?: boolean | null
           leg_type: Database["public"]["Enums"]["leg_type"]
           notes?: string | null
+          oneoff_bh_1013_received?: boolean | null
+          oneoff_bh_authorization_type?: string | null
+          oneoff_bh_authorizing_facility?: string | null
+          oneoff_bh_authorizing_physician_name?: string | null
+          oneoff_discharge_reason?: string | null
           oneoff_dob?: string | null
           oneoff_dropoff_address?: string | null
+          oneoff_law_enforcement_present?: boolean | null
           oneoff_member_id?: string | null
           oneoff_mobility?: string | null
           oneoff_name?: string | null
           oneoff_notes?: string | null
           oneoff_oxygen?: boolean | null
+          oneoff_pcs_obtained?: boolean | null
           oneoff_pickup_address?: string | null
           oneoff_primary_payer?: string | null
+          oneoff_sending_facility_name?: string | null
+          oneoff_sending_physician_name?: string | null
+          oneoff_sending_physician_npi?: string | null
           oneoff_sex?: string | null
           oneoff_weight_lbs?: number | null
+          oneoff_wound_location?: string | null
+          oneoff_wound_stage?: string | null
+          oneoff_wound_type?: string | null
           origin_type?: string | null
           patient_id?: string | null
           pickup_location: string
@@ -2824,17 +2892,30 @@ export type Database = {
           is_unscheduled?: boolean | null
           leg_type?: Database["public"]["Enums"]["leg_type"]
           notes?: string | null
+          oneoff_bh_1013_received?: boolean | null
+          oneoff_bh_authorization_type?: string | null
+          oneoff_bh_authorizing_facility?: string | null
+          oneoff_bh_authorizing_physician_name?: string | null
+          oneoff_discharge_reason?: string | null
           oneoff_dob?: string | null
           oneoff_dropoff_address?: string | null
+          oneoff_law_enforcement_present?: boolean | null
           oneoff_member_id?: string | null
           oneoff_mobility?: string | null
           oneoff_name?: string | null
           oneoff_notes?: string | null
           oneoff_oxygen?: boolean | null
+          oneoff_pcs_obtained?: boolean | null
           oneoff_pickup_address?: string | null
           oneoff_primary_payer?: string | null
+          oneoff_sending_facility_name?: string | null
+          oneoff_sending_physician_name?: string | null
+          oneoff_sending_physician_npi?: string | null
           oneoff_sex?: string | null
           oneoff_weight_lbs?: number | null
+          oneoff_wound_location?: string | null
+          oneoff_wound_stage?: string | null
+          oneoff_wound_type?: string | null
           origin_type?: string | null
           patient_id?: string | null
           pickup_location?: string
