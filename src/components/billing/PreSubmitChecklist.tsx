@@ -353,11 +353,22 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           passed: !!(sf.physician_name && String(sf.physician_name).trim()),
           detail: sf.physician_name ? String(sf.physician_name) : "Sending physician name is required on a discharge PCR.",
         });
-        const dischargePcsOk = pcsSkippable || billerPcsComplete || !!t.pcs_attached || t.bh_1013_received === true;
+        // Fix 7: pcs_attached === false is a confirmed negative from the dispatcher.
+        // It does NOT satisfy the PCS gate — the biller must complete the PCS panel
+        // (or upload a form) for the claim to pass. Only treat as covered when true.
+        const dischargePcsOk =
+          pcsSkippable ||
+          billerPcsComplete ||
+          t.pcs_attached === true ||
+          t.bh_1013_received === true;
         checks.push({
           label: "Discharge PCS / authorization on file",
           passed: dischargePcsOk,
-          detail: dischargePcsOk ? undefined : "Mark PCS as obtained on the Sending Facility card or attach a 1013 / patient-record PCS.",
+          detail: dischargePcsOk
+            ? undefined
+            : t.pcs_attached === false
+              ? "Dispatcher marked PCS as not obtained — biller must complete the PCS panel below before submission."
+              : "Mark PCS as obtained on the Sending Facility card or attach a 1013 / patient-record PCS.",
         });
         checks.push({
           label: "Discharge reason recorded",
@@ -509,7 +520,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
 
 
       // Compute claim score using the same PCS resolution paths as the checklist.
-      const scorePatient = (patientPcsValid || billerPcsComplete || !!t.pcs_attached)
+      const scorePatient = (patientPcsValid || billerPcsComplete || t.pcs_attached === true)
         ? {
             ...(p ?? {}),
             pcs_on_file: true,

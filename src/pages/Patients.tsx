@@ -114,7 +114,7 @@ export default function Patients() {
   const [form, setForm] = useState({
     first_name: "", last_name: "", dob: "", phone: "", sex: "",
     pickup_address: "", dropoff_facility: "", chair_time: "",
-    run_duration_minutes: "", schedule_days: "" as string,
+    run_duration_minutes: "", schedule_days: "" as "" | "MWF" | "TTS",
     weight_lbs: "", notes: "", status: "active" as PatientStatus,
     transport_type: "dialysis" as TransportType,
     recurrence_start_date: "", recurrence_end_date: "",
@@ -761,7 +761,7 @@ export default function Patients() {
                             {form.transport_type === "dialysis" ? (
                               <>
                                 <Label>Schedule Days<PCRTooltip text={ADMIN_TOOLTIPS.schedule_days} /></Label>
-                                <Select value={form.schedule_days} onValueChange={(v) => setForm({ ...form, schedule_days: v })}>
+                                <Select value={form.schedule_days} onValueChange={(v) => setForm({ ...form, schedule_days: v as "MWF" | "TTS" })}>
                                   <SelectTrigger><SelectValue placeholder="Select days" /></SelectTrigger>
                                   <SelectContent>
                                     {SCHEDULE_DAY_OPTIONS.map((d) => (

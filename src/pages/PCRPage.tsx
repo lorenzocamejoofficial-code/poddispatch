@@ -462,7 +462,9 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       if (ld.oneoff_sending_physician_npi) sendingFacility.physician_npi = ld.oneoff_sending_physician_npi;
       if (ld.oneoff_discharge_reason) sendingFacility.discharge_reason = ld.oneoff_discharge_reason;
       if (Object.keys(sendingFacility).length > 0) insertData.sending_facility_json = sendingFacility;
-      if (ld.oneoff_pcs_obtained) insertData.pcs_attached = true;
+      // Fix 7: distinguish dispatcher confirmed-no (false) from never-asked (null/undefined).
+      if (ld.oneoff_pcs_obtained === true) insertData.pcs_attached = true;
+      else if (ld.oneoff_pcs_obtained === false) insertData.pcs_attached = false;
 
       if (ld.oneoff_bh_authorization_type) insertData.bh_authorization_type = ld.oneoff_bh_authorization_type;
       if (ld.oneoff_bh_1013_received) insertData.bh_1013_received = true;

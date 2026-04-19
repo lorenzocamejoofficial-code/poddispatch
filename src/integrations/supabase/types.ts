@@ -389,6 +389,7 @@ export type Database = {
           amount_paid: number | null
           auth_number: string | null
           base_charge: number | null
+          chief_complaint: string | null
           claim_build_date: string | null
           clearinghouse_id: string | null
           clearinghouse_status: string | null
@@ -418,6 +419,7 @@ export type Database = {
           is_simulated: boolean
           isolation_precautions: Json | null
           last_contacted_at: string | null
+          medical_necessity_reason: string | null
           member_id: string | null
           mileage_charge: number | null
           notes: string | null
@@ -441,12 +443,14 @@ export type Database = {
           pcs_diagnosis: string | null
           pcs_physician_name: string | null
           pcs_physician_npi: string | null
+          primary_impression: string | null
           remittance_date: string | null
           resubmission_count: number | null
           resubmitted_at: string | null
           run_date: string
           secondary_claim_generated: boolean | null
           secondary_claim_id: string | null
+          service_level: string | null
           sftp_sent_at: string | null
           simulation_run_id: string | null
           status: Database["public"]["Enums"]["claim_status"]
@@ -464,6 +468,7 @@ export type Database = {
           amount_paid?: number | null
           auth_number?: string | null
           base_charge?: number | null
+          chief_complaint?: string | null
           claim_build_date?: string | null
           clearinghouse_id?: string | null
           clearinghouse_status?: string | null
@@ -493,6 +498,7 @@ export type Database = {
           is_simulated?: boolean
           isolation_precautions?: Json | null
           last_contacted_at?: string | null
+          medical_necessity_reason?: string | null
           member_id?: string | null
           mileage_charge?: number | null
           notes?: string | null
@@ -516,12 +522,14 @@ export type Database = {
           pcs_diagnosis?: string | null
           pcs_physician_name?: string | null
           pcs_physician_npi?: string | null
+          primary_impression?: string | null
           remittance_date?: string | null
           resubmission_count?: number | null
           resubmitted_at?: string | null
           run_date: string
           secondary_claim_generated?: boolean | null
           secondary_claim_id?: string | null
+          service_level?: string | null
           sftp_sent_at?: string | null
           simulation_run_id?: string | null
           status?: Database["public"]["Enums"]["claim_status"]
@@ -539,6 +547,7 @@ export type Database = {
           amount_paid?: number | null
           auth_number?: string | null
           base_charge?: number | null
+          chief_complaint?: string | null
           claim_build_date?: string | null
           clearinghouse_id?: string | null
           clearinghouse_status?: string | null
@@ -568,6 +577,7 @@ export type Database = {
           is_simulated?: boolean
           isolation_precautions?: Json | null
           last_contacted_at?: string | null
+          medical_necessity_reason?: string | null
           member_id?: string | null
           mileage_charge?: number | null
           notes?: string | null
@@ -591,12 +601,14 @@ export type Database = {
           pcs_diagnosis?: string | null
           pcs_physician_name?: string | null
           pcs_physician_npi?: string | null
+          primary_impression?: string | null
           remittance_date?: string | null
           resubmission_count?: number | null
           resubmitted_at?: string | null
           run_date?: string
           secondary_claim_generated?: boolean | null
           secondary_claim_id?: string | null
+          service_level?: string | null
           sftp_sent_at?: string | null
           simulation_run_id?: string | null
           status?: Database["public"]["Enums"]["claim_status"]
