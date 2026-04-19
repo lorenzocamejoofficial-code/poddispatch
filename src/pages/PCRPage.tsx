@@ -365,10 +365,13 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       setCreating(null);
       return;
     }
-    // Fetch the scheduling_leg to get origin/destination types, service_level, is_unscheduled
+    // Fetch the scheduling_leg to get origin/destination types, service_level, is_unscheduled,
+    // and (for one-off runs) the oneoff_* fields that must be materialized onto trip_records
+    // so the PCR opens with payer/member_id/demographics already populated and the auto-create
+    // claim trigger has data to work with.
     const { data: legData } = await supabase
       .from("scheduling_legs")
-      .select("origin_type, destination_type, service_level, is_unscheduled")
+      .select("origin_type, destination_type, service_level, is_unscheduled, is_oneoff, oneoff_name, oneoff_dob, oneoff_sex, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_primary_payer, oneoff_member_id, oneoff_pickup_address, oneoff_dropoff_address, oneoff_notes")
       .eq("id", run.legId)
       .maybeSingle();
 
@@ -377,18 +380,52 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     const destinationType = (legData as any)?.destination_type || fallbackDerived.destination_type;
     const serviceLevel = (legData as any)?.service_level || null;
     const isUnscheduled = (legData as any)?.is_unscheduled || false;
+    const isOneoff = !!(legData as any)?.is_oneoff;
 
     const insertData: any = {
       leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
       company_id: companyId, patient_id: run.patientId,
       run_date: today, status: "scheduled" as any,
       pickup_location: run.pickupLocation, destination_location: run.destinationLocation,
-      scheduled_pickup_time: run.pickupTime, trip_type: run.tripType as any,
-      pcr_type: run.tripType as any, pcr_status: "not_started",
+      scheduled_pickup_time: run.pickupTime,
+      // trip_type is the canonical source of truth for transport classification.
+      // pcr_type is written with the same value for backward compatibility only.
+      // All new readers should prefer trip_type and treat pcr_type as a fallback.
+      trip_type: run.tripType as any,
+      pcr_type: run.tripType as any, // DEPRECATED — mirror of trip_type
+      pcr_status: "not_started",
       origin_type: originType, destination_type: destinationType,
       service_level: serviceLevel,
       is_unscheduled: isUnscheduled,
     };
+
+    // Fix 3: materialize one-off leg data onto the trip record so the PCR has
+    // patient demographics + payer + member_id without re-typing, and so the
+    // auto-create claim trigger can resolve payer/member from the trip directly.
+    if (isOneoff && legData) {
+      const ld = legData as any;
+      insertData.patient_name_override = ld.oneoff_name ?? null;
+      insertData.patient_dob_override = ld.oneoff_dob ?? null;
+      insertData.patient_sex_override = ld.oneoff_sex ?? null;
+      insertData.weight_lbs = ld.oneoff_weight_lbs ?? null;
+      insertData.mobility_override = ld.oneoff_mobility ?? null;
+      insertData.oxygen_required = ld.oneoff_oxygen ?? null;
+      // Stored lowercase to match the canonical claim format (Fix 4).
+      insertData.primary_payer = ld.oneoff_primary_payer
+        ? String(ld.oneoff_primary_payer).toLowerCase().trim()
+        : null;
+      insertData.member_id = ld.oneoff_member_id ?? null;
+      // Only fill pickup/destination from oneoff if not already provided
+      if (!insertData.pickup_location && ld.oneoff_pickup_address) {
+        insertData.pickup_location = ld.oneoff_pickup_address;
+      }
+      if (!insertData.destination_location && ld.oneoff_dropoff_address) {
+        insertData.destination_location = ld.oneoff_dropoff_address;
+      }
+      if (ld.oneoff_notes) {
+        insertData.narrative = ld.oneoff_notes;
+      }
+    }
     // Auto-apply ICD-10 N18.6 (End-stage renal disease) for dialysis runs.
     // ESRD is the standard billable diagnosis CMS recognizes for routine dialysis
     // transport, so crews should not have to enter it manually and the pre-submit

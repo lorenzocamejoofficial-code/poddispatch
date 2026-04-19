@@ -63,9 +63,13 @@ export function ConditionOnArrivalCard({ trip, updateField, requiredFields = ["l
       {isWoundCare && (
         <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Wound Details</p>
+          {/* Fix 5: wound_type, wound_location, wound_stage, wound_size are written
+              as TOP-LEVEL columns on trip_records (not nested in condition_on_arrival
+              or assessment_json). PreSubmitChecklist and the field-requirements
+              evaluator both read from the top-level columns only. */}
           <div>
             <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Wound Type</label>
-            <Select value={coa.wound_type || ""} onValueChange={(v) => updateCOA("wound_type", v)}>
+            <Select value={trip.wound_type || ""} onValueChange={(v) => updateField("wound_type", v)}>
               <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select wound type..." /></SelectTrigger>
               <SelectContent>
                 {WOUND_TYPES.map(w => <SelectItem key={w} value={w}>{w}</SelectItem>)}
@@ -73,10 +77,10 @@ export function ConditionOnArrivalCard({ trip, updateField, requiredFields = ["l
             </Select>
           </div>
 
-          {coa.wound_type === "Pressure ulcer" && (
+          {trip.wound_type === "Pressure ulcer" && (
             <div>
               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Pressure Ulcer Stage</label>
-              <Select value={coa.pressure_ulcer_stage || ""} onValueChange={(v) => updateCOA("pressure_ulcer_stage", v)}>
+              <Select value={trip.wound_stage || ""} onValueChange={(v) => updateField("wound_stage", v)}>
                 <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select stage..." /></SelectTrigger>
                 <SelectContent>
                   {PRESSURE_ULCER_STAGES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -85,7 +89,7 @@ export function ConditionOnArrivalCard({ trip, updateField, requiredFields = ["l
             </div>
           )}
 
-          {coa.wound_type === "Other" && (
+          {trip.wound_type === "Other" && (
             <div>
               <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Specify Wound Type</label>
               <Input
@@ -101,8 +105,18 @@ export function ConditionOnArrivalCard({ trip, updateField, requiredFields = ["l
             <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Wound Location</label>
             <Input
               placeholder="e.g., Right lateral malleolus, sacrum, left heel..."
-              value={coa.wound_location || ""}
-              onChange={(e) => updateCOA("wound_location", e.target.value)}
+              value={trip.wound_location || ""}
+              onChange={(e) => updateField("wound_location", e.target.value)}
+              className="h-12 text-base"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">Wound Size (cm)</label>
+            <Input
+              placeholder="e.g., 4cm x 2cm x 0.5cm"
+              value={trip.wound_size || ""}
+              onChange={(e) => updateField("wound_size", e.target.value)}
               className="h-12 text-base"
             />
           </div>
