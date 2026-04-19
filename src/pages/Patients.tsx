@@ -1038,75 +1038,206 @@ export default function Patients() {
                     </div>
                   </div>
 
-                  {/* Compliance & Authorization — dialysis only */}
-                  {form.transport_type === "dialysis" && (
-                    <Collapsible defaultOpen={form.pcs_on_file || form.prior_auth_on_file}>
-                      <div className="border-t pt-3">
-                        <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
+                  {/* Clinical & Billing Defaults — pre-fills the PCR for every transport this patient takes */}
+                  <Collapsible defaultOpen={false}>
+                    <div className="border-t pt-3">
+                      <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Clinical &amp; Billing Defaults</p>
+                          <p className="text-[11px] text-muted-foreground">Pre-fills the PCR every time this patient is transported</p>
+                        </div>
+                        <span className="text-xs text-muted-foreground">▸</span>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-3 mt-3">
+                        <div>
+                          <Label>Standing ICD-10 Codes</Label>
+                          <ICD10Picker
+                            selectedCodes={form.icd10_codes}
+                            onCodesChange={(codes) => setForm({ ...form, icd10_codes: codes })}
+                            chiefComplaint={form.default_chief_complaint}
+                            patientPayer={form.primary_payer}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Compliance &amp; Authorization</p>
-                            <p className="text-[11px] text-muted-foreground">Required for Medicare dialysis transport billing</p>
+                            <Label>Default Chief Complaint</Label>
+                            <Select value={form.default_chief_complaint || "none"} onValueChange={(v) => setForm({ ...form, default_chief_complaint: v === "none" ? "" : v })}>
+                              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                              <SelectContent className="max-h-72">
+                                <SelectItem value="none">— None —</SelectItem>
+                                {CHIEF_COMPLAINTS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
                           </div>
-                          <span className="text-xs text-muted-foreground">▸</span>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="space-y-3 mt-3">
-                          {/* PCS */}
-                          <div className="flex items-center justify-between">
-                            <Label>PCS on File</Label>
-                            <Switch checked={form.pcs_on_file} onCheckedChange={(v) => setForm({ ...form, pcs_on_file: v })} />
+                          <div>
+                            <Label>Default Primary Impression</Label>
+                            <Select value={form.default_primary_impression || "none"} onValueChange={(v) => setForm({ ...form, default_primary_impression: v === "none" ? "" : v })}>
+                              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                              <SelectContent className="max-h-72">
+                                <SelectItem value="none">— None —</SelectItem>
+                                {PRIMARY_IMPRESSIONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
                           </div>
-                          {form.pcs_on_file && (
-                            <div className="space-y-3 pl-1">
-                              <div>
-                                <Label>PCS Signed Date</Label>
-                                <Input type="date" value={form.pcs_signed_date} onChange={(e) => setForm({ ...form, pcs_signed_date: e.target.value })} />
-                              </div>
-                              {form.pcs_signed_date && (() => {
-                                const expDate = addDays(parseISO(form.pcs_signed_date), 60);
-                                const daysLeft = differenceInDays(expDate, new Date());
-                                const colorClass = daysLeft < 0 ? "text-destructive" : daysLeft <= 14 ? "text-[hsl(var(--status-yellow))]" : "text-emerald-600";
-                                return (
-                                  <p className={`text-xs font-medium ${colorClass}`}>
-                                    Expires: {format(expDate, "MMM dd, yyyy")}
-                                    {daysLeft < 0 ? " (Expired)" : daysLeft <= 14 ? ` (${daysLeft} days left)` : ""}
-                                  </p>
-                                );
-                              })()}
-                            </div>
-                          )}
+                        </div>
+                        <div>
+                          <Label>Medical Necessity Reason</Label>
+                          <Select value={form.default_medical_necessity_reason || "none"} onValueChange={(v) => setForm({ ...form, default_medical_necessity_reason: v === "none" ? "" : v })}>
+                            <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent className="max-h-72">
+                              <SelectItem value="none">— None —</SelectItem>
+                              {MEDICAL_NECESSITY_REASONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Medical Necessity Criteria</p>
+                          {[
+                            { key: "default_bed_confined" as const, label: "Bed confined at origin" },
+                            { key: "default_cannot_transfer" as const, label: "Cannot safely transfer without stretcher" },
+                            { key: "default_requires_monitoring" as const, label: "Requires medical monitoring during transport" },
+                            { key: "default_oxygen_transport" as const, label: "Oxygen required during transport" },
+                          ].map((f) => (
+                            <label key={f.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                              <input type="checkbox" checked={form[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.checked })} className="accent-primary" />
+                              {f.label}
+                            </label>
+                          ))}
+                        </div>
 
-                          {/* Prior Auth */}
-                          <div className="flex items-center justify-between">
-                            <Label>Prior Auth on File</Label>
-                            <Switch checked={form.prior_auth_on_file} onCheckedChange={(v) => setForm({ ...form, prior_auth_on_file: v })} />
-                          </div>
-                          {form.prior_auth_on_file && (
-                            <div className="space-y-3 pl-1">
-                              <div>
-                                <Label>Prior Auth Number (UTN)</Label>
-                                <Input value={form.prior_auth_number} onChange={(e) => setForm({ ...form, prior_auth_number: e.target.value })} placeholder="Enter UTN" />
-                              </div>
-                              <div>
-                                <Label>Prior Auth Expiration</Label>
-                                <Input type="date" value={form.prior_auth_expiration} onChange={(e) => setForm({ ...form, prior_auth_expiration: e.target.value })} />
-                              </div>
-                              {form.prior_auth_expiration && (() => {
-                                const expDate = parseISO(form.prior_auth_expiration);
-                                const daysLeft = differenceInDays(expDate, new Date());
-                                const colorClass = daysLeft < 0 ? "text-destructive" : daysLeft <= 14 ? "text-[hsl(var(--status-yellow))]" : "text-emerald-600";
-                                return (
-                                  <p className={`text-xs font-medium ${colorClass}`}>
-                                    Expires: {format(expDate, "MMM dd, yyyy")}
-                                    {daysLeft < 0 ? " (Expired)" : daysLeft <= 14 ? ` (${daysLeft} days left)` : ""}
-                                  </p>
-                                );
-                              })()}
+                        {/* Behavioral Health Defaults — psych_transport only */}
+                        {form.transport_type === "psych_transport" && (
+                          <div className="space-y-3 rounded-md border border-dashed p-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Behavioral Health Defaults</p>
+                            <div>
+                              <Label>Default Authorization Type</Label>
+                              <Select value={form.default_bh_authorization_type || "none"} onValueChange={(v) => setForm({ ...form, default_bh_authorization_type: v === "none" ? "" : v })}>
+                                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">— None —</SelectItem>
+                                  {BH_AUTHORIZATION_TYPES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
                             </div>
-                          )}
-                        </CollapsibleContent>
-                      </div>
-                    </Collapsible>
-                  )}
+                            <div>
+                              <Label>Authorizing Facility</Label>
+                              <Input value={form.default_bh_authorizing_facility} onChange={(e) => setForm({ ...form, default_bh_authorizing_facility: e.target.value })} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label>Authorizing Physician Name</Label>
+                                <Input value={form.default_bh_authorizing_physician_name} onChange={(e) => setForm({ ...form, default_bh_authorizing_physician_name: e.target.value })} />
+                              </div>
+                              <div>
+                                <Label>Authorizing Physician NPI</Label>
+                                <Input value={form.default_bh_authorizing_physician_npi} onChange={(e) => setForm({ ...form, default_bh_authorizing_physician_npi: e.target.value })} />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Wound Care Defaults — wound_care or outpatient */}
+                        {(form.transport_type === "wound_care" || form.transport_type === "outpatient") && (
+                          <div className="space-y-3 rounded-md border border-dashed p-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Wound Care Defaults</p>
+                            <div>
+                              <Label>Default Wound Type</Label>
+                              <Select value={form.default_wound_type || "none"} onValueChange={(v) => setForm({ ...form, default_wound_type: v === "none" ? "" : v })}>
+                                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">— None —</SelectItem>
+                                  {WOUND_TYPES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label>Default Wound Location</Label>
+                              <Input value={form.default_wound_location} onChange={(e) => setForm({ ...form, default_wound_location: e.target.value })} placeholder="e.g. left heel, sacrum" />
+                            </div>
+                          </div>
+                        )}
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+
+                  {/* Compliance & Authorization — visible for ALL transport types */}
+                  <Collapsible defaultOpen={form.pcs_on_file || form.prior_auth_on_file || form.auth_required}>
+                    <div className="border-t pt-3">
+                      <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Compliance &amp; Authorization</p>
+                          <p className="text-[11px] text-muted-foreground">PCS, prior authorization, and payer compliance documents</p>
+                        </div>
+                        <span className="text-xs text-muted-foreground">▸</span>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-3 mt-3">
+                        {/* Auth Required toggle — visible for ALL transport types */}
+                        <div className="flex items-center justify-between">
+                          <Label>Authorization Required</Label>
+                          <Switch checked={form.auth_required} onCheckedChange={(v) => setForm({ ...form, auth_required: v })} />
+                        </div>
+                        {form.auth_required && (
+                          <div>
+                            <Label>Authorization Expiration</Label>
+                            <Input type="date" value={form.auth_expiration} onChange={(e) => setForm({ ...form, auth_expiration: e.target.value })} />
+                          </div>
+                        )}
+                        {/* PCS */}
+                        <div className="flex items-center justify-between">
+                          <Label>PCS on File</Label>
+                          <Switch checked={form.pcs_on_file} onCheckedChange={(v) => setForm({ ...form, pcs_on_file: v })} />
+                        </div>
+                        {form.pcs_on_file && (
+                          <div className="space-y-3 pl-1">
+                            <div>
+                              <Label>PCS Signed Date</Label>
+                              <Input type="date" value={form.pcs_signed_date} onChange={(e) => setForm({ ...form, pcs_signed_date: e.target.value })} />
+                            </div>
+                            {form.pcs_signed_date && (() => {
+                              const expDate = addDays(parseISO(form.pcs_signed_date), 60);
+                              const daysLeft = differenceInDays(expDate, new Date());
+                              const colorClass = daysLeft < 0 ? "text-destructive" : daysLeft <= 14 ? "text-[hsl(var(--status-yellow))]" : "text-emerald-600";
+                              return (
+                                <p className={`text-xs font-medium ${colorClass}`}>
+                                  Expires: {format(expDate, "MMM dd, yyyy")}
+                                  {daysLeft < 0 ? " (Expired)" : daysLeft <= 14 ? ` (${daysLeft} days left)` : ""}
+                                </p>
+                              );
+                            })()}
+                          </div>
+                        )}
+
+                        {/* Prior Auth */}
+                        <div className="flex items-center justify-between">
+                          <Label>Prior Auth on File</Label>
+                          <Switch checked={form.prior_auth_on_file} onCheckedChange={(v) => setForm({ ...form, prior_auth_on_file: v })} />
+                        </div>
+                        {form.prior_auth_on_file && (
+                          <div className="space-y-3 pl-1">
+                            <div>
+                              <Label>Prior Auth Number (UTN)</Label>
+                              <Input value={form.prior_auth_number} onChange={(e) => setForm({ ...form, prior_auth_number: e.target.value })} placeholder="Enter UTN" />
+                            </div>
+                            <div>
+                              <Label>Prior Auth Expiration</Label>
+                              <Input type="date" value={form.prior_auth_expiration} onChange={(e) => setForm({ ...form, prior_auth_expiration: e.target.value })} />
+                            </div>
+                            {form.prior_auth_expiration && (() => {
+                              const expDate = parseISO(form.prior_auth_expiration);
+                              const daysLeft = differenceInDays(expDate, new Date());
+                              const colorClass = daysLeft < 0 ? "text-destructive" : daysLeft <= 14 ? "text-[hsl(var(--status-yellow))]" : "text-emerald-600";
+                              return (
+                                <p className={`text-xs font-medium ${colorClass}`}>
+                                  Expires: {format(expDate, "MMM dd, yyyy")}
+                                  {daysLeft < 0 ? " (Expired)" : daysLeft <= 14 ? ` (${daysLeft} days left)` : ""}
+                                </p>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
 
                   {/* Documents section — visible only when editing */}
                   {editing && (
