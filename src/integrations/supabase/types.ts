@@ -731,13 +731,18 @@ export type Database = {
       }
       comms_events: {
         Row: {
+          call_status: string | null
           call_type: string | null
+          called_at: string | null
           company_id: string
+          completed_at: string | null
           created_at: string
+          error_message: string | null
           eta_used: string | null
           event_type: string
           facility_id: string | null
           facility_name: string | null
+          from_number: string | null
           id: string
           message_text: string | null
           patient_name: string | null
@@ -748,15 +753,21 @@ export type Database = {
           status: string
           trip_id: string
           truck_id: string
+          twilio_call_sid: string | null
         }
         Insert: {
+          call_status?: string | null
           call_type?: string | null
+          called_at?: string | null
           company_id: string
+          completed_at?: string | null
           created_at?: string
+          error_message?: string | null
           eta_used?: string | null
           event_type: string
           facility_id?: string | null
           facility_name?: string | null
+          from_number?: string | null
           id?: string
           message_text?: string | null
           patient_name?: string | null
@@ -767,15 +778,21 @@ export type Database = {
           status?: string
           trip_id: string
           truck_id: string
+          twilio_call_sid?: string | null
         }
         Update: {
+          call_status?: string | null
           call_type?: string | null
+          called_at?: string | null
           company_id?: string
+          completed_at?: string | null
           created_at?: string
+          error_message?: string | null
           eta_used?: string | null
           event_type?: string
           facility_id?: string | null
           facility_name?: string | null
+          from_number?: string | null
           id?: string
           message_text?: string | null
           patient_name?: string | null
@@ -786,6 +803,7 @@ export type Database = {
           status?: string
           trip_id?: string
           truck_id?: string
+          twilio_call_sid?: string | null
         }
         Relationships: [
           {
@@ -1022,6 +1040,7 @@ export type Database = {
           session_warning_enabled: boolean
           unload_time_minutes: number
           updated_at: string
+          verified_caller_id: string | null
         }
         Insert: {
           company_id?: string | null
@@ -1037,6 +1056,7 @@ export type Database = {
           session_warning_enabled?: boolean
           unload_time_minutes?: number
           updated_at?: string
+          verified_caller_id?: string | null
         }
         Update: {
           company_id?: string | null
@@ -1052,6 +1072,7 @@ export type Database = {
           session_warning_enabled?: boolean
           unload_time_minutes?: number
           updated_at?: string
+          verified_caller_id?: string | null
         }
         Relationships: [
           {

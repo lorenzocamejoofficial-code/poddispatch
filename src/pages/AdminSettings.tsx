@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { CheckCircle2, ClipboardList, Settings2, Network } from "lucide-react";
+import { CheckCircle2, ClipboardList, Settings2, Network, Phone } from "lucide-react";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { TrialBanner } from "@/components/onboarding/TrialBanner";
 import { ClearinghouseSettings } from "@/components/settings/ClearinghouseSettings";
@@ -27,6 +27,7 @@ export default function AdminSettings() {
   const [sessionTimeout, setSessionTimeout] = useState("30");
   const [sessionWarningEnabled, setSessionWarningEnabled] = useState(true);
   const [retentionYears, setRetentionYears] = useState("7");
+  const [verifiedCallerId, setVerifiedCallerId] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function AdminSettings() {
         setSessionTimeout(String((data as any).session_timeout_minutes ?? 30));
         setSessionWarningEnabled((data as any).session_warning_enabled ?? true);
         setRetentionYears(String((data as any).retention_policy_years ?? 7));
+        setVerifiedCallerId(String((data as any).verified_caller_id ?? ""));
       }
     });
 
@@ -59,6 +61,7 @@ export default function AdminSettings() {
       session_timeout_minutes: parseInt(sessionTimeout),
       session_warning_enabled: sessionWarningEnabled,
       retention_policy_years: parseInt(retentionYears),
+      verified_caller_id: verifiedCallerId.trim() || null,
     } as any).eq("id", settingsId);
     toast.success("Settings saved");
     setSaving(false);
@@ -275,6 +278,30 @@ export default function AdminSettings() {
               <p className="text-lg font-bold text-foreground">8 <span className="text-sm font-normal text-muted-foreground">runs/truck</span></p>
               <p className="text-xs text-muted-foreground mt-0.5">Trucks with &gt;8 runs show as "Overloaded" in the Daily Ops Snapshot. Green = 6–8, Yellow = 3–5, Red = 0–2 or &gt;10.</p>
             </div>
+          </div>
+        </section>
+
+        {/* Communications */}
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <Phone className="h-4 w-4 text-primary" /> Communications
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Outbound caller ID for automated patient and facility calls.
+            </p>
+          </div>
+          <div>
+            <Label>Verified Caller ID</Label>
+            <Input
+              type="tel"
+              value={verifiedCallerId}
+              onChange={(e) => setVerifiedCallerId(e.target.value)}
+              placeholder="+15555550123"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Enter the business phone number you've verified with our calling provider as an outgoing caller ID. Use E.164 format (e.g. +15555550123). If left blank, our default outbound number will be used.
+            </p>
           </div>
         </section>
 
