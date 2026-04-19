@@ -516,7 +516,6 @@ export default function Scheduling() {
         patient_id: null,
         leg_type: pendingLegType as any,
         pickup_time: oneoffForm.pickup_time || null,
-        chair_time: null,
         pickup_location: oneoffForm.pickup_location,
         destination_location: oneoffForm.destination_location,
         trip_type: normalizedTripType as any,
@@ -564,7 +563,6 @@ export default function Scheduling() {
           patient_id: null,
           leg_type: "B" as any,
           pickup_time: oneoffForm.b_leg_pickup_time || null,
-          chair_time: null,
           pickup_location: oneoffForm.destination_location,
           destination_location: oneoffForm.pickup_location,
           trip_type: normalizedTripType as any,
@@ -587,6 +585,21 @@ export default function Scheduling() {
           origin_type: oneoffForm.destination_type || null,
           destination_type: oneoffForm.pickup_location_type || null,
           service_level: oneoffForm.service_level || "BLS",
+          // Carry transport-specific fields onto the return leg too
+          oneoff_sending_facility_name: oneoffForm.sending_facility_name || null,
+          oneoff_sending_physician_name: oneoffForm.sending_physician_name || null,
+          oneoff_sending_physician_npi: oneoffForm.sending_physician_npi || null,
+          oneoff_discharge_reason: oneoffForm.discharge_reason || null,
+          oneoff_pcs_obtained: oneoffForm.pcs_obtained,
+          oneoff_bh_authorization_type: oneoffForm.bh_authorization_type || null,
+          oneoff_bh_1013_received: oneoffForm.bh_1013_received,
+          oneoff_bh_authorizing_facility: oneoffForm.bh_authorizing_facility || null,
+          oneoff_bh_authorizing_physician_name: oneoffForm.bh_authorizing_physician_name || null,
+          oneoff_law_enforcement_present: oneoffForm.law_enforcement_present,
+          oneoff_wound_type: oneoffForm.wound_type || null,
+          oneoff_wound_location: oneoffForm.wound_location || null,
+          oneoff_wound_stage: oneoffForm.wound_stage || null,
+          chair_time: oneoffForm.chair_time || null,
         } as any);
       }
 
