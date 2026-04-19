@@ -10,7 +10,15 @@ import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
 import { ICD10Picker } from "@/components/pcr/ICD10Picker";
 import { cn } from "@/lib/utils";
 
-interface Props { trip: any; updateField: (f: string, v: any) => Promise<void>; tripType?: string; requiredFields?: string[]; }
+interface Props {
+  trip: any;
+  updateField: (f: string, v: any) => Promise<void>;
+  /** Optional bulk-update path so paired writes (e.g. disposition mirroring
+   *  to hospital_outcome_json) execute in a single round-trip. */
+  updateMultipleFields?: (fields: Record<string, any>) => Promise<void>;
+  tripType?: string;
+  requiredFields?: string[];
+}
 
 export function SendingFacilityCard({ trip, updateField, tripType, requiredFields = ["facility_name", "pcs_attached"] }: Props) {
   const sf = trip.sending_facility_json || {};
@@ -107,9 +115,25 @@ export function SendingFacilityCard({ trip, updateField, tripType, requiredField
   );
 }
 
-export function HospitalOutcomeCard({ trip, updateField, requiredFields = ["disposition"] }: Props) {
+export function HospitalOutcomeCard({ trip, updateField, updateMultipleFields, requiredFields = ["disposition"] }: Props & { updateMultipleFields?: (fields: Record<string, any>) => Promise<void> }) {
   const ho = trip.hospital_outcome_json || {};
   const update = (k: string, v: any) => updateField("hospital_outcome_json", { ...ho, [k]: v });
+
+  // Fix 6: disposition is canonically the top-level `disposition` column on
+  // trip_records. We mirror it into hospital_outcome_json.disposition for
+  // display continuity, but checklist + field-requirements read only top-level.
+  const updateDisposition = (v: string) => {
+    if (updateMultipleFields) {
+      updateMultipleFields({
+        disposition: v,
+        hospital_outcome_json: { ...ho, disposition: v },
+      });
+    } else {
+      // Fall back to two writes if the parent didn't pass updateMultipleFields.
+      updateField("disposition", v);
+      updateField("hospital_outcome_json", { ...ho, disposition: v });
+    }
+  };
 
   const isReq = (f: string) => (requiredFields || []).includes(f);
   const dispositionFilled = !!trip.disposition && trip.disposition.trim() !== "";
@@ -148,7 +172,7 @@ export function HospitalOutcomeCard({ trip, updateField, requiredFields = ["disp
           Disposition
           {isReq("disposition") && <PCRFieldDot filled={dispositionFilled} />}
         </label>
-        <Select value={trip.disposition || ""} onValueChange={(v) => updateField("disposition", v)}>
+        <Select value={trip.disposition || ""} onValueChange={updateDisposition}>
           <SelectTrigger className={cn("h-12 text-base", isReq("disposition") ? (dispositionFilled ? "border-emerald-400" : "border-destructive/50") : "")}><SelectValue placeholder="Select..." /></SelectTrigger>
           <SelectContent>
             {DISPOSITIONS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}

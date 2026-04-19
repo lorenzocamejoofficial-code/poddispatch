@@ -3308,7 +3308,9 @@ export type Database = {
           loaded_miles: number | null
           medical_necessity_reason: string | null
           medications_json: Json | null
+          member_id: string | null
           mobility_method: string | null
+          mobility_override: string | null
           narrative: string | null
           necessity_notes: string | null
           odometer_at_destination: number | null
@@ -3317,11 +3319,15 @@ export type Database = {
           origin_type: string | null
           original_trip_id: string | null
           oxygen_during_transport: boolean | null
+          oxygen_required: boolean | null
           oxygen_saturation: number | null
           patient_contact_time: string | null
+          patient_dob_override: string | null
           patient_id: string | null
           patient_mobility: string | null
+          patient_name_override: string | null
           patient_position: string | null
+          patient_sex_override: string | null
           pcr_completed_at: string | null
           pcr_status: string
           pcr_submitted_by: string | null
@@ -3330,6 +3336,7 @@ export type Database = {
           physical_exam_json: Json | null
           pickup_location: string | null
           primary_impression: string | null
+          primary_payer: string | null
           procedures_json: Json | null
           requires_monitoring: boolean | null
           respiration_rate: number | null
@@ -3359,6 +3366,10 @@ export type Database = {
           vitals_taken_at: string | null
           wait_time_minutes: number | null
           weight_lbs: number | null
+          wound_location: string | null
+          wound_size: string | null
+          wound_stage: string | null
+          wound_type: string | null
         }
         Insert: {
           aed_used?: boolean | null
@@ -3465,7 +3476,9 @@ export type Database = {
           loaded_miles?: number | null
           medical_necessity_reason?: string | null
           medications_json?: Json | null
+          member_id?: string | null
           mobility_method?: string | null
+          mobility_override?: string | null
           narrative?: string | null
           necessity_notes?: string | null
           odometer_at_destination?: number | null
@@ -3474,11 +3487,15 @@ export type Database = {
           origin_type?: string | null
           original_trip_id?: string | null
           oxygen_during_transport?: boolean | null
+          oxygen_required?: boolean | null
           oxygen_saturation?: number | null
           patient_contact_time?: string | null
+          patient_dob_override?: string | null
           patient_id?: string | null
           patient_mobility?: string | null
+          patient_name_override?: string | null
           patient_position?: string | null
+          patient_sex_override?: string | null
           pcr_completed_at?: string | null
           pcr_status?: string
           pcr_submitted_by?: string | null
@@ -3487,6 +3504,7 @@ export type Database = {
           physical_exam_json?: Json | null
           pickup_location?: string | null
           primary_impression?: string | null
+          primary_payer?: string | null
           procedures_json?: Json | null
           requires_monitoring?: boolean | null
           respiration_rate?: number | null
@@ -3516,6 +3534,10 @@ export type Database = {
           vitals_taken_at?: string | null
           wait_time_minutes?: number | null
           weight_lbs?: number | null
+          wound_location?: string | null
+          wound_size?: string | null
+          wound_stage?: string | null
+          wound_type?: string | null
         }
         Update: {
           aed_used?: boolean | null
@@ -3622,7 +3644,9 @@ export type Database = {
           loaded_miles?: number | null
           medical_necessity_reason?: string | null
           medications_json?: Json | null
+          member_id?: string | null
           mobility_method?: string | null
+          mobility_override?: string | null
           narrative?: string | null
           necessity_notes?: string | null
           odometer_at_destination?: number | null
@@ -3631,11 +3655,15 @@ export type Database = {
           origin_type?: string | null
           original_trip_id?: string | null
           oxygen_during_transport?: boolean | null
+          oxygen_required?: boolean | null
           oxygen_saturation?: number | null
           patient_contact_time?: string | null
+          patient_dob_override?: string | null
           patient_id?: string | null
           patient_mobility?: string | null
+          patient_name_override?: string | null
           patient_position?: string | null
+          patient_sex_override?: string | null
           pcr_completed_at?: string | null
           pcr_status?: string
           pcr_submitted_by?: string | null
@@ -3644,6 +3672,7 @@ export type Database = {
           physical_exam_json?: Json | null
           pickup_location?: string | null
           primary_impression?: string | null
+          primary_payer?: string | null
           procedures_json?: Json | null
           requires_monitoring?: boolean | null
           respiration_rate?: number | null
@@ -3673,6 +3702,10 @@ export type Database = {
           vitals_taken_at?: string | null
           wait_time_minutes?: number | null
           weight_lbs?: number | null
+          wound_location?: string | null
+          wound_size?: string | null
+          wound_stage?: string | null
+          wound_type?: string | null
         }
         Relationships: [
           {
