@@ -340,6 +340,17 @@ export default function Scheduling() {
     // Demographics for PCR carry-over
     dob: "", sex: "", weight_lbs: "", mobility: "ambulatory", oxygen: false,
     primary_payer: "", member_id: "",
+    // IFT / discharge specific
+    sending_facility_name: "", sending_physician_name: "", sending_physician_npi: "",
+    discharge_reason: "", pcs_obtained: false,
+    // Behavioral health (psych_transport) specific
+    bh_authorization_type: "", bh_1013_received: false,
+    bh_authorizing_facility: "", bh_authorizing_physician_name: "",
+    law_enforcement_present: false,
+    // Wound care specific
+    wound_type: "", wound_location: "", wound_stage: "",
+    // Dialysis specific
+    chair_time: "",
   });
   const resetOneoffForm = () => setOneoffForm({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
@@ -348,6 +359,13 @@ export default function Scheduling() {
     needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
     dob: "", sex: "", weight_lbs: "", mobility: "ambulatory", oxygen: false,
     primary_payer: "", member_id: "",
+    sending_facility_name: "", sending_physician_name: "", sending_physician_npi: "",
+    discharge_reason: "", pcs_obtained: false,
+    bh_authorization_type: "", bh_1013_received: false,
+    bh_authorizing_facility: "", bh_authorizing_physician_name: "",
+    law_enforcement_present: false,
+    wound_type: "", wound_location: "", wound_stage: "",
+    chair_time: "",
   });
 
   /**
