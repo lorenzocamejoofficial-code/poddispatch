@@ -394,7 +394,6 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     const isOneoff = !!(legData as any)?.is_oneoff;
     // Use canonical normalizer so pre-fill gates match PreSubmitChecklist + field requirements.
     const tripTypeKey = normalizeTransportKey(run.tripType);
-    const tripTypeRaw = String(run.tripType ?? "").toLowerCase();
 
     const insertData: any = {
       leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
