@@ -29,9 +29,10 @@ export type PCRSectionKey =
   | "airway"
   | "procedures"
   | "medications"
-  | "iv_access";
+  | "iv_access"
+  | "behavioral_health";
 
-export type PCRType = "dialysis" | "ift" | "discharge" | "outpatient_specialty" | "private_pay" | "emergency" | "wound_care";
+export type PCRType = "dialysis" | "ift" | "discharge" | "outpatient_specialty" | "private_pay" | "emergency" | "wound_care" | "psych_transport";
 
 // Map of card types to section keys for rules lookup
 const CARD_TO_SECTION: Record<string, PCRSectionKey> = {
@@ -53,9 +54,10 @@ const CARD_TO_SECTION: Record<string, PCRSectionKey> = {
   procedures: "procedures",
   medications: "medications",
   iv_access: "iv_access",
+  behavioral_health: "behavioral_health",
 };
 
-const RULES: Record<PCRType, Record<PCRSectionKey, PCRSectionState>> = {
+const RULES: Record<PCRType, Partial<Record<PCRSectionKey, PCRSectionState>>> = {
   dialysis: {
     patient_info: "required",
     times: "required",
@@ -238,9 +240,36 @@ const RULES: Record<PCRType, Record<PCRSectionKey, PCRSectionState>> = {
     medications: "locked",
     iv_access: "locked",
   },
+  psych_transport: {
+    patient_info: "required",
+    times: "required",
+    vitals: "required",
+    assessment: "required",
+    medical_history: "optional",
+    medical_necessity: "required",
+    esrd_dialysis: "locked",
+    sending_facility: "optional",
+    isolation_precautions: "optional",
+    stretcher_placement: "required",
+    patient_mobility: "required",
+    signatures: "required",
+    receiving_facility_confirmation: "optional",
+    narrative: "required",
+    billing: "required",
+    condition_on_arrival: "required",
+    equipment: "required",
+    physical_exam: "optional",
+    hospital_outcome: "locked",
+    chief_complaint: "required",
+    airway: "locked",
+    procedures: "locked",
+    medications: "locked",
+    iv_access: "locked",
+    behavioral_health: "required",
+  },
 };
 
-const LOCKED_REASONS: Record<PCRSectionKey, string> = {
+const LOCKED_REASONS: Partial<Record<PCRSectionKey, string>> = {
   esrd_dialysis: "Not applicable for this transport type",
   sending_facility: "Not applicable — no sending facility for this transport",
   isolation_precautions: "Not applicable for this transport type",
@@ -271,6 +300,7 @@ const LOCKED_REASONS: Record<PCRSectionKey, string> = {
 function normalizePCRType(raw: string | null | undefined): PCRType {
   if (!raw) return "dialysis";
   const t = raw.toLowerCase().trim();
+  if (t.includes("psych") || t.includes("behavioral")) return "psych_transport";
   if (t === "ift" || t === "ift_discharge") return "ift";
   if (t === "discharge") return "discharge";
   if (t === "outpatient_specialty" || t === "outpatient") return "outpatient_specialty";

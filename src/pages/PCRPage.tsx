@@ -21,6 +21,7 @@ import { NarrativeCard } from "@/components/pcr/NarrativeCard";
 import { BillingCard } from "@/components/pcr/BillingCard";
 import { StretcherMobilityCard } from "@/components/pcr/StretcherMobilityCard";
 import { IsolationPrecautionsCard } from "@/components/pcr/IsolationPrecautionsCard";
+import { BehavioralHealthCard } from "@/components/pcr/BehavioralHealthCard";
 import { LockedSectionOverlay } from "@/components/pcr/LockedSectionOverlay";
 import { CrewSignaturesSection, areAllCrewSigned } from "@/components/pcr/CrewSignaturesSection";
 import { DocumentAttachments } from "@/components/documents/DocumentAttachments";
@@ -794,6 +795,10 @@ export default function PCRPage() {
         const iso = trip.isolation_precautions || {};
         return iso.required === true ? ((iso.types || []).length > 0) : (iso.required === false);
       }
+      case "behavioral_health": {
+        const t: any = trip;
+        return !!(t.bh_authorization_type && Array.isArray(t.bh_behavioral_assessment) && t.bh_behavioral_assessment.length > 0);
+      }
       default: return false;
     }
   };
@@ -853,6 +858,8 @@ export default function PCRPage() {
       case "hospital_outcome": return <HospitalOutcomeCard trip={trip} updateField={updateField} />;
       case "stretcher_mobility": return <StretcherMobilityCard trip={trip} updateField={updateField} />;
       case "isolation_precautions": return <IsolationPrecautionsCard trip={trip} updateField={updateField} />;
+      case "behavioral_health": return <BehavioralHealthCard trip={trip} updateField={updateField} />;
+      case "assessment" as any: return <AssessmentCard trip={trip} updateField={updateField} />;
       default: return <p className="text-sm text-muted-foreground">Coming soon.</p>;
     }
   };

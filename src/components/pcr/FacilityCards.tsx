@@ -3,10 +3,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { DISPOSITIONS } from "@/lib/pcr-dropdowns";
+import { DISPOSITIONS, DISCHARGE_DESTINATION_TYPES } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
+import { ICD10Picker } from "@/components/pcr/ICD10Picker";
 import { cn } from "@/lib/utils";
 
 interface Props { trip: any; updateField: (f: string, v: any) => Promise<void>; tripType?: string; requiredFields?: string[]; }
@@ -96,11 +97,7 @@ export function SendingFacilityCard({ trip, updateField, tripType, requiredField
             <Select value={trip.destination_type || ""} onValueChange={(v) => updateField("destination_type", v)}>
               <SelectTrigger className="h-10"><SelectValue placeholder="Select…" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="Home">Home</SelectItem>
-                <SelectItem value="SNF / Nursing Facility">SNF / Nursing Facility</SelectItem>
-                <SelectItem value="Assisted Living">Assisted Living</SelectItem>
-                <SelectItem value="Another Hospital">Another Hospital</SelectItem>
-                <SelectItem value="Other">Other</SelectItem>
+                {DISCHARGE_DESTINATION_TYPES.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -139,8 +136,12 @@ export function HospitalOutcomeCard({ trip, updateField, requiredFields = ["disp
         <Input value={ho.chief_complaint || ""} onChange={(e) => update("chief_complaint", e.target.value)} className="h-10" />
       </div>
       <div>
-        <label className="text-[10px] font-medium text-muted-foreground block mb-1">ICD-10 Diagnosis Codes</label>
-        <Input value={ho.icd10_codes || ""} onChange={(e) => update("icd10_codes", e.target.value)} placeholder="E.g., I10, N18.6" className="h-10" />
+        <ICD10Picker
+          selectedCodes={Array.isArray(ho.icd10_codes) ? ho.icd10_codes : (ho.icd10_codes ? String(ho.icd10_codes).split(",").map((c: string) => c.trim()).filter(Boolean) : [])}
+          onCodesChange={(codes) => update("icd10_codes", codes)}
+          maxCodes={4}
+          chiefComplaint={ho.chief_complaint}
+        />
       </div>
       <div>
         <label className="text-[10px] font-medium text-muted-foreground block mb-1 flex items-center">
