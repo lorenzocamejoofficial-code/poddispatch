@@ -115,37 +115,76 @@ export function CallConfirmationDrawer({
     setSubmitting(true);
 
     try {
-      // Get company_id
       const { data: companyData } = await supabase.rpc("get_my_company_id");
       const companyId = companyData as string;
 
-      // PHASE 2 — Insert Twilio call here using comms_events record and assembled message
+      const { data: settingsRow } = await supabase
+        .from("company_settings")
+        .select("verified_caller_id")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      const verifiedCallerId = (settingsRow as any)?.verified_caller_id ?? null;
 
-      const { error } = await supabase.from("comms_events" as any).insert({
-        company_id: companyId,
-        trip_id: tripId,
-        truck_id: truckId,
-        event_type: `call_${callType}`,
-        call_type: callType,
-        patient_name: patientName,
-        facility_name: facilityName,
-        message_text: message,
-        eta_used: eta,
-        queued_by: user?.id,
-        queued_at: new Date().toISOString(),
-        status: "queued",
-        payload: {
-          target_name: targetName,
-          target_phone: targetPhone,
-          message,
-        },
-      } as any);
+      const { data: inserted, error: insertError } = await supabase
+        .from("comms_events" as any)
+        .insert({
+          company_id: companyId,
+          trip_id: tripId,
+          truck_id: truckId,
+          event_type: `call_${callType}`,
+          call_type: callType,
+          patient_name: patientName,
+          facility_name: facilityName,
+          message_text: message,
+          eta_used: eta,
+          queued_by: user?.id,
+          queued_at: new Date().toISOString(),
+          status: "queued",
+          payload: {
+            target_name: targetName,
+            target_phone: targetPhone,
+            message,
+          },
+        } as any)
+        .select("id")
+        .single();
 
-      if (error) throw error;
+      if (insertError) throw insertError;
+      const commsEventId = (inserted as any).id as string;
 
-      toast.success("Call queued — voicemail will be left if no answer.");
-      onOpenChange(false);
-      onCallQueued();
+      try {
+        const { data: callData, error: callError } = await supabase.functions.invoke(
+          "make-outbound-call",
+          {
+            body: {
+              comms_event_id: commsEventId,
+              to_number: targetPhone,
+              script: message,
+              from_number_override: verifiedCallerId,
+            },
+          },
+        );
+
+        if (callError || (callData && callData.ok === false)) {
+          const errMsg = callError?.message ?? callData?.error ?? "Twilio call failed";
+          await supabase
+            .from("comms_events" as any)
+            .update({ status: "failed", error_message: errMsg })
+            .eq("id", commsEventId);
+          toast.error("Call failed — check the patient phone number and try again");
+        } else {
+          toast.success("Call initiated — patient will be contacted shortly");
+          onOpenChange(false);
+          onCallQueued();
+          return;
+        }
+      } catch (invokeErr: any) {
+        await supabase
+          .from("comms_events" as any)
+          .update({ status: "failed", error_message: invokeErr?.message ?? "Invoke error" })
+          .eq("id", commsEventId);
+        toast.error("Call failed — check the patient phone number and try again");
+      }
     } catch (err: any) {
       toast.error("Failed to queue call: " + (err.message ?? "Unknown error"));
     } finally {

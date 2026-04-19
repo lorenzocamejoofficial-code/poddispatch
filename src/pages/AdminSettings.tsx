@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { CheckCircle2, ClipboardList, Settings2, Network } from "lucide-react";
+import { CheckCircle2, ClipboardList, Settings2, Network, Phone } from "lucide-react";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { TrialBanner } from "@/components/onboarding/TrialBanner";
 import { ClearinghouseSettings } from "@/components/settings/ClearinghouseSettings";
@@ -27,6 +27,7 @@ export default function AdminSettings() {
   const [sessionTimeout, setSessionTimeout] = useState("30");
   const [sessionWarningEnabled, setSessionWarningEnabled] = useState(true);
   const [retentionYears, setRetentionYears] = useState("7");
+  const [verifiedCallerId, setVerifiedCallerId] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function AdminSettings() {
         setSessionTimeout(String((data as any).session_timeout_minutes ?? 30));
         setSessionWarningEnabled((data as any).session_warning_enabled ?? true);
         setRetentionYears(String((data as any).retention_policy_years ?? 7));
+        setVerifiedCallerId(String((data as any).verified_caller_id ?? ""));
       }
     });
 
@@ -59,6 +61,7 @@ export default function AdminSettings() {
       session_timeout_minutes: parseInt(sessionTimeout),
       session_warning_enabled: sessionWarningEnabled,
       retention_policy_years: parseInt(retentionYears),
+      verified_caller_id: verifiedCallerId.trim() || null,
     } as any).eq("id", settingsId);
     toast.success("Settings saved");
     setSaving(false);
