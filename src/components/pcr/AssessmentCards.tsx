@@ -1,7 +1,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CHIEF_COMPLAINTS, PHYSICAL_EXAM_SYSTEMS } from "@/lib/pcr-dropdowns";
+import { CHIEF_COMPLAINTS, PRIMARY_IMPRESSIONS, PHYSICAL_EXAM_SYSTEMS } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
@@ -50,7 +50,7 @@ export function AssessmentCard({ trip, updateField, requiredFields = ["chief_com
         <Select value={trip.primary_impression || ""} onValueChange={(v) => updateField("primary_impression", v)}>
           <SelectTrigger className={cn("h-12 text-base", fieldBorder("primary_impression"))}><SelectValue placeholder="Select..." /></SelectTrigger>
           <SelectContent>
-            {CHIEF_COMPLAINTS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {PRIMARY_IMPRESSIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -78,6 +78,8 @@ export function AssessmentCard({ trip, updateField, requiredFields = ["chief_com
           return payer.includes("medicare") || payer.includes("medicaid");
         })()}
         maxCodes={4}
+        chiefComplaint={trip.chief_complaint}
+        patientPayer={trip.patient?.primary_payer}
       />
     </div>
   );

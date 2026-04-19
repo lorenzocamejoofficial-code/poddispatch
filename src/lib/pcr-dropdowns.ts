@@ -9,6 +9,30 @@ export const CHIEF_COMPLAINTS = [
   "Seizure", "Sepsis / Infection", "Transfer / No Complaint", "Trauma", "Other",
 ];
 
+export const PRIMARY_IMPRESSIONS = [
+  "Cardiovascular — Stable",
+  "Cardiovascular — Unstable",
+  "Respiratory — Stable",
+  "Respiratory — Compromised",
+  "Neurological — Intact",
+  "Neurological — Impaired",
+  "Musculoskeletal — Post-Surgical",
+  "Musculoskeletal — Chronic",
+  "Renal — ESRD on Dialysis",
+  "Oncology — Active Treatment",
+  "Wound Care — Chronic Wound",
+  "Diabetic — Controlled",
+  "Diabetic — Uncontrolled",
+  "Psychiatric — Stable",
+  "Altered Mental Status",
+  "Syncope",
+  "Trauma — Minor",
+  "Trauma — Significant",
+  "Transfer — No Acute Complaint",
+  "No Complaint — Routine Transport",
+  "Other",
+];
+
 export const MEDICAL_NECESSITY_REASONS = [
   "Patient cannot sit safely in upright position",
   "Patient requires monitoring enroute",
