@@ -50,7 +50,7 @@ export function AssessmentCard({ trip, updateField, requiredFields = ["chief_com
         <Select value={trip.primary_impression || ""} onValueChange={(v) => updateField("primary_impression", v)}>
           <SelectTrigger className={cn("h-12 text-base", fieldBorder("primary_impression"))}><SelectValue placeholder="Select..." /></SelectTrigger>
           <SelectContent>
-            {CHIEF_COMPLAINTS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {PRIMARY_IMPRESSIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -78,6 +78,8 @@ export function AssessmentCard({ trip, updateField, requiredFields = ["chief_com
           return payer.includes("medicare") || payer.includes("medicaid");
         })()}
         maxCodes={4}
+        chiefComplaint={trip.chief_complaint}
+        patientPayer={trip.patient?.primary_payer}
       />
     </div>
   );
