@@ -414,7 +414,7 @@ export default function Scheduling() {
       const { data: companyId } = await supabase.rpc("get_my_company_id");
       const { data } = await supabase
         .from("scheduling_legs")
-        .select("id, run_date, leg_type, pickup_time, pickup_location, destination_location, trip_type, estimated_duration_minutes, notes, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_dob, oneoff_sex, oneoff_primary_payer, oneoff_member_id, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)")
+        .select("id, run_date, leg_type, pickup_time, pickup_location, destination_location, trip_type, estimated_duration_minutes, notes, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_dob, oneoff_sex, oneoff_primary_payer, oneoff_member_id, oneoff_sending_facility_name, oneoff_sending_physician_name, oneoff_sending_physician_npi, oneoff_discharge_reason, oneoff_pcs_obtained, oneoff_bh_authorization_type, oneoff_bh_1013_received, oneoff_bh_authorizing_facility, oneoff_bh_authorizing_physician_name, oneoff_law_enforcement_present, oneoff_wound_type, oneoff_wound_location, oneoff_wound_stage, chair_time, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name)")
         .eq("company_id", companyId)
         .lt("run_date", selectedDate)
         .order("run_date", { ascending: false })
@@ -453,6 +453,20 @@ export default function Scheduling() {
         sex: result.oneoff_sex ?? "",
         primary_payer: result.oneoff_primary_payer ?? "",
         member_id: result.oneoff_member_id ?? "",
+        sending_facility_name: result.oneoff_sending_facility_name ?? "",
+        sending_physician_name: result.oneoff_sending_physician_name ?? "",
+        sending_physician_npi: result.oneoff_sending_physician_npi ?? "",
+        discharge_reason: result.oneoff_discharge_reason ?? "",
+        pcs_obtained: result.oneoff_pcs_obtained ?? false,
+        bh_authorization_type: result.oneoff_bh_authorization_type ?? "",
+        bh_1013_received: result.oneoff_bh_1013_received ?? false,
+        bh_authorizing_facility: result.oneoff_bh_authorizing_facility ?? "",
+        bh_authorizing_physician_name: result.oneoff_bh_authorizing_physician_name ?? "",
+        law_enforcement_present: result.oneoff_law_enforcement_present ?? false,
+        wound_type: result.oneoff_wound_type ?? "",
+        wound_location: result.oneoff_wound_location ?? "",
+        wound_stage: result.oneoff_wound_stage ?? "",
+        chair_time: result.chair_time ?? "",
       }));
       setOneoffCopySearchOpen(false);
       setOneoffCopySearchQuery("");

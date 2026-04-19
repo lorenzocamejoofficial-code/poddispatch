@@ -29,7 +29,7 @@ import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
 import { CancellationDocForm } from "@/components/crew/CancellationDocForm";
 import { checkDuplicateTrip } from "@/lib/duplicate-trip-check";
-import { evaluatePCRFieldCompletion, getRequiredFieldsForCard } from "@/lib/pcr-field-requirements";
+import { evaluatePCRFieldCompletion, getRequiredFieldsForCard, normalizeTransportKey } from "@/lib/pcr-field-requirements";
 import { SectionCompletionBadge } from "@/components/pcr/PCRFieldIndicator";
 import { KickbackChecklist } from "@/components/pcr/KickbackChecklist";
 import { logAuditEvent } from "@/lib/audit-logger";
@@ -392,7 +392,8 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     const serviceLevel = (legData as any)?.service_level || null;
     const isUnscheduled = (legData as any)?.is_unscheduled || false;
     const isOneoff = !!(legData as any)?.is_oneoff;
-    const tripTypeKey = String(run.tripType ?? "").toLowerCase();
+    // Use canonical normalizer so pre-fill gates match PreSubmitChecklist + field requirements.
+    const tripTypeKey = normalizeTransportKey(run.tripType);
 
     const insertData: any = {
       leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
@@ -427,7 +428,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
         if (pd.default_bh_authorizing_physician_name) insertData.bh_authorizing_physician_name = pd.default_bh_authorizing_physician_name;
         if (pd.default_bh_authorizing_physician_npi) insertData.bh_authorizing_physician_npi = pd.default_bh_authorizing_physician_npi;
       }
-      if (tripTypeKey === "wound_care" || tripTypeKey === "woundcare" || tripTypeKey === "outpatient") {
+      if (tripTypeKey === "wound_care" || tripTypeKey === "outpatient" || tripTypeKey === "outpatient_specialty") {
         if (pd.default_wound_type) insertData.wound_type = pd.default_wound_type;
         if (pd.default_wound_location) insertData.wound_location = pd.default_wound_location;
       }
