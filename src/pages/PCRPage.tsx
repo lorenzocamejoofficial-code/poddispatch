@@ -795,8 +795,10 @@ export default function PCRPage() {
         const iso = trip.isolation_precautions || {};
         return iso.required === true ? ((iso.types || []).length > 0) : (iso.required === false);
       }
-      case "behavioral_health":
-        return !!(trip.bh_authorization_type && Array.isArray(trip.bh_behavioral_assessment) && trip.bh_behavioral_assessment.length > 0);
+      case "behavioral_health": {
+        const t: any = trip;
+        return !!(t.bh_authorization_type && Array.isArray(t.bh_behavioral_assessment) && t.bh_behavioral_assessment.length > 0);
+      }
       default: return false;
     }
   };
