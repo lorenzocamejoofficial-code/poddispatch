@@ -27,6 +27,14 @@ import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation
 import { DocumentAttachments } from "@/components/documents/DocumentAttachments";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { PatientScheduleOverridesEditor, saveScheduleOverrides, type ScheduleOverride } from "@/components/patients/PatientScheduleOverridesEditor";
+import { ICD10Picker } from "@/components/pcr/ICD10Picker";
+import {
+  CHIEF_COMPLAINTS,
+  PRIMARY_IMPRESSIONS,
+  MEDICAL_NECESSITY_REASONS,
+  BH_AUTHORIZATION_TYPES,
+  WOUND_TYPES,
+} from "@/lib/pcr-dropdowns";
 
 type Patient = Tables<"patients">;
 type PatientStatus = Database["public"]["Enums"]["patient_status"];
