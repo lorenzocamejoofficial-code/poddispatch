@@ -3,11 +3,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
+import { PRECAUTION_TYPES, PRECAUTION_LEVELS } from "@/lib/pcr-dropdowns";
 import { cn } from "@/lib/utils";
-
-const PRECAUTION_TYPES = ["MRSA", "VRE", "C-Diff", "Hepatitis", "COVID-19", "HIV", "Other"];
 
 type IsoStatus = "na" | "no" | "yes";
 
@@ -28,6 +28,7 @@ export function IsolationPrecautionsCard({ trip, updateField }: IsolationPrecaut
   const iso = trip.isolation_precautions || {};
   const [status, setStatus] = useState<IsoStatus>(() => deriveStatus(iso));
   const [types, setTypes] = useState<string[]>(iso.types || []);
+  const [level, setLevel] = useState<string>(iso.level || "Standard");
   const [active, setActive] = useState<boolean>(!!iso.active);
   const [notes, setNotes] = useState<string>(iso.notes || "");
 
@@ -35,27 +36,24 @@ export function IsolationPrecautionsCard({ trip, updateField }: IsolationPrecaut
     const current = trip.isolation_precautions || {};
     setStatus(deriveStatus(current));
     setTypes(current.types || []);
+    setLevel(current.level || "Standard");
     setActive(!!current.active);
     setNotes(current.notes || "");
   }, [trip.isolation_precautions]);
 
-  const save = (updates: Partial<{ status: string; required: boolean; types: string[]; active: boolean; notes: string }>) => {
-    const next = { required: status === "yes", types, active, notes, status, ...updates };
+  const save = (updates: Partial<{ status: string; required: boolean; types: string[]; level: string; active: boolean; notes: string }>) => {
+    const next = { required: status === "yes", types, level, active, notes, status, ...updates };
     updateField("isolation_precautions", next);
   };
 
   const handleStatusChange = (newStatus: IsoStatus) => {
     setStatus(newStatus);
     if (newStatus === "na") {
-      save({ status: "na", required: false, types: [], active: false, notes: "" });
-      setTypes([]);
-      setActive(false);
-      setNotes("");
+      save({ status: "na", required: false, types: [], level: "Standard", active: false, notes: "" });
+      setTypes([]); setLevel("Standard"); setActive(false); setNotes("");
     } else if (newStatus === "no") {
-      save({ status: "none", required: false, types: [], active: false, notes: "" });
-      setTypes([]);
-      setActive(false);
-      setNotes("");
+      save({ status: "none", required: false, types: [], level: "Standard", active: false, notes: "" });
+      setTypes([]); setLevel("Standard"); setActive(false); setNotes("");
     } else {
       save({ status: "yes", required: true });
     }
@@ -105,6 +103,16 @@ export function IsolationPrecautionsCard({ trip, updateField }: IsolationPrecaut
       {status === "yes" && (
         <div className="space-y-4 border-l-2 border-primary/20 ml-1 pl-3">
           <div>
+            <Label className="text-xs font-medium text-muted-foreground mb-2 block">Precaution Level</Label>
+            <Select value={level} onValueChange={(v) => { setLevel(v); save({ level: v }); }}>
+              <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PRECAUTION_LEVELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
             <Label className="text-xs font-medium text-muted-foreground mb-2 flex items-center">
               Precaution Type <PCRTooltip text={PCR_TOOLTIPS.isolation_type} />
             </Label>
@@ -127,10 +135,7 @@ export function IsolationPrecautionsCard({ trip, updateField }: IsolationPrecaut
             </Label>
             <Switch
               checked={active}
-              onCheckedChange={(val) => {
-                setActive(val);
-                save({ active: val });
-              }}
+              onCheckedChange={(val) => { setActive(val); save({ active: val }); }}
             />
           </div>
 

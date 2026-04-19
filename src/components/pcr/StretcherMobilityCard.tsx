@@ -3,31 +3,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
+import { STRETCHER_OPTIONS, MOBILITY_OPTIONS, PATIENT_POSITIONS } from "@/lib/pcr-dropdowns";
 import { cn } from "@/lib/utils";
-
-const STRETCHER_OPTIONS = [
-  "Draw Sheet",
-  "Manual Lift",
-  "Mechanical Lift",
-  "Backboard",
-  "First Responders / Fire / Rescue",
-];
-
-const MOBILITY_OPTIONS = [
-  "Requires Maximum Assistance",
-  "Unable to Ambulate",
-  "Assisted Ambulation",
-  "Independent with Device",
-];
-
-const POSITION_OPTIONS = [
-  "Supine (flat)",
-  "Fowlers (semi-upright 45°)",
-  "High Fowlers (upright 90°)",
-  "Left lateral",
-  "Right lateral",
-  "Seated",
-];
 
 interface StretcherMobilityCardProps {
   trip: any;
@@ -98,7 +75,7 @@ export function StretcherMobilityCard({ trip, updateField, requiredFields = ["st
             <SelectValue placeholder="Select position" />
           </SelectTrigger>
           <SelectContent>
-            {POSITION_OPTIONS.map((opt) => (
+            {PATIENT_POSITIONS.map((opt) => (
               <SelectItem key={opt} value={opt} className="text-base py-3">{opt}</SelectItem>
             ))}
           </SelectContent>
