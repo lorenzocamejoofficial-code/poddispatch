@@ -350,10 +350,21 @@ export default function Scheduling() {
     primary_payer: "", member_id: "",
   });
 
-  const normalizeTripType = (tripType: string) => {
+  /**
+   * Fix 8: kept as a thin DB-name shim ONLY. The scheduling_legs.trip_type
+   * column historically stores `woundcare` (no underscore) for wound-care
+   * runs. All routing/matching/UI normalization elsewhere now uses
+   * `normalizeTransportKey` from pcr-field-requirements.ts which returns the
+   * canonical `wound_care` (with underscore). This function exists solely
+   * to convert UI form values to the legacy DB enum value at insert time.
+   */
+  const toDbTripType = (tripType: string) => {
     if (tripType === "wound_care") return "woundcare";
     return tripType;
   };
+  // Backwards-compat alias — existing call sites in this file still use the
+  // old name; new code should import normalizeTransportKey instead.
+  const normalizeTripType = toDbTripType;
 
   // Existing patient form extra state
   const [legPickupLocationType, setLegPickupLocationType] = useState("");
@@ -504,7 +515,8 @@ export default function Scheduling() {
         oneoff_notes: oneoffForm.notes || null,
         oneoff_dob: oneoffForm.dob || null,
         oneoff_sex: oneoffForm.sex || null,
-        oneoff_primary_payer: oneoffForm.primary_payer || null,
+        // Fix 4: oneoff_primary_payer stored lowercase to match canonical claim format.
+        oneoff_primary_payer: oneoffForm.primary_payer ? oneoffForm.primary_payer.toLowerCase().trim() : null,
         oneoff_member_id: oneoffForm.member_id || null,
         origin_type: oneoffForm.pickup_location_type || null,
         destination_type: oneoffForm.destination_type || null,
@@ -536,7 +548,7 @@ export default function Scheduling() {
           oneoff_notes: oneoffForm.notes || null,
           oneoff_dob: oneoffForm.dob || null,
           oneoff_sex: oneoffForm.sex || null,
-          oneoff_primary_payer: oneoffForm.primary_payer || null,
+          oneoff_primary_payer: oneoffForm.primary_payer ? oneoffForm.primary_payer.toLowerCase().trim() : null,
           oneoff_member_id: oneoffForm.member_id || null,
           origin_type: oneoffForm.destination_type || null,
           destination_type: oneoffForm.pickup_location_type || null,

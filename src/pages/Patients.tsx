@@ -317,8 +317,11 @@ export default function Patients() {
       bariatric: form.bariatric,
       standing_order: form.standing_order,
       special_handling: form.special_handling || null,
-      primary_payer: form.primary_payer || null,
-      secondary_payer: form.secondary_payer || null,
+      // Fix 4: payer is stored canonically lowercase. Dropdown values are
+      // already lowercase (medicare/medicaid/facility/cash) but we normalize
+      // defensively in case a value originated from CSV import or migration.
+      primary_payer: form.primary_payer ? form.primary_payer.toLowerCase().trim() : null,
+      secondary_payer: form.secondary_payer ? form.secondary_payer.toLowerCase().trim() : null,
       member_id: form.member_id || null,
       secondary_member_id: form.secondary_member_id || null,
       secondary_group_number: form.secondary_group_number || null,

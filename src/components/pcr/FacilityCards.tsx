@@ -10,7 +10,15 @@ import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
 import { ICD10Picker } from "@/components/pcr/ICD10Picker";
 import { cn } from "@/lib/utils";
 
-interface Props { trip: any; updateField: (f: string, v: any) => Promise<void>; tripType?: string; requiredFields?: string[]; }
+interface Props {
+  trip: any;
+  updateField: (f: string, v: any) => Promise<void>;
+  /** Optional bulk-update path so paired writes (e.g. disposition mirroring
+   *  to hospital_outcome_json) execute in a single round-trip. */
+  updateMultipleFields?: (fields: Record<string, any>) => Promise<void>;
+  tripType?: string;
+  requiredFields?: string[];
+}
 
 export function SendingFacilityCard({ trip, updateField, tripType, requiredFields = ["facility_name", "pcs_attached"] }: Props) {
   const sf = trip.sending_facility_json || {};

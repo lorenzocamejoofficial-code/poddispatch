@@ -130,11 +130,10 @@ const PHYSICAL_EXAM_FIELDS: FieldRequirement[] = [
 ];
 
 const HOSPITAL_OUTCOME_FIELDS: FieldRequirement[] = [
+  // Fix 6: disposition is canonically the top-level column on trip_records.
+  // hospital_outcome_json.disposition is mirrored for display continuity but
+  // the requirement check only looks at the top-level value.
   { field: "disposition", label: "Disposition", section: "hospital_outcome", check: (t) => hasValue(t.disposition) },
-  { field: "hospital_outcome_destination", label: "Hospital Outcome Destination", section: "hospital_outcome", check: (t) => {
-    const ho = t.hospital_outcome_json || {};
-    return hasValue(ho.destination) || hasValue(ho.hospital_name) || hasValue(t.disposition);
-  }},
 ];
 
 const EQUIPMENT_FIELDS: FieldRequirement[] = [
@@ -164,14 +163,17 @@ const BEHAVIORAL_HEALTH_INVOLUNTARY_FIELDS: FieldRequirement[] = [
 ];
 
 // ── Wound care specific ──
+// Fix 5: wound fields are canonically stored as top-level columns on
+// trip_records (wound_type, wound_location, wound_stage, wound_size).
+// Legacy assessment_json / condition_on_arrival fallbacks have been removed.
 
 const WOUND_CARE_FIELDS: FieldRequirement[] = [
   { field: "wound_type", label: "Wound Type", section: "assessment",
-    check: (t) => hasValue(t.wound_type) || hasValue(t.assessment_json?.wound_type) },
+    check: (t) => hasValue(t.wound_type) },
   { field: "wound_location", label: "Wound Location", section: "assessment",
-    check: (t) => hasValue(t.wound_location) || hasValue(t.assessment_json?.wound_location) },
+    check: (t) => hasValue(t.wound_location) },
   { field: "wound_stage_or_size", label: "Wound Stage / Size", section: "assessment",
-    check: (t) => hasValue(t.wound_stage) || hasValue(t.wound_size) || hasValue(t.assessment_json?.wound_stage) || hasValue(t.assessment_json?.wound_size) },
+    check: (t) => hasValue(t.wound_stage) || hasValue(t.wound_size) },
 ];
 
 // ── Transport type → required fields map ──

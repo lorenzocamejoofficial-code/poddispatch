@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { computeClaimScore, getScoreBgClass, type ClaimScoreResult } from "@/lib/claim-score";
 import { BillerPcsPanel } from "@/components/billing/BillerPcsPanel";
+import { normalizeTransportKey } from "@/lib/pcr-field-requirements";
 interface ChecklistItem {
   label: string;
   passed: boolean;
@@ -96,10 +97,12 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         auth: ruleOn(payerRulesObj?.requires_auth),
       };
 
-      const isEmergency = (t.pcr_type ?? "").toLowerCase() === "emergency";
+      // Fix 7/8: trip_type is the canonical source of truth; pcr_type is a
+      // backward-compat fallback only.
+      const canonicalTripType = String(t.trip_type ?? t.pcr_type ?? "").toLowerCase();
+      const isEmergency = canonicalTripType === "emergency";
       const isUnscheduled = !!t.is_unscheduled;
-      const tripTypeLower = String(t.trip_type ?? t.pcr_type ?? "").toLowerCase();
-      const isDialysis = tripTypeLower === "dialysis" || tripTypeLower.includes("dialysis");
+      const isDialysis = canonicalTripType === "dialysis" || canonicalTripType.includes("dialysis");
 
       // Patient-level PCS satisfies the check (and hides the biller panel) for any
       // run whose patient already has PCS on file and not expired. Most common on
@@ -113,8 +116,13 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       // Biller-entered PCS satisfies the PCS check (overrides patient-record PCS)
       const billerPcsComplete = !!(claim?.pcs_physician_name && claim?.pcs_physician_npi && claim?.pcs_certification_date && claim?.pcs_diagnosis);
 
-      // Member ID — for one-off runs, falls back to claim.member_id (which carries from leg.oneoff_member_id) and leg.oneoff_member_id directly
-      const effectiveMemberId = (p?.member_id && String(p.member_id).trim())
+      // Fix 1: canonical column is `member_id` everywhere. Order of precedence:
+      //   1. trip_records.member_id (set by createTripForRun for one-offs, or PCR edit)
+      //   2. patients.member_id (joined for linked-patient runs)
+      //   3. claim_records.member_id (already materialized by the trigger)
+      //   4. scheduling_legs.oneoff_member_id (raw fallback for legacy data)
+      const effectiveMemberId = (t.member_id && String(t.member_id).trim())
+        || (p?.member_id && String(p.member_id).trim())
         || (claim?.member_id && String(claim.member_id).trim())
         || (t.leg?.oneoff_member_id && String(t.leg.oneoff_member_id).trim())
         || "";
@@ -270,22 +278,11 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       // ──────────────────────────────────────────────────────────────────
       // Transport-type-specific validation (item 5)
       // Runs in addition to the always-on and payer-rule-gated checks above.
+      // Fix 8: use the central normalizeTransportKey instead of an inline matcher.
       // ──────────────────────────────────────────────────────────────────
-      const normalizedType = (() => {
-        const raw = String(t.pcr_type ?? t.trip_type ?? "").toLowerCase();
-        if (raw.includes("psych") || raw.includes("behavioral")) return "psych_transport";
-        if (raw.includes("ift") && raw.includes("discharge")) return "discharge";
-        if (raw === "discharge") return "discharge";
-        if (raw === "ift") return "ift";
-        if (raw.includes("emergency") || raw.includes("complex")) return "emergency";
-        if (raw.includes("wound")) return "wound_care";
-        if (raw.includes("private")) return "private_pay";
-        if (raw.includes("dialysis")) return "dialysis";
-        return raw || "other";
-      })();
+      const normalizedType = normalizeTransportKey(t.trip_type ?? t.pcr_type);
 
       const sf = t.sending_facility_json ?? {};
-      const ho = t.hospital_outcome_json ?? {};
       const eq = t.equipment_used_json ?? {};
 
       if (normalizedType === "psych_transport") {
@@ -323,8 +320,11 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       }
 
       if (normalizedType === "wound_care") {
-        const woundType = t.wound_type ?? t.assessment_json?.wound_type;
-        const woundLoc = t.wound_location ?? t.assessment_json?.wound_location;
+        // Fix 5: read wound fields ONLY from top-level columns. ConditionCard
+        // writes them as top-level; legacy assessment_json/condition_on_arrival
+        // fallbacks have been removed.
+        const woundType = t.wound_type;
+        const woundLoc = t.wound_location;
         checks.push({
           label: "Wound type recorded",
           passed: !!(woundType && String(woundType).trim()),
@@ -364,11 +364,12 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           passed: !!(sf.discharge_reason && String(sf.discharge_reason).trim()),
           detail: sf.discharge_reason ? String(sf.discharge_reason) : "Record the discharge reason on the Sending Facility card.",
         });
-        const hasDisposition = !!(t.disposition || ho.destination || ho.hospital_name);
+        // Fix 6: read disposition ONLY from the top-level column.
+        const hasDisposition = !!(t.disposition && String(t.disposition).trim());
         checks.push({
           label: "Hospital disposition recorded",
           passed: hasDisposition,
-          detail: hasDisposition ? (t.disposition || ho.destination || ho.hospital_name) : "Record the receiving disposition on the Hospital Outcome card.",
+          detail: hasDisposition ? String(t.disposition) : "Record the receiving disposition on the Hospital Outcome card.",
         });
       }
 
@@ -383,11 +384,12 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           passed: !!(sf.physician_name && String(sf.physician_name).trim()),
           detail: sf.physician_name ? String(sf.physician_name) : "Sending physician name is required on an IFT PCR.",
         });
-        const hasDisposition = !!(t.disposition || ho.destination || ho.hospital_name);
+        // Fix 6: read disposition ONLY from the top-level column.
+        const hasDisposition = !!(t.disposition && String(t.disposition).trim());
         checks.push({
           label: "Hospital disposition recorded",
           passed: hasDisposition,
-          detail: hasDisposition ? undefined : "Record the receiving disposition on the Hospital Outcome card.",
+          detail: hasDisposition ? String(t.disposition) : "Record the receiving disposition on the Hospital Outcome card.",
         });
         checks.push({
           label: "Chief complaint and primary impression",

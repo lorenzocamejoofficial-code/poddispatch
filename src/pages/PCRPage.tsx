@@ -897,7 +897,7 @@ export default function PCRPage() {
       case "sending_facility": return <SendingFacilityCard trip={trip} updateField={updateField} tripType={trip.trip_type || trip.pcr_type || ""} requiredFields={required} />;
       case "assessment": case "chief_complaint": return <AssessmentCard trip={trip} updateField={updateField} requiredFields={required} />;
       case "physical_exam": return <PhysicalExamCard trip={trip} updateField={updateField} />;
-      case "hospital_outcome": return <HospitalOutcomeCard trip={trip} updateField={updateField} requiredFields={required} />;
+      case "hospital_outcome": return <HospitalOutcomeCard trip={trip} updateField={updateField} updateMultipleFields={updateMultipleFields} requiredFields={required} />;
       case "stretcher_mobility": return <StretcherMobilityCard trip={trip} updateField={updateField} requiredFields={required} />;
       case "isolation_precautions": return <IsolationPrecautionsCard trip={trip} updateField={updateField} />;
       case "behavioral_health": return <BehavioralHealthCard trip={trip} updateField={updateField} requiredFields={required} />;
