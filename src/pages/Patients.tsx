@@ -53,12 +53,13 @@ const CUSTOM_DAY_OPTIONS = [
   { value: 6, label: "Sat" },
 ];
 
-type TransportType = "dialysis" | "outpatient" | "private_pay";
+type TransportType = "dialysis" | "outpatient" | "private_pay" | "psych_transport";
 
 const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string }[] = [
   { value: "dialysis", label: "Dialysis" },
   { value: "outpatient", label: "Outpatient / Wound Care" },
   { value: "private_pay", label: "Private Pay" },
+  { value: "psych_transport", label: "Psych / Behavioral Transport" },
 ];
 
 function computeActiveWeekdays(transportType: string, scheduleDays: string, recurrenceDays: number[]): number[] {

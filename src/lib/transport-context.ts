@@ -52,6 +52,7 @@ export function deriveServiceLevel(
   const tt = (tripType ?? "").toLowerCase();
   if (tt === "ift" || tt === "ift_discharge") return "ALS1";
   if (tt === "emergency") return "BLS"; // Emergency BLS is most common NEMT
+  if (tt === "psych_transport" || tt.includes("psych") || tt.includes("behavioral")) return "BLS";
   return "BLS";
 }
 

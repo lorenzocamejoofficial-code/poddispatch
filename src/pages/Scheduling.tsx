@@ -1362,6 +1362,7 @@ export default function Scheduling() {
                       <SelectItem value="outpatient">Outpatient</SelectItem>
                       <SelectItem value="woundcare">Wound Care</SelectItem>
                       <SelectItem value="emergency">Emergency</SelectItem>
+                      <SelectItem value="psych_transport">Psych / Behavioral Transport</SelectItem>
                       <SelectItem value="private_pay">Private Pay</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1549,6 +1550,7 @@ export default function Scheduling() {
                       <SelectItem value="outpatient">Outpatient</SelectItem>
                       <SelectItem value="woundcare">Wound Care</SelectItem>
                       <SelectItem value="emergency">Emergency</SelectItem>
+                      <SelectItem value="psych_transport">Psych / Behavioral Transport</SelectItem>
                       <SelectItem value="private_pay">Private Pay</SelectItem>
                     </SelectContent>
                   </Select>

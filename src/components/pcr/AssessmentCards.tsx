@@ -1,7 +1,8 @@
+import { useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CHIEF_COMPLAINTS, PRIMARY_IMPRESSIONS, PHYSICAL_EXAM_SYSTEMS } from "@/lib/pcr-dropdowns";
+import { CHIEF_COMPLAINTS, PRIMARY_IMPRESSIONS, PSYCH_PRIMARY_IMPRESSIONS, PHYSICAL_EXAM_SYSTEMS } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
@@ -22,6 +23,14 @@ export function AssessmentCard({ trip, updateField, requiredFields = ["chief_com
     if (!isReq(f)) return "";
     return isFilled(f) ? "border-emerald-400" : "border-destructive/50";
   };
+
+  // Merge psych impressions when transport is psych
+  const tripType = String(trip.trip_type || trip.pcr_type || "").toLowerCase();
+  const isPsych = tripType.includes("psych") || tripType.includes("behavioral");
+  const impressionOptions = useMemo(
+    () => (isPsych ? [...PSYCH_PRIMARY_IMPRESSIONS, ...PRIMARY_IMPRESSIONS] : PRIMARY_IMPRESSIONS),
+    [isPsych]
+  );
 
   return (
     <div className="space-y-4">
@@ -50,7 +59,7 @@ export function AssessmentCard({ trip, updateField, requiredFields = ["chief_com
         <Select value={trip.primary_impression || ""} onValueChange={(v) => updateField("primary_impression", v)}>
           <SelectTrigger className={cn("h-12 text-base", fieldBorder("primary_impression"))}><SelectValue placeholder="Select..." /></SelectTrigger>
           <SelectContent>
-            {PRIMARY_IMPRESSIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {impressionOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
