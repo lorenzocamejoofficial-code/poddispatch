@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
+import { BH_AUTHORIZATION_TYPES, WOUND_TYPES, PRESSURE_ULCER_STAGES } from "@/lib/pcr-dropdowns";
 import { useAuth } from "@/hooks/useAuth";
 import { TruckBuilder } from "@/components/scheduling/TruckBuilder";
 import { DispatcherCancelDialog } from "@/components/scheduling/DispatcherCancelDialog";
@@ -539,6 +540,21 @@ export default function Scheduling() {
         origin_type: oneoffForm.pickup_location_type || null,
         destination_type: oneoffForm.destination_type || null,
         service_level: oneoffForm.service_level || "BLS",
+        // Transport-specific oneoff fields
+        oneoff_sending_facility_name: oneoffForm.sending_facility_name || null,
+        oneoff_sending_physician_name: oneoffForm.sending_physician_name || null,
+        oneoff_sending_physician_npi: oneoffForm.sending_physician_npi || null,
+        oneoff_discharge_reason: oneoffForm.discharge_reason || null,
+        oneoff_pcs_obtained: oneoffForm.pcs_obtained,
+        oneoff_bh_authorization_type: oneoffForm.bh_authorization_type || null,
+        oneoff_bh_1013_received: oneoffForm.bh_1013_received,
+        oneoff_bh_authorizing_facility: oneoffForm.bh_authorizing_facility || null,
+        oneoff_bh_authorizing_physician_name: oneoffForm.bh_authorizing_physician_name || null,
+        oneoff_law_enforcement_present: oneoffForm.law_enforcement_present,
+        oneoff_wound_type: oneoffForm.wound_type || null,
+        oneoff_wound_location: oneoffForm.wound_location || null,
+        oneoff_wound_stage: oneoffForm.wound_stage || null,
+        chair_time: oneoffForm.chair_time || null,
       } as any);
       if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create one-off leg: ${error.message}`); return; }
 
