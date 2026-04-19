@@ -281,6 +281,30 @@ export default function AdminSettings() {
           </div>
         </section>
 
+        {/* Communications */}
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <Phone className="h-4 w-4 text-primary" /> Communications
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Outbound caller ID for automated patient and facility calls.
+            </p>
+          </div>
+          <div>
+            <Label>Verified Caller ID</Label>
+            <Input
+              type="tel"
+              value={verifiedCallerId}
+              onChange={(e) => setVerifiedCallerId(e.target.value)}
+              placeholder="+15555550123"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Enter the business phone number you've verified with our calling provider as an outgoing caller ID. Use E.164 format (e.g. +15555550123). If left blank, our default outbound number will be used.
+            </p>
+          </div>
+        </section>
+
         <Button onClick={save} disabled={saving} className="w-full">
           {saving ? "Saving..." : "Save Settings"}
         </Button>
