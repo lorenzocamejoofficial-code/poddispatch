@@ -1,7 +1,18 @@
 /**
- * PCR Field-Level Requirements — maps transport type to required fields per section.
- * Used for visual red/green indicators and completion summaries.
- * Derived from billing gates, payer rules, and section rules.
+ * PCR Field-Level Requirements — single source of truth for what's required
+ * per transport type AND per payer. Drives red/green dots in cards and
+ * completion summaries.
+ *
+ * Two layers:
+ *  1) Base transport-type requirements (REQUIREMENTS map)
+ *  2) Payer augmentations (PAYER_AUGMENTATIONS) — Medicare/Medicaid/private add
+ *     extra fields on top of the base.
+ *
+ * Helpers:
+ *  - evaluatePCRFieldCompletion(trip, payer?)  — full completion result
+ *  - getRequiredFieldsForCard(tripType, cardType, payer?) — array<string> of
+ *    field names a card should treat as required (for the requiredFields prop)
+ *  - isFieldRequired(tripType, fieldName, payer?) — boolean
  */
 
 export interface FieldRequirement {
@@ -14,6 +25,7 @@ export interface FieldRequirement {
 function hasValue(v: any): boolean {
   if (v === null || v === undefined || v === "") return false;
   if (typeof v === "string") return v.trim().length > 0;
+  if (Array.isArray(v)) return v.length > 0;
   return true;
 }
 
@@ -29,6 +41,11 @@ const TIMES_FIELDS: FieldRequirement[] = [
   { field: "loaded_miles", label: "Loaded Miles", section: "times", check: (t) => t.loaded_miles != null && t.loaded_miles >= 0 },
   { field: "origin_type", label: "Origin Type", section: "times", check: (t) => hasValue(t.origin_type) },
   { field: "destination_type", label: "Destination Type", section: "times", check: (t) => hasValue(t.destination_type) },
+];
+
+const ODOMETER_FIELDS: FieldRequirement[] = [
+  { field: "odometer_at_scene", label: "Odometer at Scene", section: "times", check: (t) => t.odometer_at_scene != null },
+  { field: "odometer_at_destination", label: "Odometer at Destination", section: "times", check: (t) => t.odometer_at_destination != null },
 ];
 
 const VITALS_FIELDS: FieldRequirement[] = [
@@ -69,6 +86,17 @@ const SIGNATURE_FIELDS: FieldRequirement[] = [
   { field: "signature_obtained", label: "Payment Auth Signature", section: "signatures", check: (t) => !!t.signature_obtained },
 ];
 
+const CREW_SIGNATURE_FIELDS: FieldRequirement[] = [
+  { field: "crew_signatures", label: "Crew Signature(s)", section: "signatures", check: (t) => {
+    const sigs = t.signatures_json || [];
+    return Array.isArray(sigs) && sigs.some((s: any) => String(s?.type || "").toLowerCase().includes("crew") || s?.signer_role === "crew");
+  }},
+  { field: "patient_signature", label: "Patient Signature", section: "signatures", check: (t) => {
+    const sigs = t.signatures_json || [];
+    return Array.isArray(sigs) && sigs.some((s: any) => String(s?.type || "").toLowerCase().includes("patient") || s?.signer_role === "patient");
+  }},
+];
+
 const NARRATIVE_FIELDS: FieldRequirement[] = [
   { field: "narrative", label: "Narrative", section: "narrative", check: (t) => hasValue(t.narrative) },
 ];
@@ -78,9 +106,20 @@ const ASSESSMENT_FIELDS: FieldRequirement[] = [
   { field: "primary_impression", label: "Primary Impression", section: "assessment", check: (t) => hasValue(t.primary_impression) },
 ];
 
+const ICD10_FIELD: FieldRequirement = {
+  field: "icd10_codes", label: "ICD-10 Codes (≥1)", section: "assessment",
+  check: (t) => Array.isArray(t.icd10_codes) && t.icd10_codes.length > 0,
+};
+
 const SENDING_FACILITY_FIELDS: FieldRequirement[] = [
   { field: "facility_name", label: "Facility Name", section: "sending_facility", check: (t) => hasValue(t.sending_facility_json?.facility_name) },
   { field: "pcs_attached", label: "PCS Obtained", section: "sending_facility", check: (t) => !!t.pcs_attached },
+];
+
+const SENDING_FACILITY_DISCHARGE_FIELDS: FieldRequirement[] = [
+  { field: "facility_name", label: "Facility Name", section: "sending_facility", check: (t) => hasValue(t.sending_facility_json?.facility_name) },
+  { field: "sending_physician_name", label: "Sending Physician", section: "sending_facility", check: (t) => hasValue(t.sending_facility_json?.physician_name) },
+  { field: "discharge_reason", label: "Discharge Reason", section: "sending_facility", check: (t) => hasValue(t.sending_facility_json?.discharge_reason) },
 ];
 
 const PHYSICAL_EXAM_FIELDS: FieldRequirement[] = [
@@ -105,9 +144,51 @@ const EQUIPMENT_FIELDS: FieldRequirement[] = [
   }},
 ];
 
+// ── Behavioral health (psych_transport) ──
+
+const BEHAVIORAL_HEALTH_FIELDS: FieldRequirement[] = [
+  { field: "bh_authorization_type", label: "Transport Authorization Type", section: "behavioral_health",
+    check: (t) => hasValue(t.bh_authorization_type) },
+  { field: "bh_behavioral_assessment", label: "Behavioral Assessment", section: "behavioral_health",
+    check: (t) => Array.isArray(t.bh_behavioral_assessment) && t.bh_behavioral_assessment.length > 0 },
+];
+
+/** Conditional fields added when transport is involuntary */
+const BEHAVIORAL_HEALTH_INVOLUNTARY_FIELDS: FieldRequirement[] = [
+  { field: "bh_1013_received", label: "1013 Form Received", section: "behavioral_health",
+    check: (t) => t.bh_1013_received === true },
+  { field: "bh_authorizing_facility", label: "Authorizing Facility", section: "behavioral_health",
+    check: (t) => hasValue(t.bh_authorizing_facility) },
+  { field: "bh_authorizing_physician_name", label: "Authorizing Physician", section: "behavioral_health",
+    check: (t) => hasValue(t.bh_authorizing_physician_name) },
+];
+
+// ── Wound care specific ──
+
+const WOUND_CARE_FIELDS: FieldRequirement[] = [
+  { field: "wound_type", label: "Wound Type", section: "assessment",
+    check: (t) => hasValue(t.wound_type) || hasValue(t.assessment_json?.wound_type) },
+  { field: "wound_location", label: "Wound Location", section: "assessment",
+    check: (t) => hasValue(t.wound_location) || hasValue(t.assessment_json?.wound_location) },
+  { field: "wound_stage_or_size", label: "Wound Stage / Size", section: "assessment",
+    check: (t) => hasValue(t.wound_stage) || hasValue(t.wound_size) || hasValue(t.assessment_json?.wound_stage) || hasValue(t.assessment_json?.wound_size) },
+];
+
 // ── Transport type → required fields map ──
 
-type TransportType = "dialysis" | "ift" | "ift_discharge" | "discharge" | "outpatient" | "outpatient_specialty" | "wound_care" | "emergency" | "private_pay";
+export type TransportType =
+  | "dialysis"
+  | "ift"
+  | "ift_discharge"
+  | "discharge"
+  | "outpatient"
+  | "outpatient_specialty"
+  | "wound_care"
+  | "emergency"
+  | "private_pay"
+  | "psych_transport";
+
+export type PayerType = "medicare" | "medicaid" | "private" | "private_pay" | "default";
 
 const REQUIREMENTS: Record<TransportType, FieldRequirement[]> = {
   dialysis: [
@@ -151,7 +232,8 @@ const REQUIREMENTS: Record<TransportType, FieldRequirement[]> = {
     ...EQUIPMENT_FIELDS,
     ...SIGNATURE_FIELDS,
     ...NARRATIVE_FIELDS,
-    ...ASSESSMENT_FIELDS.filter(f => f.field === "chief_complaint"),
+    ...ASSESSMENT_FIELDS,
+    ...WOUND_CARE_FIELDS,
   ],
   ift: [
     ...TIMES_FIELDS,
@@ -175,7 +257,7 @@ const REQUIREMENTS: Record<TransportType, FieldRequirement[]> = {
     ...ISOLATION_FIELDS,
     ...EQUIPMENT_FIELDS,
     ...HOSPITAL_OUTCOME_FIELDS,
-    ...SENDING_FACILITY_FIELDS,
+    ...SENDING_FACILITY_DISCHARGE_FIELDS,
     ...CONDITION_FIELDS,
     ...SIGNATURE_FIELDS,
     ...NARRATIVE_FIELDS,
@@ -189,7 +271,8 @@ const REQUIREMENTS: Record<TransportType, FieldRequirement[]> = {
     ...NECESSITY_FIELDS,
     ...STRETCHER_FIELDS,
     ...EQUIPMENT_FIELDS,
-    ...SENDING_FACILITY_FIELDS,
+    ...SENDING_FACILITY_DISCHARGE_FIELDS,
+    ...HOSPITAL_OUTCOME_FIELDS,
     ...SIGNATURE_FIELDS,
     ...NARRATIVE_FIELDS,
   ],
@@ -197,6 +280,7 @@ const REQUIREMENTS: Record<TransportType, FieldRequirement[]> = {
     ...TIMES_FIELDS,
     ...VITALS_FIELDS,
     ...ASSESSMENT_FIELDS,
+    ICD10_FIELD,
     ...PHYSICAL_EXAM_FIELDS,
     ...CONDITION_FIELDS,
     ...STRETCHER_FIELDS,
@@ -213,11 +297,68 @@ const REQUIREMENTS: Record<TransportType, FieldRequirement[]> = {
     ...SIGNATURE_FIELDS,
     ...ASSESSMENT_FIELDS.filter(f => f.field === "chief_complaint"),
   ],
+  psych_transport: [
+    ...TIMES_FIELDS,
+    ...ODOMETER_FIELDS,
+    ...ASSESSMENT_FIELDS,
+    ICD10_FIELD,
+    ...NECESSITY_FIELDS,
+    ...STRETCHER_FIELDS,
+    ...BEHAVIORAL_HEALTH_FIELDS,
+    ...CREW_SIGNATURE_FIELDS,
+    ...NARRATIVE_FIELDS,
+  ],
 };
 
-function normalizeTransportKey(tripType: string | null | undefined): TransportType {
+/** Returns the dynamic conditional field set for a transport type, given the
+ * current trip state (e.g. involuntary psych adds 1013 fields). */
+function getConditionalFields(transportType: TransportType, trip: any): FieldRequirement[] {
+  if (transportType === "psych_transport") {
+    const auth = String(trip?.bh_authorization_type ?? "").toLowerCase();
+    if (auth.includes("involuntary")) return BEHAVIORAL_HEALTH_INVOLUNTARY_FIELDS;
+  }
+  return [];
+}
+
+// ── Payer-specific augmentations (item 7) ──
+
+const PAYER_AUGMENTATIONS: Record<PayerType, FieldRequirement[]> = {
+  medicare: [
+    ICD10_FIELD,
+    { field: "loaded_miles", label: "Loaded Miles (Medicare)", section: "times",
+      check: (t) => t.loaded_miles != null && Number(t.loaded_miles) > 0 },
+    { field: "medical_necessity_reason", label: "Medical Necessity Narrative (Medicare)", section: "medical_necessity",
+      check: (t) => hasValue(t.medical_necessity_reason) || hasValue(t.necessity_notes) },
+  ],
+  medicaid: [
+    { field: "member_id", label: "Member ID (Medicaid)", section: "billing",
+      check: (t) => hasValue(t.patient?.member_id) || hasValue(t.member_id) },
+    { field: "prior_authorization", label: "Prior Authorization (Medicaid)", section: "billing",
+      check: (t) => {
+        const required = !!(t.patient?.auth_required);
+        if (!required) return true;
+        return hasValue(t.patient?.prior_auth_number);
+      }},
+  ],
+  private: [],
+  private_pay: [],
+  default: [],
+};
+
+function normalizePayer(payer: string | null | undefined): PayerType {
+  if (!payer) return "default";
+  const p = payer.toLowerCase().trim();
+  if (p.includes("medicare")) return "medicare";
+  if (p.includes("medicaid")) return "medicaid";
+  if (p.includes("private_pay") || p === "self_pay" || p === "self-pay") return "private_pay";
+  if (p.includes("private") || p.includes("commercial") || p.includes("bcbs") || p.includes("aetna") || p.includes("cigna") || p.includes("united")) return "private";
+  return "default";
+}
+
+export function normalizeTransportKey(tripType: string | null | undefined): TransportType {
   if (!tripType) return "dialysis";
   const t = tripType.toLowerCase();
+  if (t.includes("psych") || t.includes("behavioral")) return "psych_transport";
   if (t.includes("ift") && t.includes("discharge")) return "ift_discharge";
   if (t === "ift") return "ift";
   if (t === "discharge") return "discharge";
@@ -229,6 +370,18 @@ function normalizeTransportKey(tripType: string | null | undefined): TransportTy
   return "dialysis";
 }
 
+/** De-duplicates by `field` keeping the first occurrence (base before augmentations). */
+function dedupeByField(fields: FieldRequirement[]): FieldRequirement[] {
+  const seen = new Set<string>();
+  const out: FieldRequirement[] = [];
+  for (const f of fields) {
+    if (seen.has(f.field)) continue;
+    seen.add(f.field);
+    out.push(f);
+  }
+  return out;
+}
+
 export interface PCRCompletionResult {
   totalRequired: number;
   completedRequired: number;
@@ -236,9 +389,15 @@ export interface PCRCompletionResult {
   bySection: Record<string, { total: number; completed: number; fields: (FieldRequirement & { completed: boolean })[] }>;
 }
 
-export function evaluatePCRFieldCompletion(trip: any): PCRCompletionResult {
+export function evaluatePCRFieldCompletion(trip: any, payer?: string | null): PCRCompletionResult {
   const transportType = normalizeTransportKey(trip?.trip_type || trip?.pcr_type);
-  const requirements = REQUIREMENTS[transportType] || REQUIREMENTS.dialysis;
+  const payerKey = normalizePayer(payer ?? trip?.patient?.primary_payer ?? trip?.payer_type);
+
+  const base = REQUIREMENTS[transportType] || REQUIREMENTS.dialysis;
+  const conditional = getConditionalFields(transportType, trip);
+  const payerAdd = PAYER_AUGMENTATIONS[payerKey] || [];
+
+  const requirements = dedupeByField([...base, ...conditional, ...payerAdd]);
 
   const fields = requirements.map(req => ({
     ...req,
@@ -261,9 +420,56 @@ export function evaluatePCRFieldCompletion(trip: any): PCRCompletionResult {
   };
 }
 
-/** Check if a specific field is required for the current transport type */
-export function isFieldRequired(tripType: string | null | undefined, fieldName: string): boolean {
+/** Check if a specific field is required for the current transport type + payer. */
+export function isFieldRequired(tripType: string | null | undefined, fieldName: string, payer?: string | null): boolean {
   const transportType = normalizeTransportKey(tripType);
-  const requirements = REQUIREMENTS[transportType] || REQUIREMENTS.dialysis;
-  return requirements.some(r => r.field === fieldName);
+  const payerKey = normalizePayer(payer);
+  const base = REQUIREMENTS[transportType] || REQUIREMENTS.dialysis;
+  const payerAdd = PAYER_AUGMENTATIONS[payerKey] || [];
+  return [...base, ...payerAdd].some(r => r.field === fieldName);
+}
+
+// ── Card → section mapping for the requiredFields prop helper ──
+
+const CARD_TO_SECTIONS: Record<string, string[]> = {
+  patient_info: ["patient_info"],
+  times: ["times"],
+  vitals: ["vitals"],
+  condition_on_arrival: ["condition_on_arrival"],
+  medical_necessity: ["medical_necessity"],
+  equipment: ["equipment"],
+  signatures: ["signatures"],
+  narrative: ["narrative"],
+  billing: ["billing"],
+  sending_facility: ["sending_facility"],
+  assessment: ["assessment"],
+  chief_complaint: ["assessment"],
+  physical_exam: ["physical_exam"],
+  hospital_outcome: ["hospital_outcome"],
+  stretcher_mobility: ["stretcher_mobility"],
+  isolation_precautions: ["isolation_precautions"],
+  behavioral_health: ["behavioral_health"],
+};
+
+/**
+ * Returns the field-name array a given card should treat as required for the
+ * current transport type + payer. Use this to pass into the `requiredFields`
+ * prop so card defaults stay in sync with the central source.
+ */
+export function getRequiredFieldsForCard(
+  tripType: string | null | undefined,
+  cardType: string,
+  payer?: string | null,
+  trip?: any,
+): string[] {
+  const transportType = normalizeTransportKey(tripType);
+  const payerKey = normalizePayer(payer);
+  const sections = CARD_TO_SECTIONS[cardType] ?? [cardType];
+
+  const base = REQUIREMENTS[transportType] || REQUIREMENTS.dialysis;
+  const conditional = trip ? getConditionalFields(transportType, trip) : [];
+  const payerAdd = PAYER_AUGMENTATIONS[payerKey] || [];
+
+  const all = dedupeByField([...base, ...conditional, ...payerAdd]);
+  return all.filter(f => sections.includes(f.section)).map(f => f.field);
 }

@@ -29,7 +29,7 @@ import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
 import { CancellationDocForm } from "@/components/crew/CancellationDocForm";
 import { checkDuplicateTrip } from "@/lib/duplicate-trip-check";
-import { evaluatePCRFieldCompletion } from "@/lib/pcr-field-requirements";
+import { evaluatePCRFieldCompletion, getRequiredFieldsForCard } from "@/lib/pcr-field-requirements";
 import { SectionCompletionBadge } from "@/components/pcr/PCRFieldIndicator";
 import { KickbackChecklist } from "@/components/pcr/KickbackChecklist";
 import { logAuditEvent } from "@/lib/audit-logger";
@@ -842,24 +842,28 @@ export default function PCRPage() {
     if (rule.state === "locked") {
       return <LockedSectionOverlay reason={rule.lockedReason} />;
     }
+    // Single source of truth: derive requiredFields from pcr-field-requirements.ts
+    // based on the trip's transport type AND payer (Medicare/Medicaid add fields).
+    const tripTypeForReq = trip.trip_type || trip.pcr_type || "";
+    const payer = (trip as any).patient?.primary_payer ?? (trip as any).payer_type ?? null;
+    const required = getRequiredFieldsForCard(tripTypeForReq, type, payer, trip);
     switch (type) {
       case "times": return <TimesCard trip={trip} recordTime={recordTime} updateField={updateField} updateMultipleFields={updateMultipleFields} />;
       case "patient_info": return <PatientInfoCard trip={trip} updateField={updateField} />;
       case "vitals": return <VitalsCard trip={trip} updateField={updateField} />;
       case "condition_on_arrival": return <ConditionOnArrivalCard trip={trip} updateField={updateField} />;
-      case "medical_necessity": return <MedicalNecessityCard trip={trip} updateField={updateField} updateMultipleFields={updateMultipleFields} />;
+      case "medical_necessity": return <MedicalNecessityCard trip={trip} updateField={updateField} updateMultipleFields={updateMultipleFields} requiredFields={required} />;
       case "equipment": return <EquipmentCard trip={trip} updateField={updateField} />;
       case "signatures": return <SignaturesCard trip={trip} updateField={updateField} legType={activeLegType} />;
       case "narrative": return <NarrativeCard trip={trip} truckName={truckName} updateField={updateField} />;
       case "billing": return <BillingCard trip={trip} updateField={updateField} />;
-      case "sending_facility": return <SendingFacilityCard trip={trip} updateField={updateField} tripType={trip.trip_type || trip.pcr_type || ""} />;
-      case "assessment": case "chief_complaint": return <AssessmentCard trip={trip} updateField={updateField} />;
+      case "sending_facility": return <SendingFacilityCard trip={trip} updateField={updateField} tripType={trip.trip_type || trip.pcr_type || ""} requiredFields={required} />;
+      case "assessment": case "chief_complaint": return <AssessmentCard trip={trip} updateField={updateField} requiredFields={required} />;
       case "physical_exam": return <PhysicalExamCard trip={trip} updateField={updateField} />;
-      case "hospital_outcome": return <HospitalOutcomeCard trip={trip} updateField={updateField} />;
-      case "stretcher_mobility": return <StretcherMobilityCard trip={trip} updateField={updateField} />;
+      case "hospital_outcome": return <HospitalOutcomeCard trip={trip} updateField={updateField} requiredFields={required} />;
+      case "stretcher_mobility": return <StretcherMobilityCard trip={trip} updateField={updateField} requiredFields={required} />;
       case "isolation_precautions": return <IsolationPrecautionsCard trip={trip} updateField={updateField} />;
-      case "behavioral_health": return <BehavioralHealthCard trip={trip} updateField={updateField} />;
-      case "assessment" as any: return <AssessmentCard trip={trip} updateField={updateField} />;
+      case "behavioral_health": return <BehavioralHealthCard trip={trip} updateField={updateField} requiredFields={required} />;
       default: return <p className="text-sm text-muted-foreground">Coming soon.</p>;
     }
   };

@@ -39,7 +39,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const [{ data: trip }, { data: patient }, { data: claimRow }, { data: payerDir }] = await Promise.all([
         supabase
           .from("trip_records" as any)
-          .select("*, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_member_id, oneoff_primary_payer)")
+          .select("*, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_member_id, oneoff_primary_payer, chair_time)")
           .eq("id", tripId)
           .maybeSingle(),
         patientId
@@ -266,6 +266,183 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
             : undefined,
         });
       }
+
+      // ──────────────────────────────────────────────────────────────────
+      // Transport-type-specific validation (item 5)
+      // Runs in addition to the always-on and payer-rule-gated checks above.
+      // ──────────────────────────────────────────────────────────────────
+      const normalizedType = (() => {
+        const raw = String(t.pcr_type ?? t.trip_type ?? "").toLowerCase();
+        if (raw.includes("psych") || raw.includes("behavioral")) return "psych_transport";
+        if (raw.includes("ift") && raw.includes("discharge")) return "discharge";
+        if (raw === "discharge") return "discharge";
+        if (raw === "ift") return "ift";
+        if (raw.includes("emergency") || raw.includes("complex")) return "emergency";
+        if (raw.includes("wound")) return "wound_care";
+        if (raw.includes("private")) return "private_pay";
+        if (raw.includes("dialysis")) return "dialysis";
+        return raw || "other";
+      })();
+
+      const sf = t.sending_facility_json ?? {};
+      const ho = t.hospital_outcome_json ?? {};
+      const eq = t.equipment_used_json ?? {};
+
+      if (normalizedType === "psych_transport") {
+        const authType = String(t.bh_authorization_type ?? "").trim();
+        const assessmentArr = Array.isArray(t.bh_behavioral_assessment) ? t.bh_behavioral_assessment : [];
+        checks.push({
+          label: "Transport authorization type recorded",
+          passed: authType.length > 0,
+          detail: authType.length > 0 ? authType : "Open the Behavioral Health card and record the transport authorization type.",
+        });
+        checks.push({
+          label: "Behavioral assessment documented",
+          passed: assessmentArr.length > 0,
+          detail: assessmentArr.length > 0 ? `${assessmentArr.length} finding(s) recorded` : "Select at least one behavioral assessment finding.",
+        });
+        if (authType.toLowerCase().includes("involuntary")) {
+          checks.push({
+            label: "1013 form received (involuntary transport)",
+            passed: t.bh_1013_received === true,
+            detail: t.bh_1013_received === true ? undefined : "Confirm the 1013 form was received before submission.",
+          });
+          checks.push({
+            label: "Authorizing facility recorded",
+            passed: !!(t.bh_authorizing_facility && String(t.bh_authorizing_facility).trim()),
+            detail: t.bh_authorizing_facility ? String(t.bh_authorizing_facility) : "Authorizing facility name is required for involuntary transport.",
+          });
+        }
+        if (t.restraints_applied === true) {
+          checks.push({
+            label: "Restraint type documented",
+            passed: !!(eq.bh_restraint_type && String(eq.bh_restraint_type).trim()),
+            detail: eq.bh_restraint_type ? String(eq.bh_restraint_type) : "Restraints applied — record restraint type in the equipment card.",
+          });
+        }
+      }
+
+      if (normalizedType === "wound_care") {
+        const woundType = t.wound_type ?? t.assessment_json?.wound_type;
+        const woundLoc = t.wound_location ?? t.assessment_json?.wound_location;
+        checks.push({
+          label: "Wound type recorded",
+          passed: !!(woundType && String(woundType).trim()),
+          detail: woundType ? String(woundType) : "Wound type is required for wound-care transport billing.",
+        });
+        checks.push({
+          label: "Wound location recorded",
+          passed: !!(woundLoc && String(woundLoc).trim()),
+          detail: woundLoc ? String(woundLoc) : "Wound location is required for wound-care transport billing.",
+        });
+        checks.push({
+          label: "Wound-care medical necessity criterion checked",
+          passed: hasNecessity,
+          detail: hasNecessity ? undefined : "Select at least one medical necessity criterion specific to wound-care transport.",
+        });
+      }
+
+      if (normalizedType === "discharge") {
+        checks.push({
+          label: "Sending facility name recorded",
+          passed: !!(sf.facility_name && String(sf.facility_name).trim()),
+          detail: sf.facility_name ? String(sf.facility_name) : "Open the Sending Facility card and enter the facility name.",
+        });
+        checks.push({
+          label: "Sending physician recorded",
+          passed: !!(sf.physician_name && String(sf.physician_name).trim()),
+          detail: sf.physician_name ? String(sf.physician_name) : "Sending physician name is required on a discharge PCR.",
+        });
+        const dischargePcsOk = pcsSkippable || billerPcsComplete || !!t.pcs_attached || t.bh_1013_received === true;
+        checks.push({
+          label: "Discharge PCS / authorization on file",
+          passed: dischargePcsOk,
+          detail: dischargePcsOk ? undefined : "Mark PCS as obtained on the Sending Facility card or attach a 1013 / patient-record PCS.",
+        });
+        checks.push({
+          label: "Discharge reason recorded",
+          passed: !!(sf.discharge_reason && String(sf.discharge_reason).trim()),
+          detail: sf.discharge_reason ? String(sf.discharge_reason) : "Record the discharge reason on the Sending Facility card.",
+        });
+        const hasDisposition = !!(t.disposition || ho.destination || ho.hospital_name);
+        checks.push({
+          label: "Hospital disposition recorded",
+          passed: hasDisposition,
+          detail: hasDisposition ? (t.disposition || ho.destination || ho.hospital_name) : "Record the receiving disposition on the Hospital Outcome card.",
+        });
+      }
+
+      if (normalizedType === "ift") {
+        checks.push({
+          label: "Sending facility name recorded",
+          passed: !!(sf.facility_name && String(sf.facility_name).trim()),
+          detail: sf.facility_name ? String(sf.facility_name) : "Sending facility name is required on an IFT PCR.",
+        });
+        checks.push({
+          label: "Sending physician recorded",
+          passed: !!(sf.physician_name && String(sf.physician_name).trim()),
+          detail: sf.physician_name ? String(sf.physician_name) : "Sending physician name is required on an IFT PCR.",
+        });
+        const hasDisposition = !!(t.disposition || ho.destination || ho.hospital_name);
+        checks.push({
+          label: "Hospital disposition recorded",
+          passed: hasDisposition,
+          detail: hasDisposition ? undefined : "Record the receiving disposition on the Hospital Outcome card.",
+        });
+        checks.push({
+          label: "Chief complaint and primary impression",
+          passed: !!(t.chief_complaint && t.primary_impression),
+          detail: t.chief_complaint && t.primary_impression
+            ? `${t.chief_complaint} → ${t.primary_impression}`
+            : "Both chief complaint and primary impression are required on an IFT PCR.",
+        });
+      }
+
+      if (normalizedType === "dialysis") {
+        const chairTime = t.leg?.chair_time;
+        checks.push({
+          label: "Chair time recorded on the leg",
+          passed: !!chairTime,
+          detail: chairTime ? String(chairTime) : "Chair time is required on the dialysis leg before submitting.",
+          isWarning: true,
+        });
+        const hasEsrd = effectiveIcd10.some(c => {
+          const code = String(c).toUpperCase().replace(/\s/g, "");
+          return code.startsWith("N18.6") || code.startsWith("Z99.2");
+        });
+        checks.push({
+          label: "ESRD diagnosis code present (N18.6 or Z99.2)",
+          passed: hasEsrd,
+          detail: hasEsrd ? undefined : "Add N18.6 or Z99.2 to the ICD-10 codes on the Assessment card.",
+        });
+      }
+
+      if (normalizedType === "emergency") {
+        checks.push({
+          label: "Chief complaint recorded",
+          passed: !!(t.chief_complaint && String(t.chief_complaint).trim()),
+          detail: t.chief_complaint ? String(t.chief_complaint) : "Chief complaint is required on an emergency PCR.",
+        });
+        checks.push({
+          label: "Primary impression recorded",
+          passed: !!(t.primary_impression && String(t.primary_impression).trim()),
+          detail: t.primary_impression ? String(t.primary_impression) : "Primary impression is required on an emergency PCR.",
+        });
+        const hasVitalsSet = Array.isArray(t.vitals_json) && t.vitals_json.some((v: any) => v && (v.bp_systolic || v.pulse || v.respiration));
+        checks.push({
+          label: "At least one vital set documented",
+          passed: hasVitalsSet,
+          detail: hasVitalsSet ? undefined : "Record at least one vitals set on the Vitals card.",
+        });
+        checks.push({
+          label: "Assessment ICD-10 codes present",
+          passed: effectiveIcd10.length > 0,
+          detail: effectiveIcd10.length > 0 ? effectiveIcd10.join(", ") : "Add at least one ICD-10 diagnosis code on the Assessment card.",
+        });
+      }
+
+      // private_pay intentionally skips payer-specific checks; the always-on
+      // timestamps + crew signature + miles checks above already cover it.
 
       // Timely filing deadline check
       if (t.run_date) {
