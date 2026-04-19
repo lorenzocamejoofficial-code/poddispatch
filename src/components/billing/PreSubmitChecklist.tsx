@@ -39,7 +39,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const [{ data: trip }, { data: patient }, { data: claimRow }, { data: payerDir }] = await Promise.all([
         supabase
           .from("trip_records" as any)
-          .select("*, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_member_id, oneoff_primary_payer)")
+          .select("*, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_member_id, oneoff_primary_payer, chair_time)")
           .eq("id", tripId)
           .maybeSingle(),
         patientId
