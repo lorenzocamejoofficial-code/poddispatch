@@ -145,6 +145,23 @@ export default function Patients() {
     prior_auth_on_file: false,
     prior_auth_number: "",
     prior_auth_expiration: "",
+    // Clinical & Billing Defaults (pre-fill PCR)
+    icd10_codes: [] as string[],
+    default_chief_complaint: "",
+    default_primary_impression: "",
+    default_medical_necessity_reason: "",
+    default_bed_confined: false,
+    default_cannot_transfer: false,
+    default_requires_monitoring: false,
+    default_oxygen_transport: false,
+    // Behavioral Health defaults (psych_transport only)
+    default_bh_authorization_type: "",
+    default_bh_authorizing_facility: "",
+    default_bh_authorizing_physician_name: "",
+    default_bh_authorizing_physician_npi: "",
+    // Wound Care defaults (wound_care / outpatient only)
+    default_wound_type: "",
+    default_wound_location: "",
   });
 
   const fetchPatients = async () => {
@@ -239,6 +256,20 @@ export default function Patients() {
       prior_auth_on_file: false,
       prior_auth_number: "",
       prior_auth_expiration: "",
+      icd10_codes: [],
+      default_chief_complaint: "",
+      default_primary_impression: "",
+      default_medical_necessity_reason: "",
+      default_bed_confined: false,
+      default_cannot_transfer: false,
+      default_requires_monitoring: false,
+      default_oxygen_transport: false,
+      default_bh_authorization_type: "",
+      default_bh_authorizing_facility: "",
+      default_bh_authorizing_physician_name: "",
+      default_bh_authorizing_physician_npi: "",
+      default_wound_type: "",
+      default_wound_location: "",
     });
     setEditing(null);
     setBLegWarnings([]);
@@ -299,6 +330,20 @@ export default function Patients() {
       prior_auth_on_file: (p as any).prior_auth_on_file ?? false,
       prior_auth_number: (p as any).prior_auth_number ?? "",
       prior_auth_expiration: (p as any).prior_auth_expiration ?? "",
+      icd10_codes: (p as any).icd10_codes ?? [],
+      default_chief_complaint: (p as any).default_chief_complaint ?? "",
+      default_primary_impression: (p as any).default_primary_impression ?? "",
+      default_medical_necessity_reason: (p as any).default_medical_necessity_reason ?? "",
+      default_bed_confined: (p as any).default_bed_confined ?? false,
+      default_cannot_transfer: (p as any).default_cannot_transfer ?? false,
+      default_requires_monitoring: (p as any).default_requires_monitoring ?? false,
+      default_oxygen_transport: (p as any).default_oxygen_transport ?? false,
+      default_bh_authorization_type: (p as any).default_bh_authorization_type ?? "",
+      default_bh_authorizing_facility: (p as any).default_bh_authorizing_facility ?? "",
+      default_bh_authorizing_physician_name: (p as any).default_bh_authorizing_physician_name ?? "",
+      default_bh_authorizing_physician_npi: (p as any).default_bh_authorizing_physician_npi ?? "",
+      default_wound_type: (p as any).default_wound_type ?? "",
+      default_wound_location: (p as any).default_wound_location ?? "",
     });
     setBLegWarnings([]);
     setDialogOpen(true);
@@ -360,6 +405,21 @@ export default function Patients() {
       prior_auth_on_file: form.prior_auth_on_file,
       prior_auth_number: form.prior_auth_number || null,
       prior_auth_expiration: form.prior_auth_expiration || null,
+      // Clinical & Billing Defaults — used to pre-fill PCR fields when a trip is created
+      icd10_codes: form.icd10_codes.length > 0 ? form.icd10_codes : null,
+      default_chief_complaint: form.default_chief_complaint || null,
+      default_primary_impression: form.default_primary_impression || null,
+      default_medical_necessity_reason: form.default_medical_necessity_reason || null,
+      default_bed_confined: form.default_bed_confined,
+      default_cannot_transfer: form.default_cannot_transfer,
+      default_requires_monitoring: form.default_requires_monitoring,
+      default_oxygen_transport: form.default_oxygen_transport,
+      default_bh_authorization_type: form.default_bh_authorization_type || null,
+      default_bh_authorizing_facility: form.default_bh_authorizing_facility || null,
+      default_bh_authorizing_physician_name: form.default_bh_authorizing_physician_name || null,
+      default_bh_authorizing_physician_npi: form.default_bh_authorizing_physician_npi || null,
+      default_wound_type: form.default_wound_type || null,
+      default_wound_location: form.default_wound_location || null,
     };
 
     if (!payload.first_name || !payload.last_name) return;
