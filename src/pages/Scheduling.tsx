@@ -1476,6 +1476,72 @@ export default function Scheduling() {
                 <div><Label>Destination Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_dropoff} /></Label><Input value={oneoffForm.destination_location} onChange={(e) => setOneoffForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /></div>
                 <div><Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label><Input type="time" value={oneoffForm.pickup_time} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
 
+                {/* Transport-type-specific fields */}
+                {(oneoffForm.trip_type === "ift" || oneoffForm.trip_type === "ift_discharge" || oneoffForm.trip_type === "discharge") && (
+                  <div className="space-y-3 rounded-md border border-dashed p-3">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">IFT / Discharge Details</p>
+                    <div><Label>Sending Facility Name</Label><Input value={oneoffForm.sending_facility_name} onChange={(e) => setOneoffForm(f => ({ ...f, sending_facility_name: e.target.value }))} /></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>Sending Physician Name</Label><Input value={oneoffForm.sending_physician_name} onChange={(e) => setOneoffForm(f => ({ ...f, sending_physician_name: e.target.value }))} /></div>
+                      <div><Label>Sending Physician NPI</Label><Input value={oneoffForm.sending_physician_npi} onChange={(e) => setOneoffForm(f => ({ ...f, sending_physician_npi: e.target.value }))} /></div>
+                    </div>
+                    <div><Label>Discharge Reason</Label><Textarea rows={2} value={oneoffForm.discharge_reason} onChange={(e) => setOneoffForm(f => ({ ...f, discharge_reason: e.target.value }))} /></div>
+                    <div className="flex items-center gap-3"><Switch checked={oneoffForm.pcs_obtained} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, pcs_obtained: v }))} id="oneoff-pcs" /><Label htmlFor="oneoff-pcs" className="cursor-pointer text-sm">PCS Obtained</Label></div>
+                  </div>
+                )}
+                {oneoffForm.trip_type === "psych_transport" && (
+                  <div className="space-y-3 rounded-md border border-dashed p-3">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Behavioral Health Details</p>
+                    <div>
+                      <Label>Authorization Type</Label>
+                      <Select value={oneoffForm.bh_authorization_type || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, bh_authorization_type: v === "none" ? "" : v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— None —</SelectItem>
+                          {BH_AUTHORIZATION_TYPES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-3"><Switch checked={oneoffForm.bh_1013_received} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, bh_1013_received: v }))} id="oneoff-1013" /><Label htmlFor="oneoff-1013" className="cursor-pointer text-sm">1013 Received</Label></div>
+                    <div><Label>Authorizing Facility</Label><Input value={oneoffForm.bh_authorizing_facility} onChange={(e) => setOneoffForm(f => ({ ...f, bh_authorizing_facility: e.target.value }))} /></div>
+                    <div><Label>Authorizing Physician Name</Label><Input value={oneoffForm.bh_authorizing_physician_name} onChange={(e) => setOneoffForm(f => ({ ...f, bh_authorizing_physician_name: e.target.value }))} /></div>
+                    <div className="flex items-center gap-3"><Switch checked={oneoffForm.law_enforcement_present} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, law_enforcement_present: v }))} id="oneoff-leo" /><Label htmlFor="oneoff-leo" className="cursor-pointer text-sm">Law Enforcement Present</Label></div>
+                  </div>
+                )}
+                {(oneoffForm.trip_type === "wound_care" || oneoffForm.trip_type === "woundcare") && (
+                  <div className="space-y-3 rounded-md border border-dashed p-3">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Wound Care Details</p>
+                    <div>
+                      <Label>Wound Type</Label>
+                      <Select value={oneoffForm.wound_type || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, wound_type: v === "none" ? "" : v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— None —</SelectItem>
+                          {WOUND_TYPES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div><Label>Wound Location</Label><Input value={oneoffForm.wound_location} onChange={(e) => setOneoffForm(f => ({ ...f, wound_location: e.target.value }))} placeholder="e.g. left heel, sacrum" /></div>
+                    <div>
+                      <Label>Wound Stage</Label>
+                      <Select value={oneoffForm.wound_stage || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, wound_stage: v === "none" ? "" : v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— None —</SelectItem>
+                          {PRESSURE_ULCER_STAGES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+                {oneoffForm.trip_type === "dialysis" && (
+                  <div className="space-y-2 rounded-md border border-dashed p-3">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Dialysis Details</p>
+                    <div><Label>Chair Time</Label><Input type="time" value={oneoffForm.chair_time} onChange={(e) => setOneoffForm(f => ({ ...f, chair_time: e.target.value }))} /></div>
+                    <p className="text-[11px] text-muted-foreground">Confirm <span className="font-mono">N18.6</span> (ESRD) or <span className="font-mono">Z99.2</span> is on the patient's standing ICD-10 codes.</p>
+                  </div>
+                )}
+
                 {/* Patient Demographics for PCR */}
                 <div className="rounded-md border bg-muted/20 p-3 space-y-3">
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Patient Demographics (for PCR)</p>
