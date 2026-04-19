@@ -29,11 +29,27 @@ interface VitalSet {
   temperature: string;
   blood_glucose: string;
   pain_scale: string;
+  pain_scale_type?: string;
+  etco2_value: string;
+  etco2_method: string;
   gcs_eyes: string;
   gcs_verbal: string;
   gcs_motor: string;
   gcs_total?: string;
 }
+
+const PAIN_SCALE_TYPES = [
+  { value: "numeric", label: "Numeric (0–10)" },
+  { value: "faces", label: "Wong-Baker FACES" },
+  { value: "flacc", label: "FLACC (non-verbal)" },
+];
+
+const ETCO2_METHODS = [
+  "Nasal cannula sampling",
+  "Oral airway sampling",
+  "Endotracheal tube",
+  "Not measured",
+];
 
 const CHIP_VALUES = ["N/A", "Refused", "None"] as const;
 type ChipValue = typeof CHIP_VALUES[number];
@@ -116,7 +132,9 @@ function newVitalSet(): VitalSet {
     saved: false,
     bp_systolic: "", bp_diastolic: "", pulse: "", pulse_quality: "",
     respiratory_rate: "", respiratory_quality: "", spo2: "", temperature: "",
-    blood_glucose: "", pain_scale: "", gcs_eyes: "", gcs_verbal: "", gcs_motor: "",
+    blood_glucose: "", pain_scale: "", pain_scale_type: "numeric",
+    etco2_value: "", etco2_method: "Not measured",
+    gcs_eyes: "", gcs_verbal: "", gcs_motor: "",
   };
 }
 
