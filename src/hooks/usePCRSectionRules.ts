@@ -29,9 +29,10 @@ export type PCRSectionKey =
   | "airway"
   | "procedures"
   | "medications"
-  | "iv_access";
+  | "iv_access"
+  | "behavioral_health";
 
-export type PCRType = "dialysis" | "ift" | "discharge" | "outpatient_specialty" | "private_pay" | "emergency" | "wound_care";
+export type PCRType = "dialysis" | "ift" | "discharge" | "outpatient_specialty" | "private_pay" | "emergency" | "wound_care" | "psych_transport";
 
 // Map of card types to section keys for rules lookup
 const CARD_TO_SECTION: Record<string, PCRSectionKey> = {
@@ -53,6 +54,7 @@ const CARD_TO_SECTION: Record<string, PCRSectionKey> = {
   procedures: "procedures",
   medications: "medications",
   iv_access: "iv_access",
+  behavioral_health: "behavioral_health",
 };
 
 const RULES: Record<PCRType, Record<PCRSectionKey, PCRSectionState>> = {
