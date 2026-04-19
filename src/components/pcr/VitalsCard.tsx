@@ -466,11 +466,39 @@ export function VitalsCard({ trip, updateField }: VitalsCardProps) {
                 <VitalChips value={vs.blood_glucose} onChange={(v) => updateSet(idx, "blood_glucose", v)} disabled={isLocked} />
               </div>
               <div className="min-w-0">
-                <label className="text-sm font-medium text-muted-foreground flex items-center">Pain (0-10) <PCRTooltip text={PCR_TOOLTIPS.pain} /></label>
+                <label className="text-sm font-medium text-muted-foreground flex items-center justify-between gap-2">
+                  <span className="flex items-center">Pain <PCRTooltip text={PCR_TOOLTIPS.pain} /></span>
+                  <Select value={vs.pain_scale_type || "numeric"} onValueChange={(v) => updateSet(idx, "pain_scale_type", v)} disabled={isLocked}>
+                    <SelectTrigger className="h-6 w-[140px] text-[10px] px-2"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {PAIN_SCALE_TYPES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </label>
                 <Input type="number" inputMode="numeric" placeholder="0" min="0" max="10" value={isChipValue(vs.pain_scale) ? "" : vs.pain_scale}
                   disabled={isChipValue(vs.pain_scale) || isLocked}
                   onChange={(e) => updateSet(idx, "pain_scale", e.target.value)} className={cn("h-11", getFieldBorder("pain_scale", vs.pain_scale))} />
                 <VitalChips value={vs.pain_scale} onChange={(v) => updateSet(idx, "pain_scale", v)} disabled={isLocked} />
+              </div>
+            </div>
+
+            {/* EtCO2 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-3">
+              <div className="min-w-0">
+                <label className="text-sm font-medium text-muted-foreground">EtCO2 (mmHg)</label>
+                <Input type="number" inputMode="numeric" placeholder="35" value={isChipValue(vs.etco2_value) ? "" : vs.etco2_value}
+                  disabled={isChipValue(vs.etco2_value) || isLocked}
+                  onChange={(e) => updateSet(idx, "etco2_value", e.target.value)} className="h-11" />
+                <VitalChips value={vs.etco2_value} onChange={(v) => updateSet(idx, "etco2_value", v)} disabled={isLocked} />
+              </div>
+              <div className="min-w-0">
+                <label className="text-sm font-medium text-muted-foreground">EtCO2 Method</label>
+                <Select value={vs.etco2_method || "Not measured"} onValueChange={(v) => updateSet(idx, "etco2_method", v)} disabled={isLocked}>
+                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ETCO2_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
