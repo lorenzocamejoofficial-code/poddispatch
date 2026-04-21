@@ -904,6 +904,25 @@ export default function PCRPage() {
   // automatically when the timestamp is written without a page refresh.
   const isPreContact = trip.patient_contact_time == null;
 
+  // Phase 2 — Handoff state machine.
+  // handoff_status values written by RunReassignmentDialog & CrewSignaturesSection:
+  //   null/empty                   → "clean"
+  //   "pending_original_crew_signature" → "pending_original_signature"
+  //   "pending_new_crew_acceptance"     → "pending_new_crew_acceptance"
+  //   "accepted"                       → "accepted"
+  type HandoffState = "clean" | "pending_original_signature" | "pending_new_crew_acceptance" | "accepted";
+  const handoffStatusRaw: string | null = (trip as any).handoff_status ?? null;
+  const handoffState: HandoffState =
+    handoffStatusRaw === "pending_original_crew_signature" ? "pending_original_signature" :
+    handoffStatusRaw === "pending_new_crew_acceptance" ? "pending_new_crew_acceptance" :
+    handoffStatusRaw === "accepted" ? "accepted" :
+    "clean";
+
+  // Lock-mode flags derived from handoff state + crew membership
+  const handoffOriginalSignMode = handoffState === "pending_original_signature" && isOriginalCrewMember;
+  const handoffWaitingForOriginal = handoffState === "pending_original_signature" && !isOriginalCrewMember;
+  const handoffNewCrewAcceptMode = handoffState === "pending_new_crew_acceptance" && isTargetCrewMember;
+
   // Helper to get card rule — handles combined stretcher_mobility card
   const getEffectiveCardRule = (cardType: string) => {
     if (cardType === "stretcher_mobility") {
