@@ -242,6 +242,66 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         detail: effectiveMemberId !== "" ? effectiveMemberId : "Member ID is missing — update the patient record (or one-off run details) before submitting",
       });
 
+      // ──────────────────────────────────────────────────────────────────
+      // Audit Fix 2 — align checklist with pcr-field-requirements.ts
+      // These checks apply across all transport types (with type-aware gating
+      // for level_of_consciousness) and were previously missing from the
+      // billing gate even though the visual indicators required them.
+      // ──────────────────────────────────────────────────────────────────
+      const normalizedTypeForBaseChecks = normalizeTransportKey(t.trip_type ?? t.pcr_type);
+
+      // Vitals — all transport types
+      const vitalsArr = Array.isArray(t.vitals_json) ? t.vitals_json : [];
+      const hasSavedVitals = vitalsArr.some((v: any) => !!v?.timestamp && v?.saved !== false);
+      checks.push({
+        label: "Vitals set saved",
+        passed: hasSavedVitals,
+        detail: hasSavedVitals ? undefined : "No vitals recorded — complete the Vitals card before submitting.",
+      });
+
+      // Level of consciousness — required for dialysis, outpatient, wound_care, discharge
+      if (["dialysis", "outpatient", "wound_care", "discharge"].includes(normalizedTypeForBaseChecks)) {
+        checks.push({
+          label: "Level of consciousness documented",
+          passed: hasValue(t.level_of_consciousness),
+          detail: hasValue(t.level_of_consciousness)
+            ? String(t.level_of_consciousness)
+            : "Level of consciousness not documented — complete the Condition on Arrival card.",
+        });
+      }
+
+      // Stretcher placement + patient mobility — required wherever stretcher_mobility is required
+      // (dialysis, outpatient, outpatient_specialty, wound_care, ift, ift_discharge, discharge,
+      // emergency, private_pay, psych_transport — i.e. all transport types in REQUIREMENTS)
+      const stretcherTypes = [
+        "dialysis","outpatient","outpatient_specialty","wound_care",
+        "ift","ift_discharge","discharge","emergency","private_pay","psych_transport",
+      ];
+      if (stretcherTypes.includes(normalizedTypeForBaseChecks)) {
+        const sp = hasValue(t.stretcher_placement);
+        const pm = hasValue(t.patient_mobility);
+        checks.push({
+          label: "Stretcher and mobility documentation",
+          passed: sp && pm,
+          detail: sp && pm
+            ? `${t.stretcher_placement} / ${t.patient_mobility}`
+            : "Stretcher and mobility documentation incomplete.",
+        });
+      }
+
+      // Narrative — required for every type that includes NARRATIVE_FIELDS in pcr-field-requirements
+      // (dialysis, outpatient, outpatient_specialty, wound_care, ift, ift_discharge, discharge,
+      // emergency, psych_transport — everything except private_pay).
+      if (normalizedTypeForBaseChecks !== "private_pay") {
+        checks.push({
+          label: "Narrative documented",
+          passed: hasValue(t.narrative),
+          detail: hasValue(t.narrative)
+            ? undefined
+            : "Narrative not documented — complete the Narrative card before submitting.",
+        });
+      }
+
       // Patient address — must have street + city + ZIP. Blocks export and the
       // 837P generator so we never write "UNKNOWN" to N3/N4 segments.
       // One-off runs: address lives on the trip itself (pickup_location), with
