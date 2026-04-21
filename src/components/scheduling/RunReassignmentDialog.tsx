@@ -138,6 +138,94 @@ export function RunReassignmentDialog({
         } catch (e) { console.error("Wait accumulation failed (non-blocking):", e); }
       }
 
+      // ─── Phase 2 — Clinical Handoff Detection ────────────────────────────
+      // If patient_contact_time is already recorded on the existing trip, this
+      // is a clinical handoff. We stage the handoff on trip_records and DEFER
+      // the truck_run_slots and trip_records.truck_id/crew_id moves until the
+      // new crew accepts (handled in CrewSignaturesSection).
+      const { data: existingTrip } = await supabase
+        .from("trip_records")
+        .select("id, patient_contact_time, crew_id, truck_id")
+        .eq("leg_id", leg.id)
+        .eq("run_date", selectedDate)
+        .maybeSingle();
+
+      if (existingTrip?.patient_contact_time) {
+        const originalCrewIdForHandoff = (existingTrip as any).crew_id ?? null;
+        const handoffTripId = (existingTrip as any).id as string;
+
+        // Resolve target crew row (members + id) for staging + notifications
+        const { data: targetCrewRow } = await supabase
+          .from("crews")
+          .select("id, member1_id, member2_id, member3_id")
+          .eq("truck_id", targetTruckId)
+          .eq("active_date", selectedDate)
+          .limit(1)
+          .maybeSingle();
+
+        const nowIso = new Date().toISOString();
+        await supabase
+          .from("trip_records")
+          .update({
+            handoff_status: "pending_original_crew_signature",
+            handoff_initiated_at: nowIso,
+            original_crew_id: originalCrewIdForHandoff,
+            handoff_target_truck_id: targetTruckId,
+            handoff_target_crew_id: (targetCrewRow as any)?.id ?? null,
+            updated_at: nowIso,
+          } as any)
+          .eq("id", handoffTripId);
+
+        // Notify each member of the original crew to sign.
+        if (originalCrewIdForHandoff) {
+          const { data: origCrew } = await supabase
+            .from("crews")
+            .select("member1_id, member2_id, member3_id")
+            .eq("id", originalCrewIdForHandoff)
+            .maybeSingle();
+          const origMembers: string[] = [
+            (origCrew as any)?.member1_id,
+            (origCrew as any)?.member2_id,
+            (origCrew as any)?.member3_id,
+          ].filter(Boolean) as string[];
+          if (origMembers.length > 0) {
+            const { data: memberProfiles } = await supabase
+              .from("profiles")
+              .select("id, user_id")
+              .in("id", origMembers);
+            for (const mp of (memberProfiles ?? [])) {
+              if (!(mp as any).user_id) continue;
+              await supabase.from("notifications").insert({
+                user_id: (mp as any).user_id,
+                message: `Your run for ${leg.patient_name} has been reassigned. You must sign the PCR to complete the handoff.`,
+                notification_type: "crew_handoff",
+                related_run_id: handoffTripId,
+                acknowledged: false,
+              } as any);
+            }
+          }
+        }
+
+        // Step 5 — audit log for handoff initiation
+        await supabase.from("audit_logs").insert({
+          action: "crew_handoff_initiated",
+          actor_user_id: user?.id,
+          actor_email: user?.email,
+          table_name: "trip_records",
+          record_id: handoffTripId,
+          notes: `Clinical handoff initiated for ${leg.patient_name}: original crew must sign before the run is moved to ${targetTruckName}. Patient contact already recorded.`,
+          old_data: { truck_id: sourceTruckId, crew_id: originalCrewIdForHandoff },
+          new_data: { target_truck_id: targetTruckId, target_crew_id: (targetCrewRow as any)?.id ?? null },
+        } as any);
+
+        toast.success("Handoff initiated — waiting for original crew to sign.");
+        onOpenChange(false);
+        onComplete();
+        setProcessing(false);
+        return;
+      }
+      // ─── End handoff detection ───────────────────────────────────────────
+
       // 2. Move the slot to the new truck
       if (sourceTruckId) {
         await supabase
