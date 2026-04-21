@@ -716,6 +716,30 @@ export default function PCRPage() {
   const [assignedCrewCount, setAssignedCrewCount] = useState(0);
   const [cancelDocOpen, setCancelDocOpen] = useState(false);
 
+  // Phase 2 — Handoff membership: is the current user on the original crew /
+  // the handoff_target_crew? Derived from trip.original_crew_id and
+  // trip.handoff_target_crew_id, refreshed via trip realtime updates.
+  const [isOriginalCrewMember, setIsOriginalCrewMember] = useState(false);
+  const [isTargetCrewMember, setIsTargetCrewMember] = useState(false);
+  useEffect(() => {
+    if (!profileId) { setIsOriginalCrewMember(false); setIsTargetCrewMember(false); return; }
+    (async () => {
+      const ids: string[] = [];
+      const origId = (trip as any)?.original_crew_id ?? null;
+      const tgtId = (trip as any)?.handoff_target_crew_id ?? null;
+      if (origId) ids.push(origId);
+      if (tgtId && tgtId !== origId) ids.push(tgtId);
+      if (ids.length === 0) { setIsOriginalCrewMember(false); setIsTargetCrewMember(false); return; }
+      const { data: rows } = await supabase
+        .from("crews")
+        .select("id, member1_id, member2_id, member3_id")
+        .in("id", ids);
+      const has = (row: any) => row && (row.member1_id === profileId || row.member2_id === profileId || row.member3_id === profileId);
+      setIsOriginalCrewMember(!!(rows ?? []).find(r => r.id === origId && has(r)));
+      setIsTargetCrewMember(!!(rows ?? []).find(r => r.id === tgtId && has(r)));
+    })();
+  }, [profileId, (trip as any)?.original_crew_id, (trip as any)?.handoff_target_crew_id]);
+
   // Wrapper component to choose layout
   const Layout = isQaFixMode ? AdminLayout : CrewLayout;
 
