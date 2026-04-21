@@ -3402,6 +3402,8 @@ export type Database = {
           handoff_accepted_at: string | null
           handoff_initiated_at: string | null
           handoff_status: string | null
+          handoff_target_crew_id: string | null
+          handoff_target_truck_id: string | null
           hcpcs_codes: string[] | null
           hcpcs_modifiers: string[] | null
           heart_rate: number | null
@@ -3575,6 +3577,8 @@ export type Database = {
           handoff_accepted_at?: string | null
           handoff_initiated_at?: string | null
           handoff_status?: string | null
+          handoff_target_crew_id?: string | null
+          handoff_target_truck_id?: string | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
           heart_rate?: number | null
@@ -3748,6 +3752,8 @@ export type Database = {
           handoff_accepted_at?: string | null
           handoff_initiated_at?: string | null
           handoff_status?: string | null
+          handoff_target_crew_id?: string | null
+          handoff_target_truck_id?: string | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
           heart_rate?: number | null
@@ -3863,6 +3869,20 @@ export type Database = {
             columns: ["emergency_pcr_trip_id"]
             isOneToOne: false
             referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_records_handoff_target_crew_id_fkey"
+            columns: ["handoff_target_crew_id"]
+            isOneToOne: false
+            referencedRelation: "crews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_records_handoff_target_truck_id_fkey"
+            columns: ["handoff_target_truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
             referencedColumns: ["id"]
           },
           {
