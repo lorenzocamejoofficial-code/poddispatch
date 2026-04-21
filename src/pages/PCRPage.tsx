@@ -958,6 +958,19 @@ export default function PCRPage() {
     if (rule.state === "locked") {
       return <LockedSectionOverlay reason={rule.lockedReason} />;
     }
+    // Fix 4 — Pre-contact lock: until patient_contact_time is recorded, clinical sections are locked.
+    // Always-accessible cards: times, patient_info, billing, signatures.
+    const PRE_CONTACT_LOCKED_CARDS: Set<string> = new Set([
+      "vitals", "assessment", "chief_complaint", "physical_exam",
+      "condition_on_arrival", "medical_necessity", "stretcher_mobility",
+      "isolation_precautions", "equipment", "narrative", "behavioral_health",
+      "sending_facility", "hospital_outcome",
+    ]);
+    if (isPreContact && PRE_CONTACT_LOCKED_CARDS.has(type)) {
+      return (
+        <LockedSectionOverlay reason="Patient contact required — tap Patient Contact in the Times card to unlock this section." />
+      );
+    }
     // Single source of truth: derive requiredFields from pcr-field-requirements.ts
     // based on the trip's transport type AND payer (Medicare/Medicaid add fields).
     const tripTypeForReq = trip.trip_type || trip.pcr_type || "";
