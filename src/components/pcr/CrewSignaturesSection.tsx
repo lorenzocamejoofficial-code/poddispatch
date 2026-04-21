@@ -351,6 +351,148 @@ export function CrewSignaturesSection({ trip, updateField }: Props) {
   const allSigned = assignedCrew.length > 0 && assignedCrew.every(m => hasSigned(m.id));
   const missingCount = assignedCrew.filter(m => !hasSigned(m.id)).length;
 
+  // ── Phase 2 — handoff transition. Runs once after the last required signature lands
+  // for the active crew during a handoff.
+  const transitionRef = useRef(false);
+  useEffect(() => {
+    if (transitionRef.current) return;
+    if (!handoffStatus || !trip?.id) return;
+    if (assignedCrew.length === 0) return;
+    if (!allSigned) return;
+
+    const patientName = trip?.patient
+      ? `${trip.patient.first_name} ${trip.patient.last_name}`
+      : "patient";
+
+    const runTransition = async () => {
+      transitionRef.current = true;
+      try {
+        if (handoffStatus === "pending_original_crew_signature") {
+          // Snapshot the existing crew signatures
+          const snapshot = (trip.signatures_json || []).filter(
+            (s: any) => s.type === "Crew Signature"
+          );
+
+          const { error: updErr } = await supabase
+            .from("trip_records")
+            .update({
+              handoff_status: "pending_new_crew_acceptance",
+              pre_handoff_signatures_snapshot: snapshot as any,
+              updated_at: new Date().toISOString(),
+            } as any)
+            .eq("id", trip.id);
+          if (updErr) throw updErr;
+
+          // Notify dispatcher(s) of the company
+          if (trip.company_id) {
+            const { data: dispatchers } = await supabase
+              .from("company_memberships")
+              .select("user_id")
+              .eq("company_id", trip.company_id)
+              .in("role", ["dispatcher", "owner"] as any);
+            for (const d of dispatchers ?? []) {
+              await supabase.from("notifications").insert({
+                user_id: d.user_id,
+                message: `Original crew has signed for ${patientName} — new crew can now proceed with the run.`,
+                notification_type: "schedule_change",
+                related_run_id: trip.id,
+                acknowledged: false,
+              } as any);
+            }
+          }
+
+          // Notify each member of the target crew
+          if (targetCrewId) {
+            const { data: targetCrewRow } = await supabase
+              .from("crews")
+              .select("member1:profiles!crews_member1_id_fkey(user_id), member2:profiles!crews_member2_id_fkey(user_id), member3:profiles!crews_member3_id_fkey(user_id)")
+              .eq("id", targetCrewId)
+              .maybeSingle();
+            const targetUserIds: string[] = [];
+            for (const key of ["member1", "member2", "member3"] as const) {
+              const m = (targetCrewRow as any)?.[key];
+              if (m?.user_id) targetUserIds.push(m.user_id);
+            }
+            for (const uid of targetUserIds) {
+              await supabase.from("notifications").insert({
+                user_id: uid,
+                message: "You have a new run assigned. Open the PCR to sign and begin documentation.",
+                notification_type: "crew_handoff",
+                related_run_id: trip.id,
+                acknowledged: false,
+              } as any);
+            }
+          }
+
+          await logAuditEvent({
+            action: "crew_handoff_original_signed",
+            tableName: "trip_records",
+            recordId: trip.id,
+            notes: `Original crew completed signatures for ${patientName}; awaiting new crew acceptance.`,
+          });
+        } else if (handoffStatus === "pending_new_crew_acceptance") {
+          const nowIso = new Date().toISOString();
+          const newTruckId = targetTruckId;
+          const newCrewId = targetCrewId;
+
+          const { error: updErr } = await supabase
+            .from("trip_records")
+            .update({
+              handoff_status: "accepted",
+              handoff_accepted_at: nowIso,
+              truck_id: newTruckId,
+              crew_id: newCrewId,
+              updated_at: nowIso,
+            } as any)
+            .eq("id", trip.id);
+          if (updErr) throw updErr;
+
+          // Move the slot to the new truck
+          if (trip.leg_id && trip.run_date && newTruckId) {
+            await supabase
+              .from("truck_run_slots")
+              .update({ truck_id: newTruckId } as any)
+              .eq("leg_id", trip.leg_id)
+              .eq("run_date", trip.run_date);
+          }
+
+          // Notify dispatcher(s)
+          if (trip.company_id) {
+            const { data: dispatchers } = await supabase
+              .from("company_memberships")
+              .select("user_id")
+              .eq("company_id", trip.company_id)
+              .in("role", ["dispatcher", "owner"] as any);
+            for (const d of dispatchers ?? []) {
+              await supabase.from("notifications").insert({
+                user_id: d.user_id,
+                message: `Handoff complete — ${patientName} is now with the new crew.`,
+                notification_type: "schedule_change",
+                related_run_id: trip.id,
+                acknowledged: false,
+              } as any);
+            }
+          }
+
+          await logAuditEvent({
+            action: "crew_handoff_accepted",
+            tableName: "trip_records",
+            recordId: trip.id,
+            notes: `New crew accepted handoff for ${patientName}.`,
+          });
+
+          toast({ title: "Handoff accepted — you can now complete the PCR" });
+        }
+      } catch (err: any) {
+        transitionRef.current = false;
+        console.error("Handoff transition failed:", err);
+        toast({ title: "Handoff transition failed", description: err.message, variant: "destructive" });
+      }
+    };
+
+    runTransition();
+  }, [allSigned, handoffStatus, assignedCrew.length, trip?.id, trip?.leg_id, trip?.run_date, trip?.company_id, targetCrewId, targetTruckId]);
+
   // Find the current user's crew member record
   const currentUserMember = assignedCrew.find(m => m.userId === user?.id);
   const currentUserHasSigned = currentUserMember ? hasSigned(currentUserMember.id) : true;
