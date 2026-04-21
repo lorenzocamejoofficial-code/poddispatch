@@ -1006,6 +1006,18 @@ export default function PCRPage() {
     if (rule.state === "locked") {
       return <LockedSectionOverlay reason={rule.lockedReason} />;
     }
+    // Phase 2 — Handoff locks override transport/pre-contact gating.
+    // pending_original_signature (original crew member): every card except
+    // signatures is locked so the crew can finalize signatures only.
+    if (handoffOriginalSignMode && type !== "signatures") {
+      return <LockedSectionOverlay reason="This run has been reassigned — sign below to complete handoff." />;
+    }
+    // pending_new_crew_acceptance (target crew member): all prior documentation
+    // is read-only locked, including signatures (the section itself shows a
+    // separate prior-crew block + new-crew sign UI when handoffNewCrewAcceptMode).
+    if (handoffNewCrewAcceptMode && type !== "signatures") {
+      return <LockedSectionOverlay reason="Prior crew documentation — locked. Sign below to accept this run." />;
+    }
     // Fix 4 — Pre-contact lock: until patient_contact_time is recorded, clinical sections are locked.
     // Always-accessible cards: times, patient_info, billing, signatures.
     const PRE_CONTACT_LOCKED_CARDS: Set<string> = new Set([
