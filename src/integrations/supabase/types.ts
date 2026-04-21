@@ -3399,6 +3399,9 @@ export type Database = {
           expected_revenue: number | null
           fall_risk: boolean | null
           general_weakness: boolean | null
+          handoff_accepted_at: string | null
+          handoff_initiated_at: string | null
+          handoff_status: string | null
           hcpcs_codes: string[] | null
           hcpcs_modifiers: string[] | null
           heart_rate: number | null
@@ -3431,6 +3434,7 @@ export type Database = {
           odometer_at_scene: number | null
           odometer_in_service: number | null
           origin_type: string | null
+          original_crew_id: string | null
           original_trip_id: string | null
           oxygen_during_transport: boolean | null
           oxygen_required: boolean | null
@@ -3449,6 +3453,7 @@ export type Database = {
           pcs_attached: boolean | null
           physical_exam_json: Json | null
           pickup_location: string | null
+          pre_handoff_signatures_snapshot: Json | null
           primary_impression: string | null
           primary_payer: string | null
           procedures_json: Json | null
@@ -3567,6 +3572,9 @@ export type Database = {
           expected_revenue?: number | null
           fall_risk?: boolean | null
           general_weakness?: boolean | null
+          handoff_accepted_at?: string | null
+          handoff_initiated_at?: string | null
+          handoff_status?: string | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
           heart_rate?: number | null
@@ -3599,6 +3607,7 @@ export type Database = {
           odometer_at_scene?: number | null
           odometer_in_service?: number | null
           origin_type?: string | null
+          original_crew_id?: string | null
           original_trip_id?: string | null
           oxygen_during_transport?: boolean | null
           oxygen_required?: boolean | null
@@ -3617,6 +3626,7 @@ export type Database = {
           pcs_attached?: boolean | null
           physical_exam_json?: Json | null
           pickup_location?: string | null
+          pre_handoff_signatures_snapshot?: Json | null
           primary_impression?: string | null
           primary_payer?: string | null
           procedures_json?: Json | null
@@ -3735,6 +3745,9 @@ export type Database = {
           expected_revenue?: number | null
           fall_risk?: boolean | null
           general_weakness?: boolean | null
+          handoff_accepted_at?: string | null
+          handoff_initiated_at?: string | null
+          handoff_status?: string | null
           hcpcs_codes?: string[] | null
           hcpcs_modifiers?: string[] | null
           heart_rate?: number | null
@@ -3767,6 +3780,7 @@ export type Database = {
           odometer_at_scene?: number | null
           odometer_in_service?: number | null
           origin_type?: string | null
+          original_crew_id?: string | null
           original_trip_id?: string | null
           oxygen_during_transport?: boolean | null
           oxygen_required?: boolean | null
@@ -3785,6 +3799,7 @@ export type Database = {
           pcs_attached?: boolean | null
           physical_exam_json?: Json | null
           pickup_location?: string | null
+          pre_handoff_signatures_snapshot?: Json | null
           primary_impression?: string | null
           primary_payer?: string | null
           procedures_json?: Json | null
@@ -3855,6 +3870,13 @@ export type Database = {
             columns: ["leg_id"]
             isOneToOne: false
             referencedRelation: "scheduling_legs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_records_original_crew_id_fkey"
+            columns: ["original_crew_id"]
+            isOneToOne: false
+            referencedRelation: "crews"
             referencedColumns: ["id"]
           },
           {

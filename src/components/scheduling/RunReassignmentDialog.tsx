@@ -165,6 +165,40 @@ export function RunReassignmentDialog({
         .eq("leg_id", leg.id)
         .eq("run_date", selectedDate);
 
+      // 3b. Resolve the crew row for the target truck on this date and update trip_records.crew_id.
+      // If no crew is assigned to the target truck on this date, leave crew_id null and audit it.
+      const { data: targetCrewRow } = await supabase
+        .from("crews")
+        .select("id")
+        .eq("truck_id", targetTruckId)
+        .eq("active_date", selectedDate)
+        .limit(1)
+        .maybeSingle();
+
+      if (targetCrewRow?.id) {
+        await supabase
+          .from("trip_records")
+          .update({ crew_id: targetCrewRow.id, updated_at: new Date().toISOString() } as any)
+          .eq("leg_id", leg.id)
+          .eq("run_date", selectedDate);
+      } else {
+        await supabase
+          .from("trip_records")
+          .update({ crew_id: null, updated_at: new Date().toISOString() } as any)
+          .eq("leg_id", leg.id)
+          .eq("run_date", selectedDate);
+        // Audit: reassigned to a truck with no crew assigned today
+        await supabase.from("audit_logs").insert({
+          action: "run_reassigned_no_crew",
+          actor_user_id: user?.id,
+          actor_email: user?.email,
+          table_name: "trip_records",
+          record_id: leg.id,
+          notes: `Run reassigned to ${targetTruckName} but no crew is assigned to that truck on ${selectedDate}. trip_records.crew_id set to null.`,
+          new_data: { target_truck_id: targetTruckId, run_date: selectedDate },
+        } as any);
+      }
+
       // 4. Update pickup time if changed
       const timeChanged = pickupTime !== (leg.pickup_time ?? "");
       if (timeChanged && pickupTime) {

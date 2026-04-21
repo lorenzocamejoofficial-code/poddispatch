@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildTimestampForRunDate } from "@/lib/pcr-time";
 
@@ -84,10 +84,25 @@ export interface PCRTripData {
 // Per-field debounce map — prevents editing one field from canceling a pending save for another
 const fieldSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-export function usePCRData(tripId: string | null) {
+export interface PCRTruckOrCrewChange {
+  newTruckId: string | null;
+  newCrewId: string | null;
+  oldTruckId: string | null;
+  oldCrewId: string | null;
+}
+
+export function usePCRData(
+  tripId: string | null,
+  onTruckOrCrewChanged: ((change: PCRTruckOrCrewChange) => void) | undefined = undefined,
+) {
   const [trip, setTrip] = useState<PCRTripData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const tripRef = useRef<PCRTripData | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const onChangeRef = useRef(onTruckOrCrewChanged);
+  useEffect(() => { onChangeRef.current = onTruckOrCrewChanged; }, [onTruckOrCrewChanged]);
+  useEffect(() => { tripRef.current = trip; }, [trip]);
 
   const fetchTrip = useCallback(async () => {
     if (!tripId) { setLoading(false); return; }
@@ -195,6 +210,42 @@ export function usePCRData(tripId: string | null) {
   }, [tripId]);
 
   useEffect(() => { fetchTrip(); }, [fetchTrip]);
+
+  // Realtime subscription on trip_records UPDATE for this tripId.
+  // When truck_id or crew_id changes, notify caller via onTruckOrCrewChanged.
+  // For any update, refresh local state from the payload's new row.
+  useEffect(() => {
+    if (!tripId) return;
+    const channel = supabase
+      .channel(`pcr-trip-${tripId}`)
+      .on(
+        "postgres_changes" as any,
+        { event: "UPDATE", schema: "public", table: "trip_records", filter: `id=eq.${tripId}` },
+        (payload: any) => {
+          const newRow = payload?.new ?? {};
+          const current = tripRef.current;
+          const oldTruckId = current?.truck_id ?? null;
+          const oldCrewId = current?.crew_id ?? null;
+          const newTruckId = newRow.truck_id ?? null;
+          const newCrewId = newRow.crew_id ?? null;
+
+          // Merge incoming fields into local state so UI (e.g. patient_contact_time) reacts immediately.
+          if (current) {
+            setTrip({ ...current, ...newRow } as PCRTripData);
+          }
+
+          if (oldTruckId !== newTruckId || oldCrewId !== newCrewId) {
+            onChangeRef.current?.({ newTruckId, newCrewId, oldTruckId, oldCrewId });
+          }
+        }
+      )
+      .subscribe();
+    channelRef.current = channel;
+    return () => {
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
+  }, [tripId]);
 
   const updateField = useCallback(async (field: string, value: any) => {
     if (!tripId || !trip) return;
