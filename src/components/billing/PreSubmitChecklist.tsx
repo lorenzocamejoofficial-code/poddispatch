@@ -8,6 +8,16 @@ import { toast } from "sonner";
 import { computeClaimScore, getScoreBgClass, type ClaimScoreResult } from "@/lib/claim-score";
 import { BillerPcsPanel } from "@/components/billing/BillerPcsPanel";
 import { normalizeTransportKey } from "@/lib/pcr-field-requirements";
+
+// Local helper mirroring pcr-field-requirements.hasValue — used by the
+// Audit Fix 2 + 3 checks below to keep the billing gate aligned with the
+// visual indicators.
+function hasValue(v: any): boolean {
+  if (v === null || v === undefined || v === "") return false;
+  if (typeof v === "string") return v.trim().length > 0;
+  if (Array.isArray(v)) return v.length > 0;
+  return true;
+}
 interface ChecklistItem {
   label: string;
   passed: boolean;
@@ -368,6 +378,16 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
             label: "Authorizing facility recorded",
             passed: !!(t.bh_authorizing_facility && String(t.bh_authorizing_facility).trim()),
             detail: t.bh_authorizing_facility ? String(t.bh_authorizing_facility) : "Authorizing facility name is required for involuntary transport.",
+          });
+          // Audit Fix 3/7 — also require the authorizing physician name on
+          // involuntary psych transports. Mirrors BEHAVIORAL_HEALTH_INVOLUNTARY_FIELDS
+          // in pcr-field-requirements.ts.
+          checks.push({
+            label: "Authorizing physician name (involuntary transport)",
+            passed: !!(t.bh_authorizing_physician_name && String(t.bh_authorizing_physician_name).trim()),
+            detail: t.bh_authorizing_physician_name
+              ? String(t.bh_authorizing_physician_name)
+              : "Authorizing physician name required for involuntary transport.",
           });
         }
         if (t.restraints_applied === true) {
