@@ -875,6 +875,11 @@ export default function PCRPage() {
   const transportKey = getPCRTransportKey(trip.trip_type || trip.pcr_type);
   const cards = PCR_CARDS_BY_TRANSPORT[transportKey] || PCR_CARDS_BY_TRANSPORT.dialysis;
 
+  // Fix 4 — Pre-contact lock: clinical cards are locked until patient_contact_time is recorded.
+  // Realtime updates from usePCRData merge incoming row fields into trip state, so this flips
+  // automatically when the timestamp is written without a page refresh.
+  const isPreContact = trip.patient_contact_time == null;
+
   // Helper to get card rule — handles combined stretcher_mobility card
   const getEffectiveCardRule = (cardType: string) => {
     if (cardType === "stretcher_mobility") {
