@@ -92,6 +92,7 @@ interface NotificationRow {
   notification_type: string | null;
   created_at: string;
   acknowledged: boolean;
+  related_run_id: string | null;
 }
 
 function HoldConfirmButton({ icon, label, confirmLabel, loading, onConfirm, buttonLabel, colorClass }: {
@@ -368,6 +369,7 @@ export default function CrewDashboard() {
       setNotifications((notifData ?? []).map((n: any) => ({
         id: n.id, message: n.message, notification_type: n.notification_type ?? "general",
         created_at: n.created_at, acknowledged: n.acknowledged,
+        related_run_id: n.related_run_id ?? null,
       })));
     }
 
@@ -737,6 +739,44 @@ export default function CrewDashboard() {
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Your Runs · {runs.length}
         </p>
+
+        {/* Phase 2 — Crew handoff banner. Shows the most recent unacknowledged
+            crew_handoff notification with an Open PCR action. */}
+        {(() => {
+          const handoffNotifs = notifications
+            .filter(n => n.notification_type === "crew_handoff" && !n.acknowledged)
+            .sort((a, b) => b.created_at.localeCompare(a.created_at));
+          const latest = handoffNotifs[0];
+          if (!latest) return null;
+          return (
+            <div className="rounded-lg border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700 p-3 flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                  New run handoff
+                </p>
+                <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5 whitespace-pre-line">
+                  {latest.message}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white"
+                disabled={!latest.related_run_id}
+                onClick={async () => {
+                  const tripId = latest.related_run_id;
+                  await supabase.from("notifications").update({
+                    acknowledged: true,
+                    acknowledged_at: new Date().toISOString(),
+                  } as any).eq("id", latest.id);
+                  setNotifications(prev => prev.filter(n => n.id !== latest.id));
+                  if (tripId) navigate(`/pcr?tripId=${tripId}`);
+                }}
+              >
+                Open PCR
+              </Button>
+            </div>
+          );
+        })()}
 
         {runs.length === 0 ? (
           <p className="py-10 text-center text-muted-foreground">No runs assigned.</p>
