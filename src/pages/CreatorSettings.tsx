@@ -25,19 +25,57 @@ export default function CreatorSettings() {
   const [cacValue, setCacValue] = useState("");
   const [savingCac, setSavingCac] = useState(false);
 
+  const [emailOnSignup, setEmailOnSignup] = useState(false);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [savingFlag, setSavingFlag] = useState<string | null>(null);
+
   const selectedResetCompany = companies.find((c) => c.id === resetCompanyId);
   const resetNameMatch = selectedResetCompany && resetConfirmName === selectedResetCompany.name;
 
   useEffect(() => {
     supabase
       .from("creator_settings")
-      .select("value")
-      .eq("key", "cac_per_customer")
-      .maybeSingle()
+      .select("key,value")
+      .in("key", ["cac_per_customer", "email_on_new_signup", "maintenance_mode"])
       .then(({ data }) => {
-        if (data?.value) setCacValue(data.value);
+        for (const row of data ?? []) {
+          if (row.key === "cac_per_customer" && row.value) setCacValue(row.value);
+          if (row.key === "email_on_new_signup") setEmailOnSignup(row.value === "true");
+          if (row.key === "maintenance_mode") setMaintenanceMode(row.value === "true");
+        }
       });
   }, []);
+
+  const upsertFlag = async (key: string, value: boolean) => {
+    setSavingFlag(key);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from("creator_settings")
+      .upsert(
+        { key, value: value ? "true" : "false", updated_at: new Date().toISOString(), updated_by: user?.id ?? null },
+        { onConflict: "key" }
+      );
+    setSavingFlag(null);
+    if (error) {
+      toast.error(`Failed to save ${key}: ${error.message}`);
+      return false;
+    }
+    return true;
+  };
+
+  const handleEmailOnSignupToggle = async (v: boolean) => {
+    setEmailOnSignup(v);
+    const ok = await upsertFlag("email_on_new_signup", v);
+    if (ok) toast.success(v ? "Signup notifications enabled." : "Signup notifications disabled.");
+    else setEmailOnSignup(!v);
+  };
+
+  const handleMaintenanceToggle = async (v: boolean) => {
+    setMaintenanceMode(v);
+    const ok = await upsertFlag("maintenance_mode", v);
+    if (ok) toast.success(v ? "Maintenance mode ENABLED — non-creators are now blocked." : "Maintenance mode disabled.");
+    else setMaintenanceMode(!v);
+  };
 
   const handleSaveCac = async () => {
     setSavingCac(true);
@@ -233,12 +271,9 @@ export default function CreatorSettings() {
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-sm">Email on New Signup</Label>
-                <p className="text-xs text-muted-foreground">Receive email when a new company signs up</p>
+                <p className="text-xs text-muted-foreground">Send a notification to creator accounts when a new company signs up</p>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-[10px]">Coming Soon</Badge>
-                <Switch checked={false} disabled />
-              </div>
+              <Switch checked={emailOnSignup} onCheckedChange={handleEmailOnSignupToggle} disabled={savingFlag === "email_on_new_signup"} />
             </div>
           </CardContent>
         </Card>
@@ -263,10 +298,7 @@ export default function CreatorSettings() {
                 <Label className="text-sm">Maintenance Mode</Label>
                 <p className="text-xs text-muted-foreground">Temporarily disable access for all non-creator users</p>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-[10px]">Coming Soon</Badge>
-                <Switch checked={false} disabled />
-              </div>
+              <Switch checked={maintenanceMode} onCheckedChange={handleMaintenanceToggle} disabled={savingFlag === "maintenance_mode"} />
             </div>
           </CardContent>
         </Card>

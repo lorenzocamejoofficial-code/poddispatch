@@ -36,9 +36,16 @@ export function SaaSMetricsTab() {
   const loadMetrics = async () => {
     setLoading(true);
     try {
-      const [{ data: subs }, { data: cacSetting }] = await Promise.all([
+      const monthStartIso = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const [{ data: subs }, { data: cacSetting }, { data: reactivations }] = await Promise.all([
         supabase.from("subscription_records").select("*"),
         supabase.from("creator_settings").select("value").eq("key", "cac_per_customer").maybeSingle(),
+        supabase
+          .from("subscription_status_history")
+          .select("company_id, old_status, new_status, monthly_amount_cents, changed_at")
+          .in("old_status", ["trial_expired", "suspended", "expired"])
+          .eq("new_status", "active")
+          .gte("changed_at", monthStartIso),
       ]);
 
       const records = subs ?? [];
@@ -97,9 +104,15 @@ export function SaaSMetricsTab() {
 
       const churnMrr = churned.reduce((sum, r) => sum + (((r as any).monthly_amount_cents ?? 59900) / 100), 0);
 
-      // Reactivation: companies that went from expired back to active this month
-      // Approximate: active companies updated this month that aren't "new"
-      const reactivationMrr = 0; // Placeholder — needs status history tracking
+      // Reactivation MRR: companies whose subscription went from expired/suspended back to active this calendar month.
+      // Sourced from subscription_status_history. De-dupe per company (one reactivation per company per month).
+      const seenCompanies = new Set<string>();
+      let reactivationMrr = 0;
+      for (const row of reactivations ?? []) {
+        if (!row.company_id || seenCompanies.has(row.company_id)) continue;
+        seenCompanies.add(row.company_id);
+        reactivationMrr += (row.monthly_amount_cents ?? 59900) / 100;
+      }
 
       const netMrrChange = newBizMrr - churnMrr + reactivationMrr;
 
@@ -215,7 +228,7 @@ export function SaaSMetricsTab() {
               <MrrRow icon={ArrowUpRight} label="Expansion MRR" value={0} color="text-muted-foreground" note="Requires multiple pricing tiers" />
               <MrrRow icon={ArrowDownRight} label="Contraction MRR" value={0} color="text-muted-foreground" note="Requires multiple pricing tiers" />
               <MrrRow icon={ArrowDownRight} label="Churn MRR" value={-data.churnMrr} color={data.churnMrr > 0 ? "text-destructive" : "text-muted-foreground"} />
-              <MrrRow icon={RefreshCw} label="Reactivation MRR" value={data.reactivationMrr} color="text-muted-foreground" note="Requires status history tracking" />
+              <MrrRow icon={RefreshCw} label="Reactivation MRR" value={data.reactivationMrr} color={data.reactivationMrr > 0 ? "text-emerald-500" : "text-muted-foreground"} />
               <tr className="border-t-2">
                 <td className="py-3 font-semibold text-foreground" colSpan={2}>Net MRR Change</td>
                 <td className={`py-3 text-right font-bold text-lg ${data.netMrrChange >= 0 ? "text-emerald-500" : "text-destructive"}`}>
