@@ -1205,6 +1205,23 @@ export default function PCRPage() {
   const completedRequired = requiredCards.filter(c => isCardComplete(c)).length;
   const totalRequired = requiredCards.length;
 
+  // Phase 2 — Full-page block when handoff is pending and current user is NOT
+  // on the original crew (and not the target crew yet either).
+  if (handoffWaitingForOriginal && !isTargetCrewMember) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center space-y-3">
+          <Lock className="h-10 w-10 text-muted-foreground" />
+          <h3 className="text-lg font-bold text-foreground">Waiting for Original Crew</h3>
+          <p className="text-sm text-muted-foreground max-w-md">
+            Waiting for original crew to complete handoff signatures.
+          </p>
+          <Button variant="outline" onClick={() => navigate("/crew-dashboard")}>Back to Dashboard</Button>
+        </div>
+      </Layout>
+    );
+  }
+
   // Field-level completion tracking
   const fieldCompletion = evaluatePCRFieldCompletion(trip);
   const timeWarningCount = getTimeSequenceWarnings(trip).size;
