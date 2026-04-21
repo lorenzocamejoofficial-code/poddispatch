@@ -309,14 +309,25 @@ export function CrewSignaturesSection({ trip, updateField }: Props) {
   const { user } = useAuth();
   const [assignedCrew, setAssignedCrew] = useState<CrewMember[]>([]);
   const [partnerModalMember, setPartnerModalMember] = useState<CrewMember | null>(null);
+  // Phase 2 — Handoff context. When a handoff is in flight, this section drives
+  // signatures for the original_crew_id (pending_original_crew_signature) or
+  // the handoff_target_crew_id (pending_new_crew_acceptance) instead of trip.crew_id.
+  const handoffStatus: string | null = (trip as any)?.handoff_status ?? null;
+  const originalCrewId: string | null = (trip as any)?.original_crew_id ?? null;
+  const targetCrewId: string | null = (trip as any)?.handoff_target_crew_id ?? null;
+  const targetTruckId: string | null = (trip as any)?.handoff_target_truck_id ?? null;
+  const activeCrewId: string | null =
+    handoffStatus === "pending_original_crew_signature" ? originalCrewId :
+    handoffStatus === "pending_new_crew_acceptance" ? targetCrewId :
+    (trip?.crew_id ?? null);
 
   useEffect(() => {
-    if (!trip?.crew_id) return;
+    if (!activeCrewId) return;
     (async () => {
       const { data: crew } = await supabase
         .from("crews")
         .select("member1:profiles!crews_member1_id_fkey(id, full_name, cert_level, user_id), member2:profiles!crews_member2_id_fkey(id, full_name, cert_level, user_id), member3:profiles!crews_member3_id_fkey(id, full_name, cert_level, user_id)")
-        .eq("id", trip.crew_id)
+        .eq("id", activeCrewId)
         .maybeSingle();
       if (!crew) return;
       const members: CrewMember[] = [];
@@ -326,7 +337,7 @@ export function CrewSignaturesSection({ trip, updateField }: Props) {
       }
       setAssignedCrew(members);
     })();
-  }, [trip?.crew_id]);
+  }, [activeCrewId]);
 
   const existingCrewSigs: CrewSignature[] = (trip.signatures_json || []).filter(
     (s: any) => s.type === "Crew Signature"
