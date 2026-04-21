@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildTimestampForRunDate } from "@/lib/pcr-time";
+import { toast } from "sonner";
 
 export interface PCRTripData {
   id: string;
@@ -94,14 +95,19 @@ export interface PCRTruckOrCrewChange {
 export function usePCRData(
   tripId: string | null,
   onTruckOrCrewChanged: ((change: PCRTruckOrCrewChange) => void) | undefined = undefined,
+  onRunCancelled: (() => void) | undefined = undefined,
 ) {
   const [trip, setTrip] = useState<PCRTripData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [accessDeniedByRLS, setAccessDeniedByRLS] = useState(false);
   const tripRef = useRef<PCRTripData | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const onChangeRef = useRef(onTruckOrCrewChanged);
+  const onCancelledRef = useRef(onRunCancelled);
+  const isAccessRevokedRef = useRef(false);
   useEffect(() => { onChangeRef.current = onTruckOrCrewChanged; }, [onTruckOrCrewChanged]);
+  useEffect(() => { onCancelledRef.current = onRunCancelled; }, [onRunCancelled]);
   useEffect(() => { tripRef.current = trip; }, [trip]);
 
   const fetchTrip = useCallback(async () => {
@@ -119,6 +125,7 @@ export function usePCRData(
     }
 
     if (data) {
+      setAccessDeniedByRLS(false);
       // Fetch leg data for leg_type, chair_time, and one-off patient info
       let leg_type: string | null = null;
       let chair_time: string | null = null;
@@ -205,6 +212,22 @@ export function usePCRData(
         chair_time,
         patient,
       } as PCRTripData);
+    } else {
+      // Distinguish RLS denial from genuine not-found by probing audit_logs.
+      // If an audit row exists for this trip id, the row exists in the DB but RLS
+      // is hiding it from the current user.
+      try {
+        const { data: auditRow } = await supabase
+          .from("audit_logs")
+          .select("id")
+          .eq("record_id", tripId)
+          .limit(1)
+          .maybeSingle();
+        setAccessDeniedByRLS(!!auditRow);
+      } catch (e) {
+        console.error("RLS access probe failed:", e);
+        setAccessDeniedByRLS(false);
+      }
     }
     setLoading(false);
   }, [tripId]);
@@ -228,15 +251,30 @@ export function usePCRData(
           const oldCrewId = current?.crew_id ?? null;
           const newTruckId = newRow.truck_id ?? null;
           const newCrewId = newRow.crew_id ?? null;
+          const oldStatus = current?.status ?? null;
+          const newStatus = newRow.status ?? null;
 
           // Merge incoming fields into local state so UI (e.g. patient_contact_time) reacts immediately.
           if (current) {
             setTrip({ ...current, ...newRow } as PCRTripData);
           }
 
+          // Phase 3 — fire onRunCancelled when trip status transitions into a cancellation state.
+          const cancelStates = new Set(["cancelled", "pending_cancellation"]);
+          if (newStatus && cancelStates.has(newStatus) && oldStatus !== newStatus) {
+            onCancelledRef.current?.();
+          }
+
           if (oldTruckId !== newTruckId || oldCrewId !== newCrewId) {
             onChangeRef.current?.({ newTruckId, newCrewId, oldTruckId, oldCrewId });
           }
+        }
+      )
+      .on(
+        "postgres_changes" as any,
+        { event: "DELETE", schema: "public", table: "trip_records", filter: `id=eq.${tripId}` },
+        () => {
+          onCancelledRef.current?.();
         }
       )
       .subscribe();
@@ -249,6 +287,10 @@ export function usePCRData(
 
   const updateField = useCallback(async (field: string, value: any) => {
     if (!tripId || !trip) return;
+    if (isAccessRevokedRef.current) {
+      toast.error("Your access to this PCR has been revoked — changes cannot be saved");
+      return;
+    }
 
     // Optimistic local update
     setTrip(prev => prev ? { ...prev, [field]: value } : prev);
@@ -308,6 +350,10 @@ export function usePCRData(
   // Idempotency guard: if field already has a value, do not overwrite (prevents double-taps)
   const recordTime = useCallback(async (timeField: string, statusUpdate?: string) => {
     if (!tripId) return;
+    if (isAccessRevokedRef.current) {
+      toast.error("Your access to this PCR has been revoked — changes cannot be saved");
+      return;
+    }
     // Idempotency: if the field already has a value, skip
     if (trip && (trip as any)[timeField] != null) return;
     const now = buildTimestampForRunDate(trip?.run_date);
@@ -331,5 +377,9 @@ export function usePCRData(
     if (error) console.error("Time record error:", error);
   }, [tripId, trip]);
 
-  return { trip, loading, saving, updateField, updateMultipleFields, recordTime, refetch: fetchTrip };
+  const markAccessRevoked = useCallback(() => {
+    isAccessRevokedRef.current = true;
+  }, []);
+
+  return { trip, loading, saving, accessDeniedByRLS, updateField, updateMultipleFields, recordTime, refetch: fetchTrip, markAccessRevoked };
 }

@@ -663,7 +663,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
 }
 
 export default function PCRPage() {
-  const { profileId } = useAuth();
+  const { profileId, role } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -677,6 +677,7 @@ export default function PCRPage() {
   const handleTruckOrCrewChanged = useCallback(async (change: { newTruckId: string | null; newCrewId: string | null }) => {
     if (!profileId) return;
     if (!change.newCrewId) {
+      markAccessRevokedRef.current?.();
       toast.message("This run has been reassigned and is no longer in your queue.");
       navigate("/crew-dashboard");
       return;
@@ -692,6 +693,7 @@ export default function PCRPage() {
       (crewRow as any).member3_id === profileId
     );
     if (!stillOnCrew) {
+      markAccessRevokedRef.current?.();
       toast.message("This run has been reassigned and is no longer in your queue.");
       navigate("/crew-dashboard");
       return;
@@ -700,9 +702,48 @@ export default function PCRPage() {
     refetchRef.current?.();
   }, [profileId, navigate]);
 
-  const { trip, loading, saving, updateField, updateMultipleFields, recordTime, refetch } = usePCRData(tripId, handleTruckOrCrewChanged);
+  // Phase 3 — Fix three: react to dispatcher cancellation / deletion of this trip.
+  const handleRunCancelled = useCallback(() => {
+    toast.message("This run has been cancelled by dispatch");
+    setTimeout(() => navigate("/crew-dashboard"), 2000);
+  }, [navigate]);
+
+  const { trip, loading, saving, accessDeniedByRLS, updateField, updateMultipleFields, recordTime, refetch, markAccessRevoked } =
+    usePCRData(tripId, handleTruckOrCrewChanged, handleRunCancelled);
   const refetchRef = useRef(refetch);
   useEffect(() => { refetchRef.current = refetch; }, [refetch]);
+  const markAccessRevokedRef = useRef(markAccessRevoked);
+  useEffect(() => { markAccessRevokedRef.current = markAccessRevoked; }, [markAccessRevoked]);
+
+  // Phase 3 — Fix one: explicit crew-side access verification once trip data loads.
+  // For non-crew roles (dispatcher/owner/biller/creator) skip entirely.
+  const [crewAccessDenied, setCrewAccessDenied] = useState(false);
+  const accessCheckedTripRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!trip?.id || !profileId) return;
+    if (role !== "crew") return;
+    if (accessCheckedTripRef.current === trip.id) return;
+    accessCheckedTripRef.current = trip.id;
+    (async () => {
+      const { data: crewRows } = await supabase
+        .from("crews")
+        .select("id, member1_id, member2_id, member3_id")
+        .eq("active_date", trip.run_date)
+        .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`);
+      if (!crewRows || crewRows.length === 0) {
+        setCrewAccessDenied(true);
+        return;
+      }
+      const allowedIds = new Set<string>();
+      if (trip.crew_id) allowedIds.add(trip.crew_id);
+      const origId = (trip as any).original_crew_id;
+      const tgtId = (trip as any).handoff_target_crew_id;
+      if (origId) allowedIds.add(origId);
+      if (tgtId) allowedIds.add(tgtId);
+      const matched = crewRows.some(c => allowedIds.has(c.id));
+      setCrewAccessDenied(!matched);
+    })();
+  }, [trip?.id, trip?.run_date, trip?.crew_id, (trip as any)?.original_crew_id, (trip as any)?.handoff_target_crew_id, profileId, role]);
 
   // Resolve leg type from joined data or sessionStorage fallback
   const activeLegType = trip?.leg_type ?? sessionStorage.getItem("pcr_leg_type") ?? null;
@@ -806,6 +847,30 @@ export default function PCRPage() {
 
   if (loading) {
     return <Layout><div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div></Layout>;
+  }
+
+  // Phase 3 — Fix one + two: access denied (RLS hidden the row, or crew-side verification failed).
+  const showAccessDenied =
+    (!trip && accessDeniedByRLS) ||
+    (!!trip && crewAccessDenied);
+
+  if (showAccessDenied) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[60vh] p-6">
+          <div className="w-full max-w-sm rounded-lg border bg-card p-6 text-center space-y-3 shadow-sm">
+            <div className="mx-auto h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
+              <Lock className="h-6 w-6 text-destructive" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">You are not assigned to this run</p>
+            <p className="text-xs text-muted-foreground">If you believe this is an error, contact your dispatcher.</p>
+            <Button className="w-full mt-2" onClick={() => navigate("/crew-dashboard")}>
+              Back to Dashboard
+            </Button>
+          </div>
+        </div>
+      </Layout>
+    );
   }
 
   if (!trip) {
