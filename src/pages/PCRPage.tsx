@@ -1252,6 +1252,34 @@ export default function PCRPage() {
         {/* Kickback checklist — dynamic resolution tracking */}
         {isKickedBack && <KickbackChecklist trip={trip} />}
 
+        {/* Phase 2 — Handoff banners */}
+        {handoffOriginalSignMode && (
+          <div className="mb-4 rounded-lg border-2 border-amber-400 bg-amber-50 dark:bg-amber-900/20 p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">This run has been reassigned to another crew</p>
+                <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+                  Please sign to confirm your documentation is complete. Your partner must also sign.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        {handoffNewCrewAcceptMode && (
+          <div className="mb-4 rounded-lg border-2 border-amber-400 bg-amber-50 dark:bg-amber-900/20 p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">You have received this run</p>
+                <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+                  Sign below to accept and begin documentation.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Read-only submitted banner */}
         {isReadOnly && (
           <div className="mb-4 rounded-lg border-2 border-emerald-400 bg-emerald-50 dark:bg-emerald-900/10 p-4">
