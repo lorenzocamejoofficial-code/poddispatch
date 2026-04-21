@@ -716,6 +716,30 @@ export default function PCRPage() {
   const [assignedCrewCount, setAssignedCrewCount] = useState(0);
   const [cancelDocOpen, setCancelDocOpen] = useState(false);
 
+  // Phase 2 — Handoff membership: is the current user on the original crew /
+  // the handoff_target_crew? Derived from trip.original_crew_id and
+  // trip.handoff_target_crew_id, refreshed via trip realtime updates.
+  const [isOriginalCrewMember, setIsOriginalCrewMember] = useState(false);
+  const [isTargetCrewMember, setIsTargetCrewMember] = useState(false);
+  useEffect(() => {
+    if (!profileId) { setIsOriginalCrewMember(false); setIsTargetCrewMember(false); return; }
+    (async () => {
+      const ids: string[] = [];
+      const origId = (trip as any)?.original_crew_id ?? null;
+      const tgtId = (trip as any)?.handoff_target_crew_id ?? null;
+      if (origId) ids.push(origId);
+      if (tgtId && tgtId !== origId) ids.push(tgtId);
+      if (ids.length === 0) { setIsOriginalCrewMember(false); setIsTargetCrewMember(false); return; }
+      const { data: rows } = await supabase
+        .from("crews")
+        .select("id, member1_id, member2_id, member3_id")
+        .in("id", ids);
+      const has = (row: any) => row && (row.member1_id === profileId || row.member2_id === profileId || row.member3_id === profileId);
+      setIsOriginalCrewMember(!!(rows ?? []).find(r => r.id === origId && has(r)));
+      setIsTargetCrewMember(!!(rows ?? []).find(r => r.id === tgtId && has(r)));
+    })();
+  }, [profileId, (trip as any)?.original_crew_id, (trip as any)?.handoff_target_crew_id]);
+
   // Wrapper component to choose layout
   const Layout = isQaFixMode ? AdminLayout : CrewLayout;
 
@@ -880,6 +904,25 @@ export default function PCRPage() {
   // automatically when the timestamp is written without a page refresh.
   const isPreContact = trip.patient_contact_time == null;
 
+  // Phase 2 — Handoff state machine.
+  // handoff_status values written by RunReassignmentDialog & CrewSignaturesSection:
+  //   null/empty                   → "clean"
+  //   "pending_original_crew_signature" → "pending_original_signature"
+  //   "pending_new_crew_acceptance"     → "pending_new_crew_acceptance"
+  //   "accepted"                       → "accepted"
+  type HandoffState = "clean" | "pending_original_signature" | "pending_new_crew_acceptance" | "accepted";
+  const handoffStatusRaw: string | null = (trip as any).handoff_status ?? null;
+  const handoffState: HandoffState =
+    handoffStatusRaw === "pending_original_crew_signature" ? "pending_original_signature" :
+    handoffStatusRaw === "pending_new_crew_acceptance" ? "pending_new_crew_acceptance" :
+    handoffStatusRaw === "accepted" ? "accepted" :
+    "clean";
+
+  // Lock-mode flags derived from handoff state + crew membership
+  const handoffOriginalSignMode = handoffState === "pending_original_signature" && isOriginalCrewMember;
+  const handoffWaitingForOriginal = handoffState === "pending_original_signature" && !isOriginalCrewMember;
+  const handoffNewCrewAcceptMode = handoffState === "pending_new_crew_acceptance" && isTargetCrewMember;
+
   // Helper to get card rule — handles combined stretcher_mobility card
   const getEffectiveCardRule = (cardType: string) => {
     if (cardType === "stretcher_mobility") {
@@ -962,6 +1005,18 @@ export default function PCRPage() {
     const rule = getEffectiveCardRule(type);
     if (rule.state === "locked") {
       return <LockedSectionOverlay reason={rule.lockedReason} />;
+    }
+    // Phase 2 — Handoff locks override transport/pre-contact gating.
+    // pending_original_signature (original crew member): every card except
+    // signatures is locked so the crew can finalize signatures only.
+    if (handoffOriginalSignMode && type !== "signatures") {
+      return <LockedSectionOverlay reason="This run has been reassigned — sign below to complete handoff." />;
+    }
+    // pending_new_crew_acceptance (target crew member): all prior documentation
+    // is read-only locked, including signatures (the section itself shows a
+    // separate prior-crew block + new-crew sign UI when handoffNewCrewAcceptMode).
+    if (handoffNewCrewAcceptMode && type !== "signatures") {
+      return <LockedSectionOverlay reason="Prior crew documentation — locked. Sign below to accept this run." />;
     }
     // Fix 4 — Pre-contact lock: until patient_contact_time is recorded, clinical sections are locked.
     // Always-accessible cards: times, patient_info, billing, signatures.
@@ -1150,6 +1205,23 @@ export default function PCRPage() {
   const completedRequired = requiredCards.filter(c => isCardComplete(c)).length;
   const totalRequired = requiredCards.length;
 
+  // Phase 2 — Full-page block when handoff is pending and current user is NOT
+  // on the original crew (and not the target crew yet either).
+  if (handoffWaitingForOriginal && !isTargetCrewMember) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center space-y-3">
+          <Lock className="h-10 w-10 text-muted-foreground" />
+          <h3 className="text-lg font-bold text-foreground">Waiting for Original Crew</h3>
+          <p className="text-sm text-muted-foreground max-w-md">
+            Waiting for original crew to complete handoff signatures.
+          </p>
+          <Button variant="outline" onClick={() => navigate("/crew-dashboard")}>Back to Dashboard</Button>
+        </div>
+      </Layout>
+    );
+  }
+
   // Field-level completion tracking
   const fieldCompletion = evaluatePCRFieldCompletion(trip);
   const timeWarningCount = getTimeSequenceWarnings(trip).size;
@@ -1179,6 +1251,34 @@ export default function PCRPage() {
 
         {/* Kickback checklist — dynamic resolution tracking */}
         {isKickedBack && <KickbackChecklist trip={trip} />}
+
+        {/* Phase 2 — Handoff banners */}
+        {handoffOriginalSignMode && (
+          <div className="mb-4 rounded-lg border-2 border-amber-400 bg-amber-50 dark:bg-amber-900/20 p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">This run has been reassigned to another crew</p>
+                <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+                  Please sign to confirm your documentation is complete. Your partner must also sign.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        {handoffNewCrewAcceptMode && (
+          <div className="mb-4 rounded-lg border-2 border-amber-400 bg-amber-50 dark:bg-amber-900/20 p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">You have received this run</p>
+                <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+                  Sign below to accept and begin documentation.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Read-only submitted banner */}
         {isReadOnly && (
