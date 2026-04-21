@@ -380,7 +380,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     if (run.patientId) {
       const { data: pd } = await supabase
         .from("patients")
-        .select("icd10_codes, default_chief_complaint, default_primary_impression, default_medical_necessity_reason, default_bed_confined, default_cannot_transfer, default_requires_monitoring, default_oxygen_transport, default_bh_authorization_type, default_bh_authorizing_facility, default_bh_authorizing_physician_name, default_bh_authorizing_physician_npi, default_wound_type, default_wound_location, transport_type")
+        .select("icd10_codes, default_chief_complaint, default_primary_impression, default_medical_necessity_reason, default_bed_confined, default_cannot_transfer, default_requires_monitoring, default_oxygen_transport, default_bh_authorization_type, default_bh_authorizing_facility, default_bh_authorizing_physician_name, default_bh_authorizing_physician_npi, default_wound_type, default_wound_location, default_wound_stage, transport_type")
         .eq("id", run.patientId)
         .maybeSingle();
       patientDefaults = pd;
@@ -431,6 +431,10 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       if (tripTypeKey === "wound_care" || tripTypeKey === "outpatient" || tripTypeKey === "outpatient_specialty") {
         if (pd.default_wound_type) insertData.wound_type = pd.default_wound_type;
         if (pd.default_wound_location) insertData.wound_location = pd.default_wound_location;
+        // Audit Fix 1 — copy default_wound_stage as wound_stage when this is a wound-care run.
+        if (tripTypeKey === "wound_care" && pd.default_wound_stage) {
+          insertData.wound_stage = pd.default_wound_stage;
+        }
       }
     }
 
