@@ -4,7 +4,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PenTool, Check, AlertCircle, X, Maximize2 } from "lucide-react";
+import { PenTool, Check, AlertCircle, X, Maximize2, Lock } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 interface CrewMember {
   id: string;
