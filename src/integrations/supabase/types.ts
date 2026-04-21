@@ -2048,6 +2048,7 @@ export type Database = {
           default_primary_impression: string | null
           default_requires_monitoring: boolean | null
           default_wound_location: string | null
+          default_wound_stage: string | null
           default_wound_type: string | null
           dialysis_window_minutes: number
           dob: string | null
@@ -2119,6 +2120,7 @@ export type Database = {
           default_primary_impression?: string | null
           default_requires_monitoring?: boolean | null
           default_wound_location?: string | null
+          default_wound_stage?: string | null
           default_wound_type?: string | null
           dialysis_window_minutes?: number
           dob?: string | null
@@ -2190,6 +2192,7 @@ export type Database = {
           default_primary_impression?: string | null
           default_requires_monitoring?: boolean | null
           default_wound_location?: string | null
+          default_wound_stage?: string | null
           default_wound_type?: string | null
           dialysis_window_minutes?: number
           dob?: string | null
@@ -4507,7 +4510,15 @@ export type Database = {
         | "cancelled"
       schedule_days: "MWF" | "TTS"
       sex_type: "M" | "F"
-      transport_type: "dialysis" | "outpatient" | "adhoc"
+      transport_type:
+        | "dialysis"
+        | "outpatient"
+        | "adhoc"
+        | "wound_care"
+        | "ift"
+        | "discharge"
+        | "private_pay"
+        | "psych_transport"
       trip_status:
         | "scheduled"
         | "assigned"
@@ -4698,7 +4709,16 @@ export const Constants = {
       ],
       schedule_days: ["MWF", "TTS"],
       sex_type: ["M", "F"],
-      transport_type: ["dialysis", "outpatient", "adhoc"],
+      transport_type: [
+        "dialysis",
+        "outpatient",
+        "adhoc",
+        "wound_care",
+        "ift",
+        "discharge",
+        "private_pay",
+        "psych_transport",
+      ],
       trip_status: [
         "scheduled",
         "assigned",
