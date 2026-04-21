@@ -64,6 +64,7 @@ export function PendingCancellationPanel({ cancellations, onResolved }: PendingC
             user_id: profile.user_id,
             message: `Your cancellation for ${c.patientName} has been confirmed`,
             acknowledged: false,
+            notification_type: "cancellation",
           });
         }
       }
@@ -120,6 +121,7 @@ export function PendingCancellationPanel({ cancellations, onResolved }: PendingC
             user_id: profile.user_id,
             message: `Cancellation disputed by dispatch — run is still active: ${note}`,
             acknowledged: false,
+            notification_type: "schedule_change",
           });
         }
       }

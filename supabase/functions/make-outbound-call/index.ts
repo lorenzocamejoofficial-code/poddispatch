@@ -1,5 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
+// Fix 10: This edge function intentionally calls the Twilio REST API directly
+// using HTTP Basic Auth (TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN) rather than
+// going through a connector / gateway abstraction. This is the current intended
+// implementation — keeping the integration explicit makes Twilio errors easier
+// to surface to comms_events and avoids an extra hop. Do not refactor this to
+// a connector pattern without an explicit product decision.
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",

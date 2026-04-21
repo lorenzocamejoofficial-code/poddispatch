@@ -158,6 +158,14 @@ export function usePCRData(
         }
         patient = pData;
       } else if (legRow?.is_oneoff) {
+        // Fix 9: bh_*, wound_*, discharge_*, and sending_facility_* fields for one-off
+        // runs are NOT included in this synthetic patient object. They are read directly
+        // from the trip_records columns that createTripForRun materialized from the
+        // scheduling_legs.oneoff_* fields (e.g. trip_records.bh_authorization_type,
+        // trip_records.wound_type, trip_records.sending_facility_json). This is intentional:
+        // the synthetic patient mirrors only fields the patient panel/PatientInfoCard
+        // needs; clinical/billing fields live on the trip and are surfaced by the cards
+        // that read them directly. Do not add bh_/wound_/discharge_ fields here.
         // Build a synthetic patient object from one-off scheduling leg fields
         const nameParts = (legRow.oneoff_name ?? "").split(" ");
         patient = {

@@ -369,6 +369,10 @@ export function normalizeTransportKey(tripType: string | null | undefined): Tran
   if (t.includes("outpatient") || t.includes("appointment")) return "outpatient";
   if (t.includes("wound")) return "wound_care";
   if (t.includes("private")) return "private_pay";
+  // Fix 6: adhoc patients are collapsed to outpatient trips by useSchedulingStore.
+  // Mirror that mapping here so PCR field requirements/checklists treat adhoc
+  // identically to outpatient instead of falling through to the dialysis default.
+  if (t === "adhoc" || t.includes("adhoc")) return "outpatient";
   return "dialysis";
 }
 
