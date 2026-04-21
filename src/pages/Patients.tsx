@@ -34,6 +34,7 @@ import {
   MEDICAL_NECESSITY_REASONS,
   BH_AUTHORIZATION_TYPES,
   WOUND_TYPES,
+  PRESSURE_ULCER_STAGES,
 } from "@/lib/pcr-dropdowns";
 
 type Patient = Tables<"patients">;
@@ -162,6 +163,7 @@ export default function Patients() {
     // Wound Care defaults (wound_care / outpatient only)
     default_wound_type: "",
     default_wound_location: "",
+    default_wound_stage: "",
   });
 
   const fetchPatients = async () => {
@@ -270,6 +272,7 @@ export default function Patients() {
       default_bh_authorizing_physician_npi: "",
       default_wound_type: "",
       default_wound_location: "",
+      default_wound_stage: "",
     });
     setEditing(null);
     setBLegWarnings([]);
@@ -344,6 +347,7 @@ export default function Patients() {
       default_bh_authorizing_physician_npi: (p as any).default_bh_authorizing_physician_npi ?? "",
       default_wound_type: (p as any).default_wound_type ?? "",
       default_wound_location: (p as any).default_wound_location ?? "",
+      default_wound_stage: (p as any).default_wound_stage ?? "",
     });
     setBLegWarnings([]);
     setDialogOpen(true);
@@ -420,6 +424,7 @@ export default function Patients() {
       default_bh_authorizing_physician_npi: form.default_bh_authorizing_physician_npi || null,
       default_wound_type: form.default_wound_type || null,
       default_wound_location: form.default_wound_location || null,
+      default_wound_stage: form.default_wound_stage || null,
     };
 
     if (!payload.first_name || !payload.last_name) return;
@@ -1153,6 +1158,16 @@ export default function Patients() {
                             <div>
                               <Label>Default Wound Location</Label>
                               <Input value={form.default_wound_location} onChange={(e) => setForm({ ...form, default_wound_location: e.target.value })} placeholder="e.g. left heel, sacrum" />
+                            </div>
+                            <div>
+                              <Label>Default Wound Stage</Label>
+                              <Select value={form.default_wound_stage || "none"} onValueChange={(v) => setForm({ ...form, default_wound_stage: v === "none" ? "" : v })}>
+                                <SelectTrigger><SelectValue placeholder="Select stage" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">— None —</SelectItem>
+                                  {PRESSURE_ULCER_STAGES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
                         )}

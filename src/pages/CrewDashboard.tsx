@@ -28,6 +28,8 @@ const TRANSPORT_LABELS: Record<string, string> = {
   outpatient_specialty: "Outpatient Specialty",
   private_pay: "Private Pay",
   emergency: "Emergency Transport",
+  wound_care: "Wound Care",
+  psych_transport: "Psych Transport",
 };
 
 interface RunCard {
@@ -532,6 +534,7 @@ export default function CrewDashboard() {
               user_id: d.user_id,
               message: `Trip cancellation requested by crew: ${cancelTarget.patientName} — ${cancelReason.trim()}`,
               acknowledged: false,
+              notification_type: "cancellation",
             });
             if (notifErr) {
               console.error("Notification insert failed for user", d.user_id, notifErr);
@@ -664,8 +667,17 @@ export default function CrewDashboard() {
         {notifications.length > 0 && (
           <div className="space-y-2">
             {notifications.map((notif) => {
-              const borderColor = notif.notification_type === "schedule_change"
-                ? "border-l-amber-500"
+              // Fix 8: drive color/border from notification_type instead of fragile
+              // message text matching. Falls back to message text only as a last resort
+              // for legacy notifications that pre-date typed inserts.
+              const t = notif.notification_type ?? "";
+              const borderColor =
+                t === "cancellation" ? "border-l-destructive"
+                : t === "emergency" ? "border-l-destructive"
+                : t === "crew_handoff" ? "border-l-amber-500"
+                : t === "schedule_change" ? "border-l-amber-500"
+                : t === "incident" ? "border-l-orange-500"
+                : t === "ar_escalation" ? "border-l-yellow-500"
                 : notif.message.toLowerCase().includes("cancel")
                 ? "border-l-destructive"
                 : "border-l-primary";
