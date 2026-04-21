@@ -670,7 +670,39 @@ export default function PCRPage() {
   const tripId = searchParams.get("tripId");
   const isQaFixMode = searchParams.get("mode") === "qa-fix";
   const qaReviewId = searchParams.get("qaReviewId");
-  const { trip, loading, saving, updateField, updateMultipleFields, recordTime, refetch } = usePCRData(tripId);
+
+  // Fix 3 — handler called by usePCRData realtime when truck_id or crew_id change on this trip.
+  // If the current user is no longer on the new crew, navigate them to the dashboard.
+  // If they are still on the new crew, silently refresh the PCR data.
+  const handleTruckOrCrewChanged = useCallback(async (change: { newTruckId: string | null; newCrewId: string | null }) => {
+    if (!profileId) return;
+    if (!change.newCrewId) {
+      toast.message("This run has been reassigned and is no longer in your queue.");
+      navigate("/crew-dashboard");
+      return;
+    }
+    const { data: crewRow } = await supabase
+      .from("crews")
+      .select("member1_id, member2_id, member3_id")
+      .eq("id", change.newCrewId)
+      .maybeSingle();
+    const stillOnCrew = !!crewRow && (
+      crewRow.member1_id === profileId ||
+      crewRow.member2_id === profileId ||
+      (crewRow as any).member3_id === profileId
+    );
+    if (!stillOnCrew) {
+      toast.message("This run has been reassigned and is no longer in your queue.");
+      navigate("/crew-dashboard");
+      return;
+    }
+    // Still on crew — silent refresh
+    refetchRef.current?.();
+  }, [profileId, navigate]);
+
+  const { trip, loading, saving, updateField, updateMultipleFields, recordTime, refetch } = usePCRData(tripId, handleTruckOrCrewChanged);
+  const refetchRef = useRef(refetch);
+  useEffect(() => { refetchRef.current = refetch; }, [refetch]);
 
   // Resolve leg type from joined data or sessionStorage fallback
   const activeLegType = trip?.leg_type ?? sessionStorage.getItem("pcr_leg_type") ?? null;
