@@ -12,6 +12,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const RATE_LIMIT_PER_HOUR = 60;
+const FUNCTION_NAME = "make-outbound-call";
+
 interface RequestBody {
   comms_event_id: string;
   to_number: string;
@@ -92,6 +95,68 @@ Deno.serve(async (req) => {
   const fromNumber = (from_number_override && from_number_override.trim().length > 0)
     ? from_number_override.trim()
     : TWILIO_PHONE_NUMBER;
+
+  // ---- Per-company rate limit (60 / hour) ----
+  // company_id isn't on the request body, so resolve it from the comms_events row.
+  let companyId: string | null = null;
+  try {
+    const { data: ev } = await admin
+      .from("comms_events")
+      .select("company_id")
+      .eq("id", comms_event_id)
+      .maybeSingle();
+    companyId = (ev as { company_id?: string } | null)?.company_id ?? null;
+  } catch (err) {
+    console.error("make-outbound-call: failed to load comms_event for rate limit", err);
+  }
+
+  if (companyId) {
+    try {
+      const { data: existing } = await admin
+        .from("edge_function_rate_limits")
+        .select("id, request_count, window_start")
+        .eq("function_name", FUNCTION_NAME)
+        .eq("identifier", companyId)
+        .maybeSingle();
+
+      const nowMs = Date.now();
+      const windowMs = 60 * 60 * 1000;
+      const inWindow = existing && nowMs - new Date(existing.window_start).getTime() < windowMs;
+
+      if (inWindow && existing!.request_count >= RATE_LIMIT_PER_HOUR) {
+        const msg = "Rate limit exceeded";
+        await admin
+          .from("comms_events")
+          .update({ status: "failed", error_message: msg })
+          .eq("id", comms_event_id);
+        return new Response(
+          "Rate limit exceeded — maximum 60 calls per hour",
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "text/plain" } },
+        );
+      }
+
+      if (inWindow) {
+        await admin
+          .from("edge_function_rate_limits")
+          .update({ request_count: existing!.request_count + 1 })
+          .eq("id", existing!.id);
+      } else {
+        await admin
+          .from("edge_function_rate_limits")
+          .upsert(
+            {
+              function_name: FUNCTION_NAME,
+              identifier: companyId,
+              window_start: new Date().toISOString(),
+              request_count: 1,
+            },
+            { onConflict: "function_name,identifier" },
+          );
+      }
+    } catch (err) {
+      console.error("make-outbound-call rate-limit check failed (allowing request):", err);
+    }
+  }
 
   const twiml = buildTwiml(script);
   const statusCallback = `${supabaseUrl}/functions/v1/twilio-call-status-webhook`;
