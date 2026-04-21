@@ -56,6 +56,7 @@ import OwnerDashboard from "./pages/OwnerDashboard";
 import ARCommandCenter from "./pages/ARCommandCenter";
 import CrewInspectionChecklist from "./components/inspection/CrewInspectionChecklist";
 import { useCrewViewEligibility } from "./hooks/useCrewViewEligibility";
+import { MaintenanceGate } from "./components/MaintenanceGate";
 
 /** Wrapper that renders crew routes only if the user is eligible (has cert + assigned today) */
 function CrewRouteGate({ children }: { children: React.ReactNode }) {
@@ -377,7 +378,9 @@ const App = () => (
         <AuthProvider>
           <SimulationSessionProvider>
             <SessionWarningBanner />
-            <AppRoutes />
+            <MaintenanceGate>
+              <AppRoutes />
+            </MaintenanceGate>
           </SimulationSessionProvider>
         </AuthProvider>
       </BrowserRouter>
