@@ -146,6 +146,36 @@ serve(async (req) => {
       details: { company_name: companyName, plan: "standard", npi: npiNumber, state: stateOfOperation, service_area: serviceAreaType },
     });
 
+    // 10. Notify system creators if "email_on_new_signup" is enabled.
+    // No external email infrastructure is configured for this project, so we deliver the
+    // notification as an in-app notification to every system creator account. This matches
+    // the existing notifications-table pattern used elsewhere in the codebase.
+    try {
+      const { data: flag } = await supabaseAdmin
+        .from("creator_settings")
+        .select("value")
+        .eq("key", "email_on_new_signup")
+        .maybeSingle();
+      if (flag?.value === "true") {
+        const { data: creators } = await supabaseAdmin
+          .from("system_creators")
+          .select("user_id");
+        const signupTs = new Date().toISOString();
+        const message = `New company signup: ${companyName.trim()} (${email}) at ${signupTs}`;
+        const rows = (creators ?? []).map((c: { user_id: string }) => ({
+          user_id: c.user_id,
+          notification_type: "new_company_signup",
+          message,
+          acknowledged: false,
+        }));
+        if (rows.length > 0) {
+          await supabaseAdmin.from("notifications").insert(rows);
+        }
+      }
+    } catch (notifyErr) {
+      console.error("Creator signup notification failed:", notifyErr);
+    }
+
     return new Response(
       JSON.stringify({ success: true, companyId, userId, status: "pending_approval" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

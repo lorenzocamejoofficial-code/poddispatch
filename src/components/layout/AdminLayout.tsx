@@ -22,6 +22,7 @@ import {
   FlaskConical,
   AlertTriangle,
   Eye,
+  FileOutput,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,7 @@ const navItems: NavItem[] = [
   { path: "/patients", label: "Patients", icon: Users, roles: ["owner", "dispatcher", "billing"] },
   { path: "/trips", label: "Trips & Clinical", icon: FileText, roles: ["owner", "billing"] },
   { path: "/billing", label: "Billing & Claims", icon: DollarSign, roles: ["owner", "billing"] },
+  { path: "/edi-export", label: "EDI Export", icon: FileOutput, roles: ["owner", "billing"] },
   { path: "/ar-command-center", label: "AR Command Center", icon: ClipboardList, roles: ["owner", "billing"] },
   { path: "/compliance", label: "Compliance & QA", icon: ShieldCheck, roles: ["owner", "billing"] },
   { path: "/facilities", label: "Facilities", icon: Building2, roles: ["owner", "dispatcher", "billing"] },
