@@ -176,6 +176,40 @@ const WOUND_CARE_FIELDS: FieldRequirement[] = [
     check: (t) => hasValue(t.wound_stage) || hasValue(t.wound_size) },
 ];
 
+// ── Emergency BLS-specific fields ──
+
+const AIRWAY_FIELDS: FieldRequirement[] = [
+  { field: "airway_status", label: "Airway Status", section: "airway",
+    check: (t) => hasValue(t.airway_json?.airway_status) },
+  { field: "airway_intervention", label: "Airway Intervention", section: "airway",
+    check: (t) => Array.isArray(t.airway_json?.interventions) && t.airway_json.interventions.length > 0 },
+];
+
+const PROCEDURES_FIELDS: FieldRequirement[] = [
+  { field: "procedures_documented", label: "Procedures Documented", section: "procedures",
+    check: (t) => Array.isArray(t.procedures_json?.performed) && t.procedures_json.performed.length > 0 },
+];
+
+const MEDICATIONS_FIELDS: FieldRequirement[] = [
+  { field: "medications_documented", label: "Medications Documented", section: "medications",
+    check: (t) => {
+      const m = t.medications_json;
+      if (!m) return false;
+      if (m.none_administered === true) return true;
+      return Array.isArray(m.entries) && m.entries.length > 0;
+    }},
+];
+
+const IV_ACCESS_FIELDS: FieldRequirement[] = [
+  { field: "iv_access_documented", label: "IV Access Documented", section: "iv_access",
+    check: (t) => {
+      const iv = t.iv_access_json;
+      if (!iv) return false;
+      if (iv.none_attempted === true) return true;
+      return Array.isArray(iv.entries) && iv.entries.length > 0;
+    }},
+];
+
 // ── Transport type → required fields map ──
 
 export type TransportType =
@@ -292,6 +326,10 @@ const REQUIREMENTS: Record<TransportType, FieldRequirement[]> = {
     ...SIGNATURE_FIELDS,
     ...NARRATIVE_FIELDS,
     ...NECESSITY_FIELDS,
+    ...AIRWAY_FIELDS,
+    ...PROCEDURES_FIELDS,
+    ...MEDICATIONS_FIELDS,
+    ...IV_ACCESS_FIELDS,
   ],
   private_pay: [
     ...TIMES_FIELDS,

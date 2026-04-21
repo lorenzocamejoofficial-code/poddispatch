@@ -22,6 +22,10 @@ import { BillingCard } from "@/components/pcr/BillingCard";
 import { StretcherMobilityCard } from "@/components/pcr/StretcherMobilityCard";
 import { IsolationPrecautionsCard } from "@/components/pcr/IsolationPrecautionsCard";
 import { BehavioralHealthCard } from "@/components/pcr/BehavioralHealthCard";
+import { AirwayCard } from "@/components/pcr/AirwayCard";
+import { ProceduresCard } from "@/components/pcr/ProceduresCard";
+import { MedicationsCard } from "@/components/pcr/MedicationsCard";
+import { IVAccessCard } from "@/components/pcr/IVAccessCard";
 import { LockedSectionOverlay } from "@/components/pcr/LockedSectionOverlay";
 import { CrewSignaturesSection, areAllCrewSigned } from "@/components/pcr/CrewSignaturesSection";
 import { DocumentAttachments } from "@/components/documents/DocumentAttachments";
@@ -1122,7 +1126,19 @@ export default function PCRPage() {
       case "stretcher_mobility": return <StretcherMobilityCard trip={trip} updateField={updateField} requiredFields={required} />;
       case "isolation_precautions": return <IsolationPrecautionsCard trip={trip} updateField={updateField} />;
       case "behavioral_health": return <BehavioralHealthCard trip={trip} updateField={updateField} requiredFields={required} />;
-      default: return <p className="text-sm text-muted-foreground">Coming soon.</p>;
+      case "airway": return <AirwayCard trip={trip} updateField={updateField} requiredFields={required} />;
+      case "procedures": return <ProceduresCard trip={trip} updateField={updateField} requiredFields={required} />;
+      case "medications": return <MedicationsCard trip={trip} updateField={updateField} requiredFields={required} />;
+      case "iv_access": return <IVAccessCard trip={trip} updateField={updateField} requiredFields={required} />;
+      default: return (
+        <div className="m-4 rounded-md border-2 border-orange-500/60 bg-orange-50/40 dark:bg-orange-950/20 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <div className="font-semibold text-orange-700 dark:text-orange-300">Unrecognized PCR section</div>
+            <div className="text-muted-foreground mt-1">This section could not be loaded — contact support if this persists.</div>
+          </div>
+        </div>
+      );
     }
   };
 
