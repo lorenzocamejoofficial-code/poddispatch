@@ -532,8 +532,37 @@ export function CrewSignaturesSection({ trip, updateField }: Props) {
   // Unsigned members that are NOT the current user
   const unsignedPartners = assignedCrew.filter(m => !hasSigned(m.id) && m.userId !== user?.id);
 
+  // Phase 2 — prior crew signatures display, locked, shown above active slots
+  // when the new crew is taking over.
+  const priorSignatures: any[] = handoffStatus === "pending_new_crew_acceptance"
+    ? ((trip as any)?.pre_handoff_signatures_snapshot ?? [])
+    : [];
+
   return (
     <div className={`rounded-lg border-2 p-4 space-y-3 ${allSigned ? "border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/10" : "border-destructive bg-destructive/5"}`}>
+      {priorSignatures.length > 0 && (
+        <div className="rounded-md border bg-muted p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Lock className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-semibold text-foreground">Prior Crew Signatures — Locked</p>
+          </div>
+          <div className="space-y-1.5">
+            {priorSignatures.map((s: any, idx: number) => (
+              <div key={s.id ?? idx} className="flex items-center gap-2 rounded border border-muted-foreground/20 bg-background/40 px-3 py-2">
+                <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-foreground truncate">{s.name ?? "Crew member"}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    {s.role ?? "Crew"}
+                    {s.timestamp ? ` • ${new Date(s.timestamp).toLocaleString()}` : ""}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         {allSigned ? (
           <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
