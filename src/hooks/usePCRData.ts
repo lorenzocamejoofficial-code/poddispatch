@@ -84,10 +84,25 @@ export interface PCRTripData {
 // Per-field debounce map — prevents editing one field from canceling a pending save for another
 const fieldSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-export function usePCRData(tripId: string | null) {
+export interface PCRTruckOrCrewChange {
+  newTruckId: string | null;
+  newCrewId: string | null;
+  oldTruckId: string | null;
+  oldCrewId: string | null;
+}
+
+export function usePCRData(
+  tripId: string | null,
+  onTruckOrCrewChanged: ((change: PCRTruckOrCrewChange) => void) | undefined = undefined,
+) {
   const [trip, setTrip] = useState<PCRTripData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const tripRef = useRef<PCRTripData | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const onChangeRef = useRef(onTruckOrCrewChanged);
+  useEffect(() => { onChangeRef.current = onTruckOrCrewChanged; }, [onTruckOrCrewChanged]);
+  useEffect(() => { tripRef.current = trip; }, [trip]);
 
   const fetchTrip = useCallback(async () => {
     if (!tripId) { setLoading(false); return; }
