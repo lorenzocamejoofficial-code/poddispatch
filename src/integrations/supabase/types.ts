@@ -3127,6 +3127,39 @@ export type Database = {
           },
         ]
       }
+      subscription_status_history: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          company_id: string
+          id: string
+          monthly_amount_cents: number | null
+          new_status: string
+          old_status: string | null
+          subscription_record_id: string | null
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          company_id: string
+          id?: string
+          monthly_amount_cents?: number | null
+          new_status: string
+          old_status?: string | null
+          subscription_record_id?: string | null
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          company_id?: string
+          id?: string
+          monthly_amount_cents?: number | null
+          new_status?: string
+          old_status?: string | null
+          subscription_record_id?: string | null
+        }
+        Relationships: []
+      }
       support_tickets: {
         Row: {
           company_id: string
