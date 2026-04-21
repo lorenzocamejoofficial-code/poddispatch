@@ -4,7 +4,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PenTool, Check, AlertCircle, X, Maximize2 } from "lucide-react";
+import { PenTool, Check, AlertCircle, X, Maximize2, Lock } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 interface CrewMember {
   id: string;
@@ -349,6 +351,148 @@ export function CrewSignaturesSection({ trip, updateField }: Props) {
   const allSigned = assignedCrew.length > 0 && assignedCrew.every(m => hasSigned(m.id));
   const missingCount = assignedCrew.filter(m => !hasSigned(m.id)).length;
 
+  // ── Phase 2 — handoff transition. Runs once after the last required signature lands
+  // for the active crew during a handoff.
+  const transitionRef = useRef(false);
+  useEffect(() => {
+    if (transitionRef.current) return;
+    if (!handoffStatus || !trip?.id) return;
+    if (assignedCrew.length === 0) return;
+    if (!allSigned) return;
+
+    const patientName = trip?.patient
+      ? `${trip.patient.first_name} ${trip.patient.last_name}`
+      : "patient";
+
+    const runTransition = async () => {
+      transitionRef.current = true;
+      try {
+        if (handoffStatus === "pending_original_crew_signature") {
+          // Snapshot the existing crew signatures
+          const snapshot = (trip.signatures_json || []).filter(
+            (s: any) => s.type === "Crew Signature"
+          );
+
+          const { error: updErr } = await supabase
+            .from("trip_records")
+            .update({
+              handoff_status: "pending_new_crew_acceptance",
+              pre_handoff_signatures_snapshot: snapshot as any,
+              updated_at: new Date().toISOString(),
+            } as any)
+            .eq("id", trip.id);
+          if (updErr) throw updErr;
+
+          // Notify dispatcher(s) of the company
+          if (trip.company_id) {
+            const { data: dispatchers } = await supabase
+              .from("company_memberships")
+              .select("user_id")
+              .eq("company_id", trip.company_id)
+              .in("role", ["dispatcher", "owner"] as any);
+            for (const d of dispatchers ?? []) {
+              await supabase.from("notifications").insert({
+                user_id: d.user_id,
+                message: `Original crew has signed for ${patientName} — new crew can now proceed with the run.`,
+                notification_type: "schedule_change",
+                related_run_id: trip.id,
+                acknowledged: false,
+              } as any);
+            }
+          }
+
+          // Notify each member of the target crew
+          if (targetCrewId) {
+            const { data: targetCrewRow } = await supabase
+              .from("crews")
+              .select("member1:profiles!crews_member1_id_fkey(user_id), member2:profiles!crews_member2_id_fkey(user_id), member3:profiles!crews_member3_id_fkey(user_id)")
+              .eq("id", targetCrewId)
+              .maybeSingle();
+            const targetUserIds: string[] = [];
+            for (const key of ["member1", "member2", "member3"] as const) {
+              const m = (targetCrewRow as any)?.[key];
+              if (m?.user_id) targetUserIds.push(m.user_id);
+            }
+            for (const uid of targetUserIds) {
+              await supabase.from("notifications").insert({
+                user_id: uid,
+                message: "You have a new run assigned. Open the PCR to sign and begin documentation.",
+                notification_type: "crew_handoff",
+                related_run_id: trip.id,
+                acknowledged: false,
+              } as any);
+            }
+          }
+
+          await logAuditEvent({
+            action: "crew_handoff_original_signed",
+            tableName: "trip_records",
+            recordId: trip.id,
+            notes: `Original crew completed signatures for ${patientName}; awaiting new crew acceptance.`,
+          });
+        } else if (handoffStatus === "pending_new_crew_acceptance") {
+          const nowIso = new Date().toISOString();
+          const newTruckId = targetTruckId;
+          const newCrewId = targetCrewId;
+
+          const { error: updErr } = await supabase
+            .from("trip_records")
+            .update({
+              handoff_status: "accepted",
+              handoff_accepted_at: nowIso,
+              truck_id: newTruckId,
+              crew_id: newCrewId,
+              updated_at: nowIso,
+            } as any)
+            .eq("id", trip.id);
+          if (updErr) throw updErr;
+
+          // Move the slot to the new truck
+          if (trip.leg_id && trip.run_date && newTruckId) {
+            await supabase
+              .from("truck_run_slots")
+              .update({ truck_id: newTruckId } as any)
+              .eq("leg_id", trip.leg_id)
+              .eq("run_date", trip.run_date);
+          }
+
+          // Notify dispatcher(s)
+          if (trip.company_id) {
+            const { data: dispatchers } = await supabase
+              .from("company_memberships")
+              .select("user_id")
+              .eq("company_id", trip.company_id)
+              .in("role", ["dispatcher", "owner"] as any);
+            for (const d of dispatchers ?? []) {
+              await supabase.from("notifications").insert({
+                user_id: d.user_id,
+                message: `Handoff complete — ${patientName} is now with the new crew.`,
+                notification_type: "schedule_change",
+                related_run_id: trip.id,
+                acknowledged: false,
+              } as any);
+            }
+          }
+
+          await logAuditEvent({
+            action: "crew_handoff_accepted",
+            tableName: "trip_records",
+            recordId: trip.id,
+            notes: `New crew accepted handoff for ${patientName}.`,
+          });
+
+          toast({ title: "Handoff accepted — you can now complete the PCR" });
+        }
+      } catch (err: any) {
+        transitionRef.current = false;
+        console.error("Handoff transition failed:", err);
+        toast({ title: "Handoff transition failed", description: err.message, variant: "destructive" });
+      }
+    };
+
+    runTransition();
+  }, [allSigned, handoffStatus, assignedCrew.length, trip?.id, trip?.leg_id, trip?.run_date, trip?.company_id, targetCrewId, targetTruckId]);
+
   // Find the current user's crew member record
   const currentUserMember = assignedCrew.find(m => m.userId === user?.id);
   const currentUserHasSigned = currentUserMember ? hasSigned(currentUserMember.id) : true;
@@ -388,8 +532,37 @@ export function CrewSignaturesSection({ trip, updateField }: Props) {
   // Unsigned members that are NOT the current user
   const unsignedPartners = assignedCrew.filter(m => !hasSigned(m.id) && m.userId !== user?.id);
 
+  // Phase 2 — prior crew signatures display, locked, shown above active slots
+  // when the new crew is taking over.
+  const priorSignatures: any[] = handoffStatus === "pending_new_crew_acceptance"
+    ? ((trip as any)?.pre_handoff_signatures_snapshot ?? [])
+    : [];
+
   return (
     <div className={`rounded-lg border-2 p-4 space-y-3 ${allSigned ? "border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/10" : "border-destructive bg-destructive/5"}`}>
+      {priorSignatures.length > 0 && (
+        <div className="rounded-md border bg-muted p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Lock className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-semibold text-foreground">Prior Crew Signatures — Locked</p>
+          </div>
+          <div className="space-y-1.5">
+            {priorSignatures.map((s: any, idx: number) => (
+              <div key={s.id ?? idx} className="flex items-center gap-2 rounded border border-muted-foreground/20 bg-background/40 px-3 py-2">
+                <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-foreground truncate">{s.name ?? "Crew member"}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    {s.role ?? "Crew"}
+                    {s.timestamp ? ` • ${new Date(s.timestamp).toLocaleString()}` : ""}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         {allSigned ? (
           <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
