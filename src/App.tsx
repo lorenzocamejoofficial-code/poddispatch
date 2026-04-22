@@ -51,6 +51,7 @@ import CrewPatients from "./pages/crew/CrewPatients";
 import CrewSchedulePage from "./pages/crew/CrewSchedule";
 import OnboardingWizard from "./pages/OnboardingWizard";
 import TrialExpired from "./pages/TrialExpired";
+import CompletePayment from "./pages/CompletePayment";
 import EDIExport from "./pages/EDIExport";
 import LegalPage from "./pages/LegalPage";
 import RemittanceImport from "./pages/RemittanceImport";
