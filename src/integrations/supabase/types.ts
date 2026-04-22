@@ -4554,6 +4554,7 @@ export type Database = {
         | "rejected"
         | "suspended"
         | "payment_issue"
+        | "approved_pending_payment"
       patient_status:
         | "active"
         | "in_hospital"
@@ -4750,6 +4751,7 @@ export const Constants = {
         "rejected",
         "suspended",
         "payment_issue",
+        "approved_pending_payment",
       ],
       patient_status: [
         "active",
