@@ -94,6 +94,22 @@ serve(async (req) => {
             })
             .eq("company_id", companyId);
           if (error) console.error("subscription_records update failed:", error);
+
+          // Flip the company gate to active so the user can access the app.
+          const { error: companyErr } = await supabase
+            .from("companies")
+            .update({ onboarding_status: "active" })
+            .eq("id", companyId);
+          if (companyErr) console.error("companies status flip failed:", companyErr);
+
+          await supabase.from("onboarding_events").insert({
+            company_id: companyId,
+            event_type: "payment_completed",
+            details: {
+              stripe_customer_id: customerId ?? null,
+              stripe_subscription_id: subscriptionId ?? null,
+            },
+          });
         }
         return new Response(JSON.stringify({ received: true }), {
           status: 200,

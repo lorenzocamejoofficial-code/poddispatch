@@ -49,7 +49,10 @@ Deno.serve(async (req) => {
       const { error: updateError } = await supabaseAdmin
         .from("companies")
         .update({
-          onboarding_status: "active",
+          // Gate full app access behind Stripe checkout. The company is
+          // approved by the admin but cannot use the app until payment
+          // is completed (handled by stripe-webhook → checkout.session.completed).
+          onboarding_status: "approved_pending_payment",
           approved_at: new Date().toISOString(),
           approved_by: user.id,
         })
@@ -57,14 +60,13 @@ Deno.serve(async (req) => {
 
       if (updateError) return json({ error: updateError.message }, 500);
 
-      // Set trial period: 45 days from approval
-      const trialEndsAt = new Date();
-      trialEndsAt.setDate(trialEndsAt.getDate() + 45);
+      // Mark subscription as awaiting payment. Trial period (and `active`
+      // subscription_status) are now started only when Stripe confirms
+      // checkout.session.completed.
       await supabaseAdmin
         .from("subscription_records")
         .update({
-          subscription_status: "trial",
-          trial_ends_at: trialEndsAt.toISOString(),
+          subscription_status: "approved_pending_payment",
         })
         .eq("company_id", companyId);
 
@@ -73,10 +75,10 @@ Deno.serve(async (req) => {
         event_type: "company_approved",
         actor_user_id: user.id,
         actor_email: user.email,
-        details: { approved_by: user.email, trial_ends_at: trialEndsAt.toISOString() },
+        details: { approved_by: user.email, gate: "awaiting_payment" },
       });
 
-      return json({ success: true, status: "active" });
+      return json({ success: true, status: "approved_pending_payment" });
     }
 
     // ── REJECT ───────────────────────────────────────────────

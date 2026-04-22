@@ -51,6 +51,7 @@ import CrewPatients from "./pages/crew/CrewPatients";
 import CrewSchedulePage from "./pages/crew/CrewSchedule";
 import OnboardingWizard from "./pages/OnboardingWizard";
 import TrialExpired from "./pages/TrialExpired";
+import CompletePayment from "./pages/CompletePayment";
 import EDIExport from "./pages/EDIExport";
 import LegalPage from "./pages/LegalPage";
 import RemittanceImport from "./pages/RemittanceImport";
@@ -114,6 +115,7 @@ function SessionWarningBanner() {
 function PaymentResultHandler() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { refreshOnboardingStatus } = useAuth();
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const result = params.get("payment");
@@ -123,6 +125,19 @@ function PaymentResultHandler() {
         title: "Welcome to PodDispatch",
         description: "Your subscription is active.",
       });
+      // Pull the latest onboarding_status (webhook flips it to `active`).
+      refreshOnboardingStatus().catch(() => {});
+      // Stripe redirects to /onboarding?payment=success after checkout.
+      // The webhook flips the company gate to `active`; once auth state
+      // refreshes, the wizard-completion gate will route the owner into
+      // the Getting Started (Onboarding) wizard automatically.
+      params.delete("payment");
+      const cleanSearch = params.toString();
+      navigate(
+        { pathname: "/onboarding", search: cleanSearch ? `?${cleanSearch}` : "" },
+        { replace: true },
+      );
+      return;
     } else if (result === "cancelled") {
       toast({
         title: "Checkout cancelled",
@@ -191,6 +206,19 @@ function AppRoutes() {
         <Route path="/suspended" element={<SuspendedPage />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/suspended" replace />} />
+      </Routes>
+    );
+  }
+
+  // Approved by admin but payment not yet completed — gate behind Stripe checkout.
+  // Must come BEFORE the generic pending-approval gate below, otherwise
+  // approved_pending_payment would be routed to /pending-approval.
+  if (!isSystemCreator && onboardingStatus === "approved_pending_payment") {
+    return (
+      <Routes>
+        <Route path="/complete-payment" element={<CompletePayment />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="*" element={<Navigate to="/complete-payment" replace />} />
       </Routes>
     );
   }

@@ -8,7 +8,7 @@ const WARNING_BEFORE_MS = 5 * 60 * 1000;       // warn 5 min before expiry
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"] as const;
 
 export type MembershipRole = "creator" | "owner" | "dispatcher" | "biller" | "crew";
-export type OnboardingStatus = "signup_started" | "agreements_accepted" | "payment_pending" | "payment_confirmed" | "pending_approval" | "active" | "rejected" | "suspended" | "payment_issue";
+export type OnboardingStatus = "signup_started" | "agreements_accepted" | "payment_pending" | "payment_confirmed" | "pending_approval" | "approved_pending_payment" | "active" | "rejected" | "suspended" | "payment_issue";
 
 interface AuthContextType {
   user: User | null;
