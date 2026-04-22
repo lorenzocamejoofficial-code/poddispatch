@@ -124,6 +124,17 @@ function PaymentResultHandler() {
         title: "Welcome to PodDispatch",
         description: "Your subscription is active.",
       });
+      // Stripe redirects to /onboarding?payment=success after checkout.
+      // The webhook flips the company gate to `active`; once auth state
+      // refreshes, the wizard-completion gate will route the owner into
+      // the Getting Started (Onboarding) wizard automatically.
+      params.delete("payment");
+      const cleanSearch = params.toString();
+      navigate(
+        { pathname: "/onboarding", search: cleanSearch ? `?${cleanSearch}` : "" },
+        { replace: true },
+      );
+      return;
     } else if (result === "cancelled") {
       toast({
         title: "Checkout cancelled",
