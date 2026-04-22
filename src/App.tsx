@@ -196,6 +196,19 @@ function AppRoutes() {
     );
   }
 
+  // Approved by admin but payment not yet completed — gate behind Stripe checkout.
+  // Must come BEFORE the generic pending-approval gate below, otherwise
+  // approved_pending_payment would be routed to /pending-approval.
+  if (!isSystemCreator && onboardingStatus === "approved_pending_payment") {
+    return (
+      <Routes>
+        <Route path="/complete-payment" element={<CompletePayment />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="*" element={<Navigate to="/complete-payment" replace />} />
+      </Routes>
+    );
+  }
+
   // Pending approval — company created but not yet activated
   if (!isSystemCreator && onboardingStatus && onboardingStatus !== "active") {
     return (
