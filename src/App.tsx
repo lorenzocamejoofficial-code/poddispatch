@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SchedulingProvider } from "@/hooks/useSchedulingStore";
 import { SimulationSessionProvider } from "@/hooks/useSimulationSession";
@@ -102,6 +102,40 @@ function SessionWarningBanner() {
       </button>
     </div>
   );
+}
+
+/**
+ * Watches for `?payment=success` (or `?payment=cancelled`) on any route and
+ * surfaces a toast / banner to the user. Used by the Stripe checkout
+ * success_url + cancel_url flow.
+ */
+function PaymentResultHandler() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const result = params.get("payment");
+    if (!result) return;
+    if (result === "success") {
+      toast({
+        title: "Welcome to PodDispatch",
+        description: "Your subscription is active.",
+      });
+    } else if (result === "cancelled") {
+      toast({
+        title: "Checkout cancelled",
+        description: "You can subscribe again whenever you're ready.",
+        variant: "destructive",
+      });
+    }
+    params.delete("payment");
+    const search = params.toString();
+    navigate(
+      { pathname: location.pathname, search: search ? `?${search}` : "" },
+      { replace: true },
+    );
+  }, [location.pathname, location.search, navigate]);
+  return null;
 }
 
 function AppRoutes() {
