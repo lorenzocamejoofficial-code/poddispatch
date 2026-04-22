@@ -4,5 +4,5 @@
  */
 export const FEATURE_FLAGS = {
   /** When false, payment verification is bypassed and subscription_status defaults to TEST_ACTIVE */
-  PAYMENTS_ENABLED: false,
+  PAYMENTS_ENABLED: true,
 } as const;
