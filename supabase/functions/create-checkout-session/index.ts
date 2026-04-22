@@ -49,8 +49,8 @@ serve(async (req) => {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: "https://thepoddispatch.com/dashboard?payment=success",
-      cancel_url: "https://thepoddispatch.com/dashboard?payment=cancelled",
+      success_url: "https://thepoddispatch.com/onboarding?payment=success",
+      cancel_url: "https://thepoddispatch.com/complete-payment?payment=cancelled",
       metadata: {
         company_id: String(company_id),
         user_id: String(user_id),
