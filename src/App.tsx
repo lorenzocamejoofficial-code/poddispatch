@@ -350,6 +350,7 @@ function AppRoutes() {
             <Route path="/facilities" element={<FacilitiesPage />} />
             <Route path="/reports" element={<ReportsAndMetrics />} />
             <Route path="/account" element={<AccountSettings />} />
+            <Route path="/dashboard" element={<Navigate to="/" replace />} />
             {/* Crew routes for billers with cert + crew assignment */}
             <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
             <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
