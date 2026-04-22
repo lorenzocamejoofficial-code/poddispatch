@@ -383,6 +383,7 @@ function AppRoutes() {
         <Route path="/edi-export" element={<EDIExport />} />
         <Route path="/remittance-import" element={<RemittanceImport />} />
         <Route path="/owner-dashboard" element={<OwnerDashboard />} />
+        <Route path="/dashboard" element={<OwnerDashboard />} />
         <Route path="/compliance" element={<ComplianceAndQA />} />
         <Route path="/facilities" element={<FacilitiesPage />} />
         <Route path="/reports" element={<ReportsAndMetrics />} />
@@ -415,6 +416,7 @@ const App = () => (
           <SimulationSessionProvider>
             <SessionWarningBanner />
             <MaintenanceGate>
+              <PaymentResultHandler />
               <AppRoutes />
             </MaintenanceGate>
           </SimulationSessionProvider>
