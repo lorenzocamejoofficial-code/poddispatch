@@ -99,7 +99,7 @@ serve(async (req) => {
           const { error: companyErr } = await supabase
             .from("companies")
             .update({ onboarding_status: "active" })
-            .eq("company_id" === "company_id" ? "id" : "id", companyId);
+            .eq("id", companyId);
           if (companyErr) console.error("companies status flip failed:", companyErr);
 
           await supabase.from("onboarding_events").insert({
