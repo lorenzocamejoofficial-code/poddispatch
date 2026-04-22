@@ -115,6 +115,7 @@ function SessionWarningBanner() {
 function PaymentResultHandler() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { refreshOnboardingStatus } = useAuth();
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const result = params.get("payment");
@@ -124,6 +125,8 @@ function PaymentResultHandler() {
         title: "Welcome to PodDispatch",
         description: "Your subscription is active.",
       });
+      // Pull the latest onboarding_status (webhook flips it to `active`).
+      refreshOnboardingStatus().catch(() => {});
       // Stripe redirects to /onboarding?payment=success after checkout.
       // The webhook flips the company gate to `active`; once auth state
       // refreshes, the wizard-completion gate will route the owner into
