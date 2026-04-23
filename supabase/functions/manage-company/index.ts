@@ -18,7 +18,7 @@ function json(body: Record<string, unknown>, status = 200) {
 // archive to proceed even if Stripe is unreachable, and we want a loud audit
 // trail of what happened.
 async function cancelStripeSubscription(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: any,
   companyId: string,
 ): Promise<string> {
   const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
@@ -30,9 +30,15 @@ async function cancelStripeSubscription(
     .eq("company_id", companyId)
     .maybeSingle();
 
-  const subId = sub?.stripe_subscription_id ?? sub?.provider_subscription_id ?? null;
+  const subscription = sub as {
+    stripe_subscription_id?: string | null;
+    provider_subscription_id?: string | null;
+    subscription_status?: string | null;
+  } | null;
+
+  const subId = subscription?.stripe_subscription_id ?? subscription?.provider_subscription_id ?? null;
   if (!subId) return "no_subscription";
-  if (sub?.subscription_status === "cancelled") return "already_cancelled";
+  if (subscription?.subscription_status === "cancelled") return "already_cancelled";
 
   try {
     const response = await fetch(`https://api.stripe.com/v1/subscriptions/${subId}`, {
