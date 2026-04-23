@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,63 +10,137 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  Building2, Search, CheckCircle2, Ban, RefreshCw, Loader2, Trash2, KeyRound, Pencil,
+  Search, CheckCircle2, XCircle, Ban, RefreshCw, Loader2, Trash2, KeyRound, Pencil,
+  ChevronDown, ChevronRight, Shield, Archive, RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { CreatorLayout } from "@/components/layout/CreatorLayout";
+import { CompanyVerificationPanel, type VerificationResult } from "@/components/creator/CompanyVerificationPanel";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 interface CompanyRecord {
   id: string;
   name: string;
   onboarding_status: string;
   owner_email: string | null;
+  owner_user_id: string | null;
+  owner_name?: string;
   created_at: string;
   approved_at: string | null;
   suspended_reason: string | null;
   suspended_at: string | null;
   rejected_reason: string | null;
   deleted_at: string | null;
+  npi_number: string | null;
+  state_of_operation: string | null;
+  current_software: string | null;
+  years_in_operation: number | null;
+  has_inhouse_biller: boolean | null;
+  hipaa_privacy_officer: string | null;
+  is_protected?: boolean;
 }
 
-const isSoftDeleted = (c: CompanyRecord) =>
-  !!c.deleted_at && c.suspended_reason?.startsWith("SOFT_DELETED:");
+interface VerificationSnapshot {
+  npi_verified: boolean;
+  medicare_enrolled: boolean;
+  oig_clear: boolean;
+  npi_result: any;
+  medicare_result: any;
+  oig_result: any;
+  approver_email: string | null;
+  approved_at: string;
+  manual_notes: string | null;
+}
 
-
-type ModalAction = 
+type ModalAction =
   | { type: "suspend"; company: CompanyRecord }
-  | { type: "soft_delete"; company: CompanyRecord }
   | { type: "delete"; company: CompanyRecord }
   | { type: "edit"; company: CompanyRecord }
   | { type: "reset_password"; company: CompanyRecord }
+  | { type: "reject"; company: CompanyRecord }
   | null;
 
+const RETENTION_YEARS = 10;
+
 export default function CreatorConsole() {
-  const { user, isSystemCreator } = useAuth();
+  const { isSystemCreator } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [companies, setCompanies] = useState<CompanyRecord[]>([]);
+  const [archivedCompanies, setArchivedCompanies] = useState<CompanyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [modal, setModal] = useState<ModalAction>(null);
   const [confirmText, setConfirmText] = useState("");
   const [reasonText, setReasonText] = useState("");
   const [editName, setEditName] = useState("");
+  const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
+  const [verificationResults, setVerificationResults] = useState<Record<string, VerificationResult>>({});
+  const [snapshots, setSnapshots] = useState<Record<string, VerificationSnapshot>>({});
 
   useEffect(() => {
     if (!isSystemCreator) { navigate("/"); return; }
     loadCompanies();
   }, [isSystemCreator, navigate]);
 
-  const loadCompanies = async () => {
+  const loadCompanies = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("companies")
-      .select("id, name, onboarding_status, owner_email, created_at, approved_at, suspended_reason, suspended_at, rejected_reason, deleted_at")
+      .select("id, name, onboarding_status, owner_email, owner_user_id, created_at, approved_at, suspended_reason, suspended_at, rejected_reason, deleted_at, npi_number, state_of_operation, current_software, years_in_operation, has_inhouse_biller, hipaa_privacy_officer")
       .order("created_at", { ascending: false });
-    setCompanies((data as unknown as CompanyRecord[]) ?? []);
+
+    if (error) { console.error(error); setLoading(false); return; }
+
+    const rows = (data ?? []) as unknown as CompanyRecord[];
+
+    // Owner names
+    const ownerIds = rows.map(c => c.owner_user_id).filter(Boolean) as string[];
+    let profileMap: Record<string, string> = {};
+    if (ownerIds.length > 0) {
+      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ownerIds);
+      if (profiles) profileMap = Object.fromEntries(profiles.map((p: any) => [p.user_id, p.full_name]));
+    }
+
+    // Protection status (DB is source of truth)
+    const protectionMap: Record<string, boolean> = {};
+    await Promise.all(rows.map(async (c) => {
+      const { data: prot } = await supabase.rpc("is_protected_record", { _company_id: c.id });
+      protectionMap[c.id] = !!prot;
+    }));
+
+    const enriched = rows.map(c => ({
+      ...c,
+      owner_name: c.owner_user_id ? profileMap[c.owner_user_id] || "—" : "—",
+      is_protected: protectionMap[c.id] ?? false,
+    }));
+
+    setCompanies(enriched.filter(c => !c.deleted_at));
+    setArchivedCompanies(enriched.filter(c => !!c.deleted_at));
     setLoading(false);
+  }, []);
+
+  // Load verification snapshot lazily when a row is expanded
+  const loadSnapshot = useCallback(async (companyId: string) => {
+    if (snapshots[companyId]) return;
+    const { data } = await supabase
+      .from("company_verifications")
+      .select("npi_verified, medicare_enrolled, oig_clear, npi_result, medicare_result, oig_result, approver_email, approved_at, manual_notes")
+      .eq("company_id", companyId)
+      .order("approved_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) setSnapshots(prev => ({ ...prev, [companyId]: data as VerificationSnapshot }));
+  }, [snapshots]);
+
+  const toggleExpand = (c: CompanyRecord) => {
+    const next = expandedCompany === c.id ? null : c.id;
+    setExpandedCompany(next);
+    if (next && c.approved_at) loadSnapshot(c.id);
   };
 
   const invokeAction = async (action: string, extra: Record<string, unknown> = {}) => {
@@ -79,8 +153,16 @@ export default function CreatorConsole() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      if (action === "force_password_reset" && data?.reset_link) {
-        toast.success("Password reset link generated. Check audit logs.");
+      if (action === "force_password_reset") toast.success("Password reset link generated.");
+      else if (data?.archived) {
+        toast.success(`"${modal.company.name}" archived. Data retained for legal compliance.`);
+        if (data.stripe_cancel_status && !["cancelled", "no_subscription", "already_cancelled", "skipped: no STRIPE_SECRET_KEY configured"].includes(data.stripe_cancel_status)) {
+          toast.warning(`Stripe: ${data.stripe_cancel_status}`);
+        }
+      } else if (data?.deleted) {
+        toast.success(`"${modal.company.name}" permanently deleted.`);
+      } else if (data?.restored) {
+        toast.success(`"${modal.company.name}" restored.`);
       } else {
         toast.success("Action completed successfully.");
       }
@@ -94,128 +176,36 @@ export default function CreatorConsole() {
     setActionLoading(false);
   };
 
-  const filtered = (status: string) =>
-    companies.filter((c) => {
-      if (c.onboarding_status !== status) return false;
-      const q = search.toLowerCase();
-      return !q || c.name.toLowerCase().includes(q) || (c.owner_email ?? "").toLowerCase().includes(q);
-    });
-
-  const statusBadge = (s: string) => {
-    const colors: Record<string, string> = {
-      active: "bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))]",
-      pending_approval: "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]",
-      suspended: "bg-destructive/15 text-destructive",
-      rejected: "bg-destructive/15 text-destructive",
-    };
-    return colors[s] || "bg-muted text-muted-foreground";
-  };
-
-  const CompanyTable = ({ items }: { items: CompanyRecord[] }) => {
-    if (items.length === 0) {
-      return <p className="text-sm text-muted-foreground text-center py-8">No companies in this category.</p>;
+  const handleApprove = async (c: CompanyRecord) => {
+    const vr = verificationResults[c.id];
+    if (!vr) {
+      toast.error("Run the verification panel first — expand the company row.");
+      return;
     }
-    return (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Company</TableHead>
-            <TableHead>Owner Email</TableHead>
-            <TableHead>Created</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((c) => (
-            <TableRow key={c.id}>
-              <TableCell className="font-medium">{c.name}</TableCell>
-              <TableCell className="text-xs text-muted-foreground">{c.owner_email || "—"}</TableCell>
-              <TableCell className="text-xs text-muted-foreground">{format(new Date(c.created_at), "MMM d, yyyy")}</TableCell>
-              <TableCell>
-                <Badge variant="outline" className={statusBadge(c.onboarding_status)}>
-                  {c.onboarding_status.replace(/_/g, " ")}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                  {/* Pending actions */}
-                  {c.onboarding_status === "pending_approval" && (
-                    <Button size="sm" variant="default" className="gap-1 text-xs" onClick={() => invokeDirectApprove(c.id)}>
-                      <CheckCircle2 className="h-3 w-3" /> Approve
-                    </Button>
-                  )}
-
-                  {/* Active actions */}
-                  {c.onboarding_status === "active" && (
-                    <>
-                      <Button size="sm" variant="outline" className="gap-1 text-xs text-destructive" onClick={() => { setModal({ type: "suspend", company: c }); setReasonText(""); setConfirmText(""); }}>
-                        <Ban className="h-3 w-3" /> Suspend
-                      </Button>
-                      <Button size="sm" variant="ghost" className="gap-1 text-xs text-destructive hover:text-destructive" onClick={() => { setModal({ type: "soft_delete", company: c }); setReasonText(""); setConfirmText(""); }}>
-                        <Trash2 className="h-3 w-3" /> Delete
-                      </Button>
-                    </>
-                  )}
-
-                  {/* Suspended actions */}
-                  {c.onboarding_status === "suspended" && !isSoftDeleted(c) && (
-                    <Button size="sm" variant="default" className="gap-1 text-xs" onClick={() => invokeDirectUnsuspend(c.id)}>
-                      <RefreshCw className="h-3 w-3" /> Unsuspend
-                    </Button>
-                  )}
-
-                  {/* Soft-deleted actions */}
-                  {isSoftDeleted(c) && (
-                    <>
-                      <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/30">
-                        Marked for deletion
-                      </Badge>
-                      <Button size="sm" variant="default" className="gap-1 text-xs" onClick={() => invokeDirectRestore(c.id)}>
-                        <RefreshCw className="h-3 w-3" /> Restore
-                      </Button>
-                      <Button size="sm" variant="ghost" className="gap-1 text-xs text-destructive hover:text-destructive" onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); }}>
-                        <Trash2 className="h-3 w-3" /> Delete Forever
-                      </Button>
-                    </>
-                  )}
-
-                  {/* Common actions for active/suspended (not soft-deleted) */}
-                  {(c.onboarding_status === "active" || (c.onboarding_status === "suspended" && !isSoftDeleted(c))) && (
-                    <>
-                      <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => { setModal({ type: "reset_password", company: c }); setConfirmText(""); }}>
-                        <KeyRound className="h-3 w-3" /> Reset PW
-                      </Button>
-                      <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => { setModal({ type: "edit", company: c }); setEditName(c.name); }}>
-                        <Pencil className="h-3 w-3" /> Edit
-                      </Button>
-                    </>
-                  )}
-
-                  {/* Delete for pending/rejected only */}
-                  {(c.onboarding_status === "pending_approval" || c.onboarding_status === "rejected") && (
-                    <Button size="sm" variant="ghost" className="gap-1 text-xs text-destructive hover:text-destructive" onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); }}>
-                      <Trash2 className="h-3 w-3" /> Delete
-                    </Button>
-                  )}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    );
-  };
-
-  const invokeDirectApprove = async (id: string) => {
+    if (vr.npi.status === "pending" || vr.medicare.status === "pending" || vr.oig.status === "pending") {
+      toast.error("Verification still loading. Wait for all checks to complete.");
+      return;
+    }
     setActionLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("manage-company", { body: { companyId: id, action: "approve" } });
+      const { data, error } = await supabase.functions.invoke("manage-company", {
+        body: { companyId: c.id, action: "approve", verification: vr },
+      });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      await logAuditEvent({
+        action: "approve" as any,
+        tableName: "companies",
+        recordId: c.id,
+        newData: {
+          verification_results: { npi: vr.npi, medicare: vr.medicare, oig: vr.oig },
+          decision: "approve",
+        },
+        notes: `Company approved with verification: NPI=${vr.npi.status}, Medicare=${vr.medicare.status}, OIG=${vr.oig.status}`,
+      });
       toast.success("Company approved!");
       await loadCompanies();
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: any) { toast.error(err.message || "Failed to approve"); }
     setActionLoading(false);
   };
 
@@ -231,20 +221,256 @@ export default function CreatorConsole() {
     setActionLoading(false);
   };
 
-  const invokeDirectRestore = async (id: string) => {
+  const invokeRestoreArchived = async (c: CompanyRecord) => {
     setActionLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("manage-company", { body: { companyId: id, action: "restore" } });
+      const { data, error } = await supabase.functions.invoke("manage-company", {
+        body: { companyId: c.id, action: "restore_archived", reason: "Restored by system creator" },
+      });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast.success("Company restored from deletion!");
+      toast.success(`"${c.name}" restored.`);
       await loadCompanies();
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: any) { toast.error(err.message || "Failed to restore"); }
     setActionLoading(false);
+  };
+
+  const filtered = (status: string) =>
+    companies.filter(c => {
+      if (c.onboarding_status !== status) return false;
+      const q = search.toLowerCase();
+      return !q || c.name.toLowerCase().includes(q) || (c.owner_email ?? "").toLowerCase().includes(q);
+    });
+
+  const filteredArchived = () => archivedCompanies.filter(c => {
+    const q = search.toLowerCase();
+    return !q || c.name.toLowerCase().includes(q) || (c.owner_email ?? "").toLowerCase().includes(q);
+  });
+
+  const statusBadge = (s: string) => {
+    const colors: Record<string, string> = {
+      active: "bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))]",
+      pending_approval: "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]",
+      approved_pending_payment: "bg-primary/15 text-primary",
+      suspended: "bg-destructive/15 text-destructive",
+      rejected: "bg-destructive/15 text-destructive",
+    };
+    return colors[s] || "bg-muted text-muted-foreground";
+  };
+
+  const renderCompanyName = (c: CompanyRecord) => (
+    <div className="flex items-center gap-1.5">
+      {c.is_protected && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Shield className="h-3.5 w-3.5 text-primary shrink-0" />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="text-xs">Protected — data under legal retention</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+      <span>{c.name}</span>
+    </div>
+  );
+
+  // Single delete button — server decides archive vs hard-delete
+  const renderDeleteButton = (c: CompanyRecord) => (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="gap-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+      disabled={actionLoading}
+      onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); setReasonText(""); }}
+    >
+      {c.is_protected ? <Archive className="h-3 w-3" /> : <Trash2 className="h-3 w-3" />}
+      {c.is_protected ? "Archive" : "Delete"}
+    </Button>
+  );
+
+  const ExpandableRow = ({ c, allowVerificationPanel }: { c: CompanyRecord; allowVerificationPanel: boolean }) => (
+    <>
+      <TableRow className="cursor-pointer" onClick={() => toggleExpand(c)}>
+        <TableCell className="w-8">
+          {expandedCompany === c.id
+            ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+          }
+        </TableCell>
+        <TableCell className="font-medium">{renderCompanyName(c)}</TableCell>
+        <TableCell className="text-xs text-muted-foreground">{c.owner_name}</TableCell>
+        <TableCell className="text-xs text-muted-foreground">{c.owner_email || "—"}</TableCell>
+        <TableCell className="text-xs text-muted-foreground">{format(new Date(c.created_at), "MMM d, yyyy")}</TableCell>
+        <TableCell>
+          <Badge variant="outline" className={statusBadge(c.onboarding_status)}>
+            {c.onboarding_status.replace(/_/g, " ")}
+          </Badge>
+        </TableCell>
+        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+            {/* Pending */}
+            {c.onboarding_status === "pending_approval" && (
+              <>
+                <Button size="sm" variant="default" className="gap-1 text-xs" disabled={actionLoading} onClick={() => handleApprove(c)}>
+                  {actionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />} Approve
+                </Button>
+                <Button size="sm" variant="outline" className="gap-1 text-xs text-destructive hover:text-destructive" onClick={() => { setModal({ type: "reject", company: c }); setReasonText(""); }}>
+                  <XCircle className="h-3 w-3" /> Reject
+                </Button>
+              </>
+            )}
+            {/* Active */}
+            {c.onboarding_status === "active" && (
+              <>
+                <Button size="sm" variant="outline" className="gap-1 text-xs text-destructive hover:text-destructive" onClick={() => { setModal({ type: "suspend", company: c }); setReasonText(""); setConfirmText(""); }}>
+                  <Ban className="h-3 w-3" /> Suspend
+                </Button>
+                {renderDeleteButton(c)}
+              </>
+            )}
+            {/* Suspended */}
+            {c.onboarding_status === "suspended" && (
+              <>
+                <Button size="sm" variant="default" className="gap-1 text-xs" disabled={actionLoading} onClick={() => invokeDirectUnsuspend(c.id)}>
+                  <RefreshCw className="h-3 w-3" /> Unsuspend
+                </Button>
+                {renderDeleteButton(c)}
+              </>
+            )}
+            {/* Rejected / approved_pending_payment — delete only */}
+            {(c.onboarding_status === "rejected" || c.onboarding_status === "approved_pending_payment") && renderDeleteButton(c)}
+
+            {/* Common actions for active/suspended */}
+            {(c.onboarding_status === "active" || c.onboarding_status === "suspended") && (
+              <>
+                <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => { setModal({ type: "reset_password", company: c }); setConfirmText(""); }}>
+                  <KeyRound className="h-3 w-3" /> Reset PW
+                </Button>
+                <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => { setModal({ type: "edit", company: c }); setEditName(c.name); }}>
+                  <Pencil className="h-3 w-3" /> Edit
+                </Button>
+              </>
+            )}
+          </div>
+        </TableCell>
+      </TableRow>
+      {expandedCompany === c.id && (
+        <TableRow>
+          <TableCell colSpan={7} className="p-4 bg-muted/20">
+            {c.onboarding_status === "pending_approval" && allowVerificationPanel ? (
+              <CompanyVerificationPanel
+                company={{
+                  id: c.id,
+                  name: c.name,
+                  npi_number: c.npi_number,
+                  state_of_operation: c.state_of_operation,
+                  owner_email: c.owner_email,
+                  current_software: c.current_software,
+                  years_in_operation: c.years_in_operation,
+                  has_inhouse_biller: c.has_inhouse_biller,
+                  hipaa_privacy_officer: c.hipaa_privacy_officer,
+                }}
+                onVerificationComplete={(r) => setVerificationResults(prev => ({ ...prev, [c.id]: r }))}
+              />
+            ) : (
+              <VerificationSnapshotView company={c} snapshot={snapshots[c.id]} />
+            )}
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+
+  const CompanyTableExpandable = ({ items, allowVerificationPanel }: { items: CompanyRecord[]; allowVerificationPanel: boolean }) => {
+    if (items.length === 0) return <p className="text-sm text-muted-foreground text-center py-8">No companies in this category.</p>;
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-8"></TableHead>
+            <TableHead>Company</TableHead>
+            <TableHead>Owner</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Created</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map(c => <ExpandableRow key={c.id} c={c} allowVerificationPanel={allowVerificationPanel} />)}
+        </TableBody>
+      </Table>
+    );
+  };
+
+  const ArchivedTable = ({ items }: { items: CompanyRecord[] }) => {
+    if (items.length === 0) return <p className="text-sm text-muted-foreground text-center py-8">No archived companies.</p>;
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Company</TableHead>
+            <TableHead>Owner Email</TableHead>
+            <TableHead>Archived</TableHead>
+            <TableHead>Eligible for purge</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map(c => {
+            const archivedAt = c.deleted_at ? new Date(c.deleted_at) : null;
+            const purgeAt = archivedAt ? new Date(archivedAt.getTime() + RETENTION_YEARS * 365 * 24 * 60 * 60 * 1000) : null;
+            return (
+              <TableRow key={c.id}>
+                <TableCell className="font-medium">{renderCompanyName(c)}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{c.owner_email || "—"}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {archivedAt ? format(archivedAt, "MMM d, yyyy") : "—"}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {purgeAt ? format(purgeAt, "MMM d, yyyy") : "—"}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1.5">
+                    <Button size="sm" variant="default" className="gap-1 text-xs" disabled={actionLoading} onClick={() => invokeRestoreArchived(c)}>
+                      <RotateCcw className="h-3 w-3" /> Restore
+                    </Button>
+                    {!c.is_protected && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                        disabled={actionLoading}
+                        onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); setReasonText(""); }}
+                      >
+                        <Trash2 className="h-3 w-3" /> Delete Forever
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    );
   };
 
   return (
     <CreatorLayout title="Company Console">
+      <Collapsible className="mb-4">
+        <CollapsibleTrigger className="text-xs text-primary hover:underline">ℹ️ How this works</CollapsibleTrigger>
+        <CollapsibleContent className="mt-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+          <p>Single console for the full company lifecycle. Click a row to expand the verification view.</p>
+          <p><strong>Pending</strong>: expand to run NPI / Medicare / OIG checks. Verification snapshot is required before Approve and is permanently retained.</p>
+          <p>Companies showing <Shield className="inline h-3 w-3 text-primary" /> are <strong>protected</strong> — data is under legal retention. Their delete button reads <strong>Archive</strong> and preserves all clinical records.</p>
+          <p>Test/unverified companies show <Trash2 className="inline h-3 w-3 text-destructive" /> <strong>Delete</strong> — they hard-delete permanently.</p>
+          <p>Archived companies live in the Archived tab and can be restored. The 10-year purge runs after the eligibility date.</p>
+        </CollapsibleContent>
+      </Collapsible>
+
       <div className="relative max-w-md mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by company name or email..." className="pl-10" />
@@ -261,23 +487,33 @@ export default function CreatorConsole() {
               Pending {filtered("pending_approval").length > 0 && <Badge variant="secondary" className="ml-1.5 text-[10px]">{filtered("pending_approval").length}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="active">Active ({filtered("active").length})</TabsTrigger>
+            <TabsTrigger value="awaiting_payment">
+              Awaiting Payment {filtered("approved_pending_payment").length > 0 && <Badge variant="secondary" className="ml-1.5 text-[10px]">{filtered("approved_pending_payment").length}</Badge>}
+            </TabsTrigger>
             <TabsTrigger value="suspended">
               Suspended {filtered("suspended").length > 0 && <Badge variant="destructive" className="ml-1.5 text-[10px]">{filtered("suspended").length}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="rejected">Rejected ({filtered("rejected").length})</TabsTrigger>
+            <TabsTrigger value="archived">Archived ({filteredArchived().length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending">
-            <Card><CardContent className="pt-4"><CompanyTable items={filtered("pending_approval")} /></CardContent></Card>
+            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("pending_approval")} allowVerificationPanel /></CardContent></Card>
           </TabsContent>
           <TabsContent value="active">
-            <Card><CardContent className="pt-4"><CompanyTable items={filtered("active")} /></CardContent></Card>
+            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("active")} allowVerificationPanel={false} /></CardContent></Card>
+          </TabsContent>
+          <TabsContent value="awaiting_payment">
+            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("approved_pending_payment")} allowVerificationPanel={false} /></CardContent></Card>
           </TabsContent>
           <TabsContent value="suspended">
-            <Card><CardContent className="pt-4"><CompanyTable items={filtered("suspended")} /></CardContent></Card>
+            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("suspended")} allowVerificationPanel={false} /></CardContent></Card>
           </TabsContent>
           <TabsContent value="rejected">
-            <Card><CardContent className="pt-4"><CompanyTable items={filtered("rejected")} /></CardContent></Card>
+            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("rejected")} allowVerificationPanel={false} /></CardContent></Card>
+          </TabsContent>
+          <TabsContent value="archived">
+            <Card><CardContent className="pt-4"><ArchivedTable items={filteredArchived()} /></CardContent></Card>
           </TabsContent>
         </Tabs>
       )}
@@ -303,44 +539,52 @@ export default function CreatorConsole() {
         </DialogContent>
       </Dialog>
 
-      {/* Soft Delete Modal */}
-      <Dialog open={modal?.type === "soft_delete"} onOpenChange={(open) => { if (!open) setModal(null); }}>
+      {/* Reject Modal */}
+      <Dialog open={modal?.type === "reject"} onOpenChange={(open) => { if (!open) setModal(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Company</DialogTitle>
-            <DialogDescription>
-              "{modal?.company.name}" will be marked for deletion and hidden from login. You have a 30-day recovery window to restore it before permanent deletion.
-            </DialogDescription>
+            <DialogTitle>Reject Company</DialogTitle>
+            <DialogDescription>Reject "{modal?.company.name}". The owner will see this reason on their pending screen.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <Textarea placeholder="Reason for deletion (required)..." value={reasonText} onChange={(e) => setReasonText(e.target.value)} className="h-20" />
-            <p className="text-xs text-muted-foreground">Type <strong>OVERRIDE</strong> to confirm:</p>
-            <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="OVERRIDE" />
-          </div>
+          <Textarea placeholder="Reason for rejection (required)..." value={reasonText} onChange={(e) => setReasonText(e.target.value)} className="h-20" />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
-            <Button variant="destructive" disabled={confirmText !== "OVERRIDE" || !reasonText.trim() || actionLoading} onClick={() => invokeAction("soft_delete", { reason: reasonText.trim() })}>
-              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Mark for Deletion
+            <Button variant="destructive" disabled={!reasonText.trim() || actionLoading} onClick={() => invokeAction("reject", { reason: reasonText.trim() })}>
+              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Reject
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Modal */}
+      {/* Delete / Archive Modal — single dialog, label flips by protection */}
       <Dialog open={modal?.type === "delete"} onOpenChange={(open) => { if (!open) setModal(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Company Permanently</DialogTitle>
-            <DialogDescription>This will permanently delete "{modal?.company.name}" and all associated data. This cannot be undone.</DialogDescription>
+            <DialogTitle>
+              {modal?.company.is_protected ? "Archive Company" : "Delete Company Permanently"}
+            </DialogTitle>
+            <DialogDescription>
+              {modal?.company.is_protected
+                ? `"${modal?.company.name}" passed verification and is under legal retention. It will be archived (data preserved for ${RETENTION_YEARS} years) and any active subscription will be cancelled.`
+                : `"${modal?.company.name}" never passed verification (test or unverified account). This will permanently delete the company and all related rows. Cannot be undone.`}
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Type <strong>CONFIRM</strong> to proceed:</p>
-            <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="CONFIRM" />
+          <div className="space-y-3">
+            <Textarea placeholder="Reason (optional but recommended for audit log)..." value={reasonText} onChange={(e) => setReasonText(e.target.value)} className="h-20" />
+            <p className="text-xs text-muted-foreground">
+              Type the company name <strong className="text-foreground">{modal?.company.name}</strong> to confirm:
+            </p>
+            <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={modal?.company.name || ""} />
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
-            <Button variant="destructive" disabled={confirmText !== "CONFIRM" || actionLoading} onClick={() => invokeAction("delete", { reason: "Deleted by system creator" })}>
-              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Delete Forever
+            <Button
+              variant="destructive"
+              disabled={confirmText !== modal?.company.name || actionLoading}
+              onClick={() => invokeAction("delete", { reason: reasonText.trim() || undefined })}
+            >
+              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />}
+              {modal?.company.is_protected ? "Archive" : "Delete Forever"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -366,7 +610,7 @@ export default function CreatorConsole() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Company Modal */}
+      {/* Edit Modal */}
       <Dialog open={modal?.type === "edit"} onOpenChange={(open) => { if (!open) setModal(null); }}>
         <DialogContent>
           <DialogHeader>
@@ -388,5 +632,64 @@ export default function CreatorConsole() {
         </DialogContent>
       </Dialog>
     </CreatorLayout>
+  );
+}
+
+// Read-only view of the verification snapshot captured at approval.
+function VerificationSnapshotView({ company, snapshot }: { company: CompanyRecord; snapshot?: VerificationSnapshot }) {
+  if (!company.approved_at) {
+    return (
+      <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+        No approval record. Verification snapshot only exists for approved companies.
+      </div>
+    );
+  }
+  if (!snapshot) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground p-3">
+        <Loader2 className="h-3 w-3 animate-spin" /> Loading verification snapshot...
+      </div>
+    );
+  }
+  const Pill = ({ ok, label }: { ok: boolean; label: string }) => (
+    <Badge variant="outline" className={ok ? "bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))]" : "bg-[hsl(var(--status-yellow))]/15 text-[hsl(var(--status-yellow))]"}>
+      {label}: {ok ? "Pass" : "Fail/Unknown"}
+    </Badge>
+  );
+  return (
+    <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
+          <Shield className="h-3.5 w-3.5 text-primary" /> Verification Snapshot (at approval)
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Approved {format(new Date(snapshot.approved_at), "MMM d, yyyy")}
+          {snapshot.approver_email ? ` by ${snapshot.approver_email}` : ""}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Pill ok={snapshot.npi_verified} label="NPI" />
+        <Pill ok={snapshot.medicare_enrolled} label="Medicare" />
+        <Pill ok={snapshot.oig_clear} label="OIG" />
+      </div>
+      {(snapshot.npi_result || snapshot.medicare_result || snapshot.oig_result) && (
+        <div className="text-xs space-y-1 text-muted-foreground border-t pt-2">
+          {snapshot.npi_result?.registeredName && (
+            <p><span className="font-medium text-foreground">NPI registered name:</span> {snapshot.npi_result.registeredName}</p>
+          )}
+          {snapshot.medicare_result?.specialty && (
+            <p><span className="font-medium text-foreground">Medicare specialty:</span> {snapshot.medicare_result.specialty}</p>
+          )}
+          {snapshot.oig_result?.details && (
+            <p className="text-destructive"><span className="font-medium">OIG:</span> {snapshot.oig_result.details}</p>
+          )}
+        </div>
+      )}
+      {snapshot.manual_notes && (
+        <p className="text-xs text-muted-foreground border-t pt-2">
+          <span className="font-medium text-foreground">Notes:</span> {snapshot.manual_notes}
+        </p>
+      )}
+    </div>
   );
 }
