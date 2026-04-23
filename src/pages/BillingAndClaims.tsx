@@ -364,7 +364,11 @@ export default function BillingAndClaims() {
         body: { company_id: activeCompanyId },
       });
       if (error) throw error;
-      if (data?.sent > 0) {
+      if (data?.disabled) {
+        toast.info(
+          "Automated submission is disabled. Use Billing → EDI Export to generate claim files."
+        );
+      } else if (data?.sent > 0) {
         toast.success(`Sent ${data.sent} claims via Office Ally`);
       } else {
         toast.info("No new claims to send");

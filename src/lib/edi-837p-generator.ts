@@ -480,9 +480,11 @@ export function generateEDI837P(
       });
       addSeg(["HI", ...hiElements].join(ES));
     }
-    // No fallback diagnosis here. ICD-10 codes must be set upstream — dialysis
-    // runs auto-apply N18.6 in the claim builder; all other transport types
-    // require the biller to enter a diagnosis manually before export.
+    // No fallback diagnosis anywhere in the pipeline. ICD-10 codes must come
+    // from the PCR / patient chart for ALL transport types (including dialysis).
+    // Missing ICD-10 is a hard validation failure in validateClaimForEDI() and
+    // blocks export until real codes are entered. Synthesizing a diagnosis is
+    // federal fraud exposure.
 
     // REF - Prior Authorization
     if (claim.auth_number) {

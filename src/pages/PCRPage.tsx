@@ -484,9 +484,16 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       if (ld.oneoff_wound_location) insertData.wound_location = ld.oneoff_wound_location;
       if (ld.oneoff_wound_stage) insertData.wound_stage = ld.oneoff_wound_stage;
     }
-    // Auto-apply ICD-10 N18.6 (ESRD) for dialysis runs when no codes were carried forward
+    // ICD-10 must come from the patient chart or be entered by the crew/biller in
+    // the ICD-10 picker. We do NOT synthesize a diagnosis (previously auto-stamped
+    // N18.6 ESRD on dialysis runs) — that is federal fraud exposure. Block PCR
+    // creation when a dialysis run has no codes and direct the user to fix it.
     if (tripTypeKey === "dialysis" && (!insertData.icd10_codes || insertData.icd10_codes.length === 0)) {
-      insertData.icd10_codes = ["N18.6"];
+      toast.error(
+        "ICD-10 code required for dialysis transport. Open the patient chart and add the patient's diagnosis (e.g., N18.6 / Z99.2) on the Assessment card before starting the PCR."
+      );
+      setCreating(null);
+      return;
     }
     if (run.slotId) insertData.slot_id = run.slotId;
     const { data: newTrip, error } = await supabase.from("trip_records").insert(insertData).select("id").single();

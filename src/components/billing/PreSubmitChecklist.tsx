@@ -137,15 +137,13 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         || (t.leg?.oneoff_member_id && String(t.leg.oneoff_member_id).trim())
         || "";
 
-      // ICD-10 — read from trip first, fall back to claim record. Dialysis runs
-      // auto-apply N18.6 (ESRD) so the check passes without crew action even on
-      // older trips that pre-date the auto-apply behavior.
-      let effectiveIcd10: string[] = (Array.isArray(t.icd10_codes) && t.icd10_codes.length > 0)
+      // ICD-10 — read from trip first, fall back to claim record. We do NOT
+      // synthesize a diagnosis here. Auto-stamping N18.6 (ESRD) on dialysis runs
+      // with no codes was federal fraud exposure and has been removed. If codes
+      // are missing the checklist must fail so the biller resolves it on the PCR.
+      const effectiveIcd10: string[] = (Array.isArray(t.icd10_codes) && t.icd10_codes.length > 0)
         ? t.icd10_codes
         : (Array.isArray(claim?.icd10_codes) ? claim.icd10_codes : []);
-      if (effectiveIcd10.length === 0 && isDialysis) {
-        effectiveIcd10 = ["N18.6"];
-      }
 
       // Medical necessity — booleans OR free-text reason from PCR
       const hasNecessity = !!(t.bed_confined || t.cannot_transfer_safely || t.requires_monitoring || t.oxygen_during_transport
