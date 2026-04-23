@@ -267,7 +267,6 @@ function AppRoutes() {
           {/* Creator-specific pages (use CreatorLayout internally) */}
           <Route path="/system" element={<SystemCreatorDashboard />} />
           <Route path="/creator-console" element={<CreatorConsole />} />
-          <Route path="/pending-companies" element={<PendingCompaniesAdmin />} />
           <Route path="/creator-settings" element={<CreatorSettings />} />
           <Route path="/simulation-lab" element={<SimulationLab />} />
           <Route path="/crew-preview" element={<CrewUIPreview />} />
