@@ -69,6 +69,9 @@ export interface SubmitterInfo {
   submitter_name: string;
   contact_name: string;
   contact_phone: string;
+  /** Office Ally (or other clearinghouse) receiver ID. Defaults to "OFFICEALLY"
+   *  when not supplied. Must come from clearinghouse_settings.receiver_id. */
+  receiver_id?: string;
 }
 
 // Element separator, sub-element separator, segment terminator
@@ -341,6 +344,7 @@ export function generateEDI837P(
   const timeStr = formatTime4();
 
   // ISA - Interchange Control Header
+  const receiverId = (submitterInfo.receiver_id || "OFFICEALLY").toUpperCase();
   segments.push(
     [
       "ISA",
@@ -351,7 +355,7 @@ export function generateEDI837P(
       "ZZ",                          // Interchange Sender Qualifier
       pad(submitterInfo.submitter_id, 15), // Interchange Sender ID
       "ZZ",                          // Interchange Receiver Qualifier
-      pad("OFFICEALLY", 15),         // Interchange Receiver ID
+      pad(receiverId, 15),           // Interchange Receiver ID
       dateStr.slice(2),              // Date (YYMMDD)
       timeStr,                       // Time (HHMM)
       "^",                           // Repetition Separator
@@ -369,7 +373,7 @@ export function generateEDI837P(
       "GS",
       "HC",                          // Functional Identifier Code (Health Care)
       submitterInfo.submitter_id,
-      "OFFICEALLY",
+      receiverId,
       dateStr,
       timeStr,
       groupControlNum,
@@ -407,7 +411,7 @@ export function generateEDI837P(
     addSeg(["PER", "IC", submitterInfo.contact_name, "TE", submitterInfo.contact_phone.replace(/\D/g, "")].join(ES));
 
     // --- RECEIVER (1000B) ---
-    addSeg(["NM1", "40", "2", "OFFICEALLY", "", "", "", "", "46", "OFFICEALLY"].join(ES));
+    addSeg(["NM1", "40", "2", receiverId, "", "", "", "", "46", receiverId].join(ES));
 
     // --- BILLING PROVIDER HL (2000A) ---
     addSeg(["HL", "1", "", "20", "1"].join(ES));
@@ -618,6 +622,14 @@ export function validateClaimForEDI(claim: ClaimForEDI, billingState?: string | 
   if (!claim.total_charge || claim.total_charge <= 0) errors.push("Invalid charge amount");
   if (!claim.hcpcs_codes?.length) errors.push("Missing HCPCS codes");
   if (!claim.payer_name && !claim.payer_id) errors.push("Missing payer information");
+
+  // ICD-10 — required from PCR. We removed the dialysis N18.6 auto-stamp,
+  // so any claim missing codes must be blocked here. Diagnosis is the basis
+  // for medical-necessity determination — fabricating one is fraud exposure.
+  const allDiag = [...(claim.icd10_codes || []), ...(claim.diagnosis_codes || [])].filter(Boolean);
+  if (allDiag.length === 0) {
+    errors.push("ICD-10 code required — enter code from PCR");
+  }
 
   // Patient name — both first and last required. splitPatientName uses "UNKNOWN"
   // as a placeholder when parsing fails, so check for that explicitly.

@@ -27,6 +27,11 @@ interface ClearinghouseRow {
   last_send_at: string | null;
   last_receive_at: string | null;
   last_error: string | null;
+  submitter_id: string | null;
+  submitter_name: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  receiver_id: string | null;
 }
 
 export function ClearinghouseSettings() {
@@ -48,6 +53,13 @@ export function ClearinghouseSettings() {
   // Step 3
   const [outbound, setOutbound] = useState("/upload");
   const [inbound, setInbound] = useState("/download");
+
+  // Submitter / receiver IDs (required on the 837P envelope)
+  const [submitterId, setSubmitterId] = useState("");
+  const [submitterName, setSubmitterName] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [receiverId, setReceiverId] = useState("OFFICEALLY");
 
   // Step 4
   const [autoSend, setAutoSend] = useState(false);
@@ -77,6 +89,11 @@ export function ClearinghouseSettings() {
       setInbound(row.inbound_folder);
       setAutoSend(row.auto_send_enabled);
       setAutoReceive(row.auto_receive_enabled);
+      setSubmitterId(row.submitter_id ?? "");
+      setSubmitterName(row.submitter_name ?? "");
+      setContactName(row.contact_name ?? "");
+      setContactPhone(row.contact_phone ?? "");
+      setReceiverId(row.receiver_id ?? "OFFICEALLY");
       if (row.is_configured) {
         setAccountCreated(true);
         setConnectionStatus("success");
@@ -317,12 +334,47 @@ export function ClearinghouseSettings() {
                 <Label>Inbound Folder (835 payments)</Label>
                 <Input value={inbound} onChange={(e) => setInbound(e.target.value)} />
               </div>
+              <div className="pt-3 border-t mt-2">
+                <p className="text-sm font-medium text-foreground mb-1">EDI Submitter Identification</p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Required on every 837P envelope. Office Ally provides your Submitter ID after enrollment.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Submitter ID (ISA06 / GS02)</Label>
+                <Input value={submitterId} onChange={(e) => setSubmitterId(e.target.value)} placeholder="From Office Ally" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Submitter Name</Label>
+                <Input value={submitterName} onChange={(e) => setSubmitterName(e.target.value)} placeholder="Your billing entity name" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Billing Contact Name</Label>
+                <Input value={contactName} onChange={(e) => setContactName(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Billing Contact Phone</Label>
+                <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="10 digits" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Receiver ID (ISA08 / GS03)</Label>
+                <Input value={receiverId} onChange={(e) => setReceiverId(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Default <code>OFFICEALLY</code> works for standard accounts.</p>
+              </div>
             </div>
             <Button
               size="sm"
               disabled={saving}
               onClick={async () => {
-                await saveStep({ outbound_folder: outbound, inbound_folder: inbound });
+                await saveStep({
+                  outbound_folder: outbound,
+                  inbound_folder: inbound,
+                  submitter_id: submitterId.trim() || null,
+                  submitter_name: submitterName.trim() || null,
+                  contact_name: contactName.trim() || null,
+                  contact_phone: contactPhone.trim() || null,
+                  receiver_id: receiverId.trim() || "OFFICEALLY",
+                });
                 setActiveStep(4);
               }}
             >
