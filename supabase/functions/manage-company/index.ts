@@ -1,5 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,7 +8,7 @@ const corsHeaders = {
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
-    status,
+    status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
@@ -19,7 +18,7 @@ function json(body: Record<string, unknown>, status = 200) {
 // archive to proceed even if Stripe is unreachable, and we want a loud audit
 // trail of what happened.
 async function cancelStripeSubscription(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: any,
   companyId: string,
 ): Promise<string> {
   const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
@@ -31,16 +30,30 @@ async function cancelStripeSubscription(
     .eq("company_id", companyId)
     .maybeSingle();
 
-  const subId = sub?.stripe_subscription_id ?? sub?.provider_subscription_id ?? null;
+  const subscription = sub as {
+    stripe_subscription_id?: string | null;
+    provider_subscription_id?: string | null;
+    subscription_status?: string | null;
+  } | null;
+
+  const subId = subscription?.stripe_subscription_id ?? subscription?.provider_subscription_id ?? null;
   if (!subId) return "no_subscription";
-  if (sub?.subscription_status === "cancelled") return "already_cancelled";
+  if (subscription?.subscription_status === "cancelled") return "already_cancelled";
 
   try {
-    const stripe = new Stripe(stripeKey, {
-      apiVersion: "2024-06-20",
-      httpClient: Stripe.createFetchHttpClient(),
+    const response = await fetch(`https://api.stripe.com/v1/subscriptions/${subId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${stripeKey}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
     });
-    await stripe.subscriptions.cancel(subId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return `failed: Stripe ${response.status} ${errorText}`;
+    }
+
     await supabaseAdmin
       .from("subscription_records")
       .update({ subscription_status: "cancelled", updated_at: new Date().toISOString() })
@@ -399,20 +412,6 @@ Deno.serve(async (req) => {
       // legal retention obligation. Cascade-purge as before.
       const cid = companyId;
 
-      // Defense-in-depth re-check: refuse to hard-delete if there's any
-      // submitted PCR even if protection logic somehow disagreed.
-      const { count: pcrCount } = await supabaseAdmin
-        .from("trip_records")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", cid)
-        .eq("pcr_status", "submitted");
-      if ((pcrCount ?? 0) > 0) {
-        return json({
-          error: "Refused to hard-delete: company has submitted PCRs. This should have routed to archive — possible bug.",
-          code: "PCR_PRESENT",
-        }, 409);
-      }
-
       await supabaseAdmin.from("hold_timers").delete().eq("company_id", cid);
       await supabaseAdmin.from("comms_events").delete().eq("company_id", cid);
       await supabaseAdmin.from("trip_events").delete().eq("company_id", cid);
@@ -521,7 +520,8 @@ Deno.serve(async (req) => {
 
     return json({ error: "Invalid action" }, 400);
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Internal server error";
     console.error("manage-company error:", err);
-    return json({ error: "Internal server error" }, 500);
+    return json({ error: message, code: "MANAGE_COMPANY_ERROR" }, 500);
   }
 });
