@@ -33,7 +33,6 @@ import CompanySignup from "./pages/CompanySignup";
 import PendingApproval from "./pages/PendingApproval";
 import CreatorConsole from "./pages/CreatorConsole";
 import SandboxPage from "./pages/SandboxPage";
-import PendingCompaniesAdmin from "./pages/PendingCompaniesAdmin";
 import CreatorSettings from "./pages/CreatorSettings";
 import SimulationLab from "./pages/SimulationLab";
 import CrewUIPreview from "./pages/CrewUIPreview";
