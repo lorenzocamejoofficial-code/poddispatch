@@ -1,5 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,7 +8,7 @@ const corsHeaders = {
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
-    status,
+    status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
@@ -36,11 +35,19 @@ async function cancelStripeSubscription(
   if (sub?.subscription_status === "cancelled") return "already_cancelled";
 
   try {
-    const stripe = new Stripe(stripeKey, {
-      apiVersion: "2024-06-20",
-      httpClient: Stripe.createFetchHttpClient(),
+    const response = await fetch(`https://api.stripe.com/v1/subscriptions/${subId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${stripeKey}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
     });
-    await stripe.subscriptions.cancel(subId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return `failed: Stripe ${response.status} ${errorText}`;
+    }
+
     await supabaseAdmin
       .from("subscription_records")
       .update({ subscription_status: "cancelled", updated_at: new Date().toISOString() })
