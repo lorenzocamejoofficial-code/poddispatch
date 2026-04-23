@@ -490,13 +490,15 @@ export default function BillingAndClaims() {
         stretcher_placement: t.stretcher_placement ?? null,
         patient_mobility: t.patient_mobility ?? null,
         isolation_precautions: t.isolation_precautions ?? null,
-        // Auto-apply N18.6 (ESRD) ONLY for dialysis runs missing ICD-10 — the only
-        // billable diagnosis CMS recognizes for routine dialysis transport.
-        // For all other transport types (wound care, discharge, IFT, same-day
-        // unscheduled), do NOT auto-apply any code — biller must enter manually.
+        // ICD-10 must come from the PCR. We do NOT synthesize a diagnosis under
+        // any circumstance — auto-stamping ESRD (N18.6) on dialysis runs that
+        // lack codes was federal fraud exposure and has been removed. If the
+        // trip has no ICD-10 codes, the resulting claim will fail
+        // validateClaimForEDI("Missing ICD-10 code from PCR") and be blocked
+        // from export until the biller enters real codes from the PCR.
         icd10_codes: (Array.isArray(t.icd10_codes) && t.icd10_codes.length > 0)
           ? t.icd10_codes
-          : (String(t.trip_type ?? t.pcr_type ?? "").toLowerCase() === "dialysis" ? ["N18.6"] : []),
+          : [],
         origin_zip: extractZip(t.pickup_location),
         destination_zip: extractZip(t.destination_location),
         patient_sex: t.patient?.sex ?? (isOneoff ? leg?.oneoff_sex : null) ?? null,
