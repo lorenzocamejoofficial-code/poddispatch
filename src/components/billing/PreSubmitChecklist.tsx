@@ -274,13 +274,17 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const normalizedTypeForBaseChecks = normalizeTransportKey(t.trip_type ?? t.pcr_type);
 
       // Vitals — all transport types
-      const vitalsArr = Array.isArray(t.vitals_json) ? t.vitals_json : [];
-      const hasSavedVitals = vitalsArr.some((v: any) => !!v?.timestamp && v?.saved !== false);
-      checks.push({
-        label: "Vitals set saved",
-        passed: hasSavedVitals,
-        detail: hasSavedVitals ? undefined : "No vitals recorded — complete the Vitals card before submitting.",
-      });
+      // Vitals — all transport types EXCEPT private_pay (cash invoices don't
+      // need clinical vitals; this matches pcr-field-requirements.ts).
+      if (!isPrivatePay) {
+        const vitalsArr = Array.isArray(t.vitals_json) ? t.vitals_json : [];
+        const hasSavedVitals = vitalsArr.some((v: any) => !!v?.timestamp && v?.saved !== false);
+        checks.push({
+          label: "Vitals set saved",
+          passed: hasSavedVitals,
+          detail: hasSavedVitals ? undefined : "No vitals recorded — complete the Vitals card before submitting.",
+        });
+      }
 
       // Level of consciousness — required for dialysis, outpatient, wound_care, discharge
       if (["dialysis", "outpatient", "wound_care", "discharge"].includes(normalizedTypeForBaseChecks)) {
