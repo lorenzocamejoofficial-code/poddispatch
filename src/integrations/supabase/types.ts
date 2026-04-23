@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_actions: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_user_id: string
+          before_snapshot: Json | null
+          company_id: string | null
+          company_name: string | null
+          created_at: string
+          id: string
+          reason: string | null
+          stripe_cancel_status: string | null
+          was_protected: boolean
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_user_id: string
+          before_snapshot?: Json | null
+          company_id?: string | null
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          reason?: string | null
+          stripe_cancel_status?: string | null
+          was_protected?: boolean
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_user_id?: string
+          before_snapshot?: Json | null
+          company_id?: string | null
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          reason?: string | null
+          stripe_cancel_status?: string | null
+          was_protected?: boolean
+        }
+        Relationships: []
+      }
       alerts: {
         Row: {
           company_id: string | null
@@ -1116,6 +1158,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "company_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_verifications: {
+        Row: {
+          approved_at: string
+          approver_email: string | null
+          approver_user_id: string
+          company_id: string
+          created_at: string
+          id: string
+          manual_notes: string | null
+          medicare_enrolled: boolean
+          medicare_result: Json | null
+          npi_result: Json | null
+          npi_verified: boolean
+          oig_clear: boolean
+          oig_result: Json | null
+        }
+        Insert: {
+          approved_at?: string
+          approver_email?: string | null
+          approver_user_id: string
+          company_id: string
+          created_at?: string
+          id?: string
+          manual_notes?: string | null
+          medicare_enrolled?: boolean
+          medicare_result?: Json | null
+          npi_result?: Json | null
+          npi_verified?: boolean
+          oig_clear?: boolean
+          oig_result?: Json | null
+        }
+        Update: {
+          approved_at?: string
+          approver_email?: string | null
+          approver_user_id?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          manual_notes?: string | null
+          medicare_enrolled?: boolean
+          medicare_result?: Json | null
+          npi_result?: Json | null
+          npi_verified?: boolean
+          oig_clear?: boolean
+          oig_result?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_verifications_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -3147,6 +3245,8 @@ export type Database = {
           provider: string
           provider_customer_id: string | null
           provider_subscription_id: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
           subscription_status: string
           trial_ends_at: string | null
           updated_at: string
@@ -3163,6 +3263,8 @@ export type Database = {
           provider?: string
           provider_customer_id?: string | null
           provider_subscription_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           subscription_status?: string
           trial_ends_at?: string | null
           updated_at?: string
@@ -3179,6 +3281,8 @@ export type Database = {
           provider?: string
           provider_customer_id?: string | null
           provider_subscription_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           subscription_status?: string
           trial_ends_at?: string | null
           updated_at?: string
@@ -4526,6 +4630,7 @@ export type Database = {
         Returns: boolean
       }
       is_dispatcher: { Args: never; Returns: boolean }
+      is_protected_record: { Args: { _company_id: string }; Returns: boolean }
       is_system_creator: { Args: never; Returns: boolean }
       safe_assign_crew:
         | {
