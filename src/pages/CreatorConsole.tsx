@@ -472,10 +472,48 @@ export default function CreatorConsole() {
 
   const ArchivedTable = ({ items }: { items: CompanyRecord[] }) => {
     if (items.length === 0) return <p className="text-sm text-muted-foreground text-center py-8">No archived companies.</p>;
+    const deletableItems = items.filter(c => !c.is_protected);
+    const allSelected = deletableItems.length > 0 && deletableItems.every(c => selectedArchived.has(c.id));
+    const someSelected = deletableItems.some(c => selectedArchived.has(c.id));
+    const toggleAll = () => {
+      const next = new Set(selectedArchived);
+      if (allSelected) {
+        deletableItems.forEach(c => next.delete(c.id));
+      } else {
+        deletableItems.forEach(c => next.add(c.id));
+      }
+      setSelectedArchived(next);
+    };
+    const toggleOne = (id: string) => {
+      const next = new Set(selectedArchived);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      setSelectedArchived(next);
+    };
     return (
+      <>
+        {selectedArchived.size > 0 && (
+          <div className="mb-3 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+            <span className="text-sm font-medium">{selectedArchived.size} selected</span>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setSelectedArchived(new Set())}>Clear</Button>
+              <Button size="sm" variant="destructive" className="gap-1" disabled={actionLoading} onClick={() => { setBulkDeleteOpen(true); setBulkConfirmText(""); }}>
+                <Trash2 className="h-3 w-3" /> Delete {selectedArchived.size} Forever
+              </Button>
+            </div>
+          </div>
+        )}
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-8">
+              {deletableItems.length > 0 && (
+                <Checkbox
+                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                  onCheckedChange={toggleAll}
+                  aria-label="Select all deletable archived companies"
+                />
+              )}
+            </TableHead>
             <TableHead>Company</TableHead>
             <TableHead>Owner Email</TableHead>
             <TableHead>Archived</TableHead>
@@ -489,6 +527,15 @@ export default function CreatorConsole() {
             const purgeAt = archivedAt ? new Date(archivedAt.getTime() + RETENTION_YEARS * 365 * 24 * 60 * 60 * 1000) : null;
             return (
               <TableRow key={c.id}>
+                <TableCell>
+                  {!c.is_protected && (
+                    <Checkbox
+                      checked={selectedArchived.has(c.id)}
+                      onCheckedChange={() => toggleOne(c.id)}
+                      aria-label={`Select ${c.name}`}
+                    />
+                  )}
+                </TableCell>
                 <TableCell className="font-medium">{renderCompanyName(c)}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">{c.owner_email || "—"}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">
@@ -520,6 +567,7 @@ export default function CreatorConsole() {
           })}
         </TableBody>
       </Table>
+      </>
     );
   };
 
