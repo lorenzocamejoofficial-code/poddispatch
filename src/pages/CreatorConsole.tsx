@@ -285,19 +285,80 @@ export default function CreatorConsole() {
     </div>
   );
 
-  // Single delete button — server decides archive vs hard-delete
-  const renderDeleteButton = (c: CompanyRecord) => (
-    <Button
-      size="sm"
-      variant="ghost"
-      className="gap-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-      disabled={actionLoading}
-      onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); setReasonText(""); }}
-    >
-      {c.is_protected ? <Archive className="h-3 w-3" /> : <Trash2 className="h-3 w-3" />}
-      {c.is_protected ? "Archive" : "Delete"}
-    </Button>
-  );
+  // Actions dropdown — keeps the row compact instead of a button cluster.
+  const renderActionsDropdown = (c: CompanyRecord) => {
+    const isPending = c.onboarding_status === "pending_approval";
+    const isActive = c.onboarding_status === "active";
+    const isSuspended = c.onboarding_status === "suspended";
+    const isRejected = c.onboarding_status === "rejected";
+    const isAwaitingPayment = c.onboarding_status === "approved_pending_payment";
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={actionLoading}>
+            {actionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MoreHorizontal className="h-3.5 w-3.5" />}
+            <span className="sr-only">Actions</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          {isPending && (
+            <>
+              <DropdownMenuItem onClick={() => handleApprove(c)}>
+                <CheckCircle2 className="h-3.5 w-3.5 mr-2 text-[hsl(var(--status-green))]" /> Approve
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => { setModal({ type: "reject", company: c }); setReasonText(""); }}
+              >
+                <XCircle className="h-3.5 w-3.5 mr-2" /> Reject
+              </DropdownMenuItem>
+            </>
+          )}
+
+          {isActive && (
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => { setModal({ type: "suspend", company: c }); setReasonText(""); setConfirmText(""); }}
+            >
+              <Ban className="h-3.5 w-3.5 mr-2" /> Suspend
+            </DropdownMenuItem>
+          )}
+
+          {isSuspended && (
+            <DropdownMenuItem onClick={() => invokeDirectUnsuspend(c.id)}>
+              <RefreshCw className="h-3.5 w-3.5 mr-2" /> Unsuspend
+            </DropdownMenuItem>
+          )}
+
+          {(isActive || isSuspended) && (
+            <>
+              <DropdownMenuItem onClick={() => { setModal({ type: "reset_password", company: c }); setConfirmText(""); }}>
+                <KeyRound className="h-3.5 w-3.5 mr-2" /> Reset Password
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setModal({ type: "edit", company: c }); setEditName(c.name); }}>
+                <Pencil className="h-3.5 w-3.5 mr-2" /> Edit Profile
+              </DropdownMenuItem>
+            </>
+          )}
+
+          {(isActive || isSuspended || isRejected || isAwaitingPayment) && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); setReasonText(""); }}
+              >
+                {c.is_protected
+                  ? <><Archive className="h-3.5 w-3.5 mr-2" /> Archive</>
+                  : <><Trash2 className="h-3.5 w-3.5 mr-2" /> Delete Forever</>}
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
 
   const ExpandableRow = ({ c, allowVerificationPanel }: { c: CompanyRecord; allowVerificationPanel: boolean }) => (
     <>
