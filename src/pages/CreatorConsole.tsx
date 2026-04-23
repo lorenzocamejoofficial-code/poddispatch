@@ -248,6 +248,37 @@ export default function CreatorConsole() {
     setActionLoading(false);
   };
 
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedArchived);
+    if (ids.length === 0) return;
+    setActionLoading(true);
+    let success = 0;
+    let failed = 0;
+    const errors: string[] = [];
+    for (const id of ids) {
+      const company = archivedCompanies.find(c => c.id === id);
+      if (!company || company.is_protected) { failed++; continue; }
+      try {
+        const { data, error } = await supabase.functions.invoke("manage-company", {
+          body: { companyId: id, action: "delete", reason: "Bulk delete by system creator" },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        success++;
+      } catch (err: any) {
+        failed++;
+        errors.push(`${company.name}: ${err.message || "failed"}`);
+      }
+    }
+    if (success > 0) toast.success(`Deleted ${success} compan${success === 1 ? "y" : "ies"}.`);
+    if (failed > 0) toast.error(`${failed} failed${errors.length ? `: ${errors.slice(0, 2).join("; ")}` : ""}`);
+    setSelectedArchived(new Set());
+    setBulkDeleteOpen(false);
+    setBulkConfirmText("");
+    setActionLoading(false);
+    await loadCompanies();
+  };
+
   const filtered = (status: string) =>
     companies.filter(c => {
       if (c.onboarding_status !== status) return false;
