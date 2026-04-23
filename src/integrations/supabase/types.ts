@@ -399,6 +399,9 @@ export type Database = {
           denial_category: string | null
           denial_code: string | null
           denial_reason: string | null
+          destination_address: string | null
+          destination_city: string | null
+          destination_state: string | null
           destination_type: string | null
           destination_zip: string | null
           edi_acknowledgment_code: string | null
@@ -426,6 +429,9 @@ export type Database = {
           odometer_at_destination: number | null
           odometer_at_scene: number | null
           odometer_in_service: number | null
+          origin_address: string | null
+          origin_city: string | null
+          origin_state: string | null
           origin_type: string | null
           origin_zip: string | null
           original_claim_id: string | null
@@ -437,10 +443,12 @@ export type Database = {
           payer_claim_control_number: string | null
           payer_name: string | null
           payer_type: string | null
+          pcs_attachment_control_number: string | null
           pcs_certification_date: string | null
           pcs_completed_at: string | null
           pcs_completed_by: string | null
           pcs_diagnosis: string | null
+          pcs_document_on_file: boolean | null
           pcs_physician_name: string | null
           pcs_physician_npi: string | null
           primary_impression: string | null
@@ -478,6 +486,9 @@ export type Database = {
           denial_category?: string | null
           denial_code?: string | null
           denial_reason?: string | null
+          destination_address?: string | null
+          destination_city?: string | null
+          destination_state?: string | null
           destination_type?: string | null
           destination_zip?: string | null
           edi_acknowledgment_code?: string | null
@@ -505,6 +516,9 @@ export type Database = {
           odometer_at_destination?: number | null
           odometer_at_scene?: number | null
           odometer_in_service?: number | null
+          origin_address?: string | null
+          origin_city?: string | null
+          origin_state?: string | null
           origin_type?: string | null
           origin_zip?: string | null
           original_claim_id?: string | null
@@ -516,10 +530,12 @@ export type Database = {
           payer_claim_control_number?: string | null
           payer_name?: string | null
           payer_type?: string | null
+          pcs_attachment_control_number?: string | null
           pcs_certification_date?: string | null
           pcs_completed_at?: string | null
           pcs_completed_by?: string | null
           pcs_diagnosis?: string | null
+          pcs_document_on_file?: boolean | null
           pcs_physician_name?: string | null
           pcs_physician_npi?: string | null
           primary_impression?: string | null
@@ -557,6 +573,9 @@ export type Database = {
           denial_category?: string | null
           denial_code?: string | null
           denial_reason?: string | null
+          destination_address?: string | null
+          destination_city?: string | null
+          destination_state?: string | null
           destination_type?: string | null
           destination_zip?: string | null
           edi_acknowledgment_code?: string | null
@@ -584,6 +603,9 @@ export type Database = {
           odometer_at_destination?: number | null
           odometer_at_scene?: number | null
           odometer_in_service?: number | null
+          origin_address?: string | null
+          origin_city?: string | null
+          origin_state?: string | null
           origin_type?: string | null
           origin_zip?: string | null
           original_claim_id?: string | null
@@ -595,10 +617,12 @@ export type Database = {
           payer_claim_control_number?: string | null
           payer_name?: string | null
           payer_type?: string | null
+          pcs_attachment_control_number?: string | null
           pcs_certification_date?: string | null
           pcs_completed_at?: string | null
           pcs_completed_by?: string | null
           pcs_diagnosis?: string | null
+          pcs_document_on_file?: boolean | null
           pcs_physician_name?: string | null
           pcs_physician_npi?: string | null
           primary_impression?: string | null
@@ -664,6 +688,8 @@ export type Database = {
           auto_send_enabled: boolean
           clearinghouse_name: string
           company_id: string
+          contact_name: string | null
+          contact_phone: string | null
           created_at: string
           id: string
           inbound_folder: string
@@ -673,10 +699,13 @@ export type Database = {
           last_receive_at: string | null
           last_send_at: string | null
           outbound_folder: string
+          receiver_id: string
           sftp_host: string
           sftp_password_encrypted: string | null
           sftp_port: number
           sftp_username: string | null
+          submitter_id: string | null
+          submitter_name: string | null
           updated_at: string
         }
         Insert: {
@@ -684,6 +713,8 @@ export type Database = {
           auto_send_enabled?: boolean
           clearinghouse_name?: string
           company_id: string
+          contact_name?: string | null
+          contact_phone?: string | null
           created_at?: string
           id?: string
           inbound_folder?: string
@@ -693,10 +724,13 @@ export type Database = {
           last_receive_at?: string | null
           last_send_at?: string | null
           outbound_folder?: string
+          receiver_id?: string
           sftp_host?: string
           sftp_password_encrypted?: string | null
           sftp_port?: number
           sftp_username?: string | null
+          submitter_id?: string | null
+          submitter_name?: string | null
           updated_at?: string
         }
         Update: {
@@ -704,6 +738,8 @@ export type Database = {
           auto_send_enabled?: boolean
           clearinghouse_name?: string
           company_id?: string
+          contact_name?: string | null
+          contact_phone?: string | null
           created_at?: string
           id?: string
           inbound_folder?: string
@@ -713,10 +749,13 @@ export type Database = {
           last_receive_at?: string | null
           last_send_at?: string | null
           outbound_folder?: string
+          receiver_id?: string
           sftp_host?: string
           sftp_password_encrypted?: string | null
           sftp_port?: number
           sftp_username?: string | null
+          submitter_id?: string | null
+          submitter_name?: string | null
           updated_at?: string
         }
         Relationships: [
