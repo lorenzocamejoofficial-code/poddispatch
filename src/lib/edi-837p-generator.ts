@@ -475,6 +475,28 @@ export function generateEDI837P(
     // DTP - Service Date
     addSeg(["DTP", "472", "D8", formatDate8(claim.run_date)].join(ES));
 
+    // NTE - Claim Note (Loop 2300, Additional Information)
+    // Carries the original dispatch reason ("chief complaint") and on-scene
+    // primary impression so payers / auditors can reconcile what we were
+    // dispatched for vs. what crew actually found. NTE*ADD = "Additional
+    // Information"; alphanumeric, hyphen, comma, period and space allowed.
+    const noteParts: string[] = [];
+    if (claim.chief_complaint && claim.chief_complaint.trim()) {
+      noteParts.push(`DISPATCH: ${claim.chief_complaint.trim()}`);
+    }
+    if (claim.primary_impression && claim.primary_impression.trim()) {
+      noteParts.push(`IMPRESSION: ${claim.primary_impression.trim()}`);
+    }
+    if (noteParts.length > 0) {
+      // 837P NTE02 max length is 80 chars per implementation guide.
+      const noteText = noteParts.join(" | ")
+        .replace(/[^A-Za-z0-9 ,.\-:|]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 80);
+      addSeg(["NTE", "ADD", noteText].join(ES));
+    }
+
     // CRC - Ambulance Certification (dynamic condition codes)
     const crcCodes = buildCrcCodes(claim);
     if (crcCodes.length > 0) {
