@@ -28,6 +28,7 @@ import { format } from "date-fns";
 import { CreatorLayout } from "@/components/layout/CreatorLayout";
 import { CompanyVerificationPanel, type VerificationResult } from "@/components/creator/CompanyVerificationPanel";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface CompanyRecord {
   id: string;
