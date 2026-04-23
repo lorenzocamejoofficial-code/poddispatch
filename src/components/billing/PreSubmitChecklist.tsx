@@ -112,15 +112,19 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const canonicalTripType = String(t.trip_type ?? t.pcr_type ?? "").toLowerCase();
       const isEmergency = canonicalTripType === "emergency";
       const isUnscheduled = !!t.is_unscheduled;
+      // Private-pay invoices are NOT insurance claims. Vitals, mileage, odometers,
+      // medical-necessity criteria, and PCS are all insurance-driven requirements
+      // that don't apply to a cash invoice. Treat private_pay leniently.
+      const isPrivatePay = canonicalTripType === "private_pay";
 
       // Patient-level PCS satisfies the check (and hides the biller panel) for any
       // run whose patient already has PCS on file and not expired. Most common on
       // dialysis but applies to any standing-PCS patient.
       const patientPcsValid = !!(p?.pcs_on_file && (!p?.pcs_expiration_date || new Date(p.pcs_expiration_date) >= new Date(t.run_date)));
-      const pcsSkippable = isEmergency || isUnscheduled || !need.pcs || patientPcsValid;
+      const pcsSkippable = isEmergency || isUnscheduled || isPrivatePay || !need.pcs || patientPcsValid;
       // Hide the biller PCS data-entry panel when PCS is already covered by the
       // patient record, when the payer doesn't require it, or for emergency/unscheduled runs.
-      setPcsApplicable(need.pcs && !isEmergency && !isUnscheduled && !patientPcsValid);
+      setPcsApplicable(need.pcs && !isEmergency && !isUnscheduled && !isPrivatePay && !patientPcsValid);
 
       // Biller-entered PCS satisfies the PCS check (overrides patient-record PCS)
       const billerPcsComplete = !!(claim?.pcs_physician_name && claim?.pcs_physician_npi && claim?.pcs_certification_date && claim?.pcs_diagnosis);
@@ -173,7 +177,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       }
 
       // Medical necessity — gated by payer rule
-      if (need.necessity) {
+      if (need.necessity && !isPrivatePay) {
         checks.push({
           label: "At least one medical necessity criterion checked",
           passed: hasNecessity,
@@ -205,11 +209,23 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       }
 
       // Loaded miles + odometers — gated by payer rule
-      if (need.miles) {
+      if (need.miles && !isPrivatePay) {
+        // Auto-derive loaded_miles from odometer readings when missing — billers
+        // shouldn't have to manually copy this if the crew documented odometers.
+        const derivedMiles = (t.loaded_miles && Number(t.loaded_miles) > 0)
+          ? Number(t.loaded_miles)
+          : (t.odometer_at_scene != null && t.odometer_at_destination != null && t.odometer_at_destination > t.odometer_at_scene)
+            ? Number(t.odometer_at_destination) - Number(t.odometer_at_scene)
+            : 0;
+        // Accept any positive mileage ≥ 0.1 — sub-mile transports (e.g.
+        // hospital-to-hospital across the street) are real and the EDI
+        // generator already supports fractional miles via toFixed(1).
         checks.push({
           label: "Loaded miles recorded",
-          passed: !!(t.loaded_miles && Number(t.loaded_miles) > 0),
-          detail: t.loaded_miles ? `${t.loaded_miles} miles` : undefined,
+          passed: derivedMiles >= 0.1,
+          detail: derivedMiles >= 0.1
+            ? `${derivedMiles.toFixed(1)} miles${(!t.loaded_miles || Number(t.loaded_miles) === 0) ? " (auto-derived from odometer)" : ""}`
+            : "Loaded miles must be at least 0.1 — record odometer readings or enter mileage on the PCR.",
         });
         checks.push({
           label: "Odometer readings present",
@@ -258,13 +274,17 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const normalizedTypeForBaseChecks = normalizeTransportKey(t.trip_type ?? t.pcr_type);
 
       // Vitals — all transport types
-      const vitalsArr = Array.isArray(t.vitals_json) ? t.vitals_json : [];
-      const hasSavedVitals = vitalsArr.some((v: any) => !!v?.timestamp && v?.saved !== false);
-      checks.push({
-        label: "Vitals set saved",
-        passed: hasSavedVitals,
-        detail: hasSavedVitals ? undefined : "No vitals recorded — complete the Vitals card before submitting.",
-      });
+      // Vitals — all transport types EXCEPT private_pay (cash invoices don't
+      // need clinical vitals; this matches pcr-field-requirements.ts).
+      if (!isPrivatePay) {
+        const vitalsArr = Array.isArray(t.vitals_json) ? t.vitals_json : [];
+        const hasSavedVitals = vitalsArr.some((v: any) => !!v?.timestamp && v?.saved !== false);
+        checks.push({
+          label: "Vitals set saved",
+          passed: hasSavedVitals,
+          detail: hasSavedVitals ? undefined : "No vitals recorded — complete the Vitals card before submitting.",
+        });
+      }
 
       // Level of consciousness — required for dialysis, outpatient, wound_care, discharge
       if (["dialysis", "outpatient", "wound_care", "discharge"].includes(normalizedTypeForBaseChecks)) {
