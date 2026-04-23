@@ -420,15 +420,33 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from("truck_risk_state").delete().eq("company_id", cid);
       await supabaseAdmin.from("operational_alerts").delete().eq("company_id", cid);
       await supabaseAdmin.from("safety_overrides").delete().eq("company_id", cid);
+      await supabaseAdmin.from("biller_tasks").delete().eq("company_id", cid);
+      await supabaseAdmin.from("ar_followup_notes").delete().eq("company_id", cid);
+      await supabaseAdmin.from("claim_adjustments").delete().eq("company_id", cid);
+      await supabaseAdmin.from("remittance_files").delete().eq("company_id", cid);
+      await supabaseAdmin.from("eligibility_checks").delete().eq("company_id", cid);
+      await supabaseAdmin.from("incident_reports").delete().eq("company_id", cid);
+      await supabaseAdmin.from("document_attachments").delete().eq("company_id", cid);
       await supabaseAdmin.from("claim_records").delete().eq("company_id", cid);
+      await supabaseAdmin.from("billing_overrides").delete().in("trip_id",
+        (await supabaseAdmin.from("trip_records").select("id").eq("company_id", cid)).data?.map((r: any) => r.id) ?? ["00000000-0000-0000-0000-000000000000"]
+      );
       await supabaseAdmin.from("trip_records").delete().eq("company_id", cid);
       await supabaseAdmin.from("qa_reviews").delete().eq("company_id", cid);
       await supabaseAdmin.from("crews").delete().eq("company_id", cid);
       await supabaseAdmin.from("alerts").delete().eq("company_id", cid);
+      await supabaseAdmin.from("schedule_change_log").delete().eq("company_id", cid);
+      await supabaseAdmin.from("leg_exceptions").delete().in("scheduling_leg_id",
+        (await supabaseAdmin.from("scheduling_legs").select("id").eq("company_id", cid)).data?.map((r: any) => r.id) ?? ["00000000-0000-0000-0000-000000000000"]
+      );
+      await supabaseAdmin.from("truck_run_slots").delete().eq("company_id", cid);
       await supabaseAdmin.from("runs").delete().eq("company_id", cid);
       await supabaseAdmin.from("scheduling_legs").delete().eq("company_id", cid);
+      await supabaseAdmin.from("patient_schedule_overrides").delete().eq("company_id", cid);
       await supabaseAdmin.from("facilities").delete().eq("company_id", cid);
       await supabaseAdmin.from("patients").delete().eq("company_id", cid);
+      await supabaseAdmin.from("vehicle_inspections").delete().eq("company_id", cid);
+      await supabaseAdmin.from("crew_share_tokens").delete().eq("company_id", cid);
       await supabaseAdmin.from("trucks").delete().eq("company_id", cid);
       await supabaseAdmin.from("charge_master").delete().eq("company_id", cid);
       await supabaseAdmin.from("payer_billing_rules").delete().eq("company_id", cid);
@@ -441,11 +459,16 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from("company_verifications").delete().eq("company_id", cid);
       await supabaseAdmin.from("subscription_records").delete().eq("company_id", cid);
       await supabaseAdmin.from("company_invites").delete().eq("company_id", cid);
+      await supabaseAdmin.from("company_settings").delete().eq("company_id", cid);
+      await supabaseAdmin.from("audit_logs").delete().eq("company_id", cid);
       await supabaseAdmin.from("profiles").delete().eq("company_id", cid);
       await supabaseAdmin.from("company_memberships").delete().eq("company_id", cid);
 
       const { error: delErr } = await supabaseAdmin.from("companies").delete().eq("id", cid);
-      if (delErr) return json({ error: "Failed to delete company: " + delErr.message }, 500);
+      if (delErr) {
+        console.error("Hard delete failed:", delErr);
+        return json({ error: "Failed to delete company: " + delErr.message }, 500);
+      }
 
       if (company.owner_user_id) {
         try {
