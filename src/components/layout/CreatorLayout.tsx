@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  LayoutDashboard, ClipboardCheck, Settings2, Play,
+  LayoutDashboard, Settings2, Play,
   ShieldCheck, LogOut, Menu, X, Settings, FlaskConical,
   Eye, Users,
 } from "lucide-react";
@@ -19,7 +19,6 @@ interface NavItem {
 
 const creatorNavItems: NavItem[] = [
   { path: "/system", label: "System Dashboard", icon: LayoutDashboard },
-  { path: "/pending-companies", label: "Pending Companies", icon: ClipboardCheck },
   { path: "/creator-console", label: "Company Console", icon: Settings2 },
   { path: "/crew-preview", label: "Crew UI Preview", icon: Users },
   { path: "/override-monitor", label: "Override Monitor", icon: Eye },
