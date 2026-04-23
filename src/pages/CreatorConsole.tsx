@@ -379,51 +379,7 @@ export default function CreatorConsole() {
           </Badge>
         </TableCell>
         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-end gap-1.5 flex-wrap">
-            {/* Pending */}
-            {c.onboarding_status === "pending_approval" && (
-              <>
-                <Button size="sm" variant="default" className="gap-1 text-xs" disabled={actionLoading} onClick={() => handleApprove(c)}>
-                  {actionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />} Approve
-                </Button>
-                <Button size="sm" variant="outline" className="gap-1 text-xs text-destructive hover:text-destructive" onClick={() => { setModal({ type: "reject", company: c }); setReasonText(""); }}>
-                  <XCircle className="h-3 w-3" /> Reject
-                </Button>
-              </>
-            )}
-            {/* Active */}
-            {c.onboarding_status === "active" && (
-              <>
-                <Button size="sm" variant="outline" className="gap-1 text-xs text-destructive hover:text-destructive" onClick={() => { setModal({ type: "suspend", company: c }); setReasonText(""); setConfirmText(""); }}>
-                  <Ban className="h-3 w-3" /> Suspend
-                </Button>
-                {renderDeleteButton(c)}
-              </>
-            )}
-            {/* Suspended */}
-            {c.onboarding_status === "suspended" && (
-              <>
-                <Button size="sm" variant="default" className="gap-1 text-xs" disabled={actionLoading} onClick={() => invokeDirectUnsuspend(c.id)}>
-                  <RefreshCw className="h-3 w-3" /> Unsuspend
-                </Button>
-                {renderDeleteButton(c)}
-              </>
-            )}
-            {/* Rejected / approved_pending_payment — delete only */}
-            {(c.onboarding_status === "rejected" || c.onboarding_status === "approved_pending_payment") && renderDeleteButton(c)}
-
-            {/* Common actions for active/suspended */}
-            {(c.onboarding_status === "active" || c.onboarding_status === "suspended") && (
-              <>
-                <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => { setModal({ type: "reset_password", company: c }); setConfirmText(""); }}>
-                  <KeyRound className="h-3 w-3" /> Reset PW
-                </Button>
-                <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => { setModal({ type: "edit", company: c }); setEditName(c.name); }}>
-                  <Pencil className="h-3 w-3" /> Edit
-                </Button>
-              </>
-            )}
-          </div>
+          <div className="flex justify-end">{renderActionsDropdown(c)}</div>
         </TableCell>
       </TableRow>
       {expandedCompany === c.id && (
