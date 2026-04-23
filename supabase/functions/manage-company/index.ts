@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,43 @@ function json(body: Record<string, unknown>, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+// Best-effort cancel of a Stripe subscription. Returns a status string suitable
+// for admin_actions.stripe_cancel_status. Never throws — we always want the
+// archive to proceed even if Stripe is unreachable, and we want a loud audit
+// trail of what happened.
+async function cancelStripeSubscription(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  companyId: string,
+): Promise<string> {
+  const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+  if (!stripeKey) return "skipped: no STRIPE_SECRET_KEY configured";
+
+  const { data: sub } = await supabaseAdmin
+    .from("subscription_records")
+    .select("stripe_subscription_id, provider_subscription_id, subscription_status")
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  const subId = sub?.stripe_subscription_id ?? sub?.provider_subscription_id ?? null;
+  if (!subId) return "no_subscription";
+  if (sub?.subscription_status === "cancelled") return "already_cancelled";
+
+  try {
+    const stripe = new Stripe(stripeKey, {
+      apiVersion: "2024-06-20",
+      httpClient: Stripe.createFetchHttpClient(),
+    });
+    await stripe.subscriptions.cancel(subId);
+    await supabaseAdmin
+      .from("subscription_records")
+      .update({ subscription_status: "cancelled", updated_at: new Date().toISOString() })
+      .eq("company_id", companyId);
+    return "cancelled";
+  } catch (err) {
+    return `failed: ${(err as Error).message ?? "unknown"}`;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -41,7 +79,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!sc) return json({ error: "Forbidden: System creator only" }, 403);
 
-    const { companyId, action, reason, patch } = await req.json();
+    const { companyId, action, reason, patch, verification, manualNotes } = await req.json();
     if (!companyId || !action) return json({ error: "companyId and action required" }, 400);
 
     // ── APPROVE ──────────────────────────────────────────────
