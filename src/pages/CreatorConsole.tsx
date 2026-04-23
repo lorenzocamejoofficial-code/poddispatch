@@ -744,6 +744,28 @@ export default function CreatorConsole() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Delete Confirm */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={(open) => { if (!open) { setBulkDeleteOpen(false); setBulkConfirmText(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Permanently delete {selectedArchived.size} compan{selectedArchived.size === 1 ? "y" : "ies"}?</DialogTitle>
+            <DialogDescription>
+              This will hard-delete all selected unprotected archived companies and all their data. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Type <strong>DELETE</strong> to confirm:</p>
+            <Input value={bulkConfirmText} onChange={(e) => setBulkConfirmText(e.target.value)} placeholder="DELETE" className="font-mono" autoComplete="off" />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setBulkDeleteOpen(false); setBulkConfirmText(""); }}>Cancel</Button>
+            <Button variant="destructive" disabled={bulkConfirmText !== "DELETE" || actionLoading} onClick={handleBulkDelete}>
+              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Delete {selectedArchived.size} Forever
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </CreatorLayout>
   );
 }
