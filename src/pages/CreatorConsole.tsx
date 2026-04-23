@@ -384,7 +384,11 @@ export default function CreatorConsole() {
                 onVerificationComplete={(r) => setVerificationResults(prev => ({ ...prev, [c.id]: r }))}
               />
             ) : (
-              <VerificationSnapshotView company={c} snapshot={snapshots[c.id]} />
+              <VerificationSnapshotView
+                company={c}
+                snapshot={snapshots[c.id]}
+                loaded={!!snapshotLoaded[c.id]}
+              />
             )}
           </TableCell>
         </TableRow>
