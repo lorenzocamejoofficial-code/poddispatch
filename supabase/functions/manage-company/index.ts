@@ -84,6 +84,34 @@ Deno.serve(async (req) => {
 
     // ── APPROVE ──────────────────────────────────────────────
     if (action === "approve") {
+      // Approval gate: require a verification snapshot in the request body.
+      // The creator UI runs the verification panel before approving and
+      // forwards the results here. This makes the snapshot the load-bearing
+      // record for whether a company is protected from hard deletion later.
+      if (!verification || typeof verification !== "object") {
+        return json({
+          error: "Verification snapshot required to approve. Run the verification panel first.",
+          code: "VERIFICATION_REQUIRED",
+        }, 400);
+      }
+
+      const npiStatus = verification?.npi?.status;
+      const medicareStatus = verification?.medicare?.status;
+      const oigStatus = verification?.oig?.status;
+
+      // Refuse to approve if any check is still pending — forces the creator
+      // to re-run verification rather than capturing a half-finished snapshot.
+      if (npiStatus === "pending" || medicareStatus === "pending" || oigStatus === "pending") {
+        return json({
+          error: "Verification still in progress. Refresh checks before approving.",
+          code: "VERIFICATION_PENDING",
+        }, 400);
+      }
+
+      const npiVerified = npiStatus === "verified";
+      const medicareEnrolled = medicareStatus === "enrolled";
+      const oigClear = oigStatus === "not_excluded";
+
       const { error: updateError } = await supabaseAdmin
         .from("companies")
         .update({
@@ -97,6 +125,31 @@ Deno.serve(async (req) => {
         .eq("id", companyId);
 
       if (updateError) return json({ error: updateError.message }, 500);
+
+      // Append-only verification snapshot. This is the immutable record of
+      // what was true at approval time, used by is_protected_record() to
+      // decide archive-vs-hard-delete later.
+      const { error: vErr } = await supabaseAdmin.from("company_verifications").insert({
+        company_id: companyId,
+        approver_user_id: user.id,
+        approver_email: user.email,
+        npi_verified: npiVerified,
+        npi_result: verification.npi ?? null,
+        medicare_enrolled: medicareEnrolled,
+        medicare_result: verification.medicare ?? null,
+        oig_clear: oigClear,
+        oig_result: verification.oig ?? null,
+        manual_notes: typeof manualNotes === "string" ? manualNotes : null,
+      });
+      if (vErr) {
+        // Hard fail — without the snapshot we cannot legally protect this
+        // company later. Roll back the approval.
+        await supabaseAdmin
+          .from("companies")
+          .update({ onboarding_status: "pending_approval", approved_at: null, approved_by: null })
+          .eq("id", companyId);
+        return json({ error: `Failed to record verification snapshot: ${vErr.message}` }, 500);
+      }
 
       // Mark subscription as awaiting payment. Trial period (and `active`
       // subscription_status) are now started only when Stripe confirms
@@ -113,7 +166,12 @@ Deno.serve(async (req) => {
         event_type: "company_approved",
         actor_user_id: user.id,
         actor_email: user.email,
-        details: { approved_by: user.email, gate: "awaiting_payment" },
+        details: {
+          approved_by: user.email,
+          gate: "awaiting_payment",
+          verification: { npi: npiStatus, medicare: medicareStatus, oig: oigStatus },
+          protected_at_approval: npiVerified || medicareEnrolled || oigClear,
+        },
       });
 
       return json({ success: true, status: "approved_pending_payment" });
