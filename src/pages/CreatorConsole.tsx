@@ -88,6 +88,7 @@ export default function CreatorConsole() {
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
   const [verificationResults, setVerificationResults] = useState<Record<string, VerificationResult>>({});
   const [snapshots, setSnapshots] = useState<Record<string, VerificationSnapshot>>({});
+  const [snapshotLoaded, setSnapshotLoaded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!isSystemCreator) { navigate("/"); return; }
@@ -133,7 +134,7 @@ export default function CreatorConsole() {
 
   // Load verification snapshot lazily when a row is expanded
   const loadSnapshot = useCallback(async (companyId: string) => {
-    if (snapshots[companyId]) return;
+    if (snapshotLoaded[companyId]) return;
     const { data } = await supabase
       .from("company_verifications")
       .select("npi_verified, medicare_enrolled, oig_clear, npi_result, medicare_result, oig_result, approver_email, approved_at, manual_notes")
@@ -142,7 +143,8 @@ export default function CreatorConsole() {
       .limit(1)
       .maybeSingle();
     if (data) setSnapshots(prev => ({ ...prev, [companyId]: data as VerificationSnapshot }));
-  }, [snapshots]);
+    setSnapshotLoaded(prev => ({ ...prev, [companyId]: true }));
+  }, [snapshotLoaded]);
 
   const toggleExpand = (c: CompanyRecord) => {
     const next = expandedCompany === c.id ? null : c.id;
