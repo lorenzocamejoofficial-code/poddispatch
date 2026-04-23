@@ -666,7 +666,7 @@ export default function CreatorConsole() {
 }
 
 // Read-only view of the verification snapshot captured at approval.
-function VerificationSnapshotView({ company, snapshot }: { company: CompanyRecord; snapshot?: VerificationSnapshot }) {
+function VerificationSnapshotView({ company, snapshot, loaded }: { company: CompanyRecord; snapshot?: VerificationSnapshot; loaded: boolean }) {
   if (!company.approved_at) {
     return (
       <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
@@ -674,10 +674,17 @@ function VerificationSnapshotView({ company, snapshot }: { company: CompanyRecor
       </div>
     );
   }
-  if (!snapshot) {
+  if (!loaded) {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground p-3">
         <Loader2 className="h-3 w-3 animate-spin" /> Loading verification snapshot...
+      </div>
+    );
+  }
+  if (!snapshot) {
+    return (
+      <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+        No verification snapshot on file. This company was approved before verification snapshots were captured at approval.
       </div>
     );
   }
