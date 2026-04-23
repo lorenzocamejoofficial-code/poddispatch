@@ -177,7 +177,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       }
 
       // Medical necessity — gated by payer rule
-      if (need.necessity) {
+      if (need.necessity && !isPrivatePay) {
         checks.push({
           label: "At least one medical necessity criterion checked",
           passed: hasNecessity,
@@ -209,11 +209,23 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       }
 
       // Loaded miles + odometers — gated by payer rule
-      if (need.miles) {
+      if (need.miles && !isPrivatePay) {
+        // Auto-derive loaded_miles from odometer readings when missing — billers
+        // shouldn't have to manually copy this if the crew documented odometers.
+        const derivedMiles = (t.loaded_miles && Number(t.loaded_miles) > 0)
+          ? Number(t.loaded_miles)
+          : (t.odometer_at_scene != null && t.odometer_at_destination != null && t.odometer_at_destination > t.odometer_at_scene)
+            ? Number(t.odometer_at_destination) - Number(t.odometer_at_scene)
+            : 0;
+        // Accept any positive mileage ≥ 0.1 — sub-mile transports (e.g.
+        // hospital-to-hospital across the street) are real and the EDI
+        // generator already supports fractional miles via toFixed(1).
         checks.push({
           label: "Loaded miles recorded",
-          passed: !!(t.loaded_miles && Number(t.loaded_miles) > 0),
-          detail: t.loaded_miles ? `${t.loaded_miles} miles` : undefined,
+          passed: derivedMiles >= 0.1,
+          detail: derivedMiles >= 0.1
+            ? `${derivedMiles.toFixed(1)} miles${(!t.loaded_miles || Number(t.loaded_miles) === 0) ? " (auto-derived from odometer)" : ""}`
+            : "Loaded miles must be at least 0.1 — record odometer readings or enter mileage on the PCR.",
         });
         checks.push({
           label: "Odometer readings present",
