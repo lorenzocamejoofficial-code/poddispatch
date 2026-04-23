@@ -406,20 +406,6 @@ Deno.serve(async (req) => {
       // legal retention obligation. Cascade-purge as before.
       const cid = companyId;
 
-      // Defense-in-depth re-check: refuse to hard-delete if there's any
-      // submitted PCR even if protection logic somehow disagreed.
-      const { count: pcrCount } = await supabaseAdmin
-        .from("trip_records")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", cid)
-        .eq("pcr_status", "submitted");
-      if ((pcrCount ?? 0) > 0) {
-        return json({
-          error: "Refused to hard-delete: company has submitted PCRs. This should have routed to archive — possible bug.",
-          code: "PCR_PRESENT",
-        }, 409);
-      }
-
       await supabaseAdmin.from("hold_timers").delete().eq("company_id", cid);
       await supabaseAdmin.from("comms_events").delete().eq("company_id", cid);
       await supabaseAdmin.from("trip_events").delete().eq("company_id", cid);
@@ -528,7 +514,8 @@ Deno.serve(async (req) => {
 
     return json({ error: "Invalid action" }, 400);
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Internal server error";
     console.error("manage-company error:", err);
-    return json({ error: "Internal server error" }, 500);
+    return json({ error: message, code: "MANAGE_COMPANY_ERROR" }, 500);
   }
 });
