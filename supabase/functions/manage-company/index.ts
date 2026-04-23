@@ -397,26 +397,96 @@ Deno.serve(async (req) => {
       return json({ success: true, status: "active" });
     }
 
-    // ── DELETE (hard delete — pending/rejected/soft-deleted) ──
-    if (action === "delete") {
+    // ── DELETE (auto-routes to archive vs hard delete) ────────
+    // The single `delete` action is now intent-driven: the server inspects
+    // is_protected_record(company_id) and routes to archive (soft-delete with
+    // legal retention) or hard-delete. Callers don't get to override; the
+    // protection rule lives entirely in the database.
+    if (action === "delete" || action === "archive") {
       const { data: company, error: fetchErr } = await supabaseAdmin
         .from("companies")
-        .select("id, onboarding_status, owner_user_id, deleted_at")
+        .select("id, name, onboarding_status, owner_user_id, deleted_at, approved_at")
         .eq("id", companyId)
         .maybeSingle();
 
       if (fetchErr || !company) return json({ error: "Company not found" }, 404);
 
-      const allowedStatuses = ["pending_approval", "rejected"];
-      const isSoftDeleted = !!company.deleted_at;
+      // Single source of truth.
+      const { data: protectedResult, error: protErr } = await supabaseAdmin
+        .rpc("is_protected_record", { _company_id: companyId });
+      if (protErr) {
+        return json({ error: `Could not evaluate protection status: ${protErr.message}` }, 500);
+      }
+      const isProtected = !!protectedResult;
 
-      if (!allowedStatuses.includes(company.onboarding_status) && !isSoftDeleted) {
-        return json({ error: "Only pending, rejected, or soft-deleted companies can be permanently deleted. Use soft_delete first for active companies." }, 400);
+      // Snapshot company state before any change.
+      const { data: beforeSnap } = await supabaseAdmin
+        .from("companies")
+        .select("*")
+        .eq("id", companyId)
+        .maybeSingle();
+
+      // Cancel Stripe subscription on the way out (best-effort).
+      const stripeCancelStatus = await cancelStripeSubscription(supabaseAdmin, companyId);
+
+      if (isProtected) {
+        // ─── ARCHIVE ───────────────────────────────────────────
+        // Set deleted_at on the company. This single flag drives RLS
+        // everywhere (get_my_company_id excludes archived companies, so
+        // members lose access to all related rows automatically). No
+        // per-row deletion of clinical data — that would compromise
+        // legally-required retention.
+        const { error: archiveErr } = await supabaseAdmin
+          .from("companies")
+          .update({
+            deleted_at: new Date().toISOString(),
+            deleted_by: user.id,
+            onboarding_status: "suspended",
+            suspended_reason: `ARCHIVED: ${reason || "Archived by system creator"}`,
+            suspended_at: new Date().toISOString(),
+            suspended_by: user.id,
+          })
+          .eq("id", companyId);
+        if (archiveErr) return json({ error: `Archive failed: ${archiveErr.message}` }, 500);
+
+        await supabaseAdmin.from("admin_actions").insert({
+          actor_user_id: user.id,
+          actor_email: user.email,
+          action: "archive_company",
+          company_id: companyId,
+          company_name: company.name,
+          was_protected: true,
+          reason: reason || null,
+          before_snapshot: beforeSnap,
+          stripe_cancel_status: stripeCancelStatus,
+        });
+
+        return json({
+          success: true,
+          archived: true,
+          stripe_cancel_status: stripeCancelStatus,
+        });
       }
 
+      // ─── HARD DELETE (unprotected) ──────────────────────────
+      // No PCRs ever submitted, never approved with verification → not a
+      // legal retention obligation. Cascade-purge as before.
       const cid = companyId;
 
-      // Delete in safe order — child tables first
+      // Defense-in-depth re-check: refuse to hard-delete if there's any
+      // submitted PCR even if protection logic somehow disagreed.
+      const { count: pcrCount } = await supabaseAdmin
+        .from("trip_records")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", cid)
+        .eq("pcr_status", "submitted");
+      if ((pcrCount ?? 0) > 0) {
+        return json({
+          error: "Refused to hard-delete: company has submitted PCRs. This should have routed to archive — possible bug.",
+          code: "PCR_PRESENT",
+        }, 409);
+      }
+
       await supabaseAdmin.from("hold_timers").delete().eq("company_id", cid);
       await supabaseAdmin.from("comms_events").delete().eq("company_id", cid);
       await supabaseAdmin.from("trip_events").delete().eq("company_id", cid);
@@ -442,6 +512,7 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from("truck_availability").delete().eq("company_id", cid);
       await supabaseAdmin.from("legal_acceptances").delete().eq("company_id", cid);
       await supabaseAdmin.from("onboarding_events").delete().eq("company_id", cid);
+      await supabaseAdmin.from("company_verifications").delete().eq("company_id", cid);
       await supabaseAdmin.from("subscription_records").delete().eq("company_id", cid);
       await supabaseAdmin.from("company_invites").delete().eq("company_id", cid);
       await supabaseAdmin.from("profiles").delete().eq("company_id", cid);
@@ -458,16 +529,45 @@ Deno.serve(async (req) => {
         }
       }
 
-      await supabaseAdmin.from("audit_logs").insert({
-        action: "company_deleted",
+      await supabaseAdmin.from("admin_actions").insert({
         actor_user_id: user.id,
         actor_email: user.email,
-        record_id: cid,
-        table_name: "companies",
-        notes: reason || "Company permanently deleted by system creator",
+        action: "hard_delete_company",
+        company_id: null,            // company row is gone
+        company_name: company.name,
+        was_protected: false,
+        reason: reason || null,
+        before_snapshot: beforeSnap,
+        stripe_cancel_status: stripeCancelStatus,
       });
 
-      return json({ success: true, deleted: true });
+      return json({ success: true, deleted: true, stripe_cancel_status: stripeCancelStatus });
+    }
+
+    // ── RESTORE FROM ARCHIVE (creator can un-archive) ────────
+    if (action === "restore_archived") {
+      const { error: restoreErr } = await supabaseAdmin
+        .from("companies")
+        .update({
+          deleted_at: null,
+          deleted_by: null,
+          onboarding_status: "active",
+          suspended_reason: null,
+          suspended_at: null,
+          suspended_by: null,
+        })
+        .eq("id", companyId);
+      if (restoreErr) return json({ error: restoreErr.message }, 500);
+
+      await supabaseAdmin.from("admin_actions").insert({
+        actor_user_id: user.id,
+        actor_email: user.email,
+        action: "restore_company",
+        company_id: companyId,
+        reason: reason || null,
+      });
+
+      return json({ success: true, restored: true });
     }
 
     return json({ error: "Invalid action" }, 400);
