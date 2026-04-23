@@ -112,7 +112,6 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const canonicalTripType = String(t.trip_type ?? t.pcr_type ?? "").toLowerCase();
       const isEmergency = canonicalTripType === "emergency";
       const isUnscheduled = !!t.is_unscheduled;
-      const isDialysis = canonicalTripType === "dialysis" || canonicalTripType.includes("dialysis");
 
       // Patient-level PCS satisfies the check (and hides the biller panel) for any
       // run whose patient already has PCS on file and not expired. Most common on
