@@ -236,8 +236,14 @@ export default function EDIExport() {
       toast.error("Select at least one claim to export");
       return;
     }
-    if (!providerInfo.npi || !providerInfo.tax_id) {
-      toast.error("Provider NPI and Tax ID are required");
+    const npiDigits = providerInfo.npi.replace(/\D/g, "");
+    const taxDigits = providerInfo.tax_id.replace(/\D/g, "");
+    if (!npiDigits || npiDigits.length !== 10) {
+      toast.error("Provider NPI must be exactly 10 digits");
+      return;
+    }
+    if (!taxDigits || taxDigits.length !== 9) {
+      toast.error("Provider Tax ID (EIN) must be exactly 9 digits");
       return;
     }
 

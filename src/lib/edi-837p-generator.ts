@@ -526,15 +526,18 @@ export function generateEDI837P(
     );
 
     // --- Loop 2310E: Ambulance Pickup Location ---
-    // Omit for Residence origin — no named facility
-    const isResidenceOrigin = claim.origin_type && claim.origin_type.toLowerCase().includes("resid");
-    if (!isResidenceOrigin && (claim.origin_address || claim.origin_zip)) {
+    // CMS requires Loop 2310E on every ambulance claim regardless of origin
+    // type — the pickup ZIP drives the GPCI / geographic payment adjustment.
+    // For residences, the facility name (NM1*PW) is left blank but N3/N4 are
+    // still emitted with the pickup street/city/state/ZIP.
+    if (claim.origin_address || claim.origin_zip) {
       const origAddr = parseAddressString(claim.origin_address);
       const origStreet = origAddr.street || claim.origin_address || "UNKNOWN";
       const origCity = claim.origin_city || origAddr.city || "";
       const origState = claim.origin_state || origAddr.state || "";
       const origZip = claim.origin_zip || origAddr.zip || "";
-      const origFacName = (claim.pickup_facility_name || "").toUpperCase();
+      const isResidenceOrigin = claim.origin_type && claim.origin_type.toLowerCase().includes("resid");
+      const origFacName = isResidenceOrigin ? "" : (claim.pickup_facility_name || "").toUpperCase();
       addSeg(["NM1", "PW", "2", origFacName, "", "", "", "", "", ""].join(ES));
       addSeg(["N3", origStreet].join(ES));
       addSeg(["N4", origCity, origState, origZip].join(ES));
@@ -579,9 +582,16 @@ export function generateEDI837P(
       addSeg(["DTP", "472", "D8", formatDate8(claim.run_date)].join(ES));
     }
 
-    // Mileage line — must also carry QN + origin/destination modifier
+    // Mileage line — must also carry QN + origin/destination modifier.
+    // Office Ally / Medicare expect statute-mile precision: trips < 100 mi
+    // are reported with one decimal place (e.g. 10.4); trips >= 100 mi are
+    // reported as whole miles. Empty quantity strings would fail the scrubber.
     if (claim.mileage_charge > 0 && claim.loaded_miles > 0) {
       const mileageMods = ensureQn([facilityCode]);
+      const miles = Number(claim.loaded_miles);
+      const mileageQty = miles < 100
+        ? miles.toFixed(1)              // 10.4
+        : String(Math.ceil(miles));     // 152
       addSeg(["LX", "2"].join(ES));
       addSeg(
         [
@@ -589,7 +599,7 @@ export function generateEDI837P(
           `HC${SE_SEP}A0425${mileageMods.length > 0 ? SE_SEP + mileageMods.join(SE_SEP) : ""}`,
           formatAmount(claim.mileage_charge),
           "UN",
-          String(Math.ceil(claim.loaded_miles)),
+          mileageQty,
           "41",
         ].join(ES)
       );
@@ -670,6 +680,22 @@ export function validateClaimForEDI(claim: ClaimForEDI, billingState?: string | 
       const daysOver = Math.floor((Date.now() - deadline.getTime()) / (1000 * 60 * 60 * 24));
       errors.push(`Timely filing deadline passed — DOS ${claim.run_date} is ${daysOver} days past the ${limit}-day limit for ${claim.payer_type ?? "payer"}.`);
     }
+  }
+
+  // Origin/Destination modifier pair — required on every ambulance line.
+  // Without both we can't emit the RH/HD/etc. facility code on SV1.
+  if (!claim.origin_type || !String(claim.origin_type).trim()) {
+    errors.push("Missing origin type — required to build the ambulance origin/destination modifier (e.g. R, H, N, D).");
+  }
+  if (!claim.destination_type || !String(claim.destination_type).trim()) {
+    errors.push("Missing destination type — required to build the ambulance origin/destination modifier (e.g. R, H, N, D).");
+  }
+
+  // Pickup ZIP — Office Ally / Medicare use this for the GPCI / geographic
+  // payment adjustment lookup on Loop 2310E. Block export if missing.
+  const pickupZip = (claim.origin_zip ?? "").trim();
+  if (!pickupZip || !/^\d{5}(?:-?\d{4})?$/.test(pickupZip)) {
+    errors.push("Missing or invalid pickup ZIP — required for Loop 2310E (Medicare geographic payment adjustment).");
   }
 
   return errors;
