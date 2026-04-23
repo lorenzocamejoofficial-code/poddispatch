@@ -51,6 +51,15 @@ export interface ClaimForEDI {
   pcs_physician_npi?: string | null;
   pcs_certification_date?: string | null; // YYYY-MM-DD
   pcs_diagnosis?: string | null;
+  /** Original dispatch reason / call complaint — what crew was sent for.
+   *  Maps to claim_records.chief_complaint, which is captured at scheduling
+   *  and carried into the PCR. Emitted as NTE*ADD on Loop 2300 so payers can
+   *  reconcile dispatch context against on-scene findings. */
+  chief_complaint?: string | null;
+  /** On-scene primary impression — what crew found. Mirrors
+   *  claim_records.primary_impression. Combined with chief_complaint to give
+   *  Medicare reviewers full dispatch-to-assessment context. */
+  primary_impression?: string | null;
 }
 
 export interface ProviderInfo {
