@@ -55,7 +55,7 @@ export default function PendingCompaniesAdmin() {
     const { data, error } = await supabase
       .from("companies")
       .select("id, name, owner_email, created_at, onboarding_status, owner_user_id, npi_number, state_of_operation, current_software, years_in_operation, has_inhouse_biller, hipaa_privacy_officer" as any)
-      .in("onboarding_status", ["pending_approval", "rejected", "suspended"])
+      .in("onboarding_status", ["pending_approval", "approved_pending_payment", "rejected", "suspended"])
       .order("created_at", { ascending: false });
 
     if (error) { console.error(error); setLoading(false); return; }
@@ -144,6 +144,7 @@ export default function PendingCompaniesAdmin() {
 
   const statusColor = (status: string) => {
     if (status === "pending_approval") return "bg-[hsl(var(--status-yellow))]/15 text-[hsl(var(--status-yellow))]";
+    if (status === "approved_pending_payment") return "bg-primary/15 text-primary";
     if (status === "rejected") return "bg-destructive/15 text-destructive";
     return "bg-muted text-muted-foreground";
   };
