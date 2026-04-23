@@ -27,6 +27,11 @@ interface ClearinghouseRow {
   last_send_at: string | null;
   last_receive_at: string | null;
   last_error: string | null;
+  submitter_id: string | null;
+  submitter_name: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  receiver_id: string | null;
 }
 
 export function ClearinghouseSettings() {
@@ -48,6 +53,13 @@ export function ClearinghouseSettings() {
   // Step 3
   const [outbound, setOutbound] = useState("/upload");
   const [inbound, setInbound] = useState("/download");
+
+  // Submitter / receiver IDs (required on the 837P envelope)
+  const [submitterId, setSubmitterId] = useState("");
+  const [submitterName, setSubmitterName] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [receiverId, setReceiverId] = useState("OFFICEALLY");
 
   // Step 4
   const [autoSend, setAutoSend] = useState(false);
@@ -77,6 +89,11 @@ export function ClearinghouseSettings() {
       setInbound(row.inbound_folder);
       setAutoSend(row.auto_send_enabled);
       setAutoReceive(row.auto_receive_enabled);
+      setSubmitterId(row.submitter_id ?? "");
+      setSubmitterName(row.submitter_name ?? "");
+      setContactName(row.contact_name ?? "");
+      setContactPhone(row.contact_phone ?? "");
+      setReceiverId(row.receiver_id ?? "OFFICEALLY");
       if (row.is_configured) {
         setAccountCreated(true);
         setConnectionStatus("success");
