@@ -90,6 +90,9 @@ export default function CreatorConsole() {
   const [verificationResults, setVerificationResults] = useState<Record<string, VerificationResult>>({});
   const [snapshots, setSnapshots] = useState<Record<string, VerificationSnapshot>>({});
   const [snapshotLoaded, setSnapshotLoaded] = useState<Record<string, boolean>>({});
+  const [selectedArchived, setSelectedArchived] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkConfirmText, setBulkConfirmText] = useState("");
 
   useEffect(() => {
     if (!isSystemCreator) { navigate("/"); return; }
