@@ -1167,6 +1167,23 @@ export default function PCRPage() {
     if (assignedCrewCount > 0 && !areAllCrewSigned(trip.signatures_json || [], assignedCrewCount)) {
       missing.push("Crew Signatures");
     }
+    // Audit-defense: ambulance / stretcher transports require a substantive
+    // narrative (≥150 chars) so "patient stable" one-liners don't trigger
+    // Medicare clinical-review audits. Non-stretcher chair-car / wheelchair
+    // transports are exempt.
+    const tType = String(trip.trip_type || trip.pcr_type || "").toLowerCase();
+    const isAmbulanceLevel =
+      !!trip.stretcher_placement ||
+      tType.includes("ift") ||
+      tType.includes("emergency") ||
+      tType.includes("dialysis") ||
+      tType.includes("discharge") ||
+      tType.includes("psych") ||
+      tType.includes("wound");
+    const narrativeLen = (trip.narrative || "").trim().length;
+    if (isAmbulanceLevel && narrativeLen > 0 && narrativeLen < 150) {
+      missing.push(`Narrative too short (${narrativeLen}/150 chars — Medicare audit risk)`);
+    }
     return missing;
   };
 

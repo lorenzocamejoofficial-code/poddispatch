@@ -321,6 +321,12 @@ export default function EDIExport() {
           pcs_physician_npi: (c as any).pcs_physician_npi ?? null,
           pcs_certification_date: (c as any).pcs_certification_date ?? null,
           pcs_diagnosis: (c as any).pcs_diagnosis ?? null,
+          // Dispatch-to-bill sync: chief_complaint = original call reason,
+          // primary_impression = on-scene crew finding. Both flow from
+          // scheduling → PCR → claim_records via auto_create_claim_on_pcr_submit
+          // and are emitted as NTE*ADD on Loop 2300 in the 837P.
+          chief_complaint: (c as any).chief_complaint ?? null,
+          primary_impression: (c as any).primary_impression ?? null,
         };
       });
 
