@@ -13,8 +13,15 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Search, CheckCircle2, XCircle, Ban, RefreshCw, Loader2, Trash2, KeyRound, Pencil,
-  ChevronDown, ChevronRight, Shield, Archive, RotateCcw,
+  ChevronDown, ChevronRight, Shield, Archive, RotateCcw, MoreHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -81,6 +88,7 @@ export default function CreatorConsole() {
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
   const [verificationResults, setVerificationResults] = useState<Record<string, VerificationResult>>({});
   const [snapshots, setSnapshots] = useState<Record<string, VerificationSnapshot>>({});
+  const [snapshotLoaded, setSnapshotLoaded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!isSystemCreator) { navigate("/"); return; }
@@ -126,7 +134,7 @@ export default function CreatorConsole() {
 
   // Load verification snapshot lazily when a row is expanded
   const loadSnapshot = useCallback(async (companyId: string) => {
-    if (snapshots[companyId]) return;
+    if (snapshotLoaded[companyId]) return;
     const { data } = await supabase
       .from("company_verifications")
       .select("npi_verified, medicare_enrolled, oig_clear, npi_result, medicare_result, oig_result, approver_email, approved_at, manual_notes")
@@ -135,7 +143,8 @@ export default function CreatorConsole() {
       .limit(1)
       .maybeSingle();
     if (data) setSnapshots(prev => ({ ...prev, [companyId]: data as VerificationSnapshot }));
-  }, [snapshots]);
+    setSnapshotLoaded(prev => ({ ...prev, [companyId]: true }));
+  }, [snapshotLoaded]);
 
   const toggleExpand = (c: CompanyRecord) => {
     const next = expandedCompany === c.id ? null : c.id;
@@ -276,19 +285,80 @@ export default function CreatorConsole() {
     </div>
   );
 
-  // Single delete button — server decides archive vs hard-delete
-  const renderDeleteButton = (c: CompanyRecord) => (
-    <Button
-      size="sm"
-      variant="ghost"
-      className="gap-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-      disabled={actionLoading}
-      onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); setReasonText(""); }}
-    >
-      {c.is_protected ? <Archive className="h-3 w-3" /> : <Trash2 className="h-3 w-3" />}
-      {c.is_protected ? "Archive" : "Delete"}
-    </Button>
-  );
+  // Actions dropdown — keeps the row compact instead of a button cluster.
+  const renderActionsDropdown = (c: CompanyRecord) => {
+    const isPending = c.onboarding_status === "pending_approval";
+    const isActive = c.onboarding_status === "active";
+    const isSuspended = c.onboarding_status === "suspended";
+    const isRejected = c.onboarding_status === "rejected";
+    const isAwaitingPayment = c.onboarding_status === "approved_pending_payment";
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={actionLoading}>
+            {actionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MoreHorizontal className="h-3.5 w-3.5" />}
+            <span className="sr-only">Actions</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          {isPending && (
+            <>
+              <DropdownMenuItem onClick={() => handleApprove(c)}>
+                <CheckCircle2 className="h-3.5 w-3.5 mr-2 text-[hsl(var(--status-green))]" /> Approve
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => { setModal({ type: "reject", company: c }); setReasonText(""); }}
+              >
+                <XCircle className="h-3.5 w-3.5 mr-2" /> Reject
+              </DropdownMenuItem>
+            </>
+          )}
+
+          {isActive && (
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => { setModal({ type: "suspend", company: c }); setReasonText(""); setConfirmText(""); }}
+            >
+              <Ban className="h-3.5 w-3.5 mr-2" /> Suspend
+            </DropdownMenuItem>
+          )}
+
+          {isSuspended && (
+            <DropdownMenuItem onClick={() => invokeDirectUnsuspend(c.id)}>
+              <RefreshCw className="h-3.5 w-3.5 mr-2" /> Unsuspend
+            </DropdownMenuItem>
+          )}
+
+          {(isActive || isSuspended) && (
+            <>
+              <DropdownMenuItem onClick={() => { setModal({ type: "reset_password", company: c }); setConfirmText(""); }}>
+                <KeyRound className="h-3.5 w-3.5 mr-2" /> Reset Password
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setModal({ type: "edit", company: c }); setEditName(c.name); }}>
+                <Pencil className="h-3.5 w-3.5 mr-2" /> Edit Profile
+              </DropdownMenuItem>
+            </>
+          )}
+
+          {(isActive || isSuspended || isRejected || isAwaitingPayment) && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); setReasonText(""); }}
+              >
+                {c.is_protected
+                  ? <><Archive className="h-3.5 w-3.5 mr-2" /> Archive</>
+                  : <><Trash2 className="h-3.5 w-3.5 mr-2" /> Delete Forever</>}
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
 
   const ExpandableRow = ({ c, allowVerificationPanel }: { c: CompanyRecord; allowVerificationPanel: boolean }) => (
     <>
@@ -309,51 +379,7 @@ export default function CreatorConsole() {
           </Badge>
         </TableCell>
         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-end gap-1.5 flex-wrap">
-            {/* Pending */}
-            {c.onboarding_status === "pending_approval" && (
-              <>
-                <Button size="sm" variant="default" className="gap-1 text-xs" disabled={actionLoading} onClick={() => handleApprove(c)}>
-                  {actionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />} Approve
-                </Button>
-                <Button size="sm" variant="outline" className="gap-1 text-xs text-destructive hover:text-destructive" onClick={() => { setModal({ type: "reject", company: c }); setReasonText(""); }}>
-                  <XCircle className="h-3 w-3" /> Reject
-                </Button>
-              </>
-            )}
-            {/* Active */}
-            {c.onboarding_status === "active" && (
-              <>
-                <Button size="sm" variant="outline" className="gap-1 text-xs text-destructive hover:text-destructive" onClick={() => { setModal({ type: "suspend", company: c }); setReasonText(""); setConfirmText(""); }}>
-                  <Ban className="h-3 w-3" /> Suspend
-                </Button>
-                {renderDeleteButton(c)}
-              </>
-            )}
-            {/* Suspended */}
-            {c.onboarding_status === "suspended" && (
-              <>
-                <Button size="sm" variant="default" className="gap-1 text-xs" disabled={actionLoading} onClick={() => invokeDirectUnsuspend(c.id)}>
-                  <RefreshCw className="h-3 w-3" /> Unsuspend
-                </Button>
-                {renderDeleteButton(c)}
-              </>
-            )}
-            {/* Rejected / approved_pending_payment — delete only */}
-            {(c.onboarding_status === "rejected" || c.onboarding_status === "approved_pending_payment") && renderDeleteButton(c)}
-
-            {/* Common actions for active/suspended */}
-            {(c.onboarding_status === "active" || c.onboarding_status === "suspended") && (
-              <>
-                <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => { setModal({ type: "reset_password", company: c }); setConfirmText(""); }}>
-                  <KeyRound className="h-3 w-3" /> Reset PW
-                </Button>
-                <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => { setModal({ type: "edit", company: c }); setEditName(c.name); }}>
-                  <Pencil className="h-3 w-3" /> Edit
-                </Button>
-              </>
-            )}
-          </div>
+          <div className="flex justify-end">{renderActionsDropdown(c)}</div>
         </TableCell>
       </TableRow>
       {expandedCompany === c.id && (
@@ -375,7 +401,11 @@ export default function CreatorConsole() {
                 onVerificationComplete={(r) => setVerificationResults(prev => ({ ...prev, [c.id]: r }))}
               />
             ) : (
-              <VerificationSnapshotView company={c} snapshot={snapshots[c.id]} />
+              <VerificationSnapshotView
+                company={c}
+                snapshot={snapshots[c.id]}
+                loaded={!!snapshotLoaded[c.id]}
+              />
             )}
           </TableCell>
         </TableRow>
@@ -636,7 +666,7 @@ export default function CreatorConsole() {
 }
 
 // Read-only view of the verification snapshot captured at approval.
-function VerificationSnapshotView({ company, snapshot }: { company: CompanyRecord; snapshot?: VerificationSnapshot }) {
+function VerificationSnapshotView({ company, snapshot, loaded }: { company: CompanyRecord; snapshot?: VerificationSnapshot; loaded: boolean }) {
   if (!company.approved_at) {
     return (
       <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
@@ -644,10 +674,17 @@ function VerificationSnapshotView({ company, snapshot }: { company: CompanyRecor
       </div>
     );
   }
-  if (!snapshot) {
+  if (!loaded) {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground p-3">
         <Loader2 className="h-3 w-3 animate-spin" /> Loading verification snapshot...
+      </div>
+    );
+  }
+  if (!snapshot) {
+    return (
+      <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+        No verification snapshot on file. This company was approved before verification snapshots were captured at approval.
       </div>
     );
   }
