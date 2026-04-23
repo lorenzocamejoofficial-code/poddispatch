@@ -182,6 +182,25 @@ export default function EDIExport() {
         submitter_name: prev.submitter_name || company.name || "",
       }));
     }
+
+    // Pull per-company submitter / receiver IDs from clearinghouse_settings.
+    // These are now configured during onboarding (Settings → Clearinghouse) and
+    // override the hardcoded PODDISPATCH/OFFICEALLY fallback.
+    const { data: ch } = await supabase
+      .from("clearinghouse_settings" as any)
+      .select("submitter_id, submitter_name, contact_name, contact_phone, receiver_id")
+      .limit(1)
+      .maybeSingle();
+    if (ch) {
+      const row = ch as any;
+      setSubmitterInfo((prev) => ({
+        submitter_id: row.submitter_id || prev.submitter_id,
+        submitter_name: row.submitter_name || prev.submitter_name,
+        contact_name: row.contact_name || prev.contact_name,
+        contact_phone: row.contact_phone || prev.contact_phone,
+        receiver_id: row.receiver_id || "OFFICEALLY",
+      }));
+    }
   }, []);
 
   useEffect(() => {
@@ -247,6 +266,11 @@ export default function EDIExport() {
         // of street/city/zip is missing.
         const rawPatientAddr = String(c.patient_pickup_address ?? "").trim();
         const parsedPat = parseAddressString(rawPatientAddr);
+        // Prefer snapshot fields on the claim itself (populated by
+        // auto_create_claim_on_pcr_submit). Fall back to live trip data only if
+        // the claim was created before the snapshot columns were backfilled.
+        const claimOriginAddr = (c as any).origin_address || trip.pickup_location || c.patient_pickup_address || null;
+        const claimDestAddr = (c as any).destination_address || trip.destination_location || null;
         return {
           claim_id: c.id,
           patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
@@ -269,13 +293,13 @@ export default function EDIExport() {
           loaded_miles: c.trip_loaded_miles || 0,
           origin_type: c.origin_type,
           destination_type: c.destination_type,
-          origin_address: trip.pickup_location || c.patient_pickup_address || null,
-          origin_city: "",
-          origin_state: providerInfo.state || null,
+          origin_address: claimOriginAddr,
+          origin_city: (c as any).origin_city || "",
+          origin_state: (c as any).origin_state || providerInfo.state || null,
           origin_zip: c.origin_zip,
-          destination_address: trip.destination_location || null,
-          destination_city: "",
-          destination_state: providerInfo.state || null,
+          destination_address: claimDestAddr,
+          destination_city: (c as any).destination_city || "",
+          destination_state: (c as any).destination_state || providerInfo.state || null,
           destination_zip: c.destination_zip,
           diagnosis_codes: [],
           auth_number: c.auth_number,
@@ -285,8 +309,8 @@ export default function EDIExport() {
           stretcher_placement: trip.stretcher_placement || null,
           oxygen_required: !!trip.oxygen_during_transport,
           weight_lbs: trip.weight_lbs || pat.weight_lbs || null,
-          pickup_facility_name: extractFacilityName(trip.pickup_location) || null,
-          dropoff_facility_name: extractFacilityName(trip.destination_location) || null,
+          pickup_facility_name: extractFacilityName(claimOriginAddr) || null,
+          dropoff_facility_name: extractFacilityName(claimDestAddr) || null,
           pcs_physician_name: (c as any).pcs_physician_name ?? null,
           pcs_physician_npi: (c as any).pcs_physician_npi ?? null,
           pcs_certification_date: (c as any).pcs_certification_date ?? null,
