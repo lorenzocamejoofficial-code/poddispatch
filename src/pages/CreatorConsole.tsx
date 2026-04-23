@@ -28,6 +28,7 @@ import { format } from "date-fns";
 import { CreatorLayout } from "@/components/layout/CreatorLayout";
 import { CompanyVerificationPanel, type VerificationResult } from "@/components/creator/CompanyVerificationPanel";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface CompanyRecord {
   id: string;
@@ -89,6 +90,9 @@ export default function CreatorConsole() {
   const [verificationResults, setVerificationResults] = useState<Record<string, VerificationResult>>({});
   const [snapshots, setSnapshots] = useState<Record<string, VerificationSnapshot>>({});
   const [snapshotLoaded, setSnapshotLoaded] = useState<Record<string, boolean>>({});
+  const [selectedArchived, setSelectedArchived] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkConfirmText, setBulkConfirmText] = useState("");
 
   useEffect(() => {
     if (!isSystemCreator) { navigate("/"); return; }
@@ -242,6 +246,37 @@ export default function CreatorConsole() {
       await loadCompanies();
     } catch (err: any) { toast.error(err.message || "Failed to restore"); }
     setActionLoading(false);
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedArchived);
+    if (ids.length === 0) return;
+    setActionLoading(true);
+    let success = 0;
+    let failed = 0;
+    const errors: string[] = [];
+    for (const id of ids) {
+      const company = archivedCompanies.find(c => c.id === id);
+      if (!company || company.is_protected) { failed++; continue; }
+      try {
+        const { data, error } = await supabase.functions.invoke("manage-company", {
+          body: { companyId: id, action: "delete", reason: "Bulk delete by system creator" },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        success++;
+      } catch (err: any) {
+        failed++;
+        errors.push(`${company.name}: ${err.message || "failed"}`);
+      }
+    }
+    if (success > 0) toast.success(`Deleted ${success} compan${success === 1 ? "y" : "ies"}.`);
+    if (failed > 0) toast.error(`${failed} failed${errors.length ? `: ${errors.slice(0, 2).join("; ")}` : ""}`);
+    setSelectedArchived(new Set());
+    setBulkDeleteOpen(false);
+    setBulkConfirmText("");
+    setActionLoading(false);
+    await loadCompanies();
   };
 
   const filtered = (status: string) =>
@@ -437,10 +472,48 @@ export default function CreatorConsole() {
 
   const ArchivedTable = ({ items }: { items: CompanyRecord[] }) => {
     if (items.length === 0) return <p className="text-sm text-muted-foreground text-center py-8">No archived companies.</p>;
+    const deletableItems = items.filter(c => !c.is_protected);
+    const allSelected = deletableItems.length > 0 && deletableItems.every(c => selectedArchived.has(c.id));
+    const someSelected = deletableItems.some(c => selectedArchived.has(c.id));
+    const toggleAll = () => {
+      const next = new Set(selectedArchived);
+      if (allSelected) {
+        deletableItems.forEach(c => next.delete(c.id));
+      } else {
+        deletableItems.forEach(c => next.add(c.id));
+      }
+      setSelectedArchived(next);
+    };
+    const toggleOne = (id: string) => {
+      const next = new Set(selectedArchived);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      setSelectedArchived(next);
+    };
     return (
+      <>
+        {selectedArchived.size > 0 && (
+          <div className="mb-3 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+            <span className="text-sm font-medium">{selectedArchived.size} selected</span>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setSelectedArchived(new Set())}>Clear</Button>
+              <Button size="sm" variant="destructive" className="gap-1" disabled={actionLoading} onClick={() => { setBulkDeleteOpen(true); setBulkConfirmText(""); }}>
+                <Trash2 className="h-3 w-3" /> Delete {selectedArchived.size} Forever
+              </Button>
+            </div>
+          </div>
+        )}
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-8">
+              {deletableItems.length > 0 && (
+                <Checkbox
+                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                  onCheckedChange={toggleAll}
+                  aria-label="Select all deletable archived companies"
+                />
+              )}
+            </TableHead>
             <TableHead>Company</TableHead>
             <TableHead>Owner Email</TableHead>
             <TableHead>Archived</TableHead>
@@ -454,6 +527,15 @@ export default function CreatorConsole() {
             const purgeAt = archivedAt ? new Date(archivedAt.getTime() + RETENTION_YEARS * 365 * 24 * 60 * 60 * 1000) : null;
             return (
               <TableRow key={c.id}>
+                <TableCell>
+                  {!c.is_protected && (
+                    <Checkbox
+                      checked={selectedArchived.has(c.id)}
+                      onCheckedChange={() => toggleOne(c.id)}
+                      aria-label={`Select ${c.name}`}
+                    />
+                  )}
+                </TableCell>
                 <TableCell className="font-medium">{renderCompanyName(c)}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">{c.owner_email || "—"}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">
@@ -485,6 +567,7 @@ export default function CreatorConsole() {
           })}
         </TableBody>
       </Table>
+      </>
     );
   };
 
@@ -657,6 +740,28 @@ export default function CreatorConsole() {
             <Button variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
             <Button disabled={!editName.trim() || actionLoading} onClick={() => invokeAction("update_profile", { patch: { name: editName.trim() } })}>
               {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirm */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={(open) => { if (!open) { setBulkDeleteOpen(false); setBulkConfirmText(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Permanently delete {selectedArchived.size} compan{selectedArchived.size === 1 ? "y" : "ies"}?</DialogTitle>
+            <DialogDescription>
+              This will hard-delete all selected unprotected archived companies and all their data. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Type <strong>DELETE</strong> to confirm:</p>
+            <Input value={bulkConfirmText} onChange={(e) => setBulkConfirmText(e.target.value)} placeholder="DELETE" className="font-mono" autoComplete="off" />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setBulkDeleteOpen(false); setBulkConfirmText(""); }}>Cancel</Button>
+            <Button variant="destructive" disabled={bulkConfirmText !== "DELETE" || actionLoading} onClick={handleBulkDelete}>
+              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Delete {selectedArchived.size} Forever
             </Button>
           </DialogFooter>
         </DialogContent>
