@@ -112,15 +112,19 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const canonicalTripType = String(t.trip_type ?? t.pcr_type ?? "").toLowerCase();
       const isEmergency = canonicalTripType === "emergency";
       const isUnscheduled = !!t.is_unscheduled;
+      // Private-pay invoices are NOT insurance claims. Vitals, mileage, odometers,
+      // medical-necessity criteria, and PCS are all insurance-driven requirements
+      // that don't apply to a cash invoice. Treat private_pay leniently.
+      const isPrivatePay = canonicalTripType === "private_pay";
 
       // Patient-level PCS satisfies the check (and hides the biller panel) for any
       // run whose patient already has PCS on file and not expired. Most common on
       // dialysis but applies to any standing-PCS patient.
       const patientPcsValid = !!(p?.pcs_on_file && (!p?.pcs_expiration_date || new Date(p.pcs_expiration_date) >= new Date(t.run_date)));
-      const pcsSkippable = isEmergency || isUnscheduled || !need.pcs || patientPcsValid;
+      const pcsSkippable = isEmergency || isUnscheduled || isPrivatePay || !need.pcs || patientPcsValid;
       // Hide the biller PCS data-entry panel when PCS is already covered by the
       // patient record, when the payer doesn't require it, or for emergency/unscheduled runs.
-      setPcsApplicable(need.pcs && !isEmergency && !isUnscheduled && !patientPcsValid);
+      setPcsApplicable(need.pcs && !isEmergency && !isUnscheduled && !isPrivatePay && !patientPcsValid);
 
       // Biller-entered PCS satisfies the PCS check (overrides patient-record PCS)
       const billerPcsComplete = !!(claim?.pcs_physician_name && claim?.pcs_physician_npi && claim?.pcs_certification_date && claim?.pcs_diagnosis);
