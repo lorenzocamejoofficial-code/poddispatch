@@ -327,6 +327,20 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
             ? undefined
             : "Narrative not documented — complete the Narrative card before submitting.",
         });
+
+        // Soft warning: thin narratives on Medicare/Medicaid claims are a
+        // common audit trigger ("patient stable" one-liners). Does not block
+        // submission — biller sees a yellow advisory.
+        const narrativeLen = (t.narrative || "").trim().length;
+        const isGovPayer = ["medicare", "medicaid"].includes(claimPayerType);
+        if (isGovPayer && hasValue(t.narrative) && narrativeLen < 100) {
+          checks.push({
+            label: "Narrative depth (audit advisory)",
+            passed: false,
+            isWarning: true,
+            detail: `Narrative is only ${narrativeLen} characters. Medicare/Medicaid auditors flag short narratives — consider adding specific medical necessity detail (mobility, condition, why ambulance was required).`,
+          });
+        }
       }
 
       // Patient address — must have street + city + ZIP. Blocks export and the

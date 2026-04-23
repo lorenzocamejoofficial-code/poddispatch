@@ -550,7 +550,9 @@ export function generateEDI837P(
         "A",                         // Ambulance transport code
         cr1Reason,                   // Transport reason A–E
         "DH",                        // Distance unit (miles)
-        claim.loaded_miles > 0 ? String(claim.loaded_miles) : "1",
+        // CMS expects mileage to one decimal (e.g. 10.4). Sending bare integers
+        // looks like upcoding/underbilling and can trigger audit flags.
+        claim.loaded_miles > 0 ? Number(claim.loaded_miles).toFixed(1) : "1.0",
         "",                          // Description (optional)
         "",                          // Description (optional)
       ].join(ES)
