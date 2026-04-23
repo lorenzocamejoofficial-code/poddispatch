@@ -334,12 +334,47 @@ export function ClearinghouseSettings() {
                 <Label>Inbound Folder (835 payments)</Label>
                 <Input value={inbound} onChange={(e) => setInbound(e.target.value)} />
               </div>
+              <div className="pt-3 border-t mt-2">
+                <p className="text-sm font-medium text-foreground mb-1">EDI Submitter Identification</p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Required on every 837P envelope. Office Ally provides your Submitter ID after enrollment.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Submitter ID (ISA06 / GS02)</Label>
+                <Input value={submitterId} onChange={(e) => setSubmitterId(e.target.value)} placeholder="From Office Ally" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Submitter Name</Label>
+                <Input value={submitterName} onChange={(e) => setSubmitterName(e.target.value)} placeholder="Your billing entity name" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Billing Contact Name</Label>
+                <Input value={contactName} onChange={(e) => setContactName(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Billing Contact Phone</Label>
+                <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="10 digits" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Receiver ID (ISA08 / GS03)</Label>
+                <Input value={receiverId} onChange={(e) => setReceiverId(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Default <code>OFFICEALLY</code> works for standard accounts.</p>
+              </div>
             </div>
             <Button
               size="sm"
               disabled={saving}
               onClick={async () => {
-                await saveStep({ outbound_folder: outbound, inbound_folder: inbound });
+                await saveStep({
+                  outbound_folder: outbound,
+                  inbound_folder: inbound,
+                  submitter_id: submitterId.trim() || null,
+                  submitter_name: submitterName.trim() || null,
+                  contact_name: contactName.trim() || null,
+                  contact_phone: contactPhone.trim() || null,
+                  receiver_id: receiverId.trim() || "OFFICEALLY",
+                });
                 setActiveStep(4);
               }}
             >
