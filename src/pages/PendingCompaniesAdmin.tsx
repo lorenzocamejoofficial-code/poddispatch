@@ -8,7 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, XCircle, Trash2, Loader2, ChevronDown, ChevronRight } from "lucide-react";
+import { CheckCircle2, XCircle, Trash2, Loader2, ChevronDown, ChevronRight, Shield, Archive, RotateCcw } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -30,18 +32,22 @@ interface PendingCompany {
   years_in_operation?: number | null;
   has_inhouse_biller?: boolean | null;
   hipaa_privacy_officer?: string | null;
+  is_protected?: boolean;
+  deleted_at?: string | null;
 }
 
 export default function PendingCompaniesAdmin() {
   const { isSystemCreator } = useAuth();
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<PendingCompany[]>([]);
+  const [archivedCompanies, setArchivedCompanies] = useState<PendingCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
   const [showRejectInput, setShowRejectInput] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PendingCompany | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
   const [verificationResults, setVerificationResults] = useState<Record<string, VerificationResult>>({});
 
@@ -52,10 +58,13 @@ export default function PendingCompaniesAdmin() {
 
   const loadCompanies = async () => {
     setLoading(true);
+    // Live + pending companies (excludes archived). System creator policy
+    // still returns archived rows, so we filter explicitly.
     const { data, error } = await supabase
       .from("companies")
-      .select("id, name, owner_email, created_at, onboarding_status, owner_user_id, npi_number, state_of_operation, current_software, years_in_operation, has_inhouse_biller, hipaa_privacy_officer" as any)
+      .select("id, name, owner_email, created_at, onboarding_status, owner_user_id, npi_number, state_of_operation, current_software, years_in_operation, has_inhouse_biller, hipaa_privacy_officer, deleted_at" as any)
       .in("onboarding_status", ["pending_approval", "approved_pending_payment", "rejected", "suspended"])
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
     if (error) { console.error(error); setLoading(false); return; }
@@ -67,10 +76,32 @@ export default function PendingCompaniesAdmin() {
       if (profiles) profileMap = Object.fromEntries(profiles.map(p => [p.user_id, p.full_name]));
     }
 
+    // Determine protection status per company in parallel.
+    const companyIds = (data || []).map((c: any) => c.id);
+    const protectionMap: Record<string, boolean> = {};
+    await Promise.all(companyIds.map(async (id: string) => {
+      const { data: prot } = await supabase.rpc("is_protected_record", { _company_id: id });
+      protectionMap[id] = !!prot;
+    }));
+
     setCompanies((data || []).map((c: any) => ({
       ...c,
       owner_name: c.owner_user_id ? profileMap[c.owner_user_id] || "—" : "—",
+      is_protected: protectionMap[c.id] ?? false,
     })));
+
+    // Archived companies (separate tab).
+    const { data: archived } = await supabase
+      .from("companies")
+      .select("id, name, owner_email, created_at, onboarding_status, owner_user_id, deleted_at" as any)
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false });
+    setArchivedCompanies(((archived as any[]) || []).map((c: any) => ({
+      ...c,
+      owner_name: c.owner_user_id ? profileMap[c.owner_user_id] || "—" : "—",
+      is_protected: true,
+    })));
+
     setLoading(false);
   };
 
@@ -95,9 +126,20 @@ export default function PendingCompaniesAdmin() {
   };
 
   const handleApprove = async (companyId: string) => {
+    const vr = verificationResults[companyId];
+    if (!vr) {
+      toast.error("Run the verification panel first — expand the company row.");
+      return;
+    }
+    if (vr.npi.status === "pending" || vr.medicare.status === "pending" || vr.oig.status === "pending") {
+      toast.error("Verification still loading. Wait for all checks to complete.");
+      return;
+    }
     setActionLoading(companyId);
     try {
-      const { data, error } = await supabase.functions.invoke("manage-company", { body: { companyId, action: "approve" } });
+      const { data, error } = await supabase.functions.invoke("manage-company", {
+        body: { companyId, action: "approve", verification: vr },
+      });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       await logVerification(companyId, "approve");
@@ -128,19 +170,47 @@ export default function PendingCompaniesAdmin() {
     setActionLoading(deleteTarget.id);
     try {
       const { data, error } = await supabase.functions.invoke("manage-company", {
-        body: { companyId: deleteTarget.id, action: "delete", reason: "Deleted by system creator" },
+        body: {
+          companyId: deleteTarget.id,
+          action: "delete",  // edge function auto-routes to archive vs hard-delete
+          reason: deleteReason || (deleteTarget.is_protected ? "Archived by system creator" : "Deleted by system creator"),
+        },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast.success(`Company "${deleteTarget.name}" permanently deleted.`);
+      if (data?.archived) {
+        toast.success(`Company "${deleteTarget.name}" archived. Data retained for legal compliance.`);
+        if (data.stripe_cancel_status && !["cancelled", "no_subscription", "already_cancelled"].includes(data.stripe_cancel_status)) {
+          toast.warning(`Stripe: ${data.stripe_cancel_status}`);
+        }
+      } else {
+        toast.success(`Company "${deleteTarget.name}" permanently deleted.`);
+      }
       setDeleteTarget(null);
       setDeleteConfirmText("");
+      setDeleteReason("");
       await loadCompanies();
     } catch (err: any) { toast.error(err.message || "Failed to delete"); }
     setActionLoading(null);
   };
 
-  const canDelete = (status: string) => status === "pending_approval" || status === "rejected";
+  const handleRestore = async (company: PendingCompany) => {
+    setActionLoading(company.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-company", {
+        body: { companyId: company.id, action: "restore_archived", reason: "Restored by system creator" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`"${company.name}" restored.`);
+      await loadCompanies();
+    } catch (err: any) { toast.error(err.message || "Failed to restore"); }
+    setActionLoading(null);
+  };
+
+  // Every company in the active list is deletable now — the edge function
+  // decides whether that means archive or hard-delete based on protection.
+  const canDelete = () => true;
 
   const statusColor = (status: string) => {
     if (status === "pending_approval") return "bg-[hsl(var(--status-yellow))]/15 text-[hsl(var(--status-yellow))]";
@@ -160,10 +230,18 @@ export default function PendingCompaniesAdmin() {
         <CollapsibleContent className="mt-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
           <p>This page shows companies awaiting your approval. New signups land here with <strong>pending</strong> status.</p>
           <p>Click a company row to expand the <strong>Verification Panel</strong> with automated NPI, Medicare, and OIG checks.</p>
-          <p>Approve to activate a company's workspace, or reject with a reason. You can also permanently delete pending/rejected companies.</p>
+          <p>Approve to activate a company's workspace, or reject with a reason. Verification results are <strong>required</strong> at approval and snapshotted permanently.</p>
+          <p>Companies showing a <Shield className="inline h-3 w-3 text-primary" /> shield are <strong>protected records</strong> — their data is under legal retention and the delete button archives instead of purging.</p>
           <p>All actions and verification results are logged for audit.</p>
         </CollapsibleContent>
       </Collapsible>
+      <Tabs defaultValue="active" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="active">Active ({companies.length})</TabsTrigger>
+          <TabsTrigger value="archived">Archived ({archivedCompanies.length})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="active">
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium text-muted-foreground">Companies awaiting review</CardTitle>
@@ -198,7 +276,23 @@ export default function PendingCompaniesAdmin() {
                           : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                         }
                       </TableCell>
-                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-1.5">
+                          {c.is_protected && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Shield className="h-3.5 w-3.5 text-primary shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">Protected — data under legal retention</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          <span>{c.name}</span>
+                        </div>
+                      </TableCell>
                       <TableCell>{c.owner_name}</TableCell>
                       <TableCell className="text-muted-foreground text-xs">{c.owner_email || "—"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{format(new Date(c.created_at), "MMM d, yyyy")}</TableCell>
@@ -229,17 +323,16 @@ export default function PendingCompaniesAdmin() {
                               )}
                             </>
                           )}
-                          {canDelete(c.onboarding_status) && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              disabled={actionLoading === c.id}
-                              onClick={() => { setDeleteTarget(c); setDeleteConfirmText(""); }}
-                            >
-                              <Trash2 className="h-3 w-3" /> Delete
-                            </Button>
-                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            disabled={actionLoading === c.id}
+                            onClick={() => { setDeleteTarget(c); setDeleteConfirmText(""); setDeleteReason(""); }}
+                          >
+                            {c.is_protected ? <Archive className="h-3 w-3" /> : <Trash2 className="h-3 w-3" />}
+                            {c.is_protected ? "Archive" : "Delete"}
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -270,36 +363,125 @@ export default function PendingCompaniesAdmin() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="archived">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Archive className="h-4 w-4" /> Archived Companies — Legal Retention
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">
+                Soft-deleted records preserved for regulatory retention (Georgia EMS: 10 years).
+                Members can no longer access their data; the creator can read for audit/legal purposes.
+                A future scheduled job will purge eligible records after the retention window expires.
+              </p>
+              {archivedCompanies.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">No archived companies.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Owner</TableHead>
+                      <TableHead>Archived</TableHead>
+                      <TableHead>Eligible for purge</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {archivedCompanies.map((c) => {
+                      const archivedAt = c.deleted_at ? new Date(c.deleted_at) : null;
+                      const eligibleAt = archivedAt ? new Date(archivedAt.getTime() + 10 * 365 * 24 * 60 * 60 * 1000) : null;
+                      return (
+                        <TableRow key={c.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-1.5">
+                              <Shield className="h-3.5 w-3.5 text-primary" />
+                              {c.name}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{c.owner_email || "—"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {archivedAt ? format(archivedAt, "MMM d, yyyy") : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {eligibleAt ? format(eligibleAt, "MMM d, yyyy") : "—"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="gap-1.5"
+                              disabled={actionLoading === c.id}
+                              onClick={() => handleRestore(c)}
+                            >
+                              {actionLoading === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                              Restore
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteConfirmText(""); } }}>
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteConfirmText(""); setDeleteReason(""); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Company Permanently</DialogTitle>
+            <DialogTitle>
+              {deleteTarget?.is_protected ? "Archive Company" : "Delete Company Permanently"}
+            </DialogTitle>
             <DialogDescription>
-              This will permanently delete <strong>{deleteTarget?.name}</strong> and all associated data including memberships, profiles, and the owner's auth account. This cannot be undone.
+              {deleteTarget?.is_protected ? (
+                <>
+                  <strong>{deleteTarget?.name}</strong> is a <strong>protected record</strong> (verified at approval, or has submitted PCRs).
+                  Their data will be soft-deleted and preserved for legal retention. Members will lose all access immediately,
+                  and any active Stripe subscription will be cancelled.
+                </>
+              ) : (
+                <>
+                  This will permanently delete <strong>{deleteTarget?.name}</strong> and all associated data including memberships,
+                  profiles, and the owner's auth account. This cannot be undone. The company has no verified approval and no submitted PCRs,
+                  so deletion is safe.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
+            <Textarea
+              placeholder="Reason (optional, recorded in audit log)"
+              className="text-xs h-16"
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+            />
             <p className="text-sm text-muted-foreground">
-              Type <strong>CONFIRM</strong> to proceed:
+              Type <strong>{deleteTarget?.name}</strong> to proceed:
             </p>
             <Input
               value={deleteConfirmText}
               onChange={(e) => setDeleteConfirmText(e.target.value)}
-              placeholder="CONFIRM"
+              placeholder={deleteTarget?.name || ""}
               autoFocus
             />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => { setDeleteTarget(null); setDeleteConfirmText(""); }}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setDeleteTarget(null); setDeleteConfirmText(""); setDeleteReason(""); }}>Cancel</Button>
             <Button
-              variant="destructive"
-              disabled={deleteConfirmText !== "CONFIRM" || actionLoading === deleteTarget?.id}
+              variant={deleteTarget?.is_protected ? "default" : "destructive"}
+              disabled={deleteConfirmText !== deleteTarget?.name || actionLoading === deleteTarget?.id}
               onClick={handleDelete}
             >
               {actionLoading === deleteTarget?.id ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : null}
-              Delete Forever
+              {deleteTarget?.is_protected ? "Archive Company" : "Delete Forever"}
             </Button>
           </DialogFooter>
         </DialogContent>
