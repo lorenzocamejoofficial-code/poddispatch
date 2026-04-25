@@ -157,6 +157,11 @@ function PaymentResultHandler() {
 
 function AppRoutes() {
   const { user, role, loading, membershipLoaded, isSystemCreator, onboardingStatus, activeCompanyId, subscriptionStatus, wizardCompleted } = useAuth();
+  const location = useLocation();
+  const isPasswordRecoveryFlow =
+    location.pathname === "/reset-password" ||
+    location.hash.includes("type=recovery") ||
+    new URLSearchParams(location.search).get("type") === "recovery";
 
   // Show loading while auth session OR membership data is still resolving
   if (loading || (user && !membershipLoaded)) {
@@ -167,6 +172,17 @@ function AppRoutes() {
           <p className="text-sm text-muted-foreground">Loading your workspace...</p>
         </div>
       </div>
+    );
+  }
+
+  // Password recovery must stay public/auth-agnostic. Recovery links create a
+  // temporary session, so role-based routing would otherwise send creators to
+  // /system or show the app 404 before they can set a new password.
+  if (isPasswordRecoveryFlow) {
+    return (
+      <Routes>
+        <Route path="*" element={<ResetPassword />} />
+      </Routes>
     );
   }
 
