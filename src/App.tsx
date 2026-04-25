@@ -43,6 +43,7 @@ import AccountSettings from "./pages/AccountSettings";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import ForgotEmail from "./pages/ForgotEmail";
+import CreatorRecovery from "./pages/CreatorRecovery";
 import SuspendedPage from "./pages/SuspendedPage";
 import CrewDashboard from "./pages/CrewDashboard";
 import PCRPage from "./pages/PCRPage";
@@ -182,6 +183,7 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/forgot-email" element={<ForgotEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/creator-recovery" element={<CreatorRecovery />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
