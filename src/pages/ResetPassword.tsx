@@ -15,20 +15,39 @@ export default function ResetPassword() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Check for recovery event in hash
+    let cancelled = false;
+
+    // 1. Recovery markers in URL → ready immediately
     const hash = window.location.hash;
     const params = new URLSearchParams(window.location.search);
     if (hash.includes("type=recovery") || params.get("type") === "recovery") {
       setReady(true);
-    } else {
-      // Listen for PASSWORD_RECOVERY event
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === "PASSWORD_RECOVERY") {
-          setReady(true);
-        }
-      });
-      return () => subscription.unsubscribe();
+      return;
     }
+
+    // 2. If a session already exists (Supabase consumed the token before we mounted), allow reset
+    supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled && data.session) setReady(true);
+    });
+
+    // 3. Listen for the PASSWORD_RECOVERY event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
+        setReady(true);
+      }
+    });
+
+    // 4. Hard fallback — never spin forever. After 3s, if we have any session, show form.
+    const timeout = setTimeout(async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!cancelled && data.session) setReady(true);
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
