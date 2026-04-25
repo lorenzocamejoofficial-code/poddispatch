@@ -2149,10 +2149,10 @@ Deno.serve(async (req) => {
     }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Simulation lab error:", error);
     // Always return 200 with error details
-    return new Response(JSON.stringify({ ok: false, step: "handler", error: error.message || "Internal error" }), {
+    return new Response(JSON.stringify({ ok: false, step: "handler", error: error?.message || "Internal error" }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
