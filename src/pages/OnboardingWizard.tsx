@@ -1210,7 +1210,8 @@ export default function OnboardingWizard() {
           <DialogHeader>
             <DialogTitle>Edit crew member</DialogTitle>
             <DialogDescription>
-              Update profile fields. Email cannot be changed — to fix an email, delete and re-add.
+              Update any field. Leave email blank to keep current; enter a new address to change it
+              (the user will sign in with the new email going forward).
             </DialogDescription>
           </DialogHeader>
           {editingCrew && (
@@ -1218,6 +1219,8 @@ export default function OnboardingWizard() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1"><Label>First Name *</Label><Input value={editingCrew.first_name} onChange={e => setEditingCrew((c: any) => ({ ...c, first_name: e.target.value }))} /></div>
                 <div className="space-y-1"><Label>Last Name *</Label><Input value={editingCrew.last_name} onChange={e => setEditingCrew((c: any) => ({ ...c, last_name: e.target.value }))} /></div>
+                <div className="space-y-1"><Label>New Email (optional)</Label><Input type="email" placeholder="leave blank to keep current" value={editingCrew.email} onChange={e => setEditingCrew((c: any) => ({ ...c, email: e.target.value }))} /></div>
+                <div className="space-y-1"><Label>Phone</Label><Input type="tel" value={editingCrew.phone_number ?? ""} onChange={e => setEditingCrew((c: any) => ({ ...c, phone_number: e.target.value }))} /></div>
                 <div className="space-y-1"><Label>Role</Label>
                   <Select value={editingCrew.role} onValueChange={v => setEditingCrew((c: any) => ({ ...c, role: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
