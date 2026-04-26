@@ -724,6 +724,38 @@ export type Database = {
           },
         ]
       }
+      clearinghouse_credentials: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          sftp_password: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          sftp_password: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          sftp_password?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clearinghouse_credentials_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clearinghouse_settings: {
         Row: {
           auto_receive_enabled: boolean
@@ -912,12 +944,17 @@ export type Database = {
       }
       companies: {
         Row: {
+          address_city: string | null
+          address_state: string | null
+          address_street: string | null
+          address_zip: string | null
           approved_at: string | null
           approved_by: string | null
           created_at: string
           current_software: string | null
           deleted_at: string | null
           deleted_by: string | null
+          ein_number: string | null
           has_inhouse_biller: boolean | null
           hipaa_privacy_officer: string | null
           id: string
@@ -950,12 +987,17 @@ export type Database = {
           years_in_operation: number | null
         }
         Insert: {
+          address_city?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip?: string | null
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
           current_software?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          ein_number?: string | null
           has_inhouse_biller?: boolean | null
           hipaa_privacy_officer?: string | null
           id?: string
@@ -988,12 +1030,17 @@ export type Database = {
           years_in_operation?: number | null
         }
         Update: {
+          address_city?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip?: string | null
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
           current_software?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          ein_number?: string | null
           has_inhouse_biller?: boolean | null
           hipaa_privacy_officer?: string | null
           id?: string
@@ -1940,6 +1987,7 @@ export type Database = {
           step_4_skipped: boolean
           step_5_skipped: boolean
           step_clearinghouse_connected: boolean
+          step_company_info_verified: boolean
           step_first_trip: boolean
           step_patients_added: boolean
           step_rates_verified: boolean
@@ -1963,6 +2011,7 @@ export type Database = {
           step_4_skipped?: boolean
           step_5_skipped?: boolean
           step_clearinghouse_connected?: boolean
+          step_company_info_verified?: boolean
           step_first_trip?: boolean
           step_patients_added?: boolean
           step_rates_verified?: boolean
@@ -1986,6 +2035,7 @@ export type Database = {
           step_4_skipped?: boolean
           step_5_skipped?: boolean
           step_clearinghouse_connected?: boolean
+          step_company_info_verified?: boolean
           step_first_trip?: boolean
           step_patients_added?: boolean
           step_rates_verified?: boolean
