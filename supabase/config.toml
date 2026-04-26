@@ -30,6 +30,9 @@ verify_jwt = false
 [functions.save-clearinghouse-credentials]
 verify_jwt = false
 
+[functions.delete-pending-crew-member]
+verify_jwt = false
+
 [functions.send-claims-officeally]
 verify_jwt = false
 
