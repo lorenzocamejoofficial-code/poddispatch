@@ -403,7 +403,7 @@ export default function OnboardingWizard() {
       return;
     }
     // Reload profiles list
-    const { data: pf } = await supabase.from("profiles").select("id, full_name, cert_level, user_id").eq("company_id", activeCompanyId).eq("is_simulated", false);
+    const { data: pf } = await supabase.from("profiles").select("id, full_name, cert_level, user_id, sex, employment_type, max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok").eq("company_id", activeCompanyId).eq("is_simulated", false);
     setProfiles(pf ?? []);
     setNewCrew(emptyCrew());
     toast.success("Crew member added — login email sent");
