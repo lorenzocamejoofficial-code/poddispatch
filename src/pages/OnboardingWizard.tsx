@@ -1190,6 +1190,68 @@ export default function OnboardingWizard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Crew Dialog */}
+      <Dialog open={!!editingCrew} onOpenChange={(o) => !o && setEditingCrew(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit crew member</DialogTitle>
+            <DialogDescription>
+              Update profile fields. Email cannot be changed — to fix an email, delete and re-add.
+            </DialogDescription>
+          </DialogHeader>
+          {editingCrew && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1"><Label>First Name *</Label><Input value={editingCrew.first_name} onChange={e => setEditingCrew((c: any) => ({ ...c, first_name: e.target.value }))} /></div>
+                <div className="space-y-1"><Label>Last Name *</Label><Input value={editingCrew.last_name} onChange={e => setEditingCrew((c: any) => ({ ...c, last_name: e.target.value }))} /></div>
+                <div className="space-y-1"><Label>Role</Label>
+                  <Select value={editingCrew.role} onValueChange={v => setEditingCrew((c: any) => ({ ...c, role: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{ROLE_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1"><Label>Cert Level</Label>
+                  <Select value={editingCrew.cert_level} onValueChange={v => setEditingCrew((c: any) => ({ ...c, cert_level: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{CERT_LEVELS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1"><Label>Sex</Label>
+                  <Select value={editingCrew.sex} onValueChange={v => setEditingCrew((c: any) => ({ ...c, sex: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{SEX_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1"><Label>Employment</Label>
+                  <Select value={editingCrew.employment_type} onValueChange={v => setEditingCrew((c: any) => ({ ...c, employment_type: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{EMPLOYMENT_TYPES.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1"><Label>Max Team Lift (lbs)</Label><Input type="number" value={editingCrew.max_safe_team_lift_lbs} onChange={e => setEditingCrew((c: any) => ({ ...c, max_safe_team_lift_lbs: parseInt(e.target.value) || 250 }))} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { k: "stair_chair_trained", l: "Stair Chair Trained" },
+                  { k: "bariatric_trained", l: "Bariatric Trained" },
+                  { k: "oxygen_handling_trained", l: "Oxygen Trained" },
+                  { k: "lift_assist_ok", l: "Lift Assist OK" },
+                ].map(c => (
+                  <label key={c.k} className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={!!(editingCrew as any)[c.k]} onCheckedChange={v => setEditingCrew((p: any) => ({ ...p, [c.k]: v === true }))} />
+                    {c.l}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingCrew(null)}>Cancel</Button>
+            <Button onClick={saveEditCrew} disabled={crewEditSaving}>{crewEditSaving ? "Saving..." : "Save"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
