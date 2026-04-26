@@ -151,7 +151,7 @@ export default function OnboardingWizard() {
         supabase.from("charge_master").select("*").eq("company_id", activeCompanyId),
         supabase.from("clearinghouse_settings" as any).select("*").eq("company_id", activeCompanyId).maybeSingle(),
         supabase.from("trucks").select("*").eq("company_id", activeCompanyId).eq("is_simulated", false),
-        supabase.from("profiles").select("id, full_name, cert_level, user_id").eq("company_id", activeCompanyId).eq("is_simulated", false),
+        supabase.from("profiles").select("id, full_name, cert_level, user_id, sex, employment_type, max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok").eq("company_id", activeCompanyId).eq("is_simulated", false),
         supabase.from("patients").select("id, first_name, last_name, transport_type, primary_payer").eq("company_id", activeCompanyId).eq("is_simulated", false).limit(20),
         supabase.from("facilities").select("id, name").eq("company_id", activeCompanyId).limit(50),
       ]);
