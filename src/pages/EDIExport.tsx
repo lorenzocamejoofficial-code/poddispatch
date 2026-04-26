@@ -260,6 +260,23 @@ export default function EDIExport() {
 
     setGenerating(true);
     try {
+      // If EIN was entered manually (not previously saved), persist to companies
+      // so future exports pre-fill it.
+      if (!einLocked && taxDigits.length === 9) {
+        const { data: companyRow } = await supabase
+          .from("companies")
+          .select("id")
+          .limit(1)
+          .maybeSingle();
+        if (companyRow?.id) {
+          await supabase
+            .from("companies")
+            .update({ ein_number: taxDigits } as any)
+            .eq("id", companyRow.id);
+          setEinLocked(true);
+        }
+      }
+
       // Fetch trip and patient data for EDI generation
       const selTripIds = [...new Set(selectedClaims.map(c => (c as any).trip_id).filter(Boolean))];
       const selPatIds = [...new Set(selectedClaims.map(c => (c as any).patient_id).filter(Boolean))];
