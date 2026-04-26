@@ -90,9 +90,10 @@ Deno.serve(async (req) => {
     await admin.from("admin_actions").insert({
       company_id,
       actor_user_id: callerUser.id,
+      actor_email: callerUser.email ?? null,
       action: "crew_member_deleted",
-      target_user_id,
-      details: { target_email: target_email ?? null },
+      reason: `Deleted user ${target_email ?? target_user_id}`,
+      before_snapshot: { target_user_id, target_email: target_email ?? null },
     } as any);
 
     return json({ ok: true });
