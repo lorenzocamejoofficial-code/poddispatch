@@ -1071,12 +1071,26 @@ export default function OnboardingWizard() {
                         <Users className="h-4 w-4 text-primary" />
                         <span className="flex-1">{p.first_name} {p.last_name}</span>
                         <Badge variant="outline" className="text-[10px]">{p.transport_type}</Badge>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditPatient(p.id)} title="Edit">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <ConfirmActionDialog
+                          trigger={
+                            <Button size="icon" variant="ghost" className="h-7 w-7" title="Delete">
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          }
+                          title="Delete this patient?"
+                          description={`Permanently remove ${p.first_name} ${p.last_name}. This cannot be undone.`}
+                          confirmWord="DELETE"
+                          onConfirm={() => deletePatient(p.id)}
+                        />
                       </div>
                     ))}
                   </div>
                 )}
                 <div className="rounded-lg border p-3 space-y-3">
-                  <p className="text-sm font-medium">Add a patient</p>
+                  <p className="text-sm font-medium">{editingPatientId ? "Edit patient" : "Add a patient"}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1"><Label>First Name *</Label><Input value={newPatient.first_name} onChange={e => setNewPatient(p => ({ ...p, first_name: e.target.value }))} /></div>
                     <div className="space-y-1"><Label>Last Name *</Label><Input value={newPatient.last_name} onChange={e => setNewPatient(p => ({ ...p, last_name: e.target.value }))} /></div>
@@ -1153,9 +1167,14 @@ export default function OnboardingWizard() {
                     <div className="space-y-1"><Label>Auth Expires</Label><Input type="date" value={newPatient.prior_auth_expiration} onChange={e => setNewPatient(p => ({ ...p, prior_auth_expiration: e.target.value }))} /></div>
                   </div>
                   <div className="space-y-1"><Label>Notes</Label><Textarea value={newPatient.notes} onChange={e => setNewPatient(p => ({ ...p, notes: e.target.value }))} rows={2} /></div>
-                  <Button onClick={addPatient} disabled={patientSaving}>
-                    {patientSaving ? "Saving..." : "Add Patient"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={savePatient} disabled={patientSaving}>
+                      {patientSaving ? "Saving..." : (editingPatientId ? "Save Changes" : "Add Patient")}
+                    </Button>
+                    {editingPatientId && (
+                      <Button variant="outline" onClick={cancelEditPatient}>Cancel</Button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
