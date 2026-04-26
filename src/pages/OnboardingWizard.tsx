@@ -315,15 +315,20 @@ export default function OnboardingWizard() {
     }
     if (chErr) { toast.error("Save failed: " + chErr.message); setChSaving(false); return; }
 
-    // Password goes to server-only credentials table. Client cannot read it back —
-    // that's by design (RLS denies all access; only edge functions can read).
-    // We use upsert via insert with on-conflict handled at the unique constraint.
-    const { error: credErr } = await supabase.from("clearinghouse_credentials" as any)
-      .upsert({ company_id: activeCompanyId, sftp_password: ch.sftp_password } as any, { onConflict: "company_id" });
-    if (credErr) {
-      // Non-blocking — settings saved; warn user.
-      console.error("credential save failed", credErr);
-      toast.error("Settings saved, but password could not be stored securely. Contact support.");
+    // Password goes to server-only credentials table via edge function.
+    // RLS denies direct client writes by design — only the service role
+    // (running inside the edge function) may write to clearinghouse_credentials.
+    const { data: credData, error: credInvokeErr } = await supabase.functions.invoke(
+      "save-clearinghouse-credentials",
+      { body: { sftp_password: ch.sftp_password } }
+    );
+    const credError = credInvokeErr?.message || (credData as any)?.error;
+    if (credError) {
+      console.error("credential save failed", credError);
+      toast.error("Could not store password securely: " + credError);
+      setChSaving(false);
+      // Step is NOT marked complete — credentials are required.
+      return;
     }
     setCh(prev => ({ ...prev, sftp_password: "" })); // never keep in memory
     await progress.markStep("step_clearinghouse_connected", true);
