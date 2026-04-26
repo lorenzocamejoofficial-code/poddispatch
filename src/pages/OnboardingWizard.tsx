@@ -976,6 +976,27 @@ export default function OnboardingWizard() {
                         {p.user_id === user?.id && <span className="ml-2 text-xs text-muted-foreground">(You — Owner)</span>}
                       </span>
                       <Badge variant="outline" className="text-[10px]">{p.cert_level}</Badge>
+                      {p.user_id !== user?.id && (
+                        <>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditCrew(p)} title="Edit">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => resendInvite(p)} disabled={resendingId === p.id} title="Resend invite">
+                            <Mail className="h-3.5 w-3.5" />
+                          </Button>
+                          <ConfirmActionDialog
+                            trigger={
+                              <Button size="icon" variant="ghost" className="h-7 w-7" title="Delete">
+                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                              </Button>
+                            }
+                            title="Delete this crew member?"
+                            description={`This permanently removes ${p.full_name}'s account, profile, and access. This cannot be undone.`}
+                            confirmWord="DELETE"
+                            onConfirm={() => deleteCrew(p)}
+                          />
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1029,7 +1050,7 @@ export default function OnboardingWizard() {
                       </label>
                     ))}
                   </div>
-                  <Button size="sm" onClick={addCrew} disabled={crewSaving}>
+                  <Button size="sm" onClick={addCrew} disabled={crewSaving || !EMAIL_REGEX.test(newCrew.email.trim().toLowerCase()) || !newCrew.first_name.trim() || !newCrew.last_name.trim()}>
                     {crewSaving ? "Adding..." : "Add & Send Invite"}
                   </Button>
                 </div>
