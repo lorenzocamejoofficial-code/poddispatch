@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FileText, Download, Info } from "lucide-react";
 import { toast } from "sonner";
+import { Link as RouterLink } from "react-router-dom";
 import { logAuditEvent } from "@/lib/audit-logger";
 import {
   generateEDI837P,
@@ -60,6 +61,10 @@ export default function EDIExport() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [showExported, setShowExported] = useState(false);
+  // True when EIN/NPI come from the companies row — lock the inputs and link
+  // back to onboarding for edits.
+  const [einLocked, setEinLocked] = useState(false);
+  const [npiLocked, setNpiLocked] = useState(false);
 
   const [providerInfo, setProviderInfo] = useState<ProviderInfo>({
     npi: "",
@@ -166,7 +171,7 @@ export default function EDIExport() {
 
     const { data: company } = await supabase
       .from("companies")
-      .select("name, npi_number, state_of_operation")
+      .select("name, npi_number, ein_number, state_of_operation, address_street, address_city, address_state, address_zip")
       .limit(1)
       .maybeSingle();
 
@@ -175,8 +180,14 @@ export default function EDIExport() {
         ...prev,
         organization_name: prev.organization_name || company.name || "",
         npi: prev.npi || company.npi_number || "",
+        tax_id: prev.tax_id || (company as any).ein_number || "",
         state: prev.state || company.state_of_operation || "",
+        address: prev.address || (company as any).address_street || "",
+        city: prev.city || (company as any).address_city || "",
+        zip: prev.zip || (company as any).address_zip || "",
       }));
+      if ((company as any).ein_number) setEinLocked(true);
+      if (company.npi_number) setNpiLocked(true);
       setSubmitterInfo((prev) => ({
         ...prev,
         submitter_name: prev.submitter_name || company.name || "",
