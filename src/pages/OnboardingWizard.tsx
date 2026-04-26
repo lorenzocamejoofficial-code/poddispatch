@@ -18,8 +18,14 @@ import { toast } from "sonner";
 import { US_STATES } from "@/lib/us-states";
 import {
   Building2, DollarSign, Network, Truck, Users, UserPlus,
-  CheckCircle2, ArrowRight, ArrowLeft, Lock, Pencil, Trash2, PartyPopper,
+  CheckCircle2, ArrowRight, ArrowLeft, Lock, Pencil, Trash2, PartyPopper, Mail,
 } from "lucide-react";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const STEPS = [
   { icon: Building2, title: "Verify Your Company Info", description: "Confirm your billing identity, NPI, EIN, and address." },
