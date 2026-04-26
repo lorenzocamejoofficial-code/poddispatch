@@ -58,7 +58,7 @@ export function useOnboardingProgress() {
             .from("profiles")
             .select("id", { count: "exact", head: true })
             .eq("company_id", activeCompanyId)
-            .neq("id", user.id)
+            .neq("user_id", user.id)
         : supabase
             .from("profiles")
             .select("id", { count: "exact", head: true })
