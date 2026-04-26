@@ -554,7 +554,48 @@ export default function OnboardingWizard() {
   };
 
   // ---------- Step 6: Patient ----------
-  const addPatient = async () => {
+  const startEditPatient = async (id: string) => {
+    const { data, error } = await supabase.from("patients").select("*").eq("id", id).maybeSingle();
+    if (error || !data) { toast.error("Could not load patient"); return; }
+    const d: any = data;
+    setEditingPatientId(id);
+    setNewPatient({
+      first_name: d.first_name ?? "",
+      last_name: d.last_name ?? "",
+      dob: d.dob ?? "",
+      sex: d.sex ?? "",
+      pickup_address: d.pickup_address ?? "",
+      primary_payer: d.primary_payer ?? "",
+      member_id: d.member_id ?? "",
+      secondary_payer: d.secondary_payer ?? "",
+      secondary_member_id: d.secondary_member_id ?? "",
+      mobility: d.mobility ?? "ambulatory",
+      oxygen_required: !!d.oxygen_required,
+      standing_order: !!d.standing_order,
+      pcs_on_file: !!d.pcs_on_file,
+      pcs_signed_date: d.pcs_signed_date ?? "",
+      pcs_expiration_date: d.pcs_expiration_date ?? "",
+      prior_auth_number: d.prior_auth_number ?? "",
+      prior_auth_expiration: d.prior_auth_expiration ?? "",
+      notes: d.notes ?? "",
+      transport_type: d.transport_type ?? "",
+      facility_id: d.facility_id ?? "",
+      icd10_codes: Array.isArray(d.icd10_codes) ? d.icd10_codes.join(", ") : (d.icd10_codes ?? ""),
+    });
+  };
+  const cancelEditPatient = () => { setEditingPatientId(null); setNewPatient(emptyPatient()); };
+  const deletePatient = async (id: string) => {
+    if (patients.length <= 1) {
+      toast.error("You need at least one patient to complete this step. Add a replacement before deleting.");
+      return;
+    }
+    const { error } = await supabase.from("patients").delete().eq("id", id);
+    if (error) { toast.error("Delete failed: " + error.message); return; }
+    setPatients(ps => ps.filter(x => x.id !== id));
+    if (editingPatientId === id) cancelEditPatient();
+    toast.success("Patient deleted");
+  };
+  const savePatient = async () => {
     const p = newPatient;
     if (!p.first_name.trim() || !p.last_name.trim()) { toast.error("Name required"); return; }
     if (!p.dob) { toast.error("DOB required"); return; }
@@ -570,7 +611,7 @@ export default function OnboardingWizard() {
       return;
     }
     setPatientSaving(true);
-    const { data, error } = await supabase.from("patients").insert({
+    const payload = {
       first_name: p.first_name.trim(),
       last_name: p.last_name.trim(),
       dob: p.dob,
@@ -592,13 +633,21 @@ export default function OnboardingWizard() {
       transport_type: p.transport_type,
       facility_id: p.facility_id || null,
       icd10_codes: icd.length > 0 ? icd : null,
-      company_id: activeCompanyId,
-    } as any).select().single();
-    if (error) { toast.error("Failed: " + error.message); setPatientSaving(false); return; }
-    setPatients(ps => [...ps, data]);
+    };
+    if (editingPatientId) {
+      const { data, error } = await supabase.from("patients").update(payload as any).eq("id", editingPatientId).select("id, first_name, last_name, transport_type, primary_payer").single();
+      if (error) { toast.error("Save failed: " + error.message); setPatientSaving(false); return; }
+      setPatients(ps => ps.map(x => x.id === editingPatientId ? data : x));
+      setEditingPatientId(null);
+      toast.success("Patient updated");
+    } else {
+      const { data, error } = await supabase.from("patients").insert({ ...payload, company_id: activeCompanyId } as any).select("id, first_name, last_name, transport_type, primary_payer").single();
+      if (error) { toast.error("Failed: " + error.message); setPatientSaving(false); return; }
+      setPatients(ps => [...ps, data]);
+      await progress.markStep("step_patients_added", true);
+      toast.success("Patient added");
+    }
     setNewPatient(emptyPatient());
-    await progress.markStep("step_patients_added", true);
-    toast.success("Patient added");
     setPatientSaving(false);
   };
 
