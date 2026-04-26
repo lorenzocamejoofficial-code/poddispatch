@@ -17,6 +17,7 @@ serve(async (req) => {
       email, password, fullName, companyName, phone, agreements, clientIp,
       npiNumber, stateOfOperation, serviceAreaType, truckCount, payerMix,
       currentSoftware, yearsInOperation, hasInhouseBiller, hipaaPrivacyOfficer,
+      einNumber,
     } = await req.json();
 
     if (!email || !password || !fullName || !companyName) {
@@ -29,6 +30,16 @@ serve(async (req) => {
     if (!npiNumber || !stateOfOperation || !serviceAreaType) {
       return new Response(
         JSON.stringify({ error: "NPI number, state, and service area type are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate EIN — server-side, never trust client.
+    // Accept "XX-XXXXXXX" or 9 raw digits. Strip the dash before storing.
+    const einDigits = String(einNumber ?? "").replace(/\D/g, "");
+    if (einDigits.length !== 9) {
+      return new Response(
+        JSON.stringify({ error: "EIN must be exactly 9 digits (format XX-XXXXXXX)" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -76,6 +87,7 @@ serve(async (req) => {
         owner_user_id: userId,
         owner_email: email,
         npi_number: npiNumber?.trim() || null,
+        ein_number: einDigits,
         state_of_operation: stateOfOperation || null,
         service_area_type: serviceAreaType || "urban",
         payer_mix_medicare: payerMix?.medicare ?? 0,
