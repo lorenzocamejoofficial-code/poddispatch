@@ -18,8 +18,14 @@ import { toast } from "sonner";
 import { US_STATES } from "@/lib/us-states";
 import {
   Building2, DollarSign, Network, Truck, Users, UserPlus,
-  CheckCircle2, ArrowRight, ArrowLeft, Lock, Pencil, Trash2, PartyPopper,
+  CheckCircle2, ArrowRight, ArrowLeft, Lock, Pencil, Trash2, PartyPopper, Mail,
 } from "lucide-react";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const STEPS = [
   { icon: Building2, title: "Verify Your Company Info", description: "Confirm your billing identity, NPI, EIN, and address." },
@@ -119,17 +125,22 @@ export default function OnboardingWizard() {
     has_power_stretcher: false, has_stair_chair: false,
     has_oxygen_mount: false, has_bariatric_kit: false, has_bariatric_stretcher: false,
   });
+  const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
 
   // Step 5 — crew
   const [profiles, setProfiles] = useState<any[]>([]);
   const [newCrew, setNewCrew] = useState(emptyCrew());
   const [crewSaving, setCrewSaving] = useState(false);
+  const [editingCrew, setEditingCrew] = useState<any | null>(null);
+  const [crewEditSaving, setCrewEditSaving] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   // Step 6 — patient
   const [patients, setPatients] = useState<any[]>([]);
   const [newPatient, setNewPatient] = useState(emptyPatient());
   const [facilities, setFacilities] = useState<any[]>([]);
   const [patientSaving, setPatientSaving] = useState(false);
+  const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
 
   // Initial load
   useEffect(() => {
@@ -140,7 +151,7 @@ export default function OnboardingWizard() {
         supabase.from("charge_master").select("*").eq("company_id", activeCompanyId),
         supabase.from("clearinghouse_settings" as any).select("*").eq("company_id", activeCompanyId).maybeSingle(),
         supabase.from("trucks").select("*").eq("company_id", activeCompanyId).eq("is_simulated", false),
-        supabase.from("profiles").select("id, full_name, cert_level, user_id").eq("company_id", activeCompanyId).eq("is_simulated", false),
+        supabase.from("profiles").select("id, full_name, cert_level, user_id, sex, employment_type, max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok").eq("company_id", activeCompanyId).eq("is_simulated", false),
         supabase.from("patients").select("id, first_name, last_name, transport_type, primary_payer").eq("company_id", activeCompanyId).eq("is_simulated", false).limit(20),
         supabase.from("facilities").select("id, name").eq("company_id", activeCompanyId).limit(50),
       ]);
@@ -338,40 +349,76 @@ export default function OnboardingWizard() {
   };
 
   // ---------- Step 4: Trucks ----------
-  const addTruck = async () => {
+  const saveTruck = async () => {
     if (!newTruck.name.trim()) { toast.error("Truck name required"); return; }
-    const { data, error } = await supabase.from("trucks").insert({
+    const payload = {
       name: newTruck.name.trim(),
       vehicle_id: newTruck.vehicle_id.trim() || null,
-      company_id: activeCompanyId,
       has_power_stretcher: newTruck.has_power_stretcher,
       has_stair_chair: newTruck.has_stair_chair,
       has_oxygen_mount: newTruck.has_oxygen_mount,
       has_bariatric_kit: newTruck.has_bariatric_kit,
       has_bariatric_stretcher: newTruck.has_bariatric_stretcher,
-    } as any).select().single();
-    if (error) { toast.error(error.message); return; }
-    setTrucks(t => [...t, data]);
+    };
+    if (editingTruckId) {
+      const { data, error } = await supabase.from("trucks").update(payload as any).eq("id", editingTruckId).select().single();
+      if (error) { toast.error(error.message); return; }
+      setTrucks(t => t.map(x => x.id === editingTruckId ? data : x));
+      setEditingTruckId(null);
+      toast.success("Truck updated");
+    } else {
+      const { data, error } = await supabase.from("trucks").insert({ ...payload, company_id: activeCompanyId } as any).select().single();
+      if (error) { toast.error(error.message); return; }
+      setTrucks(t => [...t, data]);
+      await progress.markStep("step_trucks_added", true);
+      toast.success("Truck added");
+    }
     setNewTruck({ name: "", vehicle_id: "", has_power_stretcher: false, has_stair_chair: false, has_oxygen_mount: false, has_bariatric_kit: false, has_bariatric_stretcher: false });
-    await progress.markStep("step_trucks_added", true);
-    toast.success("Truck added");
+  };
+  const startEditTruck = (t: any) => {
+    setEditingTruckId(t.id);
+    setNewTruck({
+      name: t.name ?? "",
+      vehicle_id: t.vehicle_id ?? "",
+      has_power_stretcher: !!t.has_power_stretcher,
+      has_stair_chair: !!t.has_stair_chair,
+      has_oxygen_mount: !!t.has_oxygen_mount,
+      has_bariatric_kit: !!t.has_bariatric_kit,
+      has_bariatric_stretcher: !!t.has_bariatric_stretcher,
+    });
+  };
+  const cancelEditTruck = () => {
+    setEditingTruckId(null);
+    setNewTruck({ name: "", vehicle_id: "", has_power_stretcher: false, has_stair_chair: false, has_oxygen_mount: false, has_bariatric_kit: false, has_bariatric_stretcher: false });
   };
   const deleteTruck = async (id: string) => {
-    await supabase.from("trucks").delete().eq("id", id);
+    if (trucks.length <= 1) {
+      toast.error("You need at least one truck to complete this step. Add a replacement before deleting.");
+      return;
+    }
+    const { error } = await supabase.from("trucks").delete().eq("id", id);
+    if (error) { toast.error("Delete failed: " + error.message); return; }
     setTrucks(t => t.filter(x => x.id !== id));
+    if (editingTruckId === id) cancelEditTruck();
+    toast.success("Truck deleted");
   };
 
   // ---------- Step 5: Crew ----------
   const addCrew = async () => {
-    if (!newCrew.email.trim() || !newCrew.first_name.trim() || !newCrew.last_name.trim()) {
+    const email = newCrew.email.trim().toLowerCase();
+    if (!email || !newCrew.first_name.trim() || !newCrew.last_name.trim()) {
       toast.error("Email, first name, last name required");
+      return;
+    }
+    if (!EMAIL_REGEX.test(email)) {
+      toast.error("Enter a valid email address (e.g. name@example.com)");
       return;
     }
     setCrewSaving(true);
     const tempPassword = crypto.randomUUID().slice(0, 16) + "Aa1!";
     const { data, error } = await supabase.functions.invoke("create-user", {
       body: {
-        email: newCrew.email.trim().toLowerCase(),
+        email,
         password: tempPassword,
         full_name: `${newCrew.first_name.trim()} ${newCrew.last_name.trim()}`,
         role: newCrew.role,
@@ -392,11 +439,104 @@ export default function OnboardingWizard() {
       return;
     }
     // Reload profiles list
-    const { data: pf } = await supabase.from("profiles").select("id, full_name, cert_level, user_id").eq("company_id", activeCompanyId).eq("is_simulated", false);
-    setProfiles(pf ?? []);
+    await reloadProfiles();
     setNewCrew(emptyCrew());
     toast.success("Crew member added — login email sent");
     setCrewSaving(false);
+  };
+
+  const reloadProfiles = async () => {
+    const { data: pf } = await supabase
+      .from("profiles")
+      .select("id, full_name, cert_level, user_id, sex, employment_type, max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok")
+      .eq("company_id", activeCompanyId)
+      .eq("is_simulated", false);
+    setProfiles(pf ?? []);
+  };
+
+  const startEditCrew = (p: any) => {
+    const [first, ...rest] = (p.full_name ?? "").split(" ");
+    setEditingCrew({
+      id: p.id,
+      user_id: p.user_id,
+      first_name: first ?? "",
+      last_name: rest.join(" "),
+      sex: p.sex ?? "M",
+      cert_level: p.cert_level ?? "EMT-B",
+      employment_type: p.employment_type ?? "full_time",
+      max_safe_team_lift_lbs: p.max_safe_team_lift_lbs ?? 250,
+      stair_chair_trained: !!p.stair_chair_trained,
+      bariatric_trained: !!p.bariatric_trained,
+      oxygen_handling_trained: !!p.oxygen_handling_trained,
+      lift_assist_ok: !!p.lift_assist_ok,
+      role: "crew", // role lives in company_memberships; we update separately
+    });
+    // Fetch current role from membership
+    (async () => {
+      const { data: m } = await supabase.from("company_memberships").select("role").eq("user_id", p.user_id).maybeSingle();
+      if (m) setEditingCrew((c: any) => c ? { ...c, role: m.role } : c);
+    })();
+  };
+
+  const saveEditCrew = async () => {
+    if (!editingCrew) return;
+    if (!editingCrew.first_name.trim() || !editingCrew.last_name.trim()) {
+      toast.error("First and last name required"); return;
+    }
+    setCrewEditSaving(true);
+    const full_name = `${editingCrew.first_name.trim()} ${editingCrew.last_name.trim()}`;
+    const { error: pErr } = await supabase.from("profiles").update({
+      full_name,
+      sex: editingCrew.sex,
+      cert_level: editingCrew.cert_level,
+      employment_type: editingCrew.employment_type,
+      max_safe_team_lift_lbs: editingCrew.max_safe_team_lift_lbs,
+      stair_chair_trained: editingCrew.stair_chair_trained,
+      bariatric_trained: editingCrew.bariatric_trained,
+      oxygen_handling_trained: editingCrew.oxygen_handling_trained,
+      lift_assist_ok: editingCrew.lift_assist_ok,
+    } as any).eq("id", editingCrew.id);
+    if (pErr) { toast.error("Save failed: " + pErr.message); setCrewEditSaving(false); return; }
+    if (editingCrew.role && ["dispatcher", "biller", "crew"].includes(editingCrew.role)) {
+      await supabase.from("company_memberships").update({ role: editingCrew.role } as any).eq("user_id", editingCrew.user_id);
+    }
+    await reloadProfiles();
+    setEditingCrew(null);
+    setCrewEditSaving(false);
+    toast.success("Crew member updated");
+  };
+
+  const deleteCrew = async (p: any) => {
+    const otherCount = profiles.filter(x => x.user_id !== user?.id).length;
+    if (otherCount <= 1 && !progress.step_team_invited) {
+      toast.error("You need at least one invited crew member to complete this step. Add a replacement before deleting.");
+      return;
+    }
+    const { data, error } = await supabase.functions.invoke("delete-pending-crew-member", {
+      body: { target_user_id: p.user_id },
+    });
+    if (error || (data as any)?.error) {
+      toast.error("Delete failed: " + (error?.message || (data as any)?.error));
+      return;
+    }
+    await reloadProfiles();
+    toast.success("Crew member removed");
+  };
+
+  const resendInvite = async (p: any) => {
+    setResendingId(p.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("resend-crew-invite", {
+        body: { target_user_id: p.user_id, redirect_to: `${window.location.origin}/reset-password` },
+      });
+      if (error || (data as any)?.error) {
+        toast.error("Resend failed: " + (error?.message || (data as any)?.error));
+        return;
+      }
+      toast.success(`Invite link sent to ${(data as any)?.email ?? "user"}`);
+    } finally {
+      setResendingId(null);
+    }
   };
 
   const hasEmtCapable = useMemo(
@@ -414,7 +554,48 @@ export default function OnboardingWizard() {
   };
 
   // ---------- Step 6: Patient ----------
-  const addPatient = async () => {
+  const startEditPatient = async (id: string) => {
+    const { data, error } = await supabase.from("patients").select("*").eq("id", id).maybeSingle();
+    if (error || !data) { toast.error("Could not load patient"); return; }
+    const d: any = data;
+    setEditingPatientId(id);
+    setNewPatient({
+      first_name: d.first_name ?? "",
+      last_name: d.last_name ?? "",
+      dob: d.dob ?? "",
+      sex: d.sex ?? "",
+      pickup_address: d.pickup_address ?? "",
+      primary_payer: d.primary_payer ?? "",
+      member_id: d.member_id ?? "",
+      secondary_payer: d.secondary_payer ?? "",
+      secondary_member_id: d.secondary_member_id ?? "",
+      mobility: d.mobility ?? "ambulatory",
+      oxygen_required: !!d.oxygen_required,
+      standing_order: !!d.standing_order,
+      pcs_on_file: !!d.pcs_on_file,
+      pcs_signed_date: d.pcs_signed_date ?? "",
+      pcs_expiration_date: d.pcs_expiration_date ?? "",
+      prior_auth_number: d.prior_auth_number ?? "",
+      prior_auth_expiration: d.prior_auth_expiration ?? "",
+      notes: d.notes ?? "",
+      transport_type: d.transport_type ?? "",
+      facility_id: d.facility_id ?? "",
+      icd10_codes: Array.isArray(d.icd10_codes) ? d.icd10_codes.join(", ") : (d.icd10_codes ?? ""),
+    });
+  };
+  const cancelEditPatient = () => { setEditingPatientId(null); setNewPatient(emptyPatient()); };
+  const deletePatient = async (id: string) => {
+    if (patients.length <= 1) {
+      toast.error("You need at least one patient to complete this step. Add a replacement before deleting.");
+      return;
+    }
+    const { error } = await supabase.from("patients").delete().eq("id", id);
+    if (error) { toast.error("Delete failed: " + error.message); return; }
+    setPatients(ps => ps.filter(x => x.id !== id));
+    if (editingPatientId === id) cancelEditPatient();
+    toast.success("Patient deleted");
+  };
+  const savePatient = async () => {
     const p = newPatient;
     if (!p.first_name.trim() || !p.last_name.trim()) { toast.error("Name required"); return; }
     if (!p.dob) { toast.error("DOB required"); return; }
@@ -430,7 +611,7 @@ export default function OnboardingWizard() {
       return;
     }
     setPatientSaving(true);
-    const { data, error } = await supabase.from("patients").insert({
+    const payload = {
       first_name: p.first_name.trim(),
       last_name: p.last_name.trim(),
       dob: p.dob,
@@ -452,13 +633,21 @@ export default function OnboardingWizard() {
       transport_type: p.transport_type,
       facility_id: p.facility_id || null,
       icd10_codes: icd.length > 0 ? icd : null,
-      company_id: activeCompanyId,
-    } as any).select().single();
-    if (error) { toast.error("Failed: " + error.message); setPatientSaving(false); return; }
-    setPatients(ps => [...ps, data]);
+    };
+    if (editingPatientId) {
+      const { data, error } = await supabase.from("patients").update(payload as any).eq("id", editingPatientId).select("id, first_name, last_name, transport_type, primary_payer").single();
+      if (error) { toast.error("Save failed: " + error.message); setPatientSaving(false); return; }
+      setPatients(ps => ps.map(x => x.id === editingPatientId ? data : x));
+      setEditingPatientId(null);
+      toast.success("Patient updated");
+    } else {
+      const { data, error } = await supabase.from("patients").insert({ ...payload, company_id: activeCompanyId } as any).select("id, first_name, last_name, transport_type, primary_payer").single();
+      if (error) { toast.error("Failed: " + error.message); setPatientSaving(false); return; }
+      setPatients(ps => [...ps, data]);
+      await progress.markStep("step_patients_added", true);
+      toast.success("Patient added");
+    }
     setNewPatient(emptyPatient());
-    await progress.markStep("step_patients_added", true);
-    toast.success("Patient added");
     setPatientSaving(false);
   };
 
@@ -721,15 +910,26 @@ export default function OnboardingWizard() {
                       <div key={t.id} className="flex items-center gap-2 rounded-md bg-muted/30 px-3 py-2 text-sm">
                         <Truck className="h-4 w-4 text-primary" />
                         <span className="flex-1">{t.name}{t.vehicle_id ? ` (${t.vehicle_id})` : ""}</span>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteTruck(t.id)}>
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditTruck(t)} title="Edit">
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
+                        <ConfirmActionDialog
+                          trigger={
+                            <Button size="icon" variant="ghost" className="h-7 w-7" title="Delete">
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          }
+                          title="Delete this truck?"
+                          description={`Permanently remove "${t.name}". This cannot be undone.`}
+                          confirmWord="DELETE"
+                          onConfirm={() => deleteTruck(t.id)}
+                        />
                       </div>
                     ))}
                   </div>
                 )}
                 <div className="rounded-lg border p-3 space-y-3">
-                  <p className="text-sm font-medium">Add a truck</p>
+                  <p className="text-sm font-medium">{editingTruckId ? "Edit truck" : "Add a truck"}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1"><Label>Name *</Label><Input value={newTruck.name} onChange={e => setNewTruck(t => ({ ...t, name: e.target.value }))} placeholder="Unit 101" /></div>
                     <div className="space-y-1"><Label>Vehicle ID</Label><Input value={newTruck.vehicle_id} onChange={e => setNewTruck(t => ({ ...t, vehicle_id: e.target.value }))} placeholder="VIN or unit #" /></div>
@@ -748,7 +948,12 @@ export default function OnboardingWizard() {
                       </label>
                     ))}
                   </div>
-                  <Button size="sm" onClick={addTruck}>Add Truck</Button>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={saveTruck}>{editingTruckId ? "Save Changes" : "Add Truck"}</Button>
+                    {editingTruckId && (
+                      <Button size="sm" variant="outline" onClick={cancelEditTruck}>Cancel</Button>
+                    )}
+                  </div>
                 </div>
                 {trucks.length > 0 && (
                   <Button onClick={async () => { await progress.markStep("step_trucks_added", true); setCurrentStep(4); }}>
@@ -771,6 +976,27 @@ export default function OnboardingWizard() {
                         {p.user_id === user?.id && <span className="ml-2 text-xs text-muted-foreground">(You — Owner)</span>}
                       </span>
                       <Badge variant="outline" className="text-[10px]">{p.cert_level}</Badge>
+                      {p.user_id !== user?.id && (
+                        <>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditCrew(p)} title="Edit">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => resendInvite(p)} disabled={resendingId === p.id} title="Resend invite">
+                            <Mail className="h-3.5 w-3.5" />
+                          </Button>
+                          <ConfirmActionDialog
+                            trigger={
+                              <Button size="icon" variant="ghost" className="h-7 w-7" title="Delete">
+                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                              </Button>
+                            }
+                            title="Delete this crew member?"
+                            description={`This permanently removes ${p.full_name}'s account, profile, and access. This cannot be undone.`}
+                            confirmWord="DELETE"
+                            onConfirm={() => deleteCrew(p)}
+                          />
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -824,7 +1050,7 @@ export default function OnboardingWizard() {
                       </label>
                     ))}
                   </div>
-                  <Button size="sm" onClick={addCrew} disabled={crewSaving}>
+                  <Button size="sm" onClick={addCrew} disabled={crewSaving || !EMAIL_REGEX.test(newCrew.email.trim().toLowerCase()) || !newCrew.first_name.trim() || !newCrew.last_name.trim()}>
                     {crewSaving ? "Adding..." : "Add & Send Invite"}
                   </Button>
                 </div>
@@ -845,12 +1071,26 @@ export default function OnboardingWizard() {
                         <Users className="h-4 w-4 text-primary" />
                         <span className="flex-1">{p.first_name} {p.last_name}</span>
                         <Badge variant="outline" className="text-[10px]">{p.transport_type}</Badge>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditPatient(p.id)} title="Edit">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <ConfirmActionDialog
+                          trigger={
+                            <Button size="icon" variant="ghost" className="h-7 w-7" title="Delete">
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          }
+                          title="Delete this patient?"
+                          description={`Permanently remove ${p.first_name} ${p.last_name}. This cannot be undone.`}
+                          confirmWord="DELETE"
+                          onConfirm={() => deletePatient(p.id)}
+                        />
                       </div>
                     ))}
                   </div>
                 )}
                 <div className="rounded-lg border p-3 space-y-3">
-                  <p className="text-sm font-medium">Add a patient</p>
+                  <p className="text-sm font-medium">{editingPatientId ? "Edit patient" : "Add a patient"}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1"><Label>First Name *</Label><Input value={newPatient.first_name} onChange={e => setNewPatient(p => ({ ...p, first_name: e.target.value }))} /></div>
                     <div className="space-y-1"><Label>Last Name *</Label><Input value={newPatient.last_name} onChange={e => setNewPatient(p => ({ ...p, last_name: e.target.value }))} /></div>
@@ -927,9 +1167,14 @@ export default function OnboardingWizard() {
                     <div className="space-y-1"><Label>Auth Expires</Label><Input type="date" value={newPatient.prior_auth_expiration} onChange={e => setNewPatient(p => ({ ...p, prior_auth_expiration: e.target.value }))} /></div>
                   </div>
                   <div className="space-y-1"><Label>Notes</Label><Textarea value={newPatient.notes} onChange={e => setNewPatient(p => ({ ...p, notes: e.target.value }))} rows={2} /></div>
-                  <Button onClick={addPatient} disabled={patientSaving}>
-                    {patientSaving ? "Saving..." : "Add Patient"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={savePatient} disabled={patientSaving}>
+                      {patientSaving ? "Saving..." : (editingPatientId ? "Save Changes" : "Add Patient")}
+                    </Button>
+                    {editingPatientId && (
+                      <Button variant="outline" onClick={cancelEditPatient}>Cancel</Button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -945,6 +1190,68 @@ export default function OnboardingWizard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Crew Dialog */}
+      <Dialog open={!!editingCrew} onOpenChange={(o) => !o && setEditingCrew(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit crew member</DialogTitle>
+            <DialogDescription>
+              Update profile fields. Email cannot be changed — to fix an email, delete and re-add.
+            </DialogDescription>
+          </DialogHeader>
+          {editingCrew && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1"><Label>First Name *</Label><Input value={editingCrew.first_name} onChange={e => setEditingCrew((c: any) => ({ ...c, first_name: e.target.value }))} /></div>
+                <div className="space-y-1"><Label>Last Name *</Label><Input value={editingCrew.last_name} onChange={e => setEditingCrew((c: any) => ({ ...c, last_name: e.target.value }))} /></div>
+                <div className="space-y-1"><Label>Role</Label>
+                  <Select value={editingCrew.role} onValueChange={v => setEditingCrew((c: any) => ({ ...c, role: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{ROLE_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1"><Label>Cert Level</Label>
+                  <Select value={editingCrew.cert_level} onValueChange={v => setEditingCrew((c: any) => ({ ...c, cert_level: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{CERT_LEVELS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1"><Label>Sex</Label>
+                  <Select value={editingCrew.sex} onValueChange={v => setEditingCrew((c: any) => ({ ...c, sex: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{SEX_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1"><Label>Employment</Label>
+                  <Select value={editingCrew.employment_type} onValueChange={v => setEditingCrew((c: any) => ({ ...c, employment_type: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{EMPLOYMENT_TYPES.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1"><Label>Max Team Lift (lbs)</Label><Input type="number" value={editingCrew.max_safe_team_lift_lbs} onChange={e => setEditingCrew((c: any) => ({ ...c, max_safe_team_lift_lbs: parseInt(e.target.value) || 250 }))} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { k: "stair_chair_trained", l: "Stair Chair Trained" },
+                  { k: "bariatric_trained", l: "Bariatric Trained" },
+                  { k: "oxygen_handling_trained", l: "Oxygen Trained" },
+                  { k: "lift_assist_ok", l: "Lift Assist OK" },
+                ].map(c => (
+                  <label key={c.k} className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={!!(editingCrew as any)[c.k]} onCheckedChange={v => setEditingCrew((p: any) => ({ ...p, [c.k]: v === true }))} />
+                    {c.l}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingCrew(null)}>Cancel</Button>
+            <Button onClick={saveEditCrew} disabled={crewEditSaving}>{crewEditSaving ? "Saving..." : "Save"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
