@@ -405,15 +405,20 @@ export default function OnboardingWizard() {
 
   // ---------- Step 5: Crew ----------
   const addCrew = async () => {
-    if (!newCrew.email.trim() || !newCrew.first_name.trim() || !newCrew.last_name.trim()) {
+    const email = newCrew.email.trim().toLowerCase();
+    if (!email || !newCrew.first_name.trim() || !newCrew.last_name.trim()) {
       toast.error("Email, first name, last name required");
+      return;
+    }
+    if (!EMAIL_REGEX.test(email)) {
+      toast.error("Enter a valid email address (e.g. name@example.com)");
       return;
     }
     setCrewSaving(true);
     const tempPassword = crypto.randomUUID().slice(0, 16) + "Aa1!";
     const { data, error } = await supabase.functions.invoke("create-user", {
       body: {
-        email: newCrew.email.trim().toLowerCase(),
+        email,
         password: tempPassword,
         full_name: `${newCrew.first_name.trim()} ${newCrew.last_name.trim()}`,
         role: newCrew.role,
@@ -434,11 +439,121 @@ export default function OnboardingWizard() {
       return;
     }
     // Reload profiles list
-    const { data: pf } = await supabase.from("profiles").select("id, full_name, cert_level, user_id, sex, employment_type, max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok").eq("company_id", activeCompanyId).eq("is_simulated", false);
-    setProfiles(pf ?? []);
+    await reloadProfiles();
     setNewCrew(emptyCrew());
     toast.success("Crew member added — login email sent");
     setCrewSaving(false);
+  };
+
+  const reloadProfiles = async () => {
+    const { data: pf } = await supabase
+      .from("profiles")
+      .select("id, full_name, cert_level, user_id, sex, employment_type, max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok")
+      .eq("company_id", activeCompanyId)
+      .eq("is_simulated", false);
+    setProfiles(pf ?? []);
+  };
+
+  const startEditCrew = (p: any) => {
+    const [first, ...rest] = (p.full_name ?? "").split(" ");
+    setEditingCrew({
+      id: p.id,
+      user_id: p.user_id,
+      first_name: first ?? "",
+      last_name: rest.join(" "),
+      sex: p.sex ?? "M",
+      cert_level: p.cert_level ?? "EMT-B",
+      employment_type: p.employment_type ?? "full_time",
+      max_safe_team_lift_lbs: p.max_safe_team_lift_lbs ?? 250,
+      stair_chair_trained: !!p.stair_chair_trained,
+      bariatric_trained: !!p.bariatric_trained,
+      oxygen_handling_trained: !!p.oxygen_handling_trained,
+      lift_assist_ok: !!p.lift_assist_ok,
+      role: "crew", // role lives in company_memberships; we update separately
+    });
+    // Fetch current role from membership
+    (async () => {
+      const { data: m } = await supabase.from("company_memberships").select("role").eq("user_id", p.user_id).maybeSingle();
+      if (m) setEditingCrew((c: any) => c ? { ...c, role: m.role } : c);
+    })();
+  };
+
+  const saveEditCrew = async () => {
+    if (!editingCrew) return;
+    if (!editingCrew.first_name.trim() || !editingCrew.last_name.trim()) {
+      toast.error("First and last name required"); return;
+    }
+    setCrewEditSaving(true);
+    const full_name = `${editingCrew.first_name.trim()} ${editingCrew.last_name.trim()}`;
+    const { error: pErr } = await supabase.from("profiles").update({
+      full_name,
+      sex: editingCrew.sex,
+      cert_level: editingCrew.cert_level,
+      employment_type: editingCrew.employment_type,
+      max_safe_team_lift_lbs: editingCrew.max_safe_team_lift_lbs,
+      stair_chair_trained: editingCrew.stair_chair_trained,
+      bariatric_trained: editingCrew.bariatric_trained,
+      oxygen_handling_trained: editingCrew.oxygen_handling_trained,
+      lift_assist_ok: editingCrew.lift_assist_ok,
+    } as any).eq("id", editingCrew.id);
+    if (pErr) { toast.error("Save failed: " + pErr.message); setCrewEditSaving(false); return; }
+    if (editingCrew.role && ["dispatcher", "biller", "crew"].includes(editingCrew.role)) {
+      await supabase.from("company_memberships").update({ role: editingCrew.role } as any).eq("user_id", editingCrew.user_id);
+    }
+    await reloadProfiles();
+    setEditingCrew(null);
+    setCrewEditSaving(false);
+    toast.success("Crew member updated");
+  };
+
+  const deleteCrew = async (p: any) => {
+    const otherCount = profiles.filter(x => x.user_id !== user?.id).length;
+    if (otherCount <= 1 && !progress.step_team_invited) {
+      toast.error("You need at least one invited crew member to complete this step. Add a replacement before deleting.");
+      return;
+    }
+    const { data, error } = await supabase.functions.invoke("delete-pending-crew-member", {
+      body: { target_user_id: p.user_id },
+    });
+    if (error || (data as any)?.error) {
+      toast.error("Delete failed: " + (error?.message || (data as any)?.error));
+      return;
+    }
+    await reloadProfiles();
+    toast.success("Crew member removed");
+  };
+
+  const resendInvite = async (p: any) => {
+    setResendingId(p.id);
+    try {
+      // Get email + role from auth/membership
+      const { data: m } = await supabase.from("company_memberships").select("role").eq("user_id", p.user_id).maybeSingle();
+      // We need the email — auth.users not directly accessible; use admin via create-user resend?
+      // Simpler: call a password reset via supabase auth — but we don't have email client-side.
+      // Use the existing admin invite re-send: rely on sending a recovery email.
+      // Workaround: ask edge function to look it up. For now, use resetPasswordForEmail via stored email if available.
+      // Pull email from profiles table if present, else from a server-side helper. Profiles table has no email.
+      // Use the Supabase auth admin via create-user is destructive; instead use resetPasswordForEmail with email from
+      // company_invites lookup.
+      const { data: inv } = await supabase
+        .from("company_invites")
+        .select("email")
+        .eq("company_id", activeCompanyId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      const email = inv?.[0]?.email;
+      if (!email) {
+        toast.error("No invite email on record. Delete and re-add this user.");
+        return;
+      }
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) { toast.error("Resend failed: " + error.message); return; }
+      toast.success(`Invite/reset email sent to ${email}`);
+    } finally {
+      setResendingId(null);
+    }
   };
 
   const hasEmtCapable = useMemo(
