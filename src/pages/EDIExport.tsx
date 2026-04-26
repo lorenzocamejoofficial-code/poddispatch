@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FileText, Download, Info } from "lucide-react";
 import { toast } from "sonner";
+import { Link as RouterLink } from "react-router-dom";
 import { logAuditEvent } from "@/lib/audit-logger";
 import {
   generateEDI837P,
@@ -60,6 +61,10 @@ export default function EDIExport() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [showExported, setShowExported] = useState(false);
+  // True when EIN/NPI come from the companies row — lock the inputs and link
+  // back to onboarding for edits.
+  const [einLocked, setEinLocked] = useState(false);
+  const [npiLocked, setNpiLocked] = useState(false);
 
   const [providerInfo, setProviderInfo] = useState<ProviderInfo>({
     npi: "",
@@ -166,7 +171,7 @@ export default function EDIExport() {
 
     const { data: company } = await supabase
       .from("companies")
-      .select("name, npi_number, state_of_operation")
+      .select("name, npi_number, ein_number, state_of_operation, address_street, address_city, address_state, address_zip")
       .limit(1)
       .maybeSingle();
 
@@ -175,8 +180,14 @@ export default function EDIExport() {
         ...prev,
         organization_name: prev.organization_name || company.name || "",
         npi: prev.npi || company.npi_number || "",
+        tax_id: prev.tax_id || (company as any).ein_number || "",
         state: prev.state || company.state_of_operation || "",
+        address: prev.address || (company as any).address_street || "",
+        city: prev.city || (company as any).address_city || "",
+        zip: prev.zip || (company as any).address_zip || "",
       }));
+      if ((company as any).ein_number) setEinLocked(true);
+      if (company.npi_number) setNpiLocked(true);
       setSubmitterInfo((prev) => ({
         ...prev,
         submitter_name: prev.submitter_name || company.name || "",
@@ -249,6 +260,23 @@ export default function EDIExport() {
 
     setGenerating(true);
     try {
+      // If EIN was entered manually (not previously saved), persist to companies
+      // so future exports pre-fill it.
+      if (!einLocked && taxDigits.length === 9) {
+        const { data: companyRow } = await supabase
+          .from("companies")
+          .select("id")
+          .limit(1)
+          .maybeSingle();
+        if (companyRow?.id) {
+          await supabase
+            .from("companies")
+            .update({ ein_number: taxDigits } as any)
+            .eq("id", companyRow.id);
+          setEinLocked(true);
+        }
+      }
+
       // Fetch trip and patient data for EDI generation
       const selTripIds = [...new Set(selectedClaims.map(c => (c as any).trip_id).filter(Boolean))];
       const selPatIds = [...new Set(selectedClaims.map(c => (c as any).patient_id).filter(Boolean))];
@@ -419,7 +447,13 @@ export default function EDIExport() {
                     onChange={(e) => setProviderInfo((p) => ({ ...p, npi: e.target.value }))}
                     placeholder="1234567890"
                     className="h-8 text-sm"
+                    readOnly={npiLocked}
                   />
+                  {npiLocked && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      From company info. <RouterLink to="/onboarding" className="text-primary hover:underline">Edit</RouterLink>
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label className="text-xs">Tax ID (EIN) *</Label>
@@ -428,7 +462,17 @@ export default function EDIExport() {
                     onChange={(e) => setProviderInfo((p) => ({ ...p, tax_id: e.target.value }))}
                     placeholder="12-3456789"
                     className="h-8 text-sm"
+                    readOnly={einLocked}
                   />
+                  {einLocked ? (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      From company info. <RouterLink to="/onboarding" className="text-primary hover:underline">Edit</RouterLink>
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-amber-700 mt-0.5">
+                      Not saved yet — entering it here will be saved to your company record.
+                    </p>
+                  )}
                 </div>
               </div>
               <div>

@@ -57,6 +57,7 @@ import LegalPage from "./pages/LegalPage";
 import RemittanceImport from "./pages/RemittanceImport";
 import OwnerDashboard from "./pages/OwnerDashboard";
 import ARCommandCenter from "./pages/ARCommandCenter";
+import Index from "./pages/Index";
 import CrewInspectionChecklist from "./components/inspection/CrewInspectionChecklist";
 import { useCrewViewEligibility } from "./hooks/useCrewViewEligibility";
 import { MaintenanceGate } from "./components/MaintenanceGate";
@@ -354,6 +355,7 @@ function AppRoutes() {
         <SchedulingProvider>
           <Routes>
             <Route path="/" element={<DispatchBoard />} />
+            <Route path="/dispatch" element={<DispatchBoard />} />
             <Route path="/scheduling" element={<Scheduling />} />
             <Route path="/crew-schedule" element={<CrewScheduleAdmin />} />
             <Route path="/crew/:token" element={<DailyRunSheet />} />
@@ -416,7 +418,10 @@ function AppRoutes() {
         <Route path="/pending-approval" element={<PendingApproval />} />
         <Route path="/onboarding" element={<OnboardingWizard />} />
         <Route path="/trial-expired" element={<TrialExpired />} />
-        <Route path="/" element={<DispatchBoard />} />
+        {/* Owners land on a role-aware redirector; per the audit, the
+         * Lovable placeholder Index is replaced with role-based routing. */}
+        <Route path="/" element={<Index />} />
+        <Route path="/dispatch" element={<DispatchBoard />} />
         <Route path="/scheduling" element={<Scheduling />} />
         <Route path="/crew-schedule" element={<CrewScheduleAdmin />} />
         <Route path="/crew/:token" element={<DailyRunSheet />} />

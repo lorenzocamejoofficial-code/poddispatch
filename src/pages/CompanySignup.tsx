@@ -58,6 +58,7 @@ export default function CompanySignup() {
 
   // Step 2: Company profile fields
   const [npiNumber, setNpiNumber] = useState("");
+  const [einNumber, setEinNumber] = useState("");
   const [stateOfOperation, setStateOfOperation] = useState("");
   const [serviceAreaType, setServiceAreaType] = useState("");
   const [truckCount, setTruckCount] = useState("");
@@ -96,6 +97,9 @@ export default function CompanySignup() {
     if (!npiNumber.trim()) return setError("NPI number is required.");
     if (npiNumber.trim().length !== 10 || !/^\d{10}$/.test(npiNumber.trim()))
       return setError("NPI number must be exactly 10 digits.");
+    const einDigits = einNumber.replace(/\D/g, "");
+    if (!einDigits) return setError("EIN (Tax ID) is required.");
+    if (einDigits.length !== 9) return setError("EIN must be exactly 9 digits (format XX-XXXXXXX).");
     if (!stateOfOperation) return setError("State of operation is required.");
     if (!serviceAreaType) return setError("Service area type is required.");
     if (!truckCount || parseInt(truckCount) < 1) return setError("Number of active trucks is required.");
@@ -125,6 +129,7 @@ export default function CompanySignup() {
             agreements: accepted,
             clientIp: null,
             npiNumber: npiNumber.trim(),
+            einNumber: einNumber.replace(/\D/g, ""),
             stateOfOperation,
             serviceAreaType,
             truckCount: parseInt(truckCount),
@@ -274,6 +279,21 @@ export default function CompanySignup() {
               <Label>NPI Number *</Label>
               <Input value={npiNumber} onChange={(e) => setNpiNumber(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="1234567890" maxLength={10} />
               <p className="text-xs text-muted-foreground">Your 10-digit National Provider Identifier</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>EIN (Tax ID) *</Label>
+              <Input
+                value={einNumber}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "").slice(0, 9);
+                  // Auto-format as XX-XXXXXXX once they have at least 3 digits
+                  setEinNumber(raw.length > 2 ? `${raw.slice(0, 2)}-${raw.slice(2)}` : raw);
+                }}
+                placeholder="12-3456789"
+                maxLength={10}
+              />
+              <p className="text-xs text-muted-foreground">Your 9-digit Employer Identification Number (used for billing)</p>
             </div>
 
             <div className="space-y-2">
@@ -442,6 +462,7 @@ export default function CompanySignup() {
                 <p><span className="text-foreground font-medium">Owner:</span> {fullName}</p>
                 <p><span className="text-foreground font-medium">Email:</span> {email}</p>
                 <p><span className="text-foreground font-medium">NPI:</span> {npiNumber}</p>
+                <p><span className="text-foreground font-medium">EIN:</span> {einNumber}</p>
                 <p><span className="text-foreground font-medium">State:</span> {US_STATES.find(s => s.value === stateOfOperation)?.label}</p>
                 <p><span className="text-foreground font-medium">Service Area:</span> {serviceAreaType}</p>
                 <p><span className="text-foreground font-medium">Trucks:</span> {truckCount}</p>
