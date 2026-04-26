@@ -526,31 +526,14 @@ export default function OnboardingWizard() {
   const resendInvite = async (p: any) => {
     setResendingId(p.id);
     try {
-      // Get email + role from auth/membership
-      const { data: m } = await supabase.from("company_memberships").select("role").eq("user_id", p.user_id).maybeSingle();
-      // We need the email — auth.users not directly accessible; use admin via create-user resend?
-      // Simpler: call a password reset via supabase auth — but we don't have email client-side.
-      // Use the existing admin invite re-send: rely on sending a recovery email.
-      // Workaround: ask edge function to look it up. For now, use resetPasswordForEmail via stored email if available.
-      // Pull email from profiles table if present, else from a server-side helper. Profiles table has no email.
-      // Use the Supabase auth admin via create-user is destructive; instead use resetPasswordForEmail with email from
-      // company_invites lookup.
-      const { data: inv } = await supabase
-        .from("company_invites")
-        .select("email")
-        .eq("company_id", activeCompanyId)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      const email = inv?.[0]?.email;
-      if (!email) {
-        toast.error("No invite email on record. Delete and re-add this user.");
+      const { data, error } = await supabase.functions.invoke("resend-crew-invite", {
+        body: { target_user_id: p.user_id, redirect_to: `${window.location.origin}/reset-password` },
+      });
+      if (error || (data as any)?.error) {
+        toast.error("Resend failed: " + (error?.message || (data as any)?.error));
         return;
       }
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      if (error) { toast.error("Resend failed: " + error.message); return; }
-      toast.success(`Invite/reset email sent to ${email}`);
+      toast.success(`Invite link sent to ${(data as any)?.email ?? "user"}`);
     } finally {
       setResendingId(null);
     }
