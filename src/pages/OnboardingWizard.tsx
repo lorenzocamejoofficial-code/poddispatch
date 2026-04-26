@@ -461,6 +461,8 @@ export default function OnboardingWizard() {
       user_id: p.user_id,
       first_name: first ?? "",
       last_name: rest.join(" "),
+      email: "",
+      phone_number: p.phone_number ?? "",
       sex: p.sex ?? "M",
       cert_level: p.cert_level ?? "EMT-B",
       employment_type: p.employment_type ?? "full_time",
@@ -471,7 +473,7 @@ export default function OnboardingWizard() {
       lift_assist_ok: !!p.lift_assist_ok,
       role: "crew", // role lives in company_memberships; we update separately
     });
-    // Fetch current role from membership
+    // Fetch current role from membership + current email from auth (via resend-crew-invite which returns it)
     (async () => {
       const { data: m } = await supabase.from("company_memberships").select("role").eq("user_id", p.user_id).maybeSingle();
       if (m) setEditingCrew((c: any) => c ? { ...c, role: m.role } : c);
