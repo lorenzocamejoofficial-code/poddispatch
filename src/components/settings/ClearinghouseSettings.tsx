@@ -222,6 +222,21 @@ export function ClearinghouseSettings() {
         </p>
       </div>
 
+      {credentialsMissing && (
+        <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+          <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-destructive">Office Ally password missing</p>
+            <p className="text-xs text-destructive/90">
+              Your clearinghouse settings are saved, but the SFTP password was not stored
+              successfully. Re-enter your Office Ally password under <strong>Step 2 — Account
+              Credentials</strong> and click <strong>Test Connection</strong> to complete setup.
+              Claims cannot be submitted until this is resolved.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Stepper */}
       <div className="flex items-center gap-1">
         {STEPS.map(({ step, label, icon }, i) => {
