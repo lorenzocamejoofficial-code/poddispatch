@@ -462,6 +462,7 @@ export default function CompanySignup() {
                 <p><span className="text-foreground font-medium">Owner:</span> {fullName}</p>
                 <p><span className="text-foreground font-medium">Email:</span> {email}</p>
                 <p><span className="text-foreground font-medium">NPI:</span> {npiNumber}</p>
+                <p><span className="text-foreground font-medium">EIN:</span> {einNumber}</p>
                 <p><span className="text-foreground font-medium">State:</span> {US_STATES.find(s => s.value === stateOfOperation)?.label}</p>
                 <p><span className="text-foreground font-medium">Service Area:</span> {serviceAreaType}</p>
                 <p><span className="text-foreground font-medium">Trucks:</span> {truckCount}</p>
