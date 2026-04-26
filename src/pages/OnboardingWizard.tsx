@@ -448,7 +448,7 @@ export default function OnboardingWizard() {
   const reloadProfiles = async () => {
     const { data: pf } = await supabase
       .from("profiles")
-      .select("id, full_name, cert_level, user_id, sex, employment_type, max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok")
+      .select("id, full_name, cert_level, user_id, sex, employment_type, phone_number, max_safe_team_lift_lbs, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok")
       .eq("company_id", activeCompanyId)
       .eq("is_simulated", false);
     setProfiles(pf ?? []);
@@ -485,22 +485,33 @@ export default function OnboardingWizard() {
     if (!editingCrew.first_name.trim() || !editingCrew.last_name.trim()) {
       toast.error("First and last name required"); return;
     }
+    const newEmail = (editingCrew.email ?? "").trim().toLowerCase();
+    if (newEmail && !EMAIL_REGEX.test(newEmail)) {
+      toast.error("Enter a valid email address (or leave blank to keep current)"); return;
+    }
     setCrewEditSaving(true);
     const full_name = `${editingCrew.first_name.trim()} ${editingCrew.last_name.trim()}`;
-    const { error: pErr } = await supabase.from("profiles").update({
-      full_name,
-      sex: editingCrew.sex,
-      cert_level: editingCrew.cert_level,
-      employment_type: editingCrew.employment_type,
-      max_safe_team_lift_lbs: editingCrew.max_safe_team_lift_lbs,
-      stair_chair_trained: editingCrew.stair_chair_trained,
-      bariatric_trained: editingCrew.bariatric_trained,
-      oxygen_handling_trained: editingCrew.oxygen_handling_trained,
-      lift_assist_ok: editingCrew.lift_assist_ok,
-    } as any).eq("id", editingCrew.id);
-    if (pErr) { toast.error("Save failed: " + pErr.message); setCrewEditSaving(false); return; }
-    if (editingCrew.role && ["dispatcher", "biller", "crew"].includes(editingCrew.role)) {
-      await supabase.from("company_memberships").update({ role: editingCrew.role } as any).eq("user_id", editingCrew.user_id);
+    const { data, error } = await supabase.functions.invoke("update-crew-member", {
+      body: {
+        target_user_id: editingCrew.user_id,
+        email: newEmail || undefined,
+        phone_number: editingCrew.phone_number?.trim() ?? "",
+        full_name,
+        sex: editingCrew.sex,
+        cert_level: editingCrew.cert_level,
+        employment_type: editingCrew.employment_type,
+        max_safe_team_lift_lbs: editingCrew.max_safe_team_lift_lbs,
+        stair_chair_trained: editingCrew.stair_chair_trained,
+        bariatric_trained: editingCrew.bariatric_trained,
+        oxygen_handling_trained: editingCrew.oxygen_handling_trained,
+        lift_assist_ok: editingCrew.lift_assist_ok,
+        role: editingCrew.role,
+      },
+    });
+    if (error || (data as any)?.error) {
+      toast.error("Save failed: " + (error?.message || (data as any)?.error));
+      setCrewEditSaving(false);
+      return;
     }
     await reloadProfiles();
     setEditingCrew(null);
