@@ -349,27 +349,58 @@ export default function OnboardingWizard() {
   };
 
   // ---------- Step 4: Trucks ----------
-  const addTruck = async () => {
+  const saveTruck = async () => {
     if (!newTruck.name.trim()) { toast.error("Truck name required"); return; }
-    const { data, error } = await supabase.from("trucks").insert({
+    const payload = {
       name: newTruck.name.trim(),
       vehicle_id: newTruck.vehicle_id.trim() || null,
-      company_id: activeCompanyId,
       has_power_stretcher: newTruck.has_power_stretcher,
       has_stair_chair: newTruck.has_stair_chair,
       has_oxygen_mount: newTruck.has_oxygen_mount,
       has_bariatric_kit: newTruck.has_bariatric_kit,
       has_bariatric_stretcher: newTruck.has_bariatric_stretcher,
-    } as any).select().single();
-    if (error) { toast.error(error.message); return; }
-    setTrucks(t => [...t, data]);
+    };
+    if (editingTruckId) {
+      const { data, error } = await supabase.from("trucks").update(payload as any).eq("id", editingTruckId).select().single();
+      if (error) { toast.error(error.message); return; }
+      setTrucks(t => t.map(x => x.id === editingTruckId ? data : x));
+      setEditingTruckId(null);
+      toast.success("Truck updated");
+    } else {
+      const { data, error } = await supabase.from("trucks").insert({ ...payload, company_id: activeCompanyId } as any).select().single();
+      if (error) { toast.error(error.message); return; }
+      setTrucks(t => [...t, data]);
+      await progress.markStep("step_trucks_added", true);
+      toast.success("Truck added");
+    }
     setNewTruck({ name: "", vehicle_id: "", has_power_stretcher: false, has_stair_chair: false, has_oxygen_mount: false, has_bariatric_kit: false, has_bariatric_stretcher: false });
-    await progress.markStep("step_trucks_added", true);
-    toast.success("Truck added");
+  };
+  const startEditTruck = (t: any) => {
+    setEditingTruckId(t.id);
+    setNewTruck({
+      name: t.name ?? "",
+      vehicle_id: t.vehicle_id ?? "",
+      has_power_stretcher: !!t.has_power_stretcher,
+      has_stair_chair: !!t.has_stair_chair,
+      has_oxygen_mount: !!t.has_oxygen_mount,
+      has_bariatric_kit: !!t.has_bariatric_kit,
+      has_bariatric_stretcher: !!t.has_bariatric_stretcher,
+    });
+  };
+  const cancelEditTruck = () => {
+    setEditingTruckId(null);
+    setNewTruck({ name: "", vehicle_id: "", has_power_stretcher: false, has_stair_chair: false, has_oxygen_mount: false, has_bariatric_kit: false, has_bariatric_stretcher: false });
   };
   const deleteTruck = async (id: string) => {
-    await supabase.from("trucks").delete().eq("id", id);
+    if (trucks.length <= 1) {
+      toast.error("You need at least one truck to complete this step. Add a replacement before deleting.");
+      return;
+    }
+    const { error } = await supabase.from("trucks").delete().eq("id", id);
+    if (error) { toast.error("Delete failed: " + error.message); return; }
     setTrucks(t => t.filter(x => x.id !== id));
+    if (editingTruckId === id) cancelEditTruck();
+    toast.success("Truck deleted");
   };
 
   // ---------- Step 5: Crew ----------
