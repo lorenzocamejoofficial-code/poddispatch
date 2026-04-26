@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   CheckCircle2, XCircle, ExternalLink, Loader2, Shield, FolderOpen, Zap, Eye, EyeOff,
+  AlertTriangle,
 } from "lucide-react";
 
 type Step = 1 | 2 | 3 | 4;
@@ -39,6 +40,7 @@ export function ClearinghouseSettings() {
   const [settings, setSettings] = useState<ClearinghouseRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeStep, setActiveStep] = useState<Step>(1);
+  const [credentialsMissing, setCredentialsMissing] = useState(false);
 
   // Step 1
   const [accountCreated, setAccountCreated] = useState(false);
@@ -84,7 +86,10 @@ export function ClearinghouseSettings() {
       const row = data as any as ClearinghouseRow;
       setSettings(row);
       setUsername(row.sftp_username ?? "");
-      setPassword(row.sftp_password_encrypted ?? "");
+      // Password is never read back from storage — it lives only in the
+      // server-only clearinghouse_credentials table. Leave the field blank
+      // so the user must re-enter it when changing credentials.
+      setPassword("");
       setOutbound(row.outbound_folder);
       setInbound(row.inbound_folder);
       setAutoSend(row.auto_send_enabled);
@@ -103,6 +108,24 @@ export function ClearinghouseSettings() {
         setActiveStep(2);
       }
     }
+
+    // Detect the broken state: settings configured but no password row in
+    // clearinghouse_credentials. We can't read the credentials table from
+    // the client (RLS blocks it), so we ask the edge function to check.
+    try {
+      const { data: status } = await supabase.functions.invoke(
+        "save-clearinghouse-credentials",
+        { body: { check_only: true } }
+      );
+      // Older deploys won't support check_only; ignore unless we get a
+      // definitive negative.
+      if (status && (status as any).has_credentials === false && data) {
+        setCredentialsMissing(true);
+      }
+    } catch {
+      // ignore — banner stays hidden if we can't verify
+    }
+
     setLoading(false);
   };
 
@@ -132,6 +155,10 @@ export function ClearinghouseSettings() {
       toast.error("Username and password are required");
       return;
     }
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
     setTesting(true);
     setConnectionStatus("idle");
     try {
@@ -141,13 +168,25 @@ export function ClearinghouseSettings() {
       if (error) throw error;
       if (data?.success) {
         setConnectionStatus("success");
-        toast.success("Connection successful!");
-        // Save credentials and mark configured
+        // Save the username + configured flag (NOT the password) to settings
         await saveStep({
           sftp_username: username,
-          sftp_password_encrypted: password,
           is_configured: true,
         });
+        // Save the password to the server-only credentials table via edge function
+        const { data: credData, error: credErr } = await supabase.functions.invoke(
+          "save-clearinghouse-credentials",
+          { body: { sftp_password: password } }
+        );
+        const credError = credErr?.message || (credData as any)?.error;
+        if (credError) {
+          toast.error("Connection verified, but password could not be stored: " + credError);
+          setConnectionStatus("failed");
+        } else {
+          toast.success("Connection successful!");
+          setPassword("");
+          setCredentialsMissing(false);
+        }
       } else {
         setConnectionStatus("failed");
         toast.error(data?.error || "Connection failed");
