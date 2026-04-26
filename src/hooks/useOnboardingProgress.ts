@@ -17,7 +17,7 @@ export interface OnboardingProgress {
 }
 
 export function useOnboardingProgress() {
-  const { activeCompanyId } = useAuth();
+  const { activeCompanyId, user } = useAuth();
   const [progress, setProgress] = useState<OnboardingProgress>({
     step_company_info_verified: false,
     step_rates_verified: false,
@@ -50,14 +50,26 @@ export function useOnboardingProgress() {
     const [trucksRes, patientsRes, profilesRes, companyRes, clearinghouseRes] = await Promise.all([
       supabase.from("trucks").select("id", { count: "exact", head: true }).eq("company_id", activeCompanyId),
       supabase.from("patients").select("id", { count: "exact", head: true }).eq("company_id", activeCompanyId),
-      // At-least-one EMT-capable profile = team setup is realistically usable.
-      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", activeCompanyId),
+      // Team is "invited" only when at least one OTHER user (not the owner)
+      // belongs to the company. The owner's own profile must not satisfy
+      // this check, otherwise step 5 is auto-completed before any invite.
+      user?.id
+        ? supabase
+            .from("profiles")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", activeCompanyId)
+            .neq("id", user.id)
+        : supabase
+            .from("profiles")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", activeCompanyId),
       supabase.from("companies").select("npi_number, ein_number, state_of_operation, address_street, address_city, address_state, address_zip").eq("id", activeCompanyId).maybeSingle(),
       supabase.from("clearinghouse_settings" as any).select("is_configured").eq("company_id", activeCompanyId).maybeSingle(),
     ]);
 
     const trucksExist = (trucksRes.count ?? 0) > 0;
     const patientsExist = (patientsRes.count ?? 0) > 0;
+    // teamPresent = at least one profile OTHER than the owner exists.
     const teamPresent = (profilesRes.count ?? 0) > 0;
     const c = companyRes.data as any;
     const companyInfoComplete = !!(
