@@ -131,9 +131,14 @@ Deno.serve(async (req) => {
     await admin.from("admin_actions").insert({
       company_id: actorMembership.company_id,
       actor_user_id: actor.id,
+      actor_email: actor.email ?? null,
       action: "crew_member_updated",
-      target_user_id,
-      details: { fields: Object.keys(profileUpdate), email_changed: !!email, role_changed: !!role },
+      before_snapshot: {
+        target_user_id,
+        fields: Object.keys(profileUpdate),
+        email_changed: !!email,
+        role_changed: !!role,
+      },
     } as never);
 
     return json({ ok: true });
