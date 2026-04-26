@@ -910,15 +910,26 @@ export default function OnboardingWizard() {
                       <div key={t.id} className="flex items-center gap-2 rounded-md bg-muted/30 px-3 py-2 text-sm">
                         <Truck className="h-4 w-4 text-primary" />
                         <span className="flex-1">{t.name}{t.vehicle_id ? ` (${t.vehicle_id})` : ""}</span>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteTruck(t.id)}>
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditTruck(t)} title="Edit">
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
+                        <ConfirmActionDialog
+                          trigger={
+                            <Button size="icon" variant="ghost" className="h-7 w-7" title="Delete">
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          }
+                          title="Delete this truck?"
+                          description={`Permanently remove "${t.name}". This cannot be undone.`}
+                          confirmWord="DELETE"
+                          onConfirm={() => deleteTruck(t.id)}
+                        />
                       </div>
                     ))}
                   </div>
                 )}
                 <div className="rounded-lg border p-3 space-y-3">
-                  <p className="text-sm font-medium">Add a truck</p>
+                  <p className="text-sm font-medium">{editingTruckId ? "Edit truck" : "Add a truck"}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1"><Label>Name *</Label><Input value={newTruck.name} onChange={e => setNewTruck(t => ({ ...t, name: e.target.value }))} placeholder="Unit 101" /></div>
                     <div className="space-y-1"><Label>Vehicle ID</Label><Input value={newTruck.vehicle_id} onChange={e => setNewTruck(t => ({ ...t, vehicle_id: e.target.value }))} placeholder="VIN or unit #" /></div>
@@ -937,7 +948,12 @@ export default function OnboardingWizard() {
                       </label>
                     ))}
                   </div>
-                  <Button size="sm" onClick={addTruck}>Add Truck</Button>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={saveTruck}>{editingTruckId ? "Save Changes" : "Add Truck"}</Button>
+                    {editingTruckId && (
+                      <Button size="sm" variant="outline" onClick={cancelEditTruck}>Cancel</Button>
+                    )}
+                  </div>
                 </div>
                 {trucks.length > 0 && (
                   <Button onClick={async () => { await progress.markStep("step_trucks_added", true); setCurrentStep(4); }}>
