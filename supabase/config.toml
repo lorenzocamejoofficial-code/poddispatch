@@ -33,6 +33,9 @@ verify_jwt = false
 [functions.delete-pending-crew-member]
 verify_jwt = false
 
+[functions.resend-crew-invite]
+verify_jwt = false
+
 [functions.send-claims-officeally]
 verify_jwt = false
 
