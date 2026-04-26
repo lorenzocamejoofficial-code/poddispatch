@@ -21,14 +21,15 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const sftp_password: string | undefined = body?.sftp_password;
+    const check_only: boolean = body?.check_only === true;
 
-    if (!sftp_password || typeof sftp_password !== "string" || sftp_password.trim().length === 0) {
+    if (!check_only && (!sftp_password || typeof sftp_password !== "string" || sftp_password.trim().length === 0)) {
       return new Response(
         JSON.stringify({ error: "Password is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    if (sftp_password.length < 8) {
+    if (!check_only && sftp_password!.length < 8) {
       return new Response(
         JSON.stringify({ error: "Password must be at least 8 characters" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -74,6 +75,20 @@ Deno.serve(async (req) => {
     }
 
     const company_id = membership.company_id;
+
+    // Read-only existence check used by Settings UI to detect the broken
+    // state where settings exist but no password row was ever stored.
+    if (check_only) {
+      const { data: existing } = await admin
+        .from("clearinghouse_credentials")
+        .select("company_id")
+        .eq("company_id", company_id)
+        .maybeSingle();
+      return new Response(
+        JSON.stringify({ ok: true, has_credentials: !!existing }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // 3. Upsert the credentials row (server-only RLS table)
     const { error: upsertErr } = await admin
