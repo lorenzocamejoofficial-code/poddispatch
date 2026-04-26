@@ -430,7 +430,13 @@ export default function EDIExport() {
                     onChange={(e) => setProviderInfo((p) => ({ ...p, npi: e.target.value }))}
                     placeholder="1234567890"
                     className="h-8 text-sm"
+                    readOnly={npiLocked}
                   />
+                  {npiLocked && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      From company info. <RouterLink to="/onboarding" className="text-primary hover:underline">Edit</RouterLink>
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label className="text-xs">Tax ID (EIN) *</Label>
@@ -439,7 +445,17 @@ export default function EDIExport() {
                     onChange={(e) => setProviderInfo((p) => ({ ...p, tax_id: e.target.value }))}
                     placeholder="12-3456789"
                     className="h-8 text-sm"
+                    readOnly={einLocked}
                   />
+                  {einLocked ? (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      From company info. <RouterLink to="/onboarding" className="text-primary hover:underline">Edit</RouterLink>
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-amber-700 mt-0.5">
+                      Not saved yet — entering it here will be saved to your company record.
+                    </p>
+                  )}
                 </div>
               </div>
               <div>
