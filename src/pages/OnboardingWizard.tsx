@@ -125,17 +125,22 @@ export default function OnboardingWizard() {
     has_power_stretcher: false, has_stair_chair: false,
     has_oxygen_mount: false, has_bariatric_kit: false, has_bariatric_stretcher: false,
   });
+  const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
 
   // Step 5 — crew
   const [profiles, setProfiles] = useState<any[]>([]);
   const [newCrew, setNewCrew] = useState(emptyCrew());
   const [crewSaving, setCrewSaving] = useState(false);
+  const [editingCrew, setEditingCrew] = useState<any | null>(null);
+  const [crewEditSaving, setCrewEditSaving] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   // Step 6 — patient
   const [patients, setPatients] = useState<any[]>([]);
   const [newPatient, setNewPatient] = useState(emptyPatient());
   const [facilities, setFacilities] = useState<any[]>([]);
   const [patientSaving, setPatientSaving] = useState(false);
+  const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
 
   // Initial load
   useEffect(() => {
