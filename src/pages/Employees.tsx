@@ -149,6 +149,18 @@ export default function Employees() {
     setEmployees(empList);
   };
 
+  // Backfill emails from auth (profiles table doesn't store email)
+  const fetchEmployeeEmails = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("list-company-emails");
+      if (error || !data?.emails) return;
+      const map = data.emails as Record<string, string | null>;
+      setEmployees((prev) => prev.map((e) => ({ ...e, email: map[e.user_id] ?? e.email })));
+    } catch {
+      // non-fatal
+    }
+  };
+
 
   const fetchInvites = async () => {
     if (!activeCompanyId) return;
@@ -163,7 +175,7 @@ export default function Employees() {
   useEffect(() => {
     if (!activeCompanyId) return;
     ensureOwnerProfile().then(() => {
-      fetchEmployees();
+      fetchEmployees().then(() => fetchEmployeeEmails());
       fetchInvites();
     });
   }, [activeCompanyId]);
