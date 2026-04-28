@@ -81,7 +81,7 @@ export default function Employees() {
     active: true,
   });
   const [editForm, setEditForm] = useState({
-    full_name: "", phone_number: "", sex: "M" as "M" | "F",
+    full_name: "", email: "", phone_number: "", sex: "M" as "M" | "F",
     cert_level: "EMT-B", active: true,
     employment_type: "full_time" as "full_time" | "part_time" | "prn",
     role: "crew" as string,
@@ -275,6 +275,7 @@ export default function Employees() {
     setEditingEmployee(emp);
     setEditForm({
       full_name: emp.full_name,
+      email: emp.email ?? "",
       phone_number: emp.phone_number ?? "",
       sex: emp.sex as "M" | "F",
       cert_level: emp.cert_level,
@@ -307,37 +308,51 @@ export default function Employees() {
         return;
       }
     }
+
+    // Validate email if changed
+    const trimmedEmail = editForm.email.trim().toLowerCase();
+    const emailChanged = trimmedEmail && trimmedEmail !== (editingEmployee.email ?? "").toLowerCase();
+    if (emailChanged && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    // Active toggle still goes direct (edge function doesn't cover it)
     setSaving(true);
-    const { error } = await supabase.from("profiles").update({
-      full_name: editForm.full_name.trim(),
-      phone_number: editForm.phone_number.trim() || null,
-      sex: editForm.sex,
-      cert_level: editForm.cert_level,
-      active: editForm.active,
-      employment_type: editForm.employment_type,
-      
-      stair_chair_trained: editForm.stair_chair_trained,
-      bariatric_trained: editForm.bariatric_trained,
-      oxygen_handling_trained: editForm.oxygen_handling_trained,
-      lift_assist_ok: editForm.lift_assist_ok,
-    } as any).eq("id", editingEmployee.id);
 
-    // Update role in company_memberships if changed and not owner
-    if (editForm.role !== "owner" && editForm.role !== "Owner") {
-      await supabase.from("company_memberships")
-        .update({ role: editForm.role } as any)
-        .eq("user_id", editingEmployee.user_id)
-        .eq("company_id", activeCompanyId!);
+    // Single source of truth: route through edge function so auth.users
+    // and profiles stay in sync (email change updates the login identity).
+    const { data: efData, error: efErr } = await supabase.functions.invoke("update-crew-member", {
+      body: {
+        target_user_id: editingEmployee.user_id,
+        full_name: editForm.full_name.trim(),
+        phone_number: editForm.phone_number.trim() || null,
+        sex: editForm.sex,
+        cert_level: editForm.cert_level,
+        employment_type: editForm.employment_type,
+        stair_chair_trained: editForm.stair_chair_trained,
+        bariatric_trained: editForm.bariatric_trained,
+        oxygen_handling_trained: editForm.oxygen_handling_trained,
+        lift_assist_ok: editForm.lift_assist_ok,
+        ...(emailChanged ? { email: trimmedEmail } : {}),
+        ...(editForm.role !== "owner" && editForm.role !== "Owner" ? { role: editForm.role } : {}),
+      },
+    });
+
+    if (efErr || (efData as any)?.error) {
+      toast.error((efData as any)?.error || efErr?.message || "Failed to update employee");
+      setSaving(false);
+      return;
     }
 
-    if (error) {
-      toast.error("Failed to update employee");
-    } else {
-      toast.success(`${editForm.full_name} updated`);
-      setEditDialogOpen(false);
-      await fetchEmployees();
-      fetchEmployeeEmails();
+    // Active flag isn't part of the edge function contract — update profile directly.
+    if (editForm.active !== editingEmployee.active) {
+      await supabase.from("profiles").update({ active: editForm.active } as any).eq("id", editingEmployee.id);
     }
+
+    toast.success(`${editForm.full_name} updated${emailChanged ? " — login email changed" : ""}`);
+    setEditDialogOpen(false);
+    await fetchEmployees();
+    fetchEmployeeEmails();
     setSaving(false);
   };
 
@@ -748,8 +763,13 @@ export default function Employees() {
             <div className="grid gap-3 py-2">
               <div><Label>Full Name *</Label><Input value={editForm.full_name} onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} /></div>
               <div>
-                <Label>Email <span className="text-xs text-muted-foreground">(login — read only)</span></Label>
-                <Input type="email" value={editingEmployee?.email ?? ""} readOnly disabled placeholder="—" />
+                <Label>Email <span className="text-xs text-muted-foreground">(login identity — changes apply immediately)</span></Label>
+                <Input
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  placeholder="employee@company.com"
+                />
               </div>
               <div><Label>Phone Number</Label><Input type="tel" value={editForm.phone_number} onChange={(e) => setEditForm({ ...editForm, phone_number: e.target.value })} placeholder="(555) 123-4567" /></div>
               <div className="grid grid-cols-2 gap-3">
