@@ -269,6 +269,19 @@ function AppRoutes() {
         <Routes>
           <Route path="/onboarding" element={<OnboardingWizard />} />
           <Route path="/account" element={<AccountSettings />} />
+          {/*
+            Allow the production pages that the onboarding wizard links to.
+            Without these, navigate("/patients") etc. from the wizard would
+            hit the catch-all below and bounce back to /onboarding, making
+            the "Go to ..." buttons appear broken. The wizard's focus
+            listener auto-detects completion when the user returns.
+            DO NOT remove these without also redesigning the wizard CTAs.
+          */}
+          <Route path="/patients" element={<Patients />} />
+          <Route path="/trucks" element={<TrucksCrews />} />
+          <Route path="/employees" element={<Employees />} />
+          <Route path="/billing" element={<BillingAndClaims />} />
+          <Route path="/settings" element={<AdminSettings />} />
           <Route path="*" element={<Navigate to="/onboarding" replace />} />
         </Routes>
       </SchedulingProvider>
