@@ -227,7 +227,8 @@ export default function Employees() {
       toast.success(`${form.full_name} created successfully`);
       setDialogOpen(false);
       setForm({ full_name: "", email: "", password: "", role: "crew" as "owner" | "dispatcher" | "crew" | "biller", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time" as "full_time" | "part_time" | "prn", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
-      fetchEmployees();
+      await fetchEmployees();
+      fetchEmployeeEmails();
     }
     setCreating(false);
   };
@@ -334,7 +335,8 @@ export default function Employees() {
     } else {
       toast.success(`${editForm.full_name} updated`);
       setEditDialogOpen(false);
-      fetchEmployees();
+      await fetchEmployees();
+      fetchEmployeeEmails();
     }
     setSaving(false);
   };
