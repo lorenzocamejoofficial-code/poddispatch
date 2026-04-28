@@ -282,6 +282,7 @@ function AppRoutes() {
           <Route path="/employees" element={<Employees />} />
           <Route path="/billing" element={<BillingAndClaims />} />
           <Route path="/settings" element={<AdminSettings />} />
+          <Route path="/legal" element={<LegalPage />} />
           <Route path="*" element={<Navigate to="/onboarding" replace />} />
         </Routes>
       </SchedulingProvider>
@@ -329,6 +330,7 @@ function AppRoutes() {
           <Route path="/trucks" element={<TrucksCrews />} />
           <Route path="/settings" element={<AdminSettings />} />
           <Route path="/account" element={<AccountSettings />} />
+          <Route path="/legal" element={<LegalPage />} />
           {/* Default: creator lands on System Dashboard */}
           <Route path="/" element={<Navigate to="/system" replace />} />
           <Route path="/login" element={<Navigate to="/system" replace />} />
@@ -355,6 +357,7 @@ function AppRoutes() {
           <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
           <Route path="/crew/:token" element={<DailyRunSheet />} />
           <Route path="/account" element={<AccountSettings />} />
+          <Route path="/legal" element={<LegalPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </HipaaAcknowledgmentGate>
@@ -379,6 +382,7 @@ function AppRoutes() {
             <Route path="/migration" element={<MigrationOnboarding />} />
             <Route path="/settings" element={<AdminSettings />} />
             <Route path="/account" element={<AccountSettings />} />
+            <Route path="/legal" element={<LegalPage />} />
             {/* Crew routes for dispatchers with cert + crew assignment */}
             <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
             <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
@@ -409,6 +413,7 @@ function AppRoutes() {
             <Route path="/facilities" element={<FacilitiesPage />} />
             <Route path="/reports" element={<ReportsAndMetrics />} />
             <Route path="/account" element={<AccountSettings />} />
+            <Route path="/legal" element={<LegalPage />} />
             <Route path="/dashboard" element={<Navigate to="/" replace />} />
             {/* Crew routes for billers with cert + crew assignment */}
             <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
@@ -457,6 +462,7 @@ function AppRoutes() {
         <Route path="/settings" element={<AdminSettings />} />
         <Route path="/override-monitor" element={<OverrideMonitor />} />
         <Route path="/account" element={<AccountSettings />} />
+        <Route path="/legal" element={<LegalPage />} />
         {/* Crew routes for owners with cert + crew assignment */}
         <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
         <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
