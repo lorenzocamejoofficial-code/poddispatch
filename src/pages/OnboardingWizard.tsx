@@ -75,7 +75,7 @@ const STEPS = [
 
 export default function OnboardingWizard() {
   const navigate = useNavigate();
-  const { activeCompanyId } = useAuth();
+  const { activeCompanyId, refreshWizardStatus } = useAuth();
   const progress = useOnboardingProgress();
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -230,12 +230,14 @@ export default function OnboardingWizard() {
               <div className="flex flex-col gap-2 pt-4 border-t">
                 <Button onClick={async () => {
                   await supabase.from("migration_settings").update({ wizard_completed: true } as any).eq("company_id", activeCompanyId!);
-                  navigate("/scheduling");
+                  await refreshWizardStatus();
+                  navigate("/trucks");
                 }} className="gap-2">
-                  Schedule Your First Run <ArrowRight className="h-4 w-4" />
+                  Assign Crews to Trucks <ArrowRight className="h-4 w-4" />
                 </Button>
                 <Button variant="outline" onClick={async () => {
                   await supabase.from("migration_settings").update({ wizard_completed: true } as any).eq("company_id", activeCompanyId!);
+                  await refreshWizardStatus();
                   navigate("/owner-dashboard");
                 }}>
                   View Owner Dashboard
