@@ -53,8 +53,11 @@ export function ClearinghouseSettings() {
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "success" | "failed">("idle");
 
   // Step 3
-  const [outbound, setOutbound] = useState("/upload");
-  const [inbound, setInbound] = useState("/download");
+  // Office Ally SFTP folder names per their onboarding email.
+  // Do NOT change to "/upload" / "/download" — those paths are wrong and
+  // claims/remittances will silently land in the wrong directory.
+  const [outbound, setOutbound] = useState("outbound");
+  const [inbound, setInbound] = useState("inbound");
 
   // Submitter / receiver IDs (required on the 837P envelope)
   const [submitterId, setSubmitterId] = useState("");
