@@ -26,6 +26,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshOnboardingStatus: () => Promise<void>;
+  refreshWizardStatus: () => Promise<void>;
   isAdmin: boolean;
   isOwner: boolean;
   isDispatcher: boolean;
@@ -91,6 +92,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq("id", activeCompanyId)
       .maybeSingle();
     if (data) setOnboardingStatus(data.onboarding_status as OnboardingStatus);
+  }, [activeCompanyId]);
+
+  const refreshWizardStatus = useCallback(async () => {
+    if (!activeCompanyId) return;
+    const { data } = await supabase
+      .from("migration_settings")
+      .select("wizard_completed")
+      .eq("company_id", activeCompanyId)
+      .maybeSingle();
+    if (data) setWizardCompleted((data as any).wizard_completed);
   }, [activeCompanyId]);
 
   const doSignOut = useCallback(async () => {
@@ -216,7 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, session, role, activeCompanyId, profileId, loading, membershipLoaded, sessionWarning, isSystemCreator, onboardingStatus, subscriptionStatus, wizardCompleted, signIn, signOut, refreshOnboardingStatus,
+      user, session, role, activeCompanyId, profileId, loading, membershipLoaded, sessionWarning, isSystemCreator, onboardingStatus, subscriptionStatus, wizardCompleted, signIn, signOut, refreshOnboardingStatus, refreshWizardStatus,
       isAdmin, isOwner, isDispatcher, isBilling, isCrew, isCreator,
       canManageTrips, canManageBilling, canManagePatients,
     }}>
