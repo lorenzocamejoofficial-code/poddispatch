@@ -149,6 +149,18 @@ export default function Employees() {
     setEmployees(empList);
   };
 
+  // Backfill emails from auth (profiles table doesn't store email)
+  const fetchEmployeeEmails = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("list-company-emails");
+      if (error || !data?.emails) return;
+      const map = data.emails as Record<string, string | null>;
+      setEmployees((prev) => prev.map((e) => ({ ...e, email: map[e.user_id] ?? e.email })));
+    } catch {
+      // non-fatal
+    }
+  };
+
 
   const fetchInvites = async () => {
     if (!activeCompanyId) return;
@@ -163,7 +175,7 @@ export default function Employees() {
   useEffect(() => {
     if (!activeCompanyId) return;
     ensureOwnerProfile().then(() => {
-      fetchEmployees();
+      fetchEmployees().then(() => fetchEmployeeEmails());
       fetchInvites();
     });
   }, [activeCompanyId]);
@@ -215,7 +227,8 @@ export default function Employees() {
       toast.success(`${form.full_name} created successfully`);
       setDialogOpen(false);
       setForm({ full_name: "", email: "", password: "", role: "crew" as "owner" | "dispatcher" | "crew" | "biller", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time" as "full_time" | "part_time" | "prn", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
-      fetchEmployees();
+      await fetchEmployees();
+      fetchEmployeeEmails();
     }
     setCreating(false);
   };
@@ -322,7 +335,8 @@ export default function Employees() {
     } else {
       toast.success(`${editForm.full_name} updated`);
       setEditDialogOpen(false);
-      fetchEmployees();
+      await fetchEmployees();
+      fetchEmployeeEmails();
     }
     setSaving(false);
   };
@@ -733,6 +747,10 @@ export default function Employees() {
             <DialogHeader><DialogTitle>Edit Employee</DialogTitle><DialogDescription>Update employee information. Deactivate instead of deleting.</DialogDescription></DialogHeader>
             <div className="grid gap-3 py-2">
               <div><Label>Full Name *</Label><Input value={editForm.full_name} onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} /></div>
+              <div>
+                <Label>Email <span className="text-xs text-muted-foreground">(login — read only)</span></Label>
+                <Input type="email" value={editingEmployee?.email ?? ""} readOnly disabled placeholder="—" />
+              </div>
               <div><Label>Phone Number</Label><Input type="tel" value={editForm.phone_number} onChange={(e) => setEditForm({ ...editForm, phone_number: e.target.value })} placeholder="(555) 123-4567" /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
