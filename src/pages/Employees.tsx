@@ -747,6 +747,10 @@ export default function Employees() {
             <DialogHeader><DialogTitle>Edit Employee</DialogTitle><DialogDescription>Update employee information. Deactivate instead of deleting.</DialogDescription></DialogHeader>
             <div className="grid gap-3 py-2">
               <div><Label>Full Name *</Label><Input value={editForm.full_name} onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} /></div>
+              <div>
+                <Label>Email <span className="text-xs text-muted-foreground">(login — read only)</span></Label>
+                <Input type="email" value={editingEmployee?.email ?? ""} readOnly disabled placeholder="—" />
+              </div>
               <div><Label>Phone Number</Label><Input type="tel" value={editForm.phone_number} onChange={(e) => setEditForm({ ...editForm, phone_number: e.target.value })} placeholder="(555) 123-4567" /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
