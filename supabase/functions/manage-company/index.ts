@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendViaResend, renderActionEmail } from "../_shared/send-via-resend.ts";
+import { sendViaResend, renderActionEmail, buildAppRecoveryUrl } from "../_shared/send-via-resend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -299,7 +299,13 @@ Deno.serve(async (req) => {
 
       if (linkErr) return json({ error: linkErr.message }, 500);
 
-      const actionUrl = linkData?.properties?.action_link ?? null;
+      // Prefer an app-direct URL built from the hashed_token so the link is
+      // not subject to Supabase's redirect allow-list. Fall back to the raw
+      // action_link if for some reason the hashed token is missing.
+      const hashedToken = (linkData as any)?.properties?.hashed_token ?? null;
+      const actionUrl = hashedToken
+        ? buildAppRecoveryUrl({ appOrigin, hashedToken, email: ownerEmail })
+        : (linkData?.properties?.action_link ?? null);
       let delivery: { ok: boolean; error?: string } = { ok: false, error: "no_action_link" };
       if (actionUrl) {
         const { html, text } = renderActionEmail({
