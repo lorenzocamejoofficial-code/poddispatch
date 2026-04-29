@@ -8,6 +8,16 @@ const WARNING_BEFORE_MS = 5 * 60 * 1000;       // warn 5 min before expiry
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"] as const;
 const PASSWORD_RECOVERY_STORAGE_KEY = "poddispatch_password_recovery";
 
+// Throttle activity-driven inactivity timer resets. Without this, every
+// mousemove/scroll event triggered clearTimeout+setTimeout AND a React state
+// setter (setSessionWarning), causing AuthProvider — which sits above the
+// entire app — to re-render hundreds of times per second during normal mouse
+// use. Firefox would then surface "this page is slowing down" warnings and
+// the UI would visibly freeze. We only need to reset the timer at most once
+// every few seconds; that is more than precise enough for a 30-minute idle
+// gate.
+const ACTIVITY_THROTTLE_MS = 5_000;
+
 function hasPasswordRecoveryMarker() {
   if (typeof window === "undefined") return false;
   const params = new URLSearchParams(window.location.search);
@@ -77,6 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const warningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userRef = useRef<User | null>(null);
+  // Track when we last reset the inactivity timer so we can throttle the
+  // high-frequency events (mousemove/scroll) without re-rendering the whole
+  // provider tree on every pixel of motion.
+  const lastActivityResetRef = useRef<number>(0);
+  // Track current warning state in a ref so the activity handler can avoid
+  // calling the state setter (and triggering a re-render) when nothing has
+  // actually changed.
+  const sessionWarningRef = useRef(false);
   // Guard to prevent onAuthStateChange from running before getSession completes
   const sessionInitialized = useRef(false);
 
@@ -152,11 +170,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resetInactivityTimer = useCallback(() => {
     if (!userRef.current) return;
 
-    setSessionWarning(false);
+    // Throttle: only do real work every ACTIVITY_THROTTLE_MS. This is the
+    // critical perf fix — mousemove fires 60+ times/sec and previously each
+    // event cleared+recreated two timers AND called a React setState.
+    const now = Date.now();
+    if (now - lastActivityResetRef.current < ACTIVITY_THROTTLE_MS) return;
+    lastActivityResetRef.current = now;
+
+    // Only call the state setter if the warning is actually showing.
+    // Avoids a provider-wide re-render on every throttled tick.
+    if (sessionWarningRef.current) {
+      sessionWarningRef.current = false;
+      setSessionWarning(false);
+    }
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
     if (warningTimer.current) clearTimeout(warningTimer.current);
 
     warningTimer.current = setTimeout(() => {
+      sessionWarningRef.current = true;
       setSessionWarning(true);
     }, INACTIVITY_TIMEOUT_MS - WARNING_BEFORE_MS);
 
