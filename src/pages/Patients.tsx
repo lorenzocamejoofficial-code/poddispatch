@@ -883,7 +883,7 @@ export default function Patients() {
 
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <Label>Recurrence Start Date</Label>
+                            <Label>Recurrence Start Date<PCRTooltip text="The first date this recurring schedule takes effect. Trips will auto-generate on the selected schedule days starting on this date. Use this to delay a new recurring patient (e.g., they start dialysis next Monday) or to backfill from an earlier date." /></Label>
                             <Input type="date" value={form.recurrence_start_date} onChange={(e) => setForm({ ...form, recurrence_start_date: e.target.value })} />
                           </div>
                         </div>
