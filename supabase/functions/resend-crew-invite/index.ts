@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendViaResend, renderActionEmail } from "../_shared/send-via-resend.ts";
+import { sendViaResend, renderActionEmail, buildAppRecoveryUrl } from "../_shared/send-via-resend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,7 +48,10 @@ Deno.serve(async (req) => {
     });
     if (linkErr) return json({ error: "Failed to generate invite link: " + linkErr.message }, 500);
 
-    const actionUrl = linkData?.properties?.action_link ?? null;
+    const hashedToken = (linkData as any)?.properties?.hashed_token ?? null;
+    const actionUrl = hashedToken
+      ? buildAppRecoveryUrl({ appOrigin, hashedToken, email })
+      : (linkData?.properties?.action_link ?? null);
 
     // Best-effort delivery via Resend from noreply@thepoddispatch.com.
     let delivery: { ok: boolean; error?: string; id?: string } = { ok: false, error: "no_action_link" };

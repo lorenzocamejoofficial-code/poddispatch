@@ -98,3 +98,23 @@ export function renderActionEmail(opts: {
   const text = `${heading}\n\n${intro}\n\n${actionLabel}: ${actionUrl}\n\n${footer ?? ""}`.trim();
   return { html, text };
 }
+
+// Build a recovery URL that points DIRECTLY at the app's /reset-password page,
+// bypassing Supabase's redirect allow-list. The page calls
+// supabase.auth.verifyOtp({ type: 'recovery', token_hash }) to establish the
+// recovery session, then prompts for a new password.
+//
+// Use the `hashed_token` from supabase.auth.admin.generateLink({ type: 'recovery' }).
+export function buildAppRecoveryUrl(opts: {
+  appOrigin: string;
+  hashedToken: string;
+  email?: string;
+}): string {
+  const origin = opts.appOrigin.replace(/\/$/, "");
+  const params = new URLSearchParams({
+    token_hash: opts.hashedToken,
+    type: "recovery",
+  });
+  if (opts.email) params.set("email", opts.email);
+  return `${origin}/reset-password?${params.toString()}`;
+}
