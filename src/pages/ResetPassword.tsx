@@ -17,9 +17,36 @@ export default function ResetPassword() {
   useEffect(() => {
     let cancelled = false;
 
-    // 1. Recovery markers in URL → ready immediately
-    const hash = window.location.hash;
+    // 1a. App-direct recovery URL: /reset-password?token_hash=...&type=recovery
+    //     (Used by our edge functions to bypass Supabase's redirect allow-list.)
+    //     We must exchange the token_hash for a session via verifyOtp before
+    //     the user can call updateUser({ password }).
     const params = new URLSearchParams(window.location.search);
+    const tokenHash = params.get("token_hash");
+    const typeParam = params.get("type");
+    if (tokenHash && typeParam === "recovery") {
+      (async () => {
+        const { error } = await supabase.auth.verifyOtp({
+          type: "recovery",
+          token_hash: tokenHash,
+        });
+        if (cancelled) return;
+        if (error) {
+          toast.error("This reset link is invalid or has expired. Please request a new one.");
+          setTimeout(() => navigate("/forgot-password"), 1500);
+          return;
+        }
+        // Strip the token from the URL so it isn't reused or leaked
+        window.history.replaceState({}, "", "/reset-password");
+        setReady(true);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    // 1b. Recovery markers in URL hash (Supabase implicit flow) → ready immediately
+    const hash = window.location.hash;
     if (hash.includes("type=recovery") || params.get("type") === "recovery") {
       setReady(true);
       return;
