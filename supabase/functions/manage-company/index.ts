@@ -282,10 +282,19 @@ Deno.serve(async (req) => {
       const ownerEmail = ownerAuth?.user?.email || company.owner_email;
       if (!ownerEmail) return json({ error: "Owner email not found" }, 404);
 
-      // Generate a password reset link
+      // Generate a password reset link.
+      // Must redirect to the APP's /reset-password route — otherwise Supabase lands
+      // the user on the configured Site URL with an active session and the app
+      // routes them straight into the dashboard instead of the reset form.
+      const appOrigin =
+        Deno.env.get("APP_URL") ||
+        "https://thepoddispatch.com";
       const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
         type: "recovery",
         email: ownerEmail,
+        options: {
+          redirectTo: `${appOrigin.replace(/\/$/, "")}/reset-password`,
+        },
       });
 
       if (linkErr) return json({ error: linkErr.message }, 500);
