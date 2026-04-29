@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendViaResend, renderActionEmail } from "../_shared/send-via-resend.ts";
+import { sendViaResend, renderActionEmail, buildAppRecoveryUrl } from "../_shared/send-via-resend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -121,7 +121,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const actionUrl = linkData?.properties?.action_link ?? null;
+    const hashedToken = (linkData as any)?.properties?.hashed_token ?? null;
+    const actionUrl = hashedToken
+      ? buildAppRecoveryUrl({ appOrigin, hashedToken, email: normalizedEmail })
+      : (linkData?.properties?.action_link ?? null);
     let delivery: { ok: boolean; error?: string } = { ok: false, error: "no_action_link" };
     if (actionUrl) {
       const { html, text } = renderActionEmail({
