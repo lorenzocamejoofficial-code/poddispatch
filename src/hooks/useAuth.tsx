@@ -194,9 +194,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // This prevents the INITIAL_SESSION event from clearing state before
     // the persisted session is restored from storage.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
+      (event, newSession) => {
         // Skip events until getSession has initialized the baseline
         if (!sessionInitialized.current) return;
+
+        if (event === "PASSWORD_RECOVERY") {
+          setPasswordRecoveryMode(true);
+          if (window.location.pathname !== "/reset-password") {
+            window.history.replaceState({}, "", "/reset-password");
+          }
+        }
 
         setSession(newSession);
         setUser(newSession?.user ?? null);
@@ -257,7 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, session, role, activeCompanyId, profileId, loading, membershipLoaded, sessionWarning, isSystemCreator, onboardingStatus, subscriptionStatus, wizardCompleted, signIn, signOut, refreshOnboardingStatus, refreshWizardStatus,
+      user, session, role, activeCompanyId, profileId, loading, membershipLoaded, sessionWarning, isSystemCreator, onboardingStatus, subscriptionStatus, wizardCompleted, signIn, signOut, refreshOnboardingStatus, refreshWizardStatus, passwordRecoveryMode, setPasswordRecoveryMode,
       isAdmin, isOwner, isDispatcher, isBilling, isCrew, isCreator,
       canManageTrips, canManageBilling, canManagePatients,
     }}>
