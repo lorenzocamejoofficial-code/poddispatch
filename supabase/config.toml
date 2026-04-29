@@ -77,3 +77,9 @@ verify_jwt = false
 
 [functions.send-crew-schedule-email]
 verify_jwt = false
+
+[functions.send-password-reset-via-resend]
+verify_jwt = false
+
+[functions.admin-trigger-password-reset]
+verify_jwt = false
