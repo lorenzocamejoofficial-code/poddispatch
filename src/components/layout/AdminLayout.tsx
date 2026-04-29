@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   Eye,
   FileOutput,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,7 @@ const navItems: NavItem[] = [
   { path: "/trucks", label: "Trucks & Crews", icon: Truck, roles: ["owner", "dispatcher"] },
   { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft, roles: ["owner", "dispatcher"] },
   { path: "/override-monitor", label: "Override Monitor", icon: Eye, roles: ["owner"] },
+  { path: "/admin/email-activity", label: "Email Activity", icon: Mail, roles: ["owner"] },
   { path: "/settings", label: "Settings", icon: Settings, roles: ["owner", "dispatcher"] },
 ];
 
