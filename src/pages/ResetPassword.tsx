@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Truck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
+  const { setPasswordRecoveryMode } = useAuth();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,6 +26,7 @@ export default function ResetPassword() {
     const params = new URLSearchParams(window.location.search);
     const tokenHash = params.get("token_hash");
     const typeParam = params.get("type");
+    setPasswordRecoveryMode(true);
     if (tokenHash && typeParam === "recovery") {
       (async () => {
         const { error } = await supabase.auth.verifyOtp({
@@ -33,6 +36,7 @@ export default function ResetPassword() {
         if (cancelled) return;
         if (error) {
           toast.error("This reset link is invalid or has expired. Please request a new one.");
+          setPasswordRecoveryMode(false);
           setTimeout(() => navigate("/forgot-password"), 1500);
           return;
         }
@@ -75,7 +79,7 @@ export default function ResetPassword() {
       clearTimeout(timeout);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [navigate, setPasswordRecoveryMode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +97,7 @@ export default function ResetPassword() {
       toast.error(error.message);
     } else {
       toast.success("Password updated! Redirecting to login...");
+      setPasswordRecoveryMode(false);
       await supabase.auth.signOut();
       setTimeout(() => navigate("/login"), 1500);
     }
@@ -106,7 +111,7 @@ export default function ResetPassword() {
           <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Verifying reset link...</p>
           <p className="text-xs text-muted-foreground">If this takes too long, your link may have expired.</p>
-          <Button variant="link" size="sm" onClick={() => navigate("/login")}>Back to login</Button>
+          <Button variant="link" size="sm" onClick={() => { setPasswordRecoveryMode(false); navigate("/login"); }}>Back to login</Button>
         </div>
       </div>
     );
