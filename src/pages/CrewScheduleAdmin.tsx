@@ -285,15 +285,12 @@ export default function CrewScheduleAdmin() {
     setTimeout(() => setScheduleCopied(false), 2000);
   };
 
-  // Auto-prefill schedule recipient with first crew member's email when truck changes
+  // Auto-prefill schedule recipient with first crew member assigned to this truck/date
   useEffect(() => {
     if (!scheduleTruckId) { setScheduleEmailRecipient(""); return; }
-    const crew = crews.find(c => c.truck_id === scheduleTruckId);
-    if (!crew) { setScheduleEmailRecipient(""); return; }
-    const firstMemberId = crew.member1_id ?? (crew as any).member2_id ?? (crew as any).member3_id;
-    const emp = employees.find(e => e.id === firstMemberId);
-    setScheduleEmailRecipient(emp?.email ?? "");
-  }, [scheduleTruckId, crews, employees]);
+    const memberOnTruck = employees.find(e => e.truck_id === scheduleTruckId && e.email);
+    setScheduleEmailRecipient(memberOnTruck?.email ?? "");
+  }, [scheduleTruckId, employees]);
 
   const handleSendScheduleEmail = async () => {
     const text = generateScheduleText();
