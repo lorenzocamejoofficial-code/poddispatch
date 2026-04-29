@@ -34,6 +34,13 @@ export interface CrewCapability {
     oxygen_handling_trained?: boolean;
     lift_assist_ok?: boolean;
   } | null;
+  member3?: {
+    sex?: string | null;
+    stair_chair_trained?: boolean;
+    bariatric_trained?: boolean;
+    oxygen_handling_trained?: boolean;
+    lift_assist_ok?: boolean;
+  } | null;
 }
 
 export interface TruckEquipment {
@@ -57,26 +64,30 @@ export function deriveWeightClass(weight: number | null | undefined): string {
 }
 
 /**
- * Derive crew sex composition: "MM" | "MF" | "FF" | "unknown"
+ * Derive crew sex composition across up to 3 crew members.
+ * Returns:
+ *  - "MM" if every assigned member is male (1, 2, or 3 members)
+ *  - "FF" if every assigned member is female
+ *  - "MF" if the crew is mixed (at least one M and at least one F)
+ *  - "unknown" if no member sex is recorded
+ *
+ * For bariatric safety, the presence of any male reduces manual-rescue
+ * risk versus an all-female crew, so a 3-person crew with at least one
+ * male and at least one female is still treated as "MF".
  */
 function getCrewSexComposition(crew: CrewCapability): "MM" | "MF" | "FF" | "unknown" {
-  const s1 = crew.member1?.sex?.toUpperCase() ?? null;
-  const s2 = crew.member2?.sex?.toUpperCase() ?? null;
+  const sexes = [crew.member1?.sex, crew.member2?.sex, crew.member3?.sex]
+    .map((s) => s?.toUpperCase() ?? null)
+    .filter((s): s is string => s === "M" || s === "F");
 
-  // If no crew assigned at all, return unknown
-  if (!s1 && !s2) return "unknown";
-
-  // Single-member crew: treat the solo member's sex as the composition
-  const sexes = [s1, s2].filter(Boolean).sort() as string[];
   if (sexes.length === 0) return "unknown";
-  if (sexes.length === 1) {
-    // Solo crew: treat as same-sex pair for safety purposes
-    return sexes[0] === "M" ? "MM" : "FF";
-  }
 
-  if (sexes[0] === "F" && sexes[1] === "F") return "FF";
-  if (sexes[0] === "M" && sexes[1] === "M") return "MM";
-  return "MF"; // one M one F
+  const hasMale = sexes.includes("M");
+  const hasFemale = sexes.includes("F");
+
+  if (hasMale && hasFemale) return "MF";
+  if (hasMale) return "MM";
+  return "FF";
 }
 
 export function evaluateSafetyRules(
