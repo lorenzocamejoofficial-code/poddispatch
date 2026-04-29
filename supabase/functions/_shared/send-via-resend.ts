@@ -6,6 +6,8 @@
 // must be verified in the Resend dashboard.
 
 const FROM_ADDRESS = "PodDispatch <noreply@thepoddispatch.com>";
+const FROM_EMAIL = "noreply@thepoddispatch.com";
+const FROM_NAME = "PodDispatch";
 
 export interface SendEmailInput {
   to: string;
@@ -13,6 +15,10 @@ export interface SendEmailInput {
   html: string;
   text?: string;
   reply_to?: string;
+  // Logging context (optional — when omitted, row still logs with company_id null)
+  email_type?: "password_reset" | "signup_verification" | "crew_invite" | "crew_schedule" | "other";
+  company_id?: string | null;
+  recipient_user_id?: string | null;
 }
 
 export interface SendEmailResult {
@@ -30,6 +36,55 @@ export async function sendViaResend(input: SendEmailInput): Promise<SendEmailRes
   if (!input?.to || !input?.subject || !input?.html) {
     return { ok: false, error: "to, subject, and html are required" };
   }
+
+  // Insert pending log row via service role (best-effort — never block sending)
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  let logId: string | null = null;
+  if (supabaseUrl && serviceKey) {
+    try {
+      const res = await fetch(`${supabaseUrl}/rest/v1/email_send_log`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify({
+          company_id: input.company_id ?? null,
+          recipient_email: input.to,
+          recipient_user_id: input.recipient_user_id ?? null,
+          email_type: input.email_type ?? "other",
+          subject: input.subject,
+          from_address: FROM_EMAIL,
+          from_name: FROM_NAME,
+          status: "pending",
+        }),
+      });
+      const rows = await res.json().catch(() => null);
+      if (Array.isArray(rows) && rows[0]?.id) logId = rows[0].id;
+    } catch (e) {
+      console.error("email_send_log pending insert failed", e);
+    }
+  }
+
+  const updateLog = async (patch: Record<string, unknown>) => {
+    if (!logId || !supabaseUrl || !serviceKey) return;
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/email_send_log?id=eq.${logId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+        },
+        body: JSON.stringify(patch),
+      });
+    } catch (e) {
+      console.error("email_send_log update failed", e);
+    }
+  };
 
   try {
     const res = await fetch("https://api.resend.com/emails", {
@@ -54,11 +109,24 @@ export async function sendViaResend(input: SendEmailInput): Promise<SendEmailRes
         (body && (body.message || body.error)) ||
         `Resend responded with HTTP ${res.status}`;
       console.error("sendViaResend failed", res.status, body);
+      await updateLog({
+        status: "failed",
+        error_message: String(message).slice(0, 1000),
+      });
       return { ok: false, error: String(message), status: res.status };
     }
+    await updateLog({
+      status: "sent",
+      resend_email_id: body?.id ?? null,
+      sent_at: new Date().toISOString(),
+    });
     return { ok: true, id: body?.id, status: res.status };
   } catch (err) {
     console.error("sendViaResend threw", err);
+    await updateLog({
+      status: "failed",
+      error_message: ((err as Error)?.message || "network error").slice(0, 1000),
+    });
     return { ok: false, error: (err as Error)?.message || "network error" };
   }
 }

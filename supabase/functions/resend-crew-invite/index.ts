@@ -70,6 +70,9 @@ Deno.serve(async (req) => {
         subject: "Your PodDispatch invite",
         html,
         text,
+        email_type: "crew_invite",
+        company_id: cm.company_id,
+        recipient_user_id: target_user_id,
       });
       if (!delivery.ok) {
         console.error("resend-crew-invite delivery failed", delivery.error);

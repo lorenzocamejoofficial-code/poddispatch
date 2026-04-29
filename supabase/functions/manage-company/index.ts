@@ -322,6 +322,8 @@ Deno.serve(async (req) => {
           subject: "PodDispatch — password reset requested",
           html,
           text,
+          email_type: "password_reset",
+          company_id: companyId,
         });
       }
 

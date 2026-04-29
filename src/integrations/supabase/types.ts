@@ -1593,6 +1593,65 @@ export type Database = {
           },
         ]
       }
+      email_send_log: {
+        Row: {
+          attempted_at: string
+          company_id: string | null
+          created_at: string
+          email_type: Database["public"]["Enums"]["email_type"]
+          error_message: string | null
+          from_address: string
+          from_name: string | null
+          id: string
+          recipient_email: string
+          recipient_user_id: string | null
+          resend_email_id: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["email_send_status"]
+          subject: string
+        }
+        Insert: {
+          attempted_at?: string
+          company_id?: string | null
+          created_at?: string
+          email_type?: Database["public"]["Enums"]["email_type"]
+          error_message?: string | null
+          from_address: string
+          from_name?: string | null
+          id?: string
+          recipient_email: string
+          recipient_user_id?: string | null
+          resend_email_id?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["email_send_status"]
+          subject: string
+        }
+        Update: {
+          attempted_at?: string
+          company_id?: string | null
+          created_at?: string
+          email_type?: Database["public"]["Enums"]["email_type"]
+          error_message?: string | null
+          from_address?: string
+          from_name?: string | null
+          id?: string
+          recipient_email?: string
+          recipient_user_id?: string | null
+          resend_email_id?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["email_send_status"]
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_send_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facilities: {
         Row: {
           active: boolean | null
@@ -4736,6 +4795,18 @@ export type Database = {
         | "denied"
         | "needs_correction"
         | "needs_review"
+      email_send_status:
+        | "pending"
+        | "sent"
+        | "failed"
+        | "bounced"
+        | "suppressed"
+      email_type:
+        | "password_reset"
+        | "signup_verification"
+        | "crew_invite"
+        | "crew_schedule"
+        | "other"
       leg_type: "A" | "B"
       membership_role: "creator" | "owner" | "dispatcher" | "biller" | "crew"
       onboarding_status:
@@ -4932,6 +5003,14 @@ export const Constants = {
         "denied",
         "needs_correction",
         "needs_review",
+      ],
+      email_send_status: ["pending", "sent", "failed", "bounced", "suppressed"],
+      email_type: [
+        "password_reset",
+        "signup_verification",
+        "crew_invite",
+        "crew_schedule",
+        "other",
       ],
       leg_type: ["A", "B"],
       membership_role: ["creator", "owner", "dispatcher", "biller", "crew"],
