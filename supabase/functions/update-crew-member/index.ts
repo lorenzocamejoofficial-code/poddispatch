@@ -93,6 +93,17 @@ Deno.serve(async (req) => {
           email_confirm: true,
         });
         if (emailErr) return json({ error: "Email update failed: " + emailErr.message }, 400);
+
+        // If the target is the company owner, sync companies.owner_email snapshot
+        if (targetMembership.role === "owner") {
+          const { error: ownerSyncErr } = await admin
+            .from("companies")
+            .update({ owner_email: newEmail })
+            .eq("id", actorMembership.company_id);
+          if (ownerSyncErr) {
+            console.error("owner_email sync failed:", ownerSyncErr.message);
+          }
+        }
       }
     }
 
