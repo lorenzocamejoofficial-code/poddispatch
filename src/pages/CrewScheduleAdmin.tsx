@@ -668,6 +668,31 @@ export default function CrewScheduleAdmin() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={smsComingSoonOpen} onOpenChange={setSmsComingSoonOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-primary" /> SMS Sending — Coming Soon
+            </DialogTitle>
+            <DialogDescription className="pt-2 space-y-2">
+              <span className="block">
+                Automated SMS delivery to crew is on the roadmap. Twilio Voice is currently
+                wired up for dispatcher confirmation calls, but messaging is not yet enabled
+                on this account.
+              </span>
+              <span className="block">
+                For now, use <span className="font-medium text-foreground">Copy</span> to grab
+                the message and paste it into your phone, or use <span className="font-medium text-foreground">Send Email</span> to
+                deliver it instantly.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setSmsComingSoonOpen(false)}>Got it</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
