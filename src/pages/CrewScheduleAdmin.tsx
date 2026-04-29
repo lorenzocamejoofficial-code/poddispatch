@@ -554,11 +554,36 @@ export default function CrewScheduleAdmin() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleCopySchedule} disabled={!scheduleTruckId} className="gap-1.5">
+              <Button onClick={handleCopySchedule} disabled={!scheduleTruckId} variant="outline" className="gap-1.5">
                 {scheduleCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {scheduleCopied ? "Copied!" : "Copy to Clipboard"}
+                {scheduleCopied ? "Copied!" : "Copy"}
+              </Button>
+              <Button onClick={() => setSmsComingSoonOpen(true)} disabled={!scheduleTruckId} variant="outline" className="gap-1.5">
+                <Phone className="h-3.5 w-3.5" /> Send SMS
               </Button>
             </div>
+
+            {scheduleTruckId && (
+              <div className="flex gap-2 items-end flex-wrap">
+                <div className="flex-1 min-w-[220px] max-w-md">
+                  <Label className="text-xs">Email Recipient</Label>
+                  <Input
+                    type="email"
+                    placeholder="crew@example.com"
+                    value={scheduleEmailRecipient}
+                    onChange={(e) => setScheduleEmailRecipient(e.target.value)}
+                  />
+                </div>
+                <Button
+                  onClick={handleSendScheduleEmail}
+                  disabled={!scheduleTruckId || sendingSchedule || !scheduleEmailRecipient}
+                  className="gap-1.5"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  {sendingSchedule ? "Sending…" : "Send Email"}
+                </Button>
+              </div>
+            )}
 
             {scheduleTruckId && (
               <div className="rounded-md bg-muted p-3">
