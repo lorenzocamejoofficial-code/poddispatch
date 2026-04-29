@@ -195,15 +195,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // the persisted session is restored from storage.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
-        // Skip events until getSession has initialized the baseline
-        if (!sessionInitialized.current) return;
-
         if (event === "PASSWORD_RECOVERY") {
           setPasswordRecoveryMode(true);
           if (window.location.pathname !== "/reset-password") {
             window.history.replaceState({}, "", "/reset-password");
           }
         }
+
+        // Skip events until getSession has initialized the baseline
+        if (!sessionInitialized.current) return;
 
         setSession(newSession);
         setUser(newSession?.user ?? null);
