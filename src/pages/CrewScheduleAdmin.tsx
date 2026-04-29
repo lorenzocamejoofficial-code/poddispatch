@@ -7,15 +7,17 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Link2, Trash2, Truck, AlertCircle, CalendarIcon, UserPlus, Phone, Mail, MessageSquareText, RefreshCw, Check } from "lucide-react";
+import { Copy, Link2, Trash2, Truck, AlertCircle, CalendarIcon, UserPlus, Phone, Mail, MessageSquareText, RefreshCw, Check, Send, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 interface ShareToken {
   id: string;
@@ -48,6 +50,10 @@ export default function CrewScheduleAdmin() {
   const [employees, setEmployees] = useState<ActiveEmployee[]>([]);
   const [companyName, setCompanyName] = useState("Dispatch");
   const [downTruckIds, setDownTruckIds] = useState<Set<string>>(new Set());
+  const [smsComingSoonOpen, setSmsComingSoonOpen] = useState(false);
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [sendingSchedule, setSendingSchedule] = useState(false);
+  const [scheduleEmailRecipient, setScheduleEmailRecipient] = useState("");
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
   const { selectedDate: scheduleDate, setSelectedDate: setScheduleDate } = useGlobalSchedulingStore();
@@ -86,12 +92,13 @@ export default function CrewScheduleAdmin() {
   }, []);
 
   const fetchEmployees = useCallback(async () => {
-    const [{ data: profiles }, { data: memberships }, { data: crewRows }] = await Promise.all([
+    const [{ data: profiles }, { data: memberships }, { data: crewRows }, emailsResp] = await Promise.all([
       supabase.from("profiles").select("id, full_name, phone_number, user_id, active, company_id").order("full_name"),
       supabase.from("company_memberships").select("user_id, role"),
       supabase.from("crews")
-        .select("member1_id, member2_id, truck_id, truck:trucks!crews_truck_id_fkey(name)")
+        .select("member1_id, member2_id, member3_id, truck_id, truck:trucks!crews_truck_id_fkey(name)")
         .eq("active_date", scheduleDate),
+      supabase.functions.invoke("list-company-emails").catch(() => ({ data: null })),
     ]);
     // Build a set of user_ids that have an active crew membership
     const crewMemberUserIds = new Set(
@@ -105,10 +112,12 @@ export default function CrewScheduleAdmin() {
       const info = { truck_id: c.truck_id, truck_name: c.truck?.name ?? "" };
       if (c.member1_id) crewMap.set(c.member1_id, info);
       if (c.member2_id) crewMap.set(c.member2_id, info);
+      if (c.member3_id) crewMap.set(c.member3_id, info);
     }
+    const emailMap: Record<string, string | null> = (emailsResp as any)?.data?.emails ?? {};
     setEmployees(validProfiles.map((p: any) => ({
       id: p.id, full_name: p.full_name, phone_number: p.phone_number,
-      email: null,
+      email: emailMap[p.user_id] ?? null,
       truck_id: crewMap.get(p.id)?.truck_id ?? null,
       truck_name: crewMap.get(p.id)?.truck_name ?? null,
     })));
@@ -129,9 +138,17 @@ export default function CrewScheduleAdmin() {
       .channel("crew-schedule-admin-sync")
       .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => fetchEmployees())
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => fetchDownTrucks())
+      .on("postgres_changes", { event: "*", schema: "public", table: "leg_exceptions" }, () => {
+        // refetch leg exceptions for selected date
+        supabase.from("leg_exceptions" as any).select("*").eq("run_date", scheduleDate).then(({ data }) => {
+          const map = new Map<string, any>();
+          for (const ex of (data ?? []) as any[]) map.set(ex.scheduling_leg_id, ex);
+          setLegExceptions(map);
+        });
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [fetchEmployees, fetchDownTrucks]);
+  }, [fetchEmployees, fetchDownTrucks, scheduleDate]);
 
   const formattedScheduleDate = (() => {
     try {
@@ -157,6 +174,37 @@ export default function CrewScheduleAdmin() {
     setInviteCopied(true);
     toast.success("Crew login invite copied to clipboard");
     setTimeout(() => setInviteCopied(false), 2000);
+  };
+
+  const handleSendInvite = async () => {
+    if (!selectedInviteCrew) return;
+    if (inviteSendVia === "phone") {
+      setSmsComingSoonOpen(true);
+      return;
+    }
+    if (!selectedInviteCrew.email) {
+      toast.error("No email on file for this crew member");
+      return;
+    }
+    setSendingInvite(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-crew-schedule-email", {
+        body: {
+          kind: "invite",
+          to: selectedInviteCrew.email,
+          subject: `${companyName} — Crew Login Instructions`,
+          message: buildInviteMessage(selectedInviteCrew),
+        },
+      });
+      if (error || (data as any)?.error) {
+        throw new Error((data as any)?.error || error?.message || "Send failed");
+      }
+      toast.success(`Invite emailed to ${selectedInviteCrew.email}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to send invite");
+    } finally {
+      setSendingInvite(false);
+    }
   };
 
   // ─── Section 2: Daily Schedule Text ───
@@ -202,7 +250,7 @@ export default function CrewScheduleAdmin() {
       : "Mix";
 
     const crewNames = crew
-      ? `${crew.member1_name ?? "TBD"} / ${crew.member2_name ?? "TBD"}`
+      ? [crew.member1_name, crew.member2_name, crew.member3_name].filter(Boolean).join(" / ") || "TBD"
       : "No crew assigned";
 
     let text = `Route ${truck.name} — ${transportMix}\n${crewNames}\n\n`;
@@ -238,6 +286,42 @@ export default function CrewScheduleAdmin() {
     setTimeout(() => setScheduleCopied(false), 2000);
   };
 
+  // Auto-prefill schedule recipient with first crew member assigned to this truck/date
+  useEffect(() => {
+    if (!scheduleTruckId) { setScheduleEmailRecipient(""); return; }
+    const memberOnTruck = employees.find(e => e.truck_id === scheduleTruckId && e.email);
+    setScheduleEmailRecipient(memberOnTruck?.email ?? "");
+  }, [scheduleTruckId, employees]);
+
+  const handleSendScheduleEmail = async () => {
+    const text = generateScheduleText();
+    if (!text) { toast.error("Select a truck first"); return; }
+    if (!scheduleEmailRecipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(scheduleEmailRecipient.trim())) {
+      toast.error("Enter a valid recipient email");
+      return;
+    }
+    const truck = trucks.find(t => t.id === scheduleTruckId);
+    setSendingSchedule(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-crew-schedule-email", {
+        body: {
+          kind: "schedule",
+          to: scheduleEmailRecipient.trim(),
+          subject: `${companyName} — ${truck?.name ?? "Route"} schedule for ${formattedScheduleDate}`,
+          message: text,
+        },
+      });
+      if (error || (data as any)?.error) {
+        throw new Error((data as any)?.error || error?.message || "Send failed");
+      }
+      toast.success(`Schedule emailed to ${scheduleEmailRecipient.trim()}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to send schedule");
+    } finally {
+      setSendingSchedule(false);
+    }
+  };
+
   // ─── Section 3: Backup Share Link ───
   const generateToken = async () => {
     if (!backupTruckId) { toast.error("Select a truck"); return; }
@@ -250,7 +334,7 @@ export default function CrewScheduleAdmin() {
       .eq("run_date", scheduleDate);
     const { data: crewRow } = await supabase
       .from("crews")
-      .select("*, member1:profiles!crews_member1_id_fkey(sex), member2:profiles!crews_member2_id_fkey(sex)")
+      .select("*, member1:profiles!crews_member1_id_fkey(sex), member2:profiles!crews_member2_id_fkey(sex), member3:profiles!crews_member3_id_fkey(sex)")
       .eq("truck_id", backupTruckId).eq("active_date", scheduleDate).maybeSingle();
     const { data: truckRow } = await supabase
       .from("trucks").select("has_power_stretcher, has_stair_chair, has_oxygen_mount")
@@ -402,10 +486,20 @@ export default function CrewScheduleAdmin() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleCopyInvite} disabled={!inviteCrewId} variant="outline" className="gap-1.5">
-                {inviteCopied ? <Check className="h-3.5 w-3.5 text-[hsl(var(--status-green))]" /> : <Copy className="h-3.5 w-3.5" />}
-                {inviteCopied ? "Copied!" : "Copy Invite"}
-              </Button>
+              <div className="flex gap-2 flex-wrap">
+                <Button onClick={handleCopyInvite} disabled={!inviteCrewId} variant="outline" className="gap-1.5">
+                  {inviteCopied ? <Check className="h-3.5 w-3.5 text-[hsl(var(--status-green))]" /> : <Copy className="h-3.5 w-3.5" />}
+                  {inviteCopied ? "Copied!" : "Copy"}
+                </Button>
+                <Button
+                  onClick={handleSendInvite}
+                  disabled={!inviteCrewId || sendingInvite || (inviteSendVia === "email" && !selectedInviteCrew?.email)}
+                  className="gap-1.5"
+                >
+                  {inviteSendVia === "phone" ? <Phone className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+                  {sendingInvite ? "Sending…" : inviteSendVia === "phone" ? "Send SMS" : "Send Email"}
+                </Button>
+              </div>
             </div>
 
             {selectedInviteCrew && (
@@ -417,6 +511,14 @@ export default function CrewScheduleAdmin() {
                 )}
                 {inviteSendVia === "phone" && !selectedInviteCrew.phone_number && (
                   <Badge variant="destructive" className="text-[10px]">No phone on file</Badge>
+                )}
+                {inviteSendVia === "email" && selectedInviteCrew.email && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    <Mail className="h-2.5 w-2.5 mr-1" /> {selectedInviteCrew.email}
+                  </Badge>
+                )}
+                {inviteSendVia === "email" && !selectedInviteCrew.email && (
+                  <Badge variant="destructive" className="text-[10px]">No email on file</Badge>
                 )}
                 <pre className="text-xs text-foreground whitespace-pre-wrap font-sans leading-relaxed">
                   {buildInviteMessage(selectedInviteCrew)}
@@ -452,11 +554,36 @@ export default function CrewScheduleAdmin() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleCopySchedule} disabled={!scheduleTruckId} className="gap-1.5">
+              <Button onClick={handleCopySchedule} disabled={!scheduleTruckId} variant="outline" className="gap-1.5">
                 {scheduleCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {scheduleCopied ? "Copied!" : "Copy to Clipboard"}
+                {scheduleCopied ? "Copied!" : "Copy"}
+              </Button>
+              <Button onClick={() => setSmsComingSoonOpen(true)} disabled={!scheduleTruckId} variant="outline" className="gap-1.5">
+                <Phone className="h-3.5 w-3.5" /> Send SMS
               </Button>
             </div>
+
+            {scheduleTruckId && (
+              <div className="flex gap-2 items-end flex-wrap">
+                <div className="flex-1 min-w-[220px] max-w-md">
+                  <Label className="text-xs">Email Recipient</Label>
+                  <Input
+                    type="email"
+                    placeholder="crew@example.com"
+                    value={scheduleEmailRecipient}
+                    onChange={(e) => setScheduleEmailRecipient(e.target.value)}
+                  />
+                </div>
+                <Button
+                  onClick={handleSendScheduleEmail}
+                  disabled={!scheduleTruckId || sendingSchedule || !scheduleEmailRecipient}
+                  className="gap-1.5"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  {sendingSchedule ? "Sending…" : "Send Email"}
+                </Button>
+              </div>
+            )}
 
             {scheduleTruckId && (
               <div className="rounded-md bg-muted p-3">
@@ -541,6 +668,31 @@ export default function CrewScheduleAdmin() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={smsComingSoonOpen} onOpenChange={setSmsComingSoonOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-primary" /> SMS Sending — Coming Soon
+            </DialogTitle>
+            <DialogDescription className="pt-2 space-y-2">
+              <span className="block">
+                Automated SMS delivery to crew is on the roadmap. Twilio Voice is currently
+                wired up for dispatcher confirmation calls, but messaging is not yet enabled
+                on this account.
+              </span>
+              <span className="block">
+                For now, use <span className="font-medium text-foreground">Copy</span> to grab
+                the message and paste it into your phone, or use <span className="font-medium text-foreground">Send Email</span> to
+                deliver it instantly.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setSmsComingSoonOpen(false)}>Got it</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }

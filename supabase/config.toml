@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.create-checkout-session]
 verify_jwt = false
+
+[functions.send-crew-schedule-email]
+verify_jwt = false
