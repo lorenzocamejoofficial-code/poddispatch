@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendViaResend, renderActionEmail } from "../_shared/send-via-resend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -113,14 +114,36 @@ Deno.serve(async (req) => {
       });
     }
 
+    const actionUrl = linkData?.properties?.action_link ?? null;
+    let delivery: { ok: boolean; error?: string } = { ok: false, error: "no_action_link" };
+    if (actionUrl) {
+      const { html, text } = renderActionEmail({
+        heading: "Reset your PodDispatch system creator password",
+        intro:
+          "A recovery link was generated for your system creator account. Click the button below to set a new password. This link expires soon.",
+        actionLabel: "Reset password",
+        actionUrl,
+        footer:
+          "If you didn't request this, you can safely ignore this email.",
+      });
+      delivery = await sendViaResend({
+        to: normalizedEmail,
+        subject: "PodDispatch — system creator password reset",
+        html,
+        text,
+      });
+    }
+
     return new Response(
       JSON.stringify({
         ok: true,
         email: normalizedEmail,
         user_id: creatorUserId,
-        action_link: linkData?.properties?.action_link,
+        action_link: actionUrl,
+        email_delivered: delivery.ok,
+        email_error: delivery.ok ? undefined : delivery.error,
         message:
-          "Creator account is ready. Open the action_link below to set a new password.",
+          "Creator account is ready. Email delivery attempted via Resend; action_link is also returned for manual fallback.",
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
