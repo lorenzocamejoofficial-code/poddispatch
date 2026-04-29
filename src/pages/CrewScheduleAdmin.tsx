@@ -249,7 +249,7 @@ export default function CrewScheduleAdmin() {
       : "Mix";
 
     const crewNames = crew
-      ? `${crew.member1_name ?? "TBD"} / ${crew.member2_name ?? "TBD"}`
+      ? [crew.member1_name, crew.member2_name, crew.member3_name].filter(Boolean).join(" / ") || "TBD"
       : "No crew assigned";
 
     let text = `Route ${truck.name} — ${transportMix}\n${crewNames}\n\n`;
