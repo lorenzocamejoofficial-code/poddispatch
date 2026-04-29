@@ -486,10 +486,20 @@ export default function CrewScheduleAdmin() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleCopyInvite} disabled={!inviteCrewId} variant="outline" className="gap-1.5">
-                {inviteCopied ? <Check className="h-3.5 w-3.5 text-[hsl(var(--status-green))]" /> : <Copy className="h-3.5 w-3.5" />}
-                {inviteCopied ? "Copied!" : "Copy Invite"}
-              </Button>
+              <div className="flex gap-2 flex-wrap">
+                <Button onClick={handleCopyInvite} disabled={!inviteCrewId} variant="outline" className="gap-1.5">
+                  {inviteCopied ? <Check className="h-3.5 w-3.5 text-[hsl(var(--status-green))]" /> : <Copy className="h-3.5 w-3.5" />}
+                  {inviteCopied ? "Copied!" : "Copy"}
+                </Button>
+                <Button
+                  onClick={handleSendInvite}
+                  disabled={!inviteCrewId || sendingInvite || (inviteSendVia === "email" && !selectedInviteCrew?.email)}
+                  className="gap-1.5"
+                >
+                  {inviteSendVia === "phone" ? <Phone className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+                  {sendingInvite ? "Sending…" : inviteSendVia === "phone" ? "Send SMS" : "Send Email"}
+                </Button>
+              </div>
             </div>
 
             {selectedInviteCrew && (
@@ -501,6 +511,14 @@ export default function CrewScheduleAdmin() {
                 )}
                 {inviteSendVia === "phone" && !selectedInviteCrew.phone_number && (
                   <Badge variant="destructive" className="text-[10px]">No phone on file</Badge>
+                )}
+                {inviteSendVia === "email" && selectedInviteCrew.email && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    <Mail className="h-2.5 w-2.5 mr-1" /> {selectedInviteCrew.email}
+                  </Badge>
+                )}
+                {inviteSendVia === "email" && !selectedInviteCrew.email && (
+                  <Badge variant="destructive" className="text-[10px]">No email on file</Badge>
                 )}
                 <pre className="text-xs text-foreground whitespace-pre-wrap font-sans leading-relaxed">
                   {buildInviteMessage(selectedInviteCrew)}
