@@ -141,6 +141,8 @@ Deno.serve(async (req) => {
         subject: "PodDispatch — system creator password reset",
         html,
         text,
+        email_type: "password_reset",
+        recipient_user_id: creatorUserId,
       });
     }
 

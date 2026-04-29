@@ -71,6 +71,8 @@ Deno.serve(async (req) => {
       html,
       text: message,
       reply_to: actor.email ?? undefined,
+      email_type: kind === "invite" ? "crew_invite" : "crew_schedule",
+      company_id: actorMembership.company_id,
     });
 
     if (!result.ok) {
