@@ -154,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const doSignOut = useCallback(async () => {
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
     if (warningTimer.current) clearTimeout(warningTimer.current);
+    sessionWarningRef.current = false;
     setSessionWarning(false);
     await supabase.auth.signOut();
     setRole(null);
@@ -200,6 +201,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     userRef.current = user;
     if (user) {
+      // Reset throttle so the initial arm runs immediately.
+      lastActivityResetRef.current = 0;
       resetInactivityTimer();
       ACTIVITY_EVENTS.forEach((evt) =>
         window.addEventListener(evt, resetInactivityTimer, { passive: true })
