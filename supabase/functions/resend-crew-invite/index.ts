@@ -33,11 +33,18 @@ Deno.serve(async (req) => {
     if (getErr || !targetUser?.user?.email) return json({ error: "Could not load target user email" }, 404);
     const email = targetUser.user.email;
 
-    const redirectTo = body?.redirect_to || undefined;
+    // Always force the recovery link to land on the app's /reset-password page.
+    // Without this, Supabase uses the project Site URL and the app auto-routes
+    // the new session into the dashboard instead of showing the password form.
+    const appOrigin =
+      Deno.env.get("APP_URL") ||
+      "https://thepoddispatch.com";
+    const redirectTo =
+      body?.redirect_to || `${appOrigin.replace(/\/$/, "")}/reset-password`;
     const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
       type: "recovery",
       email,
-      options: redirectTo ? { redirectTo } : undefined,
+      options: { redirectTo },
     });
     if (linkErr) return json({ error: "Failed to generate invite link: " + linkErr.message }, 500);
 

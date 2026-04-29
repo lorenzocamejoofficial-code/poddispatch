@@ -98,13 +98,20 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Generate a recovery link the user can click to set a new password
+    // Generate a recovery link the user can click to set a new password.
+    // IMPORTANT: redirectTo must point at the APP origin (not the edge function origin),
+    // and at /reset-password specifically — otherwise Supabase will land the user on "/"
+    // with a fresh session, the app routes them to their dashboard, and the password
+    // reset form is never shown.
+    const appOrigin =
+      Deno.env.get("APP_URL") ||
+      "https://thepoddispatch.com";
+    const recoveryRedirect =
+      redirect_to || `${appOrigin.replace(/\/$/, "")}/reset-password`;
     const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
       email: normalizedEmail,
-      options: {
-        redirectTo: redirect_to || `${new URL(req.url).origin}/reset-password`,
-      },
+      options: { redirectTo: recoveryRedirect },
     });
 
     if (linkErr) {
