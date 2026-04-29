@@ -36,6 +36,7 @@ export default function ResetPassword() {
         if (cancelled) return;
         if (error) {
           toast.error("This reset link is invalid or has expired. Please request a new one.");
+          setPasswordRecoveryMode(false);
           setTimeout(() => navigate("/forgot-password"), 1500);
           return;
         }
@@ -110,7 +111,7 @@ export default function ResetPassword() {
           <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Verifying reset link...</p>
           <p className="text-xs text-muted-foreground">If this takes too long, your link may have expired.</p>
-          <Button variant="link" size="sm" onClick={() => navigate("/login")}>Back to login</Button>
+          <Button variant="link" size="sm" onClick={() => { setPasswordRecoveryMode(false); navigate("/login"); }}>Back to login</Button>
         </div>
       </div>
     );
