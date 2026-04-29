@@ -229,7 +229,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   const [availability, setAvailability] = useState<AvailabilityRecord[]>([]);
   const [truckRisks, setTruckRisks] = useState<Map<string, TruckRiskData>>(new Map());
   const [holdTimers, setHoldTimers] = useState<HoldTimerData[]>([]);
-  const [crewProfiles, setCrewProfiles] = useState<Map<string, { member1: any; member2: any }>>(new Map());
+  const [crewProfiles, setCrewProfiles] = useState<Map<string, { member1: any; member2: any; member3: any }>>(new Map());
   const [truckEquipmentMap, setTruckEquipmentMap] = useState<Map<string, TruckEquipment>>(new Map());
   const [overriddenLegIds, setOverriddenLegIds] = useState<Set<string>>(new Set());
 
@@ -264,11 +264,11 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     };
     const loadCrewCaps = async () => {
       const { data } = await supabase.from("crews")
-        .select("truck_id, member1:profiles!crews_member1_id_fkey(sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
+        .select("truck_id, member1:profiles!crews_member1_id_fkey(sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member3:profiles!crews_member3_id_fkey(sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
         .eq("active_date", selectedDate);
-      const map = new Map<string, { member1: any; member2: any }>();
+      const map = new Map<string, { member1: any; member2: any; member3: any }>();
       for (const c of (data ?? []) as any[]) {
-        map.set(c.truck_id, { member1: c.member1, member2: c.member2 });
+        map.set(c.truck_id, { member1: c.member1, member2: c.member2, member3: c.member3 });
       }
       setCrewProfiles(map);
     };
@@ -360,6 +360,13 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
         bariatric_trained: cp.member2.bariatric_trained ?? false,
         oxygen_handling_trained: cp.member2.oxygen_handling_trained ?? false,
         lift_assist_ok: cp.member2.lift_assist_ok ?? false,
+      } : null,
+      member3: cp?.member3 ? {
+        sex: cp.member3.sex ?? null,
+        stair_chair_trained: cp.member3.stair_chair_trained ?? false,
+        bariatric_trained: cp.member3.bariatric_trained ?? false,
+        oxygen_handling_trained: cp.member3.oxygen_handling_trained ?? false,
+        lift_assist_ok: cp.member3.lift_assist_ok ?? false,
       } : null,
     };
   }, [crewProfiles]);
