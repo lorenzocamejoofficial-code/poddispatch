@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendViaResend, renderActionEmail } from "../_shared/send-via-resend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -289,18 +290,42 @@ Deno.serve(async (req) => {
 
       if (linkErr) return json({ error: linkErr.message }, 500);
 
+      const actionUrl = linkData?.properties?.action_link ?? null;
+      let delivery: { ok: boolean; error?: string } = { ok: false, error: "no_action_link" };
+      if (actionUrl) {
+        const { html, text } = renderActionEmail({
+          heading: "Password reset for your PodDispatch account",
+          intro:
+            "A system administrator triggered a password reset for your PodDispatch owner account. Click the button below to choose a new password. This link expires soon.",
+          actionLabel: "Reset password",
+          actionUrl,
+          footer:
+            "If you didn't expect this, contact your system administrator before clicking the link.",
+        });
+        delivery = await sendViaResend({
+          to: ownerEmail,
+          subject: "PodDispatch — password reset requested",
+          html,
+          text,
+        });
+      }
+
       await supabaseAdmin.from("audit_logs").insert({
         action: "force_password_reset",
         actor_user_id: user.id,
         actor_email: user.email,
         record_id: companyId,
         table_name: "companies",
-        notes: `Password reset triggered for ${ownerEmail}`,
+        notes: `Password reset triggered for ${ownerEmail}; resend_delivered=${delivery.ok}${delivery.error ? ` err=${delivery.error}` : ""}`,
       });
 
       return json({
         success: true,
-        message: `Password reset email sent to ${ownerEmail}`,
+        message: delivery.ok
+          ? `Password reset email sent to ${ownerEmail}`
+          : `Password reset link generated, but email delivery failed: ${delivery.error}. Action link: ${actionUrl ?? "n/a"}`,
+        email_delivered: delivery.ok,
+        action_link: actionUrl,
       });
     }
 
