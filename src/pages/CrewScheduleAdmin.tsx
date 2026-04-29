@@ -333,7 +333,7 @@ export default function CrewScheduleAdmin() {
       .eq("run_date", scheduleDate);
     const { data: crewRow } = await supabase
       .from("crews")
-      .select("*, member1:profiles!crews_member1_id_fkey(sex), member2:profiles!crews_member2_id_fkey(sex)")
+      .select("*, member1:profiles!crews_member1_id_fkey(sex), member2:profiles!crews_member2_id_fkey(sex), member3:profiles!crews_member3_id_fkey(sex)")
       .eq("truck_id", backupTruckId).eq("active_date", scheduleDate).maybeSingle();
     const { data: truckRow } = await supabase
       .from("trucks").select("has_power_stretcher, has_stair_chair, has_oxygen_mount")
@@ -345,6 +345,7 @@ export default function CrewScheduleAdmin() {
     const crewCap: CrewCapability = {
       member1: crewRow?.member1 ? { sex: (crewRow.member1 as any).sex } : null,
       member2: crewRow?.member2 ? { sex: (crewRow.member2 as any).sex } : null,
+      member3: (crewRow as any)?.member3 ? { sex: ((crewRow as any).member3).sex } : null,
     };
     const truckEquip: TruckEquipment = {
       has_power_stretcher: truckRow?.has_power_stretcher ?? false,
