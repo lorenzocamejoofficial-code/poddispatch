@@ -6,6 +6,18 @@ import { supabase } from "@/integrations/supabase/client";
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const WARNING_BEFORE_MS = 5 * 60 * 1000;       // warn 5 min before expiry
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"] as const;
+const PASSWORD_RECOVERY_STORAGE_KEY = "poddispatch_password_recovery";
+
+function hasPasswordRecoveryMarker() {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  return (
+    window.location.pathname === "/reset-password" ||
+    window.location.hash.includes("type=recovery") ||
+    params.get("type") === "recovery" ||
+    params.has("token_hash")
+  );
+}
 
 export type MembershipRole = "creator" | "owner" | "dispatcher" | "biller" | "crew";
 export type OnboardingStatus = "signup_started" | "agreements_accepted" | "payment_pending" | "payment_confirmed" | "pending_approval" | "approved_pending_payment" | "active" | "rejected" | "suspended" | "payment_issue";
@@ -27,6 +39,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshOnboardingStatus: () => Promise<void>;
   refreshWizardStatus: () => Promise<void>;
+  passwordRecoveryMode: boolean;
+  setPasswordRecoveryMode: (active: boolean) => void;
   isAdmin: boolean;
   isOwner: boolean;
   isDispatcher: boolean;
@@ -53,6 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [wizardCompleted, setWizardCompleted] = useState<boolean | null>(null);
+  const [passwordRecoveryMode, setPasswordRecoveryModeState] = useState(() => {
+    if (hasPasswordRecoveryMarker()) return true;
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem(PASSWORD_RECOVERY_STORAGE_KEY) === "true";
+  });
 
   // HIPAA: inactivity timeout refs
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -60,6 +79,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const userRef = useRef<User | null>(null);
   // Guard to prevent onAuthStateChange from running before getSession completes
   const sessionInitialized = useRef(false);
+
+  const setPasswordRecoveryMode = useCallback((active: boolean) => {
+    setPasswordRecoveryModeState(active);
+    if (typeof window === "undefined") return;
+    if (active) {
+      window.sessionStorage.setItem(PASSWORD_RECOVERY_STORAGE_KEY, "true");
+    } else {
+      window.sessionStorage.removeItem(PASSWORD_RECOVERY_STORAGE_KEY);
+    }
+  }, []);
 
   const loadUserData = async (userId: string) => {
     const [{ data: membershipData }, { data: profileData }, { data: scData }] = await Promise.all([
@@ -117,7 +146,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSubscriptionStatus(null);
     setWizardCompleted(null);
     setMembershipLoaded(false);
-  }, []);
+    setPasswordRecoveryMode(false);
+  }, [setPasswordRecoveryMode]);
 
   const resetInactivityTimer = useCallback(() => {
     if (!userRef.current) return;
