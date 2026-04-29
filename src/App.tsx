@@ -37,6 +37,7 @@ import CreatorSettings from "./pages/CreatorSettings";
 import SimulationLab from "./pages/SimulationLab";
 import CrewUIPreview from "./pages/CrewUIPreview";
 import OverrideMonitor from "./pages/OverrideMonitor";
+import EmailActivity from "./pages/EmailActivity";
 import AcceptInvite from "./pages/AcceptInvite";
 import CreateCompany from "./pages/CreateCompany";
 import AccountSettings from "./pages/AccountSettings";
@@ -307,6 +308,7 @@ function AppRoutes() {
           <Route path="/crew-preview" element={<CrewUIPreview />} />
           <Route path="/override-monitor" element={<OverrideMonitor />} />
           <Route path="/crew-dashboard" element={<CrewDashboard />} />
+          <Route path="/admin/email-activity" element={<EmailActivity />} />
           <Route path="/crew-patients" element={<CrewPatients />} />
           <Route path="/crew-schedule" element={<CrewSchedulePage />} />
            <Route path="/pcr" element={<PCRPage />} />
@@ -464,6 +466,7 @@ function AppRoutes() {
         <Route path="/settings" element={<AdminSettings />} />
         <Route path="/override-monitor" element={<OverrideMonitor />} />
         <Route path="/account" element={<AccountSettings />} />
+        <Route path="/admin/email-activity" element={<EmailActivity />} />
         <Route path="/legal" element={<LegalPage />} />
         {/* Crew routes for owners with cert + crew assignment */}
         <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
