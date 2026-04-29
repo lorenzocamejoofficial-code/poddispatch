@@ -15,9 +15,15 @@ export default function ForgotPassword() {
     e.preventDefault();
     if (!email.trim()) return;
     setLoading(true);
-    await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
+    try {
+      await supabase.functions.invoke("send-password-reset-via-resend", {
+        body: { email: email.trim() },
+      });
+    } catch (err) {
+      // Swallow — we always show generic confirmation to avoid leaking
+      // whether the email is registered.
+      console.error("forgot-password invoke failed", err);
+    }
     // Always show success — never reveal whether email exists
     setSent(true);
     setLoading(false);
