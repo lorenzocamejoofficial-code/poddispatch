@@ -157,15 +157,17 @@ function PaymentResultHandler() {
 }
 
 function AppRoutes() {
-  const { user, role, loading, membershipLoaded, isSystemCreator, onboardingStatus, activeCompanyId, subscriptionStatus, wizardCompleted } = useAuth();
+  const { user, role, loading, membershipLoaded, isSystemCreator, onboardingStatus, activeCompanyId, subscriptionStatus, wizardCompleted, passwordRecoveryMode } = useAuth();
   const location = useLocation();
   const isPasswordRecoveryFlow =
+    passwordRecoveryMode ||
     location.pathname === "/reset-password" ||
     location.hash.includes("type=recovery") ||
-    new URLSearchParams(location.search).get("type") === "recovery";
+    new URLSearchParams(location.search).get("type") === "recovery" ||
+    new URLSearchParams(location.search).has("token_hash");
 
   // Show loading while auth session OR membership data is still resolving
-  if (loading || (user && !membershipLoaded)) {
+  if (!isPasswordRecoveryFlow && (loading || (user && !membershipLoaded))) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
