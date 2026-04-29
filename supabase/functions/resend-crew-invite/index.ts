@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendViaResend, renderActionEmail } from "../_shared/send-via-resend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,7 +41,38 @@ Deno.serve(async (req) => {
     });
     if (linkErr) return json({ error: "Failed to generate invite link: " + linkErr.message }, 500);
 
-    return json({ ok: true, email, action_link: linkData?.properties?.action_link ?? null });
+    const actionUrl = linkData?.properties?.action_link ?? null;
+
+    // Best-effort delivery via Resend from noreply@thepoddispatch.com.
+    let delivery: { ok: boolean; error?: string; id?: string } = { ok: false, error: "no_action_link" };
+    if (actionUrl) {
+      const { html, text } = renderActionEmail({
+        heading: "You've been invited to PodDispatch",
+        intro:
+          "An admin from your company re-sent your invite to PodDispatch. Click the button below to set your password and finish setting up your account. This link will expire shortly for your security.",
+        actionLabel: "Set up my account",
+        actionUrl,
+        footer:
+          "If you weren't expecting this invite, you can safely ignore this email.",
+      });
+      delivery = await sendViaResend({
+        to: email,
+        subject: "Your PodDispatch invite",
+        html,
+        text,
+      });
+      if (!delivery.ok) {
+        console.error("resend-crew-invite delivery failed", delivery.error);
+      }
+    }
+
+    return json({
+      ok: true,
+      email,
+      action_link: actionUrl,
+      email_delivered: delivery.ok,
+      email_error: delivery.ok ? undefined : delivery.error,
+    });
   } catch (e) {
     console.error("resend-crew-invite error", e);
     return json({ error: "Internal server error" }, 500);
