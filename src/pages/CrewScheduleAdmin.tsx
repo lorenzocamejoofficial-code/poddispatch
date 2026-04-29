@@ -346,6 +346,7 @@ export default function CrewScheduleAdmin() {
     const crewCap: CrewCapability = {
       member1: crewRow?.member1 ? { sex: (crewRow.member1 as any).sex } : null,
       member2: crewRow?.member2 ? { sex: (crewRow.member2 as any).sex } : null,
+      member3: (crewRow as any)?.member3 ? { sex: ((crewRow as any).member3).sex } : null,
     };
     const truckEquip: TruckEquipment = {
       has_power_stretcher: truckRow?.has_power_stretcher ?? false,
