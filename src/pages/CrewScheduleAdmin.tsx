@@ -12,10 +12,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Link2, Trash2, Truck, AlertCircle, CalendarIcon, UserPlus, Phone, Mail, MessageSquareText, RefreshCw, Check } from "lucide-react";
+import { Copy, Link2, Trash2, Truck, AlertCircle, CalendarIcon, UserPlus, Phone, Mail, MessageSquareText, RefreshCw, Check, Send, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 interface ShareToken {
   id: string;
@@ -48,6 +49,10 @@ export default function CrewScheduleAdmin() {
   const [employees, setEmployees] = useState<ActiveEmployee[]>([]);
   const [companyName, setCompanyName] = useState("Dispatch");
   const [downTruckIds, setDownTruckIds] = useState<Set<string>>(new Set());
+  const [smsComingSoonOpen, setSmsComingSoonOpen] = useState(false);
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [sendingSchedule, setSendingSchedule] = useState(false);
+  const [scheduleEmailRecipient, setScheduleEmailRecipient] = useState("");
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
   const { selectedDate: scheduleDate, setSelectedDate: setScheduleDate } = useGlobalSchedulingStore();
@@ -86,12 +91,13 @@ export default function CrewScheduleAdmin() {
   }, []);
 
   const fetchEmployees = useCallback(async () => {
-    const [{ data: profiles }, { data: memberships }, { data: crewRows }] = await Promise.all([
+    const [{ data: profiles }, { data: memberships }, { data: crewRows }, emailsResp] = await Promise.all([
       supabase.from("profiles").select("id, full_name, phone_number, user_id, active, company_id").order("full_name"),
       supabase.from("company_memberships").select("user_id, role"),
       supabase.from("crews")
-        .select("member1_id, member2_id, truck_id, truck:trucks!crews_truck_id_fkey(name)")
+        .select("member1_id, member2_id, member3_id, truck_id, truck:trucks!crews_truck_id_fkey(name)")
         .eq("active_date", scheduleDate),
+      supabase.functions.invoke("list-company-emails").catch(() => ({ data: null })),
     ]);
     // Build a set of user_ids that have an active crew membership
     const crewMemberUserIds = new Set(
@@ -105,10 +111,12 @@ export default function CrewScheduleAdmin() {
       const info = { truck_id: c.truck_id, truck_name: c.truck?.name ?? "" };
       if (c.member1_id) crewMap.set(c.member1_id, info);
       if (c.member2_id) crewMap.set(c.member2_id, info);
+      if (c.member3_id) crewMap.set(c.member3_id, info);
     }
+    const emailMap: Record<string, string | null> = (emailsResp as any)?.data?.emails ?? {};
     setEmployees(validProfiles.map((p: any) => ({
       id: p.id, full_name: p.full_name, phone_number: p.phone_number,
-      email: null,
+      email: emailMap[p.user_id] ?? null,
       truck_id: crewMap.get(p.id)?.truck_id ?? null,
       truck_name: crewMap.get(p.id)?.truck_name ?? null,
     })));
@@ -129,9 +137,17 @@ export default function CrewScheduleAdmin() {
       .channel("crew-schedule-admin-sync")
       .on("postgres_changes", { event: "*", schema: "public", table: "crews" }, () => fetchEmployees())
       .on("postgres_changes", { event: "*", schema: "public", table: "truck_availability" }, () => fetchDownTrucks())
+      .on("postgres_changes", { event: "*", schema: "public", table: "leg_exceptions" }, () => {
+        // refetch leg exceptions for selected date
+        supabase.from("leg_exceptions" as any).select("*").eq("run_date", scheduleDate).then(({ data }) => {
+          const map = new Map<string, any>();
+          for (const ex of (data ?? []) as any[]) map.set(ex.scheduling_leg_id, ex);
+          setLegExceptions(map);
+        });
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [fetchEmployees, fetchDownTrucks]);
+  }, [fetchEmployees, fetchDownTrucks, scheduleDate]);
 
   const formattedScheduleDate = (() => {
     try {
@@ -157,6 +173,37 @@ export default function CrewScheduleAdmin() {
     setInviteCopied(true);
     toast.success("Crew login invite copied to clipboard");
     setTimeout(() => setInviteCopied(false), 2000);
+  };
+
+  const handleSendInvite = async () => {
+    if (!selectedInviteCrew) return;
+    if (inviteSendVia === "phone") {
+      setSmsComingSoonOpen(true);
+      return;
+    }
+    if (!selectedInviteCrew.email) {
+      toast.error("No email on file for this crew member");
+      return;
+    }
+    setSendingInvite(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-crew-schedule-email", {
+        body: {
+          kind: "invite",
+          to: selectedInviteCrew.email,
+          subject: `${companyName} — Crew Login Instructions`,
+          message: buildInviteMessage(selectedInviteCrew),
+        },
+      });
+      if (error || (data as any)?.error) {
+        throw new Error((data as any)?.error || error?.message || "Send failed");
+      }
+      toast.success(`Invite emailed to ${selectedInviteCrew.email}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to send invite");
+    } finally {
+      setSendingInvite(false);
+    }
   };
 
   // ─── Section 2: Daily Schedule Text ───
@@ -236,6 +283,45 @@ export default function CrewScheduleAdmin() {
     setScheduleCopied(true);
     toast.success("Schedule text copied to clipboard");
     setTimeout(() => setScheduleCopied(false), 2000);
+  };
+
+  // Auto-prefill schedule recipient with first crew member's email when truck changes
+  useEffect(() => {
+    if (!scheduleTruckId) { setScheduleEmailRecipient(""); return; }
+    const crew = crews.find(c => c.truck_id === scheduleTruckId);
+    if (!crew) { setScheduleEmailRecipient(""); return; }
+    const firstMemberId = crew.member1_id ?? (crew as any).member2_id ?? (crew as any).member3_id;
+    const emp = employees.find(e => e.id === firstMemberId);
+    setScheduleEmailRecipient(emp?.email ?? "");
+  }, [scheduleTruckId, crews, employees]);
+
+  const handleSendScheduleEmail = async () => {
+    const text = generateScheduleText();
+    if (!text) { toast.error("Select a truck first"); return; }
+    if (!scheduleEmailRecipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(scheduleEmailRecipient.trim())) {
+      toast.error("Enter a valid recipient email");
+      return;
+    }
+    const truck = trucks.find(t => t.id === scheduleTruckId);
+    setSendingSchedule(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-crew-schedule-email", {
+        body: {
+          kind: "schedule",
+          to: scheduleEmailRecipient.trim(),
+          subject: `${companyName} — ${truck?.name ?? "Route"} schedule for ${formattedScheduleDate}`,
+          message: text,
+        },
+      });
+      if (error || (data as any)?.error) {
+        throw new Error((data as any)?.error || error?.message || "Send failed");
+      }
+      toast.success(`Schedule emailed to ${scheduleEmailRecipient.trim()}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to send schedule");
+    } finally {
+      setSendingSchedule(false);
+    }
   };
 
   // ─── Section 3: Backup Share Link ───
