@@ -152,32 +152,112 @@ Deno.serve(async (req) => {
 
               const ediContent = await fileResponse.text();
 
-              // Parse 835 content — inline minimal parser for edge function context
-              // Match claims by member_id and date_of_service against claim_records
-              const clpMatches = ediContent.match(/CLP\*[^~]+/g) ?? [];
+              // Parse 835 content — inline minimal parser for edge function context.
+              // We extract: file-level Billing Provider NPI (NM1*85 before any CLP),
+              // then for each CLP we capture the claim reference, payer control #,
+              // amounts, status, and any per-claim NM1*85 override.
+              const segments = ediContent.split("~").map(s => s.replace(/[\r\n]/g, "").trim()).filter(Boolean);
+
+              // Look up the importing company's billing NPI (the company whose creds we used)
+              const { data: importingCompany } = await supabase
+                .from("companies")
+                .select("npi_number, name")
+                .eq("id", settings.company_id)
+                .maybeSingle();
+              const importingNpi = (importingCompany?.npi_number ?? "").trim();
+
+              type ParsedClp = {
+                pcn: string;
+                payerControlNum: string;
+                statusCode: string;
+                paidAmount: number;
+                patientResp: number;
+                billingNpi: string;
+                rawSegment: string;
+              };
+
+              let fileLevelBillingNpi = "";
+              const claims: ParsedClp[] = [];
+              let current: ParsedClp | null = null;
+
+              for (const seg of segments) {
+                const els = seg.split("*");
+                const tag = els[0];
+                if (tag === "NM1" && els[1] === "85") {
+                  const npi = (els[9] ?? "").trim();
+                  if (current) current.billingNpi = npi;
+                  else fileLevelBillingNpi = npi;
+                } else if (tag === "CLP") {
+                  if (current) claims.push(current);
+                  current = {
+                    pcn: els[1] ?? "",
+                    payerControlNum: els[7] ?? "",
+                    statusCode: els[2] ?? "",
+                    paidAmount: parseFloat(els[4] ?? "0") || 0,
+                    patientResp: parseFloat(els[5] ?? "0") || 0,
+                    billingNpi: fileLevelBillingNpi,
+                    rawSegment: seg,
+                  };
+                }
+              }
+              if (current) claims.push(current);
 
               let claimsMatched = 0;
               let claimsUpdated = 0;
               let totalPaid = 0;
+              let claimsQuarantined = 0;
 
-              for (const clpSegment of clpMatches) {
-                const els = clpSegment.split("*");
-                const paidAmount = parseFloat(els[4] ?? "0") || 0;
-                const patientResp = parseFloat(els[5] ?? "0") || 0;
-                const payerControlNum = els[7] ?? "";
+              for (const c of claims) {
+                const { pcn, payerControlNum, statusCode, paidAmount, patientResp, billingNpi, rawSegment } = c;
+
+                // ===== NPI verification gate =====
+                // If the 835 carries a Billing NPI and we know the importing company's NPI,
+                // they MUST match. Otherwise quarantine and do NOT post payment.
+                const npiMismatch =
+                  billingNpi.length > 0 &&
+                  importingNpi.length > 0 &&
+                  billingNpi !== importingNpi;
+
+                if (npiMismatch) {
+                  // Try to find the company that DOES own this NPI (for review hint)
+                  const { data: trueOwner } = await supabase
+                    .from("companies")
+                    .select("id")
+                    .eq("npi_number", billingNpi)
+                    .maybeSingle();
+
+                  await supabase.from("remittance_quarantine").insert({
+                    importing_company_id: settings.company_id,
+                    matched_company_id: trueOwner?.id ?? null,
+                    patient_control_number: pcn,
+                    payer_claim_control_number: payerControlNum,
+                    billing_npi_in_file: billingNpi,
+                    expected_billing_npi: importingNpi,
+                    paid_amount: paidAmount,
+                    patient_responsibility: patientResp,
+                    claim_status_code: statusCode,
+                    file_name: file.fileName ?? fileId,
+                    raw_clp_segment: rawSegment,
+                    quarantine_reason: trueOwner?.id
+                      ? `NPI mismatch — file NPI ${billingNpi} belongs to a different company (not importing company ${importingCompany?.name ?? settings.company_id})`
+                      : `NPI mismatch — file NPI ${billingNpi} does not match importing company NPI ${importingNpi} and no other company in the system owns that NPI`,
+                    status: "pending_review",
+                  });
+                  claimsQuarantined++;
+                  continue; // do not post
+                }
 
                 // Try to match claim by payer_claim_control_number
                 if (payerControlNum) {
                   const { data: matchedClaims } = await supabase
                     .from("claim_records")
-                    .select("id")
+                    .select("id, company_id")
                     .eq("company_id", settings.company_id)
                     .eq("payer_claim_control_number", payerControlNum)
                     .limit(1);
 
                   if (matchedClaims?.length) {
                     claimsMatched++;
-                    const statusCode = els[2] ?? "";
                     const newStatus = (statusCode === "1" || statusCode === "19") ? "paid" :
                                       (statusCode === "3" || statusCode === "4") ? "denied" : "needs_correction";
 
@@ -196,12 +276,38 @@ Deno.serve(async (req) => {
                       claimsUpdated++;
                       totalPaid += paidAmount;
                     }
+                  } else {
+                    // No matching claim under this company — quarantine for review.
+                    // Could be: stale control #, claim under a different company, or test data.
+                    await supabase.from("remittance_quarantine").insert({
+                      importing_company_id: settings.company_id,
+                      matched_company_id: null,
+                      patient_control_number: pcn,
+                      payer_claim_control_number: payerControlNum,
+                      billing_npi_in_file: billingNpi,
+                      expected_billing_npi: importingNpi,
+                      paid_amount: paidAmount,
+                      patient_responsibility: patientResp,
+                      claim_status_code: statusCode,
+                      file_name: file.fileName ?? fileId,
+                      raw_clp_segment: rawSegment,
+                      quarantine_reason: `No matching claim found under importing company for payer control number ${payerControlNum}`,
+                      status: "pending_review",
+                    });
+                    claimsQuarantined++;
                   }
                 }
               }
 
               // Record the imported file
-              await supabase.from("remittance_files" as any).insert({
+              const fileStatus = claims.length === 0
+                ? "no_claims"
+                : claimsQuarantined > 0 && claimsMatched === 0
+                  ? "quarantined"
+                  : claimsMatched === 0
+                    ? "unmatched"
+                    : "imported";
+              const { data: insertedFile } = await supabase.from("remittance_files" as any).insert({
                 company_id: settings.company_id,
                 file_identifier: fileId,
                 file_name: file.fileName ?? fileId,
@@ -210,8 +316,18 @@ Deno.serve(async (req) => {
                 claims_matched: claimsMatched,
                 claims_updated: claimsUpdated,
                 total_paid: totalPaid,
-                status: clpMatches.length === 0 ? "no_claims" : (claimsMatched === 0 ? "unmatched" : "imported"),
-              });
+                status: fileStatus,
+              }).select("id").maybeSingle();
+
+              // Back-fill remittance_file_id on the just-created quarantine rows for this file
+              if (insertedFile?.id && claimsQuarantined > 0) {
+                await supabase
+                  .from("remittance_quarantine")
+                  .update({ remittance_file_id: insertedFile.id })
+                  .eq("file_name", file.fileName ?? fileId)
+                  .eq("importing_company_id", settings.company_id)
+                  .is("remittance_file_id", null);
+              }
 
               totalReceived++;
             }
