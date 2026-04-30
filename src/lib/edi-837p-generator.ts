@@ -357,7 +357,9 @@ export function generateEDI837P(
   const timeStr = formatTime4();
 
   // ISA - Interchange Control Header
-  const receiverId = (submitterInfo.receiver_id || "OFFICEALLY").toUpperCase();
+  // Per Office Ally Companion Guide (table 7.1), ISA08 must be OA's Tax ID.
+  const OA_RECEIVER_ID = "330897513";
+  const OA_RECEIVER_NAME = "OFFICE ALLY";
   const usageIndicator = submitterInfo.usage_indicator === "T" ? "T" : "P";
   segments.push(
     [
@@ -369,7 +371,7 @@ export function generateEDI837P(
       "ZZ",                          // Interchange Sender Qualifier
       pad(submitterInfo.submitter_id, 15), // Interchange Sender ID
       "ZZ",                          // Interchange Receiver Qualifier
-      pad(receiverId, 15),           // Interchange Receiver ID
+      pad(OA_RECEIVER_ID, 15),      // Interchange Receiver ID (OA Tax ID per Companion Guide)
       dateStr.slice(2),              // Date (YYMMDD)
       timeStr,                       // Time (HHMM)
       "^",                           // Repetition Separator
@@ -387,7 +389,7 @@ export function generateEDI837P(
       "GS",
       "HC",                          // Functional Identifier Code (Health Care)
       submitterInfo.submitter_id,
-      receiverId,
+      OA_RECEIVER_ID,
       dateStr,
       timeStr,
       groupControlNum,
@@ -425,7 +427,7 @@ export function generateEDI837P(
     addSeg(["PER", "IC", submitterInfo.contact_name, "TE", submitterInfo.contact_phone.replace(/\D/g, "")].join(ES));
 
     // --- RECEIVER (1000B) ---
-    addSeg(["NM1", "40", "2", receiverId, "", "", "", "", "46", receiverId].join(ES));
+    addSeg(["NM1", "40", "2", OA_RECEIVER_NAME, "", "", "", "", "46", OA_RECEIVER_ID].join(ES));
 
     // --- BILLING PROVIDER HL (2000A) ---
     addSeg(["HL", "1", "", "20", "1"].join(ES));
@@ -568,8 +570,8 @@ export function generateEDI837P(
     // --- Loop 2310E: Ambulance Pickup Location ---
     // CMS requires Loop 2310E on every ambulance claim regardless of origin
     // type — the pickup ZIP drives the GPCI / geographic payment adjustment.
-    // For residences, the facility name (NM1*PW) is left blank but N3/N4 are
-    // still emitted with the pickup street/city/state/ZIP.
+    // For residences, NM103 must be "PATIENT RESIDENCE" (non-person entity)
+    // per CMS ambulance billing guidelines. NM102 stays "2".
     if (claim.origin_address || claim.origin_zip) {
       const origAddr = parseAddressString(claim.origin_address);
       const origStreet = origAddr.street || claim.origin_address || "UNKNOWN";
@@ -577,7 +579,7 @@ export function generateEDI837P(
       const origState = claim.origin_state || origAddr.state || "";
       const origZip = claim.origin_zip || origAddr.zip || "";
       const isResidenceOrigin = claim.origin_type && claim.origin_type.toLowerCase().includes("resid");
-      const origFacName = isResidenceOrigin ? "" : (claim.pickup_facility_name || "").toUpperCase();
+      const origFacName = isResidenceOrigin ? "PATIENT RESIDENCE" : (claim.pickup_facility_name || "").toUpperCase();
       addSeg(["NM1", "PW", "2", origFacName, "", "", "", "", "", ""].join(ES));
       addSeg(["N3", origStreet].join(ES));
       addSeg(["N4", origCity, origState, origZip].join(ES));
