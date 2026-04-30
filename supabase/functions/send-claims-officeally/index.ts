@@ -33,6 +33,12 @@ const corsHeaders = {
  *      records the response on claim_records, and updates clearinghouse_settings.
  *   3. Add retry, rate limiting, and per-claim error isolation BEFORE flipping
  *      auto_send_enabled back on for any company.
+ *   4. Honor clearinghouse_settings.test_mode: when true, route to the OATEST
+ *      endpoint, use clearinghouse_settings.test_submitter_id, set ISA15="T"
+ *      on generated artifacts, and tag claim_records.is_test_submission=true.
+ *      Apply the same fail-fast credential checks used by check-eligibility
+ *      and retrieve-remittance-officeally (return clear errors and flip
+ *      is_configured=false when the SFTP/HTTP password is missing).
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {

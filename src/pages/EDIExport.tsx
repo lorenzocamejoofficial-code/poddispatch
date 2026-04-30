@@ -218,6 +218,7 @@ export default function EDIExport() {
         contact_name: row.contact_name || prev.contact_name,
         contact_phone: row.contact_phone || prev.contact_phone,
         receiver_id: row.receiver_id || "OFFICEALLY",
+        usage_indicator: row.test_mode === true ? "T" : "P",
       }));
     }
   }, []);

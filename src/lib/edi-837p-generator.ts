@@ -81,6 +81,10 @@ export interface SubmitterInfo {
   /** Office Ally (or other clearinghouse) receiver ID. Defaults to "OFFICEALLY"
    *  when not supplied. Must come from clearinghouse_settings.receiver_id. */
   receiver_id?: string;
+  /** ISA15 Usage Indicator: "P" = Production (default), "T" = Test (OATEST).
+   *  When test mode is enabled in clearinghouse_settings, set this to "T" so
+   *  Office Ally routes the file through the test environment. */
+  usage_indicator?: "P" | "T";
 }
 
 // Element separator, sub-element separator, segment terminator
@@ -354,6 +358,7 @@ export function generateEDI837P(
 
   // ISA - Interchange Control Header
   const receiverId = (submitterInfo.receiver_id || "OFFICEALLY").toUpperCase();
+  const usageIndicator = submitterInfo.usage_indicator === "T" ? "T" : "P";
   segments.push(
     [
       "ISA",
@@ -371,7 +376,7 @@ export function generateEDI837P(
       "00501",                       // Interchange Control Version
       padLeft(interchangeControlNum, 9), // Interchange Control Number
       "0",                           // Acknowledgment Requested
-      "P",                           // Usage Indicator (P=Production)
+      usageIndicator,                // Usage Indicator (P=Production, T=Test/OATEST)
       SE_SEP,                        // Component Element Separator
     ].join(ES) + ST
   );
