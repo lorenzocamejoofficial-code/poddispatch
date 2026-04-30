@@ -164,6 +164,30 @@ export default function AdminSettings() {
           </div>
         </section>
 
+        {/* Email Diagnostics */}
+        {isOwner && (
+          <section className="space-y-3 rounded-lg border border-border p-4 bg-muted/20">
+            <div className="flex items-start gap-2">
+              <Mail className="h-4 w-4 mt-0.5 text-muted-foreground" />
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-foreground">Email Diagnostics</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Send a test email to your own address to verify deliverability and preview the
+                  sender name your crews and patients will see.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleSendTestEmail}
+              disabled={sendingTestEmail}
+            >
+              {sendingTestEmail ? "Sending…" : "Send test email to me"}
+            </Button>
+          </section>
+        )}
+
         {/* Grace Window */}
         <section className="space-y-3">
           <div>
