@@ -32,6 +32,7 @@ export interface ParsedRemittanceItem {
   service_lines: ServiceLine[];
   raw_denial_codes: string[]; // e.g. ["CO-45", "PR-1"]
   payment_date: string; // from BPR16 or DTM, ISO format
+  billing_provider_npi: string; // NM1*85 (Billing Provider) — used for multi-tenant routing safety
 }
 
 const CLP_STATUS_MAP: Record<string, string> = {
@@ -107,6 +108,7 @@ export function parseEDI835(rawContent: string): ParsedRemittanceItem[] {
   let payerName = "";
   let payerId = "";
   let bprPaymentDate = ""; // BPR16 payment date, applies to all claims in the file
+  let fileBillingNpi = ""; // NM1*85 at the file/header level — applies to all claims unless overridden
 
   for (let i = 0; i < segments.length; i++) {
     const els = parseElements(segments[i]);
@@ -127,6 +129,14 @@ export function parseEDI835(rawContent: string): ParsedRemittanceItem[] {
         // Payer
         payerName = els[3] || "";
         payerId = els[9] || "";
+      } else if (entityId === "85") {
+        // Billing Provider — critical for multi-tenant routing
+        const npi = els[9] || "";
+        if (currentClaim) {
+          currentClaim.billing_provider_npi = npi;
+        } else {
+          fileBillingNpi = npi;
+        }
       } else if (entityId === "QC" && currentClaim) {
         // Patient
         const last = els[3] || "";
@@ -169,6 +179,7 @@ export function parseEDI835(rawContent: string): ParsedRemittanceItem[] {
         service_lines: [],
         raw_denial_codes: [],
         payment_date: bprPaymentDate, // default from BPR, may be overridden by DTM
+        billing_provider_npi: fileBillingNpi, // inherit from file header; may be overridden by per-claim NM1*85
       };
     }
 

@@ -2856,6 +2856,107 @@ export type Database = {
           },
         ]
       }
+      remittance_quarantine: {
+        Row: {
+          billing_npi_in_file: string | null
+          claim_status_code: string | null
+          created_at: string
+          expected_billing_npi: string | null
+          file_name: string | null
+          id: string
+          importing_company_id: string | null
+          matched_company_id: string | null
+          paid_amount: number | null
+          patient_control_number: string | null
+          patient_responsibility: number | null
+          payer_claim_control_number: string | null
+          posted_to_claim_id: string | null
+          quarantine_reason: string
+          raw_clp_segment: string | null
+          remittance_file_id: string | null
+          resolution_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          billing_npi_in_file?: string | null
+          claim_status_code?: string | null
+          created_at?: string
+          expected_billing_npi?: string | null
+          file_name?: string | null
+          id?: string
+          importing_company_id?: string | null
+          matched_company_id?: string | null
+          paid_amount?: number | null
+          patient_control_number?: string | null
+          patient_responsibility?: number | null
+          payer_claim_control_number?: string | null
+          posted_to_claim_id?: string | null
+          quarantine_reason: string
+          raw_clp_segment?: string | null
+          remittance_file_id?: string | null
+          resolution_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          billing_npi_in_file?: string | null
+          claim_status_code?: string | null
+          created_at?: string
+          expected_billing_npi?: string | null
+          file_name?: string | null
+          id?: string
+          importing_company_id?: string | null
+          matched_company_id?: string | null
+          paid_amount?: number | null
+          patient_control_number?: string | null
+          patient_responsibility?: number | null
+          payer_claim_control_number?: string | null
+          posted_to_claim_id?: string | null
+          quarantine_reason?: string
+          raw_clp_segment?: string | null
+          remittance_file_id?: string | null
+          resolution_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remittance_quarantine_importing_company_id_fkey"
+            columns: ["importing_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remittance_quarantine_matched_company_id_fkey"
+            columns: ["matched_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remittance_quarantine_posted_to_claim_id_fkey"
+            columns: ["posted_to_claim_id"]
+            isOneToOne: false
+            referencedRelation: "claim_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remittance_quarantine_remittance_file_id_fkey"
+            columns: ["remittance_file_id"]
+            isOneToOne: false
+            referencedRelation: "remittance_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       runs: {
         Row: {
           company_id: string | null
