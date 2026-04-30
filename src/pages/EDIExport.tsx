@@ -726,6 +726,16 @@ export default function EDIExport() {
                   )}
                   Generate 837P
                 </Button>
+                <Button
+                  onClick={() => setPreviewOpen(true)}
+                  disabled={generating}
+                  size="lg"
+                  variant="outline"
+                  className="gap-2 ml-2"
+                >
+                  <Eye className="h-4 w-4" />
+                  Preview Summary
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -739,6 +749,85 @@ export default function EDIExport() {
             your clearinghouse portal for submission.
           </AlertDescription>
         </Alert>
+
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                Readable Claim Summary
+                <Badge variant={testMode ? "outline" : "default"} className={testMode ? "border-amber-400 text-amber-700" : ""}>
+                  {testMode ? "🧪 TEST MODE (OATEST)" : "🟢 LIVE MODE (Production)"}
+                </Badge>
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                What's actually inside the 837P file you're about to download. No EDI knowledge needed.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-3 bg-muted rounded">
+                  <div className="text-2xl font-bold">{selectedClaims.length}</div>
+                  <div className="text-xs text-muted-foreground">Claims</div>
+                </div>
+                <div className="p-3 bg-muted rounded">
+                  <div className="text-2xl font-bold font-mono">${totalCharge.toFixed(2)}</div>
+                  <div className="text-xs text-muted-foreground">Total Charges</div>
+                </div>
+                <div className="p-3 bg-muted rounded">
+                  <div className="text-2xl font-bold">{providerInfo.organization_name || "—"}</div>
+                  <div className="text-xs text-muted-foreground">Billing Provider</div>
+                </div>
+              </div>
+
+              <div className="text-xs space-y-1 p-3 bg-muted/40 rounded">
+                <div><span className="text-muted-foreground">Sending to:</span> <span className="font-mono">{submitterInfo.receiver_id || "OFFICEALLY"}</span></div>
+                <div><span className="text-muted-foreground">Submitter ID:</span> <span className="font-mono">{submitterInfo.submitter_id || "—"}</span></div>
+                <div><span className="text-muted-foreground">Provider NPI:</span> <span className="font-mono">{providerInfo.npi || "—"}</span></div>
+                <div><span className="text-muted-foreground">Provider Tax ID:</span> <span className="font-mono">{providerInfo.tax_id || "—"}</span></div>
+              </div>
+
+              <div className="border rounded-md overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b bg-muted/40">
+                      <th className="p-2 text-left font-medium text-muted-foreground">Patient</th>
+                      <th className="p-2 text-left font-medium text-muted-foreground">DOS</th>
+                      <th className="p-2 text-left font-medium text-muted-foreground">Payer</th>
+                      <th className="p-2 text-left font-medium text-muted-foreground">Member ID</th>
+                      <th className="p-2 text-left font-medium text-muted-foreground">HCPCS</th>
+                      <th className="p-2 text-right font-medium text-muted-foreground">Miles</th>
+                      <th className="p-2 text-right font-medium text-muted-foreground">Charge</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedClaims.map((c) => (
+                      <tr key={c.id} className="border-b last:border-0">
+                        <td className="p-2 font-medium">{c.patient_last_name}, {c.patient_first_name}</td>
+                        <td className="p-2">{c.run_date}</td>
+                        <td className="p-2 capitalize">{c.payer_type}</td>
+                        <td className="p-2 font-mono">{c.patient_member_id || c.member_id || "—"}</td>
+                        <td className="p-2 font-mono">{(c.hcpcs_codes || []).join(", ") || "—"}</td>
+                        <td className="p-2 text-right font-mono">{c.trip_loaded_miles ?? "—"}</td>
+                        <td className="p-2 text-right font-mono">${(c.total_charge || 0).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {testMode && (
+                <Alert className="border-amber-400/50 bg-amber-50/60 dark:bg-amber-950/20">
+                  <FlaskConical className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <AlertDescription className="text-xs">
+                    This file will be tagged <strong>TEST</strong> in the X12 envelope (ISA15=T) and routed to
+                    OATEST. Office Ally will validate format but won't pay or adjudicate.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   );
