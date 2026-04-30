@@ -1217,6 +1217,14 @@ export default function BillingAndClaims() {
           </div>
         </div>
 
+        {/* Remittance Activity (only when Office Ally is wired up) */}
+        {clearinghouseConfigured && activeCompanyId && (
+          <RemittanceActivityPanel
+            companyId={activeCompanyId}
+            refreshKey={remittanceRefreshKey}
+          />
+        )}
+
         {/* Summary KPIs */}
         <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
           <div className="rounded-lg border bg-card p-4">
