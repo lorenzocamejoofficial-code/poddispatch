@@ -5,9 +5,20 @@
 // Requires the RESEND_API_KEY secret. The sending domain (thepoddispatch.com)
 // must be verified in the Resend dashboard.
 
-const FROM_ADDRESS = "PodDispatch <noreply@thepoddispatch.com>";
+const DEFAULT_FROM_ADDRESS = "PodDispatch <noreply@thepoddispatch.com>";
 const FROM_EMAIL = "noreply@thepoddispatch.com";
-const FROM_NAME = "PodDispatch";
+const DEFAULT_FROM_NAME = "PodDispatch";
+
+// Sanitize a tenant company name for safe use inside an RFC 5322 display name.
+// Strips quotes, angle brackets, line breaks, and trims to a reasonable length.
+function sanitizeFromName(raw: string | null | undefined): string {
+  if (!raw) return "";
+  return String(raw)
+    .replace(/[\r\n"<>]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
+}
 
 export interface SendEmailInput {
   to: string;
@@ -15,6 +26,11 @@ export interface SendEmailInput {
   html: string;
   text?: string;
   reply_to?: string;
+  // Optional override for the From display name. When provided (typically a
+  // tenant company name), the sender appears as "{from_name} via PodDispatch
+  // <noreply@thepoddispatch.com>". The sending address never changes — only
+  // the display name in the From: header is rebranded.
+  from_name?: string;
   // Logging context (optional — when omitted, row still logs with company_id null)
   email_type?: "password_reset" | "signup_verification" | "crew_invite" | "crew_schedule" | "other";
   company_id?: string | null;
@@ -37,6 +53,16 @@ export async function sendViaResend(input: SendEmailInput): Promise<SendEmailRes
     return { ok: false, error: "to, subject, and html are required" };
   }
 
+  // Build From: header. Tenant emails get "{Company} via PodDispatch", system
+  // emails (no override) keep the plain "PodDispatch" identity.
+  const cleanedTenantName = sanitizeFromName(input.from_name);
+  const effectiveFromName = cleanedTenantName
+    ? `${cleanedTenantName} via PodDispatch`
+    : DEFAULT_FROM_NAME;
+  const fromAddress = cleanedTenantName
+    ? `${effectiveFromName} <${FROM_EMAIL}>`
+    : DEFAULT_FROM_ADDRESS;
+
   // Insert pending log row via service role (best-effort — never block sending)
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -58,7 +84,7 @@ export async function sendViaResend(input: SendEmailInput): Promise<SendEmailRes
           email_type: input.email_type ?? "other",
           subject: input.subject,
           from_address: FROM_EMAIL,
-          from_name: FROM_NAME,
+          from_name: effectiveFromName,
           status: "pending",
         }),
       });
@@ -94,7 +120,7 @@ export async function sendViaResend(input: SendEmailInput): Promise<SendEmailRes
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: FROM_ADDRESS,
+        from: fromAddress,
         to: [input.to],
         subject: input.subject,
         html: input.html,
