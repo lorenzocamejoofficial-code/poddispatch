@@ -167,6 +167,7 @@ export default function BillingAndClaims() {
   const [savingRate, setSavingRate] = useState(false);
   const [addingRate, setAddingRate] = useState(false);
   const [queueTrips, setQueueTrips] = useState<any[]>([]);
+  const [queueLoading, setQueueLoading] = useState(true);
   const [payerRulesMap, setPayerRulesMap] = useState<Map<string, any>>(new Map());
   const { selectedDate: sharedDate, setSelectedDate: setSharedDate } = useSchedulingStore();
   const dateFilter = sharedDate;
@@ -240,6 +241,7 @@ export default function BillingAndClaims() {
   }, [simulationRunId]);
 
   const fetchQueueTrips = useCallback(async () => {
+    setQueueLoading(true);
     let tripQuery = supabase
       .from("trip_records" as any)
       .select("*, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer)")
@@ -253,7 +255,7 @@ export default function BillingAndClaims() {
 
     const { data: tripRows } = await tripQuery;
 
-    if (!tripRows?.length) { setQueueTrips([]); return; }
+    if (!tripRows?.length) { setQueueTrips([]); setQueueLoading(false); return; }
 
     const patientIds = [...new Set((tripRows as any[]).map((t: any) => t.patient_id).filter(Boolean))];
     const truckIds = [...new Set((tripRows as any[]).map((t: any) => t.truck_id).filter(Boolean))];
@@ -284,6 +286,7 @@ export default function BillingAndClaims() {
         };
       })
     );
+    setQueueLoading(false);
   }, [dateFilter, simulationRunId]);
 
   const fetchOverrideLogs = useCallback(async () => {
@@ -334,9 +337,16 @@ export default function BillingAndClaims() {
     }));
   }, [simulationRunId]);
 
+  // Prioritize the Trip Queue fetch (it's the landing tab and the smallest
+  // payload). Defer the heavy claims fetch + override logs so they don't
+  // compete with the queue render or block the main thread when the user
+  // arrives from AR Command Center.
   useEffect(() => {
-    fetchData(); fetchQueueTrips(); fetchOverrideLogs();
-    // Check if clearinghouse is configured
+    fetchQueueTrips();
+    // Yield a tick so React can paint the Trip Queue first, then kick off
+    // the heavier background fetches.
+    const t1 = setTimeout(() => { fetchData(); }, 0);
+    const t2 = setTimeout(() => { fetchOverrideLogs(); }, 50);
     if (activeCompanyId) {
       supabase.from("clearinghouse_settings" as any)
         .select("is_configured")
@@ -346,6 +356,7 @@ export default function BillingAndClaims() {
           setClearinghouseConfigured(!!(data as any)?.is_configured);
         });
     }
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [fetchData, fetchQueueTrips, fetchOverrideLogs, activeCompanyId]);
 
   useEffect(() => {
@@ -1214,11 +1225,21 @@ export default function BillingAndClaims() {
 
         {/* Trip Queue - One Screen View */}
         <TabsContent value="trip-queue" className="m-0">
-          <BillingQueueView
-            trips={queueTrips}
-            payerRulesMap={payerRulesMap}
-            onRefresh={() => { fetchQueueTrips(); fetchData(); fetchOverrideLogs(); }}
-          />
+          {queueLoading && queueTrips.length === 0 ? (
+            <div className="space-y-2 p-2">
+              <div className="h-6 w-64 animate-pulse rounded bg-muted" />
+              <div className="h-20 w-full animate-pulse rounded bg-muted" />
+              <div className="h-20 w-full animate-pulse rounded bg-muted" />
+              <div className="h-20 w-full animate-pulse rounded bg-muted" />
+              <p className="text-xs text-muted-foreground text-center pt-2">Loading trip queue…</p>
+            </div>
+          ) : (
+            <BillingQueueView
+              trips={queueTrips}
+              payerRulesMap={payerRulesMap}
+              onRefresh={() => { fetchQueueTrips(); fetchData(); fetchOverrideLogs(); }}
+            />
+          )}
         </TabsContent>
 
         {/* Claims Board */}
