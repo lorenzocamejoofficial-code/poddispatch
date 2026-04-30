@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.admin-trigger-password-reset]
 verify_jwt = false
+
+[functions.sftp-test-connection]
+verify_jwt = false
