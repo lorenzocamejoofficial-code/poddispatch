@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { toast } from "@/hooks/use-toast";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -9,59 +9,71 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SchedulingProvider } from "@/hooks/useSchedulingStore";
 import { SimulationSessionProvider } from "@/hooks/useSimulationSession";
 import { HipaaAcknowledgmentGate } from "@/components/compliance/HipaaAcknowledgmentGate";
+// Eagerly load only what's needed for first paint on the public/auth path.
 import Login from "./pages/Login";
-import DispatchBoard from "./pages/DispatchBoard";
-import CrewView from "./pages/CrewView";
-import Patients from "./pages/Patients";
-import Employees from "./pages/Employees";
-import TrucksCrews from "./pages/TrucksCrews";
-import Runs from "./pages/Runs";
-import Scheduling from "./pages/Scheduling";
-import AdminSettings from "./pages/AdminSettings";
-import CrewScheduleAdmin from "./pages/CrewScheduleAdmin";
-import DailyRunSheet from "./pages/DailyRunSheet";
-import NotFound from "./pages/NotFound";
-import TripsAndClinical from "./pages/TripsAndClinical";
-import BillingAndClaims from "./pages/BillingAndClaims";
-import ComplianceAndQA from "./pages/ComplianceAndQA";
-import FacilitiesPage from "./pages/FacilitiesPage";
-import ReportsAndMetrics from "./pages/ReportsAndMetrics";
-import MigrationOnboarding from "./pages/MigrationOnboarding";
-
-import SystemCreatorDashboard from "./pages/SystemCreatorDashboard";
-import CompanySignup from "./pages/CompanySignup";
-import PendingApproval from "./pages/PendingApproval";
-import CreatorConsole from "./pages/CreatorConsole";
-import SandboxPage from "./pages/SandboxPage";
-import CreatorSettings from "./pages/CreatorSettings";
-import SimulationLab from "./pages/SimulationLab";
-import CrewUIPreview from "./pages/CrewUIPreview";
-import OverrideMonitor from "./pages/OverrideMonitor";
-import EmailActivity from "./pages/EmailActivity";
-import AcceptInvite from "./pages/AcceptInvite";
-import CreateCompany from "./pages/CreateCompany";
-import AccountSettings from "./pages/AccountSettings";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import ForgotEmail from "./pages/ForgotEmail";
-import CreatorRecovery from "./pages/CreatorRecovery";
-import SuspendedPage from "./pages/SuspendedPage";
-import CrewDashboard from "./pages/CrewDashboard";
-import PCRPage from "./pages/PCRPage";
-import CrewPatients from "./pages/crew/CrewPatients";
-import CrewSchedulePage from "./pages/crew/CrewSchedule";
-import OnboardingWizard from "./pages/OnboardingWizard";
-import TrialExpired from "./pages/TrialExpired";
-import CompletePayment from "./pages/CompletePayment";
-import EDIExport from "./pages/EDIExport";
-import LegalPage from "./pages/LegalPage";
-import RemittanceImport from "./pages/RemittanceImport";
-import OwnerDashboard from "./pages/OwnerDashboard";
-import ARCommandCenter from "./pages/ARCommandCenter";
 import Index from "./pages/Index";
-import CrewInspectionChecklist from "./components/inspection/CrewInspectionChecklist";
+import NotFound from "./pages/NotFound";
+
+// Everything else is lazy. The browser only fetches the chunk for the
+// route a user actually visits, dramatically cutting initial JS parse time
+// (which was the main cause of the "page is slow" freezes).
+const DispatchBoard = lazy(() => import("./pages/DispatchBoard"));
+const Patients = lazy(() => import("./pages/Patients"));
+const Employees = lazy(() => import("./pages/Employees"));
+const TrucksCrews = lazy(() => import("./pages/TrucksCrews"));
+const Runs = lazy(() => import("./pages/Runs"));
+const Scheduling = lazy(() => import("./pages/Scheduling"));
+const AdminSettings = lazy(() => import("./pages/AdminSettings"));
+const CrewScheduleAdmin = lazy(() => import("./pages/CrewScheduleAdmin"));
+const DailyRunSheet = lazy(() => import("./pages/DailyRunSheet"));
+const TripsAndClinical = lazy(() => import("./pages/TripsAndClinical"));
+const BillingAndClaims = lazy(() => import("./pages/BillingAndClaims"));
+const ComplianceAndQA = lazy(() => import("./pages/ComplianceAndQA"));
+const FacilitiesPage = lazy(() => import("./pages/FacilitiesPage"));
+const ReportsAndMetrics = lazy(() => import("./pages/ReportsAndMetrics"));
+const MigrationOnboarding = lazy(() => import("./pages/MigrationOnboarding"));
+const SystemCreatorDashboard = lazy(() => import("./pages/SystemCreatorDashboard"));
+const CompanySignup = lazy(() => import("./pages/CompanySignup"));
+const PendingApproval = lazy(() => import("./pages/PendingApproval"));
+const CreatorConsole = lazy(() => import("./pages/CreatorConsole"));
+const CreatorSettings = lazy(() => import("./pages/CreatorSettings"));
+const SimulationLab = lazy(() => import("./pages/SimulationLab"));
+const CrewUIPreview = lazy(() => import("./pages/CrewUIPreview"));
+const OverrideMonitor = lazy(() => import("./pages/OverrideMonitor"));
+const EmailActivity = lazy(() => import("./pages/EmailActivity"));
+const AcceptInvite = lazy(() => import("./pages/AcceptInvite"));
+const CreateCompany = lazy(() => import("./pages/CreateCompany"));
+const AccountSettings = lazy(() => import("./pages/AccountSettings"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const ForgotEmail = lazy(() => import("./pages/ForgotEmail"));
+const CreatorRecovery = lazy(() => import("./pages/CreatorRecovery"));
+const SuspendedPage = lazy(() => import("./pages/SuspendedPage"));
+const CrewDashboard = lazy(() => import("./pages/CrewDashboard"));
+const PCRPage = lazy(() => import("./pages/PCRPage"));
+const CrewPatients = lazy(() => import("./pages/crew/CrewPatients"));
+const CrewSchedulePage = lazy(() => import("./pages/crew/CrewSchedule"));
+const OnboardingWizard = lazy(() => import("./pages/OnboardingWizard"));
+const TrialExpired = lazy(() => import("./pages/TrialExpired"));
+const CompletePayment = lazy(() => import("./pages/CompletePayment"));
+const EDIExport = lazy(() => import("./pages/EDIExport"));
+const LegalPage = lazy(() => import("./pages/LegalPage"));
+const RemittanceImport = lazy(() => import("./pages/RemittanceImport"));
+const OwnerDashboard = lazy(() => import("./pages/OwnerDashboard"));
+const ARCommandCenter = lazy(() => import("./pages/ARCommandCenter"));
+const CrewInspectionChecklist = lazy(() => import("./components/inspection/CrewInspectionChecklist"));
 import { useCrewViewEligibility } from "./hooks/useCrewViewEligibility";
 import { MaintenanceGate } from "./components/MaintenanceGate";
+
+// Lightweight fallback shown while a route chunk is downloading. Stays
+// visually consistent with the app's existing loading screens.
+function RouteFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+    </div>
+  );
+}
 
 /** Wrapper that renders crew routes only if the user is eligible (has cert + assigned today) */
 function CrewRouteGate({ children }: { children: React.ReactNode }) {
