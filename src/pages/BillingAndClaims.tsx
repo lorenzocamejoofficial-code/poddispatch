@@ -1182,6 +1182,9 @@ export default function BillingAndClaims() {
             <Button size="sm" variant="outline" onClick={scanForMissingClaims} title="Diagnostic: finds submitted PCRs without a claim record. Claims are auto-created by the database trigger; this scan should always come back clean.">
               <ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Scan for Missing Claims
             </Button>
+            <Button size="sm" variant="outline" onClick={async () => { await syncClaimsFromTrips(); fetchData(); }} title="Recovery: creates claim records (with HCPCS codes) for any submitted PCRs that don't have a claim yet. Use this when the auto-create trigger missed a trip.">
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Sync Claims from Trips
+            </Button>
             <Button size="sm" variant="outline" onClick={refreshExistingClaims}>
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Refresh Existing Claims
             </Button>
