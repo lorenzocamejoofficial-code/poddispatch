@@ -16,6 +16,7 @@ import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, 
 import { PayerDirectoryTab } from "@/components/billing/PayerDirectoryTab";
 import { MissingMoneyDetail } from "@/components/billing/MissingMoneyPanel";
 import { DenialRecoveryEngine } from "@/components/billing/DenialRecoveryEngine";
+import { RemittanceActivityPanel } from "@/components/billing/RemittanceActivityPanel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
