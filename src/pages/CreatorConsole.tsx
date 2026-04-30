@@ -30,6 +30,7 @@ import { CompanyVerificationPanel, type VerificationResult } from "@/components/
 import { logAuditEvent } from "@/lib/audit-logger";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RemittanceQuarantinePanel } from "@/components/creator/RemittanceQuarantinePanel";
+import { ReconciliationReportPanel } from "@/components/creator/ReconciliationReportPanel";
 
 interface CompanyRecord {
   id: string;
@@ -610,6 +611,7 @@ export default function CreatorConsole() {
             <TabsTrigger value="rejected">Rejected ({filtered("rejected").length})</TabsTrigger>
             <TabsTrigger value="archived">Archived ({filteredArchived().length})</TabsTrigger>
             <TabsTrigger value="remittance_quarantine">Remittance Quarantine</TabsTrigger>
+            <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending">
@@ -632,6 +634,9 @@ export default function CreatorConsole() {
           </TabsContent>
           <TabsContent value="remittance_quarantine">
             <RemittanceQuarantinePanel />
+          </TabsContent>
+          <TabsContent value="reconciliation">
+            <ReconciliationReportPanel />
           </TabsContent>
         </Tabs>
       )}
