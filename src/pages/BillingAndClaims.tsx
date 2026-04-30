@@ -1092,14 +1092,17 @@ export default function BillingAndClaims() {
     setSavingRate(false);
   };
 
-  const totalRevenue = claims.filter(c => c.status === "paid").reduce((sum, c) => sum + (c.amount_paid ?? 0), 0);
-  const totalPending = claims.filter(c => c.status === "ready_to_bill" || c.status === "submitted")
+  // Top-line revenue/AR/denial metrics ALWAYS exclude sandbox test submissions
+  // — they're not real money and would skew operational decisions.
+  const realClaims = claims.filter(c => !c.is_test_submission);
+  const totalRevenue = realClaims.filter(c => c.status === "paid").reduce((sum, c) => sum + (c.amount_paid ?? 0), 0);
+  const totalPending = realClaims.filter(c => c.status === "ready_to_bill" || c.status === "submitted")
     .reduce((sum, c) => sum + c.total_charge, 0);
-  const denialRate = claims.length > 0
-    ? ((claims.filter(c => c.status === "denied").length / claims.length) * 100).toFixed(1)
+  const denialRate = realClaims.length > 0
+    ? ((realClaims.filter(c => c.status === "denied").length / realClaims.length) * 100).toFixed(1)
     : "0.0";
 
-  const secondaryOpportunities = claims.filter(
+  const secondaryOpportunities = realClaims.filter(
     c => c.status === "paid" && c.patient_secondary_payer && !c.secondary_claim_generated
   ).length;
 
