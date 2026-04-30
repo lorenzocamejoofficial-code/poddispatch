@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileText, Download, Info, FlaskConical, Eye, FileCheck2 } from "lucide-react";
+import { FileText, Download, Info, FlaskConical, Eye, FileCheck2, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Link as RouterLink } from "react-router-dom";
@@ -69,6 +69,7 @@ export default function EDIExport() {
   const [testMode, setTestMode] = useState(false);
   const [testSubmitterId, setTestSubmitterId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [providerInfo, setProviderInfo] = useState<ProviderInfo>({
     npi: "",
@@ -480,6 +481,177 @@ export default function EDIExport() {
     await handleGenerate();
   };
 
+  // Queue the generated 837P for automatic SFTP submission via Railway worker
+  const handleSubmitToQueue = async () => {
+    if (selectedClaims.length === 0) {
+      toast.error("Select at least one claim to submit");
+      return;
+    }
+    const npiDigits = providerInfo.npi.replace(/\D/g, "");
+    const taxDigits = providerInfo.tax_id.replace(/\D/g, "");
+    if (!npiDigits || npiDigits.length !== 10) {
+      toast.error("Provider NPI must be exactly 10 digits");
+      return;
+    }
+    if (!taxDigits || taxDigits.length !== 9) {
+      toast.error("Provider Tax ID (EIN) must be exactly 9 digits");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      // Re-use the same claim enrichment logic from handleGenerate
+      const selTripIds = [...new Set(selectedClaims.map(c => (c as any).trip_id).filter(Boolean))];
+      const selPatIds = [...new Set(selectedClaims.map(c => (c as any).patient_id).filter(Boolean))];
+      const localTripsMap: Record<string, any> = {};
+      const localPatsMap: Record<string, any> = {};
+      if (selTripIds.length > 0) {
+        const { data: trs } = await supabase.from("trip_records").select("id, loaded_miles, bed_confined, requires_monitoring, stretcher_placement, oxygen_during_transport, weight_lbs, pickup_location, destination_location, leg_id, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_dob, oneoff_primary_payer, oneoff_member_id, oneoff_sex, oneoff_pickup_address)").in("id", selTripIds);
+        (trs || []).forEach((t: any) => { localTripsMap[t.id] = t; });
+      }
+      if (selPatIds.length > 0) {
+        const { data: ps } = await supabase.from("patients").select("id, sex, weight_lbs").in("id", selPatIds);
+        (ps || []).forEach(p => { localPatsMap[p.id] = p; });
+      }
+
+      // Facility lookup
+      const facilityNames = [...new Set(
+        selectedClaims.map(c => {
+          const trip = localTripsMap[(c as any).trip_id] || {};
+          if (!(c as any).destination_address && trip.destination_location) return trip.destination_location;
+          return null;
+        }).filter(Boolean)
+      )] as string[];
+      const facilityAddrMap: Record<string, string> = {};
+      if (facilityNames.length > 0) {
+        const { data: facs } = await supabase.from("facilities" as any).select("name, address").in("name", facilityNames);
+        (facs || []).forEach((f: any) => { if (f.address) facilityAddrMap[f.name] = f.address; });
+      }
+
+      const ediClaims: ClaimForEDI[] = selectedClaims.map((c) => {
+        const trip = localTripsMap[(c as any).trip_id] || {};
+        const pat = localPatsMap[(c as any).patient_id] || {};
+        const leg = trip.leg as any;
+        const isOneoff = !c.patient_id && leg?.is_oneoff;
+        const rawPatientAddr = String(c.patient_pickup_address ?? "").trim();
+        const parsedPat = parseAddressString(rawPatientAddr);
+        const claimOriginAddr = (c as any).origin_address || trip.pickup_location || c.patient_pickup_address || null;
+        const claimDestAddr = (c as any).destination_address
+          || (trip.destination_location && facilityAddrMap[trip.destination_location] ? facilityAddrMap[trip.destination_location] : null)
+          || trip.destination_location || null;
+        return {
+          claim_id: c.id,
+          patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
+          patient_dob: c.patient_dob || "1900-01-01",
+          patient_sex: pat.sex || (c as any).patient_sex || null,
+          patient_address: parsedPat.street || rawPatientAddr,
+          patient_city: parsedPat.city || "",
+          patient_state: parsedPat.state || providerInfo.state || "",
+          patient_zip: parsedPat.zip || c.origin_zip || "",
+          member_id: c.patient_member_id || c.member_id || "UNKNOWN",
+          payer_name: c.payer_name || c.payer_type || "MEDICARE",
+          payer_id: c.payer_type === "medicare" ? "MEDICARE" : c.payer_type === "medicaid" ? "MEDICAID" : c.payer_name || "UNKNOWN",
+          payer_type: c.payer_type || "medicare",
+          run_date: c.run_date,
+          hcpcs_codes: c.hcpcs_codes || ["A0428"],
+          hcpcs_modifiers: c.hcpcs_modifiers || [],
+          total_charge: c.total_charge || 0,
+          base_charge: c.base_charge || 0,
+          mileage_charge: c.mileage_charge || 0,
+          loaded_miles: c.trip_loaded_miles || 0,
+          origin_type: c.origin_type,
+          destination_type: c.destination_type,
+          origin_address: claimOriginAddr,
+          origin_city: (c as any).origin_city || "",
+          origin_state: (c as any).origin_state || providerInfo.state || null,
+          origin_zip: c.origin_zip,
+          destination_address: claimDestAddr,
+          destination_city: (c as any).destination_city || "",
+          destination_state: (c as any).destination_state || providerInfo.state || null,
+          destination_zip: c.destination_zip,
+          diagnosis_codes: [],
+          auth_number: c.auth_number,
+          icd10_codes: c.icd10_codes || [],
+          bed_confined: !!trip.bed_confined,
+          requires_monitoring: !!trip.requires_monitoring,
+          stretcher_placement: trip.stretcher_placement || null,
+          oxygen_required: !!trip.oxygen_during_transport,
+          weight_lbs: trip.weight_lbs || pat.weight_lbs || null,
+          pickup_facility_name: extractFacilityName(claimOriginAddr) || null,
+          dropoff_facility_name: (trip.destination_location && facilityAddrMap[trip.destination_location] ? trip.destination_location : extractFacilityName(claimDestAddr)) || null,
+          pcs_physician_name: (c as any).pcs_physician_name ?? null,
+          pcs_physician_npi: (c as any).pcs_physician_npi ?? null,
+          pcs_certification_date: (c as any).pcs_certification_date ?? null,
+          pcs_diagnosis: (c as any).pcs_diagnosis ?? null,
+          chief_complaint: (c as any).chief_complaint ?? null,
+          primary_impression: (c as any).primary_impression ?? null,
+        };
+      });
+
+      // Validate
+      const allErrors: string[] = [];
+      ediClaims.forEach((ec, i) => {
+        const errs = validateClaimForEDI(ec, providerInfo.state);
+        if (errs.length > 0) {
+          allErrors.push(`Claim ${i + 1} (${ec.patient_name}): ${errs.join(", ")}`);
+        }
+      });
+      if (allErrors.length > 0) {
+        toast.error(`Validation errors:\n${allErrors.join("\n")}`, { duration: 8000 });
+        setSubmitting(false);
+        return;
+      }
+
+      const ediContent = generateEDI837P(ediClaims, providerInfo, submitterInfo);
+      const filename = generateEDIFilename(testMode);
+      const ids = selectedClaims.map((c) => c.id);
+
+      // Get company_id
+      const { data: compRow } = await supabase.from("companies").select("id").limit(1).maybeSingle();
+      if (!compRow?.id) {
+        toast.error("Could not determine company");
+        setSubmitting(false);
+        return;
+      }
+
+      // Insert into queue
+      const { error: queueErr } = await supabase
+        .from("claim_submission_queue" as any)
+        .insert({
+          company_id: compRow.id,
+          claim_ids: ids,
+          filename,
+          edi_content: ediContent,
+          is_test: testMode,
+          status: "pending",
+        } as any);
+
+      if (queueErr) throw queueErr;
+
+      // Mark claims as exported
+      const now = new Date().toISOString();
+      await supabase
+        .from("claim_records" as any)
+        .update({ exported_at: now, is_test_submission: testMode } as any)
+        .in("id", ids);
+
+      await logAuditEvent({
+        action: "edi_837p_queued_for_sftp",
+        tableName: "claim_submission_queue",
+        notes: `Queued ${ids.length} claims for SFTP submission: ${filename}${testMode ? " [TEST]" : ""}`,
+        newData: { claim_ids: ids, filename, test_mode: testMode },
+      });
+
+      toast.success(`📤 ${ids.length} claim(s) queued for automatic submission to Office Ally as ${filename}`);
+      await fetchClaims();
+      setSelectedIds(new Set());
+    } catch (err: any) {
+      toast.error("Failed to queue submission: " + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="max-w-6xl mx-auto space-y-6">
@@ -802,6 +974,20 @@ export default function EDIExport() {
                 >
                   <FileCheck2 className="h-4 w-4" />
                   Submit Single Test Claim
+                </Button>
+                <Button
+                  onClick={handleSubmitToQueue}
+                  disabled={submitting || generating || selectedClaims.length === 0}
+                  size="lg"
+                  variant="default"
+                  className="gap-2 ml-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  {submitting ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  Submit to Office Ally
                 </Button>
               </div>
             </CardContent>
