@@ -752,6 +752,23 @@ export default function EDIExport() {
                   <Eye className="h-4 w-4" />
                   Preview Summary
                 </Button>
+                <Button
+                  onClick={handleSubmitSingleTest}
+                  disabled={generating || !testMode || selectedClaims.length !== 1}
+                  size="lg"
+                  variant="secondary"
+                  className="gap-2 ml-2"
+                  title={
+                    !testMode
+                      ? "Enable Test Mode in Clearinghouse Settings first"
+                      : selectedClaims.length !== 1
+                        ? "Select exactly one claim"
+                        : "Generate a single OATEST claim file"
+                  }
+                >
+                  <FileCheck2 className="h-4 w-4" />
+                  Submit Single Test Claim
+                </Button>
               </div>
             </CardContent>
           </Card>
