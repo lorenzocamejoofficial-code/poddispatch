@@ -17,6 +17,7 @@ import { PayerDirectoryTab } from "@/components/billing/PayerDirectoryTab";
 import { MissingMoneyDetail } from "@/components/billing/MissingMoneyPanel";
 import { DenialRecoveryEngine } from "@/components/billing/DenialRecoveryEngine";
 import { RemittanceActivityPanel } from "@/components/billing/RemittanceActivityPanel";
+import { RemittanceHistoryPanel } from "@/components/billing/RemittanceHistoryPanel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
@@ -1219,10 +1220,13 @@ export default function BillingAndClaims() {
 
         {/* Remittance Activity (only when Office Ally is wired up) */}
         {clearinghouseConfigured && activeCompanyId && (
-          <RemittanceActivityPanel
-            companyId={activeCompanyId}
-            refreshKey={remittanceRefreshKey}
-          />
+          <>
+            <RemittanceActivityPanel
+              companyId={activeCompanyId}
+              refreshKey={remittanceRefreshKey}
+            />
+            <RemittanceHistoryPanel />
+          </>
         )}
 
         {/* Summary KPIs */}
