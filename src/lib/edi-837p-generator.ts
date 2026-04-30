@@ -739,10 +739,18 @@ export function validateClaimForEDI(claim: ClaimForEDI, billingState?: string | 
   return errors;
 }
 
-/** Generate a filename for the 837P export */
-export function generateEDIFilename(): string {
+/** Generate a filename for the 837P export.
+ *
+ * Office Ally companion guide requires sandbox files to include the keyword
+ * `OATEST` (all caps, no underscores around it) and the claim type keyword
+ * (`837P`). The `.837` extension is required for SFTP submission. When
+ * testMode is true we emit:  `OATEST_837P_YYYYMMDD_HHMM.837`
+ * Otherwise:                  `837P_YYYYMMDD_HHMM.837`
+ */
+export function generateEDIFilename(testMode: boolean = false): string {
   const now = new Date();
   const dateStr = `${now.getFullYear()}${padLeft(String(now.getMonth() + 1), 2)}${padLeft(String(now.getDate()), 2)}`;
   const timeStr = `${padLeft(String(now.getHours()), 2)}${padLeft(String(now.getMinutes()), 2)}`;
-  return `837P_${dateStr}_${timeStr}.txt`;
+  const base = `837P_${dateStr}_${timeStr}.837`;
+  return testMode ? `OATEST_${base}` : base;
 }

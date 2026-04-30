@@ -383,7 +383,7 @@ export default function EDIExport() {
 
       // Generate 837P
       const ediContent = generateEDI837P(ediClaims, providerInfo, submitterInfo);
-      const filename = generateEDIFilename();
+      const filename = generateEDIFilename(testMode);
 
       // Download
       const blob = new Blob([ediContent], { type: "text/plain" });
