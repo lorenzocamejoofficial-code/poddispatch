@@ -81,6 +81,10 @@ export interface SubmitterInfo {
   /** Office Ally (or other clearinghouse) receiver ID. Defaults to "OFFICEALLY"
    *  when not supplied. Must come from clearinghouse_settings.receiver_id. */
   receiver_id?: string;
+  /** ISA15 Usage Indicator: "P" = Production (default), "T" = Test (OATEST).
+   *  When test mode is enabled in clearinghouse_settings, set this to "T" so
+   *  Office Ally routes the file through the test environment. */
+  usage_indicator?: "P" | "T";
 }
 
 // Element separator, sub-element separator, segment terminator
