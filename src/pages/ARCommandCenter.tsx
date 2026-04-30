@@ -594,12 +594,18 @@ export default function ARCommandCenter() {
               <Separator />
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Payer Contact</p>
-                <PayerContactLookup payerType={selectedClaim.payer_type} payerName={selectedClaim.payer_name} />
+                {sheetReady ? (
+                  <PayerContactLookup payerType={selectedClaim.payer_type} payerName={selectedClaim.payer_name} />
+                ) : (
+                  <p className="text-xs text-muted-foreground">Loading…</p>
+                )}
               </div>
 
               {/* Timely filing deadline */}
               <div className="flex items-center gap-2">
-                <TimelyFilingBadge runDate={selectedClaim.run_date} payerType={selectedClaim.payer_type} companyId={selectedClaim.company_id} />
+                {sheetReady && (
+                  <TimelyFilingBadge runDate={selectedClaim.run_date} payerType={selectedClaim.payer_type} companyId={selectedClaim.company_id} />
+                )}
               </div>
 
               {/* Denial info */}
@@ -630,7 +636,9 @@ export default function ARCommandCenter() {
               )}
 
               {/* Resubmission History */}
-              <ResubmissionHistory claimId={selectedClaim.id} submittedAt={selectedClaim.submitted_at} />
+              {sheetReady && (
+                <ResubmissionHistory claimId={selectedClaim.id} submittedAt={selectedClaim.submitted_at} />
+              )}
 
               <Separator />
 
