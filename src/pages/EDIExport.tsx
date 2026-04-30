@@ -302,6 +302,27 @@ export default function EDIExport() {
         (ps || []).forEach(p => { localPatsMap[p.id] = p; });
       }
 
+      // Resolve facility addresses: when destination_address is NULL the trip
+      // only stores the facility name in destination_location.  Look up the
+      // real address from the facilities table so the 837P gets correct N3/N4.
+      const facilityNames = [...new Set(
+        selectedClaims.map(c => {
+          const trip = localTripsMap[(c as any).trip_id] || {};
+          if (!(c as any).destination_address && trip.destination_location) return trip.destination_location;
+          return null;
+        }).filter(Boolean)
+      )] as string[];
+      const facilityAddrMap: Record<string, string> = {};
+      if (facilityNames.length > 0) {
+        const { data: facs } = await supabase
+          .from("facilities" as any)
+          .select("name, address")
+          .in("name", facilityNames);
+        (facs || []).forEach((f: any) => {
+          if (f.address) facilityAddrMap[f.name] = f.address;
+        });
+      }
+
       // Build ClaimForEDI array
       const ediClaims: ClaimForEDI[] = selectedClaims.map((c) => {
         const trip = localTripsMap[(c as any).trip_id] || {};
@@ -315,7 +336,14 @@ export default function EDIExport() {
         // auto_create_claim_on_pcr_submit). Fall back to live trip data only if
         // the claim was created before the snapshot columns were backfilled.
         const claimOriginAddr = (c as any).origin_address || trip.pickup_location || c.patient_pickup_address || null;
-        const claimDestAddr = (c as any).destination_address || trip.destination_location || null;
+        // Resolve destination address: prefer claim snapshot, then facility
+        // table lookup (by name), then raw trip destination_location as last resort.
+        const claimDestAddr = (c as any).destination_address
+          || (trip.destination_location && facilityAddrMap[trip.destination_location]
+              ? facilityAddrMap[trip.destination_location]
+              : null)
+          || trip.destination_location
+          || null;
         return {
           claim_id: c.id,
           patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
