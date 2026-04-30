@@ -383,7 +383,13 @@ export default function EDIExport() {
           oxygen_required: !!trip.oxygen_during_transport,
           weight_lbs: trip.weight_lbs || pat.weight_lbs || null,
           pickup_facility_name: extractFacilityName(claimOriginAddr) || null,
-          dropoff_facility_name: extractFacilityName(claimDestAddr) || null,
+          // When destination was resolved from the facilities table, use the
+          // facility name directly instead of trying to extract it from the
+          // address string (which won't contain the name).
+          dropoff_facility_name:
+            (trip.destination_location && facilityAddrMap[trip.destination_location]
+              ? trip.destination_location
+              : extractFacilityName(claimDestAddr)) || null,
           pcs_physician_name: (c as any).pcs_physician_name ?? null,
           pcs_physician_npi: (c as any).pcs_physician_npi ?? null,
           pcs_certification_date: (c as any).pcs_certification_date ?? null,
