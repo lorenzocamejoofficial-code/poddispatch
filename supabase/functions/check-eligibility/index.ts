@@ -5,7 +5,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const OA_ELIGIBILITY_URL = "https://www.officeally.com/OA_API/Eligibility/SubmitInquiry";
+// Office Ally endpoints. Production = real payers / real money.
+// OATEST = sandbox; responses are simulated. Routed by clearinghouse_settings.test_mode.
+const OA_ELIGIBILITY_URL_PROD = "https://www.officeally.com/OA_API/Eligibility/SubmitInquiry";
+const OA_ELIGIBILITY_URL_TEST = "https://oatest.officeally.com/OA_API/Eligibility/SubmitInquiry";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -93,8 +96,49 @@ Deno.serve(async (req) => {
       );
     }
 
-    const oaUsername = settings.sftp_username ?? "";
-    const oaPassword = settings.sftp_password_encrypted ?? "";
+    const oaUsername = (settings.sftp_username ?? "").trim();
+
+    // Password lives in the server-only clearinghouse_credentials table, NOT
+    // on settings. Reading settings.sftp_password_encrypted (legacy) returns
+    // null, which is why this endpoint used to always fail.
+    const { data: credRow } = await supabase
+      .from("clearinghouse_credentials")
+      .select("sftp_password")
+      .eq("company_id", companyId)
+      .maybeSingle();
+    const oaPassword = (credRow?.sftp_password ?? "").trim();
+
+    // Fail-fast: clear, actionable messages instead of "non-2xx".
+    if (!oaUsername) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Office Ally username is missing. Re-enter it in Settings → Clearinghouse → Step 2.",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (!oaPassword) {
+      // Auto-flip is_configured so the eligibility button stops teasing the user.
+      await supabase
+        .from("clearinghouse_settings")
+        .update({ is_configured: false, last_error: "Office Ally password not stored — re-enter in Settings." })
+        .eq("id", settings.id);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Office Ally password not set — re-enter it in Settings → Clearinghouse → Step 2 and click Test Connection.",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const isTestMode = settings.test_mode === true;
+    const eligibilityUrl = isTestMode ? OA_ELIGIBILITY_URL_TEST : OA_ELIGIBILITY_URL_PROD;
+    const submitterId = isTestMode
+      ? ((settings.test_submitter_id ?? settings.submitter_id ?? oaUsername).toString())
+      : ((settings.submitter_id ?? oaUsername).toString());
+
     const serviceDate = run_date ?? new Date().toISOString().split("T")[0];
 
     // Build 270 eligibility inquiry
@@ -103,9 +147,11 @@ Deno.serve(async (req) => {
     const ES = "*";
     const ST = "~";
 
+    // ISA15: 'P' = production, 'T' = test/sandbox.
+    const usageIndicator = isTestMode ? "T" : "P";
     const segments = [
-      `ISA${ES}00${ES}          ${ES}00${ES}          ${ES}ZZ${ES}${oaUsername.padEnd(15)}${ES}ZZ${ES}${"OFFICEALLY".padEnd(15)}${ES}${dateStr.slice(2, 6)}${dateStr.slice(6, 8)}${ES}${new Date().getHours().toString().padStart(2, "0")}${new Date().getMinutes().toString().padStart(2, "0")}${ES}^${ES}00501${ES}${controlNum}${ES}0${ES}P${ES}:${ST}`,
-      `GS${ES}HS${ES}${oaUsername}${ES}OFFICEALLY${ES}${dateStr}${ES}${new Date().getHours().toString().padStart(2, "0")}${new Date().getMinutes().toString().padStart(2, "0")}${ES}${controlNum}${ES}X${ES}005010X279A1${ST}`,
+      `ISA${ES}00${ES}          ${ES}00${ES}          ${ES}ZZ${ES}${submitterId.padEnd(15)}${ES}ZZ${ES}${"OFFICEALLY".padEnd(15)}${ES}${dateStr.slice(2, 6)}${dateStr.slice(6, 8)}${ES}${new Date().getHours().toString().padStart(2, "0")}${new Date().getMinutes().toString().padStart(2, "0")}${ES}^${ES}00501${ES}${controlNum}${ES}0${ES}${usageIndicator}${ES}:${ST}`,
+      `GS${ES}HS${ES}${submitterId}${ES}OFFICEALLY${ES}${dateStr}${ES}${new Date().getHours().toString().padStart(2, "0")}${new Date().getMinutes().toString().padStart(2, "0")}${ES}${controlNum}${ES}X${ES}005010X279A1${ST}`,
       `ST${ES}270${ES}0001${ES}005010X279A1${ST}`,
       `BHT${ES}0022${ES}13${ES}${controlNum}${ES}${dateStr}${ST}`,
       `HL${ES}1${ES}${ES}20${ES}1${ST}`,
@@ -126,7 +172,7 @@ Deno.serve(async (req) => {
 
     // Submit to Office Ally eligibility endpoint
     try {
-      const response = await fetch(OA_ELIGIBILITY_URL, {
+      const response = await fetch(eligibilityUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/EDI-X12",
@@ -219,9 +265,9 @@ Deno.serve(async (req) => {
         coverage_start: coverageStart,
         coverage_end: coverageEnd,
         payer_type: patient.primary_payer,
-        response_summary: responseSummary,
+        response_summary: isTestMode ? `[SANDBOX] ${responseSummary}` : responseSummary,
         checked_by: user?.id ?? null,
-        raw_response: { status: response.status, body: responseText.slice(0, 5000) },
+        raw_response: { status: response.status, body: responseText.slice(0, 5000), test_mode: isTestMode },
       });
 
       return new Response(
@@ -231,6 +277,7 @@ Deno.serve(async (req) => {
           coverage_start: coverageStart,
           coverage_end: coverageEnd,
           summary: responseSummary,
+          test_mode: isTestMode,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

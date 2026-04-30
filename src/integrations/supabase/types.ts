@@ -462,6 +462,7 @@ export type Database = {
           icd10_codes: string[] | null
           id: string
           is_simulated: boolean
+          is_test_submission: boolean
           isolation_precautions: Json | null
           last_contacted_at: string | null
           medical_necessity_reason: string | null
@@ -549,6 +550,7 @@ export type Database = {
           icd10_codes?: string[] | null
           id?: string
           is_simulated?: boolean
+          is_test_submission?: boolean
           isolation_precautions?: Json | null
           last_contacted_at?: string | null
           medical_necessity_reason?: string | null
@@ -636,6 +638,7 @@ export type Database = {
           icd10_codes?: string[] | null
           id?: string
           is_simulated?: boolean
+          is_test_submission?: boolean
           isolation_precautions?: Json | null
           last_contacted_at?: string | null
           medical_necessity_reason?: string | null
@@ -780,6 +783,8 @@ export type Database = {
           sftp_username: string | null
           submitter_id: string | null
           submitter_name: string | null
+          test_mode: boolean
+          test_submitter_id: string | null
           updated_at: string
         }
         Insert: {
@@ -805,6 +810,8 @@ export type Database = {
           sftp_username?: string | null
           submitter_id?: string | null
           submitter_name?: string | null
+          test_mode?: boolean
+          test_submitter_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -830,6 +837,8 @@ export type Database = {
           sftp_username?: string | null
           submitter_id?: string | null
           submitter_name?: string | null
+          test_mode?: boolean
+          test_submitter_id?: string | null
           updated_at?: string
         }
         Relationships: [

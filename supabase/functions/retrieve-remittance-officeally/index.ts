@@ -5,7 +5,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const OA_REMITTANCE_URL = "https://www.officeally.com/OA_API/Remittance/GetRemittanceFiles";
+// Production vs OATEST sandbox endpoints. Routed per-company by clearinghouse_settings.test_mode.
+const OA_REMITTANCE_URL_PROD = "https://www.officeally.com/OA_API/Remittance/GetRemittanceFiles";
+const OA_REMITTANCE_URL_TEST = "https://oatest.officeally.com/OA_API/Remittance/GetRemittanceFiles";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -74,12 +76,35 @@ Deno.serve(async (req) => {
 
     for (const settings of settingsRows) {
       try {
-        const oaUsername = settings.sftp_username ?? "";
-        const oaPassword = settings.sftp_password_encrypted ?? "";
+        const oaUsername = (settings.sftp_username ?? "").trim();
+
+        // Real password lives in clearinghouse_credentials, not on settings.
+        const { data: credRow } = await supabase
+          .from("clearinghouse_credentials")
+          .select("sftp_password")
+          .eq("company_id", settings.company_id)
+          .maybeSingle();
+        const oaPassword = (credRow?.sftp_password ?? "").trim();
+
+        // Fail-fast on missing creds with a real message instead of HTTP 401 noise.
+        if (!oaUsername || !oaPassword) {
+          const msg = !oaUsername
+            ? "Office Ally username missing — re-enter in Settings → Clearinghouse."
+            : "Office Ally password not stored — re-enter in Settings → Clearinghouse → Step 2.";
+          errors.push(`Company ${settings.company_id}: ${msg}`);
+          await supabase
+            .from("clearinghouse_settings")
+            .update({ last_error: msg, ...(oaPassword ? {} : { is_configured: false }) })
+            .eq("id", settings.id);
+          continue;
+        }
+
+        const isTestMode = settings.test_mode === true;
+        const remittanceUrl = isTestMode ? OA_REMITTANCE_URL_TEST : OA_REMITTANCE_URL_PROD;
 
         try {
           // Fetch available remittance files from Office Ally
-          const response = await fetch(OA_REMITTANCE_URL, {
+          const response = await fetch(remittanceUrl, {
             method: "GET",
             headers: {
               "Authorization": "Basic " + btoa(`${oaUsername}:${oaPassword}`),
@@ -112,7 +137,7 @@ Deno.serve(async (req) => {
               if (!fileId || importedIds.has(fileId)) continue;
 
               // Download the individual 835 file
-              const fileUrl = file.downloadUrl ?? `${OA_REMITTANCE_URL}/${fileId}`;
+              const fileUrl = file.downloadUrl ?? `${remittanceUrl}/${fileId}`;
               const fileResponse = await fetch(fileUrl, {
                 headers: {
                   "Authorization": "Basic " + btoa(`${oaUsername}:${oaPassword}`),

@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   CheckCircle2, XCircle, ExternalLink, Loader2, Shield, FolderOpen, Zap, Eye, EyeOff,
-  AlertTriangle,
+  AlertTriangle, FlaskConical,
 } from "lucide-react";
 
 type Step = 1 | 2 | 3 | 4;
@@ -33,6 +33,8 @@ interface ClearinghouseRow {
   contact_name: string | null;
   contact_phone: string | null;
   receiver_id: string | null;
+  test_mode: boolean;
+  test_submitter_id: string | null;
 }
 
 export function ClearinghouseSettings() {
@@ -69,6 +71,8 @@ export function ClearinghouseSettings() {
   // Step 4
   const [autoSend, setAutoSend] = useState(false);
   const [autoReceive, setAutoReceive] = useState(false);
+  const [testMode, setTestMode] = useState(false);
+  const [testSubmitterId, setTestSubmitterId] = useState("");
 
   const [saving, setSaving] = useState(false);
 
@@ -102,6 +106,8 @@ export function ClearinghouseSettings() {
       setContactName(row.contact_name ?? "");
       setContactPhone(row.contact_phone ?? "");
       setReceiverId(row.receiver_id ?? "OFFICEALLY");
+      setTestMode(row.test_mode === true);
+      setTestSubmitterId(row.test_submitter_id ?? "");
       if (row.is_configured) {
         setAccountCreated(true);
         setConnectionStatus("success");
@@ -444,6 +450,38 @@ export function ClearinghouseSettings() {
           <>
             <h4 className="font-semibold text-foreground">Step 4 — Enable automatic processing</h4>
             <div className="space-y-4">
+              {/* Sandbox / Test Mode */}
+              <div className="rounded-lg border border-amber-400/40 bg-amber-50/60 dark:bg-amber-950/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-start gap-2">
+                    <FlaskConical className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Sandbox / Test Mode (OATEST)</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Routes eligibility and remittance calls to Office Ally's <strong>OATEST sandbox</strong>.
+                        No real claims are submitted, no real money moves. Use this to verify your setup before going live.
+                      </p>
+                    </div>
+                  </div>
+                  <Switch checked={testMode} onCheckedChange={setTestMode} />
+                </div>
+                {testMode && (
+                  <div className="space-y-1.5 pl-6">
+                    <Label className="text-xs">Test Submitter ID (OATEST)</Label>
+                    <Input
+                      value={testSubmitterId}
+                      onChange={(e) => setTestSubmitterId(e.target.value)}
+                      placeholder="From your Office Ally OATEST welcome email"
+                      className="max-w-xs"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Office Ally usually issues a separate Submitter ID for OATEST. Leave blank to fall back to your
+                      production Submitter ID (will fail if Office Ally requires a distinct one).
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div>
                   <p className="text-sm font-medium text-foreground">Enable Automatic Claim Submission</p>
@@ -498,6 +536,8 @@ export function ClearinghouseSettings() {
                     auto_send_enabled: autoSend,
                     auto_receive_enabled: autoReceive,
                     is_active: autoSend || autoReceive,
+                    test_mode: testMode,
+                    test_submitter_id: testSubmitterId.trim() || null,
                   });
                 }}
               >
