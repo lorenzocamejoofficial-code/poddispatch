@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { CheckCircle2, ClipboardList, Settings2, Network, Phone } from "lucide-react";
+import { CheckCircle2, ClipboardList, Settings2, Network, Phone, Mail } from "lucide-react";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { TrialBanner } from "@/components/onboarding/TrialBanner";
 import { ClearinghouseSettings } from "@/components/settings/ClearinghouseSettings";
@@ -29,6 +29,31 @@ export default function AdminSettings() {
   const [retentionYears, setRetentionYears] = useState("7");
   const [verifiedCallerId, setVerifiedCallerId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+
+  const handleSendTestEmail = async () => {
+    setSendingTestEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-test-email", {
+        body: {},
+      });
+      if (error) {
+        toast.error("Test email failed", { description: error.message });
+        return;
+      }
+      if (!data?.ok) {
+        toast.error("Test email failed", { description: data?.error ?? "Unknown error" });
+        return;
+      }
+      toast.success("Test email sent", {
+        description: `Sent to ${data.sent_to} from "${data.from_label}". Check your inbox (and spam).`,
+      });
+    } catch (e: any) {
+      toast.error("Test email failed", { description: e?.message ?? "Unknown error" });
+    } finally {
+      setSendingTestEmail(false);
+    }
+  };
 
   useEffect(() => {
     supabase.from("company_settings").select("*").limit(1).maybeSingle().then(({ data }) => {
