@@ -11,6 +11,7 @@ ePCR timestamps are strictly chronological. 0 is a valid odometer reading.
 45-min minimum scheduling gap enforced on truck assignments.
 Stripe for subscriptions, Office Ally HTTP API for claims/eligibility.
 Run record (scheduling_legs) is single source of truth for transport context cascading.
+Single Office Ally account gateway — all tenant 837Ps submit through PodDispatch's SFTP, 835s routed back by NPI.
 
 ## Memories
 - [Scope and Identity](mem://project/scope-and-identity) — Comprehensive NEMT OS from dispatch to billing
@@ -92,3 +93,4 @@ Run record (scheduling_legs) is single source of truth for transport context cas
 - [Crew Schedule Delivery](mem://logic/crew-schedule-delivery) — Leg exceptions applied dynamically to daily run sheets
 - [Board Health Logic](mem://dispatch/board-health-logic) — Evaluating fleet pre-progress vs active operational statuses
 - [Transport Context Cascading](mem://features/transport-context-cascading) — Run record drives service level, HCPCS, PCS, PCR sections, QA rules downstream
+- [Clearinghouse Gateway Architecture](mem://billing/clearinghouse-gateway-architecture) — Single OA account gateway: all tenants submit via PodDispatch's SFTP, 835s routed back by NPI
