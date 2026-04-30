@@ -503,7 +503,9 @@ const App = () => (
             <SessionWarningBanner />
             <MaintenanceGate>
               <PaymentResultHandler />
-              <AppRoutes />
+              <Suspense fallback={<RouteFallback />}>
+                <AppRoutes />
+              </Suspense>
             </MaintenanceGate>
           </SimulationSessionProvider>
         </AuthProvider>
