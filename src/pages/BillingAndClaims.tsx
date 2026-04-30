@@ -184,6 +184,7 @@ export default function BillingAndClaims() {
   const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
   const [oaSending, setOaSending] = useState(false);
   const [oaReceiving, setOaReceiving] = useState(false);
+  const [remittanceRefreshKey, setRemittanceRefreshKey] = useState(0);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
