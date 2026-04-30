@@ -358,6 +358,7 @@ export function generateEDI837P(
 
   // ISA - Interchange Control Header
   const receiverId = (submitterInfo.receiver_id || "OFFICEALLY").toUpperCase();
+  const usageIndicator = submitterInfo.usage_indicator === "T" ? "T" : "P";
   segments.push(
     [
       "ISA",
@@ -375,7 +376,7 @@ export function generateEDI837P(
       "00501",                       // Interchange Control Version
       padLeft(interchangeControlNum, 9), // Interchange Control Number
       "0",                           // Acknowledgment Requested
-      "P",                           // Usage Indicator (P=Production)
+      usageIndicator,                // Usage Indicator (P=Production, T=Test/OATEST)
       SE_SEP,                        // Component Element Separator
     ].join(ES) + ST
   );
