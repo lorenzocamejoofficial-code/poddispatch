@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   CheckCircle2, XCircle, ExternalLink, Loader2, Shield, FolderOpen, Zap, Eye, EyeOff,
-  AlertTriangle,
+  AlertTriangle, FlaskConical,
 } from "lucide-react";
 
 type Step = 1 | 2 | 3 | 4;
@@ -33,6 +33,8 @@ interface ClearinghouseRow {
   contact_name: string | null;
   contact_phone: string | null;
   receiver_id: string | null;
+  test_mode: boolean;
+  test_submitter_id: string | null;
 }
 
 export function ClearinghouseSettings() {
@@ -69,6 +71,8 @@ export function ClearinghouseSettings() {
   // Step 4
   const [autoSend, setAutoSend] = useState(false);
   const [autoReceive, setAutoReceive] = useState(false);
+  const [testMode, setTestMode] = useState(false);
+  const [testSubmitterId, setTestSubmitterId] = useState("");
 
   const [saving, setSaving] = useState(false);
 
@@ -102,6 +106,8 @@ export function ClearinghouseSettings() {
       setContactName(row.contact_name ?? "");
       setContactPhone(row.contact_phone ?? "");
       setReceiverId(row.receiver_id ?? "OFFICEALLY");
+      setTestMode(row.test_mode === true);
+      setTestSubmitterId(row.test_submitter_id ?? "");
       if (row.is_configured) {
         setAccountCreated(true);
         setConnectionStatus("success");
