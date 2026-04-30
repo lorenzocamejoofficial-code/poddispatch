@@ -68,6 +68,7 @@ export default function EDIExport() {
   const [npiLocked, setNpiLocked] = useState(false);
   const [testMode, setTestMode] = useState(false);
   const [testSubmitterId, setTestSubmitterId] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const [providerInfo, setProviderInfo] = useState<ProviderInfo>({
     npi: "",
