@@ -50,6 +50,15 @@ Deno.serve(async (req) => {
       return json({ error: "Forbidden" }, 403);
     }
 
+    // Look up tenant company name so the From: header is operator-branded
+    // ("{Company} via PodDispatch" instead of plain "PodDispatch").
+    const { data: companyRow } = await admin
+      .from("companies")
+      .select("name")
+      .eq("id", actorMembership.company_id)
+      .maybeSingle();
+    const tenantName = (companyRow?.name as string | undefined) ?? undefined;
+
     // Render plain-text body inside a simple HTML wrapper so line breaks survive
     const escapedMessage = message
       .replace(/&/g, "&amp;")
@@ -73,6 +82,7 @@ Deno.serve(async (req) => {
       reply_to: actor.email ?? undefined,
       email_type: kind === "invite" ? "crew_invite" : "crew_schedule",
       company_id: actorMembership.company_id,
+      from_name: tenantName,
     });
 
     if (!result.ok) {
