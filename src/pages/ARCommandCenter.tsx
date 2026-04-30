@@ -733,12 +733,14 @@ export default function ARCommandCenter() {
 
       {/* Denial Recovery Engine */}
       {recoveryClaim && (
-        <DenialRecoveryEngine
-          claim={recoveryClaim}
-          open={recoveryOpen}
-          onOpenChange={open => { setRecoveryOpen(open); if (!open) setRecoveryClaim(null); }}
-          onComplete={() => { fetchClaims(); setSelectedClaim(null); setWorkQueueRefreshKey(k => k + 1); }}
-        />
+        <Suspense fallback={null}>
+          <DenialRecoveryEngine
+            claim={recoveryClaim}
+            open={recoveryOpen}
+            onOpenChange={open => { setRecoveryOpen(open); if (!open) setRecoveryClaim(null); }}
+            onComplete={() => { fetchClaims(); setSelectedClaim(null); setWorkQueueRefreshKey(k => k + 1); }}
+          />
+        </Suspense>
       )}
     </AdminLayout>
   );
