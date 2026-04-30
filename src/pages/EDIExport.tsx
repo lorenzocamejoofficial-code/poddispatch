@@ -430,6 +430,22 @@ export default function EDIExport() {
 
   const totalCharge = selectedClaims.reduce((sum, c) => sum + (c.total_charge || 0), 0);
 
+  const handleSubmitSingleTest = async () => {
+    if (!testMode) {
+      toast.error("Turn on Test Mode first (Settings → Clearinghouse → Step 4) before submitting a single test claim.");
+      return;
+    }
+    if (selectedClaims.length !== 1) {
+      toast.error(
+        selectedClaims.length === 0
+          ? "Select exactly one claim to submit as a single test."
+          : `You have ${selectedClaims.length} claims selected. Single-test mode requires exactly one — deselect the others first.`
+      );
+      return;
+    }
+    await handleGenerate();
+  };
+
   return (
     <AdminLayout>
       <div className="max-w-6xl mx-auto space-y-6">
