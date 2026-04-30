@@ -2812,6 +2812,7 @@ export type Database = {
           claims_updated: number
           company_id: string
           file_content: string
+          file_identifier: string | null
           file_name: string
           id: string
           imported_at: string
@@ -2824,6 +2825,7 @@ export type Database = {
           claims_updated?: number
           company_id: string
           file_content: string
+          file_identifier?: string | null
           file_name: string
           id?: string
           imported_at?: string
@@ -2836,6 +2838,7 @@ export type Database = {
           claims_updated?: number
           company_id?: string
           file_content?: string
+          file_identifier?: string | null
           file_name?: string
           id?: string
           imported_at?: string

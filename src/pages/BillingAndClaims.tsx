@@ -16,6 +16,7 @@ import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, 
 import { PayerDirectoryTab } from "@/components/billing/PayerDirectoryTab";
 import { MissingMoneyDetail } from "@/components/billing/MissingMoneyPanel";
 import { DenialRecoveryEngine } from "@/components/billing/DenialRecoveryEngine";
+import { RemittanceActivityPanel } from "@/components/billing/RemittanceActivityPanel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
@@ -183,6 +184,7 @@ export default function BillingAndClaims() {
   const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
   const [oaSending, setOaSending] = useState(false);
   const [oaReceiving, setOaReceiving] = useState(false);
+  const [remittanceRefreshKey, setRemittanceRefreshKey] = useState(0);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -406,9 +408,14 @@ export default function BillingAndClaims() {
       } else {
         toast.info("No new payment files found");
       }
+      if (data?.errors?.length) {
+        toast.error(data.errors[0]);
+      }
       fetchData();
+      setRemittanceRefreshKey((k) => k + 1);
     } catch (err: any) {
       toast.error(err.message || "Failed to check for payments");
+      setRemittanceRefreshKey((k) => k + 1);
     }
     setOaReceiving(false);
   };
@@ -1209,6 +1216,14 @@ export default function BillingAndClaims() {
             </Button>
           </div>
         </div>
+
+        {/* Remittance Activity (only when Office Ally is wired up) */}
+        {clearinghouseConfigured && activeCompanyId && (
+          <RemittanceActivityPanel
+            companyId={activeCompanyId}
+            refreshKey={remittanceRefreshKey}
+          />
+        )}
 
         {/* Summary KPIs */}
         <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">

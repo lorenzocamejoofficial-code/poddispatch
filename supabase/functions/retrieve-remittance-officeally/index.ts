@@ -156,6 +156,10 @@ Deno.serve(async (req) => {
               // Match claims by member_id and date_of_service against claim_records
               const clpMatches = ediContent.match(/CLP\*[^~]+/g) ?? [];
 
+              let claimsMatched = 0;
+              let claimsUpdated = 0;
+              let totalPaid = 0;
+
               for (const clpSegment of clpMatches) {
                 const els = clpSegment.split("*");
                 const paidAmount = parseFloat(els[4] ?? "0") || 0;
@@ -172,11 +176,12 @@ Deno.serve(async (req) => {
                     .limit(1);
 
                   if (matchedClaims?.length) {
+                    claimsMatched++;
                     const statusCode = els[2] ?? "";
                     const newStatus = (statusCode === "1" || statusCode === "19") ? "paid" :
                                       (statusCode === "3" || statusCode === "4") ? "denied" : "needs_correction";
 
-                    await supabase
+                    const { error: upErr } = await supabase
                       .from("claim_records")
                       .update({
                         amount_paid: paidAmount,
@@ -187,6 +192,10 @@ Deno.serve(async (req) => {
                         payer_claim_control_number: payerControlNum,
                       })
                       .eq("id", matchedClaims[0].id);
+                    if (!upErr) {
+                      claimsUpdated++;
+                      totalPaid += paidAmount;
+                    }
                   }
                 }
               }
@@ -196,8 +205,12 @@ Deno.serve(async (req) => {
                 company_id: settings.company_id,
                 file_identifier: fileId,
                 file_name: file.fileName ?? fileId,
+                file_content: ediContent,
                 imported_at: new Date().toISOString(),
-                claim_count: clpMatches.length,
+                claims_matched: claimsMatched,
+                claims_updated: claimsUpdated,
+                total_paid: totalPaid,
+                status: clpMatches.length === 0 ? "no_claims" : (claimsMatched === 0 ? "unmatched" : "imported"),
               });
 
               totalReceived++;
