@@ -134,6 +134,23 @@ export default function ARCommandCenter() {
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [recoveryClaim, setRecoveryClaim] = useState<ARClaim | null>(null);
   const [workQueueRefreshKey, setWorkQueueRefreshKey] = useState(0);
+  // Defer mounting the Sheet's heavy children (PayerContactLookup,
+  // TimelyFilingBadge, ResubmissionHistory, notes fetch) until after the
+  // sheet's slide-in animation has had a frame to paint. Without this, the
+  // click → setSelectedClaim → synchronous render of 4 query-firing
+  // children blocks the main thread for ~500ms and the sheet appears
+  // frozen.
+  const [sheetReady, setSheetReady] = useState(false);
+  useEffect(() => {
+    if (!selectedClaim) { setSheetReady(false); return; }
+    // Two RAFs ensure the sheet's open animation starts before the heavy
+    // subtree mounts and the network requests fire.
+    const r1 = requestAnimationFrame(() => {
+      const r2 = requestAnimationFrame(() => setSheetReady(true));
+      (r1 as any).inner = r2;
+    });
+    return () => cancelAnimationFrame(r1);
+  }, [selectedClaim]);
 
   /* -- fetch claims -- */
   const fetchClaims = useCallback(async () => {
@@ -218,8 +235,9 @@ export default function ARCommandCenter() {
   }, []);
 
   useEffect(() => {
-    if (selectedClaim) fetchNotes(selectedClaim.id);
-  }, [selectedClaim, fetchNotes]);
+    // Wait until after the sheet has painted before firing the notes query.
+    if (selectedClaim && sheetReady) fetchNotes(selectedClaim.id);
+  }, [selectedClaim, sheetReady, fetchNotes]);
 
   /* -- actions -- */
   const logNote = async (text: string) => {
