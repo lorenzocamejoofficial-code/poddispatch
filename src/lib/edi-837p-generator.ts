@@ -527,9 +527,11 @@ export function generateEDI837P(
       addSeg(["REF", "G1", claim.auth_number].join(ES));
     }
 
-    // PCS Certification Date — REF*9F (Referral Number) carries certification metadata when present
-    if (claim.pcs_certification_date) {
-      addSeg(["DTP", "439", "D8", formatDate8(claim.pcs_certification_date)].join(ES));
+    // DTP*431 — Onset of Current Illness or Symptom Date
+    // Required by X222A1 when CRC*07 (Ambulance Certification) is present.
+    // Uses PCS certification date as the documented onset/condition date.
+    if (crcCodes.length > 0 && claim.pcs_certification_date) {
+      addSeg(["DTP", "431", "D8", formatDate8(claim.pcs_certification_date)].join(ES));
     }
 
     // Loop 2310A — Referring/Ordering Physician (PCS signing physician)
