@@ -18,6 +18,8 @@ export function MaintenanceGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      // Skip while the tab is hidden — no point polling in the background.
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       const { data } = await supabase
         .from("creator_settings")
         .select("value")
@@ -29,9 +31,18 @@ export function MaintenanceGate({ children }: { children: React.ReactNode }) {
       }
     };
     load();
-    // Re-check every 60s so toggling propagates without a hard refresh.
-    const interval = setInterval(load, 60_000);
-    return () => { cancelled = true; clearInterval(interval); };
+    // Re-check every 5 min so toggling still propagates, but without
+    // adding a request-per-minute background tax on every active session.
+    const interval = setInterval(load, 5 * 60_000);
+    // Re-check immediately when the tab regains focus, so creators flipping
+    // maintenance mode still see fast propagation when users come back.
+    const onVisible = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   if (!loaded || !user) return <>{children}</>;
