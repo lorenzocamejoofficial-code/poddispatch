@@ -28,6 +28,15 @@ Deno.serve(async (req) => {
     const { data: targetMem } = await admin.from("company_memberships").select("company_id").eq("user_id", target_user_id).maybeSingle();
     if (!targetMem || targetMem.company_id !== cm.company_id) return json({ error: "Target not in your company" }, 403);
 
+    // Tenant company name powers the dynamic From: header so the recipient
+    // sees the operator's brand instead of a generic "PodDispatch" sender.
+    const { data: companyRow } = await admin
+      .from("companies")
+      .select("name")
+      .eq("id", cm.company_id)
+      .maybeSingle();
+    const tenantName = (companyRow?.name as string | undefined) ?? undefined;
+
     // Look up email via auth admin
     const { data: targetUser, error: getErr } = await admin.auth.admin.getUserById(target_user_id);
     if (getErr || !targetUser?.user?.email) return json({ error: "Could not load target user email" }, 404);
@@ -73,6 +82,7 @@ Deno.serve(async (req) => {
         email_type: "crew_invite",
         company_id: cm.company_id,
         recipient_user_id: target_user_id,
+        from_name: tenantName,
       });
       if (!delivery.ok) {
         console.error("resend-crew-invite delivery failed", delivery.error);

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { CheckCircle2, ClipboardList, Settings2, Network, Phone } from "lucide-react";
+import { CheckCircle2, ClipboardList, Settings2, Network, Phone, Mail } from "lucide-react";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { TrialBanner } from "@/components/onboarding/TrialBanner";
 import { ClearinghouseSettings } from "@/components/settings/ClearinghouseSettings";
@@ -29,6 +29,31 @@ export default function AdminSettings() {
   const [retentionYears, setRetentionYears] = useState("7");
   const [verifiedCallerId, setVerifiedCallerId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+
+  const handleSendTestEmail = async () => {
+    setSendingTestEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-test-email", {
+        body: {},
+      });
+      if (error) {
+        toast.error("Test email failed", { description: error.message });
+        return;
+      }
+      if (!data?.ok) {
+        toast.error("Test email failed", { description: data?.error ?? "Unknown error" });
+        return;
+      }
+      toast.success("Test email sent", {
+        description: `Sent to ${data.sent_to} from "${data.from_label}". Check your inbox (and spam).`,
+      });
+    } catch (e: any) {
+      toast.error("Test email failed", { description: e?.message ?? "Unknown error" });
+    } finally {
+      setSendingTestEmail(false);
+    }
+  };
 
   useEffect(() => {
     supabase.from("company_settings").select("*").limit(1).maybeSingle().then(({ data }) => {
@@ -138,6 +163,30 @@ export default function AdminSettings() {
            <p className="text-sm text-muted-foreground">Manage operational parameters.</p>
           </div>
         </section>
+
+        {/* Email Diagnostics */}
+        {isOwner && (
+          <section className="space-y-3 rounded-lg border border-border p-4 bg-muted/20">
+            <div className="flex items-start gap-2">
+              <Mail className="h-4 w-4 mt-0.5 text-muted-foreground" />
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-foreground">Email Diagnostics</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Send a test email to your own address to verify deliverability and preview the
+                  sender name your crews and patients will see.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleSendTestEmail}
+              disabled={sendingTestEmail}
+            >
+              {sendingTestEmail ? "Sending…" : "Send test email to me"}
+            </Button>
+          </section>
+        )}
 
         {/* Grace Window */}
         <section className="space-y-3">
