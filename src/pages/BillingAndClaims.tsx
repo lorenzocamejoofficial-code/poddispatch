@@ -408,9 +408,14 @@ export default function BillingAndClaims() {
       } else {
         toast.info("No new payment files found");
       }
+      if (data?.errors?.length) {
+        toast.error(data.errors[0]);
+      }
       fetchData();
+      setRemittanceRefreshKey((k) => k + 1);
     } catch (err: any) {
       toast.error(err.message || "Failed to check for payments");
+      setRemittanceRefreshKey((k) => k + 1);
     }
     setOaReceiving(false);
   };
