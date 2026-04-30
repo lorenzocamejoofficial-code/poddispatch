@@ -727,6 +727,59 @@ export type Database = {
           },
         ]
       }
+      claim_submission_queue: {
+        Row: {
+          attempts: number
+          claim_ids: string[]
+          company_id: string
+          created_at: string
+          edi_content: string
+          error_message: string | null
+          filename: string
+          id: string
+          is_test: boolean
+          status: string
+          submitted_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          claim_ids?: string[]
+          company_id: string
+          created_at?: string
+          edi_content: string
+          error_message?: string | null
+          filename: string
+          id?: string
+          is_test?: boolean
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          claim_ids?: string[]
+          company_id?: string
+          created_at?: string
+          edi_content?: string
+          error_message?: string | null
+          filename?: string
+          id?: string
+          is_test?: boolean
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "claim_submission_queue_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clearinghouse_credentials: {
         Row: {
           company_id: string
