@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,7 +21,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { logAuditEvent } from "@/lib/audit-logger";
-import { DenialRecoveryEngine, TimelyFilingBadge, ResubmissionHistory } from "@/components/billing/DenialRecoveryEngine";
+// DenialRecoveryEngine is heavy (650+ lines, multiple data fetches) and only
+// renders when the user clicks "Recover This Claim". Lazy-load it so it
+// doesn't block the AR page or the detail sheet from opening.
+const DenialRecoveryEngine = lazy(() =>
+  import("@/components/billing/DenialRecoveryEngine").then(m => ({ default: m.DenialRecoveryEngine }))
+);
+import { TimelyFilingBadge, ResubmissionHistory } from "@/components/billing/DenialRecoveryEngine";
 import { PayerContactLookup } from "@/components/billing/PayerDirectoryTab";
 import { BillerTaskQueue } from "@/components/billing/BillerTaskQueue";
 import { BillingWorkQueue } from "@/components/billing/BillingWorkQueue";
@@ -128,6 +134,23 @@ export default function ARCommandCenter() {
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [recoveryClaim, setRecoveryClaim] = useState<ARClaim | null>(null);
   const [workQueueRefreshKey, setWorkQueueRefreshKey] = useState(0);
+  // Defer mounting the Sheet's heavy children (PayerContactLookup,
+  // TimelyFilingBadge, ResubmissionHistory, notes fetch) until after the
+  // sheet's slide-in animation has had a frame to paint. Without this, the
+  // click → setSelectedClaim → synchronous render of 4 query-firing
+  // children blocks the main thread for ~500ms and the sheet appears
+  // frozen.
+  const [sheetReady, setSheetReady] = useState(false);
+  useEffect(() => {
+    if (!selectedClaim) { setSheetReady(false); return; }
+    // Two RAFs ensure the sheet's open animation starts before the heavy
+    // subtree mounts and the network requests fire.
+    const r1 = requestAnimationFrame(() => {
+      const r2 = requestAnimationFrame(() => setSheetReady(true));
+      (r1 as any).inner = r2;
+    });
+    return () => cancelAnimationFrame(r1);
+  }, [selectedClaim]);
 
   /* -- fetch claims -- */
   const fetchClaims = useCallback(async () => {
@@ -212,8 +235,9 @@ export default function ARCommandCenter() {
   }, []);
 
   useEffect(() => {
-    if (selectedClaim) fetchNotes(selectedClaim.id);
-  }, [selectedClaim, fetchNotes]);
+    // Wait until after the sheet has painted before firing the notes query.
+    if (selectedClaim && sheetReady) fetchNotes(selectedClaim.id);
+  }, [selectedClaim, sheetReady, fetchNotes]);
 
   /* -- actions -- */
   const logNote = async (text: string) => {
@@ -570,12 +594,18 @@ export default function ARCommandCenter() {
               <Separator />
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Payer Contact</p>
-                <PayerContactLookup payerType={selectedClaim.payer_type} payerName={selectedClaim.payer_name} />
+                {sheetReady ? (
+                  <PayerContactLookup payerType={selectedClaim.payer_type} payerName={selectedClaim.payer_name} />
+                ) : (
+                  <p className="text-xs text-muted-foreground">Loading…</p>
+                )}
               </div>
 
               {/* Timely filing deadline */}
               <div className="flex items-center gap-2">
-                <TimelyFilingBadge runDate={selectedClaim.run_date} payerType={selectedClaim.payer_type} companyId={selectedClaim.company_id} />
+                {sheetReady && (
+                  <TimelyFilingBadge runDate={selectedClaim.run_date} payerType={selectedClaim.payer_type} companyId={selectedClaim.company_id} />
+                )}
               </div>
 
               {/* Denial info */}
@@ -606,7 +636,9 @@ export default function ARCommandCenter() {
               )}
 
               {/* Resubmission History */}
-              <ResubmissionHistory claimId={selectedClaim.id} submittedAt={selectedClaim.submitted_at} />
+              {sheetReady && (
+                <ResubmissionHistory claimId={selectedClaim.id} submittedAt={selectedClaim.submitted_at} />
+              )}
 
               <Separator />
 
@@ -701,12 +733,14 @@ export default function ARCommandCenter() {
 
       {/* Denial Recovery Engine */}
       {recoveryClaim && (
-        <DenialRecoveryEngine
-          claim={recoveryClaim}
-          open={recoveryOpen}
-          onOpenChange={open => { setRecoveryOpen(open); if (!open) setRecoveryClaim(null); }}
-          onComplete={() => { fetchClaims(); setSelectedClaim(null); setWorkQueueRefreshKey(k => k + 1); }}
-        />
+        <Suspense fallback={null}>
+          <DenialRecoveryEngine
+            claim={recoveryClaim}
+            open={recoveryOpen}
+            onOpenChange={open => { setRecoveryOpen(open); if (!open) setRecoveryClaim(null); }}
+            onComplete={() => { fetchClaims(); setSelectedClaim(null); setWorkQueueRefreshKey(k => k + 1); }}
+          />
+        </Suspense>
       )}
     </AdminLayout>
   );
