@@ -94,6 +94,31 @@ Deno.serve(async (req) => {
     diagnostics.push(`Connecting to ${host}:${port} as ${username}`);
     diagnostics.push(`Library: jsr:@ein/ssh2-ts`);
 
+    console.log(`[sftp-test] Attempting connection to ${host}:${port} as ${username}`);
+
+    // First, test if raw TCP is even possible in this runtime
+    try {
+      console.log("[sftp-test] Testing Deno.connect availability...");
+      const tcpTest = await Deno.connect({ hostname: host, port });
+      console.log("[sftp-test] Raw TCP connect succeeded!");
+      tcpTest.close();
+      diagnostics.push("Raw TCP connect: OK");
+    } catch (tcpErr: any) {
+      console.log(`[sftp-test] Raw TCP connect failed: ${tcpErr.message}`);
+      diagnostics.push(`Raw TCP connect failed: ${tcpErr.message}`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Raw TCP connections not supported in this runtime: ${tcpErr.message}. SFTP requires a different architecture (external worker, not edge functions).`,
+          diagnostics,
+          architecture_recommendation: "Use a dedicated Node.js worker (e.g. Cloud Run, Railway, or a VPS) with ssh2/ssh2-sftp-client for SFTP operations. The edge function can queue submissions and the worker polls the queue.",
+          started_at: startedAt,
+          completed_at: new Date().toISOString(),
+        }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Attempt SFTP connection
     const client = new Client();
 
