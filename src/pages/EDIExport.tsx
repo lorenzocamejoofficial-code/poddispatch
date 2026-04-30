@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileText, Download, Info } from "lucide-react";
+import { FileText, Download, Info, FlaskConical } from "lucide-react";
 import { toast } from "sonner";
 import { Link as RouterLink } from "react-router-dom";
 import { logAuditEvent } from "@/lib/audit-logger";
@@ -65,6 +65,8 @@ export default function EDIExport() {
   // back to onboarding for edits.
   const [einLocked, setEinLocked] = useState(false);
   const [npiLocked, setNpiLocked] = useState(false);
+  const [testMode, setTestMode] = useState(false);
+  const [testSubmitterId, setTestSubmitterId] = useState<string | null>(null);
 
   const [providerInfo, setProviderInfo] = useState<ProviderInfo>({
     npi: "",
@@ -199,13 +201,19 @@ export default function EDIExport() {
     // override the hardcoded PODDISPATCH/OFFICEALLY fallback.
     const { data: ch } = await supabase
       .from("clearinghouse_settings" as any)
-      .select("submitter_id, submitter_name, contact_name, contact_phone, receiver_id")
+      .select("submitter_id, submitter_name, contact_name, contact_phone, receiver_id, test_mode, test_submitter_id")
       .limit(1)
       .maybeSingle();
     if (ch) {
       const row = ch as any;
+      setTestMode(row.test_mode === true);
+      setTestSubmitterId(row.test_submitter_id ?? null);
+      // In test mode, prefer the OATEST submitter ID if provided.
+      const effectiveSubmitterId = row.test_mode && row.test_submitter_id
+        ? row.test_submitter_id
+        : row.submitter_id;
       setSubmitterInfo((prev) => ({
-        submitter_id: row.submitter_id || prev.submitter_id,
+        submitter_id: effectiveSubmitterId || prev.submitter_id,
         submitter_name: row.submitter_name || prev.submitter_name,
         contact_name: row.contact_name || prev.contact_name,
         contact_phone: row.contact_phone || prev.contact_phone,
@@ -390,18 +398,22 @@ export default function EDIExport() {
       const now = new Date().toISOString();
       await supabase
         .from("claim_records" as any)
-        .update({ exported_at: now } as any)
+        .update({ exported_at: now, is_test_submission: testMode } as any)
         .in("id", ids);
 
       // Audit log
       await logAuditEvent({
         action: "edi_837p_export",
         tableName: "claim_records",
-        notes: `Exported ${ids.length} claims to ${filename}`,
-        newData: { claim_ids: ids, filename },
+        notes: `Exported ${ids.length} claims to ${filename}${testMode ? " [SANDBOX/OATEST]" : ""}`,
+        newData: { claim_ids: ids, filename, test_mode: testMode },
       });
 
-      toast.success(`${filename} downloaded with ${ids.length} claims`);
+      toast.success(
+        testMode
+          ? `🧪 SANDBOX file ${filename} generated (${ids.length} test claims). Submit to OATEST only.`
+          : `${filename} downloaded with ${ids.length} claims`
+      );
 
       // Refresh
       await fetchClaims();
@@ -430,6 +442,18 @@ export default function EDIExport() {
             ANSI X12 005010X222A1
           </Badge>
         </div>
+
+        {testMode && (
+          <Alert className="border-amber-400/50 bg-amber-50/60 dark:bg-amber-950/20">
+            <FlaskConical className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="text-sm">
+              <strong>Sandbox / Test Mode is ON.</strong> Generated 837P files will use the OATEST envelope
+              (ISA15=T) and exported claims will be tagged as test submissions — they won't pollute your real
+              AR or revenue numbers. Toggle this off in <RouterLink to="/admin-settings" className="underline">
+              Settings → Clearinghouse → Step 4</RouterLink> when you're ready to go live.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Provider & Submitter Info */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
