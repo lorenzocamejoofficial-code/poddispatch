@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileText, Download, Info, FlaskConical, Eye } from "lucide-react";
+import { FileText, Download, Info, FlaskConical, Eye, FileCheck2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Link as RouterLink } from "react-router-dom";
@@ -430,6 +430,22 @@ export default function EDIExport() {
 
   const totalCharge = selectedClaims.reduce((sum, c) => sum + (c.total_charge || 0), 0);
 
+  const handleSubmitSingleTest = async () => {
+    if (!testMode) {
+      toast.error("Turn on Test Mode first (Settings → Clearinghouse → Step 4) before submitting a single test claim.");
+      return;
+    }
+    if (selectedClaims.length !== 1) {
+      toast.error(
+        selectedClaims.length === 0
+          ? "Select exactly one claim to submit as a single test."
+          : `You have ${selectedClaims.length} claims selected. Single-test mode requires exactly one — deselect the others first.`
+      );
+      return;
+    }
+    await handleGenerate();
+  };
+
   return (
     <AdminLayout>
       <div className="max-w-6xl mx-auto space-y-6">
@@ -735,6 +751,23 @@ export default function EDIExport() {
                 >
                   <Eye className="h-4 w-4" />
                   Preview Summary
+                </Button>
+                <Button
+                  onClick={handleSubmitSingleTest}
+                  disabled={generating || !testMode || selectedClaims.length !== 1}
+                  size="lg"
+                  variant="secondary"
+                  className="gap-2 ml-2"
+                  title={
+                    !testMode
+                      ? "Enable Test Mode in Clearinghouse Settings first"
+                      : selectedClaims.length !== 1
+                        ? "Select exactly one claim"
+                        : "Generate a single OATEST claim file"
+                  }
+                >
+                  <FileCheck2 className="h-4 w-4" />
+                  Submit Single Test Claim
                 </Button>
               </div>
             </CardContent>
