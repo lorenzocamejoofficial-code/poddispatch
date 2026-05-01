@@ -530,9 +530,16 @@ export function generateEDI837P(
     }
 
     // DTP*431 — Onset of Current Illness or Symptom Date
-    // Required by X222A1 when CRC*07 (Ambulance Certification) is present.
-    // Uses PCS certification date as the documented onset/condition date.
-    if (crcCodes.length > 0 && claim.pcs_certification_date) {
+    // Situational per X222A1 TR3 (NOT required even when CRC*07 is present).
+    // Office Ally companion guide marks this segment as "Not Used" for Medicare
+    // Part B ambulance claims and rejects the entire transaction with
+    // IK3*DTP*<n>*2300*2 ("Unexpected segment") when present.
+    // Suppress for Medicare; emit for other payers that accept/require it.
+    if (
+      claim.payer_type !== 'medicare' &&
+      crcCodes.length > 0 &&
+      claim.pcs_certification_date
+    ) {
       addSeg(["DTP", "431", "D8", formatDate8(claim.pcs_certification_date)].join(ES));
     }
 
