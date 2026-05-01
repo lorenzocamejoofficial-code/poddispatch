@@ -87,5 +87,4 @@ verify_jwt = false
 [functions.sftp-test-connection]
 verify_jwt = false
 
-[functions.temp-key-export]
-verify_jwt = false
+
