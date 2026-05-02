@@ -8,11 +8,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileText, Download, Info, FlaskConical, Eye, FileCheck2, Upload } from "lucide-react";
+import { FileText, Download, Info, FlaskConical, Eye, FileCheck2, Upload, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Link as RouterLink } from "react-router-dom";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { RecordRejectionDialog } from "@/components/billing/RecordRejectionDialog";
 import {
   generateEDI837P,
   validateClaimForEDI,
@@ -70,6 +71,7 @@ export default function EDIExport() {
   const [testSubmitterId, setTestSubmitterId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [rejectionTarget, setRejectionTarget] = useState<{ id: string; label: string } | null>(null);
 
   const [providerInfo, setProviderInfo] = useState<ProviderInfo>({
     npi: "",
