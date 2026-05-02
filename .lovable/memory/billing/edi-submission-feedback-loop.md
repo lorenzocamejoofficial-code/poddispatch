@@ -10,4 +10,9 @@ When a clearinghouse rejection comes back, biller uses the AlertTriangle button 
 
 This gives ground truth for diagnosing future rejections: we have both the exact bytes sent AND the exact failure location, instead of guessing from screenshots.
 
-Generator note: DTP*472 (Service Date) is emitted ONLY at Loop 2400 (service line). It is intentionally NOT emitted at Loop 2300 (claim level) — Office Ally rejected our first live submission with "Unknown Segment" pointing at the duplicate claim-level DTP*472. See comment block at line ~482 in src/lib/edi-837p-generator.ts.
+Generator note — Loop 2300 DTP segments confirmed rejected by Office Ally (ambulance 837P, all payer types):
+  • DTP*472 (Service Date) — first rejection. Belongs only at Loop 2400.
+  • DTP*431 (Onset of Current Illness) — second rejection (999: IK3*DTP*19*2300*2 on OATEST_837P_20260501_1959). Fully suppressed.
+Pattern: assume any "situational" DTP at Loop 2300 is "Not Used" by OA. If a payer requires onset, emit at Loop 2400 only.
+
+Reading 999s: IK3*<seg>*<pos>*<loop>*<err> = segment failed; err 2 = Unexpected Segment. IK5*R = txn rejected, AK9*R = functional group rejected.
