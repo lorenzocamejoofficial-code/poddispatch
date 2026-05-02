@@ -902,6 +902,7 @@ export default function EDIExport() {
                       <th className="p-2 text-left font-medium text-muted-foreground">HCPCS</th>
                       <th className="p-2 text-right font-medium text-muted-foreground">Charge</th>
                       <th className="p-2 text-left font-medium text-muted-foreground">Status</th>
+                      <th className="p-2 w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -946,6 +947,24 @@ export default function EDIExport() {
                           >
                             {claim.status === "ready_to_bill" ? "Ready" : "Submitted"}
                           </Badge>
+                        </td>
+                        <td className="p-2 text-right" onClick={(e) => e.stopPropagation()}>
+                          {claim.exported_at && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2"
+                              title="Record clearinghouse rejection for this claim"
+                              onClick={() =>
+                                setRejectionTarget({
+                                  id: claim.id,
+                                  label: `${claim.patient_last_name}, ${claim.patient_first_name} (${claim.run_date})`,
+                                })
+                              }
+                            >
+                              <AlertTriangle className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))}
