@@ -479,8 +479,13 @@ export function generateEDI837P(
       ].join(ES)
     );
 
-    // DTP - Service Date
-    addSeg(["DTP", "472", "D8", formatDate8(claim.run_date)].join(ES));
+    // NOTE: DTP*472 (Service Date) is intentionally NOT emitted at the claim
+    // level (Loop 2300). Office Ally rejected our first live submission with
+    // "Unknown Segment" pointing at this exact segment. Per X12 005010X222A1,
+    // ambulance service dates belong on the service line (Loop 2400) — see
+    // the DTP*472 emissions inside the SV1 blocks below. Adding it here again
+    // duplicates the date and trips OA's parser. Do not re-add without first
+    // confirming with the clearinghouse implementation guide.
 
     // NTE - Claim Note (Loop 2300, Additional Information)
     // Carries the original dispatch reason ("chief complaint") and on-scene
