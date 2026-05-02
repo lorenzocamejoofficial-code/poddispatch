@@ -1136,6 +1136,16 @@ export default function EDIExport() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {rejectionTarget && (
+          <RecordRejectionDialog
+            open={!!rejectionTarget}
+            onOpenChange={(o) => { if (!o) setRejectionTarget(null); }}
+            claimId={rejectionTarget.id}
+            claimLabel={rejectionTarget.label}
+            onSaved={fetchClaims}
+          />
+        )}
       </div>
     </AdminLayout>
   );
