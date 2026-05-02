@@ -1330,6 +1330,36 @@ export type Database = {
           },
         ]
       }
+      creator_recovery_attempts: {
+        Row: {
+          created_at: string
+          id: string
+          ip_address: string | null
+          notes: string | null
+          outcome: string
+          slug_provided_hash: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          notes?: string | null
+          outcome: string
+          slug_provided_hash?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          notes?: string | null
+          outcome?: string
+          slug_provided_hash?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       creator_settings: {
         Row: {
           id: string
@@ -3650,16 +3680,25 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          recovery_configured_at: string | null
+          recovery_passphrase_hash: string | null
+          recovery_slug_hash: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
+          recovery_configured_at?: string | null
+          recovery_passphrase_hash?: string | null
+          recovery_slug_hash?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
+          recovery_configured_at?: string | null
+          recovery_passphrase_hash?: string | null
+          recovery_slug_hash?: string | null
           user_id?: string
         }
         Relationships: []
