@@ -8,11 +8,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileText, Download, Info, FlaskConical, Eye, FileCheck2, Upload } from "lucide-react";
+import { FileText, Download, Info, FlaskConical, Eye, FileCheck2, Upload, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Link as RouterLink } from "react-router-dom";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { RecordRejectionDialog } from "@/components/billing/RecordRejectionDialog";
 import {
   generateEDI837P,
   validateClaimForEDI,
@@ -70,6 +71,7 @@ export default function EDIExport() {
   const [testSubmitterId, setTestSubmitterId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [rejectionTarget, setRejectionTarget] = useState<{ id: string; label: string } | null>(null);
 
   const [providerInfo, setProviderInfo] = useState<ProviderInfo>({
     npi: "",
@@ -434,9 +436,43 @@ export default function EDIExport() {
       // Mark claims as exported
       const ids = selectedClaims.map((c) => c.id);
       const now = new Date().toISOString();
+
+      // Persist artifact (full EDI bytes) so we have ground truth for any
+      // future rejection analysis. Without this, the only copy of what was
+      // sent is the file in the user's browser downloads folder.
+      let artifactId: string | null = null;
+      try {
+        const { data: companyRow } = await supabase
+          .from("companies").select("id").limit(1).maybeSingle();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (companyRow?.id) {
+          const { data: artRow, error: artErr } = await supabase
+            .from("claim_submission_artifacts" as any)
+            .insert({
+              company_id: companyRow.id,
+              filename,
+              edi_content: ediContent,
+              claim_ids: ids,
+              byte_size: new Blob([ediContent]).size,
+              is_test_submission: testMode,
+              generated_by: user?.id ?? null,
+            } as any)
+            .select("id")
+            .single();
+          if (!artErr && artRow) artifactId = (artRow as any).id;
+        }
+      } catch (e) {
+        // Non-fatal — download already succeeded
+        console.warn("Failed to persist EDI artifact:", e);
+      }
+
       await supabase
         .from("claim_records" as any)
-        .update({ exported_at: now, is_test_submission: testMode } as any)
+        .update({
+          exported_at: now,
+          is_test_submission: testMode,
+          ...(artifactId ? { last_submission_artifact_id: artifactId } : {}),
+        } as any)
         .in("id", ids);
 
       // Audit log
@@ -866,6 +902,7 @@ export default function EDIExport() {
                       <th className="p-2 text-left font-medium text-muted-foreground">HCPCS</th>
                       <th className="p-2 text-right font-medium text-muted-foreground">Charge</th>
                       <th className="p-2 text-left font-medium text-muted-foreground">Status</th>
+                      <th className="p-2 w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -910,6 +947,24 @@ export default function EDIExport() {
                           >
                             {claim.status === "ready_to_bill" ? "Ready" : "Submitted"}
                           </Badge>
+                        </td>
+                        <td className="p-2 text-right" onClick={(e) => e.stopPropagation()}>
+                          {claim.exported_at && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2"
+                              title="Record clearinghouse rejection for this claim"
+                              onClick={() =>
+                                setRejectionTarget({
+                                  id: claim.id,
+                                  label: `${claim.patient_last_name}, ${claim.patient_first_name} (${claim.run_date})`,
+                                })
+                              }
+                            >
+                              <AlertTriangle className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1081,6 +1136,16 @@ export default function EDIExport() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {rejectionTarget && (
+          <RecordRejectionDialog
+            open={!!rejectionTarget}
+            onOpenChange={(o) => { if (!o) setRejectionTarget(null); }}
+            claimId={rejectionTarget.id}
+            claimLabel={rejectionTarget.label}
+            onSaved={fetchClaims}
+          />
+        )}
       </div>
     </AdminLayout>
   );
