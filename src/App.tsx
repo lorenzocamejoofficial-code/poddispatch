@@ -48,6 +48,7 @@ const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const ForgotEmail = lazy(() => import("./pages/ForgotEmail"));
 const CreatorRecovery = lazy(() => import("./pages/CreatorRecovery"));
+const SysRecovery = lazy(() => import("./pages/SysRecovery"));
 const SuspendedPage = lazy(() => import("./pages/SuspendedPage"));
 const CrewDashboard = lazy(() => import("./pages/CrewDashboard"));
 const PCRPage = lazy(() => import("./pages/PCRPage"));
@@ -216,6 +217,7 @@ function AppRoutes() {
         <Route path="/forgot-email" element={<ForgotEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/creator-recovery" element={<CreatorRecovery />} />
+        <Route path="/sys-r/:slug" element={<SysRecovery />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
