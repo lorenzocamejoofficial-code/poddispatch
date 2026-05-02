@@ -536,17 +536,13 @@ export function generateEDI837P(
 
     // DTP*431 — Onset of Current Illness or Symptom Date
     // Situational per X222A1 TR3 (NOT required even when CRC*07 is present).
-    // Office Ally companion guide marks this segment as "Not Used" for Medicare
-    // Part B ambulance claims and rejects the entire transaction with
-    // IK3*DTP*<n>*2300*2 ("Unexpected segment") when present.
-    // Suppress for Medicare; emit for other payers that accept/require it.
-    if (
-      claim.payer_type !== 'medicare' &&
-      crcCodes.length > 0 &&
-      claim.pcs_certification_date
-    ) {
-      addSeg(["DTP", "431", "D8", formatDate8(claim.pcs_certification_date)].join(ES));
-    }
+    // Office Ally rejected OATEST_837P_20260501_1959 with
+    //   IK3*DTP*19*2300*2  (Unexpected Segment, Loop 2300, position 19)
+    // confirming OA's companion guide treats DTP*431 as "Not Used" for
+    // ambulance 837P regardless of payer. Fully suppressed at the claim
+    // level. If a future payer requires onset date, move it to Loop 2400
+    // (service line) per their specific guide — never re-add here.
+    // Intentionally not emitted.
 
     // Loop 2310A — Referring/Ordering Physician (PCS signing physician)
     if (claim.pcs_physician_npi && /^\d{10}$/.test(claim.pcs_physician_npi)) {
