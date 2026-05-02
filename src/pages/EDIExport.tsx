@@ -434,9 +434,43 @@ export default function EDIExport() {
       // Mark claims as exported
       const ids = selectedClaims.map((c) => c.id);
       const now = new Date().toISOString();
+
+      // Persist artifact (full EDI bytes) so we have ground truth for any
+      // future rejection analysis. Without this, the only copy of what was
+      // sent is the file in the user's browser downloads folder.
+      let artifactId: string | null = null;
+      try {
+        const { data: companyRow } = await supabase
+          .from("companies").select("id").limit(1).maybeSingle();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (companyRow?.id) {
+          const { data: artRow, error: artErr } = await supabase
+            .from("claim_submission_artifacts" as any)
+            .insert({
+              company_id: companyRow.id,
+              filename,
+              edi_content: ediContent,
+              claim_ids: ids,
+              byte_size: new Blob([ediContent]).size,
+              is_test_submission: testMode,
+              generated_by: user?.id ?? null,
+            } as any)
+            .select("id")
+            .single();
+          if (!artErr && artRow) artifactId = (artRow as any).id;
+        }
+      } catch (e) {
+        // Non-fatal — download already succeeded
+        console.warn("Failed to persist EDI artifact:", e);
+      }
+
       await supabase
         .from("claim_records" as any)
-        .update({ exported_at: now, is_test_submission: testMode } as any)
+        .update({
+          exported_at: now,
+          is_test_submission: testMode,
+          ...(artifactId ? { last_submission_artifact_id: artifactId } : {}),
+        } as any)
         .in("id", ids);
 
       // Audit log
