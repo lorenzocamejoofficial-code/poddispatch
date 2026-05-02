@@ -465,6 +465,13 @@ export type Database = {
           is_test_submission: boolean
           isolation_precautions: Json | null
           last_contacted_at: string | null
+          last_rejection_byte: number | null
+          last_rejection_loop: string | null
+          last_rejection_raw: string | null
+          last_rejection_recorded_at: string | null
+          last_rejection_recorded_by: string | null
+          last_rejection_segment: string | null
+          last_submission_artifact_id: string | null
           medical_necessity_reason: string | null
           member_id: string | null
           mileage_charge: number | null
@@ -553,6 +560,13 @@ export type Database = {
           is_test_submission?: boolean
           isolation_precautions?: Json | null
           last_contacted_at?: string | null
+          last_rejection_byte?: number | null
+          last_rejection_loop?: string | null
+          last_rejection_raw?: string | null
+          last_rejection_recorded_at?: string | null
+          last_rejection_recorded_by?: string | null
+          last_rejection_segment?: string | null
+          last_submission_artifact_id?: string | null
           medical_necessity_reason?: string | null
           member_id?: string | null
           mileage_charge?: number | null
@@ -641,6 +655,13 @@ export type Database = {
           is_test_submission?: boolean
           isolation_precautions?: Json | null
           last_contacted_at?: string | null
+          last_rejection_byte?: number | null
+          last_rejection_loop?: string | null
+          last_rejection_raw?: string | null
+          last_rejection_recorded_at?: string | null
+          last_rejection_recorded_by?: string | null
+          last_rejection_segment?: string | null
+          last_submission_artifact_id?: string | null
           medical_necessity_reason?: string | null
           member_id?: string | null
           mileage_charge?: number | null
@@ -698,6 +719,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "claim_records_last_submission_artifact_id_fkey"
+            columns: ["last_submission_artifact_id"]
+            isOneToOne: false
+            referencedRelation: "claim_submission_artifacts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "claim_records_original_claim_id_fkey"
             columns: ["original_claim_id"]
             isOneToOne: false
@@ -726,6 +754,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      claim_submission_artifacts: {
+        Row: {
+          byte_size: number
+          claim_ids: string[]
+          company_id: string
+          edi_content: string
+          filename: string
+          generated_at: string
+          generated_by: string | null
+          id: string
+          is_test_submission: boolean
+        }
+        Insert: {
+          byte_size?: number
+          claim_ids?: string[]
+          company_id: string
+          edi_content: string
+          filename: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          is_test_submission?: boolean
+        }
+        Update: {
+          byte_size?: number
+          claim_ids?: string[]
+          company_id?: string
+          edi_content?: string
+          filename?: string
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          is_test_submission?: boolean
+        }
+        Relationships: []
       }
       claim_submission_queue: {
         Row: {
