@@ -16,3 +16,5 @@ Generator note — Loop 2300 DTP segments confirmed rejected by Office Ally (amb
 Pattern: assume any "situational" DTP at Loop 2300 is "Not Used" by OA. If a payer requires onset, emit at Loop 2400 only.
 
 Reading 999s: IK3*<seg>*<pos>*<loop>*<err> = segment failed; err 2 = Unexpected Segment. IK5*R = txn rejected, AK9*R = functional group rejected.
+
+Clean-accept reference (OATEST_837P_20260501_2306_999): IK5*A + AK9*A*1*1*1 with NO IK3 segments = transaction & group both accepted, no structural defects. After both DTP fixes landed, the generator produced its first spec-compliant 5010 837P. Next layer of feedback comes from 277CA (claim-routing ack), not the 999.
