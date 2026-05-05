@@ -9,8 +9,7 @@
  * The existing exports stay; they now delegate to evaluateClaimReadiness so
  * behavior at the export gate is unchanged.
  */
-import { parseAddressString, type ClaimForEDI } from "./edi-837p-generator";
-import { timelyFilingDays } from "./billing-utils";
+import { parseAddressString, timelyFilingDays, type ClaimForEDI } from "./edi-837p-generator";
 
 export type ReadinessStage = "scheduling" | "pcr" | "biller" | "export";
 export type ReadinessSeverity = "block" | "warn";
