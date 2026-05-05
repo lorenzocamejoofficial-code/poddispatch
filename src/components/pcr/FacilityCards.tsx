@@ -100,7 +100,7 @@ export function SendingFacilityCard({ trip, updateField, tripType, requiredField
             />
           </div>
 
-          <div>
+          <div data-focus="destination_type">
             <label className="text-[10px] font-medium text-muted-foreground block mb-1">Destination Type</label>
             <Select value={trip.destination_type || ""} onValueChange={(v) => updateField("destination_type", v)}>
               <SelectTrigger className="h-10"><SelectValue placeholder="Select…" /></SelectTrigger>
@@ -159,7 +159,7 @@ export function HospitalOutcomeCard({ trip, updateField, updateMultipleFields, r
         <label className="text-[10px] font-medium text-muted-foreground block mb-1">Chief Complaint at Arrival</label>
         <Input value={ho.chief_complaint || ""} onChange={(e) => update("chief_complaint", e.target.value)} className="h-10" />
       </div>
-      <div>
+      <div data-focus="icd10">
         <ICD10Picker
           selectedCodes={Array.isArray(ho.icd10_codes) ? ho.icd10_codes : (ho.icd10_codes ? String(ho.icd10_codes).split(",").map((c: string) => c.trim()).filter(Boolean) : [])}
           onCodesChange={(codes) => update("icd10_codes", codes)}

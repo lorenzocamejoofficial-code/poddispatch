@@ -429,7 +429,7 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
       <div className="border-t border-border pt-4">
         <h4 className="text-sm font-semibold text-foreground mb-3">Location Types</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0" data-focus="origin_type">
             <label className="text-sm font-medium text-muted-foreground mb-1 block">Origin Type</label>
             <Select
               value={trip.origin_type || ""}
@@ -443,7 +443,7 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
               </SelectContent>
             </Select>
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0" data-focus="destination_type">
             <label className="text-sm font-medium text-muted-foreground mb-1 block">Destination Type</label>
             <Select
               value={trip.destination_type || ""}
