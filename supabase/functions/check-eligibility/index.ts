@@ -6,7 +6,8 @@ const corsHeaders = {
 };
 
 // Office Ally endpoints. Production = real payers / real money.
-// OATEST = sandbox; responses are simulated. Routed by clearinghouse_settings.test_mode.
+// OATEST = sandbox; responses are simulated. Routed by the global
+// vendor_clearinghouse_settings.test_mode (PodDispatch vendor singleton).
 const OA_ELIGIBILITY_URL_PROD = "https://www.officeally.com/OA_API/Eligibility/SubmitInquiry";
 const OA_ELIGIBILITY_URL_TEST = "https://oatest.officeally.com/OA_API/Eligibility/SubmitInquiry";
 
