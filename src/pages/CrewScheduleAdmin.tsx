@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useSchedulingStore as useGlobalSchedulingStore } from "@/hooks/useSchedulingStore";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Link2, Trash2, Truck, AlertCircle, CalendarIcon, UserPlus, Phone, Mail, MessageSquareText, RefreshCw, Check, Send, Clock } from "lucide-react";
+import { Copy, Link2, Trash2, Truck, CalendarIcon, Phone, MessageSquareText, RefreshCw, Check, Send, Clock, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -51,18 +52,12 @@ export default function CrewScheduleAdmin() {
   const [companyName, setCompanyName] = useState("Dispatch");
   const [downTruckIds, setDownTruckIds] = useState<Set<string>>(new Set());
   const [smsComingSoonOpen, setSmsComingSoonOpen] = useState(false);
-  const [sendingInvite, setSendingInvite] = useState(false);
   const [sendingSchedule, setSendingSchedule] = useState(false);
   const [scheduleEmailRecipient, setScheduleEmailRecipient] = useState("");
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
   const { selectedDate: scheduleDate, setSelectedDate: setScheduleDate } = useGlobalSchedulingStore();
   const [calendarOpen, setCalendarOpen] = useState(false);
-
-  // Section 1: Crew invite
-  const [inviteCrewId, setInviteCrewId] = useState("");
-  const [inviteSendVia, setInviteSendVia] = useState<"phone" | "email">("phone");
-  const [inviteCopied, setInviteCopied] = useState(false);
 
   // Section 2: Daily schedule text
   const [scheduleTruckId, setScheduleTruckId] = useState("");
@@ -156,56 +151,6 @@ export default function CrewScheduleAdmin() {
       return format(new Date(y, m - 1, d), "EEE, MMM d, yyyy");
     } catch { return scheduleDate; }
   })();
-
-  // ─── Section 1: Crew Login Invite ───
-  const selectedInviteCrew = employees.find(e => e.id === inviteCrewId);
-  const publishedUrl = "poddispatch.lovable.app";
-
-  const buildInviteMessage = (emp: ActiveEmployee) => {
-    if (inviteSendVia === "phone") {
-      return `${companyName} — Crew Login\n\nYou've been set up as a crew member. To view your daily runs:\n\n1. Go to ${publishedUrl}\n2. Tap "Crew"\n3. Log in with your company email and password\n\nSave your password in your phone for quick access.`;
-    }
-    return `${companyName} — Crew Login\n\nYou've been set up as a crew member on ${companyName}. To view your daily assigned runs, go to ${publishedUrl}, click "Crew", and log in with your company email and password.\n\nSave your credentials in your browser for quick daily access.`;
-  };
-
-  const handleCopyInvite = () => {
-    if (!selectedInviteCrew) return;
-    navigator.clipboard.writeText(buildInviteMessage(selectedInviteCrew));
-    setInviteCopied(true);
-    toast.success("Crew login invite copied to clipboard");
-    setTimeout(() => setInviteCopied(false), 2000);
-  };
-
-  const handleSendInvite = async () => {
-    if (!selectedInviteCrew) return;
-    if (inviteSendVia === "phone") {
-      setSmsComingSoonOpen(true);
-      return;
-    }
-    if (!selectedInviteCrew.email) {
-      toast.error("No email on file for this crew member");
-      return;
-    }
-    setSendingInvite(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("send-crew-schedule-email", {
-        body: {
-          kind: "invite",
-          to: selectedInviteCrew.email,
-          subject: `${companyName} — Crew Login Instructions`,
-          message: buildInviteMessage(selectedInviteCrew),
-        },
-      });
-      if (error || (data as any)?.error) {
-        throw new Error((data as any)?.error || error?.message || "Send failed");
-      }
-      toast.success(`Invite emailed to ${selectedInviteCrew.email}`);
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to send invite");
-    } finally {
-      setSendingInvite(false);
-    }
-  };
 
   // ─── Section 2: Daily Schedule Text ───
   // Issue 3: Fetch leg_exceptions for the selected date
@@ -451,83 +396,12 @@ export default function CrewScheduleAdmin() {
         {/* ══════════════════════════════════════════════════════════════════
             SECTION 1 — CREW LOGIN INVITE
         ══════════════════════════════════════════════════════════════════ */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <UserPlus className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base">Crew Login Invite</CardTitle>
-            </div>
-            <CardDescription>
-              One-time setup: send a crew member instructions to log in at {publishedUrl}. They tap "Crew" and use their company email + password.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
-              <div>
-                <Label className="text-xs">Crew Member</Label>
-                <Select value={inviteCrewId} onValueChange={setInviteCrewId}>
-                  <SelectTrigger><SelectValue placeholder="Select crew member" /></SelectTrigger>
-                  <SelectContent>
-                    {employees.length === 0 && <SelectItem value="__none" disabled>No employees found</SelectItem>}
-                    {employees.map(e => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.full_name}{e.truck_name ? ` — ${e.truck_name}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Send Via</Label>
-                <Select value={inviteSendVia} onValueChange={v => setInviteSendVia(v as "phone" | "email")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="phone"><span className="flex items-center gap-1.5"><Phone className="h-3 w-3" /> SMS / Text</span></SelectItem>
-                    <SelectItem value="email"><span className="flex items-center gap-1.5"><Mail className="h-3 w-3" /> Email</span></SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                <Button onClick={handleCopyInvite} disabled={!inviteCrewId} variant="outline" className="gap-1.5">
-                  {inviteCopied ? <Check className="h-3.5 w-3.5 text-[hsl(var(--status-green))]" /> : <Copy className="h-3.5 w-3.5" />}
-                  {inviteCopied ? "Copied!" : "Copy"}
-                </Button>
-                <Button
-                  onClick={handleSendInvite}
-                  disabled={!inviteCrewId || sendingInvite || (inviteSendVia === "email" && !selectedInviteCrew?.email)}
-                  className="gap-1.5"
-                >
-                  {inviteSendVia === "phone" ? <Phone className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-                  {sendingInvite ? "Sending…" : inviteSendVia === "phone" ? "Send SMS" : "Send Email"}
-                </Button>
-              </div>
-            </div>
-
-            {selectedInviteCrew && (
-              <div className="rounded-md bg-muted p-3 space-y-2">
-                {inviteSendVia === "phone" && selectedInviteCrew.phone_number && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    <Phone className="h-2.5 w-2.5 mr-1" /> {selectedInviteCrew.phone_number}
-                  </Badge>
-                )}
-                {inviteSendVia === "phone" && !selectedInviteCrew.phone_number && (
-                  <Badge variant="destructive" className="text-[10px]">No phone on file</Badge>
-                )}
-                {inviteSendVia === "email" && selectedInviteCrew.email && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    <Mail className="h-2.5 w-2.5 mr-1" /> {selectedInviteCrew.email}
-                  </Badge>
-                )}
-                {inviteSendVia === "email" && !selectedInviteCrew.email && (
-                  <Badge variant="destructive" className="text-[10px]">No email on file</Badge>
-                )}
-                <pre className="text-xs text-foreground whitespace-pre-wrap font-sans leading-relaxed">
-                  {buildInviteMessage(selectedInviteCrew)}
-                </pre>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="text-sm text-muted-foreground">
+          Need to invite or re-invite a crew member?{" "}
+          <RouterLink to="/employees" className="text-primary underline-offset-4 hover:underline inline-flex items-center gap-1">
+            Manage in Employees <ArrowRight className="h-3.5 w-3.5" />
+          </RouterLink>
+        </div>
 
         {/* ══════════════════════════════════════════════════════════════════
             SECTION 2 — DAILY SCHEDULE TEXT
