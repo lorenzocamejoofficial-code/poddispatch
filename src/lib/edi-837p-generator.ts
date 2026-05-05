@@ -487,8 +487,8 @@ export function generateEDI837P(
     addSeg(["NM1", "PR", "2", (claim.payer_name || "MEDICARE").toUpperCase(), "", "", "", "", "PI", (claim.payer_id || "MEDICARE").toUpperCase()].join(ES));
 
     // --- CLAIM (2300) ---
-    const originCode = locationTypeCode(claim.origin_type);
-    const destCode = locationTypeCode(claim.destination_type);
+    const originCode = locationTypeCode(claim.origin_type, claim.origin_facility_meta);
+    const destCode = locationTypeCode(claim.destination_type, claim.destination_facility_meta);
     const facilityCode = `${originCode}${destCode}`;
     addSeg(
       [
