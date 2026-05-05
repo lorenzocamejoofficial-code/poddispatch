@@ -25,7 +25,6 @@ interface RemittanceFile {
 interface ClearinghouseSnapshot {
   last_receive_at: string | null;
   last_error: string | null;
-  // test_mode moved to global vendor_clearinghouse_settings; no longer per-tenant.
   is_active: boolean | null;
   auto_receive_enabled: boolean | null;
 }
@@ -33,12 +32,15 @@ interface ClearinghouseSnapshot {
 export function RemittanceActivityPanel({ companyId, refreshKey }: Props) {
   const [files, setFiles] = useState<RemittanceFile[]>([]);
   const [snapshot, setSnapshot] = useState<ClearinghouseSnapshot | null>(null);
+  // test_mode is now a global vendor setting (vendor_clearinghouse_settings),
+  // not per-tenant. Fetch it separately so the badge still reflects reality.
+  const [vendorTestMode, setVendorTestMode] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     if (!companyId) return;
     setLoading(true);
-    const [{ data: filesData }, { data: chData }] = await Promise.all([
+    const [{ data: filesData }, { data: chData }, { data: vendorData }] = await Promise.all([
       supabase
         .from("remittance_files" as any)
         .select("id, file_name, file_identifier, imported_at, claims_matched, claims_updated, total_paid, status")
@@ -50,9 +52,15 @@ export function RemittanceActivityPanel({ companyId, refreshKey }: Props) {
         .select("last_receive_at, last_error, is_active, auto_receive_enabled")
         .eq("company_id", companyId)
         .maybeSingle(),
+      supabase
+        .from("vendor_clearinghouse_settings" as any)
+        .select("test_mode")
+        .limit(1)
+        .maybeSingle(),
     ]);
     setFiles((filesData as unknown as RemittanceFile[]) ?? []);
     setSnapshot((chData as unknown as ClearinghouseSnapshot) ?? null);
+    setVendorTestMode(((vendorData as any)?.test_mode) === true);
     setLoading(false);
   }, [companyId]);
 
@@ -68,7 +76,7 @@ export function RemittanceActivityPanel({ companyId, refreshKey }: Props) {
         <div className="flex items-center gap-2">
           <Inbox className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold">Remittance Activity</h3>
-          {snapshot.test_mode && (
+          {vendorTestMode && (
             <Badge variant="outline" className="text-[10px] uppercase">Test Mode</Badge>
           )}
           {snapshot.auto_receive_enabled ? (
