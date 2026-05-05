@@ -29,6 +29,9 @@ export interface ReadinessInputs {
     patient_id?: string | null;
     trip_id?: string | null;
     patient_pickup_address?: string | null;
+    /** True when the trip's pickup address comes from the scheduling leg
+     *  (one-off run) rather than a patient record. Drives ZIP fix routing. */
+    is_oneoff?: boolean | null;
   };
   billingState?: string | null;
 }
@@ -194,11 +197,20 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
   // Pickup ZIP
   const pickupZip = (claim.origin_zip ?? "").trim();
   if (!pickupZip || !/^\d{5}(?:-?\d{4})?$/.test(pickupZip)) {
+    // Routing: recurring patient run → patient chart owns the pickup address.
+    // One-off run (no patient_id, or scheduling leg is_oneoff) → PCR/trip edit.
+    const isOneoff = !!claim.is_oneoff || !claim.patient_id;
+    const zipFixPath = isOneoff
+      ? (tripPath ? `${tripPath}&focus=origin_zip` : undefined)
+      : `${patientPath}?focus=pickup_address`;
+    const zipFixLabel = isOneoff
+      ? (tripPath ? "Fix in PCR" : undefined)
+      : "Fix in patient chart";
     push({
       field: "origin_zip", severity: "block",
       message: "Missing or invalid pickup ZIP — required for Loop 2310E (Medicare GPCI lookup).",
-      fixPath: tripPath ? `${tripPath}&focus=origin_zip` : undefined,
-      fixLabel: tripPath ? "Fix in PCR" : undefined,
+      fixPath: zipFixPath,
+      fixLabel: zipFixLabel,
     });
   }
 
