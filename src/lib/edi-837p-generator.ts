@@ -681,79 +681,15 @@ export function generateEDI837P(
  *  Pass billingState (provider/company state) for state-specific timely filing rules.
  */
 export function validateClaimForEDI(claim: ClaimForEDI, billingState?: string | null): string[] {
-  const errors: string[] = [];
-  if (!claim.member_id || !String(claim.member_id).trim() || String(claim.member_id).trim().toUpperCase() === "UNKNOWN") {
-    errors.push("Missing member ID");
-  }
-  if (!claim.run_date) errors.push("Missing service date");
-  if (!claim.total_charge || claim.total_charge <= 0) errors.push("Invalid charge amount");
-  if (!claim.hcpcs_codes?.length) errors.push("Missing HCPCS codes");
-  if (!claim.payer_name && !claim.payer_id) errors.push("Missing payer information");
-
-  // ICD-10 — required from PCR. We removed the dialysis N18.6 auto-stamp,
-  // so any claim missing codes must be blocked here. Diagnosis is the basis
-  // for medical-necessity determination — fabricating one is fraud exposure.
-  const allDiag = [...(claim.icd10_codes || []), ...(claim.diagnosis_codes || [])].filter(Boolean);
-  if (allDiag.length === 0) {
-    errors.push("ICD-10 code required — enter code from PCR");
-  }
-
-  // Patient name — both first and last required. splitPatientName uses "UNKNOWN"
-  // as a placeholder when parsing fails, so check for that explicitly.
-  const { last, first } = splitPatientName(claim.patient_name || "");
-  if (!claim.patient_name?.trim() || last === "UNKNOWN" || first === "UNKNOWN") {
-    errors.push("Missing patient first or last name");
-  }
-
-  // Patient DOB — required, must not be the 1900-01-01 placeholder
-  const dob = (claim.patient_dob || "").trim();
-  if (!dob || dob === "1900-01-01" || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
-    errors.push("Missing patient date of birth");
-  }
-
-  // Patient sex — required, must be M or F (not U/null)
-  const sex = (claim.patient_sex || "").toUpperCase();
-  if (sex !== "M" && sex !== "F" && sex !== "MALE" && sex !== "FEMALE") {
-    errors.push("Missing patient sex");
-  }
-
-  // Patient address — require non-empty street, city, and ZIP.
-  const parsed = parseAddressString(claim.patient_address);
-  const street = (claim.patient_address ?? "").trim() || parsed.street;
-  const city = (claim.patient_city ?? "").trim() || parsed.city;
-  const zip = (claim.patient_zip ?? "").trim() || parsed.zip;
-  if (!street.trim() || !city.trim() || !zip.trim()) {
-    errors.push("Patient address incomplete — update patient record before submitting.");
-  }
-
-  // Timely filing — block if DOS is past payer's filing limit
-  if (claim.run_date && /^\d{4}-\d{2}-\d{2}$/.test(claim.run_date)) {
-    const limit = timelyFilingDays(claim.payer_type, billingState ?? null);
-    const dos = new Date(claim.run_date + "T00:00:00");
-    const deadline = new Date(dos.getTime() + limit * 24 * 60 * 60 * 1000);
-    if (Date.now() > deadline.getTime()) {
-      const daysOver = Math.floor((Date.now() - deadline.getTime()) / (1000 * 60 * 60 * 24));
-      errors.push(`Timely filing deadline passed — DOS ${claim.run_date} is ${daysOver} days past the ${limit}-day limit for ${claim.payer_type ?? "payer"}.`);
-    }
-  }
-
-  // Origin/Destination modifier pair — required on every ambulance line.
-  // Without both we can't emit the RH/HD/etc. facility code on SV1.
-  if (!claim.origin_type || !String(claim.origin_type).trim()) {
-    errors.push("Missing origin type — required to build the ambulance origin/destination modifier (e.g. R, H, N, D).");
-  }
-  if (!claim.destination_type || !String(claim.destination_type).trim()) {
-    errors.push("Missing destination type — required to build the ambulance origin/destination modifier (e.g. R, H, N, D).");
-  }
-
-  // Pickup ZIP — Office Ally / Medicare use this for the GPCI / geographic
-  // payment adjustment lookup on Loop 2310E. Block export if missing.
-  const pickupZip = (claim.origin_zip ?? "").trim();
-  if (!pickupZip || !/^\d{5}(?:-?\d{4})?$/.test(pickupZip)) {
-    errors.push("Missing or invalid pickup ZIP — required for Loop 2310E (Medicare geographic payment adjustment).");
-  }
-
-  return errors;
+  // Delegated to claim-readiness.ts (single source of truth). All of the
+  // historical block conditions live there. Behavior at this gate is identical:
+  // we only return "block" severity messages and only the export stage.
+  // Lazy require to avoid a circular dependency at module init.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { evaluateClaimReadiness, readinessToErrorStrings } = require("./claim-readiness") as typeof import("./claim-readiness");
+  return readinessToErrorStrings(
+    evaluateClaimReadiness({ claim, billingState }).filter((i) => i.severity === "block"),
+  );
 }
 
 /** Validate the global vendor SubmitterInfo. PodDispatch is the registered
