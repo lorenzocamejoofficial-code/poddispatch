@@ -6,7 +6,8 @@ const corsHeaders = {
 };
 
 // Office Ally endpoints. Production = real payers / real money.
-// OATEST = sandbox; responses are simulated. Routed by clearinghouse_settings.test_mode.
+// OATEST = sandbox; responses are simulated. Routed by the global
+// vendor_clearinghouse_settings.test_mode (PodDispatch vendor singleton).
 const OA_ELIGIBILITY_URL_PROD = "https://www.officeally.com/OA_API/Eligibility/SubmitInquiry";
 const OA_ELIGIBILITY_URL_TEST = "https://oatest.officeally.com/OA_API/Eligibility/SubmitInquiry";
 
@@ -133,11 +134,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    const isTestMode = settings.test_mode === true;
+    // test_mode + submitter_id now live on the global vendor_clearinghouse_settings
+    // singleton (PodDispatch is the registered Office Ally vendor for all tenants).
+    const { data: vendor } = await supabase
+      .from("vendor_clearinghouse_settings")
+      .select("submitter_id, test_mode")
+      .limit(1)
+      .maybeSingle();
+    const isTestMode = (vendor as any)?.test_mode === true;
     const eligibilityUrl = isTestMode ? OA_ELIGIBILITY_URL_TEST : OA_ELIGIBILITY_URL_PROD;
-    const submitterId = isTestMode
-      ? ((settings.test_submitter_id ?? settings.submitter_id ?? oaUsername).toString())
-      : ((settings.submitter_id ?? oaUsername).toString());
+    const submitterId = (((vendor as any)?.submitter_id) ?? oaUsername).toString();
 
     const serviceDate = run_date ?? new Date().toISOString().split("T")[0];
 

@@ -5,7 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Production vs OATEST sandbox endpoints. Routed per-company by clearinghouse_settings.test_mode.
+// Production vs OATEST sandbox endpoints. Routed by the global
+// vendor_clearinghouse_settings.test_mode (PodDispatch vendor singleton).
 const OA_REMITTANCE_URL_PROD = "https://www.officeally.com/OA_API/Remittance/GetRemittanceFiles";
 const OA_REMITTANCE_URL_TEST = "https://oatest.officeally.com/OA_API/Remittance/GetRemittanceFiles";
 
@@ -74,6 +75,14 @@ Deno.serve(async (req) => {
     let totalReceived = 0;
     const errors: string[] = [];
 
+    // Vendor-wide test/prod routing — same for every tenant.
+    const { data: vendor } = await supabase
+      .from("vendor_clearinghouse_settings")
+      .select("test_mode")
+      .limit(1)
+      .maybeSingle();
+    const isTestMode = (vendor as any)?.test_mode === true;
+
     for (const settings of settingsRows) {
       try {
         const oaUsername = (settings.sftp_username ?? "").trim();
@@ -99,7 +108,6 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const isTestMode = settings.test_mode === true;
         const remittanceUrl = isTestMode ? OA_REMITTANCE_URL_TEST : OA_REMITTANCE_URL_PROD;
 
         try {
