@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FileText, Download, Info, FlaskConical, Eye, FileCheck2, Upload, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, Link } from "react-router-dom";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { RecordRejectionDialog } from "@/components/billing/RecordRejectionDialog";
 import {
@@ -26,6 +26,7 @@ import {
   type ProviderInfo,
   type SubmitterInfo,
 } from "@/lib/edi-837p-generator";
+import { evaluateClaimReadiness, type ReadinessIssue } from "@/lib/claim-readiness";
 import { useAuth } from "@/hooks/useAuth";
 
 interface ExportableClaim {
@@ -75,6 +76,9 @@ export default function EDIExport() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [rejectionTarget, setRejectionTarget] = useState<{ id: string; label: string } | null>(null);
+  const [validationIssues, setValidationIssues] = useState<
+    { idx: number; ec: ClaimForEDI; issues: ReadinessIssue[] }[]
+  >([]);
 
   const [providerInfo, setProviderInfo] = useState<ProviderInfo>({
     npi: "",
