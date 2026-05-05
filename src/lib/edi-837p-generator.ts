@@ -756,9 +756,6 @@ export function validateClaimForEDI(claim: ClaimForEDI, billingState?: string | 
   return errors;
 }
 
-/** Generate a filename for the 837P export.
- */
-
 /** Validate the global vendor SubmitterInfo. PodDispatch is the registered
  *  Office Ally vendor, so submitter_id must be present and non-empty. Returns
  *  human-readable error strings; export must be blocked if any are returned. */
