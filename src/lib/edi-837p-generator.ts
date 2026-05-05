@@ -78,12 +78,14 @@ export interface SubmitterInfo {
   submitter_name: string;
   contact_name: string;
   contact_phone: string;
-  /** Office Ally (or other clearinghouse) receiver ID. Defaults to "OFFICEALLY"
-   *  when not supplied. Must come from clearinghouse_settings.receiver_id. */
+  /** Receiver ID (clearinghouse). Comes from vendor_clearinghouse_settings.receiver_id.
+   *  Defaults to Office Ally's Tax ID ("330897513") when not supplied. */
   receiver_id?: string;
+  /** Receiver Name (clearinghouse). Comes from vendor_clearinghouse_settings.receiver_name.
+   *  Defaults to "OFFICE ALLY" when not supplied. */
+  receiver_name?: string;
   /** ISA15 Usage Indicator: "P" = Production (default), "T" = Test (OATEST).
-   *  When test mode is enabled in clearinghouse_settings, set this to "T" so
-   *  Office Ally routes the file through the test environment. */
+   *  When test_mode is enabled on vendor_clearinghouse_settings, set this to "T". */
   usage_indicator?: "P" | "T";
 }
 
@@ -358,8 +360,11 @@ export function generateEDI837P(
 
   // ISA - Interchange Control Header
   // Per Office Ally Companion Guide (table 7.1), ISA08 must be OA's Tax ID.
-  const OA_RECEIVER_ID = "330897513";
-  const OA_RECEIVER_NAME = "OFFICE ALLY";
+  // Defaults are Office Ally; vendor_clearinghouse_settings can override these
+  // at runtime via SubmitterInfo.receiver_id / receiver_name. validateSubmitterInfo
+  // will block export if neither the DB row nor the defaults yield a value.
+  const OA_RECEIVER_ID = (submitterInfo.receiver_id && submitterInfo.receiver_id.trim()) || "330897513";
+  const OA_RECEIVER_NAME = (submitterInfo.receiver_name && submitterInfo.receiver_name.trim()) || "OFFICE ALLY";
   const usageIndicator = submitterInfo.usage_indicator === "T" ? "T" : "P";
   segments.push(
     [
