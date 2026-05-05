@@ -202,7 +202,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     const isOneoff = !!claim.is_oneoff || !claim.patient_id;
     const zipFixPath = isOneoff
       ? (tripPath ? `${tripPath}&focus=origin_zip` : undefined)
-      : `${patientPath}?focus=pickup_address`;
+      : `${patientPath}?focus=address`;
     const zipFixLabel = isOneoff
       ? (tripPath ? "Fix in PCR" : undefined)
       : "Fix in patient chart";
