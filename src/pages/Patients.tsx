@@ -28,6 +28,7 @@ import { DocumentAttachments } from "@/components/documents/DocumentAttachments"
 import { TablePagination } from "@/components/ui/table-pagination";
 import { PatientScheduleOverridesEditor, saveScheduleOverrides, type ScheduleOverride } from "@/components/patients/PatientScheduleOverridesEditor";
 import { ICD10Picker } from "@/components/pcr/ICD10Picker";
+import { useFocusScroll } from "@/lib/use-focus-scroll";
 import {
   CHIEF_COMPLAINTS,
   PRIMARY_IMPRESSIONS,
