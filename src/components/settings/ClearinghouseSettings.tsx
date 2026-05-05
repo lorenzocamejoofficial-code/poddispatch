@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   CheckCircle2, XCircle, ExternalLink, Loader2, Shield, FolderOpen, Zap, Eye, EyeOff,
-  AlertTriangle, FlaskConical,
+  AlertTriangle,
 } from "lucide-react";
 
 type Step = 1 | 2 | 3 | 4;
@@ -28,13 +28,6 @@ interface ClearinghouseRow {
   last_send_at: string | null;
   last_receive_at: string | null;
   last_error: string | null;
-  submitter_id: string | null;
-  submitter_name: string | null;
-  contact_name: string | null;
-  contact_phone: string | null;
-  receiver_id: string | null;
-  test_mode: boolean;
-  test_submitter_id: string | null;
 }
 
 export function ClearinghouseSettings() {
@@ -61,18 +54,9 @@ export function ClearinghouseSettings() {
   const [outbound, setOutbound] = useState("outbound");
   const [inbound, setInbound] = useState("inbound");
 
-  // Submitter / receiver IDs (required on the 837P envelope)
-  const [submitterId, setSubmitterId] = useState("");
-  const [submitterName, setSubmitterName] = useState("");
-  const [contactName, setContactName] = useState("");
-  const [contactPhone, setContactPhone] = useState("");
-  const [receiverId, setReceiverId] = useState("OFFICEALLY");
-
   // Step 4
   const [autoSend, setAutoSend] = useState(false);
   const [autoReceive, setAutoReceive] = useState(false);
-  const [testMode, setTestMode] = useState(false);
-  const [testSubmitterId, setTestSubmitterId] = useState("");
 
   const [saving, setSaving] = useState(false);
 
@@ -101,13 +85,6 @@ export function ClearinghouseSettings() {
       setInbound(row.inbound_folder);
       setAutoSend(row.auto_send_enabled);
       setAutoReceive(row.auto_receive_enabled);
-      setSubmitterId(row.submitter_id ?? "");
-      setSubmitterName(row.submitter_name ?? "");
-      setContactName(row.contact_name ?? "");
-      setContactPhone(row.contact_phone ?? "");
-      setReceiverId(row.receiver_id ?? "OFFICEALLY");
-      setTestMode(row.test_mode === true);
-      setTestSubmitterId(row.test_submitter_id ?? "");
       if (row.is_configured) {
         setAccountCreated(true);
         setConnectionStatus("success");
