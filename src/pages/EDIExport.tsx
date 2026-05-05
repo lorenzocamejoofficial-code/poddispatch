@@ -17,6 +17,8 @@ import { RecordRejectionDialog } from "@/components/billing/RecordRejectionDialo
 import {
   generateEDI837P,
   validateClaimForEDI,
+  validateProviderInfo,
+  validateSubmitterInfo,
   generateEDIFilename,
   extractFacilityName,
   parseAddressString,
@@ -24,6 +26,7 @@ import {
   type ProviderInfo,
   type SubmitterInfo,
 } from "@/lib/edi-837p-generator";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ExportableClaim {
   id: string;
@@ -58,6 +61,7 @@ interface ExportableClaim {
 }
 
 export default function EDIExport() {
+  const { activeCompanyId } = useAuth();
   const [claims, setClaims] = useState<ExportableClaim[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -68,7 +72,6 @@ export default function EDIExport() {
   const [einLocked, setEinLocked] = useState(false);
   const [npiLocked, setNpiLocked] = useState(false);
   const [testMode, setTestMode] = useState(false);
-  const [testSubmitterId, setTestSubmitterId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [rejectionTarget, setRejectionTarget] = useState<{ id: string; label: string } | null>(null);
@@ -168,18 +171,17 @@ export default function EDIExport() {
     }
   }, []);
 
-  // Load company settings for provider info
+  // Load company (per-tenant Provider Info) and global vendor (PodDispatch
+  // Submitter Info). The Submitter is the SAME for every customer because
+  // PodDispatch is the registered Office Ally vendor; only the Billing
+  // Provider varies per tenant.
   const fetchProviderDefaults = useCallback(async () => {
-    await supabase
-      .from("company_settings")
-      .select("company_name")
-      .limit(1)
-      .maybeSingle();
+    if (!activeCompanyId) return;
 
     const { data: company } = await supabase
       .from("companies")
       .select("name, npi_number, ein_number, state_of_operation, address_street, address_city, address_state, address_zip")
-      .limit(1)
+      .eq("id", activeCompanyId)
       .maybeSingle();
 
     if (company) {
@@ -188,45 +190,40 @@ export default function EDIExport() {
         organization_name: prev.organization_name || company.name || "",
         npi: prev.npi || company.npi_number || "",
         tax_id: prev.tax_id || (company as any).ein_number || "",
-        state: prev.state || company.state_of_operation || "",
+        // Loop 2010AA needs the PHYSICAL billing address state, not the
+        // company's registered state of operation. Fall back to state_of_operation
+        // only when no physical state is on file.
+        state: prev.state || (company as any).address_state || company.state_of_operation || "",
         address: prev.address || (company as any).address_street || "",
         city: prev.city || (company as any).address_city || "",
         zip: prev.zip || (company as any).address_zip || "",
       }));
       if ((company as any).ein_number) setEinLocked(true);
       if (company.npi_number) setNpiLocked(true);
-      setSubmitterInfo((prev) => ({
-        ...prev,
-        submitter_name: prev.submitter_name || company.name || "",
-      }));
     }
 
-    // Pull per-company submitter / receiver IDs from clearinghouse_settings.
-    // These are now configured during onboarding (Settings → Clearinghouse) and
-    // override the hardcoded PODDISPATCH/OFFICEALLY fallback.
-    const { data: ch } = await supabase
-      .from("clearinghouse_settings" as any)
-      .select("submitter_id, submitter_name, contact_name, contact_phone, receiver_id, test_mode, test_submitter_id")
+    // Pull GLOBAL vendor submitter from vendor_clearinghouse_settings. This is
+    // PodDispatch's registered Office Ally identity (singleton row). Same for
+    // every customer — never per-tenant.
+    const { data: vendor } = await supabase
+      .from("vendor_clearinghouse_settings" as any)
+      .select("submitter_id, submitter_name, contact_name, contact_phone, receiver_id, receiver_name, test_mode")
       .limit(1)
       .maybeSingle();
-    if (ch) {
-      const row = ch as any;
+    if (vendor) {
+      const row = vendor as any;
       setTestMode(row.test_mode === true);
-      setTestSubmitterId(row.test_submitter_id ?? null);
-      // In test mode, prefer the OATEST submitter ID if provided.
-      const effectiveSubmitterId = row.test_mode && row.test_submitter_id
-        ? row.test_submitter_id
-        : row.submitter_id;
-      setSubmitterInfo((prev) => ({
-        submitter_id: effectiveSubmitterId || prev.submitter_id,
-        submitter_name: row.submitter_name || prev.submitter_name,
-        contact_name: row.contact_name || prev.contact_name,
-        contact_phone: row.contact_phone || prev.contact_phone,
-        receiver_id: row.receiver_id || "OFFICEALLY",
+      setSubmitterInfo({
+        submitter_id: row.submitter_id || "",
+        submitter_name: row.submitter_name || "",
+        contact_name: row.contact_name || "",
+        contact_phone: row.contact_phone || "",
+        receiver_id: row.receiver_id || "330897513",
+        receiver_name: row.receiver_name || "OFFICE ALLY",
         usage_indicator: row.test_mode === true ? "T" : "P",
-      }));
+      });
     }
-  }, []);
+  }, [activeCompanyId]);
 
   useEffect(() => {
     fetchClaims();
@@ -261,32 +258,28 @@ export default function EDIExport() {
       toast.error("Select at least one claim to export");
       return;
     }
-    const npiDigits = providerInfo.npi.replace(/\D/g, "");
+    const provErrs = validateProviderInfo(providerInfo);
+    if (provErrs.length > 0) {
+      toast.error("Billing Provider invalid:\n" + provErrs.join("\n"), { duration: 8000 });
+      return;
+    }
+    const subErrs = validateSubmitterInfo(submitterInfo);
+    if (subErrs.length > 0) {
+      toast.error("Vendor (PodDispatch) submitter not configured:\n" + subErrs.join("\n"), { duration: 8000 });
+      return;
+    }
     const taxDigits = providerInfo.tax_id.replace(/\D/g, "");
-    if (!npiDigits || npiDigits.length !== 10) {
-      toast.error("Provider NPI must be exactly 10 digits");
-      return;
-    }
-    if (!taxDigits || taxDigits.length !== 9) {
-      toast.error("Provider Tax ID (EIN) must be exactly 9 digits");
-      return;
-    }
 
     setGenerating(true);
     try {
       // If EIN was entered manually (not previously saved), persist to companies
       // so future exports pre-fill it.
       if (!einLocked && taxDigits.length === 9) {
-        const { data: companyRow } = await supabase
-          .from("companies")
-          .select("id")
-          .limit(1)
-          .maybeSingle();
-        if (companyRow?.id) {
+        if (activeCompanyId) {
           await supabase
             .from("companies")
             .update({ ein_number: taxDigits } as any)
-            .eq("id", companyRow.id);
+            .eq("id", activeCompanyId);
           setEinLocked(true);
         }
       }
@@ -442,14 +435,12 @@ export default function EDIExport() {
       // sent is the file in the user's browser downloads folder.
       let artifactId: string | null = null;
       try {
-        const { data: companyRow } = await supabase
-          .from("companies").select("id").limit(1).maybeSingle();
         const { data: { user } } = await supabase.auth.getUser();
-        if (companyRow?.id) {
+        if (activeCompanyId) {
           const { data: artRow, error: artErr } = await supabase
             .from("claim_submission_artifacts" as any)
             .insert({
-              company_id: companyRow.id,
+              company_id: activeCompanyId,
               filename,
               edi_content: ediContent,
               claim_ids: ids,
@@ -523,14 +514,14 @@ export default function EDIExport() {
       toast.error("Select at least one claim to submit");
       return;
     }
-    const npiDigits = providerInfo.npi.replace(/\D/g, "");
-    const taxDigits = providerInfo.tax_id.replace(/\D/g, "");
-    if (!npiDigits || npiDigits.length !== 10) {
-      toast.error("Provider NPI must be exactly 10 digits");
+    const provErrs = validateProviderInfo(providerInfo);
+    if (provErrs.length > 0) {
+      toast.error("Billing Provider invalid:\n" + provErrs.join("\n"), { duration: 8000 });
       return;
     }
-    if (!taxDigits || taxDigits.length !== 9) {
-      toast.error("Provider Tax ID (EIN) must be exactly 9 digits");
+    const subErrs = validateSubmitterInfo(submitterInfo);
+    if (subErrs.length > 0) {
+      toast.error("Vendor (PodDispatch) submitter not configured:\n" + subErrs.join("\n"), { duration: 8000 });
       return;
     }
 
@@ -642,9 +633,7 @@ export default function EDIExport() {
       const filename = generateEDIFilename(testMode);
       const ids = selectedClaims.map((c) => c.id);
 
-      // Get company_id
-      const { data: compRow } = await supabase.from("companies").select("id").limit(1).maybeSingle();
-      if (!compRow?.id) {
+      if (!activeCompanyId) {
         toast.error("Could not determine company");
         setSubmitting(false);
         return;
@@ -654,7 +643,7 @@ export default function EDIExport() {
       const { error: queueErr } = await supabase
         .from("claim_submission_queue" as any)
         .insert({
-          company_id: compRow.id,
+          company_id: activeCompanyId,
           claim_ids: ids,
           filename,
           edi_content: ediContent,
@@ -810,7 +799,10 @@ export default function EDIExport() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">Submitter</CardTitle>
-              <CardDescription className="text-xs">Clearinghouse contact info</CardDescription>
+              <CardDescription className="text-xs">
+                PodDispatch is the registered Office Ally vendor — these values are
+                managed centrally and apply to every customer submission.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -818,16 +810,16 @@ export default function EDIExport() {
                   <Label className="text-xs">Submitter ID</Label>
                   <Input
                     value={submitterInfo.submitter_id}
-                    onChange={(e) => setSubmitterInfo((s) => ({ ...s, submitter_id: e.target.value }))}
                     className="h-8 text-sm"
+                    readOnly
                   />
                 </div>
                 <div>
                   <Label className="text-xs">Submitter Name</Label>
                   <Input
                     value={submitterInfo.submitter_name}
-                    onChange={(e) => setSubmitterInfo((s) => ({ ...s, submitter_name: e.target.value }))}
                     className="h-8 text-sm"
+                    readOnly
                   />
                 </div>
               </div>
@@ -836,19 +828,25 @@ export default function EDIExport() {
                   <Label className="text-xs">Contact Name</Label>
                   <Input
                     value={submitterInfo.contact_name}
-                    onChange={(e) => setSubmitterInfo((s) => ({ ...s, contact_name: e.target.value }))}
                     className="h-8 text-sm"
+                    readOnly
                   />
                 </div>
                 <div>
                   <Label className="text-xs">Contact Phone</Label>
                   <Input
                     value={submitterInfo.contact_phone}
-                    onChange={(e) => setSubmitterInfo((s) => ({ ...s, contact_phone: e.target.value }))}
                     className="h-8 text-sm"
+                    readOnly
                   />
                 </div>
               </div>
+              {!submitterInfo.submitter_id && (
+                <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                  Vendor settings are not yet configured. The system creator must add
+                  PodDispatch's Office Ally identity before any 837P can be exported.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

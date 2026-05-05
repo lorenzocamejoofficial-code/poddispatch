@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   CheckCircle2, XCircle, ExternalLink, Loader2, Shield, FolderOpen, Zap, Eye, EyeOff,
-  AlertTriangle, FlaskConical,
+  AlertTriangle,
 } from "lucide-react";
 
 type Step = 1 | 2 | 3 | 4;
@@ -28,13 +28,6 @@ interface ClearinghouseRow {
   last_send_at: string | null;
   last_receive_at: string | null;
   last_error: string | null;
-  submitter_id: string | null;
-  submitter_name: string | null;
-  contact_name: string | null;
-  contact_phone: string | null;
-  receiver_id: string | null;
-  test_mode: boolean;
-  test_submitter_id: string | null;
 }
 
 export function ClearinghouseSettings() {
@@ -61,18 +54,9 @@ export function ClearinghouseSettings() {
   const [outbound, setOutbound] = useState("outbound");
   const [inbound, setInbound] = useState("inbound");
 
-  // Submitter / receiver IDs (required on the 837P envelope)
-  const [submitterId, setSubmitterId] = useState("");
-  const [submitterName, setSubmitterName] = useState("");
-  const [contactName, setContactName] = useState("");
-  const [contactPhone, setContactPhone] = useState("");
-  const [receiverId, setReceiverId] = useState("OFFICEALLY");
-
   // Step 4
   const [autoSend, setAutoSend] = useState(false);
   const [autoReceive, setAutoReceive] = useState(false);
-  const [testMode, setTestMode] = useState(false);
-  const [testSubmitterId, setTestSubmitterId] = useState("");
 
   const [saving, setSaving] = useState(false);
 
@@ -101,13 +85,6 @@ export function ClearinghouseSettings() {
       setInbound(row.inbound_folder);
       setAutoSend(row.auto_send_enabled);
       setAutoReceive(row.auto_receive_enabled);
-      setSubmitterId(row.submitter_id ?? "");
-      setSubmitterName(row.submitter_name ?? "");
-      setContactName(row.contact_name ?? "");
-      setContactPhone(row.contact_phone ?? "");
-      setReceiverId(row.receiver_id ?? "OFFICEALLY");
-      setTestMode(row.test_mode === true);
-      setTestSubmitterId(row.test_submitter_id ?? "");
       if (row.is_configured) {
         setAccountCreated(true);
         setConnectionStatus("success");
@@ -397,32 +374,12 @@ export function ClearinghouseSettings() {
                 <Label>Inbound Folder (835 payments)</Label>
                 <Input value={inbound} onChange={(e) => setInbound(e.target.value)} />
               </div>
-              <div className="pt-3 border-t mt-2">
-                <p className="text-sm font-medium text-foreground mb-1">EDI Submitter Identification</p>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Required on every 837P envelope. Office Ally provides your Submitter ID after enrollment.
+              <div className="pt-3 border-t mt-2 rounded bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">
+                  EDI Submitter / Receiver IDs are managed centrally by PodDispatch
+                  (the registered Office Ally vendor) and apply to every customer
+                  submission — no per-tenant configuration needed.
                 </p>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Submitter ID (ISA06 / GS02)</Label>
-                <Input value={submitterId} onChange={(e) => setSubmitterId(e.target.value)} placeholder="From Office Ally" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Submitter Name</Label>
-                <Input value={submitterName} onChange={(e) => setSubmitterName(e.target.value)} placeholder="Your billing entity name" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Billing Contact Name</Label>
-                <Input value={contactName} onChange={(e) => setContactName(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Billing Contact Phone</Label>
-                <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="10 digits" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Receiver ID (ISA08 / GS03)</Label>
-                <Input value={receiverId} onChange={(e) => setReceiverId(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Default <code>OFFICEALLY</code> works for standard accounts.</p>
               </div>
             </div>
             <Button
@@ -432,11 +389,6 @@ export function ClearinghouseSettings() {
                 await saveStep({
                   outbound_folder: outbound,
                   inbound_folder: inbound,
-                  submitter_id: submitterId.trim() || null,
-                  submitter_name: submitterName.trim() || null,
-                  contact_name: contactName.trim() || null,
-                  contact_phone: contactPhone.trim() || null,
-                  receiver_id: receiverId.trim() || "OFFICEALLY",
                 });
                 setActiveStep(4);
               }}
@@ -450,38 +402,6 @@ export function ClearinghouseSettings() {
           <>
             <h4 className="font-semibold text-foreground">Step 4 — Enable automatic processing</h4>
             <div className="space-y-4">
-              {/* Sandbox / Test Mode */}
-              <div className="rounded-lg border border-amber-400/40 bg-amber-50/60 dark:bg-amber-950/20 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-start gap-2">
-                    <FlaskConical className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Sandbox / Test Mode (OATEST)</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Routes eligibility and remittance calls to Office Ally's <strong>OATEST sandbox</strong>.
-                        No real claims are submitted, no real money moves. Use this to verify your setup before going live.
-                      </p>
-                    </div>
-                  </div>
-                  <Switch checked={testMode} onCheckedChange={setTestMode} />
-                </div>
-                {testMode && (
-                  <div className="space-y-1.5 pl-6">
-                    <Label className="text-xs">Test Submitter ID (OATEST)</Label>
-                    <Input
-                      value={testSubmitterId}
-                      onChange={(e) => setTestSubmitterId(e.target.value)}
-                      placeholder="From your Office Ally OATEST welcome email"
-                      className="max-w-xs"
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      Office Ally usually issues a separate Submitter ID for OATEST. Leave blank to fall back to your
-                      production Submitter ID (will fail if Office Ally requires a distinct one).
-                    </p>
-                  </div>
-                )}
-              </div>
-
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div>
                   <p className="text-sm font-medium text-foreground">Enable Automatic Claim Submission</p>
@@ -536,8 +456,6 @@ export function ClearinghouseSettings() {
                     auto_send_enabled: autoSend,
                     auto_receive_enabled: autoReceive,
                     is_active: autoSend || autoReceive,
-                    test_mode: testMode,
-                    test_submitter_id: testSubmitterId.trim() || null,
                   });
                 }}
               >

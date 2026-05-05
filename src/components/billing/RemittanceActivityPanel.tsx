@@ -25,7 +25,7 @@ interface RemittanceFile {
 interface ClearinghouseSnapshot {
   last_receive_at: string | null;
   last_error: string | null;
-  test_mode: boolean | null;
+  // test_mode moved to global vendor_clearinghouse_settings; no longer per-tenant.
   is_active: boolean | null;
   auto_receive_enabled: boolean | null;
 }
@@ -47,7 +47,7 @@ export function RemittanceActivityPanel({ companyId, refreshKey }: Props) {
         .limit(10),
       supabase
         .from("clearinghouse_settings")
-        .select("last_receive_at, last_error, test_mode, is_active, auto_receive_enabled")
+        .select("last_receive_at, last_error, is_active, auto_receive_enabled")
         .eq("company_id", companyId)
         .maybeSingle(),
     ]);

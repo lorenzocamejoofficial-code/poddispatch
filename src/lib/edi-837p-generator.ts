@@ -78,12 +78,14 @@ export interface SubmitterInfo {
   submitter_name: string;
   contact_name: string;
   contact_phone: string;
-  /** Office Ally (or other clearinghouse) receiver ID. Defaults to "OFFICEALLY"
-   *  when not supplied. Must come from clearinghouse_settings.receiver_id. */
+  /** Receiver ID (clearinghouse). Comes from vendor_clearinghouse_settings.receiver_id.
+   *  Defaults to Office Ally's Tax ID ("330897513") when not supplied. */
   receiver_id?: string;
+  /** Receiver Name (clearinghouse). Comes from vendor_clearinghouse_settings.receiver_name.
+   *  Defaults to "OFFICE ALLY" when not supplied. */
+  receiver_name?: string;
   /** ISA15 Usage Indicator: "P" = Production (default), "T" = Test (OATEST).
-   *  When test mode is enabled in clearinghouse_settings, set this to "T" so
-   *  Office Ally routes the file through the test environment. */
+   *  When test_mode is enabled on vendor_clearinghouse_settings, set this to "T". */
   usage_indicator?: "P" | "T";
 }
 
@@ -358,8 +360,11 @@ export function generateEDI837P(
 
   // ISA - Interchange Control Header
   // Per Office Ally Companion Guide (table 7.1), ISA08 must be OA's Tax ID.
-  const OA_RECEIVER_ID = "330897513";
-  const OA_RECEIVER_NAME = "OFFICE ALLY";
+  // Defaults are Office Ally; vendor_clearinghouse_settings can override these
+  // at runtime via SubmitterInfo.receiver_id / receiver_name. validateSubmitterInfo
+  // will block export if neither the DB row nor the defaults yield a value.
+  const OA_RECEIVER_ID = (submitterInfo.receiver_id && submitterInfo.receiver_id.trim()) || "330897513";
+  const OA_RECEIVER_NAME = (submitterInfo.receiver_name && submitterInfo.receiver_name.trim()) || "OFFICE ALLY";
   const usageIndicator = submitterInfo.usage_indicator === "T" ? "T" : "P";
   segments.push(
     [
@@ -748,6 +753,56 @@ export function validateClaimForEDI(claim: ClaimForEDI, billingState?: string | 
     errors.push("Missing or invalid pickup ZIP — required for Loop 2310E (Medicare geographic payment adjustment).");
   }
 
+  return errors;
+}
+
+/** Validate the global vendor SubmitterInfo. PodDispatch is the registered
+ *  Office Ally vendor, so submitter_id must be present and non-empty. Returns
+ *  human-readable error strings; export must be blocked if any are returned. */
+export function validateSubmitterInfo(info: SubmitterInfo): string[] {
+  const errors: string[] = [];
+  const sid = (info.submitter_id ?? "").trim();
+  if (!sid) {
+    errors.push("Vendor Submitter ID is missing — configure it in vendor_clearinghouse_settings before exporting any 837P.");
+  }
+  if (!(info.submitter_name ?? "").trim()) {
+    errors.push("Vendor Submitter Name is missing — configure it in vendor_clearinghouse_settings.");
+  }
+  if (!(info.contact_name ?? "").trim()) {
+    errors.push("Vendor contact name is missing — configure it in vendor_clearinghouse_settings.");
+  }
+  const phoneDigits = (info.contact_phone ?? "").replace(/\D/g, "");
+  if (phoneDigits.length < 10) {
+    errors.push("Vendor contact phone must be at least 10 digits — configure it in vendor_clearinghouse_settings.");
+  }
+  return errors;
+}
+
+/** Validate the per-tenant ProviderInfo (Loop 2010AA, Billing Provider).
+ *  Office Ally requires: 10-digit NPI, 9-digit EIN, physical street address
+ *  (no PO Box), and a 5- or 9-digit ZIP. */
+export function validateProviderInfo(info: ProviderInfo): string[] {
+  const errors: string[] = [];
+  const npi = (info.npi ?? "").replace(/\D/g, "");
+  if (npi.length !== 10) errors.push("Provider NPI must be exactly 10 digits.");
+  const ein = (info.tax_id ?? "").replace(/\D/g, "");
+  if (ein.length !== 9) errors.push("Provider Tax ID (EIN) must be exactly 9 digits.");
+  if (!(info.organization_name ?? "").trim()) errors.push("Provider organization name is required.");
+  const addr = (info.address ?? "").trim();
+  if (!addr) {
+    errors.push("Provider street address is required (Loop 2010AA, N3).");
+  } else if (/\bP\.?\s*O\.?\s*BOX\b/i.test(addr)) {
+    errors.push("Provider address cannot be a PO Box — Office Ally requires a physical street address for the Billing Provider.");
+  }
+  if (!(info.city ?? "").trim()) errors.push("Provider city is required (Loop 2010AA, N4).");
+  const stateAbbr = (info.state ?? "").trim().toUpperCase();
+  if (stateAbbr.length !== 2 || !US_STATES.has(stateAbbr)) {
+    errors.push("Provider state must be a 2-letter US state abbreviation.");
+  }
+  const zip = (info.zip ?? "").replace(/\D/g, "");
+  if (zip.length !== 5 && zip.length !== 9) {
+    errors.push("Provider ZIP must be 5 or 9 digits.");
+  }
   return errors;
 }
 
