@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Link2, Trash2, Truck, AlertCircle, CalendarIcon, Phone, MessageSquareText, RefreshCw, Check, Send, Clock, ArrowRight } from "lucide-react";
+import { Copy, Link2, Trash2, Truck, CalendarIcon, Phone, MessageSquareText, RefreshCw, Check, Send, Clock, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
