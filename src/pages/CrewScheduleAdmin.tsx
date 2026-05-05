@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useSchedulingStore as useGlobalSchedulingStore } from "@/hooks/useSchedulingStore";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Link2, Trash2, Truck, AlertCircle, CalendarIcon, UserPlus, Phone, Mail, MessageSquareText, RefreshCw, Check, Send, Clock } from "lucide-react";
+import { Copy, Link2, Trash2, Truck, AlertCircle, CalendarIcon, Phone, MessageSquareText, RefreshCw, Check, Send, Clock, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -51,18 +52,12 @@ export default function CrewScheduleAdmin() {
   const [companyName, setCompanyName] = useState("Dispatch");
   const [downTruckIds, setDownTruckIds] = useState<Set<string>>(new Set());
   const [smsComingSoonOpen, setSmsComingSoonOpen] = useState(false);
-  const [sendingInvite, setSendingInvite] = useState(false);
   const [sendingSchedule, setSendingSchedule] = useState(false);
   const [scheduleEmailRecipient, setScheduleEmailRecipient] = useState("");
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
   const { selectedDate: scheduleDate, setSelectedDate: setScheduleDate } = useGlobalSchedulingStore();
   const [calendarOpen, setCalendarOpen] = useState(false);
-
-  // Section 1: Crew invite
-  const [inviteCrewId, setInviteCrewId] = useState("");
-  const [inviteSendVia, setInviteSendVia] = useState<"phone" | "email">("phone");
-  const [inviteCopied, setInviteCopied] = useState(false);
 
   // Section 2: Daily schedule text
   const [scheduleTruckId, setScheduleTruckId] = useState("");
@@ -156,56 +151,6 @@ export default function CrewScheduleAdmin() {
       return format(new Date(y, m - 1, d), "EEE, MMM d, yyyy");
     } catch { return scheduleDate; }
   })();
-
-  // ─── Section 1: Crew Login Invite ───
-  const selectedInviteCrew = employees.find(e => e.id === inviteCrewId);
-  const publishedUrl = "poddispatch.lovable.app";
-
-  const buildInviteMessage = (emp: ActiveEmployee) => {
-    if (inviteSendVia === "phone") {
-      return `${companyName} — Crew Login\n\nYou've been set up as a crew member. To view your daily runs:\n\n1. Go to ${publishedUrl}\n2. Tap "Crew"\n3. Log in with your company email and password\n\nSave your password in your phone for quick access.`;
-    }
-    return `${companyName} — Crew Login\n\nYou've been set up as a crew member on ${companyName}. To view your daily assigned runs, go to ${publishedUrl}, click "Crew", and log in with your company email and password.\n\nSave your credentials in your browser for quick daily access.`;
-  };
-
-  const handleCopyInvite = () => {
-    if (!selectedInviteCrew) return;
-    navigator.clipboard.writeText(buildInviteMessage(selectedInviteCrew));
-    setInviteCopied(true);
-    toast.success("Crew login invite copied to clipboard");
-    setTimeout(() => setInviteCopied(false), 2000);
-  };
-
-  const handleSendInvite = async () => {
-    if (!selectedInviteCrew) return;
-    if (inviteSendVia === "phone") {
-      setSmsComingSoonOpen(true);
-      return;
-    }
-    if (!selectedInviteCrew.email) {
-      toast.error("No email on file for this crew member");
-      return;
-    }
-    setSendingInvite(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("send-crew-schedule-email", {
-        body: {
-          kind: "invite",
-          to: selectedInviteCrew.email,
-          subject: `${companyName} — Crew Login Instructions`,
-          message: buildInviteMessage(selectedInviteCrew),
-        },
-      });
-      if (error || (data as any)?.error) {
-        throw new Error((data as any)?.error || error?.message || "Send failed");
-      }
-      toast.success(`Invite emailed to ${selectedInviteCrew.email}`);
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to send invite");
-    } finally {
-      setSendingInvite(false);
-    }
-  };
 
   // ─── Section 2: Daily Schedule Text ───
   // Issue 3: Fetch leg_exceptions for the selected date
