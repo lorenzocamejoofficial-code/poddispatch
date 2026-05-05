@@ -37,6 +37,14 @@ export interface ClaimForEDI {
   diagnosis_codes: string[];
   auth_number: string | null;
   icd10_codes: string[];
+  /** Facility metadata resolved by the caller (EDIExport.tsx) before calling
+   *  generateEDI837P. When present, drives EDI origin/destination modifier
+   *  selection in locationTypeCode() — required for accurate G/J emission on
+   *  dialysis runs. null = facility not matched; generator falls back to
+   *  substring matching on origin_type / destination_type.
+   *  Pure JSON, no functions or promises — generator stays sync. */
+  origin_facility_meta?: { facility_type: string; dialysis_subtype: string | null } | null;
+  destination_facility_meta?: { facility_type: string; dialysis_subtype: string | null } | null;
   // Medical necessity / CRC fields
   bed_confined: boolean;
   requires_monitoring: boolean;
@@ -231,13 +239,24 @@ export function extractFacilityName(location: string | null | undefined): string
   return trimmed;
 }
 
-/** Map location type codes to CMS ambulance origin/destination codes */
-function locationTypeCode(type: string | null): string {
+/** Map location type codes to CMS ambulance origin/destination codes.
+ *  Priority:
+ *    1. facilityMeta.facility_type === 'dialysis' → G (hospital_based) /
+ *       J (freestanding) / D (unknown or null subtype). This is the only
+ *       reliable way to emit G or J — type strings never carry that info.
+ *    2. Fallback: substring match on the legacy `type` string for non-dialysis
+ *       location types (hospital, SNF, residence, etc.). */
+function locationTypeCode(
+  type: string | null,
+  facilityMeta?: { facility_type?: string | null; dialysis_subtype?: string | null } | null
+): string {
+  if (facilityMeta?.facility_type === "dialysis") {
+    if (facilityMeta.dialysis_subtype === "hospital_based") return "G";
+    if (facilityMeta.dialysis_subtype === "freestanding") return "J";
+    return "D"; // unknown / null — preserves no-regression behavior
+  }
   if (!type) return "R";
   const t = type.toLowerCase();
-  // More specific matches first
-  if (t.includes("hospital-based dialysis") || t === "g") return "G";
-  if (t.includes("non-hospital") && t.includes("dialysis") || t === "j") return "J";
   if (t.includes("hospital outpatient") || t === "e") return "E";
   if (t.includes("hospital inpatient") || t.includes("emergency room") || t === "h") return "H";
   if (t.includes("dialysis") || t === "d") return "D";
@@ -285,8 +304,10 @@ function buildCrcCodes(claim: ClaimForEDI): string[] {
   const dest = (claim.destination_type || "").toLowerCase();
   const stretcher = (claim.stretcher_placement || "").toLowerCase();
 
-  // 01 — admitted to hospital (destination is hospital)
-  if (dest.includes("hospital") && !dest.includes("hospital-based dialysis")) {
+  // 01 — admitted to hospital (destination is hospital, but not dialysis).
+  // Hospital-based dialysis is now classified at the facility level, not
+  // via destination_type substring, so we just exclude the "dialysis" path.
+  if (dest.includes("hospital") && !dest.includes("dialysis")) {
     codes.push("01");
   }
   // 04 — bed confined before and after (we only track a single flag, treat as both)
@@ -466,8 +487,8 @@ export function generateEDI837P(
     addSeg(["NM1", "PR", "2", (claim.payer_name || "MEDICARE").toUpperCase(), "", "", "", "", "PI", (claim.payer_id || "MEDICARE").toUpperCase()].join(ES));
 
     // --- CLAIM (2300) ---
-    const originCode = locationTypeCode(claim.origin_type);
-    const destCode = locationTypeCode(claim.destination_type);
+    const originCode = locationTypeCode(claim.origin_type, claim.origin_facility_meta);
+    const destCode = locationTypeCode(claim.destination_type, claim.destination_facility_meta);
     const facilityCode = `${originCode}${destCode}`;
     addSeg(
       [

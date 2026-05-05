@@ -18,6 +18,7 @@ interface Facility {
   id: string;
   name: string;
   facility_type: string;
+  dialysis_subtype: string | null;
   address: string | null;
   phone: string | null;
   contact_name: string | null;
@@ -50,7 +51,7 @@ export default function FacilitiesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Facility | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
-    name: "", facility_type: "dialysis", address: "", phone: "", contact_name: "", notes: "", active: true,
+    name: "", facility_type: "dialysis", dialysis_subtype: "", address: "", phone: "", contact_name: "", notes: "", active: true,
     contract_payer_type: "", rate_type: "medicare", invoice_preference: "per_trip",
   });
   const [saving, setSaving] = useState(false);
@@ -70,14 +71,14 @@ export default function FacilitiesPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const resetForm = () => {
-    setForm({ name: "", facility_type: "dialysis", address: "", phone: "", contact_name: "", notes: "", active: true, contract_payer_type: "", rate_type: "medicare", invoice_preference: "per_trip" });
+    setForm({ name: "", facility_type: "dialysis", dialysis_subtype: "", address: "", phone: "", contact_name: "", notes: "", active: true, contract_payer_type: "", rate_type: "medicare", invoice_preference: "per_trip" });
     setEditing(null);
   };
 
   const openEdit = (f: Facility) => {
     setEditing(f);
     setForm({
-      name: f.name, facility_type: f.facility_type, address: f.address ?? "",
+      name: f.name, facility_type: f.facility_type, dialysis_subtype: f.dialysis_subtype ?? "", address: f.address ?? "",
       phone: f.phone ?? "", contact_name: f.contact_name ?? "", notes: f.notes ?? "", active: f.active,
       contract_payer_type: f.contract_payer_type ?? "", rate_type: f.rate_type ?? "medicare",
       invoice_preference: f.invoice_preference ?? "per_trip",
@@ -87,11 +88,19 @@ export default function FacilitiesPage() {
 
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Facility name required"); return; }
+    // New dialysis facilities MUST be classified for accurate G/J modifier
+    // emission. Existing rows are grandfathered (NULL → emits 'D') so we don't
+    // force a backfill on edit.
+    if (!editing && form.facility_type === "dialysis" && !form.dialysis_subtype) {
+      toast.error("Dialysis subtype is required for new dialysis facilities");
+      return;
+    }
     setSaving(true);
     try {
       const { data: companyId } = await supabase.rpc("get_my_company_id");
       const payload = {
         name: form.name.trim(), facility_type: form.facility_type, address: form.address || null,
+        dialysis_subtype: form.facility_type === "dialysis" ? (form.dialysis_subtype || null) : null,
         phone: form.phone || null, contact_name: form.contact_name || null, notes: form.notes || null,
         active: form.active, company_id: companyId,
         contract_payer_type: form.contract_payer_type || null,
@@ -205,6 +214,24 @@ export default function FacilitiesPage() {
                 </SelectContent>
               </Select>
             </div>
+            {form.facility_type === "dialysis" && (
+              <div>
+                <Label>
+                  Dialysis Subtype{!editing && " *"}
+                </Label>
+                <Select value={form.dialysis_subtype || ""} onValueChange={v => setForm({ ...form, dialysis_subtype: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select subtype…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hospital_based">Hospital-based (G)</SelectItem>
+                    <SelectItem value="freestanding">Freestanding (J)</SelectItem>
+                    <SelectItem value="unknown">Unknown (D)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Drives the EDI 837P origin/destination modifier letter on claims.
+                </p>
+              </div>
+            )}
             <div>
               <Label>Address</Label>
               <Input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />

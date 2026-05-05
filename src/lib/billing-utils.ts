@@ -39,13 +39,20 @@ export const HCPCS_CODE_DESCRIPTIONS: Record<string, string> = {
 };
 
 // Auto-derive HCPCS codes from trip data
-/** Map location type string to single-letter CMS ambulance modifier code */
-function locationModifierCode(type: string | null): string {
+/** Map location type string to single-letter CMS ambulance modifier code.
+ *  Priority: facility metadata (when known) → substring fallback. The G/J
+ *  letters cannot be inferred from a string — only from facility classification. */
+function locationModifierCode(
+  type: string | null,
+  facilityMeta?: { facility_type?: string | null; dialysis_subtype?: string | null } | null
+): string {
+  if (facilityMeta?.facility_type === "dialysis") {
+    if (facilityMeta.dialysis_subtype === "hospital_based") return "G";
+    if (facilityMeta.dialysis_subtype === "freestanding") return "J";
+    return "D";
+  }
   if (!type) return "R";
   const t = type.toLowerCase();
-  // Order matters — more specific matches first
-  if (t.includes("hospital-based dialysis") || t === "g") return "G";
-  if (t.includes("non-hospital") && t.includes("dialysis") || t === "j") return "J";
   if (t.includes("hospital outpatient") || t === "e") return "E";
   if (t.includes("hospital inpatient") || t.includes("emergency room") || t === "h") return "H";
   if (t.includes("dialysis") || t === "d") return "D";
