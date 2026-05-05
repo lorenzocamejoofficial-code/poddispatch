@@ -108,7 +108,6 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const isTestMode = settings.test_mode === true;
         const remittanceUrl = isTestMode ? OA_REMITTANCE_URL_TEST : OA_REMITTANCE_URL_PROD;
 
         try {
