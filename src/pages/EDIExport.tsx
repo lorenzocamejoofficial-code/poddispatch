@@ -435,14 +435,12 @@ export default function EDIExport() {
       // sent is the file in the user's browser downloads folder.
       let artifactId: string | null = null;
       try {
-        const { data: companyRow } = await supabase
-          .from("companies").select("id").limit(1).maybeSingle();
         const { data: { user } } = await supabase.auth.getUser();
-        if (companyRow?.id) {
+        if (activeCompanyId) {
           const { data: artRow, error: artErr } = await supabase
             .from("claim_submission_artifacts" as any)
             .insert({
-              company_id: companyRow.id,
+              company_id: activeCompanyId,
               filename,
               edi_content: ediContent,
               claim_ids: ids,
