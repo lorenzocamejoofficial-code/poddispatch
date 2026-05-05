@@ -396,83 +396,12 @@ export default function CrewScheduleAdmin() {
         {/* ══════════════════════════════════════════════════════════════════
             SECTION 1 — CREW LOGIN INVITE
         ══════════════════════════════════════════════════════════════════ */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <UserPlus className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base">Crew Login Invite</CardTitle>
-            </div>
-            <CardDescription>
-              One-time setup: send a crew member instructions to log in at {publishedUrl}. They tap "Crew" and use their company email + password.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
-              <div>
-                <Label className="text-xs">Crew Member</Label>
-                <Select value={inviteCrewId} onValueChange={setInviteCrewId}>
-                  <SelectTrigger><SelectValue placeholder="Select crew member" /></SelectTrigger>
-                  <SelectContent>
-                    {employees.length === 0 && <SelectItem value="__none" disabled>No employees found</SelectItem>}
-                    {employees.map(e => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.full_name}{e.truck_name ? ` — ${e.truck_name}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Send Via</Label>
-                <Select value={inviteSendVia} onValueChange={v => setInviteSendVia(v as "phone" | "email")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="phone"><span className="flex items-center gap-1.5"><Phone className="h-3 w-3" /> SMS / Text</span></SelectItem>
-                    <SelectItem value="email"><span className="flex items-center gap-1.5"><Mail className="h-3 w-3" /> Email</span></SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                <Button onClick={handleCopyInvite} disabled={!inviteCrewId} variant="outline" className="gap-1.5">
-                  {inviteCopied ? <Check className="h-3.5 w-3.5 text-[hsl(var(--status-green))]" /> : <Copy className="h-3.5 w-3.5" />}
-                  {inviteCopied ? "Copied!" : "Copy"}
-                </Button>
-                <Button
-                  onClick={handleSendInvite}
-                  disabled={!inviteCrewId || sendingInvite || (inviteSendVia === "email" && !selectedInviteCrew?.email)}
-                  className="gap-1.5"
-                >
-                  {inviteSendVia === "phone" ? <Phone className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-                  {sendingInvite ? "Sending…" : inviteSendVia === "phone" ? "Send SMS" : "Send Email"}
-                </Button>
-              </div>
-            </div>
-
-            {selectedInviteCrew && (
-              <div className="rounded-md bg-muted p-3 space-y-2">
-                {inviteSendVia === "phone" && selectedInviteCrew.phone_number && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    <Phone className="h-2.5 w-2.5 mr-1" /> {selectedInviteCrew.phone_number}
-                  </Badge>
-                )}
-                {inviteSendVia === "phone" && !selectedInviteCrew.phone_number && (
-                  <Badge variant="destructive" className="text-[10px]">No phone on file</Badge>
-                )}
-                {inviteSendVia === "email" && selectedInviteCrew.email && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    <Mail className="h-2.5 w-2.5 mr-1" /> {selectedInviteCrew.email}
-                  </Badge>
-                )}
-                {inviteSendVia === "email" && !selectedInviteCrew.email && (
-                  <Badge variant="destructive" className="text-[10px]">No email on file</Badge>
-                )}
-                <pre className="text-xs text-foreground whitespace-pre-wrap font-sans leading-relaxed">
-                  {buildInviteMessage(selectedInviteCrew)}
-                </pre>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="text-sm text-muted-foreground">
+          Need to invite or re-invite a crew member?{" "}
+          <RouterLink to="/employees" className="text-primary underline-offset-4 hover:underline inline-flex items-center gap-1">
+            Manage in Employees <ArrowRight className="h-3.5 w-3.5" />
+          </RouterLink>
+        </div>
 
         {/* ══════════════════════════════════════════════════════════════════
             SECTION 2 — DAILY SCHEDULE TEXT
