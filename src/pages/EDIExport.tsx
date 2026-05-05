@@ -598,23 +598,49 @@ export default function EDIExport() {
         (trs || []).forEach((t: any) => { localTripsMap[t.id] = t; });
       }
       if (selPatIds.length > 0) {
-        const { data: ps } = await supabase.from("patients").select("id, sex, weight_lbs").in("id", selPatIds);
+        const { data: ps } = await supabase.from("patients").select("id, sex, weight_lbs, facility_id").in("id", selPatIds);
         (ps || []).forEach(p => { localPatsMap[p.id] = p; });
       }
 
       // Facility lookup
-      const facilityNames = [...new Set(
-        selectedClaims.map(c => {
-          const trip = localTripsMap[(c as any).trip_id] || {};
-          if (!(c as any).destination_address && trip.destination_location) return trip.destination_location;
-          return null;
-        }).filter(Boolean)
+      // Facility lookup — for address resolution AND for facility metadata
+      // that drives EDI G/J modifier emission. See handleGenerate for details.
+      const candidateNames = new Set<string>();
+      selectedClaims.forEach(c => {
+        const trip = localTripsMap[(c as any).trip_id] || {};
+        const o = extractFacilityName(trip.pickup_location);
+        const d = extractFacilityName(trip.destination_location);
+        if (o) candidateNames.add(o);
+        if (d) candidateNames.add(d);
+        if (!(c as any).destination_address && trip.destination_location) {
+          candidateNames.add(trip.destination_location);
+        }
+      });
+      const facilityIds = [...new Set(
+        Object.values(localPatsMap).map((p: any) => p?.facility_id).filter(Boolean)
       )] as string[];
+      const facById: Record<string, any> = {};
+      const facByName: Record<string, any> = {};
       const facilityAddrMap: Record<string, string> = {};
-      if (facilityNames.length > 0) {
-        const { data: facs } = await supabase.from("facilities" as any).select("name, address").in("name", facilityNames);
-        (facs || []).forEach((f: any) => { if (f.address) facilityAddrMap[f.name] = f.address; });
+      if (facilityIds.length > 0 || candidateNames.size > 0) {
+        const orParts: string[] = [];
+        if (facilityIds.length > 0) orParts.push(`id.in.(${facilityIds.join(",")})`);
+        if (candidateNames.size > 0) {
+          const namesCsv = [...candidateNames].map(n => `"${n.replace(/"/g, "")}"`).join(",");
+          orParts.push(`name.in.(${namesCsv})`);
+        }
+        const { data: facs } = await supabase
+          .from("facilities" as any)
+          .select("id, name, address, facility_type, dialysis_subtype")
+          .or(orParts.join(","));
+        (facs || []).forEach((f: any) => {
+          facById[f.id] = f;
+          facByName[f.name] = f;
+          if (f.address) facilityAddrMap[f.name] = f.address;
+        });
       }
+      const metaFromFacility = (f: any) =>
+        f ? { facility_type: f.facility_type, dialysis_subtype: f.dialysis_subtype ?? null } : null;
 
       const ediClaims: ClaimForEDI[] = selectedClaims.map((c) => {
         const trip = localTripsMap[(c as any).trip_id] || {};
@@ -627,6 +653,19 @@ export default function EDIExport() {
         const claimDestAddr = (c as any).destination_address
           || (trip.destination_location && facilityAddrMap[trip.destination_location] ? facilityAddrMap[trip.destination_location] : null)
           || trip.destination_location || null;
+        const originFacByName  = facByName[extractFacilityName(trip.pickup_location) || ""] || null;
+        const destFacByName    = facByName[extractFacilityName(trip.destination_location) || ""] || null;
+        const patientStandingFac = pat?.facility_id ? facById[pat.facility_id] : null;
+        let originMeta = metaFromFacility(originFacByName);
+        let destMeta = metaFromFacility(destFacByName);
+        if (patientStandingFac) {
+          if (!originFacByName && destFacByName && destFacByName.id !== patientStandingFac.id) {
+            originMeta = metaFromFacility(patientStandingFac);
+          }
+          if (!destFacByName && originFacByName && originFacByName.id !== patientStandingFac.id) {
+            destMeta = metaFromFacility(patientStandingFac);
+          }
+        }
         return {
           claim_id: c.id,
           patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
@@ -660,6 +699,8 @@ export default function EDIExport() {
           diagnosis_codes: [],
           auth_number: c.auth_number,
           icd10_codes: c.icd10_codes || [],
+          origin_facility_meta: originMeta,
+          destination_facility_meta: destMeta,
           bed_confined: !!trip.bed_confined,
           requires_monitoring: !!trip.requires_monitoring,
           stretcher_placement: trip.stretcher_placement || null,
