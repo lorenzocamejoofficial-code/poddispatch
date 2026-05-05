@@ -424,6 +424,61 @@ export type Database = {
         }
         Relationships: []
       }
+      claim_creation_failures: {
+        Row: {
+          company_id: string
+          created_at: string
+          error_message: string
+          id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          sqlstate: string | null
+          trip_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          error_message: string
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          sqlstate?: string | null
+          trip_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          error_message?: string
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          sqlstate?: string | null
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "claim_creation_failures_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_creation_failures_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_creation_failures_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       claim_records: {
         Row: {
           adjustment_codes: string[] | null
@@ -3929,6 +3984,7 @@ export type Database = {
           cancelled_by: string | null
           cannot_transfer_safely: boolean | null
           chief_complaint: string | null
+          claim_creation_status: string | null
           claim_ready: boolean | null
           clinical_note: string | null
           company_id: string | null
@@ -4104,6 +4160,7 @@ export type Database = {
           cancelled_by?: string | null
           cannot_transfer_safely?: boolean | null
           chief_complaint?: string | null
+          claim_creation_status?: string | null
           claim_ready?: boolean | null
           clinical_note?: string | null
           company_id?: string | null
@@ -4279,6 +4336,7 @@ export type Database = {
           cancelled_by?: string | null
           cannot_transfer_safely?: boolean | null
           chief_complaint?: string | null
+          claim_creation_status?: string | null
           claim_ready?: boolean | null
           clinical_note?: string | null
           company_id?: string | null
