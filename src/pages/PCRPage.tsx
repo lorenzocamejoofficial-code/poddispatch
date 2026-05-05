@@ -681,6 +681,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
 export default function PCRPage() {
   const { profileId, role } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  useFocusScroll();
   const navigate = useNavigate();
 
   const tripId = searchParams.get("tripId");
