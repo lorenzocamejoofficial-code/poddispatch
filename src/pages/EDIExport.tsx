@@ -381,14 +381,14 @@ export default function EDIExport() {
         const originFacByName  = facByName[extractFacilityName(trip.pickup_location) || ""] || null;
         const destFacByName    = facByName[extractFacilityName(trip.destination_location) || ""] || null;
         const patientStandingFac = pat?.facility_id ? facById[pat.facility_id] : null;
-        const originFac = originFacByName || (!destFacByName ? null : null) || (originFacByName ?? null);
-        const destFac   = destFacByName   || (!originFacByName ? null : null) || (destFacByName   ?? null);
-        // If exactly one side matched by name and patient has a standing
-        // facility, attach the standing facility to the OTHER side.
+        // If a side didn't match by name AND the patient has a standing
+        // facility, attach that to the unmatched side. Covers recurring
+        // dialysis runs where one leg's free-text address doesn't tokenize
+        // cleanly but we know from the patient record where they go.
         const originMeta = metaFromFacility(originFacByName)
-          || (destFacByName && patientStandingFac ? metaFromFacility(patientStandingFac) : null);
+          || (!originFacByName && patientStandingFac ? metaFromFacility(patientStandingFac) : null);
         const destMeta = metaFromFacility(destFacByName)
-          || (originFacByName && patientStandingFac ? metaFromFacility(patientStandingFac) : null);
+          || (!destFacByName && patientStandingFac ? metaFromFacility(patientStandingFac) : null);
         return {
           claim_id: c.id,
           patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
