@@ -757,6 +757,59 @@ export function validateClaimForEDI(claim: ClaimForEDI, billingState?: string | 
 }
 
 /** Generate a filename for the 837P export.
+ */
+
+/** Validate the global vendor SubmitterInfo. PodDispatch is the registered
+ *  Office Ally vendor, so submitter_id must be present and non-empty. Returns
+ *  human-readable error strings; export must be blocked if any are returned. */
+export function validateSubmitterInfo(info: SubmitterInfo): string[] {
+  const errors: string[] = [];
+  const sid = (info.submitter_id ?? "").trim();
+  if (!sid) {
+    errors.push("Vendor Submitter ID is missing — configure it in vendor_clearinghouse_settings before exporting any 837P.");
+  }
+  if (!(info.submitter_name ?? "").trim()) {
+    errors.push("Vendor Submitter Name is missing — configure it in vendor_clearinghouse_settings.");
+  }
+  if (!(info.contact_name ?? "").trim()) {
+    errors.push("Vendor contact name is missing — configure it in vendor_clearinghouse_settings.");
+  }
+  const phoneDigits = (info.contact_phone ?? "").replace(/\D/g, "");
+  if (phoneDigits.length < 10) {
+    errors.push("Vendor contact phone must be at least 10 digits — configure it in vendor_clearinghouse_settings.");
+  }
+  return errors;
+}
+
+/** Validate the per-tenant ProviderInfo (Loop 2010AA, Billing Provider).
+ *  Office Ally requires: 10-digit NPI, 9-digit EIN, physical street address
+ *  (no PO Box), and a 5- or 9-digit ZIP. */
+export function validateProviderInfo(info: ProviderInfo): string[] {
+  const errors: string[] = [];
+  const npi = (info.npi ?? "").replace(/\D/g, "");
+  if (npi.length !== 10) errors.push("Provider NPI must be exactly 10 digits.");
+  const ein = (info.tax_id ?? "").replace(/\D/g, "");
+  if (ein.length !== 9) errors.push("Provider Tax ID (EIN) must be exactly 9 digits.");
+  if (!(info.organization_name ?? "").trim()) errors.push("Provider organization name is required.");
+  const addr = (info.address ?? "").trim();
+  if (!addr) {
+    errors.push("Provider street address is required (Loop 2010AA, N3).");
+  } else if (/\bP\.?\s*O\.?\s*BOX\b/i.test(addr)) {
+    errors.push("Provider address cannot be a PO Box — Office Ally requires a physical street address for the Billing Provider.");
+  }
+  if (!(info.city ?? "").trim()) errors.push("Provider city is required (Loop 2010AA, N4).");
+  const stateAbbr = (info.state ?? "").trim().toUpperCase();
+  if (stateAbbr.length !== 2 || !US_STATES.has(stateAbbr)) {
+    errors.push("Provider state must be a 2-letter US state abbreviation.");
+  }
+  const zip = (info.zip ?? "").replace(/\D/g, "");
+  if (zip.length !== 5 && zip.length !== 9) {
+    errors.push("Provider ZIP must be 5 or 9 digits.");
+  }
+  return errors;
+}
+
+/** Generate a filename for the 837P export.
  *
  * Office Ally companion guide requires sandbox files to include the keyword
  * `OATEST` (all caps, no underscores around it) and the claim type keyword
