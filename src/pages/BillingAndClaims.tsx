@@ -1375,7 +1375,11 @@ export default function BillingAndClaims() {
                                 id: claim.id,
                                 trip_id: (claim as any).trip_id,
                                 patient_id: (claim as any).patient_id,
-                                patient_address: (claim as any).patient_pickup_address,
+                                patient_address:
+                                  (claim as any).patient?.pickup_address ??
+                                  (claim as any).leg?.oneoff_pickup_address ??
+                                  (claim as any).origin_address ??
+                                  null,
                               },
                             }).filter((i) => i.severity === "block");
                             if (!issues.length) return null;
