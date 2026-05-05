@@ -882,8 +882,6 @@ export type Database = {
           auto_send_enabled: boolean
           clearinghouse_name: string
           company_id: string
-          contact_name: string | null
-          contact_phone: string | null
           created_at: string
           id: string
           inbound_folder: string
@@ -893,15 +891,10 @@ export type Database = {
           last_receive_at: string | null
           last_send_at: string | null
           outbound_folder: string
-          receiver_id: string
           sftp_host: string
           sftp_password_encrypted: string | null
           sftp_port: number
           sftp_username: string | null
-          submitter_id: string | null
-          submitter_name: string | null
-          test_mode: boolean
-          test_submitter_id: string | null
           updated_at: string
         }
         Insert: {
@@ -909,8 +902,6 @@ export type Database = {
           auto_send_enabled?: boolean
           clearinghouse_name?: string
           company_id: string
-          contact_name?: string | null
-          contact_phone?: string | null
           created_at?: string
           id?: string
           inbound_folder?: string
@@ -920,15 +911,10 @@ export type Database = {
           last_receive_at?: string | null
           last_send_at?: string | null
           outbound_folder?: string
-          receiver_id?: string
           sftp_host?: string
           sftp_password_encrypted?: string | null
           sftp_port?: number
           sftp_username?: string | null
-          submitter_id?: string | null
-          submitter_name?: string | null
-          test_mode?: boolean
-          test_submitter_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -936,8 +922,6 @@ export type Database = {
           auto_send_enabled?: boolean
           clearinghouse_name?: string
           company_id?: string
-          contact_name?: string | null
-          contact_phone?: string | null
           created_at?: string
           id?: string
           inbound_folder?: string
@@ -947,15 +931,10 @@ export type Database = {
           last_receive_at?: string | null
           last_send_at?: string | null
           outbound_folder?: string
-          receiver_id?: string
           sftp_host?: string
           sftp_password_encrypted?: string | null
           sftp_port?: number
           sftp_username?: string | null
-          submitter_id?: string | null
-          submitter_name?: string | null
-          test_mode?: boolean
-          test_submitter_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -4981,6 +4960,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      vendor_clearinghouse_settings: {
+        Row: {
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          receiver_id: string
+          receiver_name: string
+          submitter_id: string
+          submitter_name: string
+          test_mode: boolean
+          updated_at: string
+        }
+        Insert: {
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          receiver_id?: string
+          receiver_name?: string
+          submitter_id: string
+          submitter_name: string
+          test_mode?: boolean
+          updated_at?: string
+        }
+        Update: {
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          receiver_id?: string
+          receiver_name?: string
+          submitter_id?: string
+          submitter_name?: string
+          test_mode?: boolean
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
