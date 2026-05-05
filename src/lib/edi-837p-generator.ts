@@ -304,8 +304,10 @@ function buildCrcCodes(claim: ClaimForEDI): string[] {
   const dest = (claim.destination_type || "").toLowerCase();
   const stretcher = (claim.stretcher_placement || "").toLowerCase();
 
-  // 01 — admitted to hospital (destination is hospital)
-  if (dest.includes("hospital") && !dest.includes("hospital-based dialysis")) {
+  // 01 — admitted to hospital (destination is hospital, but not dialysis).
+  // Hospital-based dialysis is now classified at the facility level, not
+  // via destination_type substring, so we just exclude the "dialysis" path.
+  if (dest.includes("hospital") && !dest.includes("dialysis")) {
     codes.push("01");
   }
   // 04 — bed confined before and after (we only track a single flag, treat as both)
