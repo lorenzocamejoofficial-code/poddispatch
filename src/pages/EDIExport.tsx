@@ -516,14 +516,14 @@ export default function EDIExport() {
       toast.error("Select at least one claim to submit");
       return;
     }
-    const npiDigits = providerInfo.npi.replace(/\D/g, "");
-    const taxDigits = providerInfo.tax_id.replace(/\D/g, "");
-    if (!npiDigits || npiDigits.length !== 10) {
-      toast.error("Provider NPI must be exactly 10 digits");
+    const provErrs = validateProviderInfo(providerInfo);
+    if (provErrs.length > 0) {
+      toast.error("Billing Provider invalid:\n" + provErrs.join("\n"), { duration: 8000 });
       return;
     }
-    if (!taxDigits || taxDigits.length !== 9) {
-      toast.error("Provider Tax ID (EIN) must be exactly 9 digits");
+    const subErrs = validateSubmitterInfo(submitterInfo);
+    if (subErrs.length > 0) {
+      toast.error("Vendor (PodDispatch) submitter not configured:\n" + subErrs.join("\n"), { duration: 8000 });
       return;
     }
 
@@ -635,9 +635,7 @@ export default function EDIExport() {
       const filename = generateEDIFilename(testMode);
       const ids = selectedClaims.map((c) => c.id);
 
-      // Get company_id
-      const { data: compRow } = await supabase.from("companies").select("id").limit(1).maybeSingle();
-      if (!compRow?.id) {
+      if (!activeCompanyId) {
         toast.error("Could not determine company");
         setSubmitting(false);
         return;
@@ -647,7 +645,7 @@ export default function EDIExport() {
       const { error: queueErr } = await supabase
         .from("claim_submission_queue" as any)
         .insert({
-          company_id: compRow.id,
+          company_id: activeCompanyId,
           claim_ids: ids,
           filename,
           edi_content: ediContent,
