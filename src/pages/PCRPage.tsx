@@ -34,6 +34,7 @@ import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRC
 import { CancellationDocForm } from "@/components/crew/CancellationDocForm";
 import { checkDuplicateTrip } from "@/lib/duplicate-trip-check";
 import { evaluatePCRFieldCompletion, getRequiredFieldsForCard, normalizeTransportKey } from "@/lib/pcr-field-requirements";
+import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { SectionCompletionBadge } from "@/components/pcr/PCRFieldIndicator";
 import { KickbackChecklist } from "@/components/pcr/KickbackChecklist";
 import { logAuditEvent } from "@/lib/audit-logger";
