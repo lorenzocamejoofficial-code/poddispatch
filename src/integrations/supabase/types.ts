@@ -1850,6 +1850,7 @@ export type Database = {
           contact_name: string | null
           contract_payer_type: string | null
           created_at: string
+          dialysis_subtype: string | null
           facility_type: string
           id: string
           invoice_preference: string | null
@@ -1868,6 +1869,7 @@ export type Database = {
           contact_name?: string | null
           contract_payer_type?: string | null
           created_at?: string
+          dialysis_subtype?: string | null
           facility_type?: string
           id?: string
           invoice_preference?: string | null
@@ -1886,6 +1888,7 @@ export type Database = {
           contact_name?: string | null
           contract_payer_type?: string | null
           created_at?: string
+          dialysis_subtype?: string | null
           facility_type?: string
           id?: string
           invoice_preference?: string | null
