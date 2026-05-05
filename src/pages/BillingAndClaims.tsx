@@ -179,6 +179,7 @@ export default function BillingAndClaims() {
   const [overrideLogSort, setOverrideLogSort] = useState<"date" | "user" | "reason">("date");
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") ?? "trip-queue";
+  useFocusScroll();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [secondaryFilter, setSecondaryFilter] = useState(false);
   const [hideTestClaims, setHideTestClaims] = useState(false);
