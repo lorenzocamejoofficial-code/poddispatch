@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FileText, Download, Info, FlaskConical, Eye, FileCheck2, Upload, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, Link } from "react-router-dom";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { RecordRejectionDialog } from "@/components/billing/RecordRejectionDialog";
 import {
@@ -26,6 +26,7 @@ import {
   type ProviderInfo,
   type SubmitterInfo,
 } from "@/lib/edi-837p-generator";
+import { evaluateClaimReadiness, type ReadinessIssue } from "@/lib/claim-readiness";
 import { useAuth } from "@/hooks/useAuth";
 
 interface ExportableClaim {
@@ -75,6 +76,9 @@ export default function EDIExport() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [rejectionTarget, setRejectionTarget] = useState<{ id: string; label: string } | null>(null);
+  const [validationIssues, setValidationIssues] = useState<
+    { idx: number; ec: ClaimForEDI; issues: ReadinessIssue[] }[]
+  >([]);
 
   const [providerInfo, setProviderInfo] = useState<ProviderInfo>({
     npi: "",
@@ -400,18 +404,21 @@ export default function EDIExport() {
       });
 
       // Validate (pass billing state for state-specific timely filing rules)
-      const allErrors: string[] = [];
+      const blocked: { idx: number; ec: ClaimForEDI; issues: ReadinessIssue[] }[] = [];
       ediClaims.forEach((ec, i) => {
-        const errs = validateClaimForEDI(ec, providerInfo.state);
-        if (errs.length > 0) {
-          allErrors.push(`Claim ${i + 1} (${ec.patient_name}): ${errs.join(", ")}`);
-        }
+        const issues = evaluateClaimReadiness({
+          claim: { ...ec, id: (selectedClaims[i] as any).id, trip_id: (selectedClaims[i] as any).trip_id, patient_id: (selectedClaims[i] as any).patient_id },
+          billingState: providerInfo.state,
+        }).filter((x) => x.severity === "block");
+        if (issues.length) blocked.push({ idx: i, ec, issues });
       });
-      if (allErrors.length > 0) {
-        toast.error(`Validation errors:\n${allErrors.join("\n")}`, { duration: 8000 });
+      if (blocked.length > 0) {
+        setValidationIssues(blocked);
+        toast.error(`${blocked.length} claim(s) blocked from export — see details below.`);
         setGenerating(false);
         return;
       }
+      setValidationIssues([]);
 
       // Generate 837P
       const ediContent = generateEDI837P(ediClaims, providerInfo, submitterInfo);
@@ -616,18 +623,21 @@ export default function EDIExport() {
       });
 
       // Validate
-      const allErrors: string[] = [];
+      const blocked: { idx: number; ec: ClaimForEDI; issues: ReadinessIssue[] }[] = [];
       ediClaims.forEach((ec, i) => {
-        const errs = validateClaimForEDI(ec, providerInfo.state);
-        if (errs.length > 0) {
-          allErrors.push(`Claim ${i + 1} (${ec.patient_name}): ${errs.join(", ")}`);
-        }
+        const issues = evaluateClaimReadiness({
+          claim: { ...ec, id: (selectedClaims[i] as any).id, trip_id: (selectedClaims[i] as any).trip_id, patient_id: (selectedClaims[i] as any).patient_id },
+          billingState: providerInfo.state,
+        }).filter((x) => x.severity === "block");
+        if (issues.length) blocked.push({ idx: i, ec, issues });
       });
-      if (allErrors.length > 0) {
-        toast.error(`Validation errors:\n${allErrors.join("\n")}`, { duration: 8000 });
+      if (blocked.length > 0) {
+        setValidationIssues(blocked);
+        toast.error(`${blocked.length} claim(s) blocked from submission — see details below.`);
         setSubmitting(false);
         return;
       }
+      setValidationIssues([]);
 
       const ediContent = generateEDI837P(ediClaims, providerInfo, submitterInfo);
       const filename = generateEDIFilename(testMode);
@@ -977,6 +987,37 @@ export default function EDIExport() {
         {selectedClaims.length > 0 && (
           <Card className="border-primary/30">
             <CardContent className="pt-4">
+              {validationIssues.length > 0 && (
+                <Alert className="mb-3 border-destructive/40 bg-destructive/5">
+                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                  <AlertDescription className="text-sm">
+                    <p className="font-semibold mb-2">
+                      {validationIssues.length} claim(s) blocked from export — fix before retrying:
+                    </p>
+                    <ul className="space-y-2">
+                      {validationIssues.map((row) => (
+                        <li key={row.idx} className="border-l-2 border-destructive/40 pl-2">
+                          <p className="text-xs font-medium">
+                            Claim {row.idx + 1} — {row.ec.patient_name} ({row.ec.run_date})
+                          </p>
+                          <ul className="mt-1 space-y-0.5">
+                            {row.issues.map((iss, i) => (
+                              <li key={i} className="flex items-center gap-1 text-[11px]">
+                                <span className="flex-1">{iss.message}</span>
+                                {iss.fixPath && (
+                                  <Link to={iss.fixPath} className="underline shrink-0 text-primary">
+                                    {iss.fixLabel ?? "Fix"} →
+                                  </Link>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-6">
                   <div>

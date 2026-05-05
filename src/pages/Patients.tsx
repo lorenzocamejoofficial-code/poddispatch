@@ -28,6 +28,7 @@ import { DocumentAttachments } from "@/components/documents/DocumentAttachments"
 import { TablePagination } from "@/components/ui/table-pagination";
 import { PatientScheduleOverridesEditor, saveScheduleOverrides, type ScheduleOverride } from "@/components/patients/PatientScheduleOverridesEditor";
 import { ICD10Picker } from "@/components/pcr/ICD10Picker";
+import { useFocusScroll } from "@/lib/use-focus-scroll";
 import {
   CHIEF_COMPLAINTS,
   PRIMARY_IMPRESSIONS,
@@ -84,6 +85,7 @@ function computeActiveWeekdays(transportType: string, scheduleDays: string, recu
 }
 
 export default function Patients() {
+  useFocusScroll();
   const { activeCompanyId, role } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState("");
@@ -662,15 +664,15 @@ export default function Patients() {
                 <div className="grid gap-4 py-2">
 
                   {/* Basic Info */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><Label>First Name *<PCRTooltip text={ADMIN_TOOLTIPS.first_name} /></Label><Input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
+                   <div className="grid grid-cols-2 gap-3" data-focus="name">
+                     <div><Label>First Name *<PCRTooltip text={ADMIN_TOOLTIPS.first_name} /></Label><Input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
                     <div><Label>Last Name *<PCRTooltip text={ADMIN_TOOLTIPS.last_name} /></Label><Input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>DOB<PCRTooltip text={ADMIN_TOOLTIPS.dob} /></Label><Input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></div>
+                     <div data-focus="dob"><Label>DOB<PCRTooltip text={ADMIN_TOOLTIPS.dob} /></Label><Input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></div>
                     <div><Label>Phone<PCRTooltip text={ADMIN_TOOLTIPS.phone} /></Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
                   </div>
-                  <div>
+                   <div data-focus="sex">
                     <Label>Sex<PCRTooltip text="Patient biological sex — required for Medicare claim demographics." /></Label>
                     <div className="flex gap-2 mt-1.5">
                       {([{ value: "M", label: "Male" }, { value: "F", label: "Female" }, { value: "U", label: "Unknown" }] as const).map((opt) => (
@@ -681,7 +683,7 @@ export default function Patients() {
                       ))}
                     </div>
                   </div>
-                  <div><Label>Pickup Address<PCRTooltip text={ADMIN_TOOLTIPS.pickup_address} /></Label><Input value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} /></div>
+                   <div data-focus="address"><Label>Pickup Address<PCRTooltip text={ADMIN_TOOLTIPS.pickup_address} /></Label><Input value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} /></div>
 
                   {/* Home Location Type */}
                   <div className="grid grid-cols-2 gap-3">
@@ -911,7 +913,7 @@ export default function Patients() {
                   <div className="border-t pt-3 space-y-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Insurance &amp; Transport</p>
                     <div className="grid grid-cols-2 gap-3">
-                      <div>
+                       <div data-focus="primary_payer">
                         <Label>Primary Payer<PCRTooltip text={ADMIN_TOOLTIPS.primary_payer} /></Label>
                         <Select value={form.primary_payer || "none"} onValueChange={v => setForm({ ...form, primary_payer: v === "none" ? "" : v })}>
                           <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
@@ -924,7 +926,7 @@ export default function Patients() {
                           </SelectContent>
                         </Select>
                       </div>
-                       <div>
+                        <div data-focus="member_id">
                         <Label>Member ID<PCRTooltip text={ADMIN_TOOLTIPS.member_id} /></Label>
                         <Input value={form.member_id} onChange={e => setForm({ ...form, member_id: e.target.value })} />
                       </div>
@@ -1054,7 +1056,7 @@ export default function Patients() {
                         <span className="text-xs text-muted-foreground">▸</span>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="space-y-3 mt-3">
-                        <div>
+                         <div data-focus="icd10">
                           <Label>Standing ICD-10 Codes</Label>
                           <ICD10Picker
                             selectedCodes={form.icd10_codes}

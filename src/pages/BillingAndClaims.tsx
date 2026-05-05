@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { PageLoader } from "@/components/ui/page-loader";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
@@ -73,6 +73,8 @@ import { toast } from "sonner";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
+import { evaluateClaimReadiness } from "@/lib/claim-readiness";
+import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
@@ -178,6 +180,7 @@ export default function BillingAndClaims() {
   const [overrideLogSort, setOverrideLogSort] = useState<"date" | "user" | "reason">("date");
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") ?? "trip-queue";
+  useFocusScroll();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [secondaryFilter, setSecondaryFilter] = useState(false);
   const [hideTestClaims, setHideTestClaims] = useState(false);
@@ -1362,6 +1365,43 @@ export default function BillingAndClaims() {
                           {claim.hcpcs_codes?.length ? (
                             <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{claim.hcpcs_codes.join(", ")}</p>
                           ) : null}
+                          {(() => {
+                            // Inline readiness — only "block" severity surfaces
+                            // here. Soft warnings stay out of the biller queue
+                            // and only fire at the export gate.
+                            const issues = evaluateClaimReadiness({
+                              claim: {
+                                ...(claim as any),
+                                id: claim.id,
+                                trip_id: (claim as any).trip_id,
+                                patient_id: (claim as any).patient_id,
+                                patient_address: (claim as any).patient_pickup_address,
+                              },
+                            }).filter((i) => i.severity === "block");
+                            if (!issues.length) return null;
+                            return (
+                              <ul className="mt-1.5 space-y-0.5">
+                                {issues.slice(0, 3).map((iss, idx) => (
+                                  <li key={idx} className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400">
+                                    <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                                    <span className="truncate flex-1">{iss.message}</span>
+                                    {iss.fixPath && (
+                                      <Link
+                                        to={iss.fixPath}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="underline shrink-0 hover:text-amber-900"
+                                      >
+                                        {iss.fixLabel ?? "Fix"} →
+                                      </Link>
+                                    )}
+                                  </li>
+                                ))}
+                                {issues.length > 3 && (
+                                  <li className="text-[10px] text-muted-foreground">+{issues.length - 3} more</li>
+                                )}
+                              </ul>
+                            );
+                          })()}
                           <div className="mt-1.5 flex items-center justify-between">
                             <span className="text-xs font-bold text-foreground">${claim.total_charge.toFixed(2)}</span>
                             {claim.status === "denied" && (
