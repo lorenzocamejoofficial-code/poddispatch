@@ -1380,6 +1380,7 @@ export default function BillingAndClaims() {
                                   (claim as any).leg?.oneoff_pickup_address ??
                                   (claim as any).origin_address ??
                                   null,
+                                is_oneoff: !!(claim as any).leg?.is_oneoff,
                               },
                             }).filter((i) => i.severity === "block");
                             if (!issues.length) return null;

@@ -121,11 +121,18 @@ export function PatientInfoCard({ trip, updateField: _updateField }: PatientInfo
           />
         </div>
         <div className="col-span-2" data-focus="origin_zip">
-          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Home Address</p>
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+            {patient ? "Home Address" : "Pickup Address (One-off)"}
+          </p>
           {patient ? (
             <p className="text-sm font-medium text-foreground">{patient.pickup_address || "—"}</p>
           ) : (
-            <Input defaultValue="" placeholder="Address" className="h-9 mt-0.5 text-sm" />
+            <Input
+              value={trip.pickup_location ?? ""}
+              onChange={(e) => _updateField("pickup_location", e.target.value)}
+              placeholder="Street, City, ST ZIP"
+              className="h-9 mt-0.5 text-sm"
+            />
           )}
         </div>
         <div>
