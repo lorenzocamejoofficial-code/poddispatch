@@ -404,18 +404,21 @@ export default function EDIExport() {
       });
 
       // Validate (pass billing state for state-specific timely filing rules)
-      const allErrors: string[] = [];
+      const blocked: { idx: number; ec: ClaimForEDI; issues: ReadinessIssue[] }[] = [];
       ediClaims.forEach((ec, i) => {
-        const errs = validateClaimForEDI(ec, providerInfo.state);
-        if (errs.length > 0) {
-          allErrors.push(`Claim ${i + 1} (${ec.patient_name}): ${errs.join(", ")}`);
-        }
+        const issues = evaluateClaimReadiness({
+          claim: { ...ec, id: (selectedClaims[i] as any).id, trip_id: (selectedClaims[i] as any).trip_id, patient_id: (selectedClaims[i] as any).patient_id },
+          billingState: providerInfo.state,
+        }).filter((x) => x.severity === "block");
+        if (issues.length) blocked.push({ idx: i, ec, issues });
       });
-      if (allErrors.length > 0) {
-        toast.error(`Validation errors:\n${allErrors.join("\n")}`, { duration: 8000 });
+      if (blocked.length > 0) {
+        setValidationIssues(blocked);
+        toast.error(`${blocked.length} claim(s) blocked from export — see details below.`);
         setGenerating(false);
         return;
       }
+      setValidationIssues([]);
 
       // Generate 837P
       const ediContent = generateEDI837P(ediClaims, providerInfo, submitterInfo);
@@ -620,18 +623,21 @@ export default function EDIExport() {
       });
 
       // Validate
-      const allErrors: string[] = [];
+      const blocked: { idx: number; ec: ClaimForEDI; issues: ReadinessIssue[] }[] = [];
       ediClaims.forEach((ec, i) => {
-        const errs = validateClaimForEDI(ec, providerInfo.state);
-        if (errs.length > 0) {
-          allErrors.push(`Claim ${i + 1} (${ec.patient_name}): ${errs.join(", ")}`);
-        }
+        const issues = evaluateClaimReadiness({
+          claim: { ...ec, id: (selectedClaims[i] as any).id, trip_id: (selectedClaims[i] as any).trip_id, patient_id: (selectedClaims[i] as any).patient_id },
+          billingState: providerInfo.state,
+        }).filter((x) => x.severity === "block");
+        if (issues.length) blocked.push({ idx: i, ec, issues });
       });
-      if (allErrors.length > 0) {
-        toast.error(`Validation errors:\n${allErrors.join("\n")}`, { duration: 8000 });
+      if (blocked.length > 0) {
+        setValidationIssues(blocked);
+        toast.error(`${blocked.length} claim(s) blocked from submission — see details below.`);
         setSubmitting(false);
         return;
       }
+      setValidationIssues([]);
 
       const ediContent = generateEDI837P(ediClaims, providerInfo, submitterInfo);
       const filename = generateEDIFilename(testMode);
