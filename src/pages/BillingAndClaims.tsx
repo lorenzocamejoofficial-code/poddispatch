@@ -74,6 +74,7 @@ import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { evaluateClaimReadiness } from "@/lib/claim-readiness";
+import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
