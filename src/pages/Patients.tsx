@@ -84,6 +84,7 @@ function computeActiveWeekdays(transportType: string, scheduleDays: string, recu
 }
 
 export default function Patients() {
+  useFocusScroll();
   const { activeCompanyId, role } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState("");
