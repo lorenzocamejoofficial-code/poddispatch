@@ -323,7 +323,7 @@ function buildCr1ReasonCode(claim: ClaimForEDI): string {
 }
 
 /** Timely filing limit in days by payer + state. */
-function timelyFilingDays(payerType: string | null, state: string | null): number {
+export function timelyFilingDays(payerType: string | null, state: string | null): number {
   const t = (payerType || "").toLowerCase();
   const s = (state || "").toUpperCase();
   if (t === "medicaid" && s === "GA") return 180; // Georgia Medicaid: 6 months
