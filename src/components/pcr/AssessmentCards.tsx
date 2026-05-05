@@ -79,17 +79,19 @@ export function AssessmentCard({ trip, updateField, requiredFields = ["chief_com
       </div>
 
       {/* ICD-10 Diagnosis Code Picker */}
-      <ICD10Picker
-        selectedCodes={Array.isArray(trip.icd10_codes) ? trip.icd10_codes : []}
-        onCodesChange={(codes) => updateField("icd10_codes", codes)}
-        required={(() => {
-          const payer = (trip.patient?.primary_payer || "").toLowerCase();
-          return payer.includes("medicare") || payer.includes("medicaid");
-        })()}
-        maxCodes={4}
-        chiefComplaint={trip.chief_complaint}
-        patientPayer={trip.patient?.primary_payer}
-      />
+      <div data-focus="icd10">
+        <ICD10Picker
+          selectedCodes={Array.isArray(trip.icd10_codes) ? trip.icd10_codes : []}
+          onCodesChange={(codes) => updateField("icd10_codes", codes)}
+          required={(() => {
+            const payer = (trip.patient?.primary_payer || "").toLowerCase();
+            return payer.includes("medicare") || payer.includes("medicaid");
+          })()}
+          maxCodes={4}
+          chiefComplaint={trip.chief_complaint}
+          patientPayer={trip.patient?.primary_payer}
+        />
+      </div>
     </div>
   );
 }

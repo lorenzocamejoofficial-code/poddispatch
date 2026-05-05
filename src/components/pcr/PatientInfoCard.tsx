@@ -120,7 +120,7 @@ export function PatientInfoCard({ trip, updateField: _updateField }: PatientInfo
             onChange={(e) => _updateField("weight_lbs", e.target.value ? Number(e.target.value) : null)}
           />
         </div>
-        <div className="col-span-2">
+        <div className="col-span-2" data-focus="origin_zip">
           <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Home Address</p>
           {patient ? (
             <p className="text-sm font-medium text-foreground">{patient.pickup_address || "—"}</p>
