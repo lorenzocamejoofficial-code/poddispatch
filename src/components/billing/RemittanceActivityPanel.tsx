@@ -47,7 +47,7 @@ export function RemittanceActivityPanel({ companyId, refreshKey }: Props) {
         .limit(10),
       supabase
         .from("clearinghouse_settings")
-        .select("last_receive_at, last_error, test_mode, is_active, auto_receive_enabled")
+        .select("last_receive_at, last_error, is_active, auto_receive_enabled")
         .eq("company_id", companyId)
         .maybeSingle(),
     ]);
