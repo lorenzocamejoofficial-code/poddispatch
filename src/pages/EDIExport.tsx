@@ -987,6 +987,37 @@ export default function EDIExport() {
         {selectedClaims.length > 0 && (
           <Card className="border-primary/30">
             <CardContent className="pt-4">
+              {validationIssues.length > 0 && (
+                <Alert className="mb-3 border-destructive/40 bg-destructive/5">
+                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                  <AlertDescription className="text-sm">
+                    <p className="font-semibold mb-2">
+                      {validationIssues.length} claim(s) blocked from export — fix before retrying:
+                    </p>
+                    <ul className="space-y-2">
+                      {validationIssues.map((row) => (
+                        <li key={row.idx} className="border-l-2 border-destructive/40 pl-2">
+                          <p className="text-xs font-medium">
+                            Claim {row.idx + 1} — {row.ec.patient_name} ({row.ec.run_date})
+                          </p>
+                          <ul className="mt-1 space-y-0.5">
+                            {row.issues.map((iss, i) => (
+                              <li key={i} className="flex items-center gap-1 text-[11px]">
+                                <span className="flex-1">{iss.message}</span>
+                                {iss.fixPath && (
+                                  <Link to={iss.fixPath} className="underline shrink-0 text-primary">
+                                    {iss.fixLabel ?? "Fix"} →
+                                  </Link>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-6">
                   <div>
