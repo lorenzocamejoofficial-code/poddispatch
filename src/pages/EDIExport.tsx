@@ -799,7 +799,10 @@ export default function EDIExport() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">Submitter</CardTitle>
-              <CardDescription className="text-xs">Clearinghouse contact info</CardDescription>
+              <CardDescription className="text-xs">
+                PodDispatch is the registered Office Ally vendor — these values are
+                managed centrally and apply to every customer submission.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -807,16 +810,16 @@ export default function EDIExport() {
                   <Label className="text-xs">Submitter ID</Label>
                   <Input
                     value={submitterInfo.submitter_id}
-                    onChange={(e) => setSubmitterInfo((s) => ({ ...s, submitter_id: e.target.value }))}
                     className="h-8 text-sm"
+                    readOnly
                   />
                 </div>
                 <div>
                   <Label className="text-xs">Submitter Name</Label>
                   <Input
                     value={submitterInfo.submitter_name}
-                    onChange={(e) => setSubmitterInfo((s) => ({ ...s, submitter_name: e.target.value }))}
                     className="h-8 text-sm"
+                    readOnly
                   />
                 </div>
               </div>
@@ -825,19 +828,25 @@ export default function EDIExport() {
                   <Label className="text-xs">Contact Name</Label>
                   <Input
                     value={submitterInfo.contact_name}
-                    onChange={(e) => setSubmitterInfo((s) => ({ ...s, contact_name: e.target.value }))}
                     className="h-8 text-sm"
+                    readOnly
                   />
                 </div>
                 <div>
                   <Label className="text-xs">Contact Phone</Label>
                   <Input
                     value={submitterInfo.contact_phone}
-                    onChange={(e) => setSubmitterInfo((s) => ({ ...s, contact_phone: e.target.value }))}
                     className="h-8 text-sm"
+                    readOnly
                   />
                 </div>
               </div>
+              {!submitterInfo.submitter_id && (
+                <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                  Vendor settings are not yet configured. The system creator must add
+                  PodDispatch's Office Ally identity before any 837P can be exported.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
