@@ -116,8 +116,14 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await supabase
       .from("clearinghouse_settings")
-      .select("sftp_host, sftp_port, sftp_username, test_mode")
+      .select("sftp_host, sftp_port, sftp_username")
       .eq("company_id", company_id)
+      .maybeSingle();
+
+    const { data: vendor } = await supabase
+      .from("vendor_clearinghouse_settings")
+      .select("test_mode")
+      .limit(1)
       .maybeSingle();
 
     const { data: credRow } = await supabase
@@ -231,7 +237,7 @@ Deno.serve(async (req) => {
           host,
           port,
           username,
-          test_mode: settings?.test_mode ?? false,
+          test_mode: (vendor as any)?.test_mode ?? false,
           outbound_files: files,
           inbound_file_count: inboundCount,
           diagnostics,
