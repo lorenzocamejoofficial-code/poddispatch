@@ -25,7 +25,7 @@ interface RemittanceFile {
 interface ClearinghouseSnapshot {
   last_receive_at: string | null;
   last_error: string | null;
-  test_mode: boolean | null;
+  // test_mode moved to global vendor_clearinghouse_settings; no longer per-tenant.
   is_active: boolean | null;
   auto_receive_enabled: boolean | null;
 }
