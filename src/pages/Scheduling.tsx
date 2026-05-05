@@ -515,14 +515,17 @@ export default function Scheduling() {
       if (!oneoffForm.dob) { toast.error("DOB is required for one-off runs"); return; }
       if (!oneoffForm.sex) { toast.error("Sex is required for one-off runs"); return; }
       if (!oneoffForm.member_id || !oneoffForm.member_id.trim()) { toast.error("Member ID is required for one-off runs"); return; }
-      // 837P completeness warning (non-blocking)
-      const missingForClaim: string[] = [];
-      if (!oneoffForm.name?.trim()) missingForClaim.push("name");
-      if (!oneoffForm.dob) missingForClaim.push("DOB");
-      if (!oneoffForm.member_id?.trim()) missingForClaim.push("member ID");
-      if (!oneoffForm.primary_payer) missingForClaim.push("primary payer");
-      if (missingForClaim.length > 0) {
-        toast.warning(`Claim will be incomplete — missing: ${missingForClaim.join(", ")}. Update before billing.`);
+      if (!oneoffForm.primary_payer || !String(oneoffForm.primary_payer).trim()) {
+        toast.error("Primary payer is required — select Medicare, Medicaid, Commercial, Self-Pay, or Workers' Comp.");
+        return;
+      }
+      if (!oneoffForm.pickup_location_type) {
+        toast.error("Origin type is required — select from Residence, Hospital, SNF, Dialysis Facility, etc.");
+        return;
+      }
+      if (!oneoffForm.destination_type) {
+        toast.error("Destination type is required — select from Residence, Hospital, SNF, Dialysis Facility, etc.");
+        return;
       }
       const normalizedTripType = normalizeTripType(oneoffForm.trip_type);
       const { data: companyId } = await supabase.rpc("get_my_company_id");
@@ -625,6 +628,14 @@ export default function Scheduling() {
 
     if (!legForm.patient_id || !legForm.pickup_location || !legForm.destination_location) {
       toast.error("Patient, pickup location, and destination are required");
+      return;
+    }
+    if (!legPickupLocationType) {
+      toast.error("Origin type is required — select from Residence, Hospital, SNF, Dialysis Facility, etc.");
+      return;
+    }
+    if (!legDestinationType) {
+      toast.error("Destination type is required — select from Residence, Hospital, SNF, Dialysis Facility, etc.");
       return;
     }
 
