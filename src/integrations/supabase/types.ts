@@ -479,6 +479,74 @@ export type Database = {
           },
         ]
       }
+      claim_payments: {
+        Row: {
+          adjustment_codes: string[] | null
+          allowed_amount: number | null
+          amount: number
+          applied_at: string
+          claim_record_id: string
+          clp_status_code: string | null
+          company_id: string
+          created_at: string
+          denial_code: string | null
+          denial_reason: string | null
+          event_type: string
+          id: string
+          patient_responsibility: number
+          payer_claim_control_number: string | null
+          payment_date: string | null
+          remittance_file_id: string | null
+          write_off: number
+        }
+        Insert: {
+          adjustment_codes?: string[] | null
+          allowed_amount?: number | null
+          amount?: number
+          applied_at?: string
+          claim_record_id: string
+          clp_status_code?: string | null
+          company_id: string
+          created_at?: string
+          denial_code?: string | null
+          denial_reason?: string | null
+          event_type: string
+          id?: string
+          patient_responsibility?: number
+          payer_claim_control_number?: string | null
+          payment_date?: string | null
+          remittance_file_id?: string | null
+          write_off?: number
+        }
+        Update: {
+          adjustment_codes?: string[] | null
+          allowed_amount?: number | null
+          amount?: number
+          applied_at?: string
+          claim_record_id?: string
+          clp_status_code?: string | null
+          company_id?: string
+          created_at?: string
+          denial_code?: string | null
+          denial_reason?: string | null
+          event_type?: string
+          id?: string
+          patient_responsibility?: number
+          payer_claim_control_number?: string | null
+          payment_date?: string | null
+          remittance_file_id?: string | null
+          write_off?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "claim_payments_claim_record_id_fkey"
+            columns: ["claim_record_id"]
+            isOneToOne: false
+            referencedRelation: "claim_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       claim_records: {
         Row: {
           adjustment_codes: string[] | null
