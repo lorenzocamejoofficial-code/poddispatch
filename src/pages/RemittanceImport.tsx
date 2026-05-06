@@ -553,6 +553,36 @@ export default function RemittanceImport() {
               </Alert>
             )}
 
+            {/* Reconciliation banner — BPR02 vs sum(CLP04) - sum(PLB) */}
+            {envelope && (() => {
+              const sumClp = envelope.claims.reduce((s, c) => s + c.paid_amount, 0);
+              const sumPlb = envelope.plb_adjustments.reduce((s, p) => s + p.amount, 0);
+              const variance = +(envelope.bpr_total_paid - (sumClp - sumPlb)).toFixed(2);
+              const reconciled = Math.abs(variance) < 0.01;
+              if (reconciled) return null;
+              return (
+                <Alert className="border-destructive/40 bg-destructive/5">
+                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                  <AlertDescription className="text-sm space-y-2">
+                    <div>
+                      <strong>Reconciliation variance: ${variance.toFixed(2)}</strong> — EFT total
+                      (${envelope.bpr_total_paid.toFixed(2)}) does not equal sum of claim payments
+                      (${sumClp.toFixed(2)}) minus provider-level adjustments (${sumPlb.toFixed(2)}).
+                      Review provider-level adjustments before importing.
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setAcceptedVariance(true)}
+                      disabled={acceptedVariance}
+                    >
+                      {acceptedVariance ? "Variance accepted" : "Accept variance & continue"}
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              );
+            })()}
+
             {/* Import Actions */}
             <div className="flex items-center justify-between">
               <Button
@@ -568,7 +598,17 @@ export default function RemittanceImport() {
               </Button>
               <Button
                 onClick={handleImport}
-                disabled={importing || matchedCount === 0}
+                disabled={
+                  importing ||
+                  matchedCount === 0 ||
+                  (!!envelope &&
+                    Math.abs(
+                      +(envelope.bpr_total_paid -
+                        (envelope.claims.reduce((s, c) => s + c.paid_amount, 0) -
+                          envelope.plb_adjustments.reduce((s, p) => s + p.amount, 0))).toFixed(2)
+                    ) >= 0.01 &&
+                    !acceptedVariance)
+                }
                 size="lg"
                 className="gap-2"
               >
