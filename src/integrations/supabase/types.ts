@@ -5149,6 +5149,9 @@ export type Database = {
         | "denied"
         | "needs_correction"
         | "needs_review"
+        | "pending"
+        | "reversal"
+        | "forwarded"
       email_send_status:
         | "pending"
         | "sent"
@@ -5357,6 +5360,9 @@ export const Constants = {
         "denied",
         "needs_correction",
         "needs_review",
+        "pending",
+        "reversal",
+        "forwarded",
       ],
       email_send_status: ["pending", "sent", "failed", "bounced", "suppressed"],
       email_type: [
