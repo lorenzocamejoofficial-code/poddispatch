@@ -44,6 +44,26 @@ const CLP_STATUS_MAP: Record<string, string> = {
   "22": "Reversal of Previous Payment",
 };
 
+export interface PLBAdjustmentParsed {
+  provider_npi: string;
+  fiscal_period: string; // ISO YYYY-MM-DD
+  reason_code: string;   // WO, L6, FC, CS, J1, 72, B2, B3, ...
+  reference_id: string;  // text after the colon in PLB03 / PLB05 / ...
+  amount: number;        // signed
+}
+
+export interface ParsedRemittance {
+  bpr_total_paid: number;       // BPR02 (signed)
+  payment_date: string;         // BPR16 → ISO YYYY-MM-DD
+  payment_method: string;       // BPR04 (CHK / ACH / NON / ...)
+  eft_trace_number: string;     // TRN02
+  payer_name: string;           // NM1*PR el 3
+  payer_id: string;             // NM1*PR el 9
+  billing_provider_npi: string; // file-level NM1*85 el 9
+  claims: ParsedRemittanceItem[];
+  plb_adjustments: PLBAdjustmentParsed[];
+}
+
 /**
  * Normalize segment terminators: 835 files may use ~, ~\n, or \n~ patterns.
  * Returns an array of raw segment strings.
@@ -101,14 +121,26 @@ function formatDateFromEDI(ediDate: string): string {
 }
 
 export function parseEDI835(rawContent: string): ParsedRemittanceItem[] {
+  return parseEDI835Envelope(rawContent).claims;
+}
+
+/**
+ * Full envelope parser that includes BPR header info, file-level identifiers,
+ * and provider-level adjustments (PLB) in addition to per-claim items.
+ */
+export function parseEDI835Envelope(rawContent: string): ParsedRemittance {
   const segments = splitSegments(rawContent);
   const results: ParsedRemittanceItem[] = [];
+  const plbAdjustments: PLBAdjustmentParsed[] = [];
 
   let currentClaim: ParsedRemittanceItem | null = null;
   let payerName = "";
   let payerId = "";
   let bprPaymentDate = ""; // BPR16 payment date, applies to all claims in the file
   let fileBillingNpi = ""; // NM1*85 at the file/header level — applies to all claims unless overridden
+  let bprTotalPaid = 0;
+  let bprPaymentMethod = "";
+  let trnEftTrace = "";
 
   for (let i = 0; i < segments.length; i++) {
     const els = parseElements(segments[i]);
@@ -116,10 +148,17 @@ export function parseEDI835(rawContent: string): ParsedRemittanceItem[] {
 
     // BPR — Financial Information (payment header)
     if (segId === "BPR") {
+      bprTotalPaid = toNum(els[2]);
+      bprPaymentMethod = els[4] || "";
       // BPR16 is the payment/check date in YYYYMMDD format
       if (els[16]) {
         bprPaymentDate = formatDateFromEDI(els[16]);
       }
+    }
+
+    // TRN — Reassociation trace number (EFT trace)
+    if (segId === "TRN") {
+      if (!trnEftTrace) trnEftTrace = els[2] || "";
     }
 
     // NM1 — Name segments
@@ -166,7 +205,7 @@ export function parseEDI835(rawContent: string): ParsedRemittanceItem[] {
       const statusCode = els[2] || "";
       currentClaim = {
         patient_control_number: els[1] || "", // CLP01 — our claim reference
-        payer_claim_control_number: els[7] || "",
+        payer_claim_control_number: els[7] || "", // CLP07 — used to link reversals to original payment
         patient_member_id: "", // filled by NM1*QC or NM1*IL
         patient_name: "",
         date_of_service: "",
@@ -228,6 +267,32 @@ export function parseEDI835(rawContent: string): ParsedRemittanceItem[] {
 
     // AMT — supplemental amounts (informational)
     // Not strictly needed since CLP has the data, but useful for cross-check
+
+    // PLB — Provider Level Adjustment (file-level, may close out remaining claims)
+    if (segId === "PLB") {
+      if (currentClaim) {
+        results.push(currentClaim);
+        currentClaim = null;
+      }
+      const providerNpi = els[1] || "";
+      const fiscalPeriod = formatDateFromEDI(els[2] || "");
+      // Triplets begin at index 3: <reasonCode:reference>, <amount>, <reasonCode:reference>, <amount>, ...
+      for (let j = 3; j < els.length; j += 2) {
+        const composite = els[j];
+        const amountStr = els[j + 1];
+        if (!composite) continue;
+        const [reasonCode, ...refParts] = composite.split(":");
+        if (!reasonCode || !reasonCode.trim()) continue;
+        const amount = toNum(amountStr);
+        plbAdjustments.push({
+          provider_npi: providerNpi,
+          fiscal_period: fiscalPeriod,
+          reason_code: reasonCode.trim(),
+          reference_id: refParts.join(":"),
+          amount,
+        });
+      }
+    }
   }
 
   // Push the last claim
@@ -247,16 +312,65 @@ export function parseEDI835(rawContent: string): ParsedRemittanceItem[] {
     }
   });
 
-  return results;
+  return {
+    bpr_total_paid: bprTotalPaid,
+    payment_date: bprPaymentDate,
+    payment_method: bprPaymentMethod,
+    eft_trace_number: trnEftTrace,
+    payer_name: payerName,
+    payer_id: payerId,
+    billing_provider_npi: fileBillingNpi,
+    claims: results,
+    plb_adjustments: plbAdjustments,
+  };
 }
 
-/** Determine the claim status to set based on CLP02 */
-export function mapClaimStatus(
+export type ClaimStatusOutcome =
+  | "paid"
+  | "denied"
+  | "pending"
+  | "needs_correction"
+  | "reversal"
+  | "forwarded";
+
+/**
+ * Maps CLP02 (X12 005010X221A1 code list 1029) to internal claim outcomes.
+ * The DB recompute trigger may further override `status` based on the net
+ * payment ledger (e.g. partial reversals that still leave net > 0 stay paid).
+ * Note: code 23 returns "forwarded" here for diagnostic logging, but the
+ * trigger collapses it to "denied" so it lands in the denial recovery queue.
+ */
+export function mapClaimStatus(clpStatusCode: string): ClaimStatusOutcome {
+  switch (clpStatusCode) {
+    case "1":  return "paid";
+    case "2":  return "paid";
+    case "3":  return "paid";
+    case "19": return "paid";
+    case "20": return "paid";
+    case "21": return "paid";
+    case "4":  return "denied";
+    case "11": return "denied";
+    case "5":  return "pending";
+    case "13": return "pending";
+    case "15": return "pending";
+    case "25": return "pending";
+    case "16": return "needs_correction";
+    case "17": return "reversal";
+    case "22": return "reversal";
+    case "23": return "forwarded";
+    default:   return "needs_correction";
+  }
+}
+
+/** Map CLP02 to a claim_payments.event_type value */
+export function mapToEventType(
   clpStatusCode: string
-): "paid" | "denied" | "needs_correction" {
-  if (clpStatusCode === "1" || clpStatusCode === "19") return "paid";
-  if (clpStatusCode === "3" || clpStatusCode === "4") return "denied";
-  return "needs_correction"; // status 2 (adjusted), 22 (reversal), or unknown
+): "payment" | "reversal" | "correction" | "secondary_payment" | "adjustment" {
+  if (clpStatusCode === "17" || clpStatusCode === "22") return "reversal";
+  if (clpStatusCode === "2" || clpStatusCode === "3" ||
+      clpStatusCode === "20" || clpStatusCode === "21") return "secondary_payment";
+  if (clpStatusCode === "1" || clpStatusCode === "19") return "payment";
+  return "adjustment";
 }
 
 /** Extract the CO-45 write-off amount from adjustments */
