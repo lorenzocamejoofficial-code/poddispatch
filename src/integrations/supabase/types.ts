@@ -2893,6 +2893,50 @@ export type Database = {
           },
         ]
       }
+      plb_adjustments: {
+        Row: {
+          amount: number
+          company_id: string
+          created_at: string
+          fiscal_period: string | null
+          id: string
+          provider_npi: string | null
+          reason_code: string
+          reference_id: string | null
+          remittance_file_id: string
+        }
+        Insert: {
+          amount: number
+          company_id: string
+          created_at?: string
+          fiscal_period?: string | null
+          id?: string
+          provider_npi?: string | null
+          reason_code: string
+          reference_id?: string | null
+          remittance_file_id: string
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          created_at?: string
+          fiscal_period?: string | null
+          id?: string
+          provider_npi?: string | null
+          reason_code?: string
+          reference_id?: string | null
+          remittance_file_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plb_adjustments_remittance_file_id_fkey"
+            columns: ["remittance_file_id"]
+            isOneToOne: false
+            referencedRelation: "remittance_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           active: boolean
@@ -3060,41 +3104,59 @@ export type Database = {
       }
       remittance_files: {
         Row: {
+          bpr_total_paid: number | null
           claims_matched: number
           claims_updated: number
           company_id: string
+          eft_trace_number: string | null
           file_content: string
           file_identifier: string | null
           file_name: string
           id: string
           imported_at: string
           imported_by: string | null
+          payer_name: string | null
+          payment_date: string | null
+          reconciled: boolean
+          reconciliation_variance: number
           status: string
           total_paid: number
         }
         Insert: {
+          bpr_total_paid?: number | null
           claims_matched?: number
           claims_updated?: number
           company_id: string
+          eft_trace_number?: string | null
           file_content: string
           file_identifier?: string | null
           file_name: string
           id?: string
           imported_at?: string
           imported_by?: string | null
+          payer_name?: string | null
+          payment_date?: string | null
+          reconciled?: boolean
+          reconciliation_variance?: number
           status?: string
           total_paid?: number
         }
         Update: {
+          bpr_total_paid?: number | null
           claims_matched?: number
           claims_updated?: number
           company_id?: string
+          eft_trace_number?: string | null
           file_content?: string
           file_identifier?: string | null
           file_name?: string
           id?: string
           imported_at?: string
           imported_by?: string | null
+          payer_name?: string | null
+          payment_date?: string | null
+          reconciled?: boolean
+          reconciliation_variance?: number
           status?: string
           total_paid?: number
         }
