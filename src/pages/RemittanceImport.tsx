@@ -9,12 +9,14 @@ import { Upload, CheckCircle, XCircle, AlertTriangle, Info, FileText, ArrowRight
 import { toast } from "sonner";
 import { logAuditEvent } from "@/lib/audit-logger";
 import {
-  parseEDI835,
+  parseEDI835Envelope,
   isValid835,
   mapClaimStatus,
   extractCO45WriteOff,
   getPrimaryDenialCode,
   parsePatientControlNumber,
+  mapToEventType,
+  type ParsedRemittance,
   type ParsedRemittanceItem,
 } from "@/lib/edi-835-parser";
 import { getDenialTranslation } from "@/lib/denial-code-translations";
@@ -31,6 +33,8 @@ export default function RemittanceImport() {
   const [fileName, setFileName] = useState("");
   const [rawContent, setRawContent] = useState("");
   const [matchedItems, setMatchedItems] = useState<MatchedItem[]>([]);
+  const [envelope, setEnvelope] = useState<ParsedRemittance | null>(null);
+  const [acceptedVariance, setAcceptedVariance] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState(false);
@@ -39,6 +43,8 @@ export default function RemittanceImport() {
     updated: number;
     totalPaid: number;
     secondaryOpportunities: number;
+    variance: number;
+    plbCount: number;
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -57,10 +63,13 @@ export default function RemittanceImport() {
 
     setRawContent(text);
     setParsing(true);
+    setAcceptedVariance(false);
 
     try {
-      const parsed = parseEDI835(text);
-      if (parsed.length === 0) {
+      const parsedEnv = parseEDI835Envelope(text);
+      const parsed = parsedEnv.claims;
+      setEnvelope(parsedEnv);
+      if (parsed.length === 0 && parsedEnv.plb_adjustments.length === 0) {
         toast.error("No claims found in the 835 file.");
         setMatchedItems([]);
         return;
@@ -169,7 +178,7 @@ export default function RemittanceImport() {
 
   const handleImport = async () => {
     const toUpdate = matchedItems.filter((m) => m.matchedClaimId);
-    if (toUpdate.length === 0) {
+    if (toUpdate.length === 0 && (!envelope || envelope.plb_adjustments.length === 0)) {
       toast.error("No matched claims to import");
       return;
     }
@@ -180,80 +189,124 @@ export default function RemittanceImport() {
     let secondaryOpps = 0;
 
     try {
+      // Compute reconciliation: BPR02 == sum(CLP04 - PLB) ; variance = BPR02 - (sumCLP - sumPLB)
+      const sumClp = envelope ? envelope.claims.reduce((s, c) => s + c.paid_amount, 0) : 0;
+      const sumPlb = envelope ? envelope.plb_adjustments.reduce((s, p) => s + p.amount, 0) : 0;
+      const bpr = envelope?.bpr_total_paid ?? 0;
+      const variance = +(bpr - (sumClp - sumPlb)).toFixed(2);
+      const reconciled = Math.abs(variance) < 0.01;
+
+      // 1) Insert the remittance file FIRST so we have an id to link payments + PLBs
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const { data: fileRow, error: fileErr } = await supabase
+        .from("remittance_files" as any)
+        .insert({
+          file_name: fileName,
+          file_content: rawContent,
+          claims_matched: toUpdate.length,
+          claims_updated: 0, // will update after the loop
+          total_paid: 0,
+          status: "processing",
+          company_id: companyId,
+          imported_by: currentUser?.id ?? null,
+          bpr_total_paid: bpr,
+          payment_date: envelope?.payment_date || null,
+          payer_name: envelope?.payer_name || null,
+          eft_trace_number: envelope?.eft_trace_number || null,
+          reconciled,
+          reconciliation_variance: variance,
+        } as any)
+        .select("id")
+        .single();
+
+      if (fileErr || !fileRow) {
+        throw new Error(fileErr?.message ?? "Failed to create remittance file row");
+      }
+      const remittanceFileId = (fileRow as any).id as string;
+
+      // 2) Insert payment events — the recompute trigger derives claim_records fields.
       for (const item of toUpdate) {
         const rem = item.remittance;
-        const newStatus = mapClaimStatus(rem.claim_status_code);
         const co45 = extractCO45WriteOff(rem.adjustment_groups);
         const primaryDenial = getPrimaryDenialCode(rem.adjustment_groups);
         const adjustmentCodes = rem.raw_denial_codes;
         const prAmount = rem.adjustment_groups
           .filter((a) => a.group_code === "PR")
           .reduce((sum, a) => sum + a.amount, 0);
+        const eventType = mapToEventType(rem.claim_status_code);
+        const translation = primaryDenial
+          ? getDenialTranslation(primaryDenial.code)
+          : null;
+        const denialReason =
+          primaryDenial && (eventType === "adjustment" || rem.claim_status_code === "4" ||
+                            rem.claim_status_code === "11" || rem.claim_status_code === "23")
+            ? translation?.plain_english_explanation ?? primaryDenial.code
+            : null;
 
-        // Use actual payment date from 835 (BPR16 or DTM), fall back to today
-        const paymentDateISO = rem.payment_date
-          ? `${rem.payment_date}T00:00:00Z`
-          : new Date().toISOString();
-        const remittanceDateStr = rem.payment_date || new Date().toISOString().slice(0, 10);
+        const { error: payErr } = await supabase
+          .from("claim_payments" as any)
+          .insert({
+            claim_record_id: item.matchedClaimId,
+            company_id: companyId,
+            event_type: eventType,
+            clp_status_code: rem.claim_status_code,
+            amount: rem.paid_amount, // already signed (negative for reversals)
+            patient_responsibility: prAmount,
+            write_off: co45,
+            allowed_amount: rem.charged_amount - co45,
+            denial_code: primaryDenial?.code ?? null,
+            denial_reason: denialReason,
+            adjustment_codes: adjustmentCodes,
+            payer_claim_control_number: rem.payer_claim_control_number || null,
+            remittance_file_id: remittanceFileId,
+            payment_date: rem.payment_date || envelope?.payment_date || null,
+          } as any);
 
-        const updatePayload: Record<string, any> = {
-          amount_paid: rem.paid_amount,
-          allowed_amount: rem.charged_amount - co45,
-          write_off_amount: co45 > 0 ? co45 : null,
-          patient_responsibility_amount: prAmount > 0 ? prAmount : null,
-          adjustment_codes: adjustmentCodes,
-          remittance_date: remittanceDateStr,
-          payer_claim_control_number: rem.payer_claim_control_number || null,
-          status: newStatus,
-        };
-
-        if (newStatus === "paid") {
-          updatePayload.paid_at = paymentDateISO;
-        }
-
-        if (primaryDenial && (newStatus === "denied" || newStatus === "needs_correction")) {
-          updatePayload.denial_code = primaryDenial.code;
-          // Store plain English explanation; fall back to raw code if unrecognized
-          const translation = getDenialTranslation(primaryDenial.code);
-          updatePayload.denial_reason = translation?.plain_english_explanation ?? primaryDenial.code;
-        }
-
-        // Flag secondary opportunity
-        if (newStatus === "paid" && item.hasSecondaryPayer && prAmount > 0) {
-          updatePayload.secondary_claim_generated = false; // flag it as opportunity
-          secondaryOpps++;
-        }
-
-        const { error } = await supabase
-          .from("claim_records" as any)
-          .update(updatePayload as any)
-          .eq("id", item.matchedClaimId);
-
-        if (!error) {
+        if (!payErr) {
           updated++;
           totalPaid += rem.paid_amount;
         }
+
+        // Flag secondary opportunity (still a non-derived column)
+        if (rem.paid_amount > 0 && item.hasSecondaryPayer && prAmount > 0) {
+          await supabase
+            .from("claim_records" as any)
+            .update({ secondary_claim_generated: false } as any)
+            .eq("id", item.matchedClaimId);
+          secondaryOpps++;
+        }
       }
 
-      // Write remittance file record
-      const { data: companyId } = await supabase.rpc("get_my_company_id");
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      await supabase.from("remittance_files" as any).insert({
-        file_name: fileName,
-        file_content: rawContent,
-        claims_matched: toUpdate.length,
-        claims_updated: updated,
-        total_paid: totalPaid,
-        status: "completed",
-        company_id: companyId,
-        imported_by: currentUser?.id ?? null,
-      } as any);
+      // 3) Insert PLB rows
+      if (envelope && envelope.plb_adjustments.length > 0) {
+        const plbRows = envelope.plb_adjustments.map((p) => ({
+          remittance_file_id: remittanceFileId,
+          company_id: companyId,
+          provider_npi: p.provider_npi || null,
+          fiscal_period: p.fiscal_period || null,
+          reason_code: p.reason_code,
+          reference_id: p.reference_id || null,
+          amount: p.amount,
+        }));
+        await supabase.from("plb_adjustments" as any).insert(plbRows as any);
+      }
+
+      // 4) Finalize remittance_files counters
+      await supabase
+        .from("remittance_files" as any)
+        .update({
+          claims_updated: updated,
+          total_paid: totalPaid,
+          status: reconciled ? "completed" : "completed_with_variance",
+        } as any)
+        .eq("id", remittanceFileId);
 
       await logAuditEvent({
         action: "export",
         tableName: "remittance_files",
-        notes: `Imported 835 file "${fileName}" — ${updated} claims updated, $${totalPaid.toFixed(2)} total paid`,
-        newData: { fileName, matched: toUpdate.length, updated, totalPaid },
+        notes: `Imported 835 file "${fileName}" — ${updated} claims updated, $${totalPaid.toFixed(2)} total paid${reconciled ? "" : ` (variance $${variance.toFixed(2)})`}`,
+        newData: { fileName, matched: toUpdate.length, updated, totalPaid, variance, plbCount: envelope?.plb_adjustments.length ?? 0 },
       });
 
       setImported(true);
@@ -262,6 +315,8 @@ export default function RemittanceImport() {
         updated,
         totalPaid,
         secondaryOpportunities: secondaryOpps,
+        variance,
+        plbCount: envelope?.plb_adjustments.length ?? 0,
       });
 
       toast.success(`Import complete — ${updated} claims updated`);
