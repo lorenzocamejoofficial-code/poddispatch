@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { ExternalLink, Phone, Plus, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
@@ -20,6 +21,18 @@ interface PayerEntry {
   claims_address: string | null;
   portal_url: string | null;
   timely_filing_days: number | null;
+  notes: string | null;
+}
+
+interface EnrollmentRow {
+  id: string;
+  payer_id: string;
+  era_enrolled: boolean;
+  era_enrolled_at: string | null;
+  eft_enrolled: boolean;
+  eft_enrolled_at: string | null;
+  edi_enrolled: boolean;
+  edi_enrolled_at: string | null;
   notes: string | null;
 }
 
@@ -36,23 +49,58 @@ const emptyForm = {
   notes: "",
 };
 
+const emptyEnrollment = {
+  era_enrolled: false,
+  era_enrolled_at: "",
+  eft_enrolled: false,
+  eft_enrolled_at: "",
+  edi_enrolled: false,
+  edi_enrolled_at: "",
+  notes: "",
+};
+
+function EnrollmentBadges({ e }: { e: EnrollmentRow | undefined }) {
+  const cell = (label: string, on: boolean) => (
+    <span
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold border ${
+        on
+          ? "border-[hsl(var(--status-green))]/40 bg-[hsl(var(--status-green))]/10 text-[hsl(var(--status-green))]"
+          : "border-muted-foreground/20 bg-muted/40 text-muted-foreground"
+      }`}
+    >
+      {label}
+    </span>
+  );
+  return (
+    <div className="flex gap-1">
+      {cell("ERA", !!e?.era_enrolled)}
+      {cell("EFT", !!e?.eft_enrolled)}
+      {cell("EDI", !!e?.edi_enrolled)}
+    </div>
+  );
+}
+
 export function PayerDirectoryTab() {
   const { activeCompanyId } = useAuth();
   const [payers, setPayers] = useState<PayerEntry[]>([]);
+  const [enrollments, setEnrollments] = useState<Record<string, EnrollmentRow>>({});
   const [loading, setLoading] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [enrollment, setEnrollment] = useState({ ...emptyEnrollment });
   const [saving, setSaving] = useState(false);
 
   const fetchPayers = useCallback(async () => {
     if (!activeCompanyId) return;
-    const { data } = await supabase
-      .from("payer_directory")
-      .select("*")
-      .eq("company_id", activeCompanyId)
-      .order("payer_name");
-    setPayers((data as any[]) ?? []);
+    const [{ data: pd }, { data: en }] = await Promise.all([
+      supabase.from("payer_directory").select("*").eq("company_id", activeCompanyId).order("payer_name"),
+      supabase.from("customer_payer_enrollments" as any).select("*").eq("company_id", activeCompanyId),
+    ]);
+    setPayers((pd as any[]) ?? []);
+    const map: Record<string, EnrollmentRow> = {};
+    for (const r of (en as any[]) ?? []) map[r.payer_id] = r as EnrollmentRow;
+    setEnrollments(map);
     setLoading(false);
   }, [activeCompanyId]);
 
@@ -61,6 +109,7 @@ export function PayerDirectoryTab() {
   const openAdd = () => {
     setEditingId(null);
     setForm(emptyForm);
+    setEnrollment({ ...emptyEnrollment });
     setSheetOpen(true);
   };
 
@@ -76,7 +125,27 @@ export function PayerDirectoryTab() {
       timely_filing_days: String(p.timely_filing_days ?? 365),
       notes: p.notes ?? "",
     });
+    const e = enrollments[p.id];
+    setEnrollment({
+      era_enrolled: !!e?.era_enrolled,
+      era_enrolled_at: e?.era_enrolled_at ?? "",
+      eft_enrolled: !!e?.eft_enrolled,
+      eft_enrolled_at: e?.eft_enrolled_at ?? "",
+      edi_enrolled: !!e?.edi_enrolled,
+      edi_enrolled_at: e?.edi_enrolled_at ?? "",
+      notes: e?.notes ?? "",
+    });
     setSheetOpen(true);
+  };
+
+  const toggleEnroll = (key: "era" | "eft" | "edi", on: boolean) => {
+    setEnrollment(prev => ({
+      ...prev,
+      [`${key}_enrolled`]: on,
+      [`${key}_enrolled_at`]: on
+        ? (prev[`${key}_enrolled_at` as keyof typeof prev] as string) || new Date().toISOString()
+        : "",
+    }));
   };
 
   const handleSave = async () => {
@@ -95,21 +164,49 @@ export function PayerDirectoryTab() {
       notes: form.notes.trim() || null,
     };
 
+    let payerId = editingId;
     if (editingId) {
       const { error } = await supabase
         .from("payer_directory")
         .update(payload)
         .eq("id", editingId);
       if (error) { toast.error("Failed to update"); setSaving(false); return; }
-      toast.success("Payer updated");
     } else {
-      const { error } = await supabase
+      const { data: inserted, error } = await supabase
         .from("payer_directory")
-        .insert(payload);
+        .insert(payload)
+        .select("id")
+        .single();
       if (error) { toast.error("Failed to add payer"); setSaving(false); return; }
-      toast.success("Payer added");
+      payerId = inserted?.id ?? null;
+      // Seed an enrollment row (all flags false by default).
+      if (payerId) {
+        await supabase.from("customer_payer_enrollments" as any).insert({
+          company_id: activeCompanyId,
+          payer_id: payerId,
+        });
+      }
     }
 
+    // Upsert enrollment row with current toggle state.
+    if (payerId) {
+      const enrollPayload: any = {
+        company_id: activeCompanyId,
+        payer_id: payerId,
+        era_enrolled: enrollment.era_enrolled,
+        era_enrolled_at: enrollment.era_enrolled ? (enrollment.era_enrolled_at || new Date().toISOString()) : null,
+        eft_enrolled: enrollment.eft_enrolled,
+        eft_enrolled_at: enrollment.eft_enrolled ? (enrollment.eft_enrolled_at || new Date().toISOString()) : null,
+        edi_enrolled: enrollment.edi_enrolled,
+        edi_enrolled_at: enrollment.edi_enrolled ? (enrollment.edi_enrolled_at || new Date().toISOString()) : null,
+        notes: enrollment.notes.trim() || null,
+      };
+      await supabase
+        .from("customer_payer_enrollments" as any)
+        .upsert(enrollPayload, { onConflict: "company_id,payer_id" });
+    }
+
+    toast.success(editingId ? "Payer updated" : "Payer added");
     setSaving(false);
     setSheetOpen(false);
     fetchPayers();
@@ -130,6 +227,7 @@ export function PayerDirectoryTab() {
             <tr className="border-b bg-muted/50">
               <th className="text-left p-3 font-medium">Payer Name</th>
               <th className="text-left p-3 font-medium">Type</th>
+              <th className="text-left p-3 font-medium">Enrollment</th>
               <th className="text-left p-3 font-medium">Phone</th>
               <th className="text-left p-3 font-medium">Portal</th>
               <th className="text-right p-3 font-medium">Timely Filing</th>
@@ -138,7 +236,7 @@ export function PayerDirectoryTab() {
           </thead>
           <tbody>
             {payers.length === 0 && (
-              <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">No payers in directory. Add one to get started.</td></tr>
+              <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">No payers in directory. Add one to get started.</td></tr>
             )}
             {payers.map(p => (
               <tr key={p.id} className="border-b hover:bg-muted/30 transition-colors">
@@ -146,6 +244,7 @@ export function PayerDirectoryTab() {
                 <td className="p-3">
                   <Badge variant="outline" className="text-xs capitalize">{p.payer_type ?? "—"}</Badge>
                 </td>
+                <td className="p-3"><EnrollmentBadges e={enrollments[p.id]} /></td>
                 <td className="p-3">
                   {p.phone_number ? (
                     <a href={`tel:${p.phone_number}`} className="text-primary hover:underline inline-flex items-center gap-1">
@@ -216,6 +315,51 @@ export function PayerDirectoryTab() {
               <Label>Notes</Label>
               <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className="min-h-[60px]" />
             </div>
+
+            {/* Enrollment Status section */}
+            <div className="rounded-md border p-3 space-y-3 bg-muted/20">
+              <p className="text-sm font-semibold">Enrollment Status</p>
+              <p className="text-xs text-muted-foreground">
+                Office Ally requires each customer to file enrollment forms per payer for ERA, EFT, and EDI separately. Mark each as confirmed once your enrollment is approved by the payer.
+              </p>
+
+              {(["era", "eft", "edi"] as const).map(k => {
+                const enabled = enrollment[`${k}_enrolled` as const] as boolean;
+                const at = enrollment[`${k}_enrolled_at` as const] as string;
+                const dateValue = at ? at.slice(0, 10) : "";
+                return (
+                  <div key={k} className="grid grid-cols-[1fr_auto] gap-2 items-center">
+                    <div>
+                      <Label className="uppercase">{k} enrolled</Label>
+                      <Input
+                        type="date"
+                        className="mt-1"
+                        disabled={!enabled}
+                        value={dateValue}
+                        onChange={e => setEnrollment(prev => ({
+                          ...prev,
+                          [`${k}_enrolled_at`]: e.target.value
+                            ? new Date(e.target.value).toISOString()
+                            : "",
+                        }))}
+                      />
+                    </div>
+                    <Switch checked={enabled} onCheckedChange={v => toggleEnroll(k, v)} />
+                  </div>
+                );
+              })}
+
+              <div>
+                <Label>Enrollment Notes</Label>
+                <Textarea
+                  value={enrollment.notes}
+                  onChange={e => setEnrollment(prev => ({ ...prev, notes: e.target.value }))}
+                  className="min-h-[60px]"
+                  placeholder="e.g. ERA submitted 2026-04-01, awaiting confirmation"
+                />
+              </div>
+            </div>
+
             <Button className="w-full" disabled={!form.payer_name.trim() || saving} onClick={handleSave}>
               {saving ? "Saving…" : editingId ? "Update Payer" : "Add Payer"}
             </Button>
