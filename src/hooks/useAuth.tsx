@@ -375,11 +375,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: "You are not a member of that company" };
     }
     if (!profileId) return { error: "Profile not loaded" };
+    // Stamp BEFORE the write so the echoed realtime UPDATE in this tab
+    // falls within the suppression window.
+    lastSwitchAtRef.current = Date.now();
     const { error } = await supabase
       .from("profiles")
       .update({ active_company_id: companyId } as any)
       .eq("id", profileId);
-    if (error) return { error: error.message };
+    if (error) {
+      lastSwitchAtRef.current = 0;
+      return { error: error.message };
+    }
     // Hard reload for full tenant-scope reset.
     if (typeof window !== "undefined") {
       window.location.assign("/");
