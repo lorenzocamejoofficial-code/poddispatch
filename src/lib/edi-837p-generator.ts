@@ -714,11 +714,11 @@ export function generateEDI837P(
       addSeg(["DTP", "472", "D8", formatDate8(claim.run_date)].join(ES));
     }
 
-    // SE - Transaction Set Trailer
-    addSeg(["SE", String(segCount + 1), stControlNum].join(ES));
-
-    totalSegments++;
     });
+
+    // SE - Transaction Set Trailer (one per company group / ST)
+    addSeg(["SE", String(segCount + 1), stControlNum].join(ES));
+    totalSegments++;
   }
 
   // GE - Functional Group Trailer
