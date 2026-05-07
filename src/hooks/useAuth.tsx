@@ -110,6 +110,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionWarningRef = useRef(false);
   // Guard to prevent onAuthStateChange from running before getSession completes
   const sessionInitialized = useRef(false);
+  // Tracks the timestamp (ms) of the most recent local switchCompany() call.
+  // The realtime profile subscription uses this to suppress a redundant
+  // reload in the originating tab — switchCompany() already issues its own
+  // window.location.assign("/"), so the echoed UPDATE event would otherwise
+  // trigger a second reload. Other tabs (where lastSwitchAtRef stays 0)
+  // reload normally to stay in sync.
+  const lastSwitchAtRef = useRef<number>(0);
 
   const setPasswordRecoveryMode = useCallback((active: boolean) => {
     setPasswordRecoveryModeState(active);
