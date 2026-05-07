@@ -1714,6 +1714,66 @@ export type Database = {
           },
         ]
       }
+      customer_payer_enrollments: {
+        Row: {
+          company_id: string
+          created_at: string
+          edi_enrolled: boolean
+          edi_enrolled_at: string | null
+          eft_enrolled: boolean
+          eft_enrolled_at: string | null
+          era_enrolled: boolean
+          era_enrolled_at: string | null
+          id: string
+          notes: string | null
+          payer_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          edi_enrolled?: boolean
+          edi_enrolled_at?: string | null
+          eft_enrolled?: boolean
+          eft_enrolled_at?: string | null
+          era_enrolled?: boolean
+          era_enrolled_at?: string | null
+          id?: string
+          notes?: string | null
+          payer_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          edi_enrolled?: boolean
+          edi_enrolled_at?: string | null
+          eft_enrolled?: boolean
+          eft_enrolled_at?: string | null
+          era_enrolled?: boolean
+          era_enrolled_at?: string | null
+          id?: string
+          notes?: string | null
+          payer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_payer_enrollments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_payer_enrollments_payer_id_fkey"
+            columns: ["payer_id"]
+            isOneToOne: false
+            referencedRelation: "payer_directory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_truck_metrics: {
         Row: {
           avg_facility_wait_min: number
