@@ -383,6 +383,7 @@ export default function CrewScheduleAdmin() {
                   selected={scheduleDate ? new Date(scheduleDate + "T12:00:00") : undefined}
                   onSelect={(d) => { if (d) { setScheduleDate(d.toISOString().split("T")[0]); setCalendarOpen(false); } }}
                   initialFocus
+                  toDate={maxScheduleDate}
                   className={cn("p-3 pointer-events-auto")}
                 />
               </PopoverContent>
