@@ -29,7 +29,7 @@ function hasPasswordRecoveryMarker() {
   );
 }
 
-export type MembershipRole = "creator" | "owner" | "dispatcher" | "biller" | "crew";
+export type MembershipRole = "creator" | "owner" | "manager" | "dispatcher" | "biller" | "crew";
 export type OnboardingStatus = "signup_started" | "agreements_accepted" | "payment_pending" | "payment_confirmed" | "pending_approval" | "approved_pending_payment" | "active" | "rejected" | "suspended" | "payment_issue";
 
 interface AuthContextType {
@@ -53,6 +53,8 @@ interface AuthContextType {
   setPasswordRecoveryMode: (active: boolean) => void;
   isAdmin: boolean;
   isOwner: boolean;
+  isOwnerOrCreator: boolean;
+  isManager: boolean;
   isDispatcher: boolean;
   isBilling: boolean;
   isCrew: boolean;
@@ -288,7 +290,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Derived role checks
   const isCreator = role === "creator";
   const isOwner = role === "owner";
-  const isAdmin = isOwner || isCreator;
+  const isManager = role === "manager";
+  // NARROW: only owner/creator (legal owner of the company). Used for
+  // subscription, NPI/EIN, role assignment, support correspondence,
+  // clearinghouse credentials. Manager does NOT pass.
+  const isOwnerOrCreator = isOwner || isCreator;
+  // BROAD admin tier: owner/creator/manager.
+  const isAdmin = isOwnerOrCreator || isManager;
   const isDispatcher = role === "dispatcher" || isAdmin;
   const isBilling = role === "biller" || isAdmin;
   const isCrew = role === "crew";
@@ -300,6 +308,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{
       user, session, role, activeCompanyId, profileId, loading, membershipLoaded, sessionWarning, isSystemCreator, onboardingStatus, subscriptionStatus, wizardCompleted, signIn, signOut, refreshOnboardingStatus, refreshWizardStatus, passwordRecoveryMode, setPasswordRecoveryMode,
       isAdmin, isOwner, isDispatcher, isBilling, isCrew, isCreator,
+      isOwnerOrCreator, isManager,
       canManageTrips, canManageBilling, canManagePatients,
     }}>
       {children}
