@@ -5295,7 +5295,13 @@ export type Database = {
         | "crew_schedule"
         | "other"
       leg_type: "A" | "B"
-      membership_role: "creator" | "owner" | "dispatcher" | "biller" | "crew"
+      membership_role:
+        | "creator"
+        | "owner"
+        | "dispatcher"
+        | "biller"
+        | "crew"
+        | "manager"
       onboarding_status:
         | "signup_started"
         | "agreements_accepted"
@@ -5503,7 +5509,14 @@ export const Constants = {
         "other",
       ],
       leg_type: ["A", "B"],
-      membership_role: ["creator", "owner", "dispatcher", "biller", "crew"],
+      membership_role: [
+        "creator",
+        "owner",
+        "dispatcher",
+        "biller",
+        "crew",
+        "manager",
+      ],
       onboarding_status: [
         "signup_started",
         "agreements_accepted",
