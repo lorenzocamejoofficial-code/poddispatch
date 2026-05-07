@@ -6,6 +6,11 @@
 
 export interface ClaimForEDI {
   claim_id: string;
+  /** Source company / billing-provider key. Used by generateEDI837P to group
+   *  claims into per-company ST/SE transaction sets and to look up the matching
+   *  ProviderInfo from the providerInfoMap. For single-tenant batches every
+   *  claim carries the same company_id. */
+  company_id: string;
   patient_name: string; // "Last, First"
   patient_dob: string; // YYYY-MM-DD
   patient_sex: string | null; // M, F, or U
