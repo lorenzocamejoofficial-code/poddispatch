@@ -117,3 +117,35 @@ No files were modified in Checkpoint 4 other than this `DEFERRED.md` update.
 ### Deferred from Pass 4D
 
 - **POLISH — `notifications` RLS does not scope by tenant (BLOCKS_MULTI_MEMBERSHIP_UX_POLISH).** Current SELECT/UPDATE policies are `auth.uid() = user_id` only. The table has no `company_id` column, so a user with memberships in multiple companies sees notifications from all of them in any active context. Not a security issue (each notification is targeted at a specific user), but a minor UX leak across tenant contexts. Fix requires either adding `company_id` to `notifications` and backfilling, or filtering at the query layer using the active company. Defer until multi-membership UX polish pass.
+
+## Pass 4E — onboarding seed (complete)
+
+- ✅ **`create-company` edge function** now eagerly seeds 3 additional row types alongside the existing 4 (`companies`, `company_memberships`, `profiles`, `company_settings`):
+  - **`migration_settings`** — 1 row, all defaults (`wizard_completed=false`, `wizard_step=0`).
+  - **`clearinghouse_settings`** — 1 row, schema defaults (Office Ally host/port/folders, blank credentials, `is_configured=false`, `is_active=false`).
+  - **`payer_billing_rules`** — 5 rows: `medicare`, `medicaid`, `private`, `va`, `default` (fallback rule for any unmatched payer_type, not a payer literally named "default").
+- ✅ **Georgia Medicaid assumption documented inline:** `medicaid.requires_auth=true` reflects Georgia Medicaid (Modivcare/Verida brokers). Customers in other states should edit per their broker requirements. Comment in `create-company/index.ts` flags this.
+- ✅ **All 3 seeds wrapped in best-effort `try/catch`** — failures log verbatim but do not block company creation. Missing rows lazy-create on first use or surface as wizard gaps.
+- ✅ **Pre-flight schema verification:** confirmed `payer_billing_rules` columns (`requires_pcs`, `requires_signature`, `requires_necessity_note`, `requires_timestamps`, `requires_miles`, `requires_auth`) exist exactly; `payer_type` is text (not enum), so string literals are safe.
+- ✅ **Seed test verified end-to-end:** inserted a synthetic test company, confirmed all 7 expected row types with correct counts and `payer_billing_rules` values matching the proposed defaults, then cleaned up via explicit child-then-parent deletion order with zero FK violations and zero orphans.
+
+### Deliberately NOT seeded
+
+- **`payer_directory`** — deferred. Drives timely-filing math via `generate_biller_tasks`; falls back to 365d default when absent. State Medicaid name is unknown at signup. Customers add payers as needed; revisit if onboarding telemetry shows users blocked here.
+- **`charge_master`** — left empty by design. Wizard step 2 forces user to enter rates; pre-seeding zeroes is pointless and pre-seeding fake values would hide the gate.
+- **`vehicle_inspection_templates`, `truck_builder_templates`** — per-truck/per-day_type, no obvious company-level default. Created during truck/template setup flows.
+
+### Follow-ups discovered (not fixed in Pass 4E)
+
+- **POLISH — Production hard-delete (`archive_company` flow) needs an explicit child-row cleanup helper.** Pass 4C set FKs to `ON DELETE RESTRICT` for safety, which means hard-delete cannot use a single `DELETE FROM companies` statement. The cleanup order proven by the Pass 4E test script is:
+  1. `payer_billing_rules`
+  2. `clearinghouse_settings`
+  3. `migration_settings`
+  4. `company_settings`
+  5. `company_memberships`
+  6. `UPDATE profiles SET active_company_id=NULL, company_id=NULL` for matching rows
+  7. `profiles` (where applicable)
+  8. `companies`
+  9. `auth.users` (test user only)
+
+  Recommend extracting this into a reusable `supabase/functions/archive-company/` cleanup helper that handles **all 59 RESTRICT-FK tenant-scoped tables** (the 8 above are only the seed/identity set — full hard-delete must also clear `trip_records`, `claim_records`, `scheduling_legs`, `qa_reviews`, `crews`, `trucks`, `patients`, `facilities`, etc., in dependency order). Until then, hard-deletes must follow the documented order manually. **The current `archive_company` implementation predates Pass 4C and almost certainly fails on the new RESTRICT FKs — needs verification before any production hard-delete is attempted.** This supersedes the Pass 4C POLISH note about cascade behavior.
