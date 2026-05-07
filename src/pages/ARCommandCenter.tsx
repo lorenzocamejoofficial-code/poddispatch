@@ -377,15 +377,18 @@ export default function ARCommandCenter() {
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
-    supabase
-      .from("claim_records")
-      .select("amount_paid")
+    // Pass 1B-1: read net cash applied to the company this month from the
+    // ledger (claim_payments) rather than claim_records.amount_paid filtered
+    // by paid_at. amount_paid is net of reversals attributed to the original
+    // payment date, so a reversal posted this month would otherwise be missed.
+    // RLS on claim_payments scopes to get_my_company_id() automatically.
+    (supabase
+      .from("claim_payments" as any)
+      .select("amount")
       .eq("company_id", activeCompanyId)
-      .eq("is_simulated", false)
-      .eq("status", "paid" as any)
-      .gte("paid_at", monthStart.toISOString())
-      .then(({ data }) => {
-        setRecoveredThisMonth((data ?? []).reduce((s: number, c: any) => s + (c.amount_paid ?? 0), 0));
+      .gte("applied_at", monthStart.toISOString()) as any)
+      .then(({ data }: { data: any }) => {
+        setRecoveredThisMonth((data ?? []).reduce((s: number, r: any) => s + Number(r.amount ?? 0), 0));
       });
   }, [activeCompanyId]);
 
