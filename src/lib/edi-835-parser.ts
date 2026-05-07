@@ -184,12 +184,10 @@ export function parseEDI835Envelope(rawContent: string): ParsedRemittance {
       } else if (entityId === "85") {
         // Payee / Billing Provider (Loop 1000B). Applies to all subsequent CLPs
         // until the next NM1*85. Multi-payee 835s have one NM1*85 per group.
+        // Loop 1000B is envelope-level and never overrides an in-progress claim.
+        // The previous claim keeps the NPI it inherited at CLP time; the new value
+        // applies to the next CLP forward.
         currentPayeeNpi = els[9] || "";
-        if (currentClaim) {
-          // Edge case: NM1*85 appearing inside a claim loop — treat as override
-          // for that claim only; currentPayeeNpi already updated for any later CLPs.
-          currentClaim.billing_provider_npi = currentPayeeNpi;
-        }
       } else if (entityId === "QC" && currentClaim) {
         // Patient
         const last = els[3] || "";
