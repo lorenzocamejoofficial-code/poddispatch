@@ -5394,6 +5394,10 @@ export type Database = {
       is_owner_or_creator: { Args: never; Returns: boolean }
       is_protected_record: { Args: { _company_id: string }; Returns: boolean }
       is_system_creator: { Args: never; Returns: boolean }
+      is_user_owner_of_company: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
       safe_assign_crew:
         | {
             Args: {
