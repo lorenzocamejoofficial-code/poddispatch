@@ -136,6 +136,15 @@ interface SchedulingStore {
   autoGenerateLegs: () => Promise<number>;
   // Optimistic: directly mutate legs state without a network round-trip
   optimisticUpdateLegs: (updater: (prev: LegDisplay[]) => LegDisplay[]) => void;
+  /**
+   * Reset all tenant-scoped state to its initial empty shape. Called when
+   * the active company changes (multi-membership users switching tenants)
+   * to prevent prior-tenant rows from leaking through realtime channels
+   * or stale React state. Today switchCompany() does a hard window
+   * reload so this is belt-and-braces, but exposing reset() lets callers
+   * (e.g. a future SPA-style switch) wipe state without a full reload.
+   */
+  reset: () => void;
 }
 
 const SchedulingContext = createContext<SchedulingStore | undefined>(undefined);
@@ -463,6 +472,19 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const reset = useCallback(() => {
+    setSelectedDate(getLocalToday());
+    setLegs([]);
+    setPatients([]);
+    setTrucks([]);
+    setCrews([]);
+    setLoading(true);
+    setLegForm(emptyForm);
+    setPendingLegType(null);
+    setDialogOpen(false);
+    setAddingLeg(null);
+  }, []);
+
   return (
     <SchedulingContext.Provider
       value={{
@@ -474,6 +496,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         addingLeg, setAddingLeg,
         refresh, refreshTrucks, autoGenerateLegs,
         optimisticUpdateLegs,
+        reset,
       }}
     >
       {children}
