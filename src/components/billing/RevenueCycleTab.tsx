@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,35 @@ interface RevenueCycleTabProps {
 export function RevenueCycleTab({ claims }: RevenueCycleTabProps) {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const sixMonthsBack = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+
+  // Pass 1B-1: ledger-sourced collected totals so reversals attribute to the
+  // period they posted rather than the original payment date.
+  const [ledgerThisMonth, setLedgerThisMonth] = useState(0);
+  const [ledgerByMonth, setLedgerByMonth] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await (supabase
+        .from("claim_payments" as any)
+        .select("amount, applied_at")
+        .gte("applied_at", sixMonthsBack.toISOString()) as any);
+      if (cancelled) return;
+      const byMonth: Record<string, number> = {};
+      let thisMonth = 0;
+      for (const r of (data ?? []) as any[]) {
+        const d = new Date(r.applied_at);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        byMonth[key] = (byMonth[key] ?? 0) + Number(r.amount ?? 0);
+        if (d >= monthStart) thisMonth += Number(r.amount ?? 0);
+      }
+      setLedgerByMonth(byMonth);
+      setLedgerThisMonth(thisMonth);
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const thisMonthClaims = useMemo(
     () => claims.filter(c => new Date(c.paid_at || c.submitted_at || `${c.run_date ?? new Date().toISOString().slice(0, 10)}T00:00:00`) >= monthStart),
@@ -40,7 +70,7 @@ export function RevenueCycleTab({ claims }: RevenueCycleTabProps) {
 
   // Summary metrics
   const totalBilled = thisMonthClaims.reduce((s, c) => s + c.total_charge, 0);
-  const totalCollected = thisMonthClaims.filter(c => c.status === "paid").reduce((s, c) => s + (c.amount_paid ?? 0), 0);
+  const totalCollected = ledgerThisMonth;
   const totalPending = thisMonthClaims.filter(c => c.status === "submitted" || c.status === "ready_to_bill").reduce((s, c) => s + c.total_charge, 0);
   const totalDenied = thisMonthClaims.filter(c => c.status === "denied").reduce((s, c) => s + c.total_charge, 0);
   const collectionRate = totalBilled > 0 ? ((totalCollected / totalBilled) * 100).toFixed(1) : "0.0";
@@ -122,14 +152,12 @@ export function RevenueCycleTab({ claims }: RevenueCycleTabProps) {
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const label = d.toLocaleString("default", { month: "short", year: "2-digit" });
-      const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-      const collected = claims
-        .filter(c => c.status === "paid" && c.paid_at && new Date(c.paid_at) >= d && new Date(c.paid_at) < nextMonth)
-        .reduce((s, c) => s + (c.amount_paid ?? 0), 0);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      const collected = ledgerByMonth[key] ?? 0;
       months.push({ month: label, collected });
     }
     return months;
-  }, [claims, now]);
+  }, [ledgerByMonth, now]);
 
   // Secondary opportunities
   const secondaryOpp = useMemo(() => {

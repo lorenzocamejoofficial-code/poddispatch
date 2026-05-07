@@ -22,6 +22,7 @@ export default function OwnerDashboard() {
   const [trips, setTrips] = useState<any[]>([]);
   const [trucks, setTrucks] = useState<any[]>([]);
   const [inspections, setInspections] = useState<any[]>([]);
+  const [monthCollectedLedger, setMonthCollectedLedger] = useState(0);
 
   const loadData = useCallback(async () => {
     async function load() {
@@ -85,6 +86,20 @@ export default function OwnerDashboard() {
       setTrips(enrichedTrips);
       setTrucks((truckRes.data ?? []) as any[]);
       setInspections((inspRes.data ?? []) as any[]);
+
+      // Pass 1B-1: net cash collected this month from the ledger.
+      // claim_records.amount_paid is recomputed-net but stamped with the
+      // ORIGINAL payment date; a reversal posted this month would otherwise
+      // be attributed to the prior month and disappear from this card.
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const { data: ledgerRows } = await (supabase
+        .from("claim_payments" as any)
+        .select("amount")
+        .gte("applied_at", monthStart.toISOString()) as any);
+      setMonthCollectedLedger(
+        (ledgerRows ?? []).reduce((s: number, r: any) => s + Number(r.amount ?? 0), 0)
+      );
+
       setLoading(false);
     }
     load();
@@ -126,7 +141,9 @@ export default function OwnerDashboard() {
 
   // Card 2 — Money Coming In (from 90-day dataset)
   const pendingPayment = claims.filter(c => c.status === "submitted").reduce((s, c) => s + (c.total_charge ?? 0), 0);
-  const monthCollected = claims.filter(c => c.status === "paid" && c.paid_at && new Date(c.paid_at) >= monthStart).reduce((s, c) => s + (c.amount_paid ?? 0), 0);
+  // Sourced from claim_payments ledger (applied_at-bounded) so reversals
+  // attribute to the period they posted, not the original payment date.
+  const monthCollected = monthCollectedLedger;
 
   // Card 3 — Denials (this month from 90-day dataset)
   const monthDenied = claims.filter(c => c.status === "denied" && c.submitted_at && new Date(c.submitted_at) >= monthStart);
