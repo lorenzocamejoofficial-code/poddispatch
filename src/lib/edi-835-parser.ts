@@ -15,6 +15,7 @@ export interface ServiceLine {
   charged_amount: number;
   paid_amount: number;
   units: number;
+  adjustments: AdjustmentGroup[];
 }
 
 export interface ParsedRemittanceItem {
@@ -68,11 +69,12 @@ export interface ParsedRemittance {
  * Normalize segment terminators: 835 files may use ~, ~\n, or \n~ patterns.
  * Returns an array of raw segment strings.
  */
-function splitSegments(raw: string): string[] {
+function splitSegments(raw: string): { segments: string[]; subElementSeparator: string } {
   // Detect segment terminator — last char of ISA is the terminator
   // ISA is always 106 chars (with separators). The 106th char (index 105) is the segment terminator.
   const trimmed = raw.trim();
   let terminator = "~";
+  let subElementSeparator = ":";
 
   // Try to find ISA and detect terminator
   const isaMatch = trimmed.match(/^ISA/);
@@ -85,8 +87,14 @@ function splitSegments(raw: string): string[] {
       if (trimmed[i] === elementSep) {
         count++;
         if (count === 16) {
-          // The sub-element separator is the next char, then terminator follows
-          // ISA16 is component separator, next char is segment terminator
+          // ISA16 (sub-element/component separator) is the single char immediately
+          // after the 16th element separator. The segment terminator follows it.
+          if (i + 1 < trimmed.length) {
+            const candidate = trimmed[i + 1];
+            if (candidate && candidate !== "\r" && candidate !== "\n") {
+              subElementSeparator = candidate;
+            }
+          }
           const idx = i + 2; // skip ISA16 value
           if (idx < trimmed.length) {
             terminator = trimmed[idx];
@@ -99,10 +107,11 @@ function splitSegments(raw: string): string[] {
   }
 
   // Split by terminator, handling newlines
-  return trimmed
+  const segments = trimmed
     .split(terminator)
     .map((s) => s.replace(/[\r\n]/g, "").trim())
     .filter((s) => s.length > 0);
+  return { segments, subElementSeparator };
 }
 
 function parseElements(segment: string, sep = "*"): string[] {
@@ -129,15 +138,19 @@ export function parseEDI835(rawContent: string): ParsedRemittanceItem[] {
  * and provider-level adjustments (PLB) in addition to per-claim items.
  */
 export function parseEDI835Envelope(rawContent: string): ParsedRemittance {
-  const segments = splitSegments(rawContent);
+  const { segments, subElementSeparator } = splitSegments(rawContent);
   const results: ParsedRemittanceItem[] = [];
   const plbAdjustments: PLBAdjustmentParsed[] = [];
 
   let currentClaim: ParsedRemittanceItem | null = null;
+  let currentServiceLine: ServiceLine | null = null;
+  let loop: "claim" | "service_line" = "claim";
   let payerName = "";
   let payerId = "";
   let bprPaymentDate = ""; // BPR16 payment date, applies to all claims in the file
-  let fileBillingNpi = ""; // NM1*85 at the file/header level — applies to all claims unless overridden
+  // Per-payee-group billing NPI. Reset implicitly each time NM1*85 appears.
+  // Each new CLP inherits the most recent NM1*85 value (Loop 1000B scope).
+  let currentPayeeNpi = "";
   let bprTotalPaid = 0;
   let bprPaymentMethod = "";
   let trnEftTrace = "";
@@ -169,13 +182,12 @@ export function parseEDI835Envelope(rawContent: string): ParsedRemittance {
         payerName = els[3] || "";
         payerId = els[9] || "";
       } else if (entityId === "85") {
-        // Billing Provider — critical for multi-tenant routing
-        const npi = els[9] || "";
-        if (currentClaim) {
-          currentClaim.billing_provider_npi = npi;
-        } else {
-          fileBillingNpi = npi;
-        }
+        // Payee / Billing Provider (Loop 1000B). Applies to all subsequent CLPs
+        // until the next NM1*85. Multi-payee 835s have one NM1*85 per group.
+        // Loop 1000B is envelope-level and never overrides an in-progress claim.
+        // The previous claim keeps the NPI it inherited at CLP time; the new value
+        // applies to the next CLP forward.
+        currentPayeeNpi = els[9] || "";
       } else if (entityId === "QC" && currentClaim) {
         // Patient
         const last = els[3] || "";
@@ -201,6 +213,17 @@ export function parseEDI835Envelope(rawContent: string): ParsedRemittance {
       if (currentClaim) {
         results.push(currentClaim);
       }
+      currentServiceLine = null;
+      loop = "claim";
+
+      if (!currentPayeeNpi) {
+        // No NM1*85 has appeared yet — leave NPI empty so the writer can quarantine.
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[edi-835-parser] CLP encountered before any NM1*85; billing_provider_npi will be empty for claim",
+          els[1]
+        );
+      }
 
       const statusCode = els[2] || "";
       currentClaim = {
@@ -218,7 +241,7 @@ export function parseEDI835Envelope(rawContent: string): ParsedRemittance {
         service_lines: [],
         raw_denial_codes: [],
         payment_date: bprPaymentDate, // default from BPR, may be overridden by DTM
-        billing_provider_npi: fileBillingNpi, // inherit from file header; may be overridden by per-claim NM1*85
+        billing_provider_npi: currentPayeeNpi, // from most recent NM1*85 (Loop 1000B)
       };
     }
 
@@ -230,11 +253,15 @@ export function parseEDI835Envelope(rawContent: string): ParsedRemittance {
         const reasonCode = els[j];
         const amount = toNum(els[j + 1]);
         if (reasonCode && reasonCode.trim()) {
-          currentClaim.adjustment_groups.push({
-            group_code: groupCode,
-            reason_code: reasonCode,
-            amount,
-          });
+          const adj = { group_code: groupCode, reason_code: reasonCode, amount };
+          if (loop === "service_line" && currentServiceLine) {
+            // Loop 2110 — line-level adjustment, attach to the service line.
+            currentServiceLine.adjustments.push(adj);
+          } else {
+            // Loop 2100 — claim-level adjustment.
+            currentClaim.adjustment_groups.push(adj);
+          }
+          // Aggregate raw denial codes at the claim level for backwards compatibility.
           currentClaim.raw_denial_codes.push(`${groupCode}-${reasonCode}`);
         }
       }
@@ -244,17 +271,21 @@ export function parseEDI835Envelope(rawContent: string): ParsedRemittance {
     if (segId === "SVC" && currentClaim) {
       const procComposite = els[1] || "";
       // Format: HC:procedure:modifier1:modifier2...
-      const procParts = procComposite.split(":");
+      const procParts = procComposite.split(subElementSeparator);
       const procedureCode = procParts[1] || procParts[0] || "";
       const modifiers = procParts.slice(2).filter(Boolean);
 
-      currentClaim.service_lines.push({
+      const svc: ServiceLine = {
         procedure_code: procedureCode,
         modifiers,
         charged_amount: toNum(els[2]),
         paid_amount: toNum(els[3]),
         units: toNum(els[5]) || 1,
-      });
+        adjustments: [],
+      };
+      currentClaim.service_lines.push(svc);
+      currentServiceLine = svc;
+      loop = "service_line";
     }
 
     // DTM — Date/Time Reference within claim loop
@@ -274,6 +305,8 @@ export function parseEDI835Envelope(rawContent: string): ParsedRemittance {
         results.push(currentClaim);
         currentClaim = null;
       }
+      currentServiceLine = null;
+      loop = "claim";
       const providerNpi = els[1] || "";
       const fiscalPeriod = formatDateFromEDI(els[2] || "");
       // Triplets begin at index 3: <reasonCode:reference>, <amount>, <reasonCode:reference>, <amount>, ...
@@ -281,14 +314,14 @@ export function parseEDI835Envelope(rawContent: string): ParsedRemittance {
         const composite = els[j];
         const amountStr = els[j + 1];
         if (!composite) continue;
-        const [reasonCode, ...refParts] = composite.split(":");
+        const [reasonCode, ...refParts] = composite.split(subElementSeparator);
         if (!reasonCode || !reasonCode.trim()) continue;
         const amount = toNum(amountStr);
         plbAdjustments.push({
           provider_npi: providerNpi,
           fiscal_period: fiscalPeriod,
           reason_code: reasonCode.trim(),
-          reference_id: refParts.join(":"),
+          reference_id: refParts.join(subElementSeparator),
           amount,
         });
       }
@@ -319,7 +352,9 @@ export function parseEDI835Envelope(rawContent: string): ParsedRemittance {
     eft_trace_number: trnEftTrace,
     payer_name: payerName,
     payer_id: payerId,
-    billing_provider_npi: fileBillingNpi,
+    // Retained for envelope-level diagnostics; reflects the LAST NM1*85 seen.
+    // Per-claim NPI is on each ParsedRemittanceItem.billing_provider_npi.
+    billing_provider_npi: currentPayeeNpi,
     claims: results,
     plb_adjustments: plbAdjustments,
   };
