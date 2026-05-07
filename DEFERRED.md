@@ -149,3 +149,20 @@ No files were modified in Checkpoint 4 other than this `DEFERRED.md` update.
   9. `auth.users` (test user only)
 
   Recommend extracting this into a reusable `supabase/functions/archive-company/` cleanup helper that handles **all 59 RESTRICT-FK tenant-scoped tables** (the 8 above are only the seed/identity set — full hard-delete must also clear `trip_records`, `claim_records`, `scheduling_legs`, `qa_reviews`, `crews`, `trucks`, `patients`, `facilities`, etc., in dependency order). Until then, hard-deletes must follow the documented order manually. **The current `archive_company` implementation predates Pass 4C and almost certainly fails on the new RESTRICT FKs — needs verification before any production hard-delete is attempted.** This supersedes the Pass 4C POLISH note about cascade behavior.
+## Pass 4F — per-customer payer enrollment tracking (complete)
+
+- ✅ **New table: `customer_payer_enrollments`** — tracks per-(company, payer) enrollment state for ERA, EFT, EDI as three independent boolean flags with corresponding `*_enrolled_at` timestamps and a free-text `notes` field. `UNIQUE (company_id, payer_id)`. FK to `companies(id)` ON DELETE RESTRICT (matches Pass 4C posture); FK to `payer_directory(id)` ON DELETE CASCADE (enrollment row is meaningless without its payer).
+- ✅ **RLS:** select/insert/update/delete all scoped to `company_id = get_my_company_id() OR is_system_creator()`. Indexed on `(company_id)` for list queries.
+- ✅ **Backfill:** every existing `payer_directory` row got a corresponding enrollment row with all three flags `false`. (Live system had 0 directory rows at apply time, so this was a no-op — confirmed.)
+- ✅ **App insert path updated:** `PayerDirectoryTab.tsx` is the only call site that inserts into `payer_directory`. It now also inserts an enrollment row immediately after creating a new payer (defaults all false), so newly-added payers don't depend on backfill. Other call sites (`BillingWorkQueue.tsx`, `DenialRecoveryEngine.tsx`, `ARCommandCenter.tsx`, `PreSubmitChecklist.tsx`) are read-only — no changes needed.
+- ✅ **UI lives in-place inside the existing Payer Directory tab** (no separate tab):
+  - 3 compact ERA/EFT/EDI badges per directory row, green when enrolled / muted when not.
+  - Edit dialog gains an "Enrollment Status" section: 3 toggles + 3 date pickers (auto-set to `now()` on toggle-on, editable) + enrollment notes textarea.
+- ✅ **PreSubmitChecklist warning (Q1):** soft yellow advisory, never blocks. Fuzzy-matches the claim's `payer_type` + `payer_name` to a `payer_directory` row scoped to the company, then checks `customer_payer_enrollments.edi_enrolled`. If false/missing, an `isWarning` checklist item appears with the agreed copy and a pointer to Billing → Payer Directory. Submission proceeds normally.
+- ✅ **Defaults (Q4):** all three enrollment flags default to `false` for newly added payers — explicit opt-in.
+- ✅ **No auto-flipping (Q3):** enrollment flags are manual-only; observed 835 traffic does not auto-promote any flag.
+- ✅ **Synthetic test verified end-to-end:** inserted Medicare/Medicaid/Aetna test payers + matching enrollment rows on a real company, marked Medicare `edi_enrolled=true`, confirmed badge state matches expected (Medicare = green EDI; Medicaid + Aetna = all muted), then cleaned up via child-then-parent deletion (`customer_payer_enrollments` → `payer_directory`) with zero orphans.
+
+### Follow-ups discovered (not fixed in Pass 4F)
+
+- **POLISH — Normalize claim records to FK `payer_directory(id)` instead of free-text payer_name match.** Today claims carry `payer_type` + `payer_name`/`payer_id` strings and the enrollment lookup uses `payer_type = X AND payer_name ILIKE Y` against `payer_directory`. This is fragile if the customer renames a directory entry, and also defeats RI guarantees. Touches every claim creation path (`auto_create_claim_on_pcr_submit` trigger, all manual claim insert sites, `create-company` if it ever seeds the directory, the EDI generator's payer lookups). Defer until billing volume justifies the refactor or until a name-mismatch incident forces the issue.
