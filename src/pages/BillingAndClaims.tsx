@@ -1333,6 +1333,20 @@ export default function BillingAndClaims() {
                           <div className="flex items-center justify-between gap-1 mb-1">
                             <p className="text-xs font-semibold text-foreground truncate">{claim.patient_name}</p>
                             <div className="flex items-center gap-1 shrink-0">
+                              {reversalClaimIds.has(claim.id) && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge variant="destructive" className="text-[9px] px-1 py-0 gap-0.5">
+                                        <RotateCcw className="h-2.5 w-2.5" /> Reversal
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="text-xs">This claim has a payment reversal in its history.</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
                               {claim.is_test_submission && (
                                 <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500 text-amber-700 dark:text-amber-300 bg-amber-100/60 dark:bg-amber-900/30 gap-0.5">
                                   <FlaskConical className="h-2.5 w-2.5" /> SANDBOX
