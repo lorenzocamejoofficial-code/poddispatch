@@ -19,6 +19,7 @@ type CompanyRow = {
   files_quarantined: number;
   quarantine_pending: number;
   total_paid: number;
+  unreconciled_variance: number;
 };
 
 const PERIODS = [
@@ -49,7 +50,7 @@ export function ReconciliationReportPanel() {
           .eq("is_simulated", false),
         supabase
           .from("remittance_files" as any)
-          .select("company_id, status")
+          .select("company_id, status, reconciled, reconciliation_variance")
           .gte("imported_at", sinceIso),
         supabase
           .from("remittance_quarantine" as any)
@@ -76,6 +77,7 @@ export function ReconciliationReportPanel() {
           files_quarantined: 0,
           quarantine_pending: 0,
           total_paid: 0,
+          unreconciled_variance: 0,
         });
       });
 
@@ -96,6 +98,11 @@ export function ReconciliationReportPanel() {
         if (!row) return;
         row.files_received++;
         if (f.status === "quarantined") row.files_quarantined++;
+        // Source variance directly from the persisted column (Pass 1A).
+        // Do NOT re-parse file_content.
+        if (f.reconciled === false) {
+          row.unreconciled_variance += Math.abs(Number(f.reconciliation_variance ?? 0));
+        }
       });
 
       (qRes.data ?? []).forEach((q: any) => {
@@ -117,6 +124,7 @@ export function ReconciliationReportPanel() {
   useEffect(() => { load(); }, [load]);
 
   const totalQuarantined = rows.reduce((s, r) => s + r.quarantine_pending, 0);
+  const totalVariance = rows.reduce((s, r) => s + r.unreconciled_variance, 0);
 
   return (
     <Card>
@@ -132,6 +140,11 @@ export function ReconciliationReportPanel() {
             ) : (
               <Badge variant="default" className="gap-1">
                 <CheckCircle2 className="h-3 w-3" /> Clean
+              </Badge>
+            )}
+            {totalVariance > 0 && (
+              <Badge variant="destructive" className="gap-1">
+                <AlertTriangle className="h-3 w-3" /> ${totalVariance.toFixed(2)} unreconciled
               </Badge>
             )}
           </CardTitle>
@@ -167,6 +180,7 @@ export function ReconciliationReportPanel() {
                 <TableHead className="text-right">Denied</TableHead>
                 <TableHead className="text-right">835 Files</TableHead>
                 <TableHead className="text-right">Quarantined</TableHead>
+                <TableHead className="text-right">Unreconciled $</TableHead>
                 <TableHead className="text-right">Total $ Posted</TableHead>
               </TableRow>
             </TableHeader>
@@ -184,6 +198,13 @@ export function ReconciliationReportPanel() {
                       <Badge variant="destructive">{r.quarantine_pending}</Badge>
                     ) : (
                       <span className="text-muted-foreground">0</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right text-xs">
+                    {r.unreconciled_variance > 0 ? (
+                      <span className="text-destructive font-medium">${r.unreconciled_variance.toFixed(2)}</span>
+                    ) : (
+                      <span className="text-muted-foreground">$0.00</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right font-medium">${r.total_paid.toFixed(2)}</TableCell>
