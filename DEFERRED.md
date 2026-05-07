@@ -72,3 +72,27 @@ No files were modified in Checkpoint 4 other than this `DEFERRED.md` update.
 ---
 
 **Pass 4A complete.** Next: Pass 4B — apply `NOT NULL company_id` to the 22 nullable tables, in a fresh session.
+
+## Pass 4B + 4C — complete
+
+- ✅ **Pass 4B (NOT NULL):** Applied `NOT NULL company_id` to 21 tenant-scoped tables: `alerts`, `charge_master`, `claim_records`, `company_settings`, `crew_share_tokens`, `crews`, `email_send_log`, `facilities`, `operational_alerts`, `patients`, `payer_billing_rules`, `qa_reviews`, `runs`, `safety_overrides`, `schedule_previews`, `scheduling_legs`, `trip_records`, `trip_status_history`, `truck_availability`, `truck_run_slots`, `trucks`. (Live audit found 21 candidates, not the 22 in the audit doc — `profiles` is intentionally excluded; see below.)
+- ✅ **Pass 4C (FK to companies):** Added `*_company_id_fkey` foreign key to `companies(id)` on **all 62 tables** with a `company_id` column. Behaviour:
+  - **`ON DELETE RESTRICT`** for the 59 `NOT NULL` tables (deletes blocked unless tenant data is cleaned first).
+  - **`ON DELETE SET NULL`** for the 3 by-design nullable tables: `admin_actions`, `audit_logs`, `profiles`.
+- ✅ **Cleanup performed before migration:**
+  - Deleted 4 orphan rows in `company_settings` (companies no longer existed).
+  - Nulled `company_id` on 1 orphan `archive_company` row in `admin_actions` (id `cbbc1cd4-49ba-4a66-81f0-e6d30293c8e6`, target company hard-deleted 2026-04-23).
+  - Hard-deleted 43 orphan rows in `trip_status_history` (history for trips that were already deleted alongside their parent company on 2026-04-23).
+- ✅ **Documentation:** Added column comment to `admin_actions.company_id` noting NULL is valid only for destructive admin actions (`hard_delete_company`, `archive_company`) where the target company no longer exists.
+- ✅ **Final post-flight matrix:** 62 `company_id` columns total → 59 `NOT NULL` + 3 nullable by design. 62 FKs to `companies(id)` → 59 RESTRICT + 3 SET NULL. Zero orphans across all 62 tables.
+
+### Why these 3 stay nullable (by design)
+
+- **`admin_actions.company_id`** — destructive admin actions (e.g. `hard_delete_company`) intentionally outlive the company they target; the column is documented as conditional.
+- **`audit_logs.company_id`** — historical pre-tenancy audit rows + system-level audit events that have no company scope. `SET NULL` preserves history if a company is later deleted.
+- **`profiles.company_id`** — system creators have no company; soft-deletion edge cases. (`profiles.active_company_id` is the source of truth post-Pass 4A; `company_id` is the legacy single-membership pointer still read by 8 callsites — see Pass 4A Checkpoint 4 / Pass 4B audit notes.)
+
+### New follow-ups discovered
+
+- **POLISH — `archive_company` / `hard_delete_company` flow does not cascade properly to all tenant-scoped tables.** Discovered during Pass 4C: 44 orphan rows existed across `admin_actions` (1) and `trip_status_history` (43) from a 2026-04-23 hard-delete. The new RESTRICT FKs now prevent future hard-deletes from succeeding without explicit cleanup, which is the right defense — but the *archive flow itself* should be audited and updated to either (a) cascade-delete or null out all tenant-scoped child rows in a single transaction, or (b) refuse to delete companies that still have referenced rows. Currently `hard_delete_company` is only used in test/development; it must be made production-safe before any production hard-delete is allowed.
+- **POLISH — Audit doc (Section 1A) listed 22 NOT NULL candidates; live DB had 21.** The discrepancy is `profiles` (rightly excluded). Update the audit doc next time it's regenerated to reflect the live state.
