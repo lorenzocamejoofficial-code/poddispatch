@@ -120,6 +120,35 @@ Deno.serve(async (req) => {
       .from("company_settings")
       .insert({ company_name: companyName.trim(), company_id: companyId });
 
+    // ===== Onboarding seeds (best-effort; failures logged but non-fatal) =====
+    try {
+      await supabaseAdmin.from("migration_settings").insert({ company_id: companyId });
+    } catch (e) {
+      console.error("Seed migration_settings failed:", e);
+    }
+
+    try {
+      await supabaseAdmin.from("clearinghouse_settings").insert({ company_id: companyId });
+    } catch (e) {
+      console.error("Seed clearinghouse_settings failed:", e);
+    }
+
+    try {
+      // medicaid.requires_auth=true reflects Georgia Medicaid (Modivcare/Verida brokers).
+      // Customers in other states can edit per their broker requirements.
+      const payerRules = [
+        { company_id: companyId, payer_type: "medicare", requires_pcs: true,  requires_signature: true, requires_necessity_note: true,  requires_timestamps: true, requires_miles: true, requires_auth: false },
+        { company_id: companyId, payer_type: "medicaid", requires_pcs: true,  requires_signature: true, requires_necessity_note: true,  requires_timestamps: true, requires_miles: true, requires_auth: true  },
+        { company_id: companyId, payer_type: "private",  requires_pcs: false, requires_signature: true, requires_necessity_note: false, requires_timestamps: true, requires_miles: true, requires_auth: true  },
+        { company_id: companyId, payer_type: "va",       requires_pcs: true,  requires_signature: true, requires_necessity_note: true,  requires_timestamps: true, requires_miles: true, requires_auth: true  },
+        // Fallback rule applied to any payer_type not explicitly matched above (not a payer literally named "default").
+        { company_id: companyId, payer_type: "default",  requires_pcs: false, requires_signature: true, requires_necessity_note: false, requires_timestamps: true, requires_miles: true, requires_auth: false },
+      ];
+      await supabaseAdmin.from("payer_billing_rules").insert(payerRules);
+    } catch (e) {
+      console.error("Seed payer_billing_rules failed:", e);
+    }
+
     console.log(`Company ${companyName} created by ${userEmail} (${userId})`);
 
     return new Response(JSON.stringify({ ok: true, companyId }), {
