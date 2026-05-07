@@ -2940,6 +2940,7 @@ export type Database = {
       profiles: {
         Row: {
           active: boolean
+          active_company_id: string | null
           bariatric_trained: boolean
           cert_level: Database["public"]["Enums"]["cert_level"]
           company_id: string | null
@@ -2960,6 +2961,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          active_company_id?: string | null
           bariatric_trained?: boolean
           cert_level?: Database["public"]["Enums"]["cert_level"]
           company_id?: string | null
@@ -2980,6 +2982,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          active_company_id?: string | null
           bariatric_trained?: boolean
           cert_level?: Database["public"]["Enums"]["cert_level"]
           company_id?: string | null
@@ -2999,6 +3002,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_active_company_id_fkey"
+            columns: ["active_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_company_id_fkey"
             columns: ["company_id"]
@@ -5223,6 +5233,7 @@ export type Database = {
         Returns: boolean
       }
       is_dispatcher: { Args: never; Returns: boolean }
+      is_owner_or_creator: { Args: never; Returns: boolean }
       is_protected_record: { Args: { _company_id: string }; Returns: boolean }
       is_system_creator: { Args: never; Returns: boolean }
       safe_assign_crew:
