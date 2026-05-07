@@ -393,6 +393,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   }, [user, memberships, profileId]);
 
+  // Cross-tab tenant-switch sync. When profiles.active_company_id changes
+  // server-side (e.g. user picked a different company in another tab), any
+  // other tab still rendering the old tenant's UI must reload — otherwise
+  // it would show stale UI while every new server query resolves under
+  // the new active_company_id (data-corruption risk).
+  //
+  // The originating tab is suppressed via lastSwitchAtRef so it doesn't
+  // reload twice (switchCompany already called window.location.assign).
+  // The channel is keyed by user.id and torn down on signout / unmount.
+  useEffect(() => {
+    if (!user || !profileId) return;
+    const channel = supabase
+      .channel(`profile-active-company-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const newActive = (payload.new as any)?.active_company_id ?? null;
+          const oldActive = (payload.old as any)?.active_company_id ?? null;
+          // Only react to active_company_id changes; ignore name/phone edits.
+          if (newActive === oldActive) return;
+          // If the local UI already matches what the server now says, no-op.
+          if (newActive === activeCompanyId) return;
+          // Suppress the originating tab's echo (switchCompany already reloaded).
+          if (Date.now() - lastSwitchAtRef.current < 2000) return;
+          if (typeof window !== "undefined") {
+            window.location.reload();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, profileId, activeCompanyId]);
+
   // Derived role checks
   const isCreator = role === "creator";
   const isOwner = role === "owner";
