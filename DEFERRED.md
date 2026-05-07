@@ -166,3 +166,20 @@ No files were modified in Checkpoint 4 other than this `DEFERRED.md` update.
 ### Follow-ups discovered (not fixed in Pass 4F)
 
 - **POLISH — Normalize claim records to FK `payer_directory(id)` instead of free-text payer_name match.** Today claims carry `payer_type` + `payer_name`/`payer_id` strings and the enrollment lookup uses `payer_type = X AND payer_name ILIKE Y` against `payer_directory`. This is fragile if the customer renames a directory entry, and also defeats RI guarantees. Touches every claim creation path (`auto_create_claim_on_pcr_submit` trigger, all manual claim insert sites, `create-company` if it ever seeds the directory, the EDI generator's payer lookups). Defer until billing volume justifies the refactor or until a name-mismatch incident forces the issue.
+
+## Pass 4G — multi-tenant 837P generator refactor (complete)
+
+Closes Item 4 (multi-tenant hardening).
+
+- ✅ **Generator signature changed** — `generateEDI837P(claims, providerInfoMap, submitterInfo)` now takes `Map<string, ProviderInfo> | Record<string, ProviderInfo>` keyed by `company_id` instead of a single `ProviderInfo`. Each `ClaimForEDI` carries its `company_id`; the generator throws if a claim references a company missing from the map.
+- ✅ **One ST/SE per company group** wrapped in a single ISA/GS envelope. ST02 sequential per ST (`0001`, `0002`, …). `GE01` = total ST count. `IEA01 = 1` (one functional group). Subscriber `HL` numbering increments per-claim within each ST, starting at the billing-provider HL (`HL*1`).
+- ✅ **`validateProviderInfoMap`** added — loops every entry and aggregates errors prefixed with `[company <id>]` for multi-tenant clarity. Single-tenant callers can keep using `validateProviderInfo`.
+- ✅ **EDIExport.tsx — minimum changes only.** Both call sites (download path + SFTP queue path) build a single-entry `Map<companyId, ProviderInfo>` from `activeCompanyId` + `providerInfo` and pass it to the new signature. Each `ClaimForEDI` is stamped with `company_id: activeCompanyId`. No UI changes; the surface remains single-tenant.
+- ✅ **`claim_submission_artifacts` writer unchanged** — single-tenant batch still inserts one artifact row keyed by `activeCompanyId`. The generator now *supports* multi-tenant output, but no caller produces a cross-tenant batch yet, so the per-group iteration is intentionally not wired up. When the cross-tenant flow lands it must group `ediClaims` by `company_id`, regenerate one EDI file per group (or split the single output into per-group byte ranges by ST boundaries), and insert one artifact row per group.
+- ✅ **Synthetic test verified** (`/tmp/edi-test/test.ts`, NOT in DB): 2 companies × (2+1) claims → output had exactly 1 ISA/IEA, 1 GS/GE, 2 ST/SE pairs, ST02 = `0001`/`0002`, `GE*2`, ST#1 carried Company A's NPI/EIN in Loop 2010AA + Company A's two claims, ST#2 carried Company B's NPI/EIN + Company B's claim. Per-ST `SE` segment counts balanced exactly (claimed == actual).
+
+### Follow-ups discovered (not fixed in Pass 4G)
+
+- **POLISH — Creator multi-tenant batch UI.** The 837P generator now supports multiple billing providers per file, but no UI exposes it. Build when there's a real use case (creator submits a consolidated batch on behalf of multiple customers, or a single customer with multiple LLCs wants one submission). Implementation note: the writer side of `claim_submission_artifacts` (and `claim_submission_queue`) still assumes a single `company_id` per row — when the cross-tenant flow lands, iterate the generated file's ST boundaries and insert one artifact / queue row per company group.
+
+**Item 4 (multi-tenant hardening) is now fully closed:** 4A (audit) → 4B (NOT NULL) → 4C (FKs) → 4D (RLS) → 4E (seeds) → 4F (payer enrollment) → 4G (EDI generator). Outstanding follow-ups are tracked above and remain optional polish.

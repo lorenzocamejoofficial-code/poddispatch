@@ -6,6 +6,11 @@
 
 export interface ClaimForEDI {
   claim_id: string;
+  /** Source company / billing-provider key. Used by generateEDI837P to group
+   *  claims into per-company ST/SE transaction sets and to look up the matching
+   *  ProviderInfo from the providerInfoMap. For single-tenant batches every
+   *  claim carries the same company_id. */
+  company_id: string;
   patient_name: string; // "Last, First"
   patient_dob: string; // YYYY-MM-DD
   patient_sex: string | null; // M, F, or U
@@ -367,9 +372,29 @@ function splitPatientName(fullName: string): { last: string; first: string } {
 
 export function generateEDI837P(
   claims: ClaimForEDI[],
-  providerInfo: ProviderInfo,
+  providerInfoMap: Map<string, ProviderInfo> | Record<string, ProviderInfo>,
   submitterInfo: SubmitterInfo
 ): string {
+  // Normalize input to a Map for uniform lookup.
+  const providerMap: Map<string, ProviderInfo> = providerInfoMap instanceof Map
+    ? providerInfoMap
+    : new Map(Object.entries(providerInfoMap));
+
+  // Group claims by company_id so each company emits its own ST/SE transaction
+  // set wrapped in a single ISA/GS envelope. For single-tenant batches there's
+  // exactly one group; multi-tenant batches emit one ST per company in selection
+  // order (insertion-order-preserving).
+  const claimsByCompany = new Map<string, ClaimForEDI[]>();
+  for (const c of claims) {
+    const key = c.company_id;
+    if (!key) throw new Error(`generateEDI837P: claim ${c.claim_id} missing company_id`);
+    if (!providerMap.has(key)) {
+      throw new Error(`generateEDI837P: no ProviderInfo provided for company_id=${key} (claim ${c.claim_id})`);
+    }
+    const arr = claimsByCompany.get(key);
+    if (arr) arr.push(c); else claimsByCompany.set(key, [c]);
+  }
+
   const segments: string[] = [];
   const interchangeControlNum = controlNumber();
   const groupControlNum = controlNumber();
@@ -425,22 +450,19 @@ export function generateEDI837P(
   );
 
   let totalSegments = 0;
+  let stIndex = 0;
 
-  claims.forEach((claim, claimIndex) => {
-    const stControlNum = padLeft(String(claimIndex + 1), 4);
+  for (const [companyId, companyClaims] of claimsByCompany) {
+    const providerInfo = providerMap.get(companyId)!;
+    stIndex++;
+    const stControlNum = padLeft(String(stIndex), 4);
     let segCount = 0;
     const addSeg = (seg: string) => {
       segments.push(seg + ST);
       segCount++;
     };
 
-    const { last: patLast, first: patFirst } = splitPatientName(claim.patient_name);
-    const diagCodes = [...(claim.icd10_codes || []), ...(claim.diagnosis_codes || [])].filter(Boolean);
-    const uniqueDiag = [...new Set(diagCodes)];
-    const payerCode = sbrPayerCode(claim.payer_type);
-    const sexCode = dmgSexCode(claim.patient_sex);
-
-    // ST - Transaction Set Header
+    // ST - Transaction Set Header (one per company group)
     addSeg(["ST", "837", stControlNum, "005010X222A1"].join(ES));
 
     // BHT - Beginning of Hierarchical Transaction
@@ -466,8 +488,18 @@ export function generateEDI837P(
     addSeg(["N4", providerInfo.city, providerInfo.state, providerInfo.zip].join(ES));
     addSeg(["REF", "EI", providerInfo.tax_id.replace(/-/g, "")].join(ES));
 
+    // Per-claim subscriber/claim/service-line emission within this company's ST.
+    let subscriberHlIndex = 1;
+    companyClaims.forEach((claim) => {
+    const { last: patLast, first: patFirst } = splitPatientName(claim.patient_name);
+    const diagCodes = [...(claim.icd10_codes || []), ...(claim.diagnosis_codes || [])].filter(Boolean);
+    const uniqueDiag = [...new Set(diagCodes)];
+    const payerCode = sbrPayerCode(claim.payer_type);
+    const sexCode = dmgSexCode(claim.patient_sex);
+
     // --- SUBSCRIBER HL (2000B) ---
-    addSeg(["HL", "2", "1", "22", "0"].join(ES));
+    subscriberHlIndex++;
+    addSeg(["HL", String(subscriberHlIndex), "1", "22", "0"].join(ES));
     addSeg(["SBR", "P", "18", "", "", "", "", "", "", payerCode].join(ES));
 
     // --- SUBSCRIBER (2010BA) ---
@@ -682,11 +714,12 @@ export function generateEDI837P(
       addSeg(["DTP", "472", "D8", formatDate8(claim.run_date)].join(ES));
     }
 
-    // SE - Transaction Set Trailer
-    addSeg(["SE", String(segCount + 1), stControlNum].join(ES));
+    });
 
+    // SE - Transaction Set Trailer (one per company group / ST)
+    addSeg(["SE", String(segCount + 1), stControlNum].join(ES));
     totalSegments++;
-  });
+  }
 
   // GE - Functional Group Trailer
   segments.push(["GE", String(totalSegments), groupControlNum].join(ES) + ST);
@@ -759,6 +792,22 @@ export function validateProviderInfo(info: ProviderInfo): string[] {
   const zip = (info.zip ?? "").replace(/\D/g, "");
   if (zip.length !== 5 && zip.length !== 9) {
     errors.push("Provider ZIP must be 5 or 9 digits.");
+  }
+  return errors;
+}
+
+/** Validate a map of per-company ProviderInfo objects. Returns an aggregated
+ *  array of human-readable errors, each prefixed with the company_id so the
+ *  caller can disambiguate when a multi-tenant batch contains an invalid
+ *  billing provider for one of its companies. */
+export function validateProviderInfoMap(
+  map: Map<string, ProviderInfo> | Record<string, ProviderInfo>
+): string[] {
+  const m = map instanceof Map ? map : new Map(Object.entries(map));
+  const errors: string[] = [];
+  for (const [companyId, info] of m) {
+    const errs = validateProviderInfo(info);
+    for (const e of errs) errors.push(`[company ${companyId}] ${e}`);
   }
   return errors;
 }
