@@ -796,6 +796,22 @@ export function validateProviderInfo(info: ProviderInfo): string[] {
   return errors;
 }
 
+/** Validate a map of per-company ProviderInfo objects. Returns an aggregated
+ *  array of human-readable errors, each prefixed with the company_id so the
+ *  caller can disambiguate when a multi-tenant batch contains an invalid
+ *  billing provider for one of its companies. */
+export function validateProviderInfoMap(
+  map: Map<string, ProviderInfo> | Record<string, ProviderInfo>
+): string[] {
+  const m = map instanceof Map ? map : new Map(Object.entries(map));
+  const errors: string[] = [];
+  for (const [companyId, info] of m) {
+    const errs = validateProviderInfo(info);
+    for (const e of errs) errors.push(`[company ${companyId}] ${e}`);
+  }
+  return errors;
+}
+
 /** Generate a filename for the 837P export.
  *
  * Office Ally companion guide requires sandbox files to include the keyword
