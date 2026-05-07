@@ -32,6 +32,12 @@ function hasPasswordRecoveryMarker() {
 export type MembershipRole = "creator" | "owner" | "manager" | "dispatcher" | "biller" | "crew";
 export type OnboardingStatus = "signup_started" | "agreements_accepted" | "payment_pending" | "payment_confirmed" | "pending_approval" | "approved_pending_payment" | "active" | "rejected" | "suspended" | "payment_issue";
 
+export interface MembershipSummary {
+  company_id: string;
+  company_name: string;
+  role: MembershipRole;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -45,6 +51,9 @@ interface AuthContextType {
   onboardingStatus: OnboardingStatus | null;
   subscriptionStatus: string | null;
   wizardCompleted: boolean | null;
+  memberships: MembershipSummary[];
+  needsCompanySelection: boolean;
+  switchCompany: (companyId: string) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshOnboardingStatus: () => Promise<void>;
@@ -79,6 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [wizardCompleted, setWizardCompleted] = useState<boolean | null>(null);
+  const [memberships, setMemberships] = useState<MembershipSummary[]>([]);
+  const [needsCompanySelection, setNeedsCompanySelection] = useState(false);
   const [passwordRecoveryMode, setPasswordRecoveryModeState] = useState(() => {
     if (hasPasswordRecoveryMarker()) return true;
     if (typeof window === "undefined") return false;
@@ -111,25 +122,79 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadUserData = async (userId: string) => {
-    const [{ data: membershipData }, { data: profileData }, { data: scData }] = await Promise.all([
-      supabase.from("company_memberships").select("company_id, role").eq("user_id", userId).limit(1).maybeSingle(),
-      supabase.from("profiles").select("id").eq("user_id", userId).maybeSingle(),
+    // Single query: memberships JOIN companies (for switcher labels).
+    // Filter out soft-deleted memberships.
+    const [
+      { data: membershipRows },
+      { data: profileData },
+      { data: scData },
+    ] = await Promise.all([
+      supabase
+        .from("company_memberships")
+        .select("company_id, role, deleted_at, companies:company_id(id, name)")
+        .eq("user_id", userId),
+      supabase
+        .from("profiles")
+        .select("id, active_company_id")
+        .eq("user_id", userId)
+        .maybeSingle(),
       supabase.from("system_creators").select("id").eq("user_id", userId).maybeSingle(),
     ]);
-    if (membershipData) {
-      setRole(membershipData.role as MembershipRole);
-      setActiveCompanyId(membershipData.company_id);
+
+    if (profileData) setProfileId(profileData.id);
+    setIsSystemCreator(!!scData);
+
+    const liveMemberships: MembershipSummary[] = (membershipRows ?? [])
+      .filter((m: any) => !m.deleted_at && m.companies)
+      .map((m: any) => ({
+        company_id: m.company_id,
+        company_name: m.companies?.name ?? "Unnamed company",
+        role: m.role as MembershipRole,
+      }));
+    setMemberships(liveMemberships);
+
+    // Resolve active company:
+    //   - profiles.active_company_id if it points to a live membership
+    //   - else: single membership auto-selects
+    //   - else: needs explicit selection
+    let resolvedCompanyId: string | null = null;
+    const profileActive = (profileData as any)?.active_company_id ?? null;
+    if (profileActive && liveMemberships.some((m) => m.company_id === profileActive)) {
+      resolvedCompanyId = profileActive;
+    } else if (liveMemberships.length === 1) {
+      resolvedCompanyId = liveMemberships[0].company_id;
+      // Backfill profile so server-side get_my_company_id() agrees.
+      if (profileData?.id) {
+        await supabase
+          .from("profiles")
+          .update({ active_company_id: resolvedCompanyId } as any)
+          .eq("id", profileData.id);
+      }
+    }
+
+    if (resolvedCompanyId) {
+      const activeMembership = liveMemberships.find((m) => m.company_id === resolvedCompanyId)!;
+      setRole(activeMembership.role);
+      setActiveCompanyId(resolvedCompanyId);
+      setNeedsCompanySelection(false);
       const [{ data: companyData }, { data: subData }, { data: migData }] = await Promise.all([
-        supabase.from("companies").select("onboarding_status").eq("id", membershipData.company_id).maybeSingle(),
-        supabase.from("subscription_records").select("subscription_status").eq("company_id", membershipData.company_id).maybeSingle(),
-        supabase.from("migration_settings").select("wizard_completed").eq("company_id", membershipData.company_id).maybeSingle(),
+        supabase.from("companies").select("onboarding_status").eq("id", resolvedCompanyId).maybeSingle(),
+        supabase.from("subscription_records").select("subscription_status").eq("company_id", resolvedCompanyId).maybeSingle(),
+        supabase.from("migration_settings").select("wizard_completed").eq("company_id", resolvedCompanyId).maybeSingle(),
       ]);
       if (companyData) setOnboardingStatus(companyData.onboarding_status as OnboardingStatus);
       setSubscriptionStatus(subData?.subscription_status ?? null);
       setWizardCompleted(migData ? (migData as any).wizard_completed : null);
+    } else {
+      setRole(null);
+      setActiveCompanyId(null);
+      setOnboardingStatus(null);
+      setSubscriptionStatus(null);
+      setWizardCompleted(null);
+      // Multi-membership user with no active selection — gate to /select-company.
+      // Creators bypass this naturally (system_creators check above).
+      setNeedsCompanySelection(liveMemberships.length > 1 && !scData);
     }
-    if (profileData) setProfileId(profileData.id);
-    setIsSystemCreator(!!scData);
     setMembershipLoaded(true);
   };
 
@@ -167,6 +232,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSubscriptionStatus(null);
     setWizardCompleted(null);
     setMembershipLoaded(false);
+    setMemberships([]);
+    setNeedsCompanySelection(false);
     setPasswordRecoveryMode(false);
   }, [setPasswordRecoveryMode]);
 
@@ -287,6 +354,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await doSignOut();
   };
 
+  // Switch the active company. Persists to profiles.active_company_id, then
+  // performs a hard reload so every in-memory tenant-scoped store
+  // (SchedulingProvider, react-query cache, realtime channels) is wiped
+  // cleanly. This is the deliberate "store reset" mechanism — a soft
+  // setActiveCompanyId would leak prior-tenant data through subscriptions
+  // and stale cached queries.
+  const switchCompany = useCallback(async (companyId: string) => {
+    if (!user) return { error: "Not authenticated" };
+    if (!memberships.some((m) => m.company_id === companyId)) {
+      return { error: "You are not a member of that company" };
+    }
+    if (!profileId) return { error: "Profile not loaded" };
+    const { error } = await supabase
+      .from("profiles")
+      .update({ active_company_id: companyId } as any)
+      .eq("id", profileId);
+    if (error) return { error: error.message };
+    // Hard reload for full tenant-scope reset.
+    if (typeof window !== "undefined") {
+      window.location.assign("/");
+    }
+    return { error: null };
+  }, [user, memberships, profileId]);
+
   // Derived role checks
   const isCreator = role === "creator";
   const isOwner = role === "owner";
@@ -306,7 +397,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, session, role, activeCompanyId, profileId, loading, membershipLoaded, sessionWarning, isSystemCreator, onboardingStatus, subscriptionStatus, wizardCompleted, signIn, signOut, refreshOnboardingStatus, refreshWizardStatus, passwordRecoveryMode, setPasswordRecoveryMode,
+      user, session, role, activeCompanyId, profileId, loading, membershipLoaded, sessionWarning, isSystemCreator, onboardingStatus, subscriptionStatus, wizardCompleted,
+      memberships, needsCompanySelection, switchCompany,
+      signIn, signOut, refreshOnboardingStatus, refreshWizardStatus, passwordRecoveryMode, setPasswordRecoveryMode,
       isAdmin, isOwner, isDispatcher, isBilling, isCrew, isCreator,
       isOwnerOrCreator, isManager,
       canManageTrips, canManageBilling, canManagePatients,
