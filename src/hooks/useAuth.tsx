@@ -110,6 +110,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionWarningRef = useRef(false);
   // Guard to prevent onAuthStateChange from running before getSession completes
   const sessionInitialized = useRef(false);
+  // Tracks the timestamp (ms) of the most recent local switchCompany() call.
+  // The realtime profile subscription uses this to suppress a redundant
+  // reload in the originating tab — switchCompany() already issues its own
+  // window.location.assign("/"), so the echoed UPDATE event would otherwise
+  // trigger a second reload. Other tabs (where lastSwitchAtRef stays 0)
+  // reload normally to stay in sync.
+  const lastSwitchAtRef = useRef<number>(0);
 
   const setPasswordRecoveryMode = useCallback((active: boolean) => {
     setPasswordRecoveryModeState(active);
@@ -368,17 +375,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: "You are not a member of that company" };
     }
     if (!profileId) return { error: "Profile not loaded" };
+    // Stamp BEFORE the write so the echoed realtime UPDATE in this tab
+    // falls within the suppression window.
+    lastSwitchAtRef.current = Date.now();
     const { error } = await supabase
       .from("profiles")
       .update({ active_company_id: companyId } as any)
       .eq("id", profileId);
-    if (error) return { error: error.message };
+    if (error) {
+      lastSwitchAtRef.current = 0;
+      return { error: error.message };
+    }
     // Hard reload for full tenant-scope reset.
     if (typeof window !== "undefined") {
       window.location.assign("/");
     }
     return { error: null };
   }, [user, memberships, profileId]);
+
+  // Cross-tab tenant-switch sync. When profiles.active_company_id changes
+  // server-side (e.g. user picked a different company in another tab), any
+  // other tab still rendering the old tenant's UI must reload — otherwise
+  // it would show stale UI while every new server query resolves under
+  // the new active_company_id (data-corruption risk).
+  //
+  // The originating tab is suppressed via lastSwitchAtRef so it doesn't
+  // reload twice (switchCompany already called window.location.assign).
+  // The channel is keyed by user.id and torn down on signout / unmount.
+  useEffect(() => {
+    if (!user || !profileId) return;
+    const channel = supabase
+      .channel(`profile-active-company-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const newActive = (payload.new as any)?.active_company_id ?? null;
+          const oldActive = (payload.old as any)?.active_company_id ?? null;
+          // Only react to active_company_id changes; ignore name/phone edits.
+          if (newActive === oldActive) return;
+          // If the local UI already matches what the server now says, no-op.
+          if (newActive === activeCompanyId) return;
+          // Suppress the originating tab's echo (switchCompany already reloaded).
+          if (Date.now() - lastSwitchAtRef.current < 2000) return;
+          if (typeof window !== "undefined") {
+            window.location.reload();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, profileId, activeCompanyId]);
 
   // Derived role checks
   const isCreator = role === "creator";
