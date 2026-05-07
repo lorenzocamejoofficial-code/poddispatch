@@ -5,12 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { differenceInDays } from "date-fns";
 
 export function TrialBanner() {
-  const { activeCompanyId, isAdmin } = useAuth();
+  const { activeCompanyId, isOwnerOrCreator } = useAuth();
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!activeCompanyId || !isAdmin) return;
+    if (!activeCompanyId || !isOwnerOrCreator) return;
     supabase.from("subscription_records").select("subscription_status, trial_ends_at")
       .eq("company_id", activeCompanyId).maybeSingle()
       .then(({ data }) => {
@@ -21,9 +21,9 @@ export function TrialBanner() {
           setDaysLeft(Math.max(0, days));
         }
       });
-  }, [activeCompanyId, isAdmin]);
+  }, [activeCompanyId, isOwnerOrCreator]);
 
-  if (!isAdmin || !status) return null;
+  if (!isOwnerOrCreator || !status) return null;
   if (status !== "trial" || daysLeft === null) return null;
 
   const urgent = daysLeft <= 7;
