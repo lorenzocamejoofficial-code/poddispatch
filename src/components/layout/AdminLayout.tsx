@@ -113,10 +113,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             <X className="h-4 w-4" />
           </Button>
         </div>
-        {/* Multi-membership users: render tenant switcher just below brand. */}
-        <div className="border-b border-sidebar-border px-3 py-2">
-          <CompanySwitcher />
-        </div>
+        {/* Multi-membership users: tenant switcher renders just below brand;
+            self-hides for single-membership users. */}
+        <CompanySwitcher />
 
         <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
           {/* System Creator: back to control tower */}
