@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,14 +88,18 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
     saveCache(newResults);
     onVerificationComplete?.(newResults);
 
-    // Store verified_by
+    // Store verified_by via service-role edge function (RLS prevents direct client update).
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      await supabase.from("companies").update({
-        verified_by: user?.id || null,
-      } as any).eq("id", company.id);
-    } catch (err) {
+      const { error } = await supabase.functions.invoke("mark-company-verified", {
+        body: { company_id: company.id },
+      });
+      if (error) {
+        console.error("Failed to store verified_by:", error);
+        toast.error(`Failed to record verification: ${error.message ?? "unknown error"}`);
+      }
+    } catch (err: any) {
       console.error("Failed to store verified_by:", err);
+      toast.error(`Failed to record verification: ${err?.message ?? "unknown error"}`);
     }
 
     setLoading(false);

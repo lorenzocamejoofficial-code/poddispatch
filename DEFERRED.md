@@ -96,3 +96,24 @@ No files were modified in Checkpoint 4 other than this `DEFERRED.md` update.
 
 - **POLISH — `archive_company` / `hard_delete_company` flow does not cascade properly to all tenant-scoped tables.** Discovered during Pass 4C: 44 orphan rows existed across `admin_actions` (1) and `trip_status_history` (43) from a 2026-04-23 hard-delete. The new RESTRICT FKs now prevent future hard-deletes from succeeding without explicit cleanup, which is the right defense — but the *archive flow itself* should be audited and updated to either (a) cascade-delete or null out all tenant-scoped child rows in a single transaction, or (b) refuse to delete companies that still have referenced rows. Currently `hard_delete_company` is only used in test/development; it must be made production-safe before any production hard-delete is allowed.
 - **POLISH — Audit doc (Section 1A) listed 22 NOT NULL candidates; live DB had 21.** The discrepancy is `profiles` (rightly excluded). Update the audit doc next time it's regenerated to reflect the live state.
+
+## Pass 4D — RLS policy fixes (5 applied, 1 deferred)
+
+- ✅ **#2 `legal_acceptances`** — INSERT WITH CHECK now requires `auth.uid() = user_id AND (company_id IS NULL OR company_id = get_my_company_id())`.
+- ✅ **#3 `claim_payments`** — dropped UPDATE + DELETE policies entirely. Table is insert-only by design (only callsite: `RemittanceImport.tsx`).
+- ✅ **#4 `plb_adjustments`** — dropped UPDATE + DELETE policies entirely. Same rationale as #3.
+- ✅ **#5 `companies`** — dropped misnamed "System creator update company name only" policy (RLS cannot enforce column-level allowlists). `verified_by` writes moved to a new service-role edge function: **`mark-company-verified`** (validates JWT → checks `system_creators` membership → service-role UPDATE). `CompanyVerificationPanel.tsx` updated to invoke the function and surface failures via `sonner` toast.
+- ✅ **#6 `profiles`** — replaced broad `Admins manage profiles` ALL policy with three per-cmd policies:
+  - INSERT: `is_admin() AND company_id = get_my_company_id()`
+  - UPDATE: `is_admin() AND company_id = get_my_company_id() AND (is_owner_or_creator() OR NOT is_user_owner_of_company(user_id, get_my_company_id()))` — managers can no longer edit owner profile rows.
+  - DELETE: `is_owner_or_creator() AND company_id = get_my_company_id()` — managers can no longer delete profiles.
+- ✅ **New helper:** `public.is_user_owner_of_company(_user_id uuid, _company_id uuid)` — `STABLE SECURITY DEFINER`, reusable for any future "is the target row's user an owner of this company?" check.
+- ✅ **New edge function:** `supabase/functions/mark-company-verified/index.ts` — JWT validation via `getClaims`, system-creator gate via `system_creators` lookup with service role, uuid-format validation on `company_id`, returns `{ ok: true }` or `{ error }` with appropriate HTTP status.
+
+### Resolved by Pass 4D
+
+- ✅ The Pass 4A "POLISH — `profiles` RLS lets managers edit owner profile rows" follow-up (line 16) is now resolved by the per-cmd profiles policies above.
+
+### Deferred from Pass 4D
+
+- **POLISH — `notifications` RLS does not scope by tenant (BLOCKS_MULTI_MEMBERSHIP_UX_POLISH).** Current SELECT/UPDATE policies are `auth.uid() = user_id` only. The table has no `company_id` column, so a user with memberships in multiple companies sees notifications from all of them in any active context. Not a security issue (each notification is targeted at a specific user), but a minor UX leak across tenant contexts. Fix requires either adding `company_id` to `notifications` and backfilling, or filtering at the query layer using the active company. Defer until multi-membership UX polish pass.
