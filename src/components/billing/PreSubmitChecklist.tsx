@@ -78,6 +78,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
 
       // Resolve payer rules from Compliance & QA (payer_billing_rules) first — single source of truth.
       const claimPayerType = String(claim?.payer_type ?? p?.primary_payer ?? "").toLowerCase().trim();
+      const claimPayerName = String((claim as any)?.payer_name ?? "").trim();
       let payerRulesObj: {
         requires_pcs?: boolean | null;
         requires_signature?: boolean | null;
@@ -94,6 +95,32 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           .eq("payer_type", claimPayerType)
           .maybeSingle();
         if (pr) payerRulesObj = pr;
+      }
+
+      // EDI enrollment advisory — fuzzy match claim payer to payer_directory,
+      // then look up customer_payer_enrollments. Soft warning only; submission
+      // is never blocked. Pass 4F.
+      let ediUnenrolledWarning: string | null = null;
+      if (activeCompanyId && (claimPayerType || claimPayerName)) {
+        let pdQuery = supabase
+          .from("payer_directory")
+          .select("id, payer_name")
+          .eq("company_id", activeCompanyId)
+          .limit(1);
+        if (claimPayerType) pdQuery = pdQuery.eq("payer_type", claimPayerType);
+        if (claimPayerName) pdQuery = pdQuery.ilike("payer_name", claimPayerName);
+        const { data: pdMatch } = await pdQuery.maybeSingle();
+        if (pdMatch?.id) {
+          const { data: cpe } = await supabase
+            .from("customer_payer_enrollments" as any)
+            .select("edi_enrolled")
+            .eq("company_id", activeCompanyId)
+            .eq("payer_id", pdMatch.id)
+            .maybeSingle();
+          if (!cpe || (cpe as any).edi_enrolled !== true) {
+            ediUnenrolledWarning = `EDI enrollment with ${pdMatch.payer_name} is not confirmed for this company. Submission will proceed but may be rejected by the clearinghouse. Confirm enrollment status in Billing → Payer Directory.`;
+          }
+        }
       }
 
       // Default to "required" if a column is null/missing — payer rules default-on for safety.
@@ -154,6 +181,15 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         || (t.necessity_notes && String(t.necessity_notes).trim()));
 
       const checks: ChecklistItem[] = [];
+
+      if (ediUnenrolledWarning) {
+        checks.push({
+          label: "EDI enrollment not confirmed",
+          passed: false,
+          isWarning: true,
+          detail: ediUnenrolledWarning,
+        });
+      }
 
       // PCS — gated by payer rule
       if (need.pcs) {
