@@ -398,6 +398,10 @@ export default function EDIExport() {
         }
         return {
           claim_id: c.id,
+          // Single-tenant call site: every claim is owned by activeCompanyId.
+          // Future cross-tenant batch UI must instead set this to the claim's
+          // own company_id so the generator emits one ST/SE per company group.
+          company_id: activeCompanyId || "",
           patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
           patient_dob: c.patient_dob || "1900-01-01",
           patient_sex: pat.sex || (c as any).patient_sex || null,
@@ -474,8 +478,15 @@ export default function EDIExport() {
       }
       setValidationIssues([]);
 
-      // Generate 837P
-      const ediContent = generateEDI837P(ediClaims, providerInfo, submitterInfo);
+      // Generate 837P. Single-tenant batch → one-entry providerInfo map keyed
+      // by activeCompanyId. The generator supports multi-tenant batches
+      // (one ST/SE per company group within one ISA/GS envelope), but the
+      // EDIExport surface is intentionally single-tenant only — the cross-
+      // tenant creator batch UI is a separate, deferred pass.
+      const providerInfoMap = new Map<string, ProviderInfo>([
+        [activeCompanyId || "", providerInfo],
+      ]);
+      const ediContent = generateEDI837P(ediClaims, providerInfoMap, submitterInfo);
       const filename = generateEDIFilename(testMode);
 
       // Download
