@@ -1663,7 +1663,7 @@ export default function BillingAndClaims() {
               <Label>Notes</Label>
               <Textarea rows={2} value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} />
             </div>
-            {selectedClaim && <ClaimAdjustmentHistory tripId={selectedClaim.trip_id} />}
+            {selectedClaim && <ClaimAdjustmentHistory tripId={selectedClaim.trip_id} claimRecordId={selectedClaim.id} />}
             {selectedClaim && (
               <SecondaryClaimPanel
                 claimId={selectedClaim.id}
