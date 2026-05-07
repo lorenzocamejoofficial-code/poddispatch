@@ -679,6 +679,7 @@ export default function EDIExport() {
         }
         return {
           claim_id: c.id,
+          company_id: activeCompanyId || "",
           patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
           patient_dob: c.patient_dob || "1900-01-01",
           patient_sex: pat.sex || (c as any).patient_sex || null,
@@ -745,7 +746,10 @@ export default function EDIExport() {
       }
       setValidationIssues([]);
 
-      const ediContent = generateEDI837P(ediClaims, providerInfo, submitterInfo);
+      const providerInfoMap = new Map<string, ProviderInfo>([
+        [activeCompanyId || "", providerInfo],
+      ]);
+      const ediContent = generateEDI837P(ediClaims, providerInfoMap, submitterInfo);
       const filename = generateEDIFilename(testMode);
       const ids = selectedClaims.map((c) => c.id);
 
