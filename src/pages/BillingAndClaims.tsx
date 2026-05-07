@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download, Info, X, FileText, TrendingUp, Send, Loader2, Wrench, BookOpen, FlaskConical } from "lucide-react";
+import { DollarSign, AlertTriangle, CheckCircle, XCircle, RefreshCw, Settings2, ClipboardList, ShieldAlert, Download, Info, X, FileText, TrendingUp, Send, Loader2, Wrench, BookOpen, FlaskConical, RotateCcw } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PayerDirectoryTab } from "@/components/billing/PayerDirectoryTab";
 import { MissingMoneyDetail } from "@/components/billing/MissingMoneyPanel";
 import { DenialRecoveryEngine } from "@/components/billing/DenialRecoveryEngine";
@@ -189,6 +190,7 @@ export default function BillingAndClaims() {
   const [oaSending, setOaSending] = useState(false);
   const [oaReceiving, setOaReceiving] = useState(false);
   const [remittanceRefreshKey, setRemittanceRefreshKey] = useState(0);
+  const [reversalClaimIds, setReversalClaimIds] = useState<Set<string>>(new Set());
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -244,6 +246,15 @@ export default function BillingAndClaims() {
     );
     setChargeMaster((rateRows ?? []) as any[]);
     setLoading(false);
+
+    // Fetch claim_record_ids that have any reversal events for the badge.
+    supabase
+      .from("claim_payments" as any)
+      .select("claim_record_id")
+      .eq("event_type", "reversal")
+      .then(({ data }) => {
+        setReversalClaimIds(new Set(((data as any[]) ?? []).map((r: any) => r.claim_record_id)));
+      });
   }, [simulationRunId]);
 
   const fetchQueueTrips = useCallback(async () => {
@@ -1322,6 +1333,20 @@ export default function BillingAndClaims() {
                           <div className="flex items-center justify-between gap-1 mb-1">
                             <p className="text-xs font-semibold text-foreground truncate">{claim.patient_name}</p>
                             <div className="flex items-center gap-1 shrink-0">
+                              {reversalClaimIds.has(claim.id) && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge variant="destructive" className="text-[9px] px-1 py-0 gap-0.5">
+                                        <RotateCcw className="h-2.5 w-2.5" /> Reversal
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="text-xs">This claim has a payment reversal in its history.</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
                               {claim.is_test_submission && (
                                 <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500 text-amber-700 dark:text-amber-300 bg-amber-100/60 dark:bg-amber-900/30 gap-0.5">
                                   <FlaskConical className="h-2.5 w-2.5" /> SANDBOX
@@ -1638,7 +1663,7 @@ export default function BillingAndClaims() {
               <Label>Notes</Label>
               <Textarea rows={2} value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} />
             </div>
-            {selectedClaim && <ClaimAdjustmentHistory tripId={selectedClaim.trip_id} />}
+            {selectedClaim && <ClaimAdjustmentHistory tripId={selectedClaim.trip_id} claimRecordId={selectedClaim.id} />}
             {selectedClaim && (
               <SecondaryClaimPanel
                 claimId={selectedClaim.id}
