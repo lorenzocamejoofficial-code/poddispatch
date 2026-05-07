@@ -62,6 +62,7 @@ const LegalPage = lazy(() => import("./pages/LegalPage"));
 const RemittanceImport = lazy(() => import("./pages/RemittanceImport"));
 const OwnerDashboard = lazy(() => import("./pages/OwnerDashboard"));
 const ARCommandCenter = lazy(() => import("./pages/ARCommandCenter"));
+const SelectCompany = lazy(() => import("./pages/SelectCompany"));
 const CrewInspectionChecklist = lazy(() => import("./components/inspection/CrewInspectionChecklist"));
 import { useCrewViewEligibility } from "./hooks/useCrewViewEligibility";
 import { MaintenanceGate } from "./components/MaintenanceGate";
@@ -171,7 +172,7 @@ function PaymentResultHandler() {
 }
 
 function AppRoutes() {
-  const { user, role, loading, membershipLoaded, isSystemCreator, onboardingStatus, activeCompanyId, subscriptionStatus, wizardCompleted, passwordRecoveryMode } = useAuth();
+  const { user, role, loading, membershipLoaded, isSystemCreator, onboardingStatus, activeCompanyId, subscriptionStatus, wizardCompleted, passwordRecoveryMode, needsCompanySelection } = useAuth();
   const location = useLocation();
   const isPasswordRecoveryFlow =
     passwordRecoveryMode ||
@@ -224,12 +225,22 @@ function AppRoutes() {
   }
 
   // Authenticated but no company membership — must create or accept invite
-  if (!isSystemCreator && !activeCompanyId) {
+  if (!isSystemCreator && !activeCompanyId && !needsCompanySelection) {
     return (
       <Routes>
         <Route path="/create-company" element={<CreateCompany />} />
         <Route path="/invite" element={<AcceptInvite />} />
         <Route path="*" element={<Navigate to="/create-company" replace />} />
+      </Routes>
+    );
+  }
+
+  // Multi-membership user with no active company picked — gate to selector.
+  if (!isSystemCreator && needsCompanySelection) {
+    return (
+      <Routes>
+        <Route path="/select-company" element={<SelectCompany />} />
+        <Route path="*" element={<Navigate to="/select-company" replace />} />
       </Routes>
     );
   }
