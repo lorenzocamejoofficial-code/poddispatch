@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Copy, Link2, Trash2, Truck, CalendarIcon, Phone, MessageSquareText, RefreshCw, Check, Send, Clock, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, addMonths } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
@@ -58,6 +58,7 @@ export default function CrewScheduleAdmin() {
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
   const { selectedDate: scheduleDate, setSelectedDate: setScheduleDate } = useGlobalSchedulingStore();
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const maxScheduleDate = addMonths(new Date(), 13);
 
   // Section 2: Daily schedule text
   const [scheduleTruckId, setScheduleTruckId] = useState("");
@@ -382,6 +383,7 @@ export default function CrewScheduleAdmin() {
                   selected={scheduleDate ? new Date(scheduleDate + "T12:00:00") : undefined}
                   onSelect={(d) => { if (d) { setScheduleDate(d.toISOString().split("T")[0]); setCalendarOpen(false); } }}
                   initialFocus
+                  toDate={maxScheduleDate}
                   className={cn("p-3 pointer-events-auto")}
                 />
               </PopoverContent>

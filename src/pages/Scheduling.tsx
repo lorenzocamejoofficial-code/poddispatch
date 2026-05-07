@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { getLocalToday } from "@/lib/local-date";
+import { addMonths, format as formatDate } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1796,7 +1797,7 @@ export default function Scheduling() {
             <div className="grid gap-3 py-2">
               <div>
                 <Label>Move to Different Date</Label>
-                <Input type="date" value={exceptionNewDate} onChange={(e) => setExceptionNewDate(e.target.value)} />
+                <Input type="date" value={exceptionNewDate} max={formatDate(addMonths(new Date(), 13), "yyyy-MM-dd")} onChange={(e) => setExceptionNewDate(e.target.value)} />
                 {exceptionNewDate && exceptionNewDate !== selectedDate && (
                   <p className="text-[11px] text-primary mt-1">
                     This run will be unassigned from its current truck and moved to <strong>{exceptionNewDate}</strong>'s run pool.
@@ -1858,7 +1859,7 @@ export default function Scheduling() {
             <div className="grid gap-3 py-2">
               <div>
                 <Label>Target Week (any date in that week)</Label>
-                <Input type="date" value={copyTargetWeek} onChange={(e) => setCopyTargetWeek(e.target.value)} />
+                <Input type="date" value={copyTargetWeek} max={formatDate(addMonths(new Date(), 13), "yyyy-MM-dd")} onChange={(e) => setCopyTargetWeek(e.target.value)} />
               </div>
               <p className="text-xs text-muted-foreground">This copies crew assignments only. After copying, use "Auto-Fill from Templates" on each day to generate patient runs.</p>
               <Button onClick={handleCopyWeek} disabled={copying}>

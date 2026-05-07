@@ -95,7 +95,7 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
       // Filter out patients with suppressing statuses
       const activeLegData = legData.filter((l: any) => {
         const status = l.patient?.status;
-        return !["in_hospital", "out_of_hospital", "vacation", "paused"].includes(status ?? "");
+        return !["in_hospital", "out_of_hospital", "vacation", "paused", "inactive"].includes(status ?? "");
       });
 
       if (activeLegData.length === 0) { setLegs([]); return; }
