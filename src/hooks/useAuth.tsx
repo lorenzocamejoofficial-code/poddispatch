@@ -322,6 +322,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsSystemCreator(false);
           setOnboardingStatus(null);
           setMembershipLoaded(false);
+          setMemberships([]);
+          setNeedsCompanySelection(false);
           setLoading(false);
         }
       }
