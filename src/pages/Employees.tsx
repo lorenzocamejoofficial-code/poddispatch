@@ -781,7 +781,10 @@ export default function Employees() {
                       <SelectItem value="crew">Crew</SelectItem>
                       <SelectItem value="dispatcher">Dispatcher</SelectItem>
                       <SelectItem value="biller">Biller</SelectItem>
-                      <SelectItem value="owner">Owner</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      {userRole !== "manager" && (
+                        <SelectItem value="owner">Owner</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
