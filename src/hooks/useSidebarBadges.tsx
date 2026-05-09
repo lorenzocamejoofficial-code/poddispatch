@@ -94,12 +94,12 @@ export function useSidebarBadges(role: string | null) {
     const seenTrips = getLastSeen(userId, "trips");
     const seenOverrides = getLastSeen(userId, "overrides");
 
-    if (["owner", "dispatcher"].includes(r)) {
+    if (["owner", "manager", "dispatcher"].includes(r)) {
       jobs.push(
         countAfter("operational_alerts", { status: "open" }, seenDispatch).then(c => { next.dispatch = c; })
       );
     }
-    if (["owner", "billing"].includes(r)) {
+    if (["owner", "manager", "billing"].includes(r)) {
       jobs.push(
         countAfter("trip_records", { status: "ready_for_billing" }, seenBilling).then(c => { next.billing = c; })
       );

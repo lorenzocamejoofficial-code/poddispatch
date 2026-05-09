@@ -17,6 +17,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 const ROLE_OPTIONS: { value: PreviewRole; label: string; desc: string }[] = [
   { value: "creator", label: "Creator", desc: "Full system access (default)" },
   { value: "owner", label: "Owner / Admin", desc: "Full app access, no simulation" },
+  { value: "manager", label: "Manager", desc: "Broad admin, no clearinghouse/subscription/owner promotion" },
   { value: "dispatcher", label: "Dispatcher", desc: "Dispatch + scheduling + trucks" },
   { value: "biller", label: "Biller", desc: "Billing + claims + compliance" },
   { value: "crew", label: "Crew", desc: "Crew run sheet only" },

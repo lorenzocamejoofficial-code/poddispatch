@@ -68,7 +68,7 @@ export function IncidentsTab() {
   const [reviewNote, setReviewNote] = useState("");
   const [reviewSaving, setReviewSaving] = useState(false);
 
-  const canReview = role === "owner" || role === "creator";
+  const canReview = role === "owner" || role === "manager" || role === "creator";
 
   const fetchData = useCallback(async () => {
     setLoading(true);
