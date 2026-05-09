@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useCallback } from "react";
 
-export type PreviewRole = "creator" | "owner" | "dispatcher" | "biller" | "crew";
+export type PreviewRole = "creator" | "owner" | "manager" | "dispatcher" | "biller" | "crew";
 
 interface PreviewRoleContextType {
   previewRole: PreviewRole;
@@ -18,6 +18,7 @@ interface PreviewRoleContextType {
 const ROLE_MODULES: Record<PreviewRole, string[]> = {
   creator: ["*"],
   owner: ["dispatch", "scheduling", "crew-schedule", "patients", "trips", "billing", "compliance", "facilities", "reports", "employees", "trucks", "settings"],
+  manager: ["dispatch", "scheduling", "crew-schedule", "patients", "trips", "billing", "compliance", "facilities", "reports", "employees", "trucks", "settings"],
   dispatcher: ["dispatch", "scheduling", "crew-schedule", "patients", "trips", "facilities", "trucks", "employees"],
   biller: ["trips", "billing", "compliance", "patients", "facilities", "reports"],
   crew: ["crew-schedule"],
@@ -27,6 +28,7 @@ const ROLE_MODULES: Record<PreviewRole, string[]> = {
 const ROLE_ACTIONS: Record<PreviewRole, string[]> = {
   creator: ["*"],
   owner: ["*"],
+  manager: ["assign_run", "edit_schedule", "manage_patients", "manage_trucks", "view_trips", "create_run", "move_run", "manage_employees", "submit_claim", "edit_claim", "manage_compliance"],
   dispatcher: ["assign_run", "edit_schedule", "manage_patients", "manage_trucks", "view_trips", "create_run", "move_run", "manage_employees"],
   biller: ["submit_claim", "edit_claim", "view_trips", "manage_compliance", "view_patients"],
   crew: ["update_status", "submit_documentation"],
@@ -36,6 +38,7 @@ const ROLE_ACTIONS: Record<PreviewRole, string[]> = {
 const ROLE_CAPABILITIES: Record<PreviewRole, string[]> = {
   creator: ["Full system access", "All modules", "All actions", "Company Simulation"],
   owner: ["All modules", "All CRUD actions", "Settings management", "Employee management", "Reports access"],
+  manager: ["Broad admin — full operational access, no clearinghouse, subscription, NPI/EIN edits, or owner promotion."],
   dispatcher: ["View/Edit Scheduling Calendar", "Create/Assign Runs", "Drag & Drop Runs", "Manage Patients", "Manage Trucks & Crews", "Manage Employees", "View Trips", "View Facilities"],
   biller: ["View/Edit Billing & Claims", "Submit/Edit Claims", "View Completed Trips", "Manage Compliance & QA", "View Patients (billing fields)", "View Reports & Metrics", "View Facilities"],
   crew: ["View Assigned Run Sheet", "Update Run Status", "Submit Documentation", "Report No-Show / Delay"],
