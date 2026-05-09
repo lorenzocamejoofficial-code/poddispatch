@@ -41,24 +41,24 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
- { path: "/dispatch", label: "Dispatch Command", icon: LayoutDashboard, roles: ["owner", "dispatcher"] },
-  { path: "/owner-dashboard", label: "Owner Command Center", icon: BarChart3, roles: ["owner"] },
-  { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList, roles: ["owner", "dispatcher"] },
-  { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send, roles: ["owner", "dispatcher"] },
-  { path: "/patients", label: "Patients", icon: Users, roles: ["owner", "dispatcher", "billing"] },
-  { path: "/trips", label: "Trips & Clinical", icon: FileText, roles: ["owner", "billing"] },
-  { path: "/billing", label: "Billing & Claims", icon: DollarSign, roles: ["owner", "billing"] },
-  { path: "/edi-export", label: "EDI Export", icon: FileOutput, roles: ["owner", "billing"] },
-  { path: "/ar-command-center", label: "AR Command Center", icon: ClipboardList, roles: ["owner", "billing"] },
-  { path: "/compliance", label: "Compliance & QA", icon: ShieldCheck, roles: ["owner", "billing"] },
-  { path: "/facilities", label: "Facilities", icon: Building2, roles: ["owner", "dispatcher", "billing"] },
-  { path: "/reports", label: "Reports & Metrics", icon: BarChart3, roles: ["owner", "billing"] },
-  { path: "/employees", label: "Employees", icon: UserPlus, roles: ["owner", "dispatcher"] },
-  { path: "/trucks", label: "Trucks & Crews", icon: Truck, roles: ["owner", "dispatcher"] },
-  { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft, roles: ["owner", "dispatcher"] },
+  { path: "/dispatch", label: "Dispatch Command", icon: LayoutDashboard, roles: ["owner", "manager", "dispatcher"] },
+   { path: "/owner-dashboard", label: "Owner Command Center", icon: BarChart3, roles: ["owner", "manager"] },
+   { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList, roles: ["owner", "manager", "dispatcher"] },
+   { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send, roles: ["owner", "manager", "dispatcher"] },
+   { path: "/patients", label: "Patients", icon: Users, roles: ["owner", "manager", "dispatcher", "billing"] },
+   { path: "/trips", label: "Trips & Clinical", icon: FileText, roles: ["owner", "manager", "billing"] },
+   { path: "/billing", label: "Billing & Claims", icon: DollarSign, roles: ["owner", "manager", "billing"] },
+   { path: "/edi-export", label: "EDI Export", icon: FileOutput, roles: ["owner", "manager", "billing"] },
+   { path: "/ar-command-center", label: "AR Command Center", icon: ClipboardList, roles: ["owner", "manager", "billing"] },
+   { path: "/compliance", label: "Compliance & QA", icon: ShieldCheck, roles: ["owner", "manager", "billing"] },
+   { path: "/facilities", label: "Facilities", icon: Building2, roles: ["owner", "manager", "dispatcher", "billing"] },
+   { path: "/reports", label: "Reports & Metrics", icon: BarChart3, roles: ["owner", "manager", "billing"] },
+   { path: "/employees", label: "Employees", icon: UserPlus, roles: ["owner", "manager", "dispatcher"] },
+   { path: "/trucks", label: "Trucks & Crews", icon: Truck, roles: ["owner", "manager", "dispatcher"] },
+   { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft, roles: ["owner", "manager", "dispatcher"] },
   { path: "/override-monitor", label: "Override Monitor", icon: Eye, roles: ["owner"] },
   { path: "/admin/email-activity", label: "Email Activity", icon: Mail, roles: ["owner"] },
-  { path: "/settings", label: "Settings", icon: Settings, roles: ["owner", "dispatcher"] },
+   { path: "/settings", label: "Settings", icon: Settings, roles: ["owner", "manager", "dispatcher"] },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {
@@ -74,7 +74,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   // Regular users need owner, dispatcher, or billing role
   // Map biller → billing for nav matching
   const effectiveNavRole = role === "biller" ? "billing" : role;
-  if (!isSystemCreator && (!effectiveNavRole || !["owner", "dispatcher", "billing"].includes(effectiveNavRole))) {
+  if (!isSystemCreator && (!effectiveNavRole || !["owner", "manager", "dispatcher", "billing"].includes(effectiveNavRole))) {
     return null;
   }
 
