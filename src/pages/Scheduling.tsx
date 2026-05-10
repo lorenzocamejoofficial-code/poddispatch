@@ -370,21 +370,9 @@ export default function Scheduling() {
     chair_time: "",
   });
 
-  /**
-   * Fix 8: kept as a thin DB-name shim ONLY. The scheduling_legs.trip_type
-   * column historically stores `woundcare` (no underscore) for wound-care
-   * runs. All routing/matching/UI normalization elsewhere now uses
-   * `normalizeTransportKey` from pcr-field-requirements.ts which returns the
-   * canonical `wound_care` (with underscore). This function exists solely
-   * to convert UI form values to the legacy DB enum value at insert time.
-   */
-  const toDbTripType = (tripType: string) => {
-    if (tripType === "wound_care") return "woundcare";
-    return tripType;
-  };
-  // Backwards-compat alias — existing call sites in this file still use the
-  // old name; new code should import normalizeTransportKey instead.
-  const normalizeTripType = toDbTripType;
+  // trip_type enum now natively supports `wound_care` (and `psych_transport`).
+  // Identity passthrough retained so existing call sites remain unchanged.
+  const normalizeTripType = (tripType: string) => tripType;
 
   // Existing patient form extra state
   const [legPickupLocationType, setLegPickupLocationType] = useState("");
@@ -1445,7 +1433,7 @@ export default function Scheduling() {
                       <SelectItem value="ift">IFT</SelectItem>
                       <SelectItem value="discharge">Discharge</SelectItem>
                       <SelectItem value="outpatient">Outpatient</SelectItem>
-                      <SelectItem value="woundcare">Wound Care</SelectItem>
+                      <SelectItem value="wound_care">Wound Care</SelectItem>
                       <SelectItem value="emergency">Emergency</SelectItem>
                       <SelectItem value="psych_transport">Psych / Behavioral Transport</SelectItem>
                       <SelectItem value="private_pay">Private Pay</SelectItem>
@@ -1534,7 +1522,7 @@ export default function Scheduling() {
                     <div className="flex items-center gap-3"><Switch checked={oneoffForm.law_enforcement_present} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, law_enforcement_present: v }))} id="oneoff-leo" /><Label htmlFor="oneoff-leo" className="cursor-pointer text-sm">Law Enforcement Present</Label></div>
                   </div>
                 )}
-                {(oneoffForm.trip_type === "wound_care" || oneoffForm.trip_type === "woundcare") && (
+                {oneoffForm.trip_type === "wound_care" && (
                   <div className="space-y-3 rounded-md border border-dashed p-3">
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Wound Care Details</p>
                     <div>
@@ -1699,7 +1687,7 @@ export default function Scheduling() {
                       <SelectItem value="ift">IFT</SelectItem>
                       <SelectItem value="discharge">Discharge</SelectItem>
                       <SelectItem value="outpatient">Outpatient</SelectItem>
-                      <SelectItem value="woundcare">Wound Care</SelectItem>
+                      <SelectItem value="wound_care">Wound Care</SelectItem>
                       <SelectItem value="emergency">Emergency</SelectItem>
                       <SelectItem value="psych_transport">Psych / Behavioral Transport</SelectItem>
                       <SelectItem value="private_pay">Private Pay</SelectItem>
