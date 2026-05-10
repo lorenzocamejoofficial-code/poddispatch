@@ -60,8 +60,8 @@ function coinFlip(prob = 0.5): boolean { return Math.random() < prob; }
 // Valid enum values from database
 const VALID_CERT_LEVELS = ["EMT-B", "EMT-A", "EMT-P", "AEMT", "Other"] as const;
 const VALID_SEX_TYPES = ["M", "F"] as const;
-const VALID_TRANSPORT_TYPES = ["dialysis", "outpatient", "adhoc"] as const;
-const VALID_TRIP_TYPES = ["dialysis", "discharge", "outpatient", "hospital", "private_pay"] as const;
+const VALID_TRANSPORT_TYPES = ["dialysis", "outpatient", "adhoc", "wound_care", "ift", "discharge", "private_pay", "psych_transport"] as const;
+const VALID_TRIP_TYPES = ["dialysis", "discharge", "outpatient", "hospital", "private_pay", "ift", "wound_care", "psych_transport"] as const;
 const VALID_TRIP_STATUSES = ["scheduled", "assigned", "en_route", "loaded", "completed", "ready_for_billing", "cancelled", "arrived_pickup", "arrived_dropoff", "no_show", "patient_not_ready", "facility_delay"] as const;
 const VALID_PATIENT_STATUSES = ["active", "in_hospital", "out_of_hospital", "vacation", "paused"] as const;
 const VALID_LEG_TYPES = ["A", "B"] as const;
@@ -123,8 +123,9 @@ function normalizeSex(value: string | null | undefined): (typeof STRICT_SEX_TYPE
 
 function normalizeTransportType(value: string | null | undefined): (typeof VALID_TRANSPORT_TYPES)[number] {
   const raw = (value ?? "").trim().toLowerCase();
-  if (raw === "hospital") return "adhoc";
-  if (raw === "discharge") return "outpatient";
+  // Note: legacy coercions (hospital→adhoc, discharge→outpatient) removed —
+  // discharge/wound_care/ift/psych_transport are first-class transport types now.
+  if (raw === "hospital") return "adhoc"; // hospital is destination-typed, not a transport variation
   if ((VALID_TRANSPORT_TYPES as readonly string[]).includes(raw)) return raw as (typeof VALID_TRANSPORT_TYPES)[number];
   return "outpatient";
 }
