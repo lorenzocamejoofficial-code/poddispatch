@@ -519,11 +519,33 @@ export default function Employees() {
                 <Button><Plus className="mr-1.5 h-4 w-4" /> Add Employee</Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
-                <DialogHeader><DialogTitle>Create Employee Account</DialogTitle><DialogDescription>Add a new employee with credentials and role.</DialogDescription></DialogHeader>
+                <DialogHeader>
+                  <DialogTitle>Add Employee</DialogTitle>
+                  <DialogDescription>
+                    Send an invite link (recommended) or create the account with a temporary password.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex gap-1 rounded-lg bg-muted p-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setAddMode("invite")}
+                    className={`flex-1 rounded-md px-3 py-1.5 font-medium ${addMode === "invite" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+                  >
+                    Send invite
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddMode("credentials")}
+                    className={`flex-1 rounded-md px-3 py-1.5 font-medium ${addMode === "credentials" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+                  >
+                    Create with password
+                  </button>
+                </div>
                 <div className="grid gap-3 py-2">
                   <div><Label>Full Name *</Label><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></div>
                   <div><Label>Phone Number</Label><Input type="tel" value={form.phone_number} onChange={(e) => setForm({ ...form, phone_number: e.target.value })} placeholder="(555) 123-4567" /></div>
                   <div><Label>Email * <span className="text-xs text-muted-foreground">(for login)</span></Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+                  {addMode === "credentials" && (
                   <div>
                     <Label>Temporary Password *</Label>
                     <div className="relative">
@@ -533,6 +555,7 @@ export default function Employees() {
                       </button>
                     </div>
                   </div>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <Label>Role</Label>
@@ -606,7 +629,7 @@ export default function Employees() {
                     <Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} />
                   </div>
                   <Button onClick={handleCreate} disabled={creating}>
-                    {creating ? "Creating..." : "Create Account"}
+                    {creating ? (addMode === "invite" ? "Sending..." : "Creating...") : (addMode === "invite" ? "Send Invite" : "Create Account")}
                   </Button>
                 </div>
               </DialogContent>
