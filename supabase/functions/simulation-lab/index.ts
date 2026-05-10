@@ -1601,7 +1601,7 @@ async function runChecks(admin: any, companyId: string) {
     if (overriddenTripIdSet.has(t.id)) continue;
     const pcrType = t.pcr_type || "other";
     // PCR-type-specific required fields
-    if (pcrType === "nemt_dialysis" || pcrType === "ift_discharge") {
+    if (pcrType === "nemt_dialysis" || pcrType === "ift_discharge" || pcrType === "ift_general" || pcrType === "ift_wound_care") {
       if (!t.pcs_attached || !t.signature_obtained) falseReadyCount++;
     } else if (pcrType === "emergency_ems") {
       if (!t.signature_obtained) falseReadyCount++;
@@ -1680,7 +1680,7 @@ async function runChecks(admin: any, companyId: string) {
   let pcrMissing = 0;
   for (const t of allTrips) {
     if (t.status === "completed" && t.pcr_type) {
-      if (t.pcr_type === "nemt_dialysis" || t.pcr_type === "ift_discharge") {
+      if (t.pcr_type === "nemt_dialysis" || t.pcr_type === "ift_discharge" || t.pcr_type === "ift_general" || t.pcr_type === "ift_wound_care") {
         if (!t.pcs_attached) pcrMissing++;
       }
     }
