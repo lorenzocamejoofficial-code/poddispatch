@@ -1344,45 +1344,36 @@ export type Database = {
         Row: {
           accepted_at: string | null
           accepted_by: string | null
-          company_id: string
           created_at: string
-          email: string
+          created_by_user_id: string
           id: string
-          invited_by: string
-          role: string
-          status: string
+          profile_id: string | null
           token: string
         }
         Insert: {
           accepted_at?: string | null
           accepted_by?: string | null
-          company_id: string
           created_at?: string
-          email: string
+          created_by_user_id: string
           id?: string
-          invited_by: string
-          role?: string
-          status?: string
+          profile_id?: string | null
           token?: string
         }
         Update: {
           accepted_at?: string | null
           accepted_by?: string | null
-          company_id?: string
           created_at?: string
-          email?: string
+          created_by_user_id?: string
           id?: string
-          invited_by?: string
-          role?: string
-          status?: string
+          profile_id?: string | null
           token?: string
         }
         Relationships: [
           {
-            foreignKeyName: "company_invites_company_id_fkey"
-            columns: ["company_id"]
+            foreignKeyName: "company_invites_profile_id_fkey"
+            columns: ["profile_id"]
             isOneToOne: false
-            referencedRelation: "companies"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3110,19 +3101,22 @@ export type Database = {
           cert_level: Database["public"]["Enums"]["cert_level"]
           company_id: string | null
           created_at: string
+          email: string | null
           employment_type: string
           full_name: string
           id: string
+          invitation_status: Database["public"]["Enums"]["invitation_status"]
           is_simulated: boolean
           lift_assist_ok: boolean
           max_safe_team_lift_lbs: number
           oxygen_handling_trained: boolean
+          pending_role: Database["public"]["Enums"]["membership_role"] | null
           phone_number: string | null
           sex: Database["public"]["Enums"]["sex_type"]
           simulation_run_id: string | null
           stair_chair_trained: boolean
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           active?: boolean
@@ -3131,19 +3125,22 @@ export type Database = {
           cert_level?: Database["public"]["Enums"]["cert_level"]
           company_id?: string | null
           created_at?: string
+          email?: string | null
           employment_type?: string
           full_name: string
           id?: string
+          invitation_status?: Database["public"]["Enums"]["invitation_status"]
           is_simulated?: boolean
           lift_assist_ok?: boolean
           max_safe_team_lift_lbs?: number
           oxygen_handling_trained?: boolean
+          pending_role?: Database["public"]["Enums"]["membership_role"] | null
           phone_number?: string | null
           sex?: Database["public"]["Enums"]["sex_type"]
           simulation_run_id?: string | null
           stair_chair_trained?: boolean
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           active?: boolean
@@ -3152,19 +3149,22 @@ export type Database = {
           cert_level?: Database["public"]["Enums"]["cert_level"]
           company_id?: string | null
           created_at?: string
+          email?: string | null
           employment_type?: string
           full_name?: string
           id?: string
+          invitation_status?: Database["public"]["Enums"]["invitation_status"]
           is_simulated?: boolean
           lift_assist_ok?: boolean
           max_safe_team_lift_lbs?: number
           oxygen_handling_trained?: boolean
+          pending_role?: Database["public"]["Enums"]["membership_role"] | null
           phone_number?: string | null
           sex?: Database["public"]["Enums"]["sex_type"]
           simulation_run_id?: string | null
           stair_chair_trained?: boolean
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -5527,6 +5527,7 @@ export type Database = {
         | "crew_invite"
         | "crew_schedule"
         | "other"
+      invitation_status: "pending_invite" | "invited" | "active" | "inactive"
       leg_type: "A" | "B"
       membership_role:
         | "creator"
@@ -5741,6 +5742,7 @@ export const Constants = {
         "crew_schedule",
         "other",
       ],
+      invitation_status: ["pending_invite", "invited", "active", "inactive"],
       leg_type: ["A", "B"],
       membership_role: [
         "creator",

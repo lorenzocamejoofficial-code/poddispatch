@@ -26,15 +26,15 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Look up invite server-side using service role (bypasses RLS)
+    // Token-only invite row joined to its profile (which holds person/company data)
     const { data: invite, error: inviteErr } = await supabaseAdmin
       .from("company_invites")
-      .select("id, email, role, company_id, status")
+      .select("id, profile_id, profiles:profile_id(email, pending_role, company_id, invitation_status)")
       .eq("token", token)
-      .eq("status", "pending")
       .maybeSingle();
 
-    if (inviteErr || !invite) {
+    const profile = (invite as any)?.profiles;
+    if (inviteErr || !invite || !profile || profile.invitation_status !== "invited") {
       return new Response(JSON.stringify({ error: "Invalid or expired invite" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -45,16 +45,16 @@ Deno.serve(async (req) => {
     const { data: company } = await supabaseAdmin
       .from("companies")
       .select("name")
-      .eq("id", invite.company_id)
+      .eq("id", profile.company_id)
       .maybeSingle();
 
     return new Response(
       JSON.stringify({
         invite: {
           id: invite.id,
-          email: invite.email,
-          role: invite.role,
-          company_id: invite.company_id,
+          email: profile.email,
+          role: profile.pending_role,
+          company_id: profile.company_id,
           company_name: company?.name ?? "Unknown Company",
         },
       }),

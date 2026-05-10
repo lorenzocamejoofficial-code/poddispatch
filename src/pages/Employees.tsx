@@ -164,12 +164,27 @@ export default function Employees() {
 
   const fetchInvites = async () => {
     if (!activeCompanyId) return;
+    // Invites now live as profiles rows with invitation_status='invited',
+    // joined to a token-only company_invites row via profile_id.
     const { data } = await supabase
-      .from("company_invites")
-      .select("*")
+      .from("profiles")
+      .select("id, email, pending_role, company_id, invitation_status, company_invites(id, token, created_at)")
       .eq("company_id", activeCompanyId)
+      .eq("invitation_status", "invited")
       .order("created_at", { ascending: false });
-    setInvites((data as any[]) ?? []);
+    const mapped: Invite[] = ((data as any[]) ?? []).flatMap((p) => {
+      const inv = Array.isArray(p.company_invites) ? p.company_invites[0] : p.company_invites;
+      if (!inv) return [];
+      return [{
+        id: inv.id,
+        email: p.email ?? "",
+        role: p.pending_role ?? "dispatcher",
+        token: inv.token,
+        status: "pending",
+        created_at: inv.created_at,
+      }];
+    });
+    setInvites(mapped);
   };
 
   useEffect(() => {
@@ -240,12 +255,27 @@ export default function Employees() {
       return;
     }
     setInviting(true);
-    const { error } = await supabase.from("company_invites").insert({
-      company_id: activeCompanyId,
-      email: inviteEmail.trim().toLowerCase(),
-      role: inviteRole,
-      invited_by: (await supabase.auth.getUser()).data.user?.id,
-    } as any);
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    const emailLower = inviteEmail.trim().toLowerCase();
+    // 1. Create the placeholder profile row in 'invited' state.
+    const { data: profileRow, error: profileErr } = await supabase
+      .from("profiles")
+      .insert({
+        company_id: activeCompanyId,
+        email: emailLower,
+        full_name: emailLower.split("@")[0],
+        invitation_status: "invited",
+        pending_role: inviteRole as any,
+        active: true,
+      } as any)
+      .select("id")
+      .single();
+    const error = profileErr
+      ? profileErr
+      : (await supabase.from("company_invites").insert({
+          profile_id: profileRow!.id,
+          created_by_user_id: userId,
+        } as any)).error;
     if (error) {
       toast.error(error.message.includes("duplicate") ? "This email already has a pending invite" : "Failed to create invite");
     } else {
@@ -266,7 +296,16 @@ export default function Employees() {
   };
 
   const revokeInvite = async (id: string) => {
-    await supabase.from("company_invites").update({ status: "revoked" } as any).eq("id", id);
+    // Look up the invite to find its profile, then delete both.
+    const { data: inv } = await supabase
+      .from("company_invites")
+      .select("profile_id")
+      .eq("id", id)
+      .maybeSingle();
+    await supabase.from("company_invites").delete().eq("id", id);
+    if (inv?.profile_id) {
+      await supabase.from("profiles").delete().eq("id", inv.profile_id);
+    }
     toast.success("Invite revoked");
     fetchInvites();
   };

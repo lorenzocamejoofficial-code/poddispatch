@@ -499,9 +499,9 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from("onboarding_events").delete().eq("company_id", cid);
       await supabaseAdmin.from("company_verifications").delete().eq("company_id", cid);
       await supabaseAdmin.from("subscription_records").delete().eq("company_id", cid);
-      await supabaseAdmin.from("company_invites").delete().eq("company_id", cid);
       await supabaseAdmin.from("company_settings").delete().eq("company_id", cid);
       await supabaseAdmin.from("audit_logs").delete().eq("company_id", cid);
+      // Deleting profiles cascades to company_invites via profile_id FK.
       await supabaseAdmin.from("profiles").delete().eq("company_id", cid);
       await supabaseAdmin.from("company_memberships").delete().eq("company_id", cid);
 
