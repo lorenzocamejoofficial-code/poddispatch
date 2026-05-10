@@ -135,9 +135,9 @@ export default function Login() {
 
           <div className="mt-8 text-center space-y-2">
             <p className="text-xs text-muted-foreground">
-              New company?{" "}
+              New dispatch?{" "}
               <a href="/signup" className="text-primary hover:underline font-medium">
-                Create Company
+                Create Dispatch
               </a>
             </p>
           </div>

@@ -83,7 +83,7 @@ export default function CompanySignup() {
   const validateInfo = () => {
     setError("");
     setEmailExists(false);
-    if (!companyName.trim()) return setError("Company name is required.");
+    if (!companyName.trim()) return setError("Dispatch name is required.");
     if (!fullName.trim()) return setError("Your full name is required.");
     if (!email.trim()) return setError("Email is required.");
     if (!password || password.length < 8)
@@ -195,7 +195,7 @@ export default function CompanySignup() {
             <Truck className="h-7 w-7 text-primary-foreground" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Create Your Company
+            Create Your Dispatch
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             PodDispatch Standard
@@ -236,7 +236,7 @@ export default function CompanySignup() {
           <div className="space-y-4">
             <p className="text-sm font-medium text-foreground">Step 1 of 4 — Account Information</p>
             <div className="space-y-2">
-              <Label>Company Name</Label>
+              <Label>Dispatch Name</Label>
               <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Acme Ambulance LLC" />
             </div>
             <div className="space-y-2">
@@ -273,7 +273,7 @@ export default function CompanySignup() {
             <button onClick={() => setStep("info")} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-3 w-3" /> Back
             </button>
-            <p className="text-sm font-medium text-foreground">Step 2 of 4 — Company Profile</p>
+            <p className="text-sm font-medium text-foreground">Step 2 of 4 — Dispatch Profile</p>
 
             <div className="space-y-2">
               <Label>NPI Number *</Label>
@@ -458,7 +458,7 @@ export default function CompanySignup() {
             <div className="rounded-lg border bg-card p-4 space-y-3 text-sm">
               <h3 className="font-semibold text-foreground">Review Your Signup</h3>
               <div className="space-y-1 text-muted-foreground">
-                <p><span className="text-foreground font-medium">Company:</span> {companyName}</p>
+                <p><span className="text-foreground font-medium">Dispatch:</span> {companyName}</p>
                 <p><span className="text-foreground font-medium">Owner:</span> {fullName}</p>
                 <p><span className="text-foreground font-medium">Email:</span> {email}</p>
                 <p><span className="text-foreground font-medium">NPI:</span> {npiNumber}</p>
@@ -485,14 +485,14 @@ export default function CompanySignup() {
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
               <p className="font-medium text-foreground mb-1">What happens next:</p>
               <ol className="list-decimal list-inside space-y-0.5">
-                <li>Your account and company will be created</li>
+                <li>Your account and dispatch will be created</li>
                 <li>Your account will be reviewed and activated by the PodDispatch team</li>
                 <li>After approval, a guided setup wizard will help you get operational</li>
               </ol>
             </div>
 
             <Button className="w-full" onClick={handleSubmit} disabled={loading}>
-              {loading ? "Creating account..." : "Create Company & Continue"}
+              {loading ? "Creating account..." : "Create Dispatch & Continue"}
             </Button>
           </div>
         )}
