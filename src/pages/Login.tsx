@@ -11,6 +11,7 @@ function getRoleLanding(role: string | null, isSystemCreator: boolean): string {
   if (isSystemCreator) return "/system";
   switch (role) {
     case "owner": return "/";
+    case "manager": return "/";
     case "dispatcher": return "/";
     case "biller": return "/ar-command-center";
     case "crew": return "/crew-dashboard";

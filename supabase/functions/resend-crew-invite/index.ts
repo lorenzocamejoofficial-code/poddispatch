@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
     const caller = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authHeader } } });
     const { data: cu } = await caller.auth.getUser();
     if (!cu?.user) return json({ error: "Unauthorized" }, 401);
-    const { data: cm } = await admin.from("company_memberships").select("company_id, role").eq("user_id", cu.user.id).in("role", ["owner", "creator"]).maybeSingle();
+    const { data: cm } = await admin.from("company_memberships").select("company_id, role").eq("user_id", cu.user.id).in("role", ["owner", "creator", "manager"]).maybeSingle();
     if (!cm) return json({ error: "Owner/Creator access required" }, 403);
 
     let body: any;

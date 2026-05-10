@@ -179,7 +179,7 @@ export function useEmergencyUpgrade(companyId: string | null) {
         .from("company_memberships")
         .select("user_id")
         .eq("company_id", companyId)
-        .in("role", ["dispatcher", "owner"] as any);
+        .in("role", ["dispatcher", "owner", "manager"] as any);
 
       if (recipients?.length) {
         await supabase.from("notifications").insert(

@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
       .select("company_id, role")
       .eq("user_id", cu.user.id)
       .maybeSingle();
-    if (!membership || !["owner", "creator", "dispatcher"].includes(membership.role as string)) {
+    if (!membership || !["owner", "creator", "manager", "dispatcher"].includes(membership.role as string)) {
       return json({ error: "Admin access required" }, 403);
     }
 

@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
         .from("company_memberships")
         .select("company_id, role")
         .eq("user_id", cu.user.id)
-        .in("role", ["owner", "creator"])
+        .in("role", ["owner", "creator", "manager"])
         .maybeSingle();
       if (!callerMem) return json({ error: "Admin access required" }, 403);
       callerCompanyId = callerMem.company_id;

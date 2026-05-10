@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
       .from("company_memberships")
       .select("company_id, role")
       .eq("user_id", callerUser.id)
-      .in("role", ["owner", "creator"])
+      .in("role", ["owner", "creator", "manager"])
       .maybeSingle();
     if (!callerMembership) return json({ error: "Owner/Creator access required" }, 403);
 

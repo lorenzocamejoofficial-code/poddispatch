@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
       .eq("company_id", companyId)
       .single();
 
-    if (!membership || !["owner", "creator", "biller"].includes(membership.role)) {
+    if (!membership || !["owner", "creator", "manager", "biller"].includes(membership.role)) {
       return new Response(
         JSON.stringify({ success: false, error: "Insufficient permissions" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }

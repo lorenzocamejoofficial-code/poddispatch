@@ -27,6 +27,7 @@ const Index = () => {
   switch (role) {
     case "creator":
     case "owner":
+    case "manager":
       return <Navigate to="/owner-dashboard" replace />;
     case "dispatcher":
       return <Navigate to="/dispatch" replace />;
