@@ -833,7 +833,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
   // e) create trips + legs + time windows  / f) assign trips to trucks/crews
   let tripRowsInserted: any[] = [];
   try {
-    const totalTrips = config.tripMix.dialysis + config.tripMix.discharge + config.tripMix.outpatient + config.tripMix.hospital;
+    const totalTrips = Object.values(config.tripMix).reduce((sum, n) => sum + (n ?? 0), 0);
     const tripTypes: string[] = [];
     for (const [type, count] of Object.entries(config.tripMix)) for (let j = 0; j < count; j++) tripTypes.push(type);
     const payerTypes: string[] = [];
@@ -903,12 +903,23 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
       const hasTimes = !missingTimesSet.has(i);
       const hasAuth = !missingAuthSet.has(i);
 
+      // pcr_type mapping (Item 15a): keep existing convention for dialysis/discharge/hospital,
+      // add ift_general / ift_wound_care / behavioral_health / outpatient_specialty for new
+      // first-class transport variations.
       const pcrType = tripType === "dialysis"
         ? "nemt_dialysis"
         : tripType === "discharge"
         ? "ift_discharge"
         : tripType === "hospital"
         ? "emergency_ems"
+        : tripType === "ift"
+        ? "ift_general"
+        : tripType === "wound_care"
+        ? "ift_wound_care"
+        : tripType === "psych_transport"
+        ? "behavioral_health"
+        : tripType === "outpatient"
+        ? "outpatient_specialty"
         : "other";
 
       const baseRevenue = payer === "Medicare" ? rand(180, 350) : payer === "Medicaid" ? rand(120, 250) : rand(200, 400);
@@ -932,7 +943,17 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         documentation_complete: hasPcs && hasSig && hasTimes,
         claim_ready: isCompleted && hasPcs && hasSig && hasTimes && hasAuth,
         origin_type: "Home",
-        destination_type: tripType === "dialysis" ? "Dialysis Center" : "Hospital Outpatient",
+        destination_type: tripType === "dialysis"
+          ? "Dialysis Center"
+          : tripType === "wound_care"
+          ? "Wound Care Clinic"
+          : tripType === "psych_transport"
+          ? "Behavioral Health Facility"
+          : tripType === "discharge"
+          ? "Skilled Nursing Facility"
+          : tripType === "ift"
+          ? "Hospital"
+          : "Hospital Outpatient",
         service_level: "BLS",
         necessity_notes: hasPcs ? "Patient requires stretcher transport due to medical necessity" : null,
         pcr_type: pcrType,
