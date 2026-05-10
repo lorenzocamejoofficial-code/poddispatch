@@ -109,7 +109,7 @@ export default function Patients() {
   const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
   const [checkingEligibility, setCheckingEligibility] = useState<string | null>(null);
   const [eligibilityResults, setEligibilityResults] = useState<Map<string, { is_eligible: boolean | null; checked_at: string; summary: string }>>(new Map());
-  const canCheckEligibility = ["owner", "creator", "biller"].includes(role ?? "");
+  const canCheckEligibility = ["owner", "creator", "manager", "biller"].includes(role ?? "");
 
   // Per-day chair time / duration overrides (optional)
   const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverride[]>([]);

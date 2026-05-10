@@ -72,6 +72,7 @@ Deno.serve(async (req) => {
     const roleMap: Record<string, string> = {
       admin: "owner",
       owner: "owner",
+      manager: "manager",
       dispatcher: "dispatcher",
       billing: "biller",
       biller: "biller",
@@ -80,7 +81,7 @@ Deno.serve(async (req) => {
     const membershipRole = roleMap[role] || "crew";
 
     // Validate
-    const allowedRoles = ["owner", "dispatcher", "biller", "crew"];
+    const allowedRoles = ["owner", "manager", "dispatcher", "biller", "crew"];
     if (!allowedRoles.includes(membershipRole)) {
       return new Response(JSON.stringify({ error: "Invalid role" }), {
         status: 400,

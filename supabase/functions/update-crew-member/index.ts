@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
       .eq("user_id", actor.id)
       .maybeSingle();
 
-    if (!actorMembership || !["owner", "creator"].includes(actorMembership.role as string)) {
+    if (!actorMembership || !["owner", "creator", "manager"].includes(actorMembership.role as string)) {
       return json({ error: "Forbidden" }, 403);
     }
 
@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
     }
 
     // Update membership role (only for non-owner targets, and never elevate to owner)
-    if (role && ["dispatcher", "biller", "crew"].includes(role) && targetMembership.role !== "owner") {
+    if (role && ["manager", "dispatcher", "biller", "crew"].includes(role) && targetMembership.role !== "owner" && targetMembership.role !== "creator") {
       await admin
         .from("company_memberships")
         .update({ role })

@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
       .eq("user_id", actor.id)
       .maybeSingle();
 
-    if (!actorMembership || !["owner", "creator", "dispatcher"].includes(actorMembership.role as string)) {
+    if (!actorMembership || !["owner", "creator", "manager", "dispatcher"].includes(actorMembership.role as string)) {
       return json({ error: "Forbidden" }, 403);
     }
 

@@ -527,7 +527,7 @@ export default function CrewDashboard() {
           .from("company_memberships")
           .select("user_id")
           .eq("company_id", cancelTarget.companyId)
-          .in("role", ["dispatcher", "owner"] as any);
+          .in("role", ["dispatcher", "owner", "manager"] as any);
         for (const d of (dispatchers ?? [])) {
           try {
             const { error: notifErr } = await supabase.from("notifications").insert({
