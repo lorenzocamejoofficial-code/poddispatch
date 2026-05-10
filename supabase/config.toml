@@ -87,4 +87,7 @@ verify_jwt = false
 [functions.sftp-test-connection]
 verify_jwt = false
 
+[functions.send-employee-invite]
+verify_jwt = false
+
 
