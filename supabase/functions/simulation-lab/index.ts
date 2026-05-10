@@ -60,8 +60,8 @@ function coinFlip(prob = 0.5): boolean { return Math.random() < prob; }
 // Valid enum values from database
 const VALID_CERT_LEVELS = ["EMT-B", "EMT-A", "EMT-P", "AEMT", "Other"] as const;
 const VALID_SEX_TYPES = ["M", "F"] as const;
-const VALID_TRANSPORT_TYPES = ["dialysis", "outpatient", "adhoc"] as const;
-const VALID_TRIP_TYPES = ["dialysis", "discharge", "outpatient", "hospital", "private_pay"] as const;
+const VALID_TRANSPORT_TYPES = ["dialysis", "outpatient", "adhoc", "wound_care", "ift", "discharge", "private_pay", "psych_transport"] as const;
+const VALID_TRIP_TYPES = ["dialysis", "discharge", "outpatient", "hospital", "private_pay", "ift", "wound_care", "psych_transport"] as const;
 const VALID_TRIP_STATUSES = ["scheduled", "assigned", "en_route", "loaded", "completed", "ready_for_billing", "cancelled", "arrived_pickup", "arrived_dropoff", "no_show", "patient_not_ready", "facility_delay"] as const;
 const VALID_PATIENT_STATUSES = ["active", "in_hospital", "out_of_hospital", "vacation", "paused"] as const;
 const VALID_LEG_TYPES = ["A", "B"] as const;
@@ -123,8 +123,9 @@ function normalizeSex(value: string | null | undefined): (typeof STRICT_SEX_TYPE
 
 function normalizeTransportType(value: string | null | undefined): (typeof VALID_TRANSPORT_TYPES)[number] {
   const raw = (value ?? "").trim().toLowerCase();
-  if (raw === "hospital") return "adhoc";
-  if (raw === "discharge") return "outpatient";
+  // Legacy coercions removed (Item 15a): discharge, wound_care, ift, psych_transport
+  // are first-class transport_types. "hospital" is a destination type, not a transport
+  // variation, and falls through to the default below if encountered.
   if ((VALID_TRANSPORT_TYPES as readonly string[]).includes(raw)) return raw as (typeof VALID_TRANSPORT_TYPES)[number];
   return "outpatient";
 }
@@ -362,7 +363,7 @@ interface ScenarioConfig {
   name: string;
   truckCount: number;
   patientCount: number;
-  tripMix: { dialysis: number; discharge: number; outpatient: number; hospital: number };
+  tripMix: Partial<Record<"dialysis" | "discharge" | "outpatient" | "hospital" | "ift" | "wound_care" | "psych_transport", number>>;
   payerMix: { Medicare: number; Medicaid: number; "Facility Contract": number; "Private Pay": number };
   missingPcs: number;
   missingAuth: number;
@@ -460,6 +461,14 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
       lateDischargeAdds: 3,
     },
   },
+  varied_mix: {
+    name: "Varied Transport Mix (OA companion)",
+    truckCount: 4, patientCount: 35,
+    tripMix: { dialysis: 10, ift: 6, discharge: 5, wound_care: 4, psych_transport: 3, outpatient: 2 },
+    payerMix: { Medicare: 12, Medicaid: 10, "Facility Contract": 5, "Private Pay": 3 },
+    missingPcs: 3, missingAuth: 2, missingSignature: 2, missingTimestamps: 1,
+    facilityDelayCount: 1, authExpiring: 2,
+  },
 };
 
 async function seedScenario(admin: any, companyId: string, userId: string, scenarioKey: string, seedSize: string = "small") {
@@ -481,12 +490,12 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
   };
 
   const patientRatio = config.patientCount / baseConfig.patientCount;
-  config.tripMix = {
-    dialysis: Math.max(1, Math.round(baseConfig.tripMix.dialysis * patientRatio)),
-    discharge: Math.max(0, Math.round(baseConfig.tripMix.discharge * patientRatio)),
-    outpatient: Math.max(0, Math.round(baseConfig.tripMix.outpatient * patientRatio)),
-    hospital: Math.max(0, Math.round(baseConfig.tripMix.hospital * patientRatio)),
-  };
+  config.tripMix = Object.fromEntries(
+    Object.entries(baseConfig.tripMix).map(([type, count], idx) => [
+      type,
+      Math.max(idx === 0 ? 1 : 0, Math.round((count ?? 0) * patientRatio)),
+    ]),
+  ) as ScenarioConfig["tripMix"];
   config.missingPcs = Math.round(baseConfig.missingPcs * patientRatio);
   config.missingAuth = Math.round(baseConfig.missingAuth * patientRatio);
   config.missingSignature = Math.round(baseConfig.missingSignature * patientRatio);
@@ -824,7 +833,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
   // e) create trips + legs + time windows  / f) assign trips to trucks/crews
   let tripRowsInserted: any[] = [];
   try {
-    const totalTrips = config.tripMix.dialysis + config.tripMix.discharge + config.tripMix.outpatient + config.tripMix.hospital;
+    const totalTrips = Object.values(config.tripMix).reduce((sum, n) => sum + (n ?? 0), 0);
     const tripTypes: string[] = [];
     for (const [type, count] of Object.entries(config.tripMix)) for (let j = 0; j < count; j++) tripTypes.push(type);
     const payerTypes: string[] = [];
@@ -894,12 +903,23 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
       const hasTimes = !missingTimesSet.has(i);
       const hasAuth = !missingAuthSet.has(i);
 
+      // pcr_type mapping (Item 15a): keep existing convention for dialysis/discharge/hospital,
+      // add ift_general / ift_wound_care / behavioral_health / outpatient_specialty for new
+      // first-class transport variations.
       const pcrType = tripType === "dialysis"
         ? "nemt_dialysis"
         : tripType === "discharge"
         ? "ift_discharge"
         : tripType === "hospital"
         ? "emergency_ems"
+        : tripType === "ift"
+        ? "ift_general"
+        : tripType === "wound_care"
+        ? "ift_wound_care"
+        : tripType === "psych_transport"
+        ? "behavioral_health"
+        : tripType === "outpatient"
+        ? "outpatient_specialty"
         : "other";
 
       const baseRevenue = payer === "Medicare" ? rand(180, 350) : payer === "Medicaid" ? rand(120, 250) : rand(200, 400);
@@ -923,7 +943,17 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         documentation_complete: hasPcs && hasSig && hasTimes,
         claim_ready: isCompleted && hasPcs && hasSig && hasTimes && hasAuth,
         origin_type: "Home",
-        destination_type: tripType === "dialysis" ? "Dialysis Center" : "Hospital Outpatient",
+        destination_type: tripType === "dialysis"
+          ? "Dialysis Center"
+          : tripType === "wound_care"
+          ? "Wound Care Clinic"
+          : tripType === "psych_transport"
+          ? "Behavioral Health Facility"
+          : tripType === "discharge"
+          ? "Skilled Nursing Facility"
+          : tripType === "ift"
+          ? "Hospital"
+          : "Hospital Outpatient",
         service_level: "BLS",
         necessity_notes: hasPcs ? "Patient requires stretcher transport due to medical necessity" : null,
         pcr_type: pcrType,
@@ -1571,7 +1601,7 @@ async function runChecks(admin: any, companyId: string) {
     if (overriddenTripIdSet.has(t.id)) continue;
     const pcrType = t.pcr_type || "other";
     // PCR-type-specific required fields
-    if (pcrType === "nemt_dialysis" || pcrType === "ift_discharge") {
+    if (pcrType === "nemt_dialysis" || pcrType === "ift_discharge" || pcrType === "ift_general" || pcrType === "ift_wound_care") {
       if (!t.pcs_attached || !t.signature_obtained) falseReadyCount++;
     } else if (pcrType === "emergency_ems") {
       if (!t.signature_obtained) falseReadyCount++;
@@ -1650,7 +1680,7 @@ async function runChecks(admin: any, companyId: string) {
   let pcrMissing = 0;
   for (const t of allTrips) {
     if (t.status === "completed" && t.pcr_type) {
-      if (t.pcr_type === "nemt_dialysis" || t.pcr_type === "ift_discharge") {
+      if (t.pcr_type === "nemt_dialysis" || t.pcr_type === "ift_discharge" || t.pcr_type === "ift_general" || t.pcr_type === "ift_wound_care") {
         if (!t.pcs_attached) pcrMissing++;
       }
     }
