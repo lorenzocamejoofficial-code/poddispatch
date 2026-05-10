@@ -74,10 +74,17 @@ Deno.serve(async (req) => {
     await admin.from("user_roles").delete().eq("user_id", target_user_id);
 
     if (target_email) {
-      await admin.from("company_invites")
-        .delete()
+      // Token-only invites are linked to a profile row that holds email + company.
+      const { data: pendingProfiles } = await admin
+        .from("profiles")
+        .select("id")
         .eq("company_id", company_id)
-        .eq("email", target_email.trim().toLowerCase());
+        .ilike("email", target_email.trim());
+      const ids = (pendingProfiles ?? []).map((p: any) => p.id);
+      if (ids.length > 0) {
+        // FK on company_invites.profile_id is ON DELETE CASCADE.
+        await admin.from("profiles").delete().in("id", ids);
+      }
     }
 
     // Finally delete auth user
