@@ -686,45 +686,56 @@ export default function Employees() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{e.cert_level}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          e.active ? "bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))]" : "bg-muted text-muted-foreground"
-                        }`}>
-                          {e.active ? "Active" : "Inactive"}
-                        </span>
+                        {(() => { const sb = statusBadge(e); return (
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${sb.cls}`}>{sb.label}</span>
+                        ); })()}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          {(userRole === "owner" || userRole === "creator") && e.email && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              title="Send password reset email"
-                              onClick={async (ev) => {
-                                ev.stopPropagation();
-                                const { error } = await supabase.auth.resetPasswordForEmail(e.email!);
-                                if (error) {
-                                  toast.error("Failed to send reset email");
-                                } else {
-                                  toast.success("Password reset email sent");
-                                }
-                              }}
-                            >
-                              <KeyRound className="h-3.5 w-3.5" />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Row actions">
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
-                          )}
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(e)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => setDeleteTarget(e)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            {/* Invite-related actions for non-active rows */}
+                            {(e.invitation_status === "invited" || e.invitation_status === "pending_invite") && isAdmin && (
+                              <>
+                                <DropdownMenuItem
+                                  disabled={sendingInviteFor === e.id}
+                                  onClick={() => sendInviteFor(e.id, e.email ?? undefined)}
+                                >
+                                  <Send className="mr-2 h-3.5 w-3.5" />
+                                  {e.invitation_status === "invited" ? "Resend invite" : "Send invite"}
+                                </DropdownMenuItem>
+                                {e.invite_token && (
+                                  <DropdownMenuItem onClick={() => copyInviteLink(e.invite_token!)}>
+                                    <Copy className="mr-2 h-3.5 w-3.5" />Copy invite link
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                            {/* Reset password — only for active accounts with an auth user */}
+                            {e.user_id && e.email && isAdmin && e.invitation_status === "active" && (
+                              <DropdownMenuItem onClick={() => handleResetPassword(e)}>
+                                <KeyRound className="mr-2 h-3.5 w-3.5" />Reset password
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => openEdit(e)}>
+                              <Pencil className="mr-2 h-3.5 w-3.5" />Edit
+                            </DropdownMenuItem>
+                            {e.role !== "Owner" && (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => setDeleteTarget(e)}
+                              >
+                                <Trash2 className="mr-2 h-3.5 w-3.5" />
+                                {e.invitation_status === "invited" || e.invitation_status === "pending_invite" ? "Revoke invite" : "Delete"}
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   );
@@ -745,103 +756,6 @@ export default function Employees() {
             />
           )}
         </div>
-
-        {/* ── Pending Invites Section ── */}
-        {(userRole === "owner" || userRole === "creator") && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <Mail className="h-4 w-4" /> Pending Invites
-              </h3>
-              <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm"><Mail className="mr-1.5 h-3.5 w-3.5" /> Invite User</Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
-                  <DialogHeader>
-                    <DialogTitle>Invite Team Member</DialogTitle>
-                    <DialogDescription>Send an invite link. They'll create their own account.</DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-3 py-2">
-                    <div>
-                      <Label>Email *</Label>
-                      <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="jane@example.com" />
-                    </div>
-                    <div>
-                      <Label>Role</Label>
-                      <Select value={inviteRole} onValueChange={setInviteRole}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="manager">Manager</SelectItem>
-                          <SelectItem value="dispatcher">Dispatcher</SelectItem>
-                          <SelectItem value="biller">Billing</SelectItem>
-                          <SelectItem value="crew">Crew</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button onClick={handleInvite} disabled={inviting}>
-                      {inviting ? "Creating..." : "Create Invite"}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-
-            {invites.filter(i => i.status === "pending").length > 0 ? (
-              <div className="rounded-lg border bg-card">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs font-medium uppercase text-muted-foreground">
-                      <th className="px-4 py-3">Email</th>
-                      <th className="px-4 py-3">Role</th>
-                      <th className="px-4 py-3">Sent</th>
-                      <th className="px-4 py-3 w-32"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invites.filter(i => i.status === "pending").map((inv) => (
-                      <tr key={inv.id} className="border-b last:border-0">
-                        <td className="px-4 py-3 font-medium">{inv.email}</td>
-                        <td className="px-4 py-3">
-                          <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold bg-secondary text-secondary-foreground capitalize">
-                            {inv.role === "biller" ? "Billing" : inv.role}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground text-xs">
-                          {new Date(inv.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              title="Copy invite link"
-                              onClick={() => copyInviteLink(inv.token)}
-                            >
-                              {copiedToken === inv.token ? <Check className="h-3.5 w-3.5 text-[hsl(var(--status-green))]" /> : <Copy className="h-3.5 w-3.5" />}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                              title="Revoke invite"
-                              onClick={() => revokeInvite(inv.id)}
-                            >
-                              <XCircle className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">No pending invites. Click "Invite User" to add team members.</p>
-            )}
-          </div>
-        )}
 
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
           <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
