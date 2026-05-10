@@ -636,7 +636,7 @@ export default function Employees() {
                             ? "bg-secondary text-secondary-foreground"
                             : "bg-accent text-accent-foreground"
                         }`}>
-                          {e.role === "Owner" || e.role === "owner" ? "Owner" : e.role === "dispatcher" ? "Dispatcher" : e.role === "biller" ? "Billing" : "Crew"}
+                          {e.role === "Owner" || e.role === "owner" ? "Owner" : e.role === "manager" ? "Manager" : e.role === "dispatcher" ? "Dispatcher" : e.role === "biller" ? "Billing" : "Crew"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{e.cert_level}</td>
