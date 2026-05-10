@@ -123,9 +123,9 @@ function normalizeSex(value: string | null | undefined): (typeof STRICT_SEX_TYPE
 
 function normalizeTransportType(value: string | null | undefined): (typeof VALID_TRANSPORT_TYPES)[number] {
   const raw = (value ?? "").trim().toLowerCase();
-  // Note: legacy coercions (hospital→adhoc, discharge→outpatient) removed —
-  // discharge/wound_care/ift/psych_transport are first-class transport types now.
-  if (raw === "hospital") return "adhoc"; // hospital is destination-typed, not a transport variation
+  // Legacy coercions removed (Item 15a): discharge, wound_care, ift, psych_transport
+  // are first-class transport_types. "hospital" is a destination type, not a transport
+  // variation, and falls through to the default below if encountered.
   if ((VALID_TRANSPORT_TYPES as readonly string[]).includes(raw)) return raw as (typeof VALID_TRANSPORT_TYPES)[number];
   return "outpatient";
 }
