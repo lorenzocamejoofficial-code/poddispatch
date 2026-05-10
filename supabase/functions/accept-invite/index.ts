@@ -45,35 +45,36 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Look up the invite
+    // Look up the invite + linked profile (token-only invite, person/company data on profile)
     const { data: invite, error: inviteErr } = await supabaseAdmin
       .from("company_invites")
-      .select("*")
+      .select("id, profile_id, profiles:profile_id(id, email, pending_role, company_id, invitation_status, full_name)")
       .eq("token", token)
-      .eq("status", "pending")
       .maybeSingle();
 
-    if (inviteErr || !invite) {
+    const invProfile = (invite as any)?.profiles;
+    if (inviteErr || !invite || !invProfile || invProfile.invitation_status !== "invited") {
       return new Response(JSON.stringify({ error: "Invalid or expired invite" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const companyId = invProfile.company_id;
+    const inviteRole = invProfile.pending_role || "dispatcher";
+    const inviteEmail = invProfile.email;
 
     // Check user doesn't already have a membership
     const { data: existing } = await supabaseAdmin
       .from("company_memberships")
       .select("id")
       .eq("user_id", userId)
-      .eq("company_id", invite.company_id)
+      .eq("company_id", companyId)
       .maybeSingle();
 
     if (existing) {
-      // Already a member, just mark invite accepted
-      await supabaseAdmin
-        .from("company_invites")
-        .update({ status: "accepted", accepted_by: userId, accepted_at: new Date().toISOString() })
-        .eq("id", invite.id);
+      // Already a member: clean up token and pending profile placeholder.
+      await supabaseAdmin.from("company_invites").delete().eq("id", invite.id);
+      await supabaseAdmin.from("profiles").delete().eq("id", invProfile.id);
 
       return new Response(JSON.stringify({ ok: true, message: "Already a member" }), {
         status: 200,
@@ -85,9 +86,9 @@ Deno.serve(async (req) => {
     const { error: membershipErr } = await supabaseAdmin
       .from("company_memberships")
       .insert({
-        company_id: invite.company_id,
+        company_id: companyId,
         user_id: userId,
-        role: invite.role,
+        role: inviteRole,
       });
 
     if (membershipErr) {
@@ -98,28 +99,37 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create profile if it doesn't exist
-    const { data: existingProfile } = await supabaseAdmin
+    // Promote the placeholder profile in-place: attach user_id and flip to active.
+    const { data: existingForUser } = await supabaseAdmin
       .from("profiles")
       .select("id")
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (!existingProfile) {
-      await supabaseAdmin.from("profiles").insert({
-        user_id: userId,
-        full_name: fullName || invite.email.split("@")[0],
-        company_id: invite.company_id,
-      });
+    if (existingForUser) {
+      // User already has a profile (rare): keep theirs, drop the placeholder.
+      await supabaseAdmin
+        .from("profiles")
+        .update({ company_id: companyId, invitation_status: "active", active: true })
+        .eq("user_id", userId);
+      await supabaseAdmin.from("profiles").delete().eq("id", invProfile.id);
+    } else {
+      await supabaseAdmin
+        .from("profiles")
+        .update({
+          user_id: userId,
+          full_name: fullName || invProfile.full_name || (inviteEmail ? inviteEmail.split("@")[0] : "User"),
+          invitation_status: "active",
+          pending_role: null,
+          active: true,
+        })
+        .eq("id", invProfile.id);
     }
 
-    // Mark invite as accepted
-    await supabaseAdmin
-      .from("company_invites")
-      .update({ status: "accepted", accepted_by: userId, accepted_at: new Date().toISOString() })
-      .eq("id", invite.id);
+    // Token-only invite row is consumed.
+    await supabaseAdmin.from("company_invites").delete().eq("id", invite.id);
 
-    console.log(`User ${userId} accepted invite to company ${invite.company_id} as ${invite.role}`);
+    console.log(`User ${userId} accepted invite to company ${companyId} as ${inviteRole}`);
 
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
