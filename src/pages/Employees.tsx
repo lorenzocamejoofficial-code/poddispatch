@@ -10,35 +10,35 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Pencil, Trash2, Mail, Copy, Check, XCircle, KeyRound } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Mail, Copy, KeyRound, MoreHorizontal, Send } from "lucide-react";
 import { toast } from "sonner";
 import { TablePagination } from "@/components/ui/table-pagination";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Employee {
   id: string;
   full_name: string;
   sex: string;
   cert_level: string;
-  user_id: string;
+  user_id: string | null;
   phone_number: string | null;
   email: string | null;
   active: boolean;
   role?: string;
   employment_type?: string;
-  
+  invitation_status?: "active" | "invited" | "pending_invite" | "deactivated";
+  pending_role?: string | null;
+  invite_token?: string | null;
   stair_chair_trained?: boolean;
   bariatric_trained?: boolean;
   oxygen_handling_trained?: boolean;
   lift_assist_ok?: boolean;
-}
-
-interface Invite {
-  id: string;
-  email: string;
-  role: string;
-  token: string;
-  status: string;
-  created_at: string;
 }
 
 export default function Employees() {
@@ -51,6 +51,9 @@ export default function Employees() {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  // Combined Add flow: 'invite' (recommended) or 'credentials' (legacy direct create).
+  const [addMode, setAddMode] = useState<"invite" | "credentials">("invite");
+  const [sendingInviteFor, setSendingInviteFor] = useState<string | null>(null);
 
   // Selection state
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -62,14 +65,6 @@ export default function Employees() {
   // Bulk-delete state
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
-
-  // Invite state
-  const [invites, setInvites] = useState<Invite[]>([]);
-  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<string>("dispatcher");
-  const [inviting, setInviting] = useState(false);
-  const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
@@ -114,7 +109,7 @@ export default function Employees() {
     if (!activeCompanyId) return;
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("*")
+      .select("*, company_invites(token)")
       .eq("company_id", activeCompanyId)
       .order("full_name");
     const { data: memberships } = await supabase
@@ -125,8 +120,12 @@ export default function Employees() {
     // Fetch emails from auth via edge function or profiles
     // We'll use the user_id to look up emails from auth metadata stored in profiles
     const empList: Employee[] = (profiles ?? []).map((p: any) => {
-      const membership = memberships?.find((m) => m.user_id === p.user_id);
-      const roleLabel = membership?.role === "owner" ? "Owner" : membership?.role ?? "crew";
+      const membership = p.user_id ? memberships?.find((m) => m.user_id === p.user_id) : null;
+      // For invited / pending rows there's no membership yet — fall back to pending_role.
+      const roleLabel = membership?.role === "owner"
+        ? "Owner"
+        : membership?.role ?? p.pending_role ?? "crew";
+      const inv = Array.isArray(p.company_invites) ? p.company_invites[0] : p.company_invites;
       return {
         id: p.id,
         full_name: p.full_name,
@@ -138,7 +137,9 @@ export default function Employees() {
         active: p.active ?? true,
         role: roleLabel,
         employment_type: p.employment_type ?? "full_time",
-        
+        invitation_status: p.invitation_status ?? "active",
+        pending_role: p.pending_role ?? null,
+        invite_token: inv?.token ?? null,
         stair_chair_trained: p.stair_chair_trained ?? false,
         bariatric_trained: p.bariatric_trained ?? false,
         oxygen_handling_trained: p.oxygen_handling_trained ?? false,
@@ -155,47 +156,21 @@ export default function Employees() {
       const { data, error } = await supabase.functions.invoke("list-company-emails");
       if (error || !data?.emails) return;
       const map = data.emails as Record<string, string | null>;
-      setEmployees((prev) => prev.map((e) => ({ ...e, email: map[e.user_id] ?? e.email })));
+      setEmployees((prev) => prev.map((e) => ({ ...e, email: (e.user_id && map[e.user_id]) ?? e.email })));
     } catch {
       // non-fatal
     }
-  };
-
-
-  const fetchInvites = async () => {
-    if (!activeCompanyId) return;
-    // Invites now live as profiles rows with invitation_status='invited',
-    // joined to a token-only company_invites row via profile_id.
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, email, pending_role, company_id, invitation_status, company_invites(id, token, created_at)")
-      .eq("company_id", activeCompanyId)
-      .eq("invitation_status", "invited")
-      .order("created_at", { ascending: false });
-    const mapped: Invite[] = ((data as any[]) ?? []).flatMap((p) => {
-      const inv = Array.isArray(p.company_invites) ? p.company_invites[0] : p.company_invites;
-      if (!inv) return [];
-      return [{
-        id: inv.id,
-        email: p.email ?? "",
-        role: p.pending_role ?? "dispatcher",
-        token: inv.token,
-        status: "pending",
-        created_at: inv.created_at,
-      }];
-    });
-    setInvites(mapped);
   };
 
   useEffect(() => {
     if (!activeCompanyId) return;
     ensureOwnerProfile().then(() => {
       fetchEmployees().then(() => fetchEmployeeEmails());
-      fetchInvites();
     });
   }, [activeCompanyId]);
 
   const handleCreate = async () => {
+    if (addMode === "invite") return handleInvite();
     if (!form.full_name.trim() || !form.email.trim() || !form.password.trim()) {
       toast.error("Please fill in all required fields");
       return;
@@ -248,66 +223,81 @@ export default function Employees() {
     setCreating(false);
   };
 
-  // ── Invite handler ──
+  // ── Invite handler — creates a pending_invite profile row, then sends ──
   const handleInvite = async () => {
-    if (!inviteEmail.trim() || !activeCompanyId) {
+    if (!form.email.trim() || !activeCompanyId) {
       toast.error("Email is required");
       return;
     }
-    setInviting(true);
-    const userId = (await supabase.auth.getUser()).data.user?.id;
-    const emailLower = inviteEmail.trim().toLowerCase();
-    // 1. Create the placeholder profile row in 'invited' state.
+    setCreating(true);
+    const emailLower = form.email.trim().toLowerCase();
+    // Create the placeholder profile row in 'invited' state. The send-employee-invite
+    // edge function will issue the token + email below.
     const { data: profileRow, error: profileErr } = await supabase
       .from("profiles")
       .insert({
         company_id: activeCompanyId,
         email: emailLower,
-        full_name: emailLower.split("@")[0],
+        full_name: form.full_name.trim() || emailLower.split("@")[0],
         invitation_status: "invited",
-        pending_role: inviteRole as any,
+        pending_role: form.role as any,
         active: true,
       } as any)
       .select("id")
       .single();
-    const error = profileErr
-      ? profileErr
-      : (await supabase.from("company_invites").insert({
-          profile_id: profileRow!.id,
-          created_by_user_id: userId,
-        } as any)).error;
-    if (error) {
-      toast.error(error.message.includes("duplicate") ? "This email already has a pending invite" : "Failed to create invite");
-    } else {
-      toast.success(`Invite created for ${inviteEmail}`);
-      setInviteEmail("");
-      setInviteDialogOpen(false);
-      fetchInvites();
+    if (profileErr || !profileRow) {
+      toast.error(profileErr?.message?.includes("duplicate") ? "This email already has a pending invite" : "Failed to create invite");
+      setCreating(false);
+      return;
     }
-    setInviting(false);
+    await sendInviteFor(profileRow.id, emailLower);
+    setDialogOpen(false);
+    setForm({ full_name: "", email: "", password: "", role: "crew", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
+    await fetchEmployees();
+    setCreating(false);
   };
 
-  const copyInviteLink = (token: string) => {
+  // Issues a token (or rotates) and emails the invite link via edge function.
+  // Always shows a copy-link toast as a fallback in case email delivery fails.
+  const sendInviteFor = async (profileId: string, emailForToast?: string) => {
+    setSendingInviteFor(profileId);
+    const { data, error } = await supabase.functions.invoke("send-employee-invite", {
+      body: { profile_id: profileId },
+    });
+    setSendingInviteFor(null);
+    const link = (data as any)?.action_link as string | undefined;
+    if (error || (data as any)?.error || !link) {
+      toast.error((data as any)?.error || error?.message || "Failed to send invite");
+      return;
+    }
+    if (link) {
+      try { await navigator.clipboard.writeText(link); } catch { /* ignore */ }
+    }
+    const delivered = (data as any)?.email_delivered;
+    toast.success(
+      delivered
+        ? `Invite sent to ${emailForToast ?? (data as any)?.email}. Link copied to clipboard.`
+        : `Invite link copied to clipboard (email delivery failed — share the link directly).`,
+    );
+    fetchEmployees();
+  };
+
+  const copyInviteLink = async (token: string) => {
     const link = `${window.location.origin}/invite?token=${token}`;
-    navigator.clipboard.writeText(link);
-    setCopiedToken(token);
-    toast.success("Invite link copied!");
-    setTimeout(() => setCopiedToken(null), 2000);
+    try { await navigator.clipboard.writeText(link); toast.success("Invite link copied"); }
+    catch { toast.error("Could not copy link"); }
   };
 
-  const revokeInvite = async (id: string) => {
-    // Look up the invite to find its profile, then delete both.
-    const { data: inv } = await supabase
-      .from("company_invites")
-      .select("profile_id")
-      .eq("id", id)
-      .maybeSingle();
-    await supabase.from("company_invites").delete().eq("id", id);
-    if (inv?.profile_id) {
-      await supabase.from("profiles").delete().eq("id", inv.profile_id);
+  const handleResetPassword = async (emp: Employee) => {
+    if (!emp.user_id) return;
+    const { data, error } = await supabase.functions.invoke("admin-trigger-password-reset", {
+      body: { user_id: emp.user_id },
+    });
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || error?.message || "Failed to send reset email");
+      return;
     }
-    toast.success("Invite revoked");
-    fetchInvites();
+    toast.success((data as any)?.email_delivered ? "Password reset email sent" : "Reset link generated (email delivery failed)");
   };
 
   const openEdit = (emp: Employee) => {
@@ -353,6 +343,30 @@ export default function Employees() {
     const emailChanged = trimmedEmail && trimmedEmail !== (editingEmployee.email ?? "").toLowerCase();
     if (emailChanged && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       toast.error("Please enter a valid email address");
+      return;
+    }
+    // Pending/invited rows have no auth user yet — update profile directly.
+    if (!editingEmployee.user_id) {
+      setSaving(true);
+      const { error } = await supabase.from("profiles").update({
+        full_name: editForm.full_name.trim(),
+        phone_number: editForm.phone_number.trim() || null,
+        sex: editForm.sex,
+        cert_level: editForm.cert_level,
+        employment_type: editForm.employment_type,
+        active: editForm.active,
+        pending_role: editForm.role as any,
+        ...(emailChanged ? { email: trimmedEmail } : {}),
+        stair_chair_trained: editForm.stair_chair_trained,
+        bariatric_trained: editForm.bariatric_trained,
+        oxygen_handling_trained: editForm.oxygen_handling_trained,
+        lift_assist_ok: editForm.lift_assist_ok,
+      } as any).eq("id", editingEmployee.id);
+      if (error) { toast.error("Failed to update invite"); setSaving(false); return; }
+      toast.success(`${editForm.full_name} updated`);
+      setEditDialogOpen(false);
+      await fetchEmployees();
+      setSaving(false);
       return;
     }
     // Active toggle still goes direct (edge function doesn't cover it)
@@ -468,6 +482,14 @@ export default function Employees() {
     });
   };
 
+  const isAdmin = userRole === "owner" || userRole === "creator" || userRole === "manager";
+  const statusBadge = (e: Employee) => {
+    if (e.invitation_status === "invited") return { label: "Invited", cls: "bg-[hsl(var(--status-amber-bg))] text-[hsl(var(--status-amber))]" };
+    if (e.invitation_status === "pending_invite") return { label: "Pending", cls: "bg-muted text-muted-foreground" };
+    return e.active
+      ? { label: "Active", cls: "bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))]" }
+      : { label: "Inactive", cls: "bg-muted text-muted-foreground" };
+  };
   return (
     <AdminLayout>
       <div className="space-y-4">
