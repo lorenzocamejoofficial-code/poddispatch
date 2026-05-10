@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadUserData = async (userId: string) => {
     // Single query: memberships JOIN companies (for switcher labels).
-    // Filter out soft-deleted memberships.
+    // Filter out memberships whose company has been soft-deleted.
     const [
       { data: membershipRows },
       { data: profileData },
@@ -138,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ] = await Promise.all([
       supabase
         .from("company_memberships")
-        .select("company_id, role, deleted_at, companies:company_id(id, name)")
+        .select("company_id, role, companies:company_id(id, name, deleted_at)")
         .eq("user_id", userId),
       supabase
         .from("profiles")
@@ -152,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsSystemCreator(!!scData);
 
     const liveMemberships: MembershipSummary[] = (membershipRows ?? [])
-      .filter((m: any) => !m.deleted_at && m.companies)
+      .filter((m: any) => m.companies && !m.companies.deleted_at)
       .map((m: any) => ({
         company_id: m.company_id,
         company_name: m.companies?.name ?? "Unnamed company",
