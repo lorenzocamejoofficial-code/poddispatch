@@ -62,6 +62,7 @@ const SCENARIOS = [
   { key: "dispatch_overload", label: "Dispatch Overload", desc: "4 trucks, 45 patients — cascade failure", group: "cascade" },
   { key: "crew_mismatch", label: "Crew Mismatch Day", desc: "Heavy patients + undertrained crews", group: "cascade" },
   { key: "revenue_leak", label: "Revenue Leak Day", desc: "PCR failures + billing cascade", group: "cascade" },
+  { key: "varied_mix", label: "Varied Transport Mix (OA companion)", desc: "All 5 transport variations: dialysis, IFT, discharge, wound care, psych", group: "oa_validation" },
 ];
 
 const EVENTS = [
@@ -248,6 +249,7 @@ export default function SimulationLab() {
 
   const standardScenarios = SCENARIOS.filter(s => s.group === "standard");
   const cascadeScenarios = SCENARIOS.filter(s => s.group === "cascade");
+  const oaValidationScenarios = SCENARIOS.filter(s => s.group === "oa_validation");
 
   return (
     <CreatorLayout title="Simulation Lab">
@@ -329,6 +331,18 @@ export default function SimulationLab() {
                 ))}
               </div>
             </div>
+
+            {/* OA Validation Scenarios */}
+            {oaValidationScenarios.length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-primary mb-2">OA Validation</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {oaValidationScenarios.map(s => (
+                    <ScenarioButton key={s.key} scenario={s} loading={loading} onSeed={seedScenario} />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {seedResult && seedResult.ok && (
               <div className="rounded-md bg-primary/5 border border-primary/20 p-3 text-xs text-foreground">
