@@ -11,7 +11,7 @@ import { toast } from "sonner";
 export default function CreateCompany() {
   const { user, activeCompanyId } = useAuth();
   const navigate = useNavigate();
-  const [companyName, setCompanyName] = useState("");
+  const [dispatchName, setDispatchName] = useState("");
   const [fullName, setFullName] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -22,8 +22,8 @@ export default function CreateCompany() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyName.trim()) {
-      toast.error("Company name is required");
+    if (!dispatchName.trim()) {
+      toast.error("Dispatch name is required");
       return;
     }
     if (!user) return;
@@ -32,18 +32,18 @@ export default function CreateCompany() {
 
     const { data, error } = await supabase.functions.invoke("create-company", {
       body: {
-        companyName: companyName.trim(),
+        companyName: dispatchName.trim(),
         fullName: fullName.trim() || undefined,
       },
     });
 
     if (error || data?.error) {
-      toast.error(data?.error || error?.message || "Failed to create company");
+      toast.error(data?.error || error?.message || "Failed to create dispatch");
       setCreating(false);
       return;
     }
 
-    toast.success("Company created! Your account is pending approval.");
+    toast.success("Dispatch created! Your account is pending approval.");
     // Full reload to pick up new membership data — will route to /pending-approval
     setTimeout(() => { window.location.href = "/pending-approval"; }, 500);
   };
@@ -55,9 +55,9 @@ export default function CreateCompany() {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-primary">
             <Truck className="h-7 w-7 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold">Create Your Company</h1>
+          <h1 className="text-2xl font-bold">Create Your Dispatch</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Set up your dispatch company to get started.
+            Set up your dispatch workspace to get started.
           </p>
         </div>
 
@@ -71,16 +71,16 @@ export default function CreateCompany() {
             />
           </div>
           <div className="space-y-2">
-            <Label>Company Name *</Label>
+            <Label>Dispatch Name *</Label>
             <Input
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
+              value={dispatchName}
+              onChange={(e) => setDispatchName(e.target.value)}
               placeholder="Acme Medical Transport"
               autoFocus
             />
           </div>
           <Button type="submit" className="w-full" disabled={creating}>
-            {creating ? "Creating..." : "Create Company"}
+            {creating ? "Creating..." : "Create Dispatch"}
           </Button>
           <p className="text-center text-xs text-muted-foreground">
             You'll be the owner and can invite team members afterward.
