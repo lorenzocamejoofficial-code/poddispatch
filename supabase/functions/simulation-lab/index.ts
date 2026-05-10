@@ -363,7 +363,7 @@ interface ScenarioConfig {
   name: string;
   truckCount: number;
   patientCount: number;
-  tripMix: { dialysis: number; discharge: number; outpatient: number; hospital: number };
+  tripMix: Partial<Record<"dialysis" | "discharge" | "outpatient" | "hospital" | "ift" | "wound_care" | "psych_transport", number>>;
   payerMix: { Medicare: number; Medicaid: number; "Facility Contract": number; "Private Pay": number };
   missingPcs: number;
   missingAuth: number;
@@ -461,6 +461,14 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
       lateDischargeAdds: 3,
     },
   },
+  varied_mix: {
+    name: "Varied Transport Mix (OA companion)",
+    truckCount: 4, patientCount: 35,
+    tripMix: { dialysis: 10, ift: 6, discharge: 5, wound_care: 4, psych_transport: 3, outpatient: 2 },
+    payerMix: { Medicare: 12, Medicaid: 10, "Facility Contract": 5, "Private Pay": 3 },
+    missingPcs: 3, missingAuth: 2, missingSignature: 2, missingTimestamps: 1,
+    facilityDelayCount: 1, authExpiring: 2,
+  },
 };
 
 async function seedScenario(admin: any, companyId: string, userId: string, scenarioKey: string, seedSize: string = "small") {
@@ -482,12 +490,12 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
   };
 
   const patientRatio = config.patientCount / baseConfig.patientCount;
-  config.tripMix = {
-    dialysis: Math.max(1, Math.round(baseConfig.tripMix.dialysis * patientRatio)),
-    discharge: Math.max(0, Math.round(baseConfig.tripMix.discharge * patientRatio)),
-    outpatient: Math.max(0, Math.round(baseConfig.tripMix.outpatient * patientRatio)),
-    hospital: Math.max(0, Math.round(baseConfig.tripMix.hospital * patientRatio)),
-  };
+  config.tripMix = Object.fromEntries(
+    Object.entries(baseConfig.tripMix).map(([type, count], idx) => [
+      type,
+      Math.max(idx === 0 ? 1 : 0, Math.round((count ?? 0) * patientRatio)),
+    ]),
+  ) as ScenarioConfig["tripMix"];
   config.missingPcs = Math.round(baseConfig.missingPcs * patientRatio);
   config.missingAuth = Math.round(baseConfig.missingAuth * patientRatio);
   config.missingSignature = Math.round(baseConfig.missingSignature * patientRatio);
