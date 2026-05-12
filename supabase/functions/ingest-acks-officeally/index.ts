@@ -283,7 +283,23 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const { data: claim } = await supabase.from("claim_records").select("id, company_id").eq("patient_control_number", pcn).limit(1).maybeSingle();
+        // Reverse-match: PCN format is YYMMDD-XXXXXXXX (run_date + first 8 chars of UUID hex)
+        const parts = parsePCN(pcn);
+        let claim: { id: string; company_id: string | null } | null = null;
+        if (parts) {
+          const { data: rows } = await supabase
+            .from("claim_records")
+            .select("id, company_id")
+            .eq("run_date", parts.runDate)
+            .ilike("id", `${parts.idPrefix}%`)
+            .limit(1);
+          if (rows && rows.length) claim = rows[0] as any;
+        }
+        // Fallback: try payer_claim_control_number if 277CA echoed it as PCN
+        if (!claim && c.payer_claim_control_number) {
+          const { data: byPayer } = await supabase.from("claim_records").select("id, company_id").eq("payer_claim_control_number", c.payer_claim_control_number).limit(1);
+          if (byPayer && byPayer.length) claim = byPayer[0] as any;
+        }
         if (!claim) {
           unmatched++;
           await supabase.from("remittance_quarantine").insert({
