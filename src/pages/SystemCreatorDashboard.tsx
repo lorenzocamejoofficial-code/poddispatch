@@ -4,9 +4,10 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import {
   Building2, Users, TrendingUp, AlertTriangle, Activity,
-  Truck, Code2, BarChart3,
+  Truck, Code2, BarChart3, FlaskConical, LogIn,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,8 +28,10 @@ interface SystemMetrics {
 }
 
 export default function SystemCreatorDashboard() {
-  const { isSystemCreator } = useAuth();
+  const { isSystemCreator, switchCompany } = useAuth();
   const navigate = useNavigate();
+  const LORENZO_TEST_COMPANY_ID = "f53311c3-a40e-4b2b-b4c2-5aec852f7789";
+  const [enteringTenant, setEnteringTenant] = useState(false);
 
   const [metrics, setMetrics] = useState<SystemMetrics>({
     totalCompanies: 0, totalUsers: 0, totalTrucks: 0, totalTrips: 0,
@@ -88,10 +91,30 @@ export default function SystemCreatorDashboard() {
 
         <TabsContent value="overview">
           {/* Dev Mode toggle in content area */}
-          <div className="flex items-center gap-2 mb-4">
-            <Code2 className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Dev Mode</span>
-            <Switch checked={devMode} onCheckedChange={setDevMode} />
+          <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Code2 className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Dev Mode</span>
+              <Switch checked={devMode} onCheckedChange={setDevMode} />
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 text-xs"
+              disabled={enteringTenant}
+              onClick={async () => {
+                setEnteringTenant(true);
+                const { error } = await switchCompany(LORENZO_TEST_COMPANY_ID);
+                if (error) {
+                  console.error("Enter Test Tenant failed:", error);
+                  setEnteringTenant(false);
+                }
+              }}
+            >
+              <FlaskConical className="h-3.5 w-3.5" />
+              <LogIn className="h-3.5 w-3.5" />
+              {enteringTenant ? "Entering…" : "Enter Test Tenant"}
+            </Button>
           </div>
 
           {/* How this works */}
