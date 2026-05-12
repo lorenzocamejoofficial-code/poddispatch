@@ -307,36 +307,22 @@ async function insertRowsResilient(params: {
   return { insertedRows, insertedCount, skippedCount };
 }
 
-async function ensureSandboxCompany(admin: any, userId: string) {
-  const { data: existing } = await admin
+// The simulation lab seeds into a single, fixed creator-owned test tenant
+// ("Lorenzo Test Company"). Spawning new sandbox companies on each run was
+// retired in 15a.1 — it produced 22 stale rows and made the lab look like a
+// normal customer tenant in admin views.
+const LORENZO_TEST_COMPANY_ID = "f53311c3-a40e-4b2b-b4c2-5aec852f7789";
+
+async function getTestTenantId(admin: any): Promise<string> {
+  const { data, error } = await admin
     .from("companies")
     .select("id")
-    .eq("is_sandbox", true)
+    .eq("id", LORENZO_TEST_COMPANY_ID)
+    .eq("creator_test_tenant", true)
     .maybeSingle();
-
-  if (existing) return existing.id;
-
-  const { data: created, error } = await admin
-    .from("companies")
-    .insert({
-      name: "Simulation Sandbox Co",
-      is_sandbox: true,
-      onboarding_status: "active",
-      owner_user_id: userId,
-      owner_email: "sandbox@poddispatch.sim",
-    })
-    .select("id")
-    .single();
-
-  if (error) throw new Error(`Failed to create sandbox company: ${error.message}`);
-
-  await admin.from("company_memberships").insert({
-    company_id: created.id,
-    user_id: userId,
-    role: "creator",
-  });
-
-  return created.id;
+  if (error) throw new Error(`Failed to resolve test tenant: ${error.message}`);
+  if (!data) throw new Error("Creator test tenant is not configured (creator_test_tenant flag missing)");
+  return data.id;
 }
 
 // ── Crew speed/doc reliability profiles ──
@@ -1973,7 +1959,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
-    const companyId = await ensureSandboxCompany(admin, callerUser.user.id);
+    const companyId = await getTestTenantId(admin);
 
     let result: any;
 
