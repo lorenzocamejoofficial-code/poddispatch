@@ -26,6 +26,13 @@ const LORENZO_TEST_COMPANY_ID = "f53311c3-a40e-4b2b-b4c2-5aec852f7789";
 type CheckResult = { name: string; category: string; pass: boolean; reason: string };
 type VerifyResult = { name: string; pass: boolean; detail: string; table?: string };
 type SandboxStatus = { companyId: string; trucks: number; patients: number; trips: number; crews: number; recentRuns: any[] };
+type Precond = {
+  trucks: number;
+  crews: number;
+  facilities: number;
+  templatePatients: number;
+  crewsAssignedToday: number;
+};
 type SeedDiagnostics = {
   ok: boolean;
   step?: string;
@@ -87,6 +94,7 @@ export default function SimulationLab() {
   const [loading, setLoading] = useState<string | null>(null);
   const { setSimulationRunId, setSandboxCompanyId, triggerSimulationRefresh } = useSimulationSession();
   const [status, setStatus] = useState<SandboxStatus | null>(null);
+  const [precond, setPrecond] = useState<Precond | null>(null);
   const [checks, setChecks] = useState<CheckResult[] | null>(null);
   const [snapshotName, setSnapshotName] = useState("");
   const [snapshots, setSnapshots] = useState<any[]>([]);
@@ -125,6 +133,25 @@ export default function SimulationLab() {
     }
     setLoading(null);
   }, [callLabChecked, toast]);
+
+  const loadPrecond = useCallback(async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const cid = LORENZO_TEST_COMPANY_ID;
+    const [trucks, crews, facilities, templates, slots] = await Promise.all([
+      supabase.from("trucks").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("is_active", true),
+      supabase.from("crews").select("id", { count: "exact", head: true }).eq("company_id", cid),
+      supabase.from("facilities").select("id", { count: "exact", head: true }).eq("company_id", cid),
+      supabase.from("patients").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("is_template", true),
+      supabase.from("truck_run_slots").select("crew_id").eq("company_id", cid).eq("run_date", today).not("crew_id", "is", null),
+    ]);
+    setPrecond({
+      trucks: trucks.count ?? 0,
+      crews: crews.count ?? 0,
+      facilities: facilities.count ?? 0,
+      templatePatients: templates.count ?? 0,
+      crewsAssignedToday: new Set((slots.data ?? []).map((s: any) => s.crew_id)).size,
+    });
+  }, []);
 
   const seedScenario = async (scenario: string) => {
     setLoading(`seed_${scenario}`);
@@ -246,7 +273,7 @@ export default function SimulationLab() {
     } catch { /* ignore */ }
   };
 
-  useEffect(() => { loadStatus(); loadSnapshots(); }, []);
+  useEffect(() => { loadStatus(); loadSnapshots(); loadPrecond(); }, []);
 
   const dispatchChecks = checks?.filter(c => c.category === "dispatch") ?? [];
   const billingChecks = checks?.filter(c => c.category === "billing") ?? [];
@@ -289,6 +316,52 @@ export default function SimulationLab() {
             this single company (id <code className="text-[10px]">{LORENZO_TEST_COMPANY_ID}</code>).
           </span>
         </div>
+
+        {/* Precondition Card — seeder now uses real setup data */}
+        {precond && (() => {
+          const items = [
+            { label: "Active trucks", value: precond.trucks, ok: precond.trucks >= 1, hint: "Add trucks in Trucks page" },
+            { label: "Crews", value: precond.crews, ok: precond.crews >= 1, hint: "Add crews in Employees page" },
+            { label: "Crews assigned today", value: precond.crewsAssignedToday, ok: precond.crewsAssignedToday >= 1, hint: "Assign a crew to a truck for today in Scheduling" },
+            { label: "Facilities", value: precond.facilities, ok: precond.facilities >= 1, hint: "Add facilities in Facilities page" },
+            { label: "Patient templates", value: precond.templatePatients, ok: precond.templatePatients >= 1, hint: "Mark patients as templates in Patients → Templates tab" },
+          ];
+          const allOk = items.every(i => i.ok);
+          return (
+            <Card className={allOk ? "border-emerald-500/30" : "border-amber-500/40 bg-amber-500/5"}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  {allOk ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <AlertTriangle className="h-4 w-4 text-amber-500" />}
+                  Seeder preconditions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-[11px] text-muted-foreground">
+                  The seeder now drives the <strong>real production pipeline</strong> — it clones template patients,
+                  inserts scheduling legs onto your real trucks/crews, and flips PCRs to <code>submitted</code> so the
+                  claim trigger fires. You must seed the test tenant with real setup data first.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {items.map(i => (
+                    <div key={i.label} className="flex items-center gap-2 text-xs">
+                      {i.ok
+                        ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                        : <XCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+                      <span className="font-medium">{i.label}:</span>
+                      <span className={i.ok ? "text-foreground" : "text-amber-700 dark:text-amber-400"}>{i.value}</span>
+                      {!i.ok && <span className="text-[10px] text-muted-foreground ml-1">— {i.hint}</span>}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-end pt-1">
+                  <Button size="sm" variant="ghost" className="h-6 text-[11px]" onClick={loadPrecond}>
+                    Refresh
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Sandbox Status */}
         {status && (
