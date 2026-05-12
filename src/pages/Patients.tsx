@@ -1390,6 +1390,12 @@ export default function Patients() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-card-foreground">{p.first_name} {p.last_name}</span>
+                          {(p as any).is_template && (
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/40 text-primary gap-1">
+                              <FlaskConical className="h-2.5 w-2.5" />
+                              Template
+                            </Badge>
+                          )}
                           {isHeavy && (
                             <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--status-yellow-bg))] px-2 py-0.5 text-[10px] font-semibold text-[hsl(var(--status-yellow))]" title="Electric stretcher required">
                               <Zap className="h-3 w-3" /> &gt;200
@@ -1471,6 +1477,16 @@ export default function Patients() {
                           })()}
                           <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
                             <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => toggleTemplate(p)}
+                            title={(p as any).is_template ? "Unmark as simulation template" : "Mark as simulation template"}
+                          >
+                            {(p as any).is_template
+                              ? <BookmarkCheck className="h-3.5 w-3.5 text-primary" />
+                              : <Bookmark className="h-3.5 w-3.5" />}
                           </Button>
                           <Button
                             variant="ghost"
