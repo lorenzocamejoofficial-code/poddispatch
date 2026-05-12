@@ -637,6 +637,39 @@ export default function Patients() {
   return (
     <AdminLayout>
       <div className="space-y-4">
+        {/* Templates view tabs */}
+        <div className="flex items-center gap-1 border-b">
+          <button
+            type="button"
+            onClick={() => setTemplatesView(false)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${!templatesView ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            All Patients
+          </button>
+          <button
+            type="button"
+            onClick={() => setTemplatesView(true)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-1.5 transition-colors ${templatesView ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            <FlaskConical className="h-3.5 w-3.5" />
+            Simulation Templates
+            <Badge variant="outline" className="text-[10px] ml-1">
+              {patients.filter(p => (p as any).is_template).length}
+            </Badge>
+          </button>
+        </div>
+
+        {templatesView && (
+          <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-foreground">
+            <strong>Simulation Templates</strong> — patients flagged here are
+            cloned by the Simulation Lab seeder to generate realistic test
+            trips. Templates are <strong>never deleted</strong> by sandbox
+            resets and are <strong>never used as real patients</strong> in
+            production claims. Aim for 5–15 templates covering your common
+            transport mix.
+          </div>
+        )}
+
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3 flex-1">
