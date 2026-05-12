@@ -581,6 +581,7 @@ export default function Patients() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   useEffect(() => { setPage(1); }, [search, statusFilter, pageSize]);
+  useEffect(() => { setPage(1); }, [templatesView]);
   const pageStart = (page - 1) * pageSize;
   const paginated = useMemo(() => filtered.slice(pageStart, pageStart + pageSize), [filtered, pageStart, pageSize]);
 
@@ -609,6 +610,20 @@ export default function Patients() {
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
+  };
+
+  const toggleTemplate = async (p: Patient) => {
+    const next = !((p as any).is_template);
+    const { error } = await (supabase as any)
+      .from("patients")
+      .update({ is_template: next })
+      .eq("id", p.id);
+    if (error) {
+      toast.error(`Failed to ${next ? "mark" : "unmark"} template`);
+    } else {
+      toast.success(next ? "Marked as simulation template" : "Unmarked template");
+      fetchPatients();
+    }
   };
 
   // All transport types on patient form are repetitive
