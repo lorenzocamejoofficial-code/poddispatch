@@ -2744,6 +2744,7 @@ export type Database = {
           icd10_codes: string[] | null
           id: string
           is_simulated: boolean
+          is_template: boolean
           last_name: string
           location_type: string | null
           member_id: string | null
@@ -2816,6 +2817,7 @@ export type Database = {
           icd10_codes?: string[] | null
           id?: string
           is_simulated?: boolean
+          is_template?: boolean
           last_name: string
           location_type?: string | null
           member_id?: string | null
@@ -2888,6 +2890,7 @@ export type Database = {
           icd10_codes?: string[] | null
           id?: string
           is_simulated?: boolean
+          is_template?: boolean
           last_name?: string
           location_type?: string | null
           member_id?: string | null
