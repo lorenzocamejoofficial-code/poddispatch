@@ -371,7 +371,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // and stale cached queries.
   const switchCompany = useCallback(async (companyId: string) => {
     if (!user) return { error: "Not authenticated" };
-    if (!memberships.some((m) => m.company_id === companyId)) {
+    // System creators may switch into a creator_test_tenant they don't have
+    // a membership row for — the get_my_company_id() bypass resolves access
+    // server-side. All other users must be explicit members.
+    if (!memberships.some((m) => m.company_id === companyId) && !isSystemCreator) {
       return { error: "You are not a member of that company" };
     }
     if (!profileId) return { error: "Profile not loaded" };
@@ -391,7 +394,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.location.assign("/");
     }
     return { error: null };
-  }, [user, memberships, profileId]);
+  }, [user, memberships, profileId, isSystemCreator]);
 
   // Cross-tab tenant-switch sync. When profiles.active_company_id changes
   // server-side (e.g. user picked a different company in another tab), any

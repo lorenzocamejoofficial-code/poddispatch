@@ -18,6 +18,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { SimulationSummary } from "@/components/simulation/SimulationSummary";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 
+// Constant: matches LORENZO_TEST_COMPANY_ID in the simulation-lab edge
+// function. The lab no longer spawns sandbox companies on demand — every
+// seed/inject/check writes into this single creator-owned test tenant.
+const LORENZO_TEST_COMPANY_ID = "f53311c3-a40e-4b2b-b4c2-5aec852f7789";
+
 type CheckResult = { name: string; category: string; pass: boolean; reason: string };
 type VerifyResult = { name: string; pass: boolean; detail: string; table?: string };
 type SandboxStatus = { companyId: string; trucks: number; patients: number; trips: number; crews: number; recentRuns: any[] };
@@ -273,6 +278,16 @@ export default function SimulationLab() {
             <ExternalLink className="h-3.5 w-3.5" />
             Open Live App Simulation
           </Button>
+        </div>
+
+        {/* Tenant banner — makes the seed target unambiguous */}
+        <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-foreground flex items-center gap-2">
+          <FlaskConical className="h-3.5 w-3.5 text-primary shrink-0" />
+          <span>
+            Seeding into <strong>Lorenzo Test Company</strong> — the dedicated
+            creator test tenant. All scenarios, events, and resets run against
+            this single company (id <code className="text-[10px]">{LORENZO_TEST_COMPANY_ID}</code>).
+          </span>
         </div>
 
         {/* Sandbox Status */}
