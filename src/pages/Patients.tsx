@@ -88,6 +88,7 @@ export default function Patients() {
   useFocusScroll();
   const { activeCompanyId, role } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [templatesView, setTemplatesView] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
