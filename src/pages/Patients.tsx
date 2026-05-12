@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Pencil, Trash2, Zap, Clock, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Zap, Clock, AlertTriangle, ShieldCheck, Loader2, Bookmark, BookmarkCheck, FlaskConical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
@@ -88,6 +88,7 @@ export default function Patients() {
   useFocusScroll();
   const { activeCompanyId, role } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [templatesView, setTemplatesView] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -572,13 +573,15 @@ export default function Patients() {
     const q = search.toLowerCase();
     const nameMatch = `${p.first_name} ${p.last_name}`.toLowerCase().includes(q);
     const statusMatch = statusFilter === "all" || (p as any).status === statusFilter;
-    return nameMatch && statusMatch;
-  }), [patients, search, statusFilter]);
+    const templateMatch = templatesView ? (p as any).is_template === true : true;
+    return nameMatch && statusMatch && templateMatch;
+  }), [patients, search, statusFilter, templatesView]);
 
   // Pagination — keeps rendered DOM small even with 1000+ patients
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   useEffect(() => { setPage(1); }, [search, statusFilter, pageSize]);
+  useEffect(() => { setPage(1); }, [templatesView]);
   const pageStart = (page - 1) * pageSize;
   const paginated = useMemo(() => filtered.slice(pageStart, pageStart + pageSize), [filtered, pageStart, pageSize]);
 
@@ -609,6 +612,20 @@ export default function Patients() {
     });
   };
 
+  const toggleTemplate = async (p: Patient) => {
+    const next = !((p as any).is_template);
+    const { error } = await (supabase as any)
+      .from("patients")
+      .update({ is_template: next })
+      .eq("id", p.id);
+    if (error) {
+      toast.error(`Failed to ${next ? "mark" : "unmark"} template`);
+    } else {
+      toast.success(next ? "Marked as simulation template" : "Unmarked template");
+      fetchPatients();
+    }
+  };
+
   // All transport types on patient form are repetitive
   const isRepetitive = true;
 
@@ -620,6 +637,39 @@ export default function Patients() {
   return (
     <AdminLayout>
       <div className="space-y-4">
+        {/* Templates view tabs */}
+        <div className="flex items-center gap-1 border-b">
+          <button
+            type="button"
+            onClick={() => setTemplatesView(false)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${!templatesView ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            All Patients
+          </button>
+          <button
+            type="button"
+            onClick={() => setTemplatesView(true)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-1.5 transition-colors ${templatesView ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            <FlaskConical className="h-3.5 w-3.5" />
+            Simulation Templates
+            <Badge variant="outline" className="text-[10px] ml-1">
+              {patients.filter(p => (p as any).is_template).length}
+            </Badge>
+          </button>
+        </div>
+
+        {templatesView && (
+          <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-foreground">
+            <strong>Simulation Templates</strong> — patients flagged here are
+            cloned by the Simulation Lab seeder to generate realistic test
+            trips. Templates are <strong>never deleted</strong> by sandbox
+            resets and are <strong>never used as real patients</strong> in
+            production claims. Aim for 5–15 templates covering your common
+            transport mix.
+          </div>
+        )}
+
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3 flex-1">
@@ -1340,6 +1390,12 @@ export default function Patients() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-card-foreground">{p.first_name} {p.last_name}</span>
+                          {(p as any).is_template && (
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/40 text-primary gap-1">
+                              <FlaskConical className="h-2.5 w-2.5" />
+                              Template
+                            </Badge>
+                          )}
                           {isHeavy && (
                             <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--status-yellow-bg))] px-2 py-0.5 text-[10px] font-semibold text-[hsl(var(--status-yellow))]" title="Electric stretcher required">
                               <Zap className="h-3 w-3" /> &gt;200
@@ -1421,6 +1477,16 @@ export default function Patients() {
                           })()}
                           <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
                             <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => toggleTemplate(p)}
+                            title={(p as any).is_template ? "Unmark as simulation template" : "Mark as simulation template"}
+                          >
+                            {(p as any).is_template
+                              ? <BookmarkCheck className="h-3.5 w-3.5 text-primary" />
+                              : <Bookmark className="h-3.5 w-3.5" />}
                           </Button>
                           <Button
                             variant="ghost"
