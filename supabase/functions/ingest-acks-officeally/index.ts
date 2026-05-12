@@ -138,6 +138,15 @@ function parseSourceMeta(filename: string) {
   return { source_file_id: m[1], submitted_filename: m[2] };
 }
 
+/* PCN reverse-match: YYMMDD-XXXXXXXX → claim by run_date + id prefix */
+function parsePCN(pcn: string): { runDate: string; idPrefix: string } | null {
+  const m = pcn.match(/^(\d{6})-([A-Fa-f0-9]{8})$/);
+  if (!m) return null;
+  const yy = m[1].slice(0, 2); const mm = m[1].slice(2, 4); const dd = m[1].slice(4, 6);
+  const yearPrefix = parseInt(yy, 10) >= 70 ? "19" : "20";
+  return { runDate: `${yearPrefix}${yy}-${mm}-${dd}`, idPrefix: m[2].toLowerCase() };
+}
+
 /* ---------------------------- handler --------------------------- */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
