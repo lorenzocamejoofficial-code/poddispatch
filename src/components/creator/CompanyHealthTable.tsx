@@ -32,8 +32,9 @@ export function CompanyHealthTable() {
     setLoading(true);
     const { data: allCompanies } = await supabase
       .from("companies")
-      .select("id, name, approved_at, is_sandbox, onboarding_status")
+      .select("id, name, approved_at, is_sandbox, onboarding_status, creator_test_tenant")
       .eq("is_sandbox", false)
+      .eq("creator_test_tenant", false)
       .order("created_at", { ascending: false });
 
     if (!allCompanies || allCompanies.length === 0) {
