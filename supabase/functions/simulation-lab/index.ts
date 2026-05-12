@@ -457,6 +457,24 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
   },
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PIPELINE-DRIVEN SEEDER (Option A)
+//
+// The seeder now operates ON TOP OF real setup data the user created manually:
+//   - Real trucks (created by user in /trucks)
+//   - Real crews assigned to trucks for today (created by user in /scheduling)
+//   - Real facilities (created by user in /facilities)
+//   - Patient templates the user marked with `is_template = true`
+//
+// The seeder DOES NOT create trucks, crews, profiles, or facilities. It DOES NOT
+// pre-bake `claim_records`. It clones template patients, writes scheduling_legs +
+// truck_run_slots + trip_records using the real production columns, then flips
+// `pcr_status='submitted'` on each completed trip. The DB trigger
+// `auto_create_claim_on_pcr_submit` then creates the claim — same code path a
+// real customer's PCR would execute. Reset wipes only operational rows by
+// `is_simulated=true`.
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function seedScenario(admin: any, companyId: string, userId: string, scenarioKey: string, seedSize: string = "small") {
   const baseConfig = SCENARIOS[scenarioKey];
   if (!baseConfig) {
@@ -511,492 +529,286 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
     return { ok: false, step: "create_simulation_run", error: e.message, logs };
   }
 
-  let facilityRowsInserted: Array<{ id: string; name: string }> = [];
-  try {
-    const facilityTypes = ["dialysis", "hospital", "hospital", "snf", "rehab"];
-    const facilityNames = ["Sim Dialysis Center", "Sim General Hospital", "Sim Medical Center", "Sim Nursing Facility", "Sim Rehab Center"];
-    if (pressure?.crossCityRouting) facilityNames.push("Sim Dialysis North", "Sim Dialysis South");
+  // ── Read REAL setup data (Option A precondition) ─────────────────────────────
+  const { data: realFacilities } = await admin
+    .from("facilities")
+    .select("id, name, facility_type")
+    .eq("company_id", companyId)
+    .eq("is_simulated", false);
+  const { data: realTrucks } = await admin
+    .from("trucks")
+    .select("id, name, active, has_power_stretcher, has_stair_chair, has_bariatric_kit, has_oxygen_mount")
+    .eq("company_id", companyId)
+    .eq("is_simulated", false)
+    .eq("active", true);
+  const { data: realCrews } = await admin
+    .from("crews")
+    .select("id, truck_id, member1_id, member2_id, member3_id")
+    .eq("company_id", companyId)
+    .eq("active_date", today);
+  const { data: templatePatients } = await admin
+    .from("patients")
+    .select("*")
+    .eq("company_id", companyId)
+    .eq("is_template", true);
 
-    const facilityRows = facilityNames.map((name, i) => ({
-      name,
-      address: pressure?.crossCityRouting && i >= 5
-        ? pick(CITY_CLUSTERS[i % CITY_CLUSTERS.length])
-        : FAKE_ADDRESSES[i % FAKE_ADDRESSES.length],
-      facility_type: facilityTypes[i % facilityTypes.length],
-      phone: `(555) 900-${String(i + 1).padStart(4, "0")}`,
-      company_id: companyId,
-      is_simulated: true,
-      simulation_run_id: runId,
-    }));
+  const facilityNames: string[] = (realFacilities ?? []).map((f: any) => f.name);
+  const trucks = (realTrucks ?? []) as any[];
+  const crewByTruck = new Map<string, any>();
+  for (const c of realCrews ?? []) crewByTruck.set(c.truck_id, c);
+  const trucksWithCrew = trucks.filter((t) => crewByTruck.has(t.id));
+  const templates = (templatePatients ?? []) as any[];
 
-    const { insertedRows } = await insertRowsResilient({
-      admin,
-      step: "create_facilities",
-      table: "facilities",
-      rows: facilityRows,
+  const preconditions: { name: string; ok: boolean; detail: string }[] = [
+    { name: "real_trucks_active", ok: trucks.length > 0, detail: `${trucks.length} active trucks` },
+    { name: "crews_assigned_today", ok: trucksWithCrew.length > 0, detail: `${trucksWithCrew.length} trucks have a crew assigned today (${today})` },
+    { name: "facilities_present", ok: (realFacilities?.length ?? 0) > 0, detail: `${realFacilities?.length ?? 0} facilities` },
+    { name: "patient_templates_present", ok: templates.length > 0, detail: `${templates.length} template patients (is_template=true)` },
+  ];
+  const failed = preconditions.filter((p) => !p.ok);
+  if (failed.length > 0) {
+    pushSeedLog(logs, { step: "preconditions", status: "error", detail: failed.map((f) => `${f.name}: ${f.detail}`).join(" | ") });
+    await admin.from("simulation_runs").update({ status: "failed" }).eq("id", runId);
+    return {
+      ok: false,
+      step: "preconditions",
+      error: `Setup incomplete. Before seeding, the test tenant must have: ${failed.map((f) => f.name).join(", ")}.`,
+      preconditions,
       logs,
-      rowErrors,
-      requiredFields: ["name", "facility_type", "company_id"],
-      batchSize: 25,
-      select: "id,name",
-    });
-    facilityRowsInserted = insertedRows as Array<{ id: string; name: string }>;
-  } catch (e: any) {
-    pushSeedLog(logs, { step: "create_facilities", status: "error", error: e.message });
+    };
   }
+  for (const p of preconditions) pushSeedLog(logs, { step: "preconditions", status: "ok", detail: `${p.name}=${p.detail}` });
 
-  const facilityNames = facilityRowsInserted.map((f) => f.name);
-
-  const profileMeta = new Map<string, { maxLift: number; stairChair: boolean; bariatric: boolean; oxygen: boolean }>();
-  const truckMeta = new Map<string, { has_stair_chair: boolean; has_bariatric_kit: boolean; has_oxygen_mount: boolean }>();
-
-  let truckIds: string[] = [];
-  let crewIds: string[] = [];
+  const truckIds: string[] = trucksWithCrew.map((t) => t.id);
+  const crewIds: string[] = trucksWithCrew.map((t) => crewByTruck.get(t.id)!.id);
+  const truckMeta = new Map<string, { has_stair_chair: boolean; has_bariatric_kit: boolean; has_oxygen_mount: boolean; has_power_stretcher: boolean }>();
+  for (const t of trucksWithCrew) {
+    truckMeta.set(t.id, {
+      has_stair_chair: !!t.has_stair_chair,
+      has_bariatric_kit: !!t.has_bariatric_kit,
+      has_oxygen_mount: !!t.has_oxygen_mount,
+      has_power_stretcher: !!t.has_power_stretcher,
+    });
+  }
   let patientIds: string[] = [];
   let tripCount = 0;
 
-  // b) create trucks + equipment
+  // ── Clone patients from templates with name suffixing (D4) ───────────────────
   try {
-    const equipConfigs = [
-      { has_power_stretcher: true, has_stair_chair: true, has_bariatric_kit: true, has_oxygen_mount: true },
-      { has_power_stretcher: true, has_stair_chair: true, has_bariatric_kit: false, has_oxygen_mount: true },
-      { has_power_stretcher: true, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: true },
-      { has_power_stretcher: false, has_stair_chair: true, has_bariatric_kit: false, has_oxygen_mount: false },
-      { has_power_stretcher: false, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: true },
-      { has_power_stretcher: false, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: false },
-    ];
-
-    const truckRows: Record<string, unknown>[] = [];
-    for (let i = 0; i < config.truckCount; i++) {
-      const mismatch = scenarioKey === "crew_mismatch" && i > 1;
-      const equip = mismatch
-        ? { has_power_stretcher: false, has_stair_chair: false, has_bariatric_kit: false, has_oxygen_mount: false }
-        : equipConfigs[i % equipConfigs.length];
-
-      truckRows.push({
-        name: `SIM-${100 + i + 1}`,
-        company_id: companyId,
-        is_simulated: true,
-        simulation_run_id: runId,
-        ...equip,
-      });
-    }
-
-    const { insertedRows } = await insertRowsResilient({
-      admin,
-      step: "create_trucks_equipment",
-      table: "trucks",
-      rows: truckRows,
-      logs,
-      rowErrors,
-      requiredFields: ["name", "company_id"],
-      batchSize: 25,
-      select: "id,has_stair_chair,has_bariatric_kit,has_oxygen_mount",
-    });
-
-    truckIds = (insertedRows as any[]).map((row) => row.id);
-    for (const t of insertedRows as any[]) {
-      truckMeta.set(t.id, {
-        has_stair_chair: !!t.has_stair_chair,
-        has_bariatric_kit: !!t.has_bariatric_kit,
-        has_oxygen_mount: !!t.has_oxygen_mount,
-      });
-    }
-  } catch (e: any) {
-    pushSeedLog(logs, { step: "create_trucks_equipment", status: "error", error: e.message });
-  }
-
-  // c) create crews + profiles/capabilities
-  try {
-    const profileRows: Record<string, unknown>[] = [];
-    const plannedCrews: Array<{ truck_id: string; member1_id: string; member2_id: string }> = [];
-
-    for (let i = 0; i < truckIds.length; i++) {
-      const mismatch = scenarioKey === "crew_mismatch" && i > 0;
-      const member1Id = crypto.randomUUID();
-      const member2Id = crypto.randomUUID();
-
-      const rawCert1 = i % 4 === 0 ? "EMT" : i % 4 === 1 ? "Paramedic" : pick([...STRICT_CERT_LEVELS]);
-      const rawCert2 = i % 3 === 0 ? "Paramedic" : "EMT";
-      const rawSex1 = i % 2 === 0 ? "male" : "female";
-      const rawSex2 = i % 2 === 0 ? "female" : "male";
-
-      const profile1 = {
-        id: member1Id,
-        user_id: member1Id,
-        full_name: FAKE_NAMES[i * 2] || `Crew ${i * 2}`,
-        company_id: companyId,
-        is_simulated: true,
-        simulation_run_id: runId,
-        max_safe_team_lift_lbs: mismatch ? rand(150, 200) : rand(250, 400),
-        stair_chair_trained: mismatch ? false : coinFlip(0.7),
-        bariatric_trained: mismatch ? false : coinFlip(0.4),
-        oxygen_handling_trained: mismatch ? false : coinFlip(0.6),
-        lift_assist_ok: coinFlip(0.5),
-        cert_level: normalizeCertLevel(rawCert1),
-        sex: normalizeSex(rawSex1),
-      };
-
-      const profile2 = {
-        id: member2Id,
-        user_id: member2Id,
-        full_name: FAKE_NAMES[i * 2 + 1] || `Crew ${i * 2 + 1}`,
-        company_id: companyId,
-        is_simulated: true,
-        simulation_run_id: runId,
-        max_safe_team_lift_lbs: mismatch ? rand(150, 200) : rand(250, 400),
-        stair_chair_trained: mismatch ? false : coinFlip(0.6),
-        bariatric_trained: mismatch ? false : coinFlip(0.3),
-        oxygen_handling_trained: mismatch ? false : coinFlip(0.5),
-        lift_assist_ok: coinFlip(0.5),
-        cert_level: normalizeCertLevel(rawCert2),
-        sex: normalizeSex(rawSex2),
-      };
-
-      profileRows.push(profile1, profile2);
-      plannedCrews.push({ truck_id: truckIds[i], member1_id: member1Id, member2_id: member2Id });
-    }
-
-    const { insertedRows: insertedProfiles } = await insertRowsResilient({
-      admin,
-      step: "create_crews_profiles_capabilities",
-      table: "profiles",
-      rows: profileRows,
-      logs,
-      rowErrors,
-      requiredFields: ["id", "user_id", "full_name", "company_id", "cert_level", "sex"],
-      enumRules: [
-        { field: "cert_level", values: STRICT_CERT_LEVELS },
-        { field: "sex", values: STRICT_SEX_TYPES },
-      ],
-      batchSize: 25,
-      select: "id,max_safe_team_lift_lbs,stair_chair_trained,bariatric_trained,oxygen_handling_trained",
-    });
-
-    const profileIdSet = new Set((insertedProfiles as any[]).map((p) => p.id));
-    for (const p of insertedProfiles as any[]) {
-      profileMeta.set(p.id, {
-        maxLift: Number(p.max_safe_team_lift_lbs ?? 0),
-        stairChair: !!p.stair_chair_trained,
-        bariatric: !!p.bariatric_trained,
-        oxygen: !!p.oxygen_handling_trained,
-      });
-    }
-
-    // If no profiles were inserted (FK to auth.users fails in simulation),
-    // null out member IDs so crews can still be created
-    const crewRows = plannedCrews.map((crew) => ({
-      truck_id: crew.truck_id,
-      member1_id: profileIdSet.has(crew.member1_id) ? crew.member1_id : null,
-      member2_id: profileIdSet.has(crew.member2_id) ? crew.member2_id : null,
-      active_date: today,
-      company_id: companyId,
-      is_simulated: true,
-      simulation_run_id: runId,
-    }));
-
-    const { insertedRows: insertedCrews } = await insertRowsResilient({
-      admin,
-      step: "create_crews_profiles_capabilities",
-      table: "crews",
-      rows: crewRows,
-      logs,
-      rowErrors,
-      requiredFields: ["truck_id", "company_id"],
-      fkRules: [
-        { field: "truck_id", allowed: new Set(truckIds), label: "trucks" },
-        { field: "member1_id", allowed: profileIdSet, label: "profiles", nullable: true },
-        { field: "member2_id", allowed: profileIdSet, label: "profiles", nullable: true },
-      ],
-      batchSize: 25,
-      select: "id,truck_id,member1_id,member2_id",
-    });
-
-    crewIds = (insertedCrews as any[]).map((c) => c.id);
-  } catch (e: any) {
-    pushSeedLog(logs, { step: "create_crews_profiles_capabilities", status: "error", error: e.message });
-  }
-
-  // d) create patients + needs
-  const patientMeta = new Map<string, { weight: number | null; stairs: string; oxygen: boolean; stairChairRequired: boolean }>();
-  try {
-    const patientNames = pickN(FAKE_NAMES, config.patientCount);
+    const cloned: Record<string, unknown>[] = [];
     const tripTypes: string[] = [];
     for (const [type, count] of Object.entries(config.tripMix)) for (let j = 0; j < count; j++) tripTypes.push(type);
     const payerTypes: string[] = [];
     for (const [payer, count] of Object.entries(config.payerMix)) for (let j = 0; j < count; j++) payerTypes.push(payer);
 
-    const expiringAuthIndices = new Set(pickN([...Array(config.patientCount).keys()], Math.min(config.authExpiring, config.patientCount)));
-    const missingInfoIndices = new Set(
-      pressure?.missingPatientInfo
-        ? pickN([...Array(config.patientCount).keys()], Math.min(pressure.missingPatientInfo, config.patientCount))
-        : []
-    );
-
-    const weights = [120, 150, 165, 180, 195, 210, 240, 275, 310, 340, 360, 380];
-    const mobilities = ["ambulatory", "wheelchair", "stretcher", "bedbound"];
-    const stairsOptions = ["none", "few_steps", "full_flight", "unknown"];
-    const equipOptions = ["none", "none", "none", "bariatric_stretcher", "extra_crew", "lift_assist"];
-
-    const patientRows: Record<string, unknown>[] = [];
-
     for (let i = 0; i < config.patientCount; i++) {
-      const nameParts = patientNames[i]?.split(" ") || ["Test", `P${i}`];
-      const first = nameParts[0];
-      const last = nameParts.slice(1).join(" ") || `Patient${i}`;
-      const tripType = normalizeTripType(tripTypes[i % tripTypes.length] || "dialysis");
-      const payer = payerTypes[i % payerTypes.length] || "Medicare";
-      const authExpDate = expiringAuthIndices.has(i)
-        ? new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10)
-        : new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
-
-      const hasMissingInfo = missingInfoIndices.has(i);
-      const baseWeight = pressure?.insufficientTrucks && i % 3 === 0 ? pick([310, 340, 360]) : weights[i % weights.length];
-      const weight = hasMissingInfo ? null : baseWeight;
-      const stairs = hasMissingInfo ? "unknown" : stairsOptions[i % stairsOptions.length];
-      const oxygenReq = !hasMissingInfo && i % 5 === 0;
-
-      const row = {
-        first_name: first,
-        last_name: last,
-        dob: `19${50 + (i % 30)}-${String((i % 12) + 1).padStart(2, "0")}-${String((i % 28) + 1).padStart(2, "0")}`,
-        phone: `(555) 800-${String(i + 1).padStart(4, "0")}`,
-        pickup_address: pressure?.crossCityRouting ? pick(pick(CITY_CLUSTERS)) : pick(FAKE_ADDRESSES),
-        dropoff_facility: facilityNames[i % Math.max(1, facilityNames.length)] || "Sim Dialysis Center",
-        transport_type: normalizeTransportType(tripType),
-        schedule_days: tripType === "dialysis" ? (i % 2 === 0 ? "MWF" : "TTS") : "MWF",
-        status: "active",
-        primary_payer: payer,
-        auth_required: payer === "Medicare" || payer === "Medicaid",
-        auth_expiration: authExpDate,
-        weight_lbs: weight,
-        mobility: hasMissingInfo ? null : mobilities[i % mobilities.length],
-        stairs_required: stairs,
-        stair_chair_required: stairs === "full_flight",
-        oxygen_required: oxygenReq,
-        oxygen_lpm: oxygenReq ? [2, 3, 4, 6][i % 4] : null,
-        bariatric: (weight ?? 0) >= 300,
-        special_equipment_required: hasMissingInfo ? "none" : equipOptions[i % equipOptions.length],
-        dialysis_window_minutes: tripType === "dialysis" ? 45 : 60,
-        must_arrive_by: tripType === "dialysis" ? randTime(6, 8) : null,
+      const tpl = templates[i % templates.length];
+      // Strip identity/audit fields; clone the rest
+      const {
+        id: _id, created_at: _ca, updated_at: _ua, is_template: _it,
+        is_simulated: _is, simulation_run_id: _sr, ...rest
+      } = tpl;
+      const desiredTrip = normalizeTripType(tripTypes[i % tripTypes.length] || "dialysis");
+      const desiredPayer = payerTypes[i % payerTypes.length] || tpl.primary_payer || "Medicare";
+      cloned.push({
+        ...rest,
+        first_name: tpl.first_name,
+        last_name: `${tpl.last_name} #${i + 1}`,
+        // Override transport/payer when scenario mix demands it; keep template defaults otherwise
+        transport_type: normalizeTransportType(desiredTrip),
+        primary_payer: desiredPayer,
         company_id: companyId,
+        is_template: false,
         is_simulated: true,
         simulation_run_id: runId,
-      };
-
-      patientRows.push(row);
+      });
     }
 
     const { insertedRows } = await insertRowsResilient({
       admin,
-      step: "create_patients_needs",
+      step: "clone_template_patients",
       table: "patients",
-      rows: patientRows,
+      rows: cloned,
       logs,
       rowErrors,
-      requiredFields: ["first_name", "last_name", "transport_type", "status", "company_id", "special_equipment_required", "stairs_required"],
+      requiredFields: ["first_name", "last_name", "transport_type", "status", "company_id"],
       enumRules: [
         { field: "transport_type", values: VALID_TRANSPORT_TYPES },
         { field: "status", values: VALID_PATIENT_STATUSES },
       ],
       batchSize: 25,
-      select: "id,weight_lbs,stairs_required,oxygen_required,stair_chair_required",
+      select: "id",
     });
-
     patientIds = (insertedRows as any[]).map((p) => p.id);
-    for (const p of insertedRows as any[]) {
-      patientMeta.set(p.id, {
-        weight: p.weight_lbs,
-        stairs: p.stairs_required,
-        oxygen: !!p.oxygen_required,
-        stairChairRequired: !!p.stair_chair_required,
-      });
-    }
   } catch (e: any) {
-    pushSeedLog(logs, { step: "create_patients_needs", status: "error", error: e.message });
+    pushSeedLog(logs, { step: "clone_template_patients", status: "error", error: e.message });
   }
 
-  // e) create trips + legs + time windows  / f) assign trips to trucks/crews
+  // ── Build scheduling_legs + truck_run_slots + trip_records (production writes) ──
   let tripRowsInserted: any[] = [];
   try {
     const totalTrips = Object.values(config.tripMix).reduce((sum, n) => sum + (n ?? 0), 0);
+    const tripsToCreate = Math.min(totalTrips, patientIds.length);
     const tripTypes: string[] = [];
     for (const [type, count] of Object.entries(config.tripMix)) for (let j = 0; j < count; j++) tripTypes.push(type);
-    const payerTypes: string[] = [];
-    for (const [payer, count] of Object.entries(config.payerMix)) for (let j = 0; j < count; j++) payerTypes.push(payer);
 
-    const missingPcsSet = new Set(pickN([...Array(totalTrips).keys()], Math.min(config.missingPcs, totalTrips)));
-    const missingAuthSet = new Set(pickN([...Array(totalTrips).keys()], Math.min(config.missingAuth, totalTrips)));
-    const missingSigSet = new Set(pickN([...Array(totalTrips).keys()], Math.min(config.missingSignature, totalTrips)));
-    const missingTimesSet = new Set(pickN([...Array(totalTrips).keys()], Math.min(config.missingTimestamps, totalTrips)));
+    const missingPcsSet = new Set(pickN([...Array(tripsToCreate).keys()], Math.min(config.missingPcs, tripsToCreate)));
+    const missingSigSet = new Set(pickN([...Array(tripsToCreate).keys()], Math.min(config.missingSignature, tripsToCreate)));
+    const missingTimesSet = new Set(pickN([...Array(tripsToCreate).keys()], Math.min(config.missingTimestamps, tripsToCreate)));
 
     const legRows: Record<string, unknown>[] = [];
     const slotRows: Record<string, unknown>[] = [];
-    const tripRows: Record<string, unknown>[] = [];
-
-    const tripsToCreate = Math.min(totalTrips, patientIds.length);
 
     for (let i = 0; i < tripsToCreate; i++) {
       const patientId = patientIds[i];
       const tripType = normalizeTripType(tripTypes[i % tripTypes.length] || "dialysis");
-      const status = normalizeTripStatus(pick(["scheduled", "assigned", "en_route", "loaded", "completed", "completed", "completed"]));
-      const truckIdx = truckIds.length > 0 ? i % truckIds.length : -1;
-      const truckId = truckIdx >= 0 ? truckIds[truckIdx] : null;
-      const crewId = truckIdx >= 0 ? crewIds[truckIdx] ?? null : null;
-      const payer = payerTypes[i % payerTypes.length] || "Medicare";
-
+      const truckIdx = i % truckIds.length;
+      const truckId = truckIds[truckIdx];
       const pickupTime = pressure?.overstackedDialysisHours && tripType === "dialysis"
-        ? pick(["06:00", "06:15", "06:30", "06:00", "06:15"])
+        ? pick(["06:00", "06:15", "06:30"])
         : (tripType === "dialysis" ? randTime(5, 8) : randTime(8, 14));
-
       const pickupLoc = pressure?.crossCityRouting ? pick(pick(CITY_CLUSTERS)) : pick(FAKE_ADDRESSES);
-      const facility = pressure?.crossCityRouting
-        ? (facilityNames[i % Math.max(1, facilityNames.length)] || "Sim General Hospital")
-        : (facilityNames[tripType === "dialysis" ? 0 : i % Math.max(1, facilityNames.length)] || "Sim General Hospital");
-
+      const facility = facilityNames[i % Math.max(1, facilityNames.length)] || facilityNames[0];
       const legId = crypto.randomUUID();
       legRows.push({
-        id: legId,
-        patient_id: patientId,
-        leg_type: "A",
-        pickup_location: pickupLoc,
-        destination_location: facility,
-        pickup_time: pickupTime,
-        trip_type: tripType,
-        run_date: today,
-        company_id: companyId,
-        is_simulated: true,
-        simulation_run_id: runId,
+        id: legId, patient_id: patientId, leg_type: "A",
+        pickup_location: pickupLoc, destination_location: facility,
+        pickup_time: pickupTime, trip_type: tripType, run_date: today,
+        company_id: companyId, is_simulated: true, simulation_run_id: runId,
         estimated_duration_minutes: pressure?.unrealisticGaps ? rand(5, 10) : rand(20, 40),
       });
-
-      if (truckId) {
-        slotRows.push({
-          truck_id: truckId,
-          leg_id: legId,
-          run_date: today,
-          slot_order: i,
-          status: "pending",
-          company_id: companyId,
-          is_simulated: true,
-          simulation_run_id: runId,
-        });
-      }
-
-      const isCompleted = status === "completed";
-      const hasPcs = !missingPcsSet.has(i);
-      const hasSig = !missingSigSet.has(i);
-      const hasTimes = !missingTimesSet.has(i);
-      const hasAuth = !missingAuthSet.has(i);
-
-      // pcr_type mapping (Item 15a): keep existing convention for dialysis/discharge/hospital,
-      // add ift_general / ift_wound_care / behavioral_health / outpatient_specialty for new
-      // first-class transport variations.
-      const pcrType = tripType === "dialysis"
-        ? "nemt_dialysis"
-        : tripType === "discharge"
-        ? "ift_discharge"
-        : tripType === "hospital"
-        ? "emergency_ems"
-        : tripType === "ift"
-        ? "ift_general"
-        : tripType === "wound_care"
-        ? "ift_wound_care"
-        : tripType === "psych_transport"
-        ? "behavioral_health"
-        : tripType === "outpatient"
-        ? "outpatient_specialty"
-        : "other";
-
-      const baseRevenue = payer === "Medicare" ? rand(180, 350) : payer === "Medicaid" ? rand(120, 250) : rand(200, 400);
-
-      tripRows.push({
-        patient_id: patientId,
-        truck_id: truckId,
-        crew_id: crewId,
-        leg_id: legId,
-        run_date: today,
-        status,
-        trip_type: tripType,
-        pickup_location: pickupLoc,
-        destination_location: facility,
-        scheduled_pickup_time: pickupTime,
-        loaded_miles: isCompleted ? Math.round((5 + Math.random() * 25) * 10) / 10 : null,
-        pcs_attached: hasPcs,
-        signature_obtained: hasSig,
-        arrived_pickup_at: hasTimes && isCompleted ? `${today}T${pickupTime}:00` : null,
-        arrived_dropoff_at: hasTimes && isCompleted ? `${today}T${addMinutes(pickupTime, rand(20, 60))}:00` : null,
-        documentation_complete: hasPcs && hasSig && hasTimes,
-        claim_ready: isCompleted && hasPcs && hasSig && hasTimes && hasAuth,
-        origin_type: "Home",
-        destination_type: tripType === "dialysis"
-          ? "Dialysis Center"
-          : tripType === "wound_care"
-          ? "Wound Care Clinic"
-          : tripType === "psych_transport"
-          ? "Behavioral Health Facility"
-          : tripType === "discharge"
-          ? "Skilled Nursing Facility"
-          : tripType === "ift"
-          ? "Hospital"
-          : "Hospital Outpatient",
-        service_level: "BLS",
-        necessity_notes: hasPcs ? "Patient requires stretcher transport due to medical necessity" : null,
-        pcr_type: pcrType,
-        expected_revenue: baseRevenue,
-        company_id: companyId,
-        is_simulated: true,
-        simulation_run_id: runId,
+      slotRows.push({
+        truck_id: truckId, leg_id: legId, run_date: today, slot_order: Math.floor(i / truckIds.length),
+        status: "completed", company_id: companyId, is_simulated: true, simulation_run_id: runId,
       });
     }
 
     const patientIdSet = new Set(patientIds);
     const truckIdSet = new Set(truckIds);
-    const crewIdSet = new Set(crewIds);
 
     const legsInsert = await insertRowsResilient({
-      admin,
-      step: "create_trips_legs_time_windows",
-      table: "scheduling_legs",
-      rows: legRows,
-      logs,
-      rowErrors,
+      admin, step: "create_scheduling_legs", table: "scheduling_legs",
+      rows: legRows, logs, rowErrors,
       requiredFields: ["id", "patient_id", "leg_type", "pickup_location", "destination_location", "trip_type", "company_id"],
       enumRules: [
         { field: "leg_type", values: VALID_LEG_TYPES },
         { field: "trip_type", values: VALID_TRIP_TYPES },
       ],
       fkRules: [{ field: "patient_id", allowed: patientIdSet, label: "patients" }],
-      batchSize: 25,
-      select: "id",
+      batchSize: 25, select: "id",
     });
-
     const legIdSet = new Set((legsInsert.insertedRows as any[]).map((l) => l.id));
 
     await insertRowsResilient({
-      admin,
-      step: "assign_trips_to_trucks_crews",
-      table: "truck_run_slots",
-      rows: slotRows,
-      logs,
-      rowErrors,
+      admin, step: "create_truck_run_slots", table: "truck_run_slots",
+      rows: slotRows, logs, rowErrors,
       requiredFields: ["truck_id", "leg_id", "company_id", "status"],
       enumRules: [{ field: "status", values: ["pending", "en_route", "arrived", "with_patient", "transporting", "completed"] }],
       fkRules: [
         { field: "truck_id", allowed: truckIdSet, label: "trucks" },
         { field: "leg_id", allowed: legIdSet, label: "scheduling_legs" },
       ],
-      batchSize: 25,
-      select: "id",
+      batchSize: 25, select: "id",
     });
 
+    // Build trip_records using REAL operational columns the crew/PCR would write.
+    const tripRows: Record<string, unknown>[] = [];
+    for (let i = 0; i < legRows.length; i++) {
+      const leg = legRows[i] as any;
+      const slot = slotRows[i] as any;
+      if (!legIdSet.has(leg.id)) continue;
+
+      const tplIdx = i % templates.length;
+      const tpl = templates[tplIdx];
+      const tripType = leg.trip_type as string;
+      const pickupTime: string = leg.pickup_time;
+      const truckId: string = slot.truck_id;
+      const crewId = crewByTruck.get(truckId)?.id ?? null;
+
+      const hasPcs = !missingPcsSet.has(i);
+      const hasSig = !missingSigSet.has(i);
+      const hasTimes = !missingTimesSet.has(i);
+
+      // Chronological timestamps (all on `today`)
+      const dispatch = `${today}T${addMinutes(pickupTime, -10)}:00`;
+      const atScene = `${today}T${pickupTime}:00`;
+      const patientContact = `${today}T${addMinutes(pickupTime, 3)}:00`;
+      const leftScene = `${today}T${addMinutes(pickupTime, 8)}:00`;
+      const arrivedDest = `${today}T${addMinutes(pickupTime, rand(20, 60))}:00`;
+      const inService = `${today}T${addMinutes(pickupTime, rand(65, 90))}:00`;
+
+      const odoScene = rand(20000, 80000);
+      const loadedMi = Math.round((5 + Math.random() * 25) * 10) / 10;
+      const odoDest = odoScene + Math.round(loadedMi);
+
+      const sig = hasSig ? [{
+        type: "crew_primary", signed_at: leftScene, signed_by_name: "Sim Crew",
+        signature_data_url: "data:image/svg+xml;base64,PHN2Zy8+",
+      }] : null;
+
+      const pcrType = tripType === "dialysis" ? "nemt_dialysis"
+        : tripType === "discharge" ? "ift_discharge"
+        : tripType === "hospital" ? "emergency_ems"
+        : tripType === "ift" ? "ift_general"
+        : tripType === "wound_care" ? "ift_wound_care"
+        : tripType === "psych_transport" ? "behavioral_health"
+        : tripType === "outpatient" ? "outpatient_specialty"
+        : "other";
+
+      const destinationType = tripType === "dialysis" ? "Dialysis Center"
+        : tripType === "wound_care" ? "Wound Care Clinic"
+        : tripType === "psych_transport" ? "Behavioral Health Facility"
+        : tripType === "discharge" ? "Skilled Nursing Facility"
+        : tripType === "ift" ? "Hospital"
+        : "Hospital Outpatient";
+
+      const icd10 = (tpl.icd10_codes && tpl.icd10_codes.length > 0)
+        ? tpl.icd10_codes
+        : (tripType === "dialysis" ? ["N18.6", "Z99.2"] : ["R26.2"]);
+
+      tripRows.push({
+        patient_id: patientIds[i], truck_id: truckId, crew_id: crewId, leg_id: leg.id,
+        run_date: today, status: "ready_for_billing", trip_type: tripType, pcr_type: pcrType,
+        pickup_location: leg.pickup_location, destination_location: leg.destination_location,
+        scheduled_pickup_time: pickupTime,
+        // Real operational columns (the crew/PCR would write these):
+        dispatch_time: hasTimes ? dispatch : null,
+        at_scene_time: hasTimes ? atScene : null,
+        patient_contact_time: hasTimes ? patientContact : null,
+        left_scene_time: hasTimes ? leftScene : null,
+        arrived_pickup_at: hasTimes ? atScene : null,
+        arrived_dropoff_at: hasTimes ? arrivedDest : null,
+        in_service_time: hasTimes ? inService : null,
+        odometer_at_scene: hasTimes ? odoScene : null,
+        odometer_at_destination: hasTimes ? odoDest : null,
+        loaded_miles: hasTimes ? loadedMi : null,
+        signatures_json: sig,
+        // Medical necessity (at least one required by QA trigger)
+        bed_confined: tpl.default_bed_confined ?? true,
+        cannot_transfer_safely: tpl.default_cannot_transfer ?? false,
+        requires_monitoring: tpl.default_requires_monitoring ?? false,
+        oxygen_during_transport: tpl.default_oxygen_transport ?? false,
+        icd10_codes: icd10,
+        chief_complaint: tpl.default_chief_complaint || (tripType === "dialysis" ? "ESRD requiring dialysis" : "Medical transport"),
+        primary_impression: tpl.default_primary_impression || "Stable for transport",
+        medical_necessity_reason: tpl.default_medical_necessity_reason || "Bed-confined, requires stretcher transport",
+        narrative: "Patient was transported by stretcher per medical necessity. Crew monitored throughout. Patient delivered to destination without incident. Documentation complete per company policy and CMS standards. (Synthetic seed.)",
+        primary_payer: (tpl.primary_payer || "medicare").toString().toLowerCase(),
+        member_id: tpl.member_id ?? `SIM${String(i + 1).padStart(6, "0")}`,
+        service_level: tpl.default_service_level || "BLS",
+        origin_type: "Home", destination_type: destinationType,
+        documentation_complete: hasPcs && hasSig && hasTimes,
+        pcs_attached: hasPcs,
+        signature_obtained: hasSig,
+        claim_ready: hasPcs && hasSig && hasTimes,
+        company_id: companyId, is_simulated: true, simulation_run_id: runId,
+        pcr_status: "not_started",
+      });
+    }
+
     const tripsInsert = await insertRowsResilient({
-      admin,
-      step: "assign_trips_to_trucks_crews",
-      table: "trip_records",
-      rows: tripRows,
-      logs,
-      rowErrors,
+      admin, step: "create_trip_records", table: "trip_records",
+      rows: tripRows, logs, rowErrors,
       requiredFields: ["patient_id", "run_date", "status", "company_id"],
       enumRules: [
         { field: "status", values: VALID_TRIP_STATUSES },
@@ -1004,199 +816,39 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
       ],
       fkRules: [
         { field: "patient_id", allowed: patientIdSet, label: "patients" },
-        { field: "truck_id", allowed: truckIdSet, label: "trucks", nullable: true },
-        { field: "crew_id", allowed: crewIdSet, label: "crews", nullable: true },
-        { field: "leg_id", allowed: legIdSet, label: "scheduling_legs", nullable: true },
+        { field: "truck_id", allowed: truckIdSet, label: "trucks" },
+        { field: "leg_id", allowed: legIdSet, label: "scheduling_legs" },
       ],
       batchSize: 25,
-      select: "id,patient_id,truck_id,crew_id,trip_type,claim_ready",
+      select: "id,patient_id,truck_id,crew_id,trip_type,documentation_complete,signature_obtained,pcs_attached",
     });
-
     tripRowsInserted = tripsInsert.insertedRows as any[];
     tripCount = tripsInsert.insertedCount;
-
-    pushSeedLog(logs, {
-      step: "create_trips_legs_time_windows",
-      status: "ok",
-      count: tripCount,
-      detail: `legs=${legsInsert.insertedCount}, trips=${tripCount}`,
-    });
+    pushSeedLog(logs, { step: "create_trip_records", status: "ok", count: tripCount });
   } catch (e: any) {
-    pushSeedLog(logs, { step: "create_trips_legs_time_windows", status: "error", error: e.message });
+    pushSeedLog(logs, { step: "create_trip_records", status: "error", error: e.message });
   }
 
-  // g) apply safety rules + mark warnings/blocked
-  let blockedTrips = 0;
-  let warningTrips = 0;
+  // ── Submit PCRs to fire auto_create_claim_on_pcr_submit trigger (D3) ─────────
+  let claimsCreated = 0;
   try {
-    const { data: allCrews } = await admin
-      .from("crews")
-      .select("id,member1_id,member2_id")
-      .in("id", crewIds.length ? crewIds : ["00000000-0000-0000-0000-000000000000"]);
-
-    const crewMap = new Map<string, { member1_id: string | null; member2_id: string | null }>();
-    for (const c of allCrews ?? []) {
-      crewMap.set(c.id, { member1_id: c.member1_id, member2_id: c.member2_id });
+    const submittable = tripRowsInserted.filter((t: any) => t.documentation_complete);
+    for (const t of submittable) {
+      const { error } = await admin.from("trip_records")
+        .update({
+          pcr_status: "submitted",
+          pcr_completed_at: new Date().toISOString(),
+          pcr_submitted_by: userId,
+          status: "ready_for_billing",
+          claim_ready: true,
+          documentation_complete: true,
+        })
+        .eq("id", t.id);
+      if (!error) claimsCreated++;
     }
-
-    const overrideRows: Record<string, unknown>[] = [];
-
-    for (const trip of tripRowsInserted) {
-      const blockers: string[] = [];
-      const warnings: string[] = [];
-      const needs = patientMeta.get(trip.patient_id);
-      const truck = trip.truck_id ? truckMeta.get(trip.truck_id) : undefined;
-      const crew = trip.crew_id ? crewMap.get(trip.crew_id) : undefined;
-
-      const m1 = crew?.member1_id ? profileMeta.get(crew.member1_id) : undefined;
-      const m2 = crew?.member2_id ? profileMeta.get(crew.member2_id) : undefined;
-      const crewLift = (m1?.maxLift ?? 0) + (m2?.maxLift ?? 0);
-
-      if (!needs) {
-        warnings.push("MISSING_PATIENT_REQUIREMENTS");
-      } else {
-        if ((needs.weight ?? 0) >= 300 && !truck?.has_bariatric_kit) blockers.push("UNSAFE_LIFT_RISK");
-        if (needs.stairChairRequired && !truck?.has_stair_chair) blockers.push("STAIR_CHAIR_REQUIRED");
-        if (needs.oxygen && !truck?.has_oxygen_mount) blockers.push("OXYGEN_SUPPORT_REQUIRED");
-        if ((needs.weight ?? 0) > 0 && crewLift > 0 && (needs.weight ?? 0) > crewLift) blockers.push("CREW_LIFT_CAPACITY_EXCEEDED");
-      }
-
-      if (blockers.length > 0) {
-        blockedTrips++;
-        await admin
-          .from("trip_records")
-          .update({
-            claim_ready: false,
-            blockers,
-            billing_blocked_reason: blockers.join(", "),
-          })
-          .eq("id", trip.id);
-
-        overrideRows.push({
-          company_id: companyId,
-          trip_record_id: trip.id,
-          overridden_by: userId,
-          override_reason: "SIM_SEED",
-          override_status: "approved",
-          reasons: blockers,
-        });
-      } else if (warnings.length > 0) {
-        warningTrips++;
-      }
-    }
-
-    if (overrideRows.length > 0) {
-      await insertRowsResilient({
-        admin,
-        step: "apply_safety_rules",
-        table: "safety_overrides",
-        rows: overrideRows,
-        logs,
-        rowErrors,
-        requiredFields: ["company_id", "trip_record_id", "overridden_by", "override_reason", "override_status"],
-        batchSize: 25,
-        select: "id",
-      });
-    }
-
-    pushSeedLog(logs, {
-      step: "apply_safety_rules",
-      status: "ok",
-      detail: `blocked=${blockedTrips}, warnings=${warningTrips}, overrides=${overrideRows.length}`,
-    });
+    pushSeedLog(logs, { step: "submit_pcrs_fire_claim_trigger", status: "ok", count: claimsCreated, detail: `${claimsCreated}/${submittable.length} pcrs submitted, claims auto-created via trigger` });
   } catch (e: any) {
-    pushSeedLog(logs, { step: "apply_safety_rules", status: "error", error: e.message });
-  }
-
-  // h) set billing readiness fields
-  try {
-    const { data: billingTrips } = await admin
-      .from("trip_records")
-      .select("id,status,pcs_attached,signature_obtained,documentation_complete")
-      .eq("company_id", companyId)
-      .eq("simulation_run_id", runId);
-
-    for (const t of billingTrips ?? []) {
-      const ready = t.status === "completed" && !!t.pcs_attached && !!t.signature_obtained && !!t.documentation_complete;
-      if (!ready) {
-        await admin.from("trip_records").update({ claim_ready: false }).eq("id", t.id);
-      }
-    }
-
-    pushSeedLog(logs, {
-      step: "set_billing_readiness_fields",
-      status: "ok",
-      count: billingTrips?.length ?? 0,
-    });
-  } catch (e: any) {
-    pushSeedLog(logs, { step: "set_billing_readiness_fields", status: "error", error: e.message });
-  }
-
-  // i) create claim_records for completed/ready_for_billing trips so Billing & Claims has data
-  try {
-    const { data: claimableTrips } = await admin
-      .from("trip_records")
-      .select("id, patient_id, run_date, trip_type, expected_revenue, origin_type, destination_type, hcpcs_codes, hcpcs_modifiers, loaded_miles, claim_ready")
-      .eq("company_id", companyId)
-      .eq("simulation_run_id", runId)
-      .in("status", ["completed", "ready_for_billing"]);
-
-    if (claimableTrips && claimableTrips.length > 0) {
-      const payerTypes: string[] = [];
-      for (const [payer, count] of Object.entries(config.payerMix)) for (let j = 0; j < count; j++) payerTypes.push(payer);
-
-      const claimRows = claimableTrips.map((t: any, idx: number) => {
-        const payer = payerTypes[idx % payerTypes.length] || "Medicare";
-        const payerLower = payer.toLowerCase();
-        const payerType = payerLower.includes("medicare") ? "medicare"
-          : payerLower.includes("medicaid") ? "medicaid"
-          : payerLower.includes("facility") || payerLower.includes("contract") ? "facility"
-          : "cash";
-        const baseCharge = t.expected_revenue ?? rand(150, 350);
-        const mileageCharge = (t.loaded_miles ?? rand(5, 20)) * 2.5;
-        const extrasCharge = rand(0, 30);
-        return {
-          trip_id: t.id,
-          patient_id: t.patient_id,
-          run_date: t.run_date,
-          payer_type: payerType,
-          payer_name: payer,
-          base_charge: baseCharge,
-          mileage_charge: Math.round(mileageCharge * 100) / 100,
-          extras_charge: extrasCharge,
-          total_charge: Math.round((baseCharge + mileageCharge + extrasCharge) * 100) / 100,
-          expected_revenue: t.expected_revenue ?? baseCharge,
-          status: t.claim_ready ? "ready_to_bill" : "needs_correction",
-          origin_type: t.origin_type,
-          destination_type: t.destination_type,
-          hcpcs_codes: t.hcpcs_codes,
-          hcpcs_modifiers: t.hcpcs_modifiers,
-          company_id: companyId,
-          is_simulated: true,
-          simulation_run_id: runId,
-        };
-      });
-
-      await insertRowsResilient({
-        admin,
-        step: "create_claim_records",
-        table: "claim_records",
-        rows: claimRows,
-        logs,
-        rowErrors,
-        requiredFields: ["trip_id", "patient_id", "run_date", "company_id"],
-        batchSize: 25,
-        select: "id",
-      });
-    }
-
-    pushSeedLog(logs, {
-      step: "create_claim_records",
-      status: "ok",
-      count: claimableTrips?.length ?? 0,
-    });
-  } catch (e: any) {
-    pushSeedLog(logs, { step: "create_claim_records", status: "error", error: e.message });
+    pushSeedLog(logs, { step: "submit_pcrs_fire_claim_trigger", status: "error", error: e.message });
   }
 
   const firstRowError = rowErrors[0];
@@ -1205,7 +857,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
     await admin.from("simulation_runs").update({ status: "failed" }).eq("id", runId);
     return {
       ok: false,
-      step: firstRowError?.step || "create_trips_legs_time_windows",
+      step: firstRowError?.step || "create_trip_records",
       table: firstRowError?.table,
       error: firstRowError?.error || "No trips were seeded",
       row: firstRowError?.row,
@@ -1264,7 +916,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
   pushSeedLog(logs, {
     step: "complete",
     status: "ok",
-    detail: `trip_count=${tripCount}, row_errors=${rowErrors.length}`,
+    detail: `trip_count=${tripCount}, claims_via_trigger=${claimsCreated}, row_errors=${rowErrors.length}`,
   });
 
   return {
@@ -1274,6 +926,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
     truckCount: truckIds.length,
     patientCount: patientIds.length,
     tripCount,
+    claimsCreated,
     seedSize,
     logs,
     rowErrors: rowErrors.slice(0, 50),
