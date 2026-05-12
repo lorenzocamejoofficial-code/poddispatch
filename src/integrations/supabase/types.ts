@@ -1217,6 +1217,7 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           created_at: string
+          creator_test_tenant: boolean
           current_software: string | null
           deleted_at: string | null
           deleted_by: string | null
@@ -1260,6 +1261,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          creator_test_tenant?: boolean
           current_software?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
@@ -1303,6 +1305,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          creator_test_tenant?: boolean
           current_software?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
