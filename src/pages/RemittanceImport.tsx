@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Upload, CheckCircle, XCircle, AlertTriangle, Info, FileText, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { Loader2 } from "lucide-react";
 import {
   parseEDI835Envelope,
   isValid835,
@@ -47,6 +48,38 @@ export default function RemittanceImport() {
     plbCount: number;
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const ackFileRef = useRef<HTMLInputElement>(null);
+  const [ackUploading, setAckUploading] = useState(false);
+
+  const handleAckUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAckUploading(true);
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+      const b64 = btoa(bin);
+      const { data, error } = await supabase.functions.invoke("ingest-acks-officeally", {
+        body: { filename: file.name, content_base64: b64 },
+      });
+      if (error) {
+        toast.error("Upload failed: " + error.message);
+      } else if ((data as any)?.skipped) {
+        toast.info("Already imported — duplicate filename skipped.");
+      } else if ((data as any)?.ok) {
+        const { matched = 0, updated = 0, unmatched = 0, file_type } = data as any;
+        toast.success(`${file_type} processed — ${updated}/${matched} claims updated, ${unmatched} unmatched`);
+      } else {
+        toast.error((data as any)?.error || "Upload failed");
+      }
+    } catch (err: any) {
+      toast.error("Upload error: " + err.message);
+    } finally {
+      setAckUploading(false);
+      if (ackFileRef.current) ackFileRef.current.value = "";
+    }
+  }, []);
 
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -346,6 +379,23 @@ export default function RemittanceImport() {
             ANSI X12 835
           </Badge>
         </div>
+
+        {/* Manual 999 / 277CA upload — fallback if the SFTP poller hasn't pulled it yet */}
+        <Card className="bg-muted/30">
+          <CardContent className="py-3 px-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Upload 999 / 277CA acknowledgement</p>
+              <p className="text-xs text-muted-foreground">
+                Manual fallback for clearinghouse acks. Accepts <code>.999</code>, <code>.277</code>, and <code>.txt</code> files. Duplicates are skipped automatically.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => ackFileRef.current?.click()} disabled={ackUploading} className="gap-2 shrink-0">
+              {ackUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {ackUploading ? "Uploading…" : "Upload Ack"}
+            </Button>
+            <input ref={ackFileRef} type="file" accept=".999,.277,.txt" className="hidden" onChange={handleAckUpload} />
+          </CardContent>
+        </Card>
 
         {/* Upload Area */}
         {!matchedItems.length && !parsing && (

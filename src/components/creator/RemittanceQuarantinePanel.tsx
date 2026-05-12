@@ -27,6 +27,7 @@ type QuarantineRow = {
   raw_clp_segment: string | null;
   quarantine_reason: string;
   status: string;
+  file_type: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
   resolution_notes: string | null;
@@ -43,10 +44,17 @@ const STATUS_LABELS: Record<string, { label: string; variant: "destructive" | "s
   resolved_reassigned: { label: "Reassigned", variant: "outline" },
 };
 
+const FILE_TYPE_LABELS: Record<string, { label: string; variant: "destructive" | "secondary" | "default" | "outline" }> = {
+  "835":   { label: "835 Payment", variant: "outline" },
+  "999":   { label: "999 Syntax", variant: "secondary" },
+  "277ca": { label: "277CA Claim", variant: "secondary" },
+};
+
 export function RemittanceQuarantinePanel() {
   const [rows, setRows] = useState<QuarantineRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("pending_review");
+  const [fileTypeFilter, setFileTypeFilter] = useState<string>("all");
   const [reviewing, setReviewing] = useState<QuarantineRow | null>(null);
   const [resolutionStatus, setResolutionStatus] = useState<string>("resolved_ignored");
   const [resolutionNotes, setResolutionNotes] = useState("");
@@ -60,6 +68,7 @@ export function RemittanceQuarantinePanel() {
       .order("created_at", { ascending: false })
       .limit(200);
     if (statusFilter !== "all") q = q.eq("status", statusFilter);
+    if (fileTypeFilter !== "all") q = q.eq("file_type", fileTypeFilter);
     const { data, error } = await q;
     if (error) {
       toast.error("Failed to load quarantine: " + error.message);
@@ -87,7 +96,7 @@ export function RemittanceQuarantinePanel() {
     }
     setRows(list);
     setLoading(false);
-  }, [statusFilter]);
+  }, [statusFilter, fileTypeFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -134,6 +143,15 @@ export function RemittanceQuarantinePanel() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Select value={fileTypeFilter} onValueChange={setFileTypeFilter}>
+            <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All file types</SelectItem>
+              <SelectItem value="835">835 Payment</SelectItem>
+              <SelectItem value="999">999 Syntax</SelectItem>
+              <SelectItem value="277ca">277CA Claim</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -161,6 +179,7 @@ export function RemittanceQuarantinePanel() {
             <TableHeader>
               <TableRow>
                 <TableHead>Received</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>File</TableHead>
                 <TableHead>Importing Company</TableHead>
                 <TableHead>NPI in File</TableHead>
@@ -175,6 +194,11 @@ export function RemittanceQuarantinePanel() {
               {rows.map(r => (
                 <TableRow key={r.id}>
                   <TableCell className="text-xs">{format(new Date(r.created_at), "MMM d, HH:mm")}</TableCell>
+                  <TableCell className="text-xs">
+                    <Badge variant={FILE_TYPE_LABELS[r.file_type ?? "835"]?.variant ?? "outline"} className="text-[10px]">
+                      {FILE_TYPE_LABELS[r.file_type ?? "835"]?.label ?? (r.file_type ?? "835")}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-xs font-mono">{r.file_name}</TableCell>
                   <TableCell className="text-xs">{r.importing_company_name ?? "—"}</TableCell>
                   <TableCell className="text-xs font-mono">{r.billing_npi_in_file ?? "—"}</TableCell>
