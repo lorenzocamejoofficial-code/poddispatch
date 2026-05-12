@@ -31,7 +31,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [companyName, setCompanyName] = useState("PodDispatch");
-  const { user, role, isSystemCreator, activeCompanyId, loading: authLoading, membershipLoaded, signIn } = useAuth();
+  const { user, role, isSystemCreator, activeCompanyId, loading: authLoading, membershipLoaded, signIn, signOut } = useAuth();
   const navigate = useNavigate();
 
   // If coming from a token link, store it for post-login redirect
@@ -49,6 +49,38 @@ export default function Login() {
       return;
     }
 
+    // Hard-block: non-creator admin roles cannot sign in to the creator
+    // test tenant (Lorenzo Test Company). The test tenant is owned by the
+    // system creator and is not a real customer environment — any standard
+    // admin login into it is treated as misconfigured.
+    if (
+      !isSystemCreator &&
+      activeCompanyId &&
+      role && ["owner", "manager", "dispatcher", "biller"].includes(role)
+    ) {
+      (async () => {
+        const { data } = await supabase
+          .from("companies")
+          .select("creator_test_tenant")
+          .eq("id", activeCompanyId)
+          .maybeSingle();
+        if ((data as any)?.creator_test_tenant === true) {
+          await signOut();
+          setError(
+            "This account is attached to a creator test tenant and cannot sign in here. Contact the system creator if you believe this is an error."
+          );
+          return;
+        }
+        // Not blocked — proceed with normal redirect.
+        if (tokenRedirect) {
+          navigate(`/crew/${tokenRedirect}`, { replace: true });
+        } else {
+          navigate(getRoleLanding(role, isSystemCreator), { replace: true });
+        }
+      })();
+      return;
+    }
+
     // If there's a token redirect pending, go to crew view
     if (tokenRedirect) {
       navigate(`/crew/${tokenRedirect}`, { replace: true });
@@ -56,7 +88,7 @@ export default function Login() {
     }
 
     navigate(getRoleLanding(role, isSystemCreator), { replace: true });
-  }, [user, role, isSystemCreator, activeCompanyId, authLoading, membershipLoaded, navigate, tokenRedirect]);
+  }, [user, role, isSystemCreator, activeCompanyId, authLoading, membershipLoaded, navigate, tokenRedirect, signOut]);
 
   useEffect(() => {
     supabase
