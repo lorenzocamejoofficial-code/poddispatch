@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   LayoutDashboard, Settings2, Play,
   ShieldCheck, LogOut, Menu, X, Settings, FlaskConical,
-  Eye, Users,
+  Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,6 @@ const creatorNavItems: NavItem[] = [
   { path: "/system", label: "System Dashboard", icon: LayoutDashboard },
   { path: "/creator-console", label: "Company Console", icon: Settings2 },
   { path: "/crew-preview", label: "Crew UI Preview", icon: Users },
-  { path: "/override-monitor", label: "Override Monitor", icon: Eye },
   { path: "/creator-settings", label: "Settings", icon: Settings },
 ];
 
