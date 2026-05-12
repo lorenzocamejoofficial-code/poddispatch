@@ -53,6 +53,9 @@ interface ARClaim {
   company_id: string | null;
   resubmission_count: number | null;
   resubmitted_at: string | null;
+  acknowledgment_status: string | null;
+  rejection_reason: string | null;
+  rejection_codes: string[] | null;
   // computed
   days_outstanding: number;
   priority: number;
@@ -129,6 +132,7 @@ export default function ARCommandCenter() {
   const [search, setSearch] = useState("");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterPayer, setFilterPayer] = useState<string>("all");
+  const [filterAck, setFilterAck] = useState<string>("all");
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   const [writeOffReason, setWriteOffReason] = useState("");
   const [recoveryOpen, setRecoveryOpen] = useState(false);
@@ -158,7 +162,7 @@ export default function ARCommandCenter() {
     const [{ data, error }, { data: payerDir }] = await Promise.all([
       supabase
         .from("claim_records")
-        .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at")
+        .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at, acknowledgment_status, rejection_reason, rejection_codes")
         .eq("company_id", activeCompanyId)
         .eq("is_simulated", false)
         .in("status", ["submitted", "denied", "needs_correction"] as any)
@@ -350,18 +354,23 @@ export default function ARCommandCenter() {
     return claims.filter(c => {
       if (filterPriority !== "all" && c.priority_label !== filterPriority) return false;
       if (filterPayer !== "all" && c.payer_name !== filterPayer) return false;
+      if (filterAck === "rejected_999" && c.acknowledgment_status !== "rejected_999") return false;
+      if (filterAck === "rejected_277ca" && c.acknowledgment_status !== "rejected_277ca") return false;
+      if (filterAck === "any_rejected" && !["rejected_999","rejected_277ca"].includes(c.acknowledgment_status ?? "")) return false;
+      if (filterAck === "accepted" && !["accepted_999","accepted_277ca","forwarded_to_payer"].includes(c.acknowledgment_status ?? "")) return false;
+      if (filterAck === "no_ack" && c.acknowledgment_status) return false;
       if (search) {
         const q = search.toLowerCase();
         if (!c.patient_name.toLowerCase().includes(q) && !(c.member_id ?? "").toLowerCase().includes(q)) return false;
       }
       return true;
     });
-  }, [claims, filterPriority, filterPayer, search]);
+  }, [claims, filterPriority, filterPayer, filterAck, search]);
 
   // Pagination — keeps DOM render small as AR queue grows past hundreds of rows
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  useEffect(() => { setPage(1); }, [search, filterPriority, filterPayer, pageSize]);
+  useEffect(() => { setPage(1); }, [search, filterPriority, filterPayer, filterAck, pageSize]);
   const pageStart = (page - 1) * pageSize;
   const paginatedClaims = useMemo(() => filtered.slice(pageStart, pageStart + pageSize), [filtered, pageStart, pageSize]);
 
