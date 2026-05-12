@@ -396,6 +396,69 @@ export type Database = {
           },
         ]
       }
+      claim_acknowledgments: {
+        Row: {
+          ack_file_id: string | null
+          claim_record_id: string | null
+          company_id: string | null
+          created_at: string
+          file_type: string
+          id: string
+          outcome: string
+          patient_control_number: string | null
+          payer_claim_control_number: string | null
+          raw_segment: string | null
+          received_at: string
+          rejection_codes: string[] | null
+          rejection_reason: string | null
+        }
+        Insert: {
+          ack_file_id?: string | null
+          claim_record_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          file_type: string
+          id?: string
+          outcome: string
+          patient_control_number?: string | null
+          payer_claim_control_number?: string | null
+          raw_segment?: string | null
+          received_at?: string
+          rejection_codes?: string[] | null
+          rejection_reason?: string | null
+        }
+        Update: {
+          ack_file_id?: string | null
+          claim_record_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          file_type?: string
+          id?: string
+          outcome?: string
+          patient_control_number?: string | null
+          payer_claim_control_number?: string | null
+          raw_segment?: string | null
+          received_at?: string
+          rejection_codes?: string[] | null
+          rejection_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "claim_acknowledgments_ack_file_id_fkey"
+            columns: ["ack_file_id"]
+            isOneToOne: false
+            referencedRelation: "clearinghouse_ack_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_acknowledgments_claim_record_id_fkey"
+            columns: ["claim_record_id"]
+            isOneToOne: false
+            referencedRelation: "claim_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       claim_adjustments: {
         Row: {
           changed_by: string
@@ -572,6 +635,8 @@ export type Database = {
       }
       claim_records: {
         Row: {
+          acknowledged_at: string | null
+          acknowledgment_status: string | null
           adjustment_codes: string[] | null
           allowed_amount: number | null
           amount_paid: number | null
@@ -648,6 +713,8 @@ export type Database = {
           pcs_physician_name: string | null
           pcs_physician_npi: string | null
           primary_impression: string | null
+          rejection_codes: string[] | null
+          rejection_reason: string | null
           remittance_date: string | null
           resubmission_count: number | null
           resubmitted_at: string | null
@@ -667,6 +734,8 @@ export type Database = {
           write_off_amount: number | null
         }
         Insert: {
+          acknowledged_at?: string | null
+          acknowledgment_status?: string | null
           adjustment_codes?: string[] | null
           allowed_amount?: number | null
           amount_paid?: number | null
@@ -743,6 +812,8 @@ export type Database = {
           pcs_physician_name?: string | null
           pcs_physician_npi?: string | null
           primary_impression?: string | null
+          rejection_codes?: string[] | null
+          rejection_reason?: string | null
           remittance_date?: string | null
           resubmission_count?: number | null
           resubmitted_at?: string | null
@@ -762,6 +833,8 @@ export type Database = {
           write_off_amount?: number | null
         }
         Update: {
+          acknowledged_at?: string | null
+          acknowledgment_status?: string | null
           adjustment_codes?: string[] | null
           allowed_amount?: number | null
           amount_paid?: number | null
@@ -838,6 +911,8 @@ export type Database = {
           pcs_physician_name?: string | null
           pcs_physician_npi?: string | null
           primary_impression?: string | null
+          rejection_codes?: string[] | null
+          rejection_reason?: string | null
           remittance_date?: string | null
           resubmission_count?: number | null
           resubmitted_at?: string | null
@@ -997,6 +1072,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      clearinghouse_ack_files: {
+        Row: {
+          claims_matched: number
+          claims_updated: number
+          created_at: string
+          file_type: string
+          filename: string
+          id: string
+          parse_error: string | null
+          parsed_summary: Json | null
+          processed_at: string | null
+          raw_content: string
+          received_at: string
+          source_file_id: string | null
+          submitted_filename: string | null
+          unmatched_count: number
+        }
+        Insert: {
+          claims_matched?: number
+          claims_updated?: number
+          created_at?: string
+          file_type: string
+          filename: string
+          id?: string
+          parse_error?: string | null
+          parsed_summary?: Json | null
+          processed_at?: string | null
+          raw_content: string
+          received_at?: string
+          source_file_id?: string | null
+          submitted_filename?: string | null
+          unmatched_count?: number
+        }
+        Update: {
+          claims_matched?: number
+          claims_updated?: number
+          created_at?: string
+          file_type?: string
+          filename?: string
+          id?: string
+          parse_error?: string | null
+          parsed_summary?: Json | null
+          processed_at?: string | null
+          raw_content?: string
+          received_at?: string
+          source_file_id?: string | null
+          submitted_filename?: string | null
+          unmatched_count?: number
+        }
+        Relationships: []
       }
       clearinghouse_credentials: {
         Row: {
@@ -3358,6 +3484,7 @@ export type Database = {
           created_at: string
           expected_billing_npi: string | null
           file_name: string | null
+          file_type: string
           id: string
           importing_company_id: string | null
           matched_company_id: string | null
@@ -3381,6 +3508,7 @@ export type Database = {
           created_at?: string
           expected_billing_npi?: string | null
           file_name?: string | null
+          file_type?: string
           id?: string
           importing_company_id?: string | null
           matched_company_id?: string | null
@@ -3404,6 +3532,7 @@ export type Database = {
           created_at?: string
           expected_billing_npi?: string | null
           file_name?: string | null
+          file_type?: string
           id?: string
           importing_company_id?: string | null
           matched_company_id?: string | null
