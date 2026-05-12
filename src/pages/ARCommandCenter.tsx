@@ -528,12 +528,13 @@ export default function ARCommandCenter() {
                     <th className="text-right p-3 font-medium">Billed</th>
                     <th className="text-right p-3 font-medium">Days Out</th>
                     <th className="text-left p-3 font-medium">Status</th>
+                    <th className="text-left p-3 font-medium">Clearinghouse</th>
                     <th className="text-left p-3 font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 && (
-                    <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">No claims requiring AR follow-up</td></tr>
+                    <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">No claims requiring AR follow-up</td></tr>
                   )}
                   {paginatedClaims.map(claim => (
                     <tr
