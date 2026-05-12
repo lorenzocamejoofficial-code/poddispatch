@@ -137,11 +137,12 @@ export default function SimulationLab() {
   const loadPrecond = useCallback(async () => {
     const today = new Date().toISOString().slice(0, 10);
     const cid = LORENZO_TEST_COMPANY_ID;
-    const trucks: any = await supabase.from("trucks").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("is_active", true);
-    const crews: any = await supabase.from("crews").select("id", { count: "exact", head: true }).eq("company_id", cid);
-    const facilities: any = await supabase.from("facilities").select("id", { count: "exact", head: true }).eq("company_id", cid);
-    const templates: any = await supabase.from("patients").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("is_template", true);
-    const slots: any = await supabase.from("truck_run_slots").select("crew_id").eq("company_id", cid).eq("run_date", today).not("crew_id", "is", null);
+    const sb: any = supabase;
+    const trucks: any = await sb.from("trucks").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("is_active", true);
+    const crews: any = await sb.from("crews").select("id", { count: "exact", head: true }).eq("company_id", cid);
+    const facilities: any = await sb.from("facilities").select("id", { count: "exact", head: true }).eq("company_id", cid);
+    const templates: any = await sb.from("patients").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("is_template", true);
+    const slots: any = await sb.from("truck_run_slots").select("crew_id").eq("company_id", cid).eq("run_date", today).not("crew_id", "is", null);
     setPrecond({
       trucks: trucks.count ?? 0,
       crews: crews.count ?? 0,
