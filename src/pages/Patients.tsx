@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Pencil, Trash2, Zap, Clock, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Zap, Clock, AlertTriangle, ShieldCheck, Loader2, Bookmark, BookmarkCheck, FlaskConical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
@@ -572,8 +572,9 @@ export default function Patients() {
     const q = search.toLowerCase();
     const nameMatch = `${p.first_name} ${p.last_name}`.toLowerCase().includes(q);
     const statusMatch = statusFilter === "all" || (p as any).status === statusFilter;
-    return nameMatch && statusMatch;
-  }), [patients, search, statusFilter]);
+    const templateMatch = templatesView ? (p as any).is_template === true : true;
+    return nameMatch && statusMatch && templateMatch;
+  }), [patients, search, statusFilter, templatesView]);
 
   // Pagination — keeps rendered DOM small even with 1000+ patients
   const [page, setPage] = useState(1);
