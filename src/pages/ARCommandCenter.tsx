@@ -501,6 +501,19 @@ export default function ARCommandCenter() {
                   {payers.map(p => <SelectItem key={p} value={p!}>{p}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Select value={filterAck} onValueChange={setFilterAck}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="Clearinghouse status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All clearinghouse acks</SelectItem>
+                  <SelectItem value="any_rejected">Any rejection (999 / 277CA)</SelectItem>
+                  <SelectItem value="rejected_999">Rejected — 999 (syntax)</SelectItem>
+                  <SelectItem value="rejected_277ca">Rejected — 277CA (claim)</SelectItem>
+                  <SelectItem value="accepted">Accepted / Forwarded</SelectItem>
+                  <SelectItem value="no_ack">No ack received yet</SelectItem>
+                </SelectContent>
+              </Select>
               <span className="text-sm text-muted-foreground">{filtered.length} claims</span>
             </div>
 
@@ -534,6 +547,26 @@ export default function ARCommandCenter() {
                       <td className="p-3 text-right">${(claim.total_charge ?? 0).toFixed(2)}</td>
                       <td className="p-3 text-right">{claim.days_outstanding}</td>
                       <td className="p-3"><Badge variant="outline" className="text-xs">{claim.status}</Badge></td>
+                      <td className="p-3">
+                        {claim.acknowledgment_status === "rejected_999" && (
+                          <Badge variant="destructive" className="text-xs whitespace-nowrap" title={claim.rejection_reason ?? ""}>999 Rejected</Badge>
+                        )}
+                        {claim.acknowledgment_status === "rejected_277ca" && (
+                          <Badge variant="destructive" className="text-xs whitespace-nowrap" title={claim.rejection_reason ?? ""}>277CA Rejected</Badge>
+                        )}
+                        {claim.acknowledgment_status === "accepted_999" && (
+                          <Badge variant="secondary" className="text-xs whitespace-nowrap">999 OK</Badge>
+                        )}
+                        {claim.acknowledgment_status === "accepted_277ca" && (
+                          <Badge variant="secondary" className="text-xs whitespace-nowrap">277CA OK</Badge>
+                        )}
+                        {claim.acknowledgment_status === "forwarded_to_payer" && (
+                          <Badge variant="secondary" className="text-xs whitespace-nowrap">Forwarded</Badge>
+                        )}
+                        {!claim.acknowledgment_status && (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
                       <td className="p-3">
                         <Badge variant={claim.priority_color as any} className="text-xs whitespace-nowrap">
                           {claim.priority_label}
