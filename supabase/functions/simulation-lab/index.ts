@@ -1476,7 +1476,9 @@ async function generateSummary(admin: any, companyId: string) {
 }
 
 async function resetSandbox(admin: any, companyId: string, userId: string) {
-  // Clear billing_overrides linked to sandbox trips first (no company_id column, use trip FK)
+  // Option A reset: wipe ONLY operational rows the seeder can create, filtered by
+  // is_simulated=true. Real setup data (trucks, crews, real profiles, facilities,
+  // template patients) is NEVER touched.
   const { data: sandboxTripIds } = await admin.from("trip_records")
     .select("id")
     .eq("company_id", companyId)
@@ -1484,16 +1486,15 @@ async function resetSandbox(admin: any, companyId: string, userId: string) {
 
   if (sandboxTripIds?.length) {
     const tripIds = sandboxTripIds.map((t: any) => t.id);
-    // Delete billing_overrides for these trips
     await admin.from("billing_overrides").delete().in("trip_id", tripIds);
-    // Delete audit_logs for billing overrides on these trips
     await admin.from("audit_logs").delete().eq("action", "billing_override").in("record_id", tripIds);
   }
 
+  // Order matters — delete claim_records before trip_records (FK), and child tables first.
   const tables = [
     "comms_events", "trip_events", "hold_timers",
-    "safety_overrides", "claim_records", "trip_records", "truck_run_slots", "scheduling_legs",
-    "crews", "trucks", "patients", "facilities",
+    "safety_overrides", "claim_records",
+    "trip_records", "truck_run_slots", "scheduling_legs",
   ];
 
   // Delete projection/risk state (PK-based, no is_simulated)
@@ -1511,12 +1512,14 @@ async function resetSandbox(admin: any, companyId: string, userId: string) {
     counts[table] = data?.length ?? 0;
   }
 
-  const { data: simProfiles } = await admin.from("profiles")
+  // Cloned (non-template) seeded patients only — templates are preserved.
+  const { data: clonedPatients } = await admin.from("patients")
     .delete()
     .eq("company_id", companyId)
     .eq("is_simulated", true)
+    .eq("is_template", false)
     .select("id");
-  counts["profiles"] = simProfiles?.length ?? 0;
+  counts["patients_cloned"] = clonedPatients?.length ?? 0;
 
   const { data: runs } = await admin.from("simulation_runs").delete().neq("id", "00000000-0000-0000-0000-000000000000").select("id");
   counts["simulation_runs"] = runs?.length ?? 0;
@@ -1531,6 +1534,7 @@ async function resetSandbox(admin: any, companyId: string, userId: string) {
 
   return {
     deleted_counts: counts,
+    preserved: ["trucks", "crews", "facilities", "profiles", "patients (is_template=true)"],
     simulation_run_id,
   };
 }
