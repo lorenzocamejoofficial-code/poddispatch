@@ -179,6 +179,7 @@ export function RemittanceQuarantinePanel() {
             <TableHeader>
               <TableRow>
                 <TableHead>Received</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>File</TableHead>
                 <TableHead>Importing Company</TableHead>
                 <TableHead>NPI in File</TableHead>
@@ -193,6 +194,11 @@ export function RemittanceQuarantinePanel() {
               {rows.map(r => (
                 <TableRow key={r.id}>
                   <TableCell className="text-xs">{format(new Date(r.created_at), "MMM d, HH:mm")}</TableCell>
+                  <TableCell className="text-xs">
+                    <Badge variant={FILE_TYPE_LABELS[r.file_type ?? "835"]?.variant ?? "outline"} className="text-[10px]">
+                      {FILE_TYPE_LABELS[r.file_type ?? "835"]?.label ?? (r.file_type ?? "835")}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-xs font-mono">{r.file_name}</TableCell>
                   <TableCell className="text-xs">{r.importing_company_name ?? "—"}</TableCell>
                   <TableCell className="text-xs font-mono">{r.billing_npi_in_file ?? "—"}</TableCell>
