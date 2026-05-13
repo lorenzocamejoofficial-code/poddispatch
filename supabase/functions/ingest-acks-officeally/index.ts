@@ -147,6 +147,178 @@ function parsePCN(pcn: string): { runDate: string; idPrefix: string } | null {
   return { runDate: `${yearPrefix}${yy}-${mm}-${dd}`, idPrefix: m[2].toLowerCase() };
 }
 
+/* --------------------- core matching pipeline ------------------- */
+/**
+ * Run the matching/update logic for a single ack file row that already exists
+ * in clearinghouse_ack_files. Used both by the live ingest path and by the
+ * reprocess_unmatched backfill path.
+ */
+async function matchAndApply(
+  supabase: any,
+  ackFile: { id: string; filename: string; submitted_filename: string | null },
+  fileType: FileType,
+  content: string,
+) {
+  const filename = ackFile.filename;
+  const submitted = ackFile.submitted_filename ?? parseSourceMeta(filename).submitted_filename;
+  let matched = 0, updated = 0, unmatched = 0;
+  const summary: any = { file_type: fileType };
+
+  if (fileType === "999") {
+    const parsed = parse999(content);
+    summary.parsed = { ak9: parsed.ak9_overall_status, label: parsed.ak9_label, groups: { received: parsed.groups_received, accepted: parsed.groups_accepted }, transactions: { received: parsed.transactions_received, accepted: parsed.transactions_accepted }, errors: parsed.segment_errors.length, raw_codes: parsed.raw_codes };
+
+    let claimIds: string[] = [];
+    let companyId: string | null = null;
+    if (submitted) {
+      const candidates = [submitted, `${submitted}.837`, `${submitted}.txt`];
+      const inList = candidates.map((c) => `"${c}"`).join(",");
+      const { data: q } = await supabase.from("claim_submission_queue")
+        .select("claim_ids, company_id, filename")
+        .filter("filename", "in", `(${inList})`)
+        .limit(1).maybeSingle();
+      if (q) { claimIds = (q.claim_ids as string[]) ?? []; companyId = (q.company_id as string) ?? null; }
+      if (claimIds.length === 0) {
+        const { data: a } = await supabase.from("claim_submission_artifacts")
+          .select("claim_ids, company_id, filename")
+          .filter("filename", "in", `(${inList})`)
+          .order("generated_at", { ascending: false })
+          .limit(1).maybeSingle();
+        if (a) { claimIds = (a.claim_ids as string[]) ?? []; companyId = (a.company_id as string) ?? null; }
+      }
+    }
+    const outcome = map999Outcome(parsed.ak9_overall_status);
+    matched = claimIds.length;
+
+    if (claimIds.length === 0) {
+      unmatched = 1;
+      // Avoid duplicate quarantine rows on reprocess
+      const { data: existingQ } = await supabase.from("remittance_quarantine").select("id").eq("file_name", filename).limit(1).maybeSingle();
+      if (!existingQ) {
+        await supabase.from("remittance_quarantine").insert({
+          file_name: filename, file_type: "999",
+          quarantine_reason: `999 ${parsed.ak9_label} could not be matched to a submitted batch (control # ${parsed.control_number})`,
+          status: "pending_review",
+        });
+      }
+    } else {
+      const ackStatus = outcome === "rejected" ? "rejected_999" : "accepted_999";
+      const updateBody: any = {
+        acknowledgment_status: ackStatus,
+        acknowledged_at: new Date().toISOString(),
+        edi_acknowledgment_code: parsed.ak9_overall_status,
+        updated_at: new Date().toISOString(),
+      };
+      if (outcome === "rejected") {
+        updateBody.status = "needs_correction";
+        updateBody.rejection_codes = parsed.raw_codes;
+        updateBody.rejection_reason = `999 ${parsed.ak9_label}`;
+        updateBody.clearinghouse_status = "rejected";
+      } else {
+        updateBody.clearinghouse_status = "accepted";
+      }
+      const { error: updErr } = await supabase.from("claim_records").update(updateBody).in("id", claimIds);
+      if (!updErr) updated = claimIds.length;
+
+      const ackRows = claimIds.map((cid) => ({
+        claim_record_id: cid, ack_file_id: ackFile.id, company_id: companyId, file_type: "999",
+        outcome, rejection_codes: outcome === "rejected" ? parsed.raw_codes : null,
+        rejection_reason: outcome === "rejected" ? `999 ${parsed.ak9_label}` : null,
+        raw_segment: JSON.stringify(parsed.segment_errors).slice(0, 4000),
+      }));
+      if (ackRows.length) await supabase.from("claim_acknowledgments").insert(ackRows);
+
+      // If we just rescued this ack from quarantine, mark it resolved
+      await supabase.from("remittance_quarantine")
+        .update({ status: "resolved", resolved_at: new Date().toISOString(), resolution_notes: `Auto-matched on reprocess to ${claimIds.length} claim(s)` })
+        .eq("file_name", filename).eq("status", "pending_review");
+    }
+  } else {
+    // 277ca
+    const parsed = parse277(content);
+    summary.parsed = { payer: parsed.payer_name, claims: parsed.claims.length, traces: parsed.trace_numbers };
+
+    for (const c of parsed.claims) {
+      const pcn = c.patient_control_number;
+      if (!pcn) {
+        unmatched++;
+        await supabase.from("remittance_quarantine").insert({
+          file_name: filename, file_type: "277ca",
+          patient_control_number: null,
+          payer_claim_control_number: c.payer_claim_control_number || null,
+          claim_status_code: `${c.status_category_code}:${c.status_code}`,
+          quarantine_reason: `277CA line missing patient control number — outcome ${c.outcome}`,
+          raw_clp_segment: c.raw_segment,
+          status: "pending_review",
+        });
+        continue;
+      }
+      const parts = parsePCN(pcn);
+      let claim: { id: string; company_id: string | null } | null = null;
+      if (parts) {
+        const { data: rows } = await supabase
+          .from("claim_records")
+          .select("id, company_id")
+          .eq("run_date", parts.runDate)
+          .ilike("id", `${parts.idPrefix}%`)
+          .limit(1);
+        if (rows && rows.length) claim = rows[0] as any;
+      }
+      if (!claim && c.payer_claim_control_number) {
+        const { data: byPayer } = await supabase.from("claim_records").select("id, company_id").eq("payer_claim_control_number", c.payer_claim_control_number).limit(1);
+        if (byPayer && byPayer.length) claim = byPayer[0] as any;
+      }
+      if (!claim) {
+        unmatched++;
+        await supabase.from("remittance_quarantine").insert({
+          file_name: filename, file_type: "277ca",
+          patient_control_number: pcn,
+          payer_claim_control_number: c.payer_claim_control_number || null,
+          claim_status_code: `${c.status_category_code}:${c.status_code}`,
+          quarantine_reason: `277CA referenced unknown patient control number ${pcn}`,
+          raw_clp_segment: c.raw_segment,
+          status: "pending_review",
+        });
+        continue;
+      }
+      matched++;
+      const ackStatus =
+        c.outcome === "rejected" ? "rejected_277ca" :
+        c.outcome === "forwarded" ? "forwarded_to_payer" :
+        "accepted_277ca";
+      const updateBody: any = {
+        acknowledgment_status: ackStatus,
+        acknowledged_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        clearinghouse_status: c.outcome,
+      };
+      if (c.payer_claim_control_number) updateBody.payer_claim_control_number = c.payer_claim_control_number;
+      if (c.outcome === "rejected") {
+        updateBody.status = "needs_correction";
+        updateBody.rejection_codes = c.raw_codes;
+        updateBody.rejection_reason = `277CA ${c.status_label}${c.free_text ? ` — ${c.free_text}` : ""}`.slice(0, 500);
+      }
+      const { error: updErr } = await supabase.from("claim_records").update(updateBody).eq("id", claim.id);
+      if (!updErr) updated++;
+      await supabase.from("claim_acknowledgments").insert({
+        claim_record_id: claim.id, ack_file_id: ackFile.id, company_id: claim.company_id, file_type: "277ca",
+        outcome: c.outcome, patient_control_number: pcn,
+        payer_claim_control_number: c.payer_claim_control_number || null,
+        rejection_codes: c.outcome === "rejected" ? c.raw_codes : null,
+        rejection_reason: c.outcome === "rejected" ? `277CA ${c.status_label}${c.free_text ? ` — ${c.free_text}` : ""}`.slice(0, 500) : null,
+        raw_segment: c.raw_segment,
+      });
+    }
+  }
+
+  await supabase.from("clearinghouse_ack_files").update({
+    parsed_summary: summary, claims_matched: matched, claims_updated: updated,
+    unmatched_count: unmatched, processed_at: new Date().toISOString(), parse_error: null,
+  }).eq("id", ackFile.id);
+
+  return { matched, updated, unmatched, summary };
+}
+
 /* ---------------------------- handler --------------------------- */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -164,6 +336,31 @@ Deno.serve(async (req) => {
   let body: any;
   try { body = await req.json(); } catch { return new Response(JSON.stringify({ ok: false, error: "Invalid JSON" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
 
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  /* ---- Backfill mode: re-run matching against all unmatched ack files ---- */
+  if (body?.reprocess_unmatched === true) {
+    const { data: rows, error } = await supabase
+      .from("clearinghouse_ack_files")
+      .select("id, filename, file_type, submitted_filename, raw_content, claims_matched")
+      .in("file_type", ["999", "277ca"])
+      .or("claims_matched.is.null,claims_matched.eq.0")
+      .order("created_at", { ascending: true });
+    if (error) {
+      return new Response(JSON.stringify({ ok: false, error: error.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const results: any[] = [];
+    for (const r of rows ?? []) {
+      try {
+        const out = await matchAndApply(supabase, { id: r.id, filename: r.filename, submitted_filename: r.submitted_filename }, r.file_type as FileType, r.raw_content as string);
+        results.push({ filename: r.filename, ...out });
+      } catch (err) {
+        results.push({ filename: r.filename, error: (err as Error).message });
+      }
+    }
+    return new Response(JSON.stringify({ ok: true, reprocessed: results.length, results }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
   const filename: string = body?.filename || "";
   const contentB64: string = body?.content_base64 || "";
   const contentRaw: string | undefined = body?.content;
@@ -176,8 +373,6 @@ Deno.serve(async (req) => {
   if (!fileType) {
     return new Response(JSON.stringify({ ok: false, error: "Could not detect file type", filename }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
-
-  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   // Idempotent insert (UNIQUE filename). If duplicate, skip.
   const meta = parseSourceMeta(filename);
@@ -207,165 +402,13 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, filename, file_type: fileType, note: "summary logged" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
-  let matched = 0, updated = 0, unmatched = 0;
-  const summary: any = { file_type: fileType };
-
   try {
-    if (fileType === "999") {
-      const parsed = parse999(content);
-      summary.parsed = { ak9: parsed.ak9_overall_status, label: parsed.ak9_label, groups: { received: parsed.groups_received, accepted: parsed.groups_accepted }, transactions: { received: parsed.transactions_received, accepted: parsed.transactions_accepted }, errors: parsed.segment_errors.length, raw_codes: parsed.raw_codes };
-
-      // Find claims by submitted filename. Look in BOTH the live submission queue
-      // (which is purged after upload) and the persistent submission artifacts table.
-      // OA's submitted_filename strips the extension, so try common suffixes.
-      const submitted = meta.submitted_filename;
-      let claimIds: string[] = [];
-      let companyId: string | null = null;
-      if (submitted) {
-        const candidates = [submitted, `${submitted}.837`, `${submitted}.txt`];
-        const inList = candidates.map((c) => `"${c}"`).join(",");
-        const { data: q } = await supabase.from("claim_submission_queue")
-          .select("claim_ids, company_id, filename")
-          .filter("filename", "in", `(${inList})`)
-          .limit(1).maybeSingle();
-        if (q) { claimIds = (q.claim_ids as string[]) ?? []; companyId = (q.company_id as string) ?? null; }
-        if (claimIds.length === 0) {
-          const { data: a } = await supabase.from("claim_submission_artifacts")
-            .select("claim_ids, company_id, filename")
-            .filter("filename", "in", `(${inList})`)
-            .order("generated_at", { ascending: false })
-            .limit(1).maybeSingle();
-          if (a) { claimIds = (a.claim_ids as string[]) ?? []; companyId = (a.company_id as string) ?? null; }
-        }
-      }
-      const outcome = map999Outcome(parsed.ak9_overall_status);
-      matched = claimIds.length;
-
-      if (claimIds.length === 0) {
-        unmatched = 1;
-        await supabase.from("remittance_quarantine").insert({
-          file_name: filename, file_type: "999",
-          quarantine_reason: `999 ${parsed.ak9_label} could not be matched to a submitted batch (control # ${parsed.control_number})`,
-          status: "pending_review",
-        });
-      } else {
-        const ackStatus = outcome === "rejected" ? "rejected_999" : "accepted_999";
-        const newClaimStatus = outcome === "rejected" ? "needs_correction" : "submitted";
-        const updateBody: any = {
-          acknowledgment_status: ackStatus,
-          acknowledged_at: new Date().toISOString(),
-          edi_acknowledgment_code: parsed.ak9_overall_status,
-          updated_at: new Date().toISOString(),
-        };
-        if (outcome === "rejected") {
-          updateBody.status = newClaimStatus;
-          updateBody.rejection_codes = parsed.raw_codes;
-          updateBody.rejection_reason = `999 ${parsed.ak9_label}`;
-          updateBody.clearinghouse_status = "rejected";
-        } else {
-          updateBody.clearinghouse_status = "accepted";
-        }
-        const { error: updErr } = await supabase.from("claim_records").update(updateBody).in("id", claimIds);
-        if (!updErr) updated = claimIds.length;
-
-        // Audit rows
-        const ackRows = claimIds.map((cid) => ({
-          claim_record_id: cid, ack_file_id: ackFile.id, company_id: companyId, file_type: "999",
-          outcome, rejection_codes: outcome === "rejected" ? parsed.raw_codes : null,
-          rejection_reason: outcome === "rejected" ? `999 ${parsed.ak9_label}` : null,
-          raw_segment: JSON.stringify(parsed.segment_errors).slice(0, 4000),
-        }));
-        if (ackRows.length) await supabase.from("claim_acknowledgments").insert(ackRows);
-      }
-    } else {
-      // 277ca
-      const parsed = parse277(content);
-      summary.parsed = { payer: parsed.payer_name, claims: parsed.claims.length, traces: parsed.trace_numbers };
-
-      for (const c of parsed.claims) {
-        const pcn = c.patient_control_number;
-        if (!pcn) {
-          unmatched++;
-          await supabase.from("remittance_quarantine").insert({
-            file_name: filename, file_type: "277ca",
-            patient_control_number: null,
-            payer_claim_control_number: c.payer_claim_control_number || null,
-            claim_status_code: `${c.status_category_code}:${c.status_code}`,
-            quarantine_reason: `277CA line missing patient control number — outcome ${c.outcome}`,
-            raw_clp_segment: c.raw_segment,
-            status: "pending_review",
-          });
-          continue;
-        }
-
-        // Reverse-match: PCN format is YYMMDD-XXXXXXXX (run_date + first 8 chars of UUID hex)
-        const parts = parsePCN(pcn);
-        let claim: { id: string; company_id: string | null } | null = null;
-        if (parts) {
-          const { data: rows } = await supabase
-            .from("claim_records")
-            .select("id, company_id")
-            .eq("run_date", parts.runDate)
-            .ilike("id", `${parts.idPrefix}%`)
-            .limit(1);
-          if (rows && rows.length) claim = rows[0] as any;
-        }
-        // Fallback: try payer_claim_control_number if 277CA echoed it as PCN
-        if (!claim && c.payer_claim_control_number) {
-          const { data: byPayer } = await supabase.from("claim_records").select("id, company_id").eq("payer_claim_control_number", c.payer_claim_control_number).limit(1);
-          if (byPayer && byPayer.length) claim = byPayer[0] as any;
-        }
-        if (!claim) {
-          unmatched++;
-          await supabase.from("remittance_quarantine").insert({
-            file_name: filename, file_type: "277ca",
-            patient_control_number: pcn,
-            payer_claim_control_number: c.payer_claim_control_number || null,
-            claim_status_code: `${c.status_category_code}:${c.status_code}`,
-            quarantine_reason: `277CA referenced unknown patient control number ${pcn}`,
-            raw_clp_segment: c.raw_segment,
-            status: "pending_review",
-          });
-          continue;
-        }
-        matched++;
-
-        const ackStatus =
-          c.outcome === "rejected" ? "rejected_277ca" :
-          c.outcome === "forwarded" ? "forwarded_to_payer" :
-          "accepted_277ca";
-        const updateBody: any = {
-          acknowledgment_status: ackStatus,
-          acknowledged_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          clearinghouse_status: c.outcome,
-        };
-        if (c.payer_claim_control_number) updateBody.payer_claim_control_number = c.payer_claim_control_number;
-        if (c.outcome === "rejected") {
-          updateBody.status = "needs_correction";
-          updateBody.rejection_codes = c.raw_codes;
-          updateBody.rejection_reason = `277CA ${c.status_label}${c.free_text ? ` — ${c.free_text}` : ""}`.slice(0, 500);
-        }
-
-        const { error: updErr } = await supabase.from("claim_records").update(updateBody).eq("id", claim.id);
-        if (!updErr) updated++;
-
-        await supabase.from("claim_acknowledgments").insert({
-          claim_record_id: claim.id, ack_file_id: ackFile.id, company_id: claim.company_id, file_type: "277ca",
-          outcome: c.outcome, patient_control_number: pcn,
-          payer_claim_control_number: c.payer_claim_control_number || null,
-          rejection_codes: c.outcome === "rejected" ? c.raw_codes : null,
-          rejection_reason: c.outcome === "rejected" ? `277CA ${c.status_label}${c.free_text ? ` — ${c.free_text}` : ""}`.slice(0, 500) : null,
-          raw_segment: c.raw_segment,
-        });
-      }
-    }
-
-    await supabase.from("clearinghouse_ack_files").update({
-      parsed_summary: summary, claims_matched: matched, claims_updated: updated,
-      unmatched_count: unmatched, processed_at: new Date().toISOString(),
-    }).eq("id", ackFile.id);
-
+    const { matched, updated, unmatched, summary } = await matchAndApply(
+      supabase,
+      { id: ackFile.id, filename, submitted_filename: meta.submitted_filename },
+      fileType,
+      content,
+    );
     return new Response(JSON.stringify({ ok: true, filename, file_type: fileType, matched, updated, unmatched, summary }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
