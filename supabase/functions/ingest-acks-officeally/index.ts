@@ -230,7 +230,7 @@ async function matchAndApply(
 
       // If we just rescued this ack from quarantine, mark it resolved
       await supabase.from("remittance_quarantine")
-        .update({ status: "resolved", resolved_at: new Date().toISOString(), resolution_notes: `Auto-matched on reprocess to ${claimIds.length} claim(s)` })
+        .update({ status: "resolved", reviewed_at: new Date().toISOString(), resolution_notes: `Auto-matched on reprocess to ${claimIds.length} claim(s)` })
         .eq("file_name", filename).eq("status", "pending_review");
     }
   } else {
