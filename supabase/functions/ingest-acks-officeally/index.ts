@@ -215,13 +215,28 @@ Deno.serve(async (req) => {
       const parsed = parse999(content);
       summary.parsed = { ak9: parsed.ak9_overall_status, label: parsed.ak9_label, groups: { received: parsed.groups_received, accepted: parsed.groups_accepted }, transactions: { received: parsed.transactions_received, accepted: parsed.transactions_accepted }, errors: parsed.segment_errors.length, raw_codes: parsed.raw_codes };
 
-      // Find claims by submitted filename → claim_submission_queue.filename
+      // Find claims by submitted filename. Look in BOTH the live submission queue
+      // (which is purged after upload) and the persistent submission artifacts table.
+      // OA's submitted_filename strips the extension, so try common suffixes.
       const submitted = meta.submitted_filename;
       let claimIds: string[] = [];
       let companyId: string | null = null;
       if (submitted) {
-        const { data: q } = await supabase.from("claim_submission_queue").select("claim_ids, company_id, filename").or(`filename.eq.${submitted},filename.eq.${submitted}.txt`).limit(1).maybeSingle();
+        const candidates = [submitted, `${submitted}.837`, `${submitted}.txt`];
+        const inList = candidates.map((c) => `"${c}"`).join(",");
+        const { data: q } = await supabase.from("claim_submission_queue")
+          .select("claim_ids, company_id, filename")
+          .filter("filename", "in", `(${inList})`)
+          .limit(1).maybeSingle();
         if (q) { claimIds = (q.claim_ids as string[]) ?? []; companyId = (q.company_id as string) ?? null; }
+        if (claimIds.length === 0) {
+          const { data: a } = await supabase.from("claim_submission_artifacts")
+            .select("claim_ids, company_id, filename")
+            .filter("filename", "in", `(${inList})`)
+            .order("generated_at", { ascending: false })
+            .limit(1).maybeSingle();
+          if (a) { claimIds = (a.claim_ids as string[]) ?? []; companyId = (a.company_id as string) ?? null; }
+        }
       }
       const outcome = map999Outcome(parsed.ak9_overall_status);
       matched = claimIds.length;
