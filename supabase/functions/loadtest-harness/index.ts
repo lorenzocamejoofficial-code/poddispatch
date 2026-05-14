@@ -42,6 +42,11 @@ const TENANT_TABLES = [
 
 const TENANT_COUNT = 10;
 const DEFAULT_SCENARIO_SECONDS = 45;
+const TRIP_TYPE = "ift"; // valid trip_type enum value
+
+function log(step: string, msg: string, extra?: Record<string, unknown>) {
+  console.log(JSON.stringify({ step, msg, ...(extra ?? {}) }));
+}
 
 function pct(arr: number[], p: number): number | null {
   if (!arr.length) return null;
@@ -104,11 +109,13 @@ Deno.serve(async (req) => {
 
     const errors: Array<{ phase: string; message: string }> = [];
     const tenants: Tenant[] = [];
+    let seedAborted: string | null = null;
 
     // ============= PHASE 1: SEED =============
     const seedT0 = performance.now();
     for (let i = 1; i <= TENANT_COUNT; i++) {
       const name = `LOADTEST-${String(i).padStart(3, "0")}`;
+      log("seed.start", name);
       try {
         // company
         const { data: co, error: coErr } = await admin.from("companies").insert({
@@ -196,7 +203,7 @@ Deno.serve(async (req) => {
           patient_id: patientIds[n % 5],
           run_date: new Date().toISOString().slice(0, 10),
           status: "scheduled",
-          trip_type: "bls",
+          trip_type: TRIP_TYPE,
         }));
         const { error: trErr } = await admin.from("trip_records").insert(tripRows);
         if (trErr) throw new Error(`trips: ${trErr.message}`);
@@ -206,11 +213,35 @@ Deno.serve(async (req) => {
           owner: { user_id: ownerUserId, email: ownerEmail, password, jwt: ownerJwt },
           members, trucks: truckIds, patients: patientIds,
         });
+        log("seed.ok", name);
       } catch (e) {
-        errors.push({ phase: `seed:${name}`, message: (e as Error).message });
+        const message = (e as Error).message;
+        errors.push({ phase: `seed:${name}`, message });
+        log("seed.fail", name, { message });
+        seedAborted = `Seed failed at ${name}: ${message}`;
+        break;
       }
     }
     const seedMs = Math.round(performance.now() - seedT0);
+
+    // If seed aborted, mark report failed and skip remaining phases.
+    if (seedAborted || tenants.length === 0) {
+      const failMsg = seedAborted ?? "No tenants seeded";
+      log("abort", failMsg, { tenants_seeded: tenants.length });
+      await admin.from("loadtest_reports").update({
+        finished_at: new Date().toISOString(),
+        status: "failed",
+        summary: {
+          tenants_seeded: tenants.length,
+          seed_ms: seedMs,
+          failure_reason: failMsg,
+          violations: [failMsg],
+          pass: false,
+        },
+        errors,
+      }).eq("id", reportId);
+      return j({ ok: false, report_id: reportId, error: failMsg, errors }, 200);
+    }
 
     // ============= PHASE 2: CROSS-TENANT HIPAA PROBE =============
     const probeT0 = performance.now();
@@ -218,6 +249,7 @@ Deno.serve(async (req) => {
     let probesRun = 0;
 
     for (const t of tenants) {
+      log("probe.tenant", t.name);
       const cli = createClient(SUPABASE_URL, ANON_KEY, {
         global: { headers: { Authorization: `Bearer ${t.owner.jwt}` } },
       });
