@@ -402,6 +402,7 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: 
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-destructive" />
             Denial Recovery Engine
+            <TimelineTrigger claimId={claim.id} variant="button" className="ml-auto" />
           </DialogTitle>
           <DialogDescription>
             Guided recovery workflow for denied claim
