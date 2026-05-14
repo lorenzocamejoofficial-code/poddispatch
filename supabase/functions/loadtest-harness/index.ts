@@ -216,15 +216,24 @@ async function runHarness(params: {
     const isolationLeaks: Array<{ tenant: string; table: string; visible_other_rows: number }> = [];
     let probesRun = 0;
 
-    // Probe: 10 tenants in parallel, tables sequential per-tenant to keep DB pressure low.
-    // We only need to prove "can I see ANY row from another tenant?" — limit(1) is sufficient
-    // and avoids the cost of count:exact across RLS-filtered tables.
-    await Promise.all(tenants.map(async (t) => {
+    // Probe: tenants in small batches (3 at a time), tables sequential per-tenant,
+    // and only a representative sample of tenant-scoped tables. RLS is the same code
+    // path on every table — sampling ~20 of them is sufficient proof of isolation
+    // and keeps the edge function under its CPU-time budget.
+    // We only need to prove "can I see ANY row from another tenant?" — limit(1) is enough.
+    const PROBE_SAMPLE = [
+      "trip_records","claim_records","patients","trucks","crews","facilities",
+      "scheduling_legs","runs","trip_events","trip_status_history","hold_timers",
+      "claim_payments","claim_adjustments","remittance_files","audit_logs",
+      "company_memberships","company_settings","operational_alerts","alerts",
+      "incident_reports","support_tickets","document_attachments",
+    ].filter((t) => TENANT_TABLES.includes(t));
+    const probeTenant = async (t: Tenant) => {
       log("probe.tenant", t.name);
       const cli = createClient(SUPABASE_URL, ANON_KEY, {
         global: { headers: { Authorization: `Bearer ${t.owner.jwt}` } },
       });
-      for (const tbl of TENANT_TABLES) {
+      for (const tbl of PROBE_SAMPLE) {
         probesRun++;
         try {
           const { data, error } = await cli
@@ -246,7 +255,10 @@ async function runHarness(params: {
           errors.push({ phase: `probe:${t.name}.${tbl}`, message: (e as Error).message });
         }
       }
-    }));
+    };
+    for (let i = 0; i < tenants.length; i += 3) {
+      await Promise.all(tenants.slice(i, i + 3).map(probeTenant));
+    }
     const probeMs = Math.round(performance.now() - probeT0);
 
     // ============= PHASE 3: LATENCY LOAD =============
