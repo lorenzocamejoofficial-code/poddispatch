@@ -14,6 +14,7 @@ import {
   ArrowRight, CheckCircle, FileText, Send, Shield, XCircle,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimelineTrigger } from "@/components/billing/ClaimTimelineDrawer";
 
 const CATEGORY_CONFIG: Record<string, { icon: React.ReactNode; color: string }> = {
   no_pcr: { icon: <FileText className="h-4 w-4" />, color: "text-destructive" },
@@ -231,6 +232,8 @@ function CategoryDetailCard({ cat, navigate }: { cat: MissingMoneyCategorySummar
                       )}
                       <TableCell className="text-xs text-right font-medium">${fmt(item.amount)}</TableCell>
                       <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                        {item.claimId && <TimelineTrigger claimId={item.claimId} />}
                         <Button
                           size="sm"
                           variant="outline"
@@ -251,6 +254,7 @@ function CategoryDetailCard({ cat, navigate }: { cat: MissingMoneyCategorySummar
                               ? "Go to AR"
                               : "Open Claim"}
                         </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
