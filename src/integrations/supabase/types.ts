@@ -5665,6 +5665,7 @@ export type Database = {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
       }
+      reap_stale_loadtest_reports: { Args: never; Returns: number }
       safe_assign_crew:
         | {
             Args: {
