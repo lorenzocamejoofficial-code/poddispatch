@@ -49,26 +49,29 @@ export function LoadTestHarnessPanel() {
   useEffect(() => {
     const hasRunning = reports.some((r) => r.status === "running");
     if (!hasRunning && !running) return;
-    const t = setInterval(load, 5000);
+    const t = setInterval(load, 4000);
     return () => clearInterval(t);
   }, [reports, running]);
 
   const trigger = async () => {
     setConfirmOpen(false);
     setRunning(true);
-    toast.info("Load test starting — this will run for ~" + (scenarioSeconds + 60) + "s. Do not close this tab.");
+    toast.info("Load test starting — runs in the background for ~" + (scenarioSeconds + 90) + "s. You can leave this page; results will appear here when finished.");
     try {
       const { data, error } = await supabase.functions.invoke("loadtest-harness", {
         body: { scenario_seconds: scenarioSeconds },
       });
       if (error) throw error;
-      const summary = (data as any)?.summary;
-      if (summary?.pass) toast.success("Load test passed all thresholds.");
-      else toast.warning(`Load test completed with ${summary?.violations?.length ?? "?"} violation(s).`);
+      // Function returns immediately (202) with report_id; real status arrives via polling.
+      const reportId = (data as any)?.report_id;
+      if (reportId) toast.success("Load test queued — polling for results…");
+      else toast.warning("Load test started but no report id was returned.");
       await load();
     } catch (e: any) {
-      toast.error(`Load test failed: ${e?.message ?? "unknown"}`);
+      toast.error(`Failed to start load test: ${e?.message ?? "unknown"}`);
     } finally {
+      // Stop the "running" button state once the kickoff returns; polling continues
+      // for as long as any report row is still in 'running' status.
       setRunning(false);
       setConfirmText("");
     }
