@@ -269,12 +269,11 @@ async function runHarness(params: {
     let opErrors = 0;
 
     const endAt = Date.now() + scenarioSeconds * 1000;
-    // Cap concurrency to keep edge function CPU within budget. 4 concurrent
-    // virtual users is enough to surface contention/RLS overhead while
-    // leaving CPU headroom for the rest of the pipeline.
-    const LOAD_CONCURRENCY = 4;
-    // Small think time between iterations so we yield CPU and don't busy-loop
-    // through supabase-js response parsing.
+    // Think time between iterations — yields CPU so we don't busy-loop
+    // through supabase-js response parsing and blow the edge CPU budget.
+    // ~75ms gives each tenant ~5 cycles/sec = ~200 ops/sec across 10 tenants,
+    // which is plenty of pressure to surface RLS/contention without
+    // saturating the edge worker.
     const THINK_MS = 75;
     const tenantWorker = async (t: Tenant) => {
       const cli = createClient(SUPABASE_URL, ANON_KEY, {
@@ -304,11 +303,9 @@ async function runHarness(params: {
         await new Promise((r) => setTimeout(r, THINK_MS));
       }
     };
-    // Run tenants in rolling batches of LOAD_CONCURRENCY.
-    for (let i = 0; i < tenants.length; i += LOAD_CONCURRENCY) {
-      await Promise.all(tenants.slice(i, i + LOAD_CONCURRENCY).map(tenantWorker));
-      if (Date.now() >= endAt) break;
-    }
+    // All 10 tenants hit the backend concurrently — that's the whole point
+    // of the test. Think-time keeps each worker from saturating CPU.
+    await Promise.all(tenants.map(tenantWorker));
     const loadMs = Math.round(performance.now() - loadT0);
 
     const totalOps = Object.values(opLatency).reduce((s, a) => s + a.length, 0);
