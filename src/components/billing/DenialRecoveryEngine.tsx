@@ -15,6 +15,7 @@ import { AlertTriangle, CheckCircle, Clock, Save, Send } from "lucide-react";
 import { toast } from "sonner";
 import { getDenialTranslation, type DenialTranslation } from "@/lib/denial-code-translations";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { TimelineTrigger } from "@/components/billing/ClaimTimelineDrawer";
 
 /* ---------- denial-specific checklists ---------- */
 interface ChecklistItem {
