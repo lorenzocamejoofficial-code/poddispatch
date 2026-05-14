@@ -269,7 +269,13 @@ async function runHarness(params: {
     let opErrors = 0;
 
     const endAt = Date.now() + scenarioSeconds * 1000;
-    await Promise.all(tenants.map(async (t) => {
+    // Think time between iterations — yields CPU so we don't busy-loop
+    // through supabase-js response parsing and blow the edge CPU budget.
+    // ~75ms gives each tenant ~5 cycles/sec = ~200 ops/sec across 10 tenants,
+    // which is plenty of pressure to surface RLS/contention without
+    // saturating the edge worker.
+    const THINK_MS = 75;
+    const tenantWorker = async (t: Tenant) => {
       const cli = createClient(SUPABASE_URL, ANON_KEY, {
         global: { headers: { Authorization: `Bearer ${t.owner.jwt}` } },
       });
@@ -293,8 +299,13 @@ async function runHarness(params: {
             status: "scheduled", trip_type: TRIP_TYPE,
           }));
         opLatency.insert_trip.push(ms4); if (e4) opErrors++;
+
+        await new Promise((r) => setTimeout(r, THINK_MS));
       }
-    }));
+    };
+    // All 10 tenants hit the backend concurrently — that's the whole point
+    // of the test. Think-time keeps each worker from saturating CPU.
+    await Promise.all(tenants.map(tenantWorker));
     const loadMs = Math.round(performance.now() - loadT0);
 
     const totalOps = Object.values(opLatency).reduce((s, a) => s + a.length, 0);
