@@ -96,6 +96,10 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const scenarioSeconds = Math.min(Math.max(Number(body?.scenario_seconds) || DEFAULT_SCENARIO_SECONDS, 15), 90);
 
+    // Unique suffix per run so auth emails never collide with leftovers
+    // from prior runs (auth.users persists even after company archive).
+    const runTag = Date.now().toString(36) + crypto.randomUUID().slice(0, 4);
+
     // ─── create the report row up-front ───────────────────────────────
     const { data: report, error: reportErr } = await admin
       .from("loadtest_reports").insert({
@@ -122,7 +126,7 @@ Deno.serve(async (req) => {
           name,
           onboarding_status: "active",
           creator_test_tenant: false,
-          owner_email: `${name.toLowerCase()}-owner@loadtest.invalid`,
+          owner_email: `${name.toLowerCase()}-${runTag}-owner@loadtest.invalid`,
         }).select("id").single();
         if (coErr) throw new Error(`company: ${coErr.message}`);
         const company_id = co.id;
@@ -141,7 +145,7 @@ Deno.serve(async (req) => {
         let ownerUserId = "";
         let ownerEmail = "";
         for (const m of memberSpecs) {
-          const email = `${name.toLowerCase()}-${m.suffix}@loadtest.invalid`;
+          const email = `${name.toLowerCase()}-${runTag}-${m.suffix}@loadtest.invalid`;
           const { data: created, error: usrErr } = await admin.auth.admin.createUser({
             email, password, email_confirm: true,
             user_metadata: { loadtest: true, tenant: name, role: m.role },
@@ -310,7 +314,7 @@ Deno.serve(async (req) => {
           cli.from("trip_records").insert({
             company_id: t.company_id, patient_id: t.patients[0],
             run_date: new Date().toISOString().slice(0, 10),
-            status: "scheduled", trip_type: "bls",
+            status: "scheduled", trip_type: TRIP_TYPE,
           }));
         opLatency.insert_trip.push(ms4); if (e4) opErrors++;
       }
@@ -341,6 +345,13 @@ Deno.serve(async (req) => {
       }).eq("id", t.company_id);
       if (aErr) errors.push({ phase: `archive:${t.name}`, message: aErr.message });
       else archived++;
+
+      // Hard-delete the auth users so future runs (with different runTag,
+      // but also any manual reseed) don't accumulate orphaned identities.
+      for (const m of t.members) {
+        const { error: dErr } = await admin.auth.admin.deleteUser(m.user_id);
+        if (dErr) errors.push({ phase: `archive:${t.name}.${m.role}`, message: dErr.message });
+      }
     }
     const archiveMs = Math.round(performance.now() - archiveT0);
 
