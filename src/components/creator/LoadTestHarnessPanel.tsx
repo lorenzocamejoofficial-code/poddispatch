@@ -47,13 +47,29 @@ export function LoadTestHarnessPanel() {
 
   // Poll while a run is in progress
   useEffect(() => {
-    const hasRunning = reports.some((r) => r.status === "running");
-    if (!hasRunning && !running) return;
-    const t = setInterval(load, 4000);
+    // Only poll for runs that are genuinely in flight (started within last 10 min).
+    // Older "running" rows are stale workers that died — the janitor will fail them.
+    const tenMinAgo = Date.now() - 10 * 60 * 1000;
+    const hasFreshRunning = reports.some(
+      (r) => r.status === "running" && new Date(r.started_at).getTime() > tenMinAgo
+    );
+    if (!hasFreshRunning && !running) return;
+    const t = setInterval(load, 6000);
     return () => clearInterval(t);
   }, [reports, running]);
 
   const trigger = async () => {
+    // Guard against double-launch: if a fresh run is already in flight, refuse.
+    const tenMinAgo = Date.now() - 10 * 60 * 1000;
+    const hasFreshRunning = reports.some(
+      (r) => r.status === "running" && new Date(r.started_at).getTime() > tenMinAgo
+    );
+    if (hasFreshRunning) {
+      toast.error("A load test is already running. Wait for it to finish before starting another.");
+      setConfirmOpen(false);
+      setConfirmText("");
+      return;
+    }
     setConfirmOpen(false);
     setRunning(true);
     toast.info("Load test starting — runs in the background for ~" + (scenarioSeconds + 90) + "s. You can leave this page; results will appear here when finished.");
