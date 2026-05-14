@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +33,7 @@ import { RemittanceQuarantinePanel } from "@/components/creator/RemittanceQuaran
 import { ReconciliationReportPanel } from "@/components/creator/ReconciliationReportPanel";
 import { SupportTicketsPanel } from "@/components/creator/SupportTicketsPanel";
 import { LoadTestHarnessPanel } from "@/components/creator/LoadTestHarnessPanel";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 interface CompanyRecord {
   id: string;
@@ -77,6 +78,16 @@ type ModalAction =
   | null;
 
 const RETENTION_YEARS = 10;
+const PAGE_SIZE_DEFAULT = 25;
+
+// Tab keys mapped to onboarding_status (or "archived" virtual key)
+const TAB_TO_STATUS: Record<string, string> = {
+  pending: "pending_approval",
+  active: "active",
+  awaiting_payment: "approved_pending_payment",
+  suspended: "suspended",
+  rejected: "rejected",
+};
 
 export default function CreatorConsole() {
   const { isSystemCreator } = useAuth();
@@ -94,14 +105,33 @@ export default function CreatorConsole() {
   const [verificationResults, setVerificationResults] = useState<Record<string, VerificationResult>>({});
   const [snapshots, setSnapshots] = useState<Record<string, VerificationSnapshot>>({});
   const [snapshotLoaded, setSnapshotLoaded] = useState<Record<string, boolean>>({});
-  const [selectedArchived, setSelectedArchived] = useState<Set<string>>(new Set());
+
+  // Unified selection: cleared when tab changes.
+  const [activeTab, setActiveTab] = useState<string>("active");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pageByTab, setPageByTab] = useState<Record<string, number>>({});
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
+
+  // Bulk action dialogs
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkConfirmText, setBulkConfirmText] = useState("");
+  const [bulkSuspendOpen, setBulkSuspendOpen] = useState(false);
+  const [bulkSuspendReason, setBulkSuspendReason] = useState("");
+  const [bulkSuspendConfirm, setBulkSuspendConfirm] = useState("");
 
   useEffect(() => {
     if (!isSystemCreator) { navigate("/"); return; }
     loadCompanies();
   }, [isSystemCreator, navigate]);
+
+  // Reset selection + page when tab changes or search changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [activeTab]);
+
+  useEffect(() => {
+    setPageByTab((p) => ({ ...p, [activeTab]: 1 }));
+  }, [search, activeTab]);
 
   const loadCompanies = useCallback(async () => {
     setLoading(true);
@@ -113,26 +143,36 @@ export default function CreatorConsole() {
     if (error) { console.error(error); setLoading(false); return; }
 
     const rows = (data ?? []) as unknown as CompanyRecord[];
-
-    // Owner names
     const ownerIds = rows.map(c => c.owner_user_id).filter(Boolean) as string[];
-    let profileMap: Record<string, string> = {};
-    if (ownerIds.length > 0) {
-      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ownerIds);
-      if (profiles) profileMap = Object.fromEntries(profiles.map((p: any) => [p.user_id, p.full_name]));
-    }
+    const companyIds = rows.map(c => c.id);
 
-    // Protection status (DB is source of truth)
-    const protectionMap: Record<string, boolean> = {};
-    await Promise.all(rows.map(async (c) => {
-      const { data: prot } = await supabase.rpc("is_protected_record", { _company_id: c.id });
-      protectionMap[c.id] = !!prot;
-    }));
+    // Batch: fetch profile names + verification rows in parallel (replaces N RPC calls)
+    const [profilesRes, verificationsRes] = await Promise.all([
+      ownerIds.length > 0
+        ? supabase.from("profiles").select("user_id, full_name").in("user_id", ownerIds)
+        : Promise.resolve({ data: [] as any[] }),
+      companyIds.length > 0
+        ? supabase
+            .from("company_verifications")
+            .select("company_id, npi_verified, medicare_enrolled, oig_clear")
+            .in("company_id", companyIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const profileMap: Record<string, string> = Object.fromEntries(
+      (profilesRes.data ?? []).map((p: any) => [p.user_id, p.full_name])
+    );
+
+    // Protected = approved_at IS NOT NULL AND any verification flag is true
+    const verifiedSet = new Set<string>();
+    (verificationsRes.data ?? []).forEach((v: any) => {
+      if (v.npi_verified || v.medicare_enrolled || v.oig_clear) verifiedSet.add(v.company_id);
+    });
 
     const enriched = rows.map(c => ({
       ...c,
       owner_name: c.owner_user_id ? profileMap[c.owner_user_id] || "—" : "—",
-      is_protected: protectionMap[c.id] ?? false,
+      is_protected: !!c.approved_at && verifiedSet.has(c.id),
     }));
 
     setCompanies(enriched.filter(c => !c.deleted_at));
@@ -140,7 +180,6 @@ export default function CreatorConsole() {
     setLoading(false);
   }, []);
 
-  // Load verification snapshot lazily when a row is expanded
   const loadSnapshot = useCallback(async (companyId: string) => {
     if (snapshotLoaded[companyId]) return;
     const { data } = await supabase
@@ -252,48 +291,110 @@ export default function CreatorConsole() {
     setActionLoading(false);
   };
 
-  const handleBulkDelete = async () => {
-    const ids = Array.from(selectedArchived);
+  // Run a manage-company action against many ids in parallel.
+  const runBulk = async (
+    ids: string[],
+    nameLookup: (id: string) => string | undefined,
+    body: (id: string) => Record<string, unknown>,
+    successVerb: string,
+  ) => {
     if (ids.length === 0) return;
-    setActionLoading(true);
-    let success = 0;
-    let failed = 0;
-    const errors: string[] = [];
-    for (const id of ids) {
-      const company = archivedCompanies.find(c => c.id === id);
-      if (!company || company.is_protected) { failed++; continue; }
-      try {
-        const { data, error } = await supabase.functions.invoke("manage-company", {
-          body: { companyId: id, action: "delete", reason: "Bulk delete by system creator" },
-        });
+    const pendingToast = toast.loading(`${successVerb} ${ids.length} compan${ids.length === 1 ? "y" : "ies"}…`);
+    const results = await Promise.allSettled(
+      ids.map(async (id) => {
+        const { data, error } = await supabase.functions.invoke("manage-company", { body: body(id) });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
-        success++;
-      } catch (err: any) {
-        failed++;
-        errors.push(`${company.name}: ${err.message || "failed"}`);
-      }
-    }
-    if (success > 0) toast.success(`Deleted ${success} compan${success === 1 ? "y" : "ies"}.`);
-    if (failed > 0) toast.error(`${failed} failed${errors.length ? `: ${errors.slice(0, 2).join("; ")}` : ""}`);
-    setSelectedArchived(new Set());
-    setBulkDeleteOpen(false);
-    setBulkConfirmText("");
-    setActionLoading(false);
-    await loadCompanies();
+        return data;
+      })
+    );
+    let success = 0;
+    const errors: string[] = [];
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") success++;
+      else errors.push(`${nameLookup(ids[i]) ?? ids[i]}: ${(r.reason as Error)?.message ?? "failed"}`);
+    });
+    toast.dismiss(pendingToast);
+    if (success > 0) toast.success(`${successVerb} ${success} compan${success === 1 ? "y" : "ies"}.`);
+    if (errors.length > 0) toast.error(`${errors.length} failed: ${errors.slice(0, 2).join("; ")}${errors.length > 2 ? "…" : ""}`);
   };
 
-  const filtered = (status: string) =>
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds).filter((id) => {
+      const pool = activeTab === "archived" ? archivedCompanies : companies;
+      const c = pool.find(x => x.id === id);
+      return c && !c.is_protected;
+    });
+    if (ids.length === 0) return;
+    // Close dialog FIRST so user gets immediate feedback, then run in parallel.
+    setBulkDeleteOpen(false);
+    setBulkConfirmText("");
+    const idsToDelete = [...ids];
+    setSelectedIds(new Set());
+    setActionLoading(true);
+    const pool = activeTab === "archived" ? archivedCompanies : companies;
+    const lookup = (id: string) => pool.find(c => c.id === id)?.name;
+    await runBulk(
+      idsToDelete,
+      lookup,
+      (id) => ({ companyId: id, action: "delete", reason: "Bulk delete by system creator" }),
+      "Deleted",
+    );
+    await loadCompanies();
+    setActionLoading(false);
+  };
+
+  const handleBulkSuspend = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0 || !bulkSuspendReason.trim()) return;
+    setBulkSuspendOpen(false);
+    const reason = bulkSuspendReason.trim();
+    const idsToSuspend = [...ids];
+    setBulkSuspendReason("");
+    setBulkSuspendConfirm("");
+    setSelectedIds(new Set());
+    setActionLoading(true);
+    const lookup = (id: string) => companies.find(c => c.id === id)?.name;
+    await runBulk(
+      idsToSuspend,
+      lookup,
+      (id) => ({ companyId: id, action: "suspend", reason }),
+      "Suspended",
+    );
+    await loadCompanies();
+    setActionLoading(false);
+  };
+
+  // -------- Filtering / pagination ----------
+  const filtered = useCallback((status: string) =>
     companies.filter(c => {
       if (c.onboarding_status !== status) return false;
       const q = search.toLowerCase();
       return !q || c.name.toLowerCase().includes(q) || (c.owner_email ?? "").toLowerCase().includes(q);
-    });
+    }), [companies, search]);
 
-  const filteredArchived = () => archivedCompanies.filter(c => {
+  const filteredArchived = useCallback(() => archivedCompanies.filter(c => {
     const q = search.toLowerCase();
     return !q || c.name.toLowerCase().includes(q) || (c.owner_email ?? "").toLowerCase().includes(q);
-  });
+  }), [archivedCompanies, search]);
+
+  const paginate = <T,>(items: T[], tabKey: string): T[] => {
+    const page = pageByTab[tabKey] ?? 1;
+    const start = (page - 1) * pageSize;
+    return items.slice(start, start + pageSize);
+  };
+
+  const setPage = (tabKey: string, page: number) => setPageByTab((p) => ({ ...p, [tabKey]: page }));
+
+  // Counts per status (memoized for tab badges)
+  const counts = useMemo(() => ({
+    pending: filtered("pending_approval").length,
+    active: filtered("active").length,
+    awaiting_payment: filtered("approved_pending_payment").length,
+    suspended: filtered("suspended").length,
+    rejected: filtered("rejected").length,
+    archived: filteredArchived().length,
+  }), [filtered, filteredArchived]);
 
   const statusBadge = (s: string) => {
     const colors: Record<string, string> = {
@@ -324,7 +425,6 @@ export default function CreatorConsole() {
     </div>
   );
 
-  // Actions dropdown — keeps the row compact instead of a button cluster.
   const renderActionsDropdown = (c: CompanyRecord) => {
     const isPending = c.onboarding_status === "pending_approval";
     const isActive = c.onboarding_status === "active";
@@ -399,9 +499,73 @@ export default function CreatorConsole() {
     );
   };
 
-  const ExpandableRow = ({ c, allowVerificationPanel }: { c: CompanyRecord; allowVerificationPanel: boolean }) => (
+  // ---------- Selection helpers ----------
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleAllOnPage = (pageItems: CompanyRecord[], deletableOnly = false) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const items = deletableOnly ? pageItems.filter(c => !c.is_protected) : pageItems;
+      const allSelected = items.length > 0 && items.every(c => next.has(c.id));
+      if (allSelected) items.forEach(c => next.delete(c.id));
+      else items.forEach(c => next.add(c.id));
+      return next;
+    });
+  };
+
+  // ---------- Bulk action toolbar ----------
+  const BulkToolbar = ({ tabKey, selectableIds }: { tabKey: string; selectableIds: string[] }) => {
+    const count = selectedIds.size;
+    if (count === 0) return null;
+    const showSuspend = tabKey === "active";
+    return (
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+        <span className="text-sm font-medium">{count} selected</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+          {showSuspend && (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="gap-1"
+              disabled={actionLoading}
+              onClick={() => { setBulkSuspendOpen(true); setBulkSuspendReason(""); setBulkSuspendConfirm(""); }}
+            >
+              <Ban className="h-3 w-3" /> Suspend {count}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="destructive"
+            className="gap-1"
+            disabled={actionLoading || selectableIds.length === 0}
+            onClick={() => { setBulkDeleteOpen(true); setBulkConfirmText(""); }}
+          >
+            <Trash2 className="h-3 w-3" /> Delete {selectableIds.length} Forever
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // ---------- Expandable row (with checkbox) ----------
+  const ExpandableRow = ({ c, allowVerificationPanel, selectable }: { c: CompanyRecord; allowVerificationPanel: boolean; selectable: boolean }) => (
     <>
       <TableRow className="cursor-pointer" onClick={() => toggleExpand(c)}>
+        <TableCell className="w-8" onClick={(e) => e.stopPropagation()}>
+          {selectable && !c.is_protected ? (
+            <Checkbox
+              checked={selectedIds.has(c.id)}
+              onCheckedChange={() => toggleOne(c.id)}
+              aria-label={`Select ${c.name}`}
+            />
+          ) : null}
+        </TableCell>
         <TableCell className="w-8">
           {expandedCompany === c.id
             ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -423,7 +587,7 @@ export default function CreatorConsole() {
       </TableRow>
       {expandedCompany === c.id && (
         <TableRow>
-          <TableCell colSpan={7} className="p-4 bg-muted/20">
+          <TableCell colSpan={8} className="p-4 bg-muted/20">
             {c.onboarding_status === "pending_approval" && allowVerificationPanel ? (
               <CompanyVerificationPanel
                 company={{
@@ -452,125 +616,139 @@ export default function CreatorConsole() {
     </>
   );
 
-  const CompanyTableExpandable = ({ items, allowVerificationPanel }: { items: CompanyRecord[]; allowVerificationPanel: boolean }) => {
+  // ---------- Generic status table ----------
+  const CompanyTableExpandable = ({ items, allowVerificationPanel, tabKey }: { items: CompanyRecord[]; allowVerificationPanel: boolean; tabKey: string }) => {
+    const page = pageByTab[tabKey] ?? 1;
+    const pageItems = paginate(items, tabKey);
+    const deletableOnPage = pageItems.filter(c => !c.is_protected);
+    const allDeletableSelected = deletableOnPage.length > 0 && deletableOnPage.every(c => selectedIds.has(c.id));
+    const someDeletableSelected = deletableOnPage.some(c => selectedIds.has(c.id));
+    const selectableIds = items.filter(c => !c.is_protected && selectedIds.has(c.id)).map(c => c.id);
+
     if (items.length === 0) return <p className="text-sm text-muted-foreground text-center py-8">No companies in this category.</p>;
+
     return (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-8"></TableHead>
-            <TableHead>Company</TableHead>
-            <TableHead>Owner</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Created</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map(c => <ExpandableRow key={c.id} c={c} allowVerificationPanel={allowVerificationPanel} />)}
-        </TableBody>
-      </Table>
+      <>
+        <BulkToolbar tabKey={tabKey} selectableIds={selectableIds} />
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-8">
+                {deletableOnPage.length > 0 && (
+                  <Checkbox
+                    checked={allDeletableSelected ? true : someDeletableSelected ? "indeterminate" : false}
+                    onCheckedChange={() => toggleAllOnPage(pageItems, true)}
+                    aria-label="Select all on page"
+                  />
+                )}
+              </TableHead>
+              <TableHead className="w-8"></TableHead>
+              <TableHead>Company</TableHead>
+              <TableHead>Owner</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pageItems.map(c => <ExpandableRow key={c.id} c={c} allowVerificationPanel={allowVerificationPanel} selectable />)}
+          </TableBody>
+        </Table>
+        <TablePagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={items.length}
+          onPageChange={(p) => setPage(tabKey, p)}
+          onPageSizeChange={setPageSize}
+        />
+      </>
     );
   };
 
+  // ---------- Archived table (with checkbox + pagination) ----------
   const ArchivedTable = ({ items }: { items: CompanyRecord[] }) => {
+    const tabKey = "archived";
+    const page = pageByTab[tabKey] ?? 1;
+    const pageItems = paginate(items, tabKey);
+    const deletableOnPage = pageItems.filter(c => !c.is_protected);
+    const allSelected = deletableOnPage.length > 0 && deletableOnPage.every(c => selectedIds.has(c.id));
+    const someSelected = deletableOnPage.some(c => selectedIds.has(c.id));
+    const selectableIds = items.filter(c => !c.is_protected && selectedIds.has(c.id)).map(c => c.id);
+
     if (items.length === 0) return <p className="text-sm text-muted-foreground text-center py-8">No archived companies.</p>;
-    const deletableItems = items.filter(c => !c.is_protected);
-    const allSelected = deletableItems.length > 0 && deletableItems.every(c => selectedArchived.has(c.id));
-    const someSelected = deletableItems.some(c => selectedArchived.has(c.id));
-    const toggleAll = () => {
-      const next = new Set(selectedArchived);
-      if (allSelected) {
-        deletableItems.forEach(c => next.delete(c.id));
-      } else {
-        deletableItems.forEach(c => next.add(c.id));
-      }
-      setSelectedArchived(next);
-    };
-    const toggleOne = (id: string) => {
-      const next = new Set(selectedArchived);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      setSelectedArchived(next);
-    };
+
     return (
       <>
-        {selectedArchived.size > 0 && (
-          <div className="mb-3 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
-            <span className="text-sm font-medium">{selectedArchived.size} selected</span>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setSelectedArchived(new Set())}>Clear</Button>
-              <Button size="sm" variant="destructive" className="gap-1" disabled={actionLoading} onClick={() => { setBulkDeleteOpen(true); setBulkConfirmText(""); }}>
-                <Trash2 className="h-3 w-3" /> Delete {selectedArchived.size} Forever
-              </Button>
-            </div>
-          </div>
-        )}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-8">
-              {deletableItems.length > 0 && (
-                <Checkbox
-                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                  onCheckedChange={toggleAll}
-                  aria-label="Select all deletable archived companies"
-                />
-              )}
-            </TableHead>
-            <TableHead>Company</TableHead>
-            <TableHead>Owner Email</TableHead>
-            <TableHead>Archived</TableHead>
-            <TableHead>Eligible for purge</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map(c => {
-            const archivedAt = c.deleted_at ? new Date(c.deleted_at) : null;
-            const purgeAt = archivedAt ? new Date(archivedAt.getTime() + RETENTION_YEARS * 365 * 24 * 60 * 60 * 1000) : null;
-            return (
-              <TableRow key={c.id}>
-                <TableCell>
-                  {!c.is_protected && (
-                    <Checkbox
-                      checked={selectedArchived.has(c.id)}
-                      onCheckedChange={() => toggleOne(c.id)}
-                      aria-label={`Select ${c.name}`}
-                    />
-                  )}
-                </TableCell>
-                <TableCell className="font-medium">{renderCompanyName(c)}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{c.owner_email || "—"}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {archivedAt ? format(archivedAt, "MMM d, yyyy") : "—"}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {purgeAt ? format(purgeAt, "MMM d, yyyy") : "—"}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1.5">
-                    <Button size="sm" variant="default" className="gap-1 text-xs" disabled={actionLoading} onClick={() => invokeRestoreArchived(c)}>
-                      <RotateCcw className="h-3 w-3" /> Restore
-                    </Button>
+        <BulkToolbar tabKey={tabKey} selectableIds={selectableIds} />
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-8">
+                {deletableOnPage.length > 0 && (
+                  <Checkbox
+                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                    onCheckedChange={() => toggleAllOnPage(pageItems, true)}
+                    aria-label="Select all deletable on page"
+                  />
+                )}
+              </TableHead>
+              <TableHead>Company</TableHead>
+              <TableHead>Owner Email</TableHead>
+              <TableHead>Archived</TableHead>
+              <TableHead>Eligible for purge</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pageItems.map(c => {
+              const archivedAt = c.deleted_at ? new Date(c.deleted_at) : null;
+              const purgeAt = archivedAt ? new Date(archivedAt.getTime() + RETENTION_YEARS * 365 * 24 * 60 * 60 * 1000) : null;
+              return (
+                <TableRow key={c.id}>
+                  <TableCell>
                     {!c.is_protected && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                        disabled={actionLoading}
-                        onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); setReasonText(""); }}
-                      >
-                        <Trash2 className="h-3 w-3" /> Delete Forever
-                      </Button>
+                      <Checkbox
+                        checked={selectedIds.has(c.id)}
+                        onCheckedChange={() => toggleOne(c.id)}
+                        aria-label={`Select ${c.name}`}
+                      />
                     )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+                  </TableCell>
+                  <TableCell className="font-medium">{renderCompanyName(c)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{c.owner_email || "—"}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{archivedAt ? format(archivedAt, "MMM d, yyyy") : "—"}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{purgeAt ? format(purgeAt, "MMM d, yyyy") : "—"}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button size="sm" variant="default" className="gap-1 text-xs" disabled={actionLoading} onClick={() => invokeRestoreArchived(c)}>
+                        <RotateCcw className="h-3 w-3" /> Restore
+                      </Button>
+                      {!c.is_protected && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                          disabled={actionLoading}
+                          onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); setReasonText(""); }}
+                        >
+                          <Trash2 className="h-3 w-3" /> Delete Forever
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+        <TablePagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={items.length}
+          onPageChange={(p) => setPage(tabKey, p)}
+          onPageSizeChange={setPageSize}
+        />
       </>
     );
   };
@@ -584,7 +762,7 @@ export default function CreatorConsole() {
           <p><strong>Pending</strong>: expand to run NPI / Medicare / OIG checks. Verification snapshot is required before Approve and is permanently retained.</p>
           <p>Companies showing <Shield className="inline h-3 w-3 text-primary" /> are <strong>protected</strong> — data is under legal retention. Their delete button reads <strong>Archive</strong> and preserves all clinical records.</p>
           <p>Test/unverified companies show <Trash2 className="inline h-3 w-3 text-destructive" /> <strong>Delete</strong> — they hard-delete permanently.</p>
-          <p>Archived companies live in the Archived tab and can be restored. The 10-year purge runs after the eligibility date.</p>
+          <p>Tick the checkboxes to select multiple at once. Use the bulk bar to suspend or delete in one go. Lists are paginated at {PAGE_SIZE_DEFAULT} per page.</p>
         </CollapsibleContent>
       </Collapsible>
 
@@ -598,20 +776,20 @@ export default function CreatorConsole() {
           <Loader2 className="h-4 w-4 animate-spin" /> Loading companies...
         </div>
       ) : (
-        <Tabs defaultValue="active" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="pending">
-              Pending {filtered("pending_approval").length > 0 && <Badge variant="secondary" className="ml-1.5 text-[10px]">{filtered("pending_approval").length}</Badge>}
+              Pending {counts.pending > 0 && <Badge variant="secondary" className="ml-1.5 text-[10px]">{counts.pending}</Badge>}
             </TabsTrigger>
-            <TabsTrigger value="active">Active ({filtered("active").length})</TabsTrigger>
+            <TabsTrigger value="active">Active ({counts.active})</TabsTrigger>
             <TabsTrigger value="awaiting_payment">
-              Awaiting Payment {filtered("approved_pending_payment").length > 0 && <Badge variant="secondary" className="ml-1.5 text-[10px]">{filtered("approved_pending_payment").length}</Badge>}
+              Awaiting Payment {counts.awaiting_payment > 0 && <Badge variant="secondary" className="ml-1.5 text-[10px]">{counts.awaiting_payment}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="suspended">
-              Suspended {filtered("suspended").length > 0 && <Badge variant="destructive" className="ml-1.5 text-[10px]">{filtered("suspended").length}</Badge>}
+              Suspended {counts.suspended > 0 && <Badge variant="destructive" className="ml-1.5 text-[10px]">{counts.suspended}</Badge>}
             </TabsTrigger>
-            <TabsTrigger value="rejected">Rejected ({filtered("rejected").length})</TabsTrigger>
-            <TabsTrigger value="archived">Archived ({filteredArchived().length})</TabsTrigger>
+            <TabsTrigger value="rejected">Rejected ({counts.rejected})</TabsTrigger>
+            <TabsTrigger value="archived">Archived ({counts.archived})</TabsTrigger>
             <TabsTrigger value="remittance_quarantine">Remittance Quarantine</TabsTrigger>
             <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
             <TabsTrigger value="support">Support</TabsTrigger>
@@ -619,19 +797,19 @@ export default function CreatorConsole() {
           </TabsList>
 
           <TabsContent value="pending">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("pending_approval")} allowVerificationPanel /></CardContent></Card>
+            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("pending_approval")} allowVerificationPanel tabKey="pending" /></CardContent></Card>
           </TabsContent>
           <TabsContent value="active">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("active")} allowVerificationPanel={false} /></CardContent></Card>
+            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("active")} allowVerificationPanel={false} tabKey="active" /></CardContent></Card>
           </TabsContent>
           <TabsContent value="awaiting_payment">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("approved_pending_payment")} allowVerificationPanel={false} /></CardContent></Card>
+            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("approved_pending_payment")} allowVerificationPanel={false} tabKey="awaiting_payment" /></CardContent></Card>
           </TabsContent>
           <TabsContent value="suspended">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("suspended")} allowVerificationPanel={false} /></CardContent></Card>
+            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("suspended")} allowVerificationPanel={false} tabKey="suspended" /></CardContent></Card>
           </TabsContent>
           <TabsContent value="rejected">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("rejected")} allowVerificationPanel={false} /></CardContent></Card>
+            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("rejected")} allowVerificationPanel={false} tabKey="rejected" /></CardContent></Card>
           </TabsContent>
           <TabsContent value="archived">
             <Card><CardContent className="pt-4"><ArchivedTable items={filteredArchived()} /></CardContent></Card>
@@ -689,7 +867,7 @@ export default function CreatorConsole() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete / Archive Modal — single dialog, label flips by protection */}
+      {/* Delete / Archive Modal */}
       <Dialog open={modal?.type === "delete"} onOpenChange={(open) => { if (!open) setModal(null); }}>
         <DialogContent>
           <DialogHeader>
@@ -769,9 +947,9 @@ export default function CreatorConsole() {
       <Dialog open={bulkDeleteOpen} onOpenChange={(open) => { if (!open) { setBulkDeleteOpen(false); setBulkConfirmText(""); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Permanently delete {selectedArchived.size} compan{selectedArchived.size === 1 ? "y" : "ies"}?</DialogTitle>
+            <DialogTitle>Permanently delete {selectedIds.size} compan{selectedIds.size === 1 ? "y" : "ies"}?</DialogTitle>
             <DialogDescription>
-              This will hard-delete all selected unprotected archived companies and all their data. This cannot be undone.
+              This will hard-delete all selected unprotected companies and their data. Protected (verified) companies in the selection will be skipped. Cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -781,7 +959,34 @@ export default function CreatorConsole() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => { setBulkDeleteOpen(false); setBulkConfirmText(""); }}>Cancel</Button>
             <Button variant="destructive" disabled={bulkConfirmText !== "DELETE" || actionLoading} onClick={handleBulkDelete}>
-              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Delete {selectedArchived.size} Forever
+              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Delete Forever
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Suspend Confirm */}
+      <Dialog open={bulkSuspendOpen} onOpenChange={(open) => { if (!open) { setBulkSuspendOpen(false); setBulkSuspendReason(""); setBulkSuspendConfirm(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Suspend {selectedIds.size} compan{selectedIds.size === 1 ? "y" : "ies"}?</DialogTitle>
+            <DialogDescription>
+              All selected companies will be suspended with the same reason. All of their users will be locked out until unsuspended.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea placeholder="Reason for suspension (required)..." value={bulkSuspendReason} onChange={(e) => setBulkSuspendReason(e.target.value)} className="h-20" />
+            <p className="text-xs text-muted-foreground">Type <strong>OVERRIDE</strong> to confirm:</p>
+            <Input value={bulkSuspendConfirm} onChange={(e) => setBulkSuspendConfirm(e.target.value)} placeholder="OVERRIDE" />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setBulkSuspendOpen(false); setBulkSuspendReason(""); setBulkSuspendConfirm(""); }}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={bulkSuspendConfirm !== "OVERRIDE" || !bulkSuspendReason.trim() || actionLoading}
+              onClick={handleBulkSuspend}
+            >
+              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Suspend {selectedIds.size}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -790,7 +995,6 @@ export default function CreatorConsole() {
   );
 }
 
-// Read-only view of the verification snapshot captured at approval.
 function VerificationSnapshotView({ company, snapshot, loaded }: { company: CompanyRecord; snapshot?: VerificationSnapshot; loaded: boolean }) {
   if (!company.approved_at) {
     return (
