@@ -598,7 +598,10 @@ export default function ARCommandCenter() {
           {selectedClaim && (
             <div className="space-y-5 pt-2">
               <SheetHeader>
-                <SheetTitle className="text-lg">{selectedClaim.patient_name}</SheetTitle>
+                <SheetTitle className="text-lg flex items-center justify-between gap-2">
+                  <span className="truncate">{selectedClaim.patient_name}</span>
+                  <TimelineTrigger claimId={selectedClaim.id} variant="button" />
+                </SheetTitle>
               </SheetHeader>
 
               {/* Claim details */}
