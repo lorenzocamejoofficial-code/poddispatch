@@ -74,54 +74,26 @@ type Tenant = {
   patients: string[];
 };
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+// Background runner — performs all phases and patches the report row.
+async function runHarness(params: {
+  admin: ReturnType<typeof createClient>;
+  reportId: string;
+  triggeredBy: string;
+  scenarioSeconds: number;
+  runTag: string;
+}) {
+  const { admin, reportId, triggeredBy, scenarioSeconds, runTag } = params;
+  const errors: Array<{ phase: string; message: string }> = [];
+  const tenants: Tenant[] = [];
+  let seedAborted: string | null = null;
 
   try {
-    // ─── auth gate: system creator only ───────────────────────────────
-    const authHeader = req.headers.get("Authorization") ?? "";
-    if (!authHeader.startsWith("Bearer ")) return j({ error: "Unauthorized" }, 401);
-
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: u } = await userClient.auth.getUser();
-    if (!u?.user) return j({ error: "Unauthorized" }, 401);
-
-    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
-    const { data: sc } = await admin
-      .from("system_creators").select("user_id").eq("user_id", u.user.id).maybeSingle();
-    if (!sc) return j({ error: "Forbidden — system creators only" }, 403);
-
-    const body = await req.json().catch(() => ({}));
-    const scenarioSeconds = Math.min(Math.max(Number(body?.scenario_seconds) || DEFAULT_SCENARIO_SECONDS, 15), 90);
-
-    // Unique suffix per run so auth emails never collide with leftovers
-    // from prior runs (auth.users persists even after company archive).
-    const runTag = Date.now().toString(36) + crypto.randomUUID().slice(0, 4);
-
-    // ─── create the report row up-front ───────────────────────────────
-    const { data: report, error: reportErr } = await admin
-      .from("loadtest_reports").insert({
-        triggered_by: u.user.id,
-        scenario_seconds: scenarioSeconds,
-        tenant_count: TENANT_COUNT,
-        status: "running",
-      }).select("id").single();
-    if (reportErr || !report) return j({ error: `Failed to open report: ${reportErr?.message}` }, 500);
-    const reportId = report.id;
-
-    const errors: Array<{ phase: string; message: string }> = [];
-    const tenants: Tenant[] = [];
-    let seedAborted: string | null = null;
-
     // ============= PHASE 1: SEED =============
     const seedT0 = performance.now();
     for (let i = 1; i <= TENANT_COUNT; i++) {
       const name = `LOADTEST-${String(i).padStart(3, "0")}`;
       log("seed.start", name);
       try {
-        // company
         const { data: co, error: coErr } = await admin.from("companies").insert({
           name,
           onboarding_status: "active",
@@ -131,7 +103,6 @@ Deno.serve(async (req) => {
         if (coErr) throw new Error(`company: ${coErr.message}`);
         const company_id = co.id;
 
-        // 5 real auth users: owner, dispatcher, biller, crew1, crew2
         const memberSpecs = [
           { role: "owner", suffix: "owner" },
           { role: "dispatcher", suffix: "dispatcher" },
@@ -153,18 +124,16 @@ Deno.serve(async (req) => {
           if (usrErr || !created.user) throw new Error(`auth.${m.suffix}: ${usrErr?.message}`);
           const uid = created.user.id;
 
-          // profile
           const { error: pfErr } = await admin.from("profiles").insert({
             user_id: uid,
             full_name: `${m.suffix} ${name}`,
             email,
             active_company_id: company_id,
             sex: "M",
-            cert_level: m.role === "crew" ? "EMT-B" : "EMT-B",
+            cert_level: "EMT-B",
           });
           if (pfErr) throw new Error(`profile.${m.suffix}: ${pfErr.message}`);
 
-          // membership
           const { error: memErr } = await admin.from("company_memberships").insert({
             user_id: uid, company_id, role: m.role,
           });
@@ -173,7 +142,6 @@ Deno.serve(async (req) => {
           members.push({ role: m.role, user_id: uid, email });
           if (m.role === "owner") {
             ownerUserId = uid; ownerEmail = email;
-            // sign in to get JWT
             const cli = createClient(SUPABASE_URL, ANON_KEY);
             const { data: sess, error: sErr } = await cli.auth.signInWithPassword({ email, password });
             if (sErr || !sess.session) throw new Error(`signin.owner: ${sErr?.message}`);
@@ -181,7 +149,6 @@ Deno.serve(async (req) => {
           }
         }
 
-        // 3 trucks
         const truckIds: string[] = [];
         for (let n = 0; n < 3; n++) {
           const { data: t, error: tErr } = await admin.from("trucks").insert({
@@ -191,7 +158,6 @@ Deno.serve(async (req) => {
           truckIds.push(t.id);
         }
 
-        // 5 patients
         const patientIds: string[] = [];
         for (let n = 0; n < 5; n++) {
           const { data: p, error: pErr } = await admin.from("patients").insert({
@@ -201,7 +167,6 @@ Deno.serve(async (req) => {
           patientIds.push(p.id);
         }
 
-        // 30 trip_records (scheduled today)
         const tripRows = Array.from({ length: 30 }, (_, n) => ({
           company_id,
           patient_id: patientIds[n % 5],
@@ -228,7 +193,6 @@ Deno.serve(async (req) => {
     }
     const seedMs = Math.round(performance.now() - seedT0);
 
-    // If seed aborted, mark report failed and skip remaining phases.
     if (seedAborted || tenants.length === 0) {
       const failMsg = seedAborted ?? "No tenants seeded";
       log("abort", failMsg, { tenants_seeded: tenants.length });
@@ -244,36 +208,32 @@ Deno.serve(async (req) => {
         },
         errors,
       }).eq("id", reportId);
-      return j({ ok: false, report_id: reportId, error: failMsg, errors }, 200);
+      return;
     }
 
-    // ============= PHASE 2: CROSS-TENANT HIPAA PROBE =============
+    // ============= PHASE 2: CROSS-TENANT HIPAA PROBE (parallel per tenant) =============
     const probeT0 = performance.now();
     const isolationLeaks: Array<{ tenant: string; table: string; visible_other_rows: number }> = [];
     let probesRun = 0;
 
-    for (const t of tenants) {
+    await Promise.all(tenants.map(async (t) => {
       log("probe.tenant", t.name);
       const cli = createClient(SUPABASE_URL, ANON_KEY, {
         global: { headers: { Authorization: `Bearer ${t.owner.jwt}` } },
       });
-      for (const tbl of TENANT_TABLES) {
+      // Probe all tables for this tenant in parallel too.
+      await Promise.all(TENANT_TABLES.map(async (tbl) => {
         probesRun++;
         try {
-          // Count rows visible to this tenant's owner that DO NOT belong
-          // to their own company. RLS should filter to zero.
           const { count, error } = await cli
             .from(tbl)
             .select("*", { count: "exact", head: true })
             .neq("company_id", t.company_id);
           if (error) {
-            // Some tables may not allow SELECT for owners — that's fine,
-            // it's stricter than required. Only report if the error
-            // suggests a query problem, not a permission denial.
             if (!/permission denied|policy/i.test(error.message)) {
               isolationLeaks.push({ tenant: t.name, table: tbl, visible_other_rows: -1 });
             }
-            continue;
+            return;
           }
           if ((count ?? 0) > 0) {
             isolationLeaks.push({ tenant: t.name, table: tbl, visible_other_rows: count ?? 0 });
@@ -281,8 +241,8 @@ Deno.serve(async (req) => {
         } catch (e) {
           errors.push({ phase: `probe:${t.name}.${tbl}`, message: (e as Error).message });
         }
-      }
-    }
+      }));
+    }));
     const probeMs = Math.round(performance.now() - probeT0);
 
     // ============= PHASE 3: LATENCY LOAD =============
@@ -337,17 +297,15 @@ Deno.serve(async (req) => {
     for (const t of tenants) {
       const { error: aErr } = await admin.from("companies").update({
         deleted_at: new Date().toISOString(),
-        deleted_by: u.user.id,
+        deleted_by: triggeredBy,
         onboarding_status: "suspended",
         suspended_at: new Date().toISOString(),
-        suspended_by: u.user.id,
+        suspended_by: triggeredBy,
         suspended_reason: "LOADTEST cleanup",
       }).eq("id", t.company_id);
       if (aErr) errors.push({ phase: `archive:${t.name}`, message: aErr.message });
       else archived++;
 
-      // Hard-delete the auth users so future runs (with different runTag,
-      // but also any manual reseed) don't accumulate orphaned identities.
       for (const m of t.members) {
         const { error: dErr } = await admin.auth.admin.deleteUser(m.user_id);
         if (dErr) errors.push({ phase: `archive:${t.name}.${m.role}`, message: dErr.message });
@@ -396,8 +354,59 @@ Deno.serve(async (req) => {
       summary, isolation_results: isolationLeaks,
       latency_results: latencyResults, errors, manifest,
     }).eq("id", reportId);
+  } catch (err) {
+    log("fatal", (err as Error).message);
+    await admin.from("loadtest_reports").update({
+      finished_at: new Date().toISOString(),
+      status: "failed",
+      summary: { failure_reason: (err as Error).message, violations: [(err as Error).message], pass: false },
+      errors: [...errors, { phase: "fatal", message: (err as Error).message }],
+    }).eq("id", reportId);
+  }
+}
 
-    return j({ ok: true, report_id: reportId, summary, isolation_leaks: isolationLeaks, latency: latencyResults });
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  try {
+    // ─── auth gate: system creator only ───────────────────────────────
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) return j({ error: "Unauthorized" }, 401);
+
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: u } = await userClient.auth.getUser();
+    if (!u?.user) return j({ error: "Unauthorized" }, 401);
+
+    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+    const { data: sc } = await admin
+      .from("system_creators").select("user_id").eq("user_id", u.user.id).maybeSingle();
+    if (!sc) return j({ error: "Forbidden — system creators only" }, 403);
+
+    const body = await req.json().catch(() => ({}));
+    const scenarioSeconds = Math.min(Math.max(Number(body?.scenario_seconds) || DEFAULT_SCENARIO_SECONDS, 15), 90);
+
+    const runTag = Date.now().toString(36) + crypto.randomUUID().slice(0, 4);
+
+    const { data: report, error: reportErr } = await admin
+      .from("loadtest_reports").insert({
+        triggered_by: u.user.id,
+        scenario_seconds: scenarioSeconds,
+        tenant_count: TENANT_COUNT,
+        status: "running",
+      }).select("id").single();
+    if (reportErr || !report) return j({ error: `Failed to open report: ${reportErr?.message}` }, 500);
+    const reportId = report.id;
+
+    // Kick off the heavy work in the background and return immediately.
+    // The client polls loadtest_reports for status/summary updates.
+    // @ts-ignore: EdgeRuntime is provided by Supabase edge runtime
+    EdgeRuntime.waitUntil(
+      runHarness({ admin, reportId, triggeredBy: u.user.id, scenarioSeconds, runTag })
+    );
+
+    return j({ ok: true, report_id: reportId, status: "running" }, 202);
   } catch (err) {
     return j({ error: (err as Error).message ?? "Unknown error" }, 500);
   }
