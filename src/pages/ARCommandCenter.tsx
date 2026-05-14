@@ -31,6 +31,7 @@ import { TimelyFilingBadge, ResubmissionHistory } from "@/components/billing/Den
 import { PayerContactLookup } from "@/components/billing/PayerDirectoryTab";
 import { BillerTaskQueue } from "@/components/billing/BillerTaskQueue";
 import { BillingWorkQueue } from "@/components/billing/BillingWorkQueue";
+import { ClaimTimelineDrawer, TimelineTrigger } from "@/components/billing/ClaimTimelineDrawer";
 import { Wrench } from "lucide-react";
 import { TablePagination } from "@/components/ui/table-pagination";
 
@@ -597,7 +598,10 @@ export default function ARCommandCenter() {
           {selectedClaim && (
             <div className="space-y-5 pt-2">
               <SheetHeader>
-                <SheetTitle className="text-lg">{selectedClaim.patient_name}</SheetTitle>
+                <SheetTitle className="text-lg flex items-center justify-between gap-2">
+                  <span className="truncate">{selectedClaim.patient_name}</span>
+                  <TimelineTrigger claimId={selectedClaim.id} variant="button" />
+                </SheetTitle>
               </SheetHeader>
 
               {/* Claim details */}
@@ -788,6 +792,7 @@ export default function ARCommandCenter() {
           />
         </Suspense>
       )}
+      <ClaimTimelineDrawer />
     </AdminLayout>
   );
 }

@@ -17,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { PayerDirectoryTab } from "@/components/billing/PayerDirectoryTab";
 import { MissingMoneyDetail } from "@/components/billing/MissingMoneyPanel";
 import { DenialRecoveryEngine } from "@/components/billing/DenialRecoveryEngine";
+import { ClaimTimelineDrawer } from "@/components/billing/ClaimTimelineDrawer";
 import { RemittanceActivityPanel } from "@/components/billing/RemittanceActivityPanel";
 import { RemittanceHistoryPanel } from "@/components/billing/RemittanceHistoryPanel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -1786,6 +1787,7 @@ export default function BillingAndClaims() {
           onComplete={() => { setRecoveryClaimId(null); fetchData(); }}
         />
       )}
+      <ClaimTimelineDrawer />
     </AdminLayout>
   );
 }
