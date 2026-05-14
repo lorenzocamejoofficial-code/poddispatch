@@ -269,7 +269,14 @@ async function runHarness(params: {
     let opErrors = 0;
 
     const endAt = Date.now() + scenarioSeconds * 1000;
-    await Promise.all(tenants.map(async (t) => {
+    // Cap concurrency to keep edge function CPU within budget. 4 concurrent
+    // virtual users is enough to surface contention/RLS overhead while
+    // leaving CPU headroom for the rest of the pipeline.
+    const LOAD_CONCURRENCY = 4;
+    // Small think time between iterations so we yield CPU and don't busy-loop
+    // through supabase-js response parsing.
+    const THINK_MS = 75;
+    const tenantWorker = async (t: Tenant) => {
       const cli = createClient(SUPABASE_URL, ANON_KEY, {
         global: { headers: { Authorization: `Bearer ${t.owner.jwt}` } },
       });
@@ -293,8 +300,15 @@ async function runHarness(params: {
             status: "scheduled", trip_type: TRIP_TYPE,
           }));
         opLatency.insert_trip.push(ms4); if (e4) opErrors++;
+
+        await new Promise((r) => setTimeout(r, THINK_MS));
       }
-    }));
+    };
+    // Run tenants in rolling batches of LOAD_CONCURRENCY.
+    for (let i = 0; i < tenants.length; i += LOAD_CONCURRENCY) {
+      await Promise.all(tenants.slice(i, i + LOAD_CONCURRENCY).map(tenantWorker));
+      if (Date.now() >= endAt) break;
+    }
     const loadMs = Math.round(performance.now() - loadT0);
 
     const totalOps = Object.values(opLatency).reduce((s, a) => s + a.length, 0);
