@@ -31,6 +31,7 @@ import { TimelyFilingBadge, ResubmissionHistory } from "@/components/billing/Den
 import { PayerContactLookup } from "@/components/billing/PayerDirectoryTab";
 import { BillerTaskQueue } from "@/components/billing/BillerTaskQueue";
 import { BillingWorkQueue } from "@/components/billing/BillingWorkQueue";
+import { ClaimTimelineDrawer, TimelineTrigger } from "@/components/billing/ClaimTimelineDrawer";
 import { Wrench } from "lucide-react";
 import { TablePagination } from "@/components/ui/table-pagination";
 
@@ -788,6 +789,7 @@ export default function ARCommandCenter() {
           />
         </Suspense>
       )}
+      <ClaimTimelineDrawer />
     </AdminLayout>
   );
 }
