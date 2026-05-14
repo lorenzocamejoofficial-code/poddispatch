@@ -31,7 +31,15 @@ Deno.serve(async (req) => {
     // If called with a specific company, verify auth
     if (targetCompanyId) {
       const authHeader = req.headers.get("Authorization");
-      if (authHeader) {
+      const isServiceRole =
+        authHeader === `Bearer ${serviceRoleKey}`;
+      if (!isServiceRole) {
+        if (!authHeader) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Unauthorized" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
         const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
         const userClient = createClient(supabaseUrl, anonKey, {
           global: { headers: { Authorization: authHeader } },
@@ -40,7 +48,7 @@ Deno.serve(async (req) => {
           .from("company_memberships")
           .select("role")
           .eq("company_id", targetCompanyId)
-          .single();
+          .maybeSingle();
 
         if (!membership || !["owner", "creator", "biller"].includes(membership.role)) {
           return new Response(
