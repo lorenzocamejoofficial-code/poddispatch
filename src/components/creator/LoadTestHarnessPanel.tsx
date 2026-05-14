@@ -33,6 +33,14 @@ export function LoadTestHarnessPanel() {
 
   const load = async () => {
     setLoading(true);
+    // Reap any zombies (workers that died past the ~150s wall-clock and left
+    // a row stuck in 'running'). Safe to call repeatedly; it's a no-op when
+    // nothing is stale.
+    await supabase.rpc("reap_stale_loadtest_reports" as any).then(({ error }) => {
+      if (error && !/Forbidden/i.test(error.message)) {
+        console.warn("reap_stale_loadtest_reports:", error.message);
+      }
+    });
     const { data, error } = await supabase
       .from("loadtest_reports" as any)
       .select("*")
