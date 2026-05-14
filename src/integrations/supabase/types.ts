@@ -2562,6 +2562,54 @@ export type Database = {
           },
         ]
       }
+      loadtest_reports: {
+        Row: {
+          created_at: string
+          errors: Json | null
+          finished_at: string | null
+          id: string
+          isolation_results: Json | null
+          latency_results: Json | null
+          manifest: Json | null
+          scenario_seconds: number | null
+          started_at: string
+          status: string
+          summary: Json | null
+          tenant_count: number | null
+          triggered_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          errors?: Json | null
+          finished_at?: string | null
+          id?: string
+          isolation_results?: Json | null
+          latency_results?: Json | null
+          manifest?: Json | null
+          scenario_seconds?: number | null
+          started_at?: string
+          status?: string
+          summary?: Json | null
+          tenant_count?: number | null
+          triggered_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          errors?: Json | null
+          finished_at?: string | null
+          id?: string
+          isolation_results?: Json | null
+          latency_results?: Json | null
+          manifest?: Json | null
+          scenario_seconds?: number | null
+          started_at?: string
+          status?: string
+          summary?: Json | null
+          tenant_count?: number | null
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
       migration_settings: {
         Row: {
           company_id: string

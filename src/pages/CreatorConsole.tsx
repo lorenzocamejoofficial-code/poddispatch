@@ -32,6 +32,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RemittanceQuarantinePanel } from "@/components/creator/RemittanceQuarantinePanel";
 import { ReconciliationReportPanel } from "@/components/creator/ReconciliationReportPanel";
 import { SupportTicketsPanel } from "@/components/creator/SupportTicketsPanel";
+import { LoadTestHarnessPanel } from "@/components/creator/LoadTestHarnessPanel";
 
 interface CompanyRecord {
   id: string;
@@ -614,6 +615,7 @@ export default function CreatorConsole() {
             <TabsTrigger value="remittance_quarantine">Remittance Quarantine</TabsTrigger>
             <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
             <TabsTrigger value="support">Support</TabsTrigger>
+            <TabsTrigger value="loadtest">Load Test</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending">
@@ -642,6 +644,9 @@ export default function CreatorConsole() {
           </TabsContent>
           <TabsContent value="support">
             <SupportTicketsPanel />
+          </TabsContent>
+          <TabsContent value="loadtest">
+            <LoadTestHarnessPanel />
           </TabsContent>
         </Tabs>
       )}
