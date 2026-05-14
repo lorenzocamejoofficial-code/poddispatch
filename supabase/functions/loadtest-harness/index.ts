@@ -216,32 +216,36 @@ async function runHarness(params: {
     const isolationLeaks: Array<{ tenant: string; table: string; visible_other_rows: number }> = [];
     let probesRun = 0;
 
+    // Probe: 10 tenants in parallel, tables sequential per-tenant to keep DB pressure low.
+    // We only need to prove "can I see ANY row from another tenant?" — limit(1) is sufficient
+    // and avoids the cost of count:exact across RLS-filtered tables.
     await Promise.all(tenants.map(async (t) => {
       log("probe.tenant", t.name);
       const cli = createClient(SUPABASE_URL, ANON_KEY, {
         global: { headers: { Authorization: `Bearer ${t.owner.jwt}` } },
       });
-      // Probe all tables for this tenant in parallel too.
-      await Promise.all(TENANT_TABLES.map(async (tbl) => {
+      for (const tbl of TENANT_TABLES) {
         probesRun++;
         try {
-          const { count, error } = await cli
+          const { data, error } = await cli
             .from(tbl)
-            .select("*", { count: "exact", head: true })
-            .neq("company_id", t.company_id);
+            .select("company_id")
+            .neq("company_id", t.company_id)
+            .limit(1);
           if (error) {
-            if (!/permission denied|policy/i.test(error.message)) {
-              isolationLeaks.push({ tenant: t.name, table: tbl, visible_other_rows: -1 });
+            // Permission/policy denied = RLS working as intended. Anything else = probe failure, NOT a leak.
+            if (!/permission denied|policy|row-level security/i.test(error.message)) {
+              errors.push({ phase: `probe:${t.name}.${tbl}`, message: error.message });
             }
-            return;
+            continue;
           }
-          if ((count ?? 0) > 0) {
-            isolationLeaks.push({ tenant: t.name, table: tbl, visible_other_rows: count ?? 0 });
+          if (data && data.length > 0) {
+            isolationLeaks.push({ tenant: t.name, table: tbl, visible_other_rows: data.length });
           }
         } catch (e) {
           errors.push({ phase: `probe:${t.name}.${tbl}`, message: (e as Error).message });
         }
-      }));
+      }
     }));
     const probeMs = Math.round(performance.now() - probeT0);
 
