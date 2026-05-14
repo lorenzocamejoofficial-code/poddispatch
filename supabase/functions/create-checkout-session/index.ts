@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,6 +32,29 @@ serve(async (req) => {
       );
     }
 
+    // Require authenticated caller — checkout sessions must not be created
+    // anonymously, otherwise an attacker could attach a paid subscription to
+    // any company by spoofing company_id/user_id in the body.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData?.user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const { company_id, user_id } = body ?? {};
 
@@ -38,6 +62,26 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: "company_id and user_id are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Caller must be the user being charged AND a member of the target company
+    if (String(user_id) !== userData.user.id) {
+      return new Response(
+        JSON.stringify({ error: "user_id mismatch" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    const { data: membership } = await userClient
+      .from("company_memberships")
+      .select("role")
+      .eq("company_id", String(company_id))
+      .eq("user_id", userData.user.id)
+      .maybeSingle();
+    if (!membership || !["owner", "creator"].includes(membership.role)) {
+      return new Response(
+        JSON.stringify({ error: "Only company owners can start checkout" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
