@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
+import { TimelineTrigger } from "@/components/billing/ClaimTimelineDrawer";
 
 /* ---------- types ---------- */
 export interface WorkItem {
@@ -365,6 +366,9 @@ export function BillingWorkQueue({ onOpenClaim, refreshKey }: BillingWorkQueuePr
                 )}
 
                 {/* Action */}
+                {item.type === "claim" && item.claimId && (
+                  <TimelineTrigger claimId={item.claimId} />
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
