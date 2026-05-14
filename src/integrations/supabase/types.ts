@@ -4194,32 +4194,56 @@ export type Database = {
       }
       support_tickets: {
         Row: {
+          category: string | null
+          client_context: Json | null
           company_id: string
           created_at: string
+          creator_notes: string | null
           id: string
           page_path: string | null
+          resolved_at: string | null
+          severity: string
           status: string
+          subject: string | null
+          ticket_number: string | null
           trying_to_do: string | null
+          updated_at: string
           user_id: string
           what_happened: string | null
         }
         Insert: {
+          category?: string | null
+          client_context?: Json | null
           company_id: string
           created_at?: string
+          creator_notes?: string | null
           id?: string
           page_path?: string | null
+          resolved_at?: string | null
+          severity?: string
           status?: string
+          subject?: string | null
+          ticket_number?: string | null
           trying_to_do?: string | null
+          updated_at?: string
           user_id: string
           what_happened?: string | null
         }
         Update: {
+          category?: string | null
+          client_context?: Json | null
           company_id?: string
           created_at?: string
+          creator_notes?: string | null
           id?: string
           page_path?: string | null
+          resolved_at?: string | null
+          severity?: string
           status?: string
+          subject?: string | null
+          ticket_number?: string | null
           trying_to_do?: string | null
+          updated_at?: string
           user_id?: string
           what_happened?: string | null
         }
