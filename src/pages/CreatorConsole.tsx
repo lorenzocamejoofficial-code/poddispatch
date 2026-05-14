@@ -31,6 +31,7 @@ import { logAuditEvent } from "@/lib/audit-logger";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RemittanceQuarantinePanel } from "@/components/creator/RemittanceQuarantinePanel";
 import { ReconciliationReportPanel } from "@/components/creator/ReconciliationReportPanel";
+import { SupportTicketsPanel } from "@/components/creator/SupportTicketsPanel";
 
 interface CompanyRecord {
   id: string;
@@ -612,6 +613,7 @@ export default function CreatorConsole() {
             <TabsTrigger value="archived">Archived ({filteredArchived().length})</TabsTrigger>
             <TabsTrigger value="remittance_quarantine">Remittance Quarantine</TabsTrigger>
             <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
+            <TabsTrigger value="support">Support</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending">
@@ -637,6 +639,9 @@ export default function CreatorConsole() {
           </TabsContent>
           <TabsContent value="reconciliation">
             <ReconciliationReportPanel />
+          </TabsContent>
+          <TabsContent value="support">
+            <SupportTicketsPanel />
           </TabsContent>
         </Tabs>
       )}
