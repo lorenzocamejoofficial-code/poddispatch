@@ -15,6 +15,7 @@ import { DevModePanel } from "@/components/creator/DevModePanel";
 import { CreatorLayout } from "@/components/layout/CreatorLayout";
 import { CompanyHealthTable } from "@/components/creator/CompanyHealthTable";
 import { SaaSMetricsTab } from "@/components/creator/SaaSMetricsTab";
+import { fetchRealCompanyIds } from "@/lib/real-companies";
 
 interface SystemMetrics {
   totalCompanies: number;
@@ -48,15 +49,8 @@ export default function SystemCreatorDashboard() {
   const loadMetrics = async () => {
     setLoading(true);
     try {
-      // Step 1: Get only real customer companies (exclude test tenant, sandbox, soft-deleted)
-      const { data: realCompanies } = await supabase
-        .from("companies")
-        .select("id")
-        .eq("creator_test_tenant", false)
-        .eq("is_sandbox", false)
-        .is("deleted_at", null);
-
-      const realIds = (realCompanies ?? []).map((c) => c.id);
+      // Real customer companies only (excludes test tenant, sandbox, soft-deleted)
+      const realIds = await fetchRealCompanyIds();
 
       if (realIds.length === 0) {
         setMetrics({

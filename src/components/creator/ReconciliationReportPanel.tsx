@@ -42,7 +42,12 @@ export function ReconciliationReportPanel() {
       const sinceIso = since.toISOString();
 
       const [companiesRes, claimsRes, filesRes, qRes] = await Promise.all([
-        supabase.from("companies").select("id, name, npi_number").is("deleted_at", null),
+        supabase
+          .from("companies")
+          .select("id, name, npi_number")
+          .eq("creator_test_tenant", false)
+          .eq("is_sandbox", false)
+          .is("deleted_at", null),
         supabase
           .from("claim_records")
           .select("company_id, status, amount_paid")

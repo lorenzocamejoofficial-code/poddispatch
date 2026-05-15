@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchRealCompanyIds } from "@/lib/real-companies";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -39,13 +40,7 @@ export function SaaSMetricsTab() {
       const monthStartIso = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
       // Restrict to real customer companies (exclude creator test tenant, sandbox, soft-deleted)
-      const { data: realCompanies } = await supabase
-        .from("companies")
-        .select("id")
-        .eq("creator_test_tenant", false)
-        .eq("is_sandbox", false)
-        .is("deleted_at", null);
-      const realIds = (realCompanies ?? []).map((c) => c.id);
+      const realIds = await fetchRealCompanyIds();
 
       const { data: cacSetting } = await supabase
         .from("creator_settings").select("value").eq("key", "cac_per_customer").maybeSingle();
