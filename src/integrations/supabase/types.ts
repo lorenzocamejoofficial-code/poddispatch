@@ -1051,6 +1051,7 @@ export type Database = {
           filename: string
           id: string
           is_test: boolean
+          oatest_run_id: string | null
           status: string
           submitted_at: string | null
           updated_at: string
@@ -1065,6 +1066,7 @@ export type Database = {
           filename: string
           id?: string
           is_test?: boolean
+          oatest_run_id?: string | null
           status?: string
           submitted_at?: string | null
           updated_at?: string
@@ -1079,6 +1081,7 @@ export type Database = {
           filename?: string
           id?: string
           is_test?: boolean
+          oatest_run_id?: string | null
           status?: string
           submitted_at?: string | null
           updated_at?: string
@@ -1089,6 +1092,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_submission_queue_oatest_run_id_fkey"
+            columns: ["oatest_run_id"]
+            isOneToOne: false
+            referencedRelation: "oatest_runs"
             referencedColumns: ["id"]
           },
         ]
