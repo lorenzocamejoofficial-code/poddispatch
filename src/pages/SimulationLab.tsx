@@ -273,8 +273,6 @@ export default function SimulationLab() {
   const safetyChecks = checks?.filter(c => c.category === "safety") ?? [];
 
   const standardScenarios = SCENARIOS.filter(s => s.group === "standard");
-  const cascadeScenarios = SCENARIOS.filter(s => s.group === "cascade");
-  const oaValidationScenarios = SCENARIOS.filter(s => s.group === "oa_validation");
 
   return (
     <CreatorLayout title="Simulation Lab">
@@ -400,30 +398,6 @@ export default function SimulationLab() {
                 ))}
               </div>
             </div>
-
-            {/* Cascade Scenarios */}
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive mb-2 flex items-center gap-1">
-                <Flame className="h-3 w-3" /> Cascade Failure Scenarios
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {cascadeScenarios.map(s => (
-                  <ScenarioButton key={s.key} scenario={s} loading={loading} onSeed={seedScenario} cascade />
-                ))}
-              </div>
-            </div>
-
-            {/* OA Validation Scenarios */}
-            {oaValidationScenarios.length > 0 && (
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-primary mb-2">OA Validation</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {oaValidationScenarios.map(s => (
-                    <ScenarioButton key={s.key} scenario={s} loading={loading} onSeed={seedScenario} />
-                  ))}
-                </div>
-              </div>
-            )}
 
             {seedResult && seedResult.ok && (
               <div className="rounded-md bg-primary/5 border border-primary/20 p-3 text-xs text-foreground">
