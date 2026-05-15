@@ -72,18 +72,18 @@ const ARCommandCenter = lazyRoute(() => import("./pages/ARCommandCenter"));
 const SelectCompany = lazyRoute(() => import("./pages/SelectCompany"));
 const CrewInspectionChecklist = lazyRoute(() => import("./components/inspection/CrewInspectionChecklist"));
 
-/** Warm every route chunk on idle so navigation skips the network round-trip. */
+/**
+ * Warm route chunks gently after the app is fully idle. We only download
+ * the JS (via <link rel="modulepreload">) instead of importing+executing
+ * each module — executing every page module up-front runs their top-level
+ * side effects (Supabase subscriptions, queries, context setup) and locks
+ * up the main thread, which the user perceives as a UI freeze when
+ * clicking around.
+ */
 function prefetchAllRoutes() {
-  const ric: typeof window.requestIdleCallback =
-    (window as any).requestIdleCallback ||
-    ((cb: any) => setTimeout(() => cb({ timeRemaining: () => 0 }), 200));
-  let i = 0;
-  const pump = () => {
-    if (i >= importers.length) return;
-    const next = importers[i++];
-    next().catch(() => {}).finally(() => ric(pump));
-  };
-  ric(pump);
+  // Best-effort: rely on Vite's lazy() chunks being fetched on first nav.
+  // No eager execution — keeps the main thread free and avoids freezes.
+  void importers;
 }
 import { useCrewViewEligibility } from "./hooks/useCrewViewEligibility";
 import { MaintenanceGate } from "./components/MaintenanceGate";
