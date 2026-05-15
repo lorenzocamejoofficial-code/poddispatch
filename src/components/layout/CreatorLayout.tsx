@@ -28,7 +28,7 @@ const creatorNavItems: NavItem[] = [
 ];
 
 export function CreatorLayout({ children, title }: { children: ReactNode; title?: string }) {
-  const { user, signOut, activeCompanyId, profileId } = useAuth();
+  const { user, signOut, activeCompanyId } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -57,15 +57,24 @@ export function CreatorLayout({ children, title }: { children: ReactNode; title?
       window.location.assign("/dispatch");
       return;
     }
-    if (!profileId) {
+    if (!user) {
       navigate("/dispatch");
       return;
     }
     setEnteringSim(true);
+    // Upsert by user_id so this also works the first time a new system
+    // creator clicks Enter App Simulation (no profile row may exist yet).
     const { error } = await supabase
       .from("profiles")
-      .update({ active_company_id: LORENZO_TEST_COMPANY_ID } as any)
-      .eq("id", profileId);
+      .upsert(
+        {
+          user_id: user.id,
+          full_name: user.email ?? "System Creator",
+          email: user.email ?? null,
+          active_company_id: LORENZO_TEST_COMPANY_ID,
+        } as any,
+        { onConflict: "user_id" }
+      );
     if (error) {
       console.error("Enter App Simulation failed:", error);
       setEnteringSim(false);
