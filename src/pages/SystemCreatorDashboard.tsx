@@ -48,12 +48,30 @@ export default function SystemCreatorDashboard() {
   const loadMetrics = async () => {
     setLoading(true);
     try {
-      const [companies, profiles, trucks, trips, claims] = await Promise.all([
-        supabase.from("companies").select("id", { count: "exact", head: true }),
-        supabase.from("profiles").select("id", { count: "exact", head: true }),
-        supabase.from("trucks").select("id", { count: "exact", head: true }),
-        supabase.from("trip_records").select("id, status, claim_ready", { count: "exact" }),
-        supabase.from("claim_records").select("id, status", { count: "exact" }),
+      // Step 1: Get only real customer companies (exclude test tenant, sandbox, soft-deleted)
+      const { data: realCompanies } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("creator_test_tenant", false)
+        .eq("is_sandbox", false)
+        .is("deleted_at", null);
+
+      const realIds = (realCompanies ?? []).map((c) => c.id);
+
+      if (realIds.length === 0) {
+        setMetrics({
+          totalCompanies: 0, totalUsers: 0, totalTrucks: 0, totalTrips: 0,
+          totalClaims: 0, cleanClaimRate: 0, avgDispatchEfficiency: 0, systemErrors: 0,
+        });
+        setLoading(false);
+        return;
+      }
+
+      const [memberships, trucks, trips, claims] = await Promise.all([
+        supabase.from("company_memberships").select("user_id", { count: "exact", head: true }).in("company_id", realIds),
+        supabase.from("trucks").select("id", { count: "exact", head: true }).in("company_id", realIds).eq("is_simulated", false),
+        supabase.from("trip_records").select("id, status, claim_ready", { count: "exact" }).in("company_id", realIds).eq("is_simulated", false),
+        supabase.from("claim_records").select("id, status", { count: "exact" }).in("company_id", realIds).eq("is_simulated", false),
       ]);
 
       const totalTrips = trips.count ?? 0;
@@ -62,8 +80,8 @@ export default function SystemCreatorDashboard() {
       const cleanTrips = tripData.filter(t => t.claim_ready).length;
 
       setMetrics({
-        totalCompanies: companies.count ?? 0,
-        totalUsers: profiles.count ?? 0,
+        totalCompanies: realIds.length,
+        totalUsers: memberships.count ?? 0,
         totalTrucks: trucks.count ?? 0,
         totalTrips: totalTrips,
         totalClaims: claims.count ?? 0,

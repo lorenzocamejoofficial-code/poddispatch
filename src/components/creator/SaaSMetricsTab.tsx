@@ -37,18 +37,36 @@ export function SaaSMetricsTab() {
     setLoading(true);
     try {
       const monthStartIso = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-      const [{ data: subs }, { data: cacSetting }, { data: reactivations }] = await Promise.all([
-        supabase.from("subscription_records").select("*"),
-        supabase.from("creator_settings").select("value").eq("key", "cac_per_customer").maybeSingle(),
-        supabase
-          .from("subscription_status_history")
-          .select("company_id, old_status, new_status, monthly_amount_cents, changed_at")
-          .in("old_status", ["trial_expired", "suspended", "expired"])
-          .eq("new_status", "active")
-          .gte("changed_at", monthStartIso),
-      ]);
 
-      const records = subs ?? [];
+      // Restrict to real customer companies (exclude creator test tenant, sandbox, soft-deleted)
+      const { data: realCompanies } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("creator_test_tenant", false)
+        .eq("is_sandbox", false)
+        .is("deleted_at", null);
+      const realIds = (realCompanies ?? []).map((c) => c.id);
+
+      const { data: cacSetting } = await supabase
+        .from("creator_settings").select("value").eq("key", "cac_per_customer").maybeSingle();
+
+      let records: any[] = [];
+      let reactivations: any[] = [];
+      if (realIds.length > 0) {
+        const [{ data: subs }, { data: reacts }] = await Promise.all([
+          supabase.from("subscription_records").select("*").in("company_id", realIds),
+          supabase
+            .from("subscription_status_history")
+            .select("company_id, old_status, new_status, monthly_amount_cents, changed_at")
+            .in("company_id", realIds)
+            .in("old_status", ["trial_expired", "suspended", "expired"])
+            .eq("new_status", "active")
+            .gte("changed_at", monthStartIso),
+        ]);
+        records = subs ?? [];
+        reactivations = reacts ?? [];
+      }
+
       const cac = parseFloat(cacSetting?.value ?? "0") || 0;
       const now = new Date();
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -108,7 +126,7 @@ export function SaaSMetricsTab() {
       // Sourced from subscription_status_history. De-dupe per company (one reactivation per company per month).
       const seenCompanies = new Set<string>();
       let reactivationMrr = 0;
-      for (const row of reactivations ?? []) {
+      for (const row of reactivations) {
         if (!row.company_id || seenCompanies.has(row.company_id)) continue;
         seenCompanies.add(row.company_id);
         reactivationMrr += (row.monthly_amount_cents ?? 59900) / 100;
