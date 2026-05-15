@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchRealCompanyIds } from "@/lib/real-companies";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,9 +65,16 @@ export function SupportTicketsPanel() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const realIds = await fetchRealCompanyIds();
+    if (realIds.length === 0) {
+      setTickets([]);
+      setLoading(false);
+      return;
+    }
     const { data: rows, error } = await supabase
       .from("support_tickets")
       .select("*")
+      .in("company_id", realIds)
       .order("created_at", { ascending: false })
       .limit(500);
     if (error) {
