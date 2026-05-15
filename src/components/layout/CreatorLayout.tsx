@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutDashboard, Settings2, Play,
   ShieldCheck, LogOut, Menu, X, Settings, FlaskConical,
@@ -27,7 +28,7 @@ const creatorNavItems: NavItem[] = [
 ];
 
 export function CreatorLayout({ children, title }: { children: ReactNode; title?: string }) {
-  const { user, signOut, activeCompanyId, switchCompany } = useAuth();
+  const { user, signOut, activeCompanyId, profileId } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -44,20 +45,33 @@ export function CreatorLayout({ children, title }: { children: ReactNode; title?
   // get_my_company_id() (Trucks & Crews, AR Command Center, etc.) come up empty
   // because the creator has no company context. switchCompany backfills the
   // profile so server-side RPCs agree, then triggers a reload.
+  // Point the session at the Lorenzo Test Company and land on /dispatch.
+  // We can't use the auth hook's switchCompany() because it hard-reloads to
+  // "/", which for system creators redirects to /system — so the user never
+  // actually arrives in the simulation. Update the profile directly and then
+  // reload to /dispatch ourselves to wipe tenant-scoped caches and channels.
   const handleEnterSimulation = async (e: React.MouseEvent) => {
     e.preventDefault();
     setSidebarOpen(false);
     if (activeCompanyId === LORENZO_TEST_COMPANY_ID) {
+      window.location.assign("/dispatch");
+      return;
+    }
+    if (!profileId) {
       navigate("/dispatch");
       return;
     }
     setEnteringSim(true);
-    const { error } = await switchCompany(LORENZO_TEST_COMPANY_ID);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ active_company_id: LORENZO_TEST_COMPANY_ID } as any)
+      .eq("id", profileId);
     if (error) {
       console.error("Enter App Simulation failed:", error);
       setEnteringSim(false);
+      return;
     }
-    // switchCompany triggers a full reload; no further navigation needed.
+    window.location.assign("/dispatch");
   };
 
   const resolvedTitle =
