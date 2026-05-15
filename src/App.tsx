@@ -122,7 +122,8 @@ function TokenLoginRedirect() {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000, // 30s — prevent unnecessary re-fetches on navigation
+      staleTime: 5 * 60_000, // 5min — re-visited pages render instantly from cache
+      gcTime: 30 * 60_000,
       refetchOnWindowFocus: false,
     },
   },
@@ -195,6 +196,11 @@ function PaymentResultHandler() {
 function AppRoutes() {
   const { user, role, loading, membershipLoaded, isSystemCreator, onboardingStatus, activeCompanyId, subscriptionStatus, wizardCompleted, passwordRecoveryMode, needsCompanySelection } = useAuth();
   const location = useLocation();
+  // Once auth has resolved, warm every route chunk in the background so
+  // clicking a nav link feels instantaneous (no per-route network fetch).
+  useEffect(() => {
+    if (!loading) prefetchAllRoutes();
+  }, [loading]);
   const isPasswordRecoveryFlow =
     passwordRecoveryMode ||
     location.pathname === "/reset-password" ||
