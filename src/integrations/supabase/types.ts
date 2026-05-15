@@ -5812,6 +5812,10 @@ export type Database = {
         Args: { p_reason: string; p_trip_id: string }
         Returns: Json
       }
+      enter_creator_simulation: {
+        Args: { _company_id: string }
+        Returns: string
+      }
       generate_biller_tasks: { Args: never; Returns: undefined }
       get_my_company_id: { Args: never; Returns: string }
       get_my_role: { Args: never; Returns: string }
