@@ -365,6 +365,10 @@ export default function SimulationLab() {
           </div>
         )}
 
+        {/* OATEST Scenario Runner — drives oatest_scenarios through the same
+            seed → PCR submit → claim trigger → 837P queue path a tenant uses */}
+        <OatestScenarioRunner />
+
         {/* Scenario Seeder */}
         <Card>
           <CardHeader className="pb-3">
