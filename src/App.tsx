@@ -14,56 +14,77 @@ import Login from "./pages/Login";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
-// Everything else is lazy. The browser only fetches the chunk for the
-// route a user actually visits, dramatically cutting initial JS parse time
-// (which was the main cause of the "page is slow" freezes).
-const DispatchBoard = lazy(() => import("./pages/DispatchBoard"));
-const Patients = lazy(() => import("./pages/Patients"));
-const Employees = lazy(() => import("./pages/Employees"));
-const TrucksCrews = lazy(() => import("./pages/TrucksCrews"));
-const Runs = lazy(() => import("./pages/Runs"));
-const Scheduling = lazy(() => import("./pages/Scheduling"));
-const AdminSettings = lazy(() => import("./pages/AdminSettings"));
-const CrewScheduleAdmin = lazy(() => import("./pages/CrewScheduleAdmin"));
-const DailyRunSheet = lazy(() => import("./pages/DailyRunSheet"));
-const TripsAndClinical = lazy(() => import("./pages/TripsAndClinical"));
-const BillingAndClaims = lazy(() => import("./pages/BillingAndClaims"));
-const ComplianceAndQA = lazy(() => import("./pages/ComplianceAndQA"));
-const FacilitiesPage = lazy(() => import("./pages/FacilitiesPage"));
-const ReportsAndMetrics = lazy(() => import("./pages/ReportsAndMetrics"));
-const MigrationOnboarding = lazy(() => import("./pages/MigrationOnboarding"));
-const SystemCreatorDashboard = lazy(() => import("./pages/SystemCreatorDashboard"));
-const CompanySignup = lazy(() => import("./pages/CompanySignup"));
-const PendingApproval = lazy(() => import("./pages/PendingApproval"));
-const CreatorConsole = lazy(() => import("./pages/CreatorConsole"));
-const CreatorSettings = lazy(() => import("./pages/CreatorSettings"));
-const SimulationLab = lazy(() => import("./pages/SimulationLab"));
-const CrewUIPreview = lazy(() => import("./pages/CrewUIPreview"));
-const OverrideMonitor = lazy(() => import("./pages/OverrideMonitor"));
-const EmailActivity = lazy(() => import("./pages/EmailActivity"));
-const AcceptInvite = lazy(() => import("./pages/AcceptInvite"));
-const CreateCompany = lazy(() => import("./pages/CreateCompany"));
-const AccountSettings = lazy(() => import("./pages/AccountSettings"));
-const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
-const ResetPassword = lazy(() => import("./pages/ResetPassword"));
-const ForgotEmail = lazy(() => import("./pages/ForgotEmail"));
-const CreatorRecovery = lazy(() => import("./pages/CreatorRecovery"));
-const SysRecovery = lazy(() => import("./pages/SysRecovery"));
-const SuspendedPage = lazy(() => import("./pages/SuspendedPage"));
-const CrewDashboard = lazy(() => import("./pages/CrewDashboard"));
-const PCRPage = lazy(() => import("./pages/PCRPage"));
-const CrewPatients = lazy(() => import("./pages/crew/CrewPatients"));
-const CrewSchedulePage = lazy(() => import("./pages/crew/CrewSchedule"));
-const OnboardingWizard = lazy(() => import("./pages/OnboardingWizard"));
-const TrialExpired = lazy(() => import("./pages/TrialExpired"));
-const CompletePayment = lazy(() => import("./pages/CompletePayment"));
-const EDIExport = lazy(() => import("./pages/EDIExport"));
-const LegalPage = lazy(() => import("./pages/LegalPage"));
-const RemittanceImport = lazy(() => import("./pages/RemittanceImport"));
-const OwnerDashboard = lazy(() => import("./pages/OwnerDashboard"));
-const ARCommandCenter = lazy(() => import("./pages/ARCommandCenter"));
-const SelectCompany = lazy(() => import("./pages/SelectCompany"));
-const CrewInspectionChecklist = lazy(() => import("./components/inspection/CrewInspectionChecklist"));
+// Each route is lazy-loaded, but we capture the importer so we can warm
+// all chunks on idle right after auth resolves. That makes subsequent
+// navigations feel instantaneous (no network round-trip on click).
+const importers: Array<() => Promise<unknown>> = [];
+function lazyRoute<T extends { default: React.ComponentType<any> }>(
+  factory: () => Promise<T>,
+) {
+  importers.push(factory);
+  return lazy(factory);
+}
+const DispatchBoard = lazyRoute(() => import("./pages/DispatchBoard"));
+const Patients = lazyRoute(() => import("./pages/Patients"));
+const Employees = lazyRoute(() => import("./pages/Employees"));
+const TrucksCrews = lazyRoute(() => import("./pages/TrucksCrews"));
+const Runs = lazyRoute(() => import("./pages/Runs"));
+const Scheduling = lazyRoute(() => import("./pages/Scheduling"));
+const AdminSettings = lazyRoute(() => import("./pages/AdminSettings"));
+const CrewScheduleAdmin = lazyRoute(() => import("./pages/CrewScheduleAdmin"));
+const DailyRunSheet = lazyRoute(() => import("./pages/DailyRunSheet"));
+const TripsAndClinical = lazyRoute(() => import("./pages/TripsAndClinical"));
+const BillingAndClaims = lazyRoute(() => import("./pages/BillingAndClaims"));
+const ComplianceAndQA = lazyRoute(() => import("./pages/ComplianceAndQA"));
+const FacilitiesPage = lazyRoute(() => import("./pages/FacilitiesPage"));
+const ReportsAndMetrics = lazyRoute(() => import("./pages/ReportsAndMetrics"));
+const MigrationOnboarding = lazyRoute(() => import("./pages/MigrationOnboarding"));
+const SystemCreatorDashboard = lazyRoute(() => import("./pages/SystemCreatorDashboard"));
+const CompanySignup = lazyRoute(() => import("./pages/CompanySignup"));
+const PendingApproval = lazyRoute(() => import("./pages/PendingApproval"));
+const CreatorConsole = lazyRoute(() => import("./pages/CreatorConsole"));
+const CreatorSettings = lazyRoute(() => import("./pages/CreatorSettings"));
+const SimulationLab = lazyRoute(() => import("./pages/SimulationLab"));
+const CrewUIPreview = lazyRoute(() => import("./pages/CrewUIPreview"));
+const OverrideMonitor = lazyRoute(() => import("./pages/OverrideMonitor"));
+const EmailActivity = lazyRoute(() => import("./pages/EmailActivity"));
+const AcceptInvite = lazyRoute(() => import("./pages/AcceptInvite"));
+const CreateCompany = lazyRoute(() => import("./pages/CreateCompany"));
+const AccountSettings = lazyRoute(() => import("./pages/AccountSettings"));
+const ForgotPassword = lazyRoute(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazyRoute(() => import("./pages/ResetPassword"));
+const ForgotEmail = lazyRoute(() => import("./pages/ForgotEmail"));
+const CreatorRecovery = lazyRoute(() => import("./pages/CreatorRecovery"));
+const SysRecovery = lazyRoute(() => import("./pages/SysRecovery"));
+const SuspendedPage = lazyRoute(() => import("./pages/SuspendedPage"));
+const CrewDashboard = lazyRoute(() => import("./pages/CrewDashboard"));
+const PCRPage = lazyRoute(() => import("./pages/PCRPage"));
+const CrewPatients = lazyRoute(() => import("./pages/crew/CrewPatients"));
+const CrewSchedulePage = lazyRoute(() => import("./pages/crew/CrewSchedule"));
+const OnboardingWizard = lazyRoute(() => import("./pages/OnboardingWizard"));
+const TrialExpired = lazyRoute(() => import("./pages/TrialExpired"));
+const CompletePayment = lazyRoute(() => import("./pages/CompletePayment"));
+const EDIExport = lazyRoute(() => import("./pages/EDIExport"));
+const LegalPage = lazyRoute(() => import("./pages/LegalPage"));
+const RemittanceImport = lazyRoute(() => import("./pages/RemittanceImport"));
+const OwnerDashboard = lazyRoute(() => import("./pages/OwnerDashboard"));
+const ARCommandCenter = lazyRoute(() => import("./pages/ARCommandCenter"));
+const SelectCompany = lazyRoute(() => import("./pages/SelectCompany"));
+const CrewInspectionChecklist = lazyRoute(() => import("./components/inspection/CrewInspectionChecklist"));
+
+/** Warm every route chunk on idle so navigation skips the network round-trip. */
+function prefetchAllRoutes() {
+  const ric: typeof window.requestIdleCallback =
+    (window as any).requestIdleCallback ||
+    ((cb: any) => setTimeout(() => cb({ timeRemaining: () => 0 }), 200));
+  let i = 0;
+  const pump = () => {
+    if (i >= importers.length) return;
+    const next = importers[i++];
+    next().catch(() => {}).finally(() => ric(pump));
+  };
+  ric(pump);
+}
 import { useCrewViewEligibility } from "./hooks/useCrewViewEligibility";
 import { MaintenanceGate } from "./components/MaintenanceGate";
 
