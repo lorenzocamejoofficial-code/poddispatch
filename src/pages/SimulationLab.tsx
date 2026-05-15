@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { SimulationSummary } from "@/components/simulation/SimulationSummary";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
+import { OatestScenarioRunner } from "@/components/simulation/OatestScenarioRunner";
 
 // Constant: matches LORENZO_TEST_COMPANY_ID in the simulation-lab edge
 // function. The lab no longer spawns sandbox companies on demand — every
@@ -71,20 +72,13 @@ const SCENARIOS = [
   { key: "stress_test", label: "Late Adds + Cancellations", desc: "50 patients, high chaos, missing fields", group: "standard" },
   { key: "billing_risk", label: "Billing Risk Day", desc: "Many missing PCS, auth, signatures", group: "standard" },
   { key: "facility_delay", label: "Facility Delay Day", desc: "B-leg timing pressure, late pickups", group: "standard" },
-  { key: "dispatch_overload", label: "Dispatch Overload", desc: "4 trucks, 45 patients — cascade failure", group: "cascade" },
-  { key: "crew_mismatch", label: "Crew Mismatch Day", desc: "Heavy patients + undertrained crews", group: "cascade" },
-  { key: "revenue_leak", label: "Revenue Leak Day", desc: "PCR failures + billing cascade", group: "cascade" },
-  { key: "varied_mix", label: "Varied Transport Mix (OA companion)", desc: "All 5 transport variations: dialysis, IFT, discharge, wound care, psych", group: "oa_validation" },
 ];
 
 const EVENTS = [
-  { key: "facility_behind", label: "Facility Running Behind", icon: Clock, desc: "Adds 30min to B-leg pickups" },
-  { key: "crew_slow", label: "Crew Moving Slow", icon: Truck, desc: "Adds turnaround delay" },
   { key: "patient_not_ready", label: "Patient Not Ready", icon: UserX, desc: "Marks trips as not ready" },
   { key: "late_add_discharge", label: "Late Add Discharge", icon: Plus, desc: "Inserts mid-day discharge" },
   { key: "cancel_no_show", label: "Cancel / No Show", icon: Ban, desc: "Cancels scheduled trips" },
   { key: "truck_down", label: "Truck Down", icon: Wrench, desc: "Disables truck, unassigns runs" },
-  { key: "cascade_pressure", label: "Cascade Pressure", icon: Flame, desc: "Combined: delay + slow + late add + PCR degrade" },
 ];
 
 export default function SimulationLab() {
