@@ -35,6 +35,8 @@ import { ClaimTimelineDrawer, TimelineTrigger } from "@/components/billing/Claim
 import { Wrench } from "lucide-react";
 import { TablePagination } from "@/components/ui/table-pagination";
 
+const LORENZO_TEST_COMPANY_ID = "f53311c3-a40e-4b2b-b4c2-5aec852f7789";
+
 /* ---------- types ---------- */
 interface ARClaim {
   id: string;
@@ -122,7 +124,7 @@ function daysFromSubmission(submittedAt: string | null): number {
 
 /* ---------- component ---------- */
 export default function ARCommandCenter() {
-  const { activeCompanyId, user } = useAuth();
+  const { activeCompanyId, user, isSystemCreator } = useAuth();
   const [claims, setClaims] = useState<ARClaim[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClaim, setSelectedClaim] = useState<ARClaim | null>(null);
@@ -159,7 +161,10 @@ export default function ARCommandCenter() {
 
   /* -- fetch claims -- */
   const fetchClaims = useCallback(async () => {
-    if (!activeCompanyId) return;
+    if (!activeCompanyId) {
+      setLoading(false);
+      return;
+    }
     const [{ data, error }, { data: payerDir }] = await Promise.all([
       supabase
         .from("claim_records")
@@ -224,6 +229,20 @@ export default function ARCommandCenter() {
     setClaims(mapped);
     setLoading(false);
   }, [activeCompanyId]);
+
+  useEffect(() => {
+    if (!isSystemCreator || activeCompanyId === LORENZO_TEST_COMPANY_ID) return;
+    (supabase as any)
+      .rpc("enter_creator_simulation", { _company_id: LORENZO_TEST_COMPANY_ID })
+      .then(({ error }: { error: any }) => {
+        if (error) {
+          console.error("Failed to enter AR simulation tenant:", error);
+          setLoading(false);
+          return;
+        }
+        window.location.reload();
+      });
+  }, [activeCompanyId, isSystemCreator]);
 
   useEffect(() => { fetchClaims(); }, [fetchClaims]);
 
