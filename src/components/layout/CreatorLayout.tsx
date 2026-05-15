@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
+const LORENZO_TEST_COMPANY_ID = "f53311c3-a40e-4b2b-b4c2-5aec852f7789";
+
 interface NavItem {
   path: string;
   label: string;
@@ -25,15 +27,37 @@ const creatorNavItems: NavItem[] = [
 ];
 
 export function CreatorLayout({ children, title }: { children: ReactNode; title?: string }) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, activeCompanyId, switchCompany } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [enteringSim, setEnteringSim] = useState(false);
 
   const handleLogout = () => {
     signOut();
     localStorage.clear();
     navigate("/login");
+  };
+
+  // "Enter App Simulation" must point the session at the Lorenzo Test Company
+  // before landing on /dispatch — otherwise pages that scope by
+  // get_my_company_id() (Trucks & Crews, AR Command Center, etc.) come up empty
+  // because the creator has no company context. switchCompany backfills the
+  // profile so server-side RPCs agree, then triggers a reload.
+  const handleEnterSimulation = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    setSidebarOpen(false);
+    if (activeCompanyId === LORENZO_TEST_COMPANY_ID) {
+      navigate("/dispatch");
+      return;
+    }
+    setEnteringSim(true);
+    const { error } = await switchCompany(LORENZO_TEST_COMPANY_ID);
+    if (error) {
+      console.error("Enter App Simulation failed:", error);
+      setEnteringSim(false);
+    }
+    // switchCompany triggers a full reload; no further navigation needed.
   };
 
   const resolvedTitle =
@@ -101,19 +125,21 @@ export function CreatorLayout({ children, title }: { children: ReactNode; title?
           <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
             Simulation
           </p>
-          <Link
-            to="/simulation"
-            onClick={() => setSidebarOpen(false)}
+          <a
+            href="/dispatch"
+            onClick={handleEnterSimulation}
+            aria-disabled={enteringSim}
             className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              location.pathname === "/simulation"
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
+              location.pathname === "/simulation" || location.pathname === "/dispatch"
                 ? "bg-sidebar-accent text-sidebar-primary"
-                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+              enteringSim && "opacity-60 pointer-events-none"
             )}
           >
             <Play className="h-4 w-4" />
-            Enter App Simulation
-          </Link>
+            {enteringSim ? "Entering…" : "Enter App Simulation"}
+          </a>
           <Link
             to="/simulation-lab"
             onClick={() => setSidebarOpen(false)}
