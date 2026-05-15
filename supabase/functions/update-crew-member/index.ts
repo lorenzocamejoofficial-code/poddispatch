@@ -67,19 +67,31 @@ Deno.serve(async (req) => {
       return json({ error: "Forbidden" }, 403);
     }
 
-    // Target must belong to same company
+    // Target must belong to same company — check membership OR profile scope
     const { data: targetMembership } = await admin
       .from("company_memberships")
       .select("company_id, role")
       .eq("user_id", target_user_id)
+      .eq("company_id", actorMembership.company_id)
       .maybeSingle();
 
-    if (!targetMembership || targetMembership.company_id !== actorMembership.company_id) {
-      return json({ error: "Target not in your company" }, 403);
+    let targetRole: string | null = targetMembership?.role ?? null;
+
+    if (!targetMembership) {
+      // Fall back to profile scope (covers pending/invited employees with no membership row yet)
+      const { data: targetProfile } = await admin
+        .from("profiles")
+        .select("company_id")
+        .eq("user_id", target_user_id)
+        .eq("company_id", actorMembership.company_id)
+        .maybeSingle();
+      if (!targetProfile) {
+        return json({ error: "Target not in your company" }, 403);
+      }
     }
 
     // Cannot modify another owner
-    if (targetMembership.role === "owner" && target_user_id !== actor.id) {
+    if (targetRole === "owner" && target_user_id !== actor.id) {
       return json({ error: "Cannot modify another owner" }, 403);
     }
 
@@ -95,7 +107,7 @@ Deno.serve(async (req) => {
         if (emailErr) return json({ error: "Email update failed: " + emailErr.message }, 400);
 
         // If the target is the company owner, sync companies.owner_email snapshot
-        if (targetMembership.role === "owner") {
+        if (targetRole === "owner") {
           const { error: ownerSyncErr } = await admin
             .from("companies")
             .update({ owner_email: newEmail })
@@ -129,13 +141,15 @@ Deno.serve(async (req) => {
       if (pErr) return json({ error: "Profile update failed: " + pErr.message }, 400);
     }
 
-    // Update membership role (only for non-owner targets, and never elevate to owner)
-    if (role && ["manager", "dispatcher", "biller", "crew"].includes(role) && targetMembership.role !== "owner" && targetMembership.role !== "creator") {
-      await admin
+    // Update or create membership role (never elevate to owner; never modify owner/creator)
+    if (role && ["manager", "dispatcher", "biller", "crew"].includes(role) && targetRole !== "owner" && targetRole !== "creator") {
+      const { error: mErr } = await admin
         .from("company_memberships")
-        .update({ role })
-        .eq("user_id", target_user_id)
-        .eq("company_id", actorMembership.company_id);
+        .upsert(
+          { user_id: target_user_id, company_id: actorMembership.company_id, role },
+          { onConflict: "user_id,company_id" },
+        );
+      if (mErr) return json({ error: "Role update failed: " + mErr.message }, 400);
     }
 
     // Audit
