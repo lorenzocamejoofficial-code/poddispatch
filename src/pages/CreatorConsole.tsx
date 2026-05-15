@@ -138,6 +138,8 @@ export default function CreatorConsole() {
     const { data, error } = await supabase
       .from("companies")
       .select("id, name, onboarding_status, owner_email, owner_user_id, created_at, approved_at, suspended_reason, suspended_at, rejected_reason, deleted_at, npi_number, state_of_operation, current_software, years_in_operation, has_inhouse_biller, hipaa_privacy_officer")
+      .eq("creator_test_tenant", false)
+      .eq("is_sandbox", false)
       .order("created_at", { ascending: false });
 
     if (error) { console.error(error); setLoading(false); return; }
