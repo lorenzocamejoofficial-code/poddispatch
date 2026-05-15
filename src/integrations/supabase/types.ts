@@ -987,6 +987,8 @@ export type Database = {
           generated_by: string | null
           id: string
           is_test_submission: boolean
+          oatest_run_id: string | null
+          oatest_scenario_id: string | null
         }
         Insert: {
           byte_size?: number
@@ -998,6 +1000,8 @@ export type Database = {
           generated_by?: string | null
           id?: string
           is_test_submission?: boolean
+          oatest_run_id?: string | null
+          oatest_scenario_id?: string | null
         }
         Update: {
           byte_size?: number
@@ -1009,6 +1013,8 @@ export type Database = {
           generated_by?: string | null
           id?: string
           is_test_submission?: boolean
+          oatest_run_id?: string | null
+          oatest_scenario_id?: string | null
         }
         Relationships: [
           {
@@ -1016,6 +1022,20 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_submission_artifacts_oatest_run_id_fkey"
+            columns: ["oatest_run_id"]
+            isOneToOne: false
+            referencedRelation: "oatest_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_submission_artifacts_oatest_scenario_id_fkey"
+            columns: ["oatest_scenario_id"]
+            isOneToOne: false
+            referencedRelation: "oatest_scenarios"
             referencedColumns: ["id"]
           },
         ]
@@ -2723,6 +2743,147 @@ export type Database = {
           notification_type?: string | null
           related_run_id?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      oatest_runs: {
+        Row: {
+          ack_277ca_raw: string | null
+          ack_277ca_status: string | null
+          ack_999_raw: string | null
+          ack_999_status: string | null
+          artifact_id: string | null
+          claim_id: string | null
+          completed_at: string | null
+          failure_stage: string | null
+          failure_summary: string | null
+          filename: string | null
+          id: string
+          ik3_error_code: string | null
+          ik3_loop: string | null
+          ik3_segment: string | null
+          queue_id: string | null
+          readiness_issues: Json | null
+          scenario_id: string
+          started_at: string
+          status: string
+          triggered_by: string | null
+          trip_id: string | null
+        }
+        Insert: {
+          ack_277ca_raw?: string | null
+          ack_277ca_status?: string | null
+          ack_999_raw?: string | null
+          ack_999_status?: string | null
+          artifact_id?: string | null
+          claim_id?: string | null
+          completed_at?: string | null
+          failure_stage?: string | null
+          failure_summary?: string | null
+          filename?: string | null
+          id?: string
+          ik3_error_code?: string | null
+          ik3_loop?: string | null
+          ik3_segment?: string | null
+          queue_id?: string | null
+          readiness_issues?: Json | null
+          scenario_id: string
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+          trip_id?: string | null
+        }
+        Update: {
+          ack_277ca_raw?: string | null
+          ack_277ca_status?: string | null
+          ack_999_raw?: string | null
+          ack_999_status?: string | null
+          artifact_id?: string | null
+          claim_id?: string | null
+          completed_at?: string | null
+          failure_stage?: string | null
+          failure_summary?: string | null
+          filename?: string | null
+          id?: string
+          ik3_error_code?: string | null
+          ik3_loop?: string | null
+          ik3_segment?: string | null
+          queue_id?: string | null
+          readiness_issues?: Json | null
+          scenario_id?: string
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+          trip_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oatest_runs_artifact_id_fkey"
+            columns: ["artifact_id"]
+            isOneToOne: false
+            referencedRelation: "claim_submission_artifacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oatest_runs_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "oatest_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oatest_scenarios: {
+        Row: {
+          created_at: string
+          description: string
+          destination_modifier: string | null
+          enabled: boolean
+          expected_hcpcs: string | null
+          expected_modifiers: string[] | null
+          id: string
+          name: string
+          notes: string | null
+          origin_modifier: string | null
+          payer_type: string
+          scenario_template: Json
+          slug: string
+          transport_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          destination_modifier?: string | null
+          enabled?: boolean
+          expected_hcpcs?: string | null
+          expected_modifiers?: string[] | null
+          id?: string
+          name: string
+          notes?: string | null
+          origin_modifier?: string | null
+          payer_type: string
+          scenario_template: Json
+          slug: string
+          transport_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          destination_modifier?: string | null
+          enabled?: boolean
+          expected_hcpcs?: string | null
+          expected_modifiers?: string[] | null
+          id?: string
+          name?: string
+          notes?: string | null
+          origin_modifier?: string | null
+          payer_type?: string
+          scenario_template?: Json
+          slug?: string
+          transport_type?: string
+          updated_at?: string
         }
         Relationships: []
       }
