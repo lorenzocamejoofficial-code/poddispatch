@@ -40,16 +40,8 @@ export function CreatorLayout({ children, title }: { children: ReactNode; title?
     navigate("/login");
   };
 
-  // "Enter App Simulation" must point the session at the Lorenzo Test Company
-  // before landing on /dispatch — otherwise pages that scope by
-  // get_my_company_id() (Trucks & Crews, AR Command Center, etc.) come up empty
-  // because the creator has no company context. switchCompany backfills the
-  // profile so server-side RPCs agree, then triggers a reload.
-  // Point the session at the Lorenzo Test Company and land on /dispatch.
-  // We can't use the auth hook's switchCompany() because it hard-reloads to
-  // "/", which for system creators redirects to /system — so the user never
-  // actually arrives in the simulation. Update the profile directly and then
-  // reload to /dispatch ourselves to wipe tenant-scoped caches and channels.
+  // Enter through a backend helper so the creator receives a real sandbox
+  // membership and active company context before tenant-scoped pages load.
   const handleEnterSimulation = async (e: React.MouseEvent) => {
     e.preventDefault();
     setSidebarOpen(false);
@@ -62,19 +54,9 @@ export function CreatorLayout({ children, title }: { children: ReactNode; title?
       return;
     }
     setEnteringSim(true);
-    // Upsert by user_id so this also works the first time a new system
-    // creator clicks Enter App Simulation (no profile row may exist yet).
-    const { error } = await supabase
-      .from("profiles")
-      .upsert(
-        {
-          user_id: user.id,
-          full_name: user.email ?? "System Creator",
-          email: user.email ?? null,
-          active_company_id: LORENZO_TEST_COMPANY_ID,
-        } as any,
-        { onConflict: "user_id" }
-      );
+    const { error } = await (supabase as any).rpc("enter_creator_simulation", {
+      _company_id: LORENZO_TEST_COMPANY_ID,
+    });
     if (error) {
       console.error("Enter App Simulation failed:", error);
       setEnteringSim(false);
