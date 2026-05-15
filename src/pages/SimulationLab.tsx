@@ -11,7 +11,7 @@ import {
   FlaskConical, Zap, ShieldCheck, Camera, RotateCcw, Loader2,
   CheckCircle2, XCircle, AlertTriangle, Truck, Users, Activity,
   Clock, Ban, UserX, Plus, Wrench, Play, ExternalLink,
-  BarChart3, Flame, Bug,
+  BarChart3, Bug,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
