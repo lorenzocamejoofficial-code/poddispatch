@@ -652,11 +652,20 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         }
       }
 
-      // RSNAT prior-auth threshold check — Medicare repetitive non-emergency
-      // ambulance transport. If the patient has 40+ one-way trips or 20+ round
-      // trips in any 60-day window ending on this DOS, prior auth is required
-      // and the UTN must appear in REF*G1 before submission.
-      if (claimPayerType === "medicare" && patientId && t.run_date) {
+      // RSNAT historical backstop — fires ONLY when the patient-template
+      // recurring flag is NOT set (so getFrequencyPayerRequirements above did
+      // not already raise the UTN requirement). Per 42 CFR 410.40(d)(2),
+      // RSNAT prior auth should be obtained BEFORE service via the patient
+      // template; this backstop catches cases where trip history shows the
+      // patient has effectively become RSNAT-eligible without the template
+      // being updated.
+      const schedDays = String(p?.schedule_days ?? "").trim();
+      const recDays = Array.isArray(p?.recurrence_days) ? p?.recurrence_days : [];
+      const templateMarksRecurring =
+        schedDays === "MWF" || schedDays === "TTS" ||
+        recDays.length >= 1 ||
+        p?.standing_order === true;
+      if (claimPayerType === "medicare" && patientId && t.run_date && !templateMarksRecurring) {
         const dosTime = new Date(t.run_date).getTime();
         const windowStart = new Date(dosTime - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const windowEnd = new Date(dosTime).toISOString().slice(0, 10);
@@ -670,17 +679,12 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         // Round-trip approximation: trips that share a leg_id pair as A/B legs
         const legIds = (priorTrips ?? []).map(r => r.leg_id).filter(Boolean) as string[];
         const roundTripCount = Math.floor(legIds.length / 2);
-        const hasUtn = !!(claim?.auth_number && String(claim.auth_number).trim());
         if (oneWayCount >= 40 || roundTripCount >= 20) {
           checks.push({
-            label: hasUtn
-              ? "RSNAT prior auth on file (Medicare repetitive transport)"
-              : "RSNAT prior auth may be required",
-            passed: hasUtn,
+            label: "RSNAT prior auth not on file — trip history indicates threshold reached",
+            passed: false,
             isWarning: true,
-            detail: hasUtn
-              ? `UTN on file (${claim.auth_number}). ${oneWayCount} one-way / ~${roundTripCount} round trips in last 60 days.`
-              : `Patient has ${oneWayCount} one-way / ~${roundTripCount} round trips in last 60 days. Medicare requires prior authorization (UTN in REF*G1) at 40+ one-way or 20+ round trips. Add an auth number before submitting.`,
+            detail: `RSNAT prior auth not on file but trip history indicates this patient meets RSNAT thresholds (≥3 round trips in 10 days, or weekly for 3+ weeks) — ${oneWayCount} one-way / ~${roundTripCount} round trips in last 60 days. Update the patient template to indicate a recurring schedule, then obtain a UTN from the MAC.`,
           });
         }
       }
