@@ -1,53 +1,57 @@
 // Comprehensive clinical dropdown options for PCR system
+// NEMSIS 3.5 aligned (eSituation.09 Chief Complaint / eSituation.11 Primary Impression)
 
-export const CHIEF_COMPLAINTS = [
-  "Abdominal Pain", "Altered Mental Status", "Back Pain", "Behavioral / Psychiatric Emergency",
-  "Breathing Difficulty / Dyspnea", "Cardiac Arrest", "Catheter Issue", "Chest Pain",
-  "CVA / Stroke Symptoms", "Dizziness / Syncope", "Extremity Weakness", "Fall / Injury",
-  "Fall Without Injury", "General Weakness", "Headache", "Hospice / Palliative Transport",
-  "Hyperglycemia / Hypoglycemia", "Hypertension", "Involuntary Psychiatric Hold Transport",
-  "Nausea / Vomiting", "No Complaint (routine transport)", "Oncology Transport",
-  "Pain — specify location", "Post-Op Recovery Transport", "Respiratory Distress",
-  "Seizure", "Sepsis / Infection", "Bariatric Transport", "Tracheostomy Concern",
-  "Transfer / No Complaint", "Trauma", "Wound Check / Dressing Change", "Other",
+export interface DropdownGroup {
+  parent: string;
+  items: string[];
+}
+
+// Chief Complaint — eSituation.09 (patient-presenting symptoms)
+export const CHIEF_COMPLAINT_GROUPS: DropdownGroup[] = [
+  { parent: "CARDIOVASCULAR", items: ["Chest Pain / Discomfort", "Palpitations", "Cardiac Arrest", "Hypertension", "Hypotension / Shock", "Edema (Peripheral)"] },
+  { parent: "RESPIRATORY", items: ["Breathing Difficulty / Dyspnea", "Respiratory Distress", "Respiratory Arrest", "Cough", "Tracheostomy Concern", "Airway Obstruction"] },
+  { parent: "NEUROLOGICAL", items: ["Altered Mental Status", "CVA / Stroke Symptoms", "Seizure", "Syncope / Near Syncope", "Headache", "Dizziness / Vertigo", "Weakness (Extremity / Focal)"] },
+  { parent: "MUSCULOSKELETAL", items: ["Back Pain", "Extremity Pain", "Joint Pain / Swelling", "Post-Operative Orthopedic Recovery"] },
+  { parent: "GI / ABDOMINAL", items: ["Abdominal Pain", "Nausea / Vomiting", "GI Bleeding", "Constipation / Obstipation", "Diarrhea"] },
+  { parent: "GU / RENAL", items: ["ESRD — Scheduled Dialysis Transport", "Urinary Retention", "Catheter / Urostomy Concern", "Hematuria"] },
+  { parent: "BEHAVIORAL / PSYCHIATRIC", items: ["Behavioral / Psychiatric Emergency", "Involuntary Psychiatric Hold Transport", "Suicidal Ideation", "Agitation / Combative Behavior", "Substance Intoxication / Withdrawal"] },
+  { parent: "ENDOCRINE", items: ["Hyperglycemia", "Hypoglycemia", "Diabetic Routine Care Transport"] },
+  { parent: "ENVIRONMENTAL", items: ["Hypothermia / Cold Exposure", "Hyperthermia / Heat Exposure", "Drowning / Submersion"] },
+  { parent: "INFECTIOUS DISEASE", items: ["Sepsis / Suspected Infection", "Fever", "Isolation Transport (known infectious precaution)"] },
+  { parent: "PAIN", items: ["Generalized Pain — specify location"] },
+  { parent: "SENSORY", items: ["Visual Disturbance", "Hearing Loss / Tinnitus"] },
+  { parent: "SKIN / WOUND", items: ["Wound Check / Dressing Change", "Active Wound — Drainage / Vac", "Pressure Ulcer Care", "Burn Care", "Rash / Skin Eruption"] },
+  { parent: "TRAUMA", items: ["Fall — With Injury", "Fall — Without Injury", "MVC / Trauma", "Penetrating Trauma", "Assault"] },
+  { parent: "GENERAL / SYSTEMIC", items: ["General Weakness / Debility", "Hospice / Palliative Transport", "Oncology Transport", "Post-Op Recovery Transport", "Bariatric Transport", "No Complaint — Routine Transport", "Transfer — No Acute Complaint"] },
+  { parent: "OTHER", items: ["Other"] },
 ];
 
-export const PRIMARY_IMPRESSIONS = [
-  "Cardiovascular — Stable",
-  "Cardiovascular — Unstable",
-  "Respiratory — Stable",
-  "Respiratory — Compromised",
-  "Neurological — Intact",
-  "Neurological — Impaired",
-  "Musculoskeletal — Post-Surgical",
-  "Musculoskeletal — Chronic",
-  "Renal — ESRD on Dialysis",
-  "Oncology — Active Treatment",
-  "Wound Care — Chronic Wound",
-  "Diabetic — Controlled",
-  "Diabetic — Uncontrolled",
-  "Psychiatric — Stable",
-  "Altered Mental Status",
-  "Syncope",
-  "Trauma — Minor",
-  "Trauma — Significant",
-  "Transfer — No Acute Complaint",
-  "No Complaint — Routine Transport",
-  "Other",
+// Flat list (backward-compatible; current Select consumers iterate this)
+export const CHIEF_COMPLAINTS: string[] = CHIEF_COMPLAINT_GROUPS.flatMap((g) => g.items);
+
+// Primary Impression — eSituation.11 (clinician working diagnosis)
+export const PRIMARY_IMPRESSION_GROUPS: DropdownGroup[] = [
+  { parent: "CARDIOVASCULAR", items: ["Hypertension — Stable", "Heart Failure / CHF", "Atrial Fibrillation / Dysrhythmia", "Acute Coronary Syndrome (suspected)", "Cardiac Arrest", "Cardiovascular — Stable for Transport"] },
+  { parent: "RESPIRATORY", items: ["COPD / Asthma — Stable", "COPD / Asthma — Exacerbation", "Respiratory Failure", "Tracheostomy — Stable", "Ventilator Dependent — Stable"] },
+  { parent: "NEUROLOGICAL", items: ["CVA / TIA", "Seizure Disorder", "Dementia / Cognitive Impairment — Baseline", "Altered Mental Status", "Syncope", "Neurological — Stable"] },
+  { parent: "MUSCULOSKELETAL", items: ["Post-Operative Orthopedic — Stable", "Chronic Musculoskeletal Pain", "Hip / Femur Fracture — Post Stabilization", "Joint Replacement Aftercare"] },
+  { parent: "GI / ABDOMINAL", items: ["GI Bleed", "Bowel Obstruction", "Abdominal Pain — Undifferentiated", "GI — Stable"] },
+  { parent: "GU / RENAL", items: ["ESRD on Dialysis", "Acute Kidney Injury", "Urinary Retention / Catheter Care", "GU — Stable"] },
+  { parent: "BEHAVIORAL / PSYCHIATRIC", items: ["Acute Psychosis", "Suicidal Ideation", "Homicidal Ideation", "Manic Episode", "Acute Anxiety / Panic", "Substance Intoxication", "Substance Withdrawal", "Behavioral Agitation", "Depression with Functional Impairment", "Psychiatric — Stable"] },
+  { parent: "ENDOCRINE", items: ["Diabetes — Controlled", "Diabetes — Uncontrolled (Hyper/Hypoglycemia)", "Endocrine — Stable"] },
+  { parent: "ENVIRONMENTAL", items: ["Hypothermia", "Hyperthermia"] },
+  { parent: "INFECTIOUS DISEASE", items: ["Sepsis", "Active Infection (Pneumonia / UTI / Cellulitis)", "Isolation Precautions — Stable"] },
+  { parent: "PAIN", items: ["Pain — Acute", "Pain — Chronic"] },
+  { parent: "SENSORY", items: ["Sensory — Stable"] },
+  { parent: "SKIN / WOUND", items: ["Chronic Wound Care", "Pressure Ulcer (specify stage)", "Surgical Wound — Healing", "Burn"] },
+  { parent: "TRAUMA", items: ["Trauma — Minor", "Trauma — Significant", "Post-Trauma Stable"] },
+  { parent: "GENERAL / SYSTEMIC", items: ["Oncology — Active Treatment", "Hospice / Palliative", "General Debility / Deconditioned", "Bariatric — Stable", "Transfer — No Acute Complaint", "No Acute Findings — Routine Transport"] },
+  { parent: "OTHER", items: ["Other"] },
 ];
 
-// Psych-transport-specific primary impressions (shown in addition for psych_transport)
-export const PSYCH_PRIMARY_IMPRESSIONS = [
-  "Acute Psychosis",
-  "Suicidal Ideation",
-  "Homicidal Ideation",
-  "Manic Episode",
-  "Acute Anxiety / Panic",
-  "Substance Intoxication",
-  "Substance Withdrawal",
-  "Behavioral Agitation",
-  "Depression with Functional Impairment",
-];
+export const PRIMARY_IMPRESSIONS: string[] = PRIMARY_IMPRESSION_GROUPS.flatMap((g) => g.items);
+
+// Per-transport-type defaults (au
 
 export const MEDICAL_NECESSITY_REASONS = [
   "Patient cannot sit safely in upright position",
