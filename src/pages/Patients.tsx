@@ -724,6 +724,41 @@ export default function Patients() {
   // All transport types on patient form are repetitive
   const isRepetitive = true;
 
+  // Phase 3 — Item 2: live set of missing required field names for red-border styling.
+  const missingFieldSet = useMemo(() => {
+    const projected = {
+      transport_type: form.transport_type,
+      primary_payer: form.primary_payer,
+      mobility: form.mobility,
+      pcs_on_file: form.pcs_on_file,
+      icd10_codes: form.icd10_codes,
+      default_chief_complaint: form.default_chief_complaint,
+      default_primary_impression: form.default_primary_impression,
+      default_medical_necessity_reason: form.default_medical_necessity_reason,
+      default_wound_type: form.default_wound_type,
+      default_wound_location: form.default_wound_location,
+      default_wound_stage: form.default_wound_stage,
+      schedule_days: form.schedule_days,
+      recurrence_days: form.recurrence_days,
+      standing_order: form.standing_order,
+      prior_auth_utn: form.prior_auth_utn,
+    };
+    return new Set(getMissingPatientRequirements(projected).map(m => m.field));
+  }, [form]);
+  const ringIfMissing = (field: string) => missingFieldSet.has(field) ? "ring-2 ring-destructive/60 rounded-md" : "";
+
+  // Phase 3 — Item 3: auto-fill defaults on transport_type change (only blanks).
+  const handleTransportTypeChange = (newType: TransportType) => {
+    const defaults = TRANSPORT_TYPE_DEFAULTS[newType];
+    setForm(prev => ({
+      ...prev,
+      transport_type: newType,
+      default_chief_complaint: prev.default_chief_complaint || (defaults?.chief_complaint ?? ""),
+      default_primary_impression: prev.default_primary_impression || (defaults?.primary_impression ?? ""),
+      icd10_codes: prev.icd10_codes.length > 0 ? prev.icd10_codes : (defaults?.icd10_codes ?? []),
+    }));
+  };
+
   // Compute B-leg earliest for display in recurrence section
   const bLegEarliestDisplay = form.transport_type === "dialysis" && form.chair_time
     ? getEarliestBLegPickup(form.chair_time, parseInt(form.chair_time_duration_hours) || 0, parseInt(form.chair_time_duration_minutes) || 0)
