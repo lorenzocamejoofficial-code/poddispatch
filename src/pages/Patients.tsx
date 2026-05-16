@@ -945,7 +945,7 @@ export default function Patients() {
                               name="transport_type"
                               value={opt.value}
                               checked={form.transport_type === opt.value}
-                              onChange={() => setForm({ ...form, transport_type: opt.value })}
+                              onChange={() => handleTransportTypeChange(opt.value)}
                               className="mt-0.5 accent-primary"
                             />
                             <div className="text-sm font-medium text-foreground">{opt.label}</div>
@@ -1263,8 +1263,19 @@ export default function Patients() {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label>Default Chief Complaint</Label>
-                            <Select value={form.default_chief_complaint || "none"} onValueChange={(v) => setForm({ ...form, default_chief_complaint: v === "none" ? "" : v })}>
-                              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                            <Select
+                              value={form.default_chief_complaint || "none"}
+                              onValueChange={(v) => {
+                                const next = v === "none" ? "" : v;
+                                setForm({
+                                  ...form,
+                                  default_chief_complaint: next,
+                                  // Clear _other when moving away from "Other"
+                                  default_chief_complaint_other: next === "Other" ? form.default_chief_complaint_other : "",
+                                });
+                              }}
+                            >
+                              <SelectTrigger className={ringIfMissing("default_chief_complaint")}><SelectValue placeholder="Select" /></SelectTrigger>
                               <SelectContent className="max-h-72">
                                 <SelectItem value="none">— None —</SelectItem>
                                 {CHIEF_COMPLAINT_GROUPS.map((g) => (
@@ -1275,11 +1286,29 @@ export default function Patients() {
                                 ))}
                               </SelectContent>
                             </Select>
+                            {form.default_chief_complaint === "Other" && (
+                              <Input
+                                className="mt-2"
+                                placeholder="Describe chief complaint…"
+                                value={form.default_chief_complaint_other}
+                                onChange={(e) => setForm({ ...form, default_chief_complaint_other: e.target.value })}
+                              />
+                            )}
                           </div>
                           <div>
                             <Label>Default Primary Impression</Label>
-                            <Select value={form.default_primary_impression || "none"} onValueChange={(v) => setForm({ ...form, default_primary_impression: v === "none" ? "" : v })}>
-                              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                            <Select
+                              value={form.default_primary_impression || "none"}
+                              onValueChange={(v) => {
+                                const next = v === "none" ? "" : v;
+                                setForm({
+                                  ...form,
+                                  default_primary_impression: next,
+                                  default_primary_impression_other: next === "Other" ? form.default_primary_impression_other : "",
+                                });
+                              }}
+                            >
+                              <SelectTrigger className={ringIfMissing("default_primary_impression")}><SelectValue placeholder="Select" /></SelectTrigger>
                               <SelectContent className="max-h-72">
                                 <SelectItem value="none">— None —</SelectItem>
                                 {PRIMARY_IMPRESSION_GROUPS.map((g) => (
@@ -1290,6 +1319,14 @@ export default function Patients() {
                                 ))}
                               </SelectContent>
                             </Select>
+                            {form.default_primary_impression === "Other" && (
+                              <Input
+                                className="mt-2"
+                                placeholder="Describe primary impression…"
+                                value={form.default_primary_impression_other}
+                                onChange={(e) => setForm({ ...form, default_primary_impression_other: e.target.value })}
+                              />
+                            )}
                           </div>
                         </div>
                         <div>
