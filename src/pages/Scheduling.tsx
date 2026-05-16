@@ -4,6 +4,7 @@ import { getLocalToday } from "@/lib/local-date";
 import { addMonths, format as formatDate } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { AsyncButton } from "@/components/ui/async-button";
 import { Input } from "@/components/ui/input";
 import { AddressComboInput } from "@/components/scheduling/AddressComboInput";
 import { Label } from "@/components/ui/label";
@@ -1626,7 +1627,7 @@ export default function Scheduling() {
                 )}
 
                 <div><Label>Notes</Label><Textarea value={oneoffForm.notes} onChange={(e) => setOneoffForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any special instructions for crew" /></div>
-                <Button onClick={handleCreate}>Create One-Off {pendingLegType}-Leg</Button>
+                <AsyncButton onClick={handleCreate} pendingLabel="Creating...">Create One-Off {pendingLegType}-Leg</AsyncButton>
               </div>
             ) : (
               /* ── EXISTING PATIENT FORM ── */
@@ -1763,7 +1764,7 @@ export default function Scheduling() {
                 )}
 
                 <div><Label>Notes</Label><Textarea value={legForm.notes} onChange={(e) => setLegForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-                <Button onClick={handleCreate}>Create {pendingLegType}-Leg</Button>
+                <AsyncButton onClick={handleCreate} pendingLabel="Creating...">Create {pendingLegType}-Leg</AsyncButton>
               </div>
             )}
           </DialogContent>
@@ -1826,9 +1827,9 @@ export default function Scheduling() {
                   {savingException ? "Saving..." : exceptionNewDate && exceptionNewDate !== selectedDate ? "Move Run" : "Save Exception"}
                 </Button>
                 {editingExceptionLeg?.has_exception && (!exceptionNewDate || exceptionNewDate === selectedDate) && (
-                  <Button variant="outline" onClick={handleDeleteException} className="text-destructive border-destructive/40">
+                  <AsyncButton variant="outline" onClick={handleDeleteException} className="text-destructive border-destructive/40" pendingLabel="Removing...">
                     Remove Exception
-                  </Button>
+                  </AsyncButton>
                 )}
               </div>
             </div>
