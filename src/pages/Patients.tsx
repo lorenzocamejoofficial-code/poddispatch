@@ -434,111 +434,132 @@ export default function Patients() {
       default_wound_stage: form.default_wound_stage || null,
     };
 
-    if (!payload.first_name || !payload.last_name) return;
+    if (!payload.first_name || !payload.last_name) { setSaving(false); return; }
 
     if (editing) {
-      await supabase.from("patients").update(payload).eq("id", editing.id);
-
-      // Propagate changes to future recurring scheduling legs
-      const today = new Date().toISOString().split("T")[0];
-      let propagatedCount = 0;
-
-      // A-leg propagation
-      const aLegPayload: any = {
-        pickup_location: payload.pickup_address ?? null,
-        destination_location: payload.dropoff_facility ?? null,
-        chair_time: payload.chair_time ?? null,
-        estimated_duration_minutes: payload.transport_type === "dialysis"
-          ? (payload.chair_time_duration_hours ?? 0) * 60 + (payload.chair_time_duration_minutes ?? 0)
-          : payload.run_duration_minutes ?? null,
-      };
-      const { data: aData } = await supabase
-        .from("scheduling_legs")
-        .update(aLegPayload)
-        .eq("patient_id", editing.id)
-        .eq("is_oneoff", false)
-        .eq("leg_type", "a_leg" as any)
-        .gte("run_date", today)
-        .select("id");
-      const aCount = aData?.length ?? 0;
-      propagatedCount += aCount ?? 0;
-
-      // B-leg propagation
-      const bLegPayload: any = {
-        pickup_location: payload.dropoff_facility ?? null,
-        destination_location: payload.pickup_address ?? null,
-        estimated_duration_minutes: payload.transport_type === "dialysis"
-          ? (payload.chair_time_duration_hours ?? 0) * 60 + (payload.chair_time_duration_minutes ?? 0)
-          : payload.run_duration_minutes ?? null,
-      };
-      const { data: bData } = await supabase
-        .from("scheduling_legs")
-        .update(bLegPayload)
-        .eq("patient_id", editing.id)
-        .eq("is_oneoff", false)
-        .eq("leg_type", "b_leg" as any)
-        .gte("run_date", today)
-        .select("id");
-      const bCount = bData?.length ?? 0;
-      propagatedCount += bCount ?? 0;
-
-      if (propagatedCount > 0) {
-        toast.success(`Patient updated — ${propagatedCount} future runs updated automatically.`);
-      } else {
-        toast.success("Patient updated");
+      const editingId = editing.id;
+      const { error } = await supabase.from("patients").update(payload).eq("id", editingId);
+      if (error) {
+        toast.error("Failed to update patient");
+        setSaving(false);
+        return;
       }
 
-      // Check for B-leg conflicts after saving chair time changes
-      if (form.transport_type === "dialysis" && form.chair_time) {
-        const durH = parseInt(form.chair_time_duration_hours) || 0;
-        const durM = parseInt(form.chair_time_duration_minutes) || 0;
-        if (durH > 0 || durM > 0) {
-          const { data: bLegs } = await supabase
-            .from("scheduling_legs")
-            .select("pickup_time, run_date")
-            .eq("patient_id", editing.id)
-            .eq("leg_type", "b_leg" as any)
-            .gte("run_date", today);
-          const warnings: typeof bLegWarnings = [];
-          for (const leg of bLegs ?? []) {
-            if (leg.pickup_time && isBLegTooEarly(leg.pickup_time, form.chair_time, durH, durM)) {
-              const earliest = getEarliestBLegPickup(form.chair_time, durH, durM);
-              if (earliest) warnings.push({ pickup_time: leg.pickup_time, run_date: leg.run_date, earliest });
+      // Close immediately — feels instant
+      setDialogOpen(false);
+      resetForm();
+      setSaving(false);
+      toast.success("Patient updated");
+
+      // Run propagation, overrides, and refetch in the background
+      (async () => {
+        try {
+          const today = new Date().toISOString().split("T")[0];
+          let propagatedCount = 0;
+
+          const aLegPayload: any = {
+            pickup_location: payload.pickup_address ?? null,
+            destination_location: payload.dropoff_facility ?? null,
+            chair_time: payload.chair_time ?? null,
+            estimated_duration_minutes: payload.transport_type === "dialysis"
+              ? (payload.chair_time_duration_hours ?? 0) * 60 + (payload.chair_time_duration_minutes ?? 0)
+              : payload.run_duration_minutes ?? null,
+          };
+          const bLegPayload: any = {
+            pickup_location: payload.dropoff_facility ?? null,
+            destination_location: payload.pickup_address ?? null,
+            estimated_duration_minutes: payload.transport_type === "dialysis"
+              ? (payload.chair_time_duration_hours ?? 0) * 60 + (payload.chair_time_duration_minutes ?? 0)
+              : payload.run_duration_minutes ?? null,
+          };
+
+          // Run A-leg + B-leg propagation in parallel
+          const [aRes, bRes] = await Promise.all([
+            supabase.from("scheduling_legs").update(aLegPayload)
+              .eq("patient_id", editingId).eq("is_oneoff", false)
+              .eq("leg_type", "a_leg" as any).gte("run_date", today).select("id"),
+            supabase.from("scheduling_legs").update(bLegPayload)
+              .eq("patient_id", editingId).eq("is_oneoff", false)
+              .eq("leg_type", "b_leg" as any).gte("run_date", today).select("id"),
+          ]);
+          propagatedCount = (aRes.data?.length ?? 0) + (bRes.data?.length ?? 0);
+          if (propagatedCount > 0) {
+            toast.success(`${propagatedCount} future runs updated automatically.`);
+          }
+
+          // Overrides
+          if (activeCompanyId) {
+            const activeDays = computeActiveWeekdays(form.transport_type, form.schedule_days, form.recurrence_days);
+            await saveScheduleOverrides({
+              patientId: editingId,
+              companyId: activeCompanyId,
+              activeWeekdays: activeDays,
+              overrides: scheduleOverrides,
+            });
+          }
+
+          // B-leg conflict warnings
+          if (form.transport_type === "dialysis" && form.chair_time) {
+            const durH = parseInt(form.chair_time_duration_hours) || 0;
+            const durM = parseInt(form.chair_time_duration_minutes) || 0;
+            if (durH > 0 || durM > 0) {
+              const { data: bLegs } = await supabase
+                .from("scheduling_legs")
+                .select("pickup_time, run_date")
+                .eq("patient_id", editingId)
+                .eq("leg_type", "b_leg" as any)
+                .gte("run_date", today);
+              const warnings: typeof bLegWarnings = [];
+              for (const leg of bLegs ?? []) {
+                if (leg.pickup_time && isBLegTooEarly(leg.pickup_time, form.chair_time, durH, durM)) {
+                  const earliest = getEarliestBLegPickup(form.chair_time, durH, durM);
+                  if (earliest) warnings.push({ pickup_time: leg.pickup_time, run_date: leg.run_date, earliest });
+                }
+              }
+              setBLegWarnings(warnings);
             }
           }
-          setBLegWarnings(warnings);
+
+          fetchPatients();
+        } catch (e) {
+          console.error("Background patient update tasks failed", e);
         }
-      }
+      })();
     } else {
       payload.company_id = activeCompanyId;
-      const { data: inserted } = await supabase.from("patients").insert(payload).select("id").single();
-      if (inserted?.id && activeCompanyId) {
-        const activeDays = computeActiveWeekdays(form.transport_type, form.schedule_days, form.recurrence_days);
-        await saveScheduleOverrides({
-          patientId: inserted.id,
-          companyId: activeCompanyId,
-          activeWeekdays: activeDays,
-          overrides: scheduleOverrides,
-        });
+      const { data: inserted, error } = await supabase.from("patients").insert(payload).select("id").single();
+      if (error || !inserted?.id) {
+        toast.error("Failed to add patient");
+        setSaving(false);
+        return;
       }
+
+      // Close immediately — feels instant
+      setDialogOpen(false);
+      resetForm();
+      setSaving(false);
       toast.success("Patient added");
-    }
 
-    // Persist per-day overrides for existing patient
-    if (editing && activeCompanyId) {
-      const activeDays = computeActiveWeekdays(form.transport_type, form.schedule_days, form.recurrence_days);
-      await saveScheduleOverrides({
-        patientId: editing.id,
-        companyId: activeCompanyId,
-        activeWeekdays: activeDays,
-        overrides: scheduleOverrides,
-      });
+      // Overrides + refetch in background
+      (async () => {
+        try {
+          if (activeCompanyId) {
+            const activeDays = computeActiveWeekdays(form.transport_type, form.schedule_days, form.recurrence_days);
+            await saveScheduleOverrides({
+              patientId: inserted.id,
+              companyId: activeCompanyId,
+              activeWeekdays: activeDays,
+              overrides: scheduleOverrides,
+            });
+          }
+          fetchPatients();
+        } catch (e) {
+          console.error("Background patient add tasks failed", e);
+        }
+      })();
     }
-
-    setDialogOpen(false);
-    resetForm();
-    fetchPatients();
-    } finally {
+    } catch (e) {
+      console.error(e);
       setSaving(false);
     }
   };
