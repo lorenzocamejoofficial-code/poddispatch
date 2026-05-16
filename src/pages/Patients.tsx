@@ -729,6 +729,21 @@ export default function Patients() {
           </div>
         )}
 
+        {!templatesView && patients.filter(p => (p as any).is_template).length === 0 && (
+          <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-foreground flex items-start gap-2">
+            <FlaskConical className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+            <span>
+              <strong>No simulation templates yet.</strong> To let the Simulation
+              Lab seeder generate realistic test trips, click the{" "}
+              <span className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 align-middle">
+                <Bookmark className="h-3 w-3" /> Template
+              </span>{" "}
+              button on any patient row below to flag them as a template.
+              Templates are never used in real production claims.
+            </span>
+          </div>
+        )}
+
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3 flex-1">
@@ -1540,14 +1555,15 @@ export default function Patients() {
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           <Button
-                            variant="ghost"
-                            size="icon"
+                            variant={(p as any).is_template ? "default" : "outline"}
+                            size="sm"
+                            className="h-7 gap-1 px-2 text-[11px]"
                             onClick={() => toggleTemplate(p)}
                             title={(p as any).is_template ? "Unmark as simulation template" : "Mark as simulation template"}
                           >
                             {(p as any).is_template
-                              ? <BookmarkCheck className="h-3.5 w-3.5 text-primary" />
-                              : <Bookmark className="h-3.5 w-3.5" />}
+                              ? <><BookmarkCheck className="h-3 w-3" /> Template</>
+                              : <><Bookmark className="h-3 w-3" /> Template</>}
                           </Button>
                           <Button
                             variant="ghost"
