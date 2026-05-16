@@ -1326,7 +1326,9 @@ export default function Patients() {
                     </div>
                   )}
 
-                  <Button onClick={handleSave}>{editing ? "Save Changes" : "Add Patient"}</Button>
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? (editing ? "Saving..." : "Adding...") : (editing ? "Save Changes" : "Add Patient")}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
