@@ -121,13 +121,10 @@ export const TRANSPORT_TYPE_CLAIM_REQUIREMENTS: Record<string, PatientRequiredFi
   outpatient:         [...BASE_FIELDS, PCS],
   outpatient_specialty: [...BASE_FIELDS, PCS],
   psych_transport:    [...BASE_FIELDS],  // BH auth fields gated separately by payer
-  emergency:          BASE_FIELDS.filter(f => f.field !== "primary_payer").concat(
-                        { field: "primary_payer", label: "Primary payer (or self-pay)", check: p => hasStr(p?.primary_payer) }
-                      ).slice(0, 3).concat({ field: "primary_payer", label: "Primary payer (or self-pay)", check: p => hasStr(p?.primary_payer) || true }),
+  // Emergency: PCS NOT required; payer often missing/self-pay → omit payer too.
+  emergency:          [BASE_FIELDS[0], BASE_FIELDS[1], BASE_FIELDS[2]],
   private_pay:        [BASE_FIELDS[0], BASE_FIELDS[1]],
 };
-// Emergency: only require complaint + impression + icd10. Payer can be missing.
-TRANSPORT_TYPE_CLAIM_REQUIREMENTS.emergency = [BASE_FIELDS[0], BASE_FIELDS[1], BASE_FIELDS[2]];
 
 /**
  * Frequency-based payer overlay. Per CMS RSNAT model:
