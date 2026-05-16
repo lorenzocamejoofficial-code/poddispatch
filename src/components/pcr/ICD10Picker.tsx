@@ -86,20 +86,33 @@ const COMMON_ICD10_CODES = [
 
 // Chief complaint → suggested ICD-10 codes mapping
 const COMPLAINT_SUGGESTIONS: Record<string, string[]> = {
-  "no complaint (routine transport)": ["Z09", "Z51.89", "Z87.39"],
-  "transfer / no complaint": ["Z09", "Z51.89", "Z87.39"],
-  "extremity weakness": ["R53.1", "M62.50", "R26.89", "G81.90"],
-  "general weakness": ["R53.1", "M62.50", "R26.89", "G81.90"],
+  // Routine / transfer
+  "no complaint — routine transport": ["Z09", "Z51.89", "Z87.39"],
+  "transfer — no acute complaint": ["Z09", "Z51.89", "Z87.39"],
+  // Weakness
+  "weakness (extremity / focal)": ["R53.1", "M62.50", "R26.89", "G81.90"],
+  "general weakness / debility": ["R53.1", "M62.50", "R26.89", "G81.90"],
+  // Neurological
   "cva / stroke symptoms": ["I63.9", "I69.351", "G81.90"],
+  "altered mental status": ["R41.3", "G30.9", "F03.90"],
+  "seizure": ["G20", "G35", "F20.9"],
+  // Cardio
   "chest pain": ["I50.9", "I25.10", "I10"],
+  // Respiratory
   "breathing difficulty / dyspnea": ["J44.1", "J44.0", "J96.00"],
   "respiratory distress": ["J44.1", "J44.0", "J96.00"],
-  "hyperglycemia / hypoglycemia": ["E11.65", "E11.9", "E10.9"],
-  "fall / injury": ["S72.001A", "M54.5", "R26.89"],
-  "pain — specify location": ["M54.5", "M16.11", "M17.11", "R26.89"],
+  // Endocrine (split per NEMSIS)
+  "hyperglycemia": ["E11.65", "E11.9", "E10.9"],
+  "hypoglycemia": ["E11.65", "E11.9", "E10.9"],
+  // Trauma / pain
+  "fall — with injury": ["S72.001A", "M54.5", "R26.89"],
+  "generalized pain — specify location": ["M54.5", "M16.11", "M17.11", "R26.89"],
   "back pain": ["M54.5", "M16.11", "M17.11", "R26.89"],
-  "seizure": ["G20", "G35", "F20.9"],
-  "altered mental status": ["R41.3", "G30.9", "F03.90"],
+  // NEMSIS additions
+  "esrd — scheduled dialysis transport": ["Z99.2", "N18.6", "N18.5"],
+  "wound check / dressing change": ["L97.909", "L89.90", "E11.621"],
+  "behavioral / psychiatric emergency": ["F32.9", "F41.9"],
+  "bariatric transport": ["E66.01", "Z68.45"],
 };
 
 function getSuggestedCodes(chiefComplaint?: string, patientPayer?: string): string[] {
@@ -109,6 +122,9 @@ function getSuggestedCodes(chiefComplaint?: string, patientPayer?: string): stri
   const complaint = (chiefComplaint || "").toLowerCase().trim();
   if (complaint.includes("dialysis") || complaint.includes("renal") || payer.includes("dialysis")) {
     ["Z99.2", "N18.6", "N18.5"].forEach((c) => suggestions.add(c));
+  }
+  if (complaint.includes("wound")) {
+    ["L97.909", "L89.90", "E11.621"].forEach((c) => suggestions.add(c));
   }
   if (complaint && COMPLAINT_SUGGESTIONS[complaint]) {
     COMPLAINT_SUGGESTIONS[complaint].forEach((c) => suggestions.add(c));

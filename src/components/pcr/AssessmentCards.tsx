@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CHIEF_COMPLAINTS, PRIMARY_IMPRESSIONS, PSYCH_PRIMARY_IMPRESSIONS, PHYSICAL_EXAM_SYSTEMS } from "@/lib/pcr-dropdowns";
+import { CHIEF_COMPLAINTS, PRIMARY_IMPRESSIONS, PHYSICAL_EXAM_SYSTEMS } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
@@ -28,7 +28,7 @@ export function AssessmentCard({ trip, updateField, requiredFields = ["chief_com
   const tripType = String(trip.trip_type || trip.pcr_type || "").toLowerCase();
   const isPsych = tripType.includes("psych") || tripType.includes("behavioral");
   const impressionOptions = useMemo(
-    () => (isPsych ? [...PSYCH_PRIMARY_IMPRESSIONS, ...PRIMARY_IMPRESSIONS] : PRIMARY_IMPRESSIONS),
+    () => PRIMARY_IMPRESSIONS,
     [isPsych]
   );
 
