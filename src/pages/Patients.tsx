@@ -286,6 +286,11 @@ export default function Patients() {
       default_wound_type: "",
       default_wound_location: "",
       default_wound_stage: "",
+      default_chief_complaint_other: "",
+      default_primary_impression_other: "",
+      prior_auth_utn: "",
+      prior_auth_period_start: "",
+      prior_auth_period_end: "",
     });
     setEditing(null);
     setBLegWarnings([]);
@@ -361,6 +366,11 @@ export default function Patients() {
       default_wound_type: (p as any).default_wound_type ?? "",
       default_wound_location: (p as any).default_wound_location ?? "",
       default_wound_stage: (p as any).default_wound_stage ?? "",
+      default_chief_complaint_other: (p as any).default_chief_complaint_other ?? "",
+      default_primary_impression_other: (p as any).default_primary_impression_other ?? "",
+      prior_auth_utn: (p as any).prior_auth_utn ?? "",
+      prior_auth_period_start: (p as any).prior_auth_period_start ?? "",
+      prior_auth_period_end: (p as any).prior_auth_period_end ?? "",
     });
     setBLegWarnings([]);
     setDialogOpen(true);
@@ -441,9 +451,26 @@ export default function Patients() {
       default_wound_type: form.default_wound_type || null,
       default_wound_location: form.default_wound_location || null,
       default_wound_stage: form.default_wound_stage || null,
+      // Phase 3
+      default_chief_complaint_other: form.default_chief_complaint === "Other" ? (form.default_chief_complaint_other || null) : null,
+      default_primary_impression_other: form.default_primary_impression === "Other" ? (form.default_primary_impression_other || null) : null,
+      prior_auth_utn: form.prior_auth_utn || null,
+      prior_auth_period_start: form.prior_auth_period_start || null,
+      prior_auth_period_end: form.prior_auth_period_end || null,
     };
 
     if (!payload.first_name || !payload.last_name) { setSaving(false); return; }
+
+    // Phase 3 — Item 2: warn (don't block) on missing required fields per transport type + Medicare frequency.
+    {
+      const missing = getMissingPatientRequirements(payload);
+      if (missing.length > 0) {
+        toast.warning(
+          `Saved as draft — missing required fields: ${missing.map(m => m.label).join(", ")}`,
+          { duration: 8000 }
+        );
+      }
+    }
 
     if (editing) {
       const editingId = editing.id;
