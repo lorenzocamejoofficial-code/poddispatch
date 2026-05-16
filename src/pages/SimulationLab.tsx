@@ -132,17 +132,46 @@ export default function SimulationLab() {
     const today = new Date().toISOString().slice(0, 10);
     const cid = LORENZO_TEST_COMPANY_ID;
     const sb: any = supabase;
-    const trucks: any = await sb.from("trucks").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("is_active", true);
-    const crews: any = await sb.from("crews").select("id", { count: "exact", head: true }).eq("company_id", cid);
-    const facilities: any = await sb.from("facilities").select("id", { count: "exact", head: true }).eq("company_id", cid);
-    const templates: any = await sb.from("patients").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("is_template", true);
-    const slots: any = await sb.from("truck_run_slots").select("crew_id").eq("company_id", cid).eq("run_date", today).not("crew_id", "is", null);
+    // IMPORTANT: these queries must mirror the simulation-lab edge function's
+    // precondition checks exactly (see supabase/functions/simulation-lab/index.ts
+    // around the "Read REAL setup data" block). If they drift, this card will
+    // lie to the user — saying setup is missing when the seeder would actually
+    // accept it, or vice-versa.
+    const trucksRes: any = await sb
+      .from("trucks")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", cid)
+      .eq("is_simulated", false)
+      .eq("active", true);
+    // Crews today: same shape the seeder uses — crews row with active_date=today,
+    // joined back to an active, non-simulated truck.
+    const crewsTodayRes: any = await sb
+      .from("crews")
+      .select("id, truck_id, truck:trucks!inner(id, active, is_simulated)")
+      .eq("company_id", cid)
+      .eq("active_date", today)
+      .eq("truck.is_simulated", false)
+      .eq("truck.active", true);
+    const crewsAnyRes: any = await sb
+      .from("crews")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", cid);
+    const facilitiesRes: any = await sb
+      .from("facilities")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", cid)
+      .eq("is_simulated", false);
+    const templatesRes: any = await sb
+      .from("patients")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", cid)
+      .eq("is_template", true);
     setPrecond({
-      trucks: trucks.count ?? 0,
-      crews: crews.count ?? 0,
-      facilities: facilities.count ?? 0,
-      templatePatients: templates.count ?? 0,
-      crewsAssignedToday: new Set((slots.data ?? []).map((s: any) => s.crew_id)).size,
+      trucks: trucksRes.count ?? 0,
+      crews: crewsAnyRes.count ?? 0,
+      facilities: facilitiesRes.count ?? 0,
+      templatePatients: templatesRes.count ?? 0,
+      crewsAssignedToday: (crewsTodayRes.data ?? []).length,
     });
   }, []);
 
