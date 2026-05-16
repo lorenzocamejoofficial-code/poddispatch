@@ -3074,9 +3074,11 @@ export type Database = {
           default_bh_authorizing_physician_npi: string | null
           default_cannot_transfer: boolean | null
           default_chief_complaint: string | null
+          default_chief_complaint_other: string | null
           default_medical_necessity_reason: string | null
           default_oxygen_transport: boolean | null
           default_primary_impression: string | null
+          default_primary_impression_other: string | null
           default_requires_monitoring: boolean | null
           default_wound_location: string | null
           default_wound_stage: string | null
@@ -3107,6 +3109,9 @@ export type Database = {
           prior_auth_expiration: string | null
           prior_auth_number: string | null
           prior_auth_on_file: boolean | null
+          prior_auth_period_end: string | null
+          prior_auth_period_start: string | null
+          prior_auth_utn: string | null
           recurrence_days: number[] | null
           recurrence_end_date: string | null
           recurrence_start_date: string | null
@@ -3147,9 +3152,11 @@ export type Database = {
           default_bh_authorizing_physician_npi?: string | null
           default_cannot_transfer?: boolean | null
           default_chief_complaint?: string | null
+          default_chief_complaint_other?: string | null
           default_medical_necessity_reason?: string | null
           default_oxygen_transport?: boolean | null
           default_primary_impression?: string | null
+          default_primary_impression_other?: string | null
           default_requires_monitoring?: boolean | null
           default_wound_location?: string | null
           default_wound_stage?: string | null
@@ -3180,6 +3187,9 @@ export type Database = {
           prior_auth_expiration?: string | null
           prior_auth_number?: string | null
           prior_auth_on_file?: boolean | null
+          prior_auth_period_end?: string | null
+          prior_auth_period_start?: string | null
+          prior_auth_utn?: string | null
           recurrence_days?: number[] | null
           recurrence_end_date?: string | null
           recurrence_start_date?: string | null
@@ -3220,9 +3230,11 @@ export type Database = {
           default_bh_authorizing_physician_npi?: string | null
           default_cannot_transfer?: boolean | null
           default_chief_complaint?: string | null
+          default_chief_complaint_other?: string | null
           default_medical_necessity_reason?: string | null
           default_oxygen_transport?: boolean | null
           default_primary_impression?: string | null
+          default_primary_impression_other?: string | null
           default_requires_monitoring?: boolean | null
           default_wound_location?: string | null
           default_wound_stage?: string | null
@@ -3253,6 +3265,9 @@ export type Database = {
           prior_auth_expiration?: string | null
           prior_auth_number?: string | null
           prior_auth_on_file?: boolean | null
+          prior_auth_period_end?: string | null
+          prior_auth_period_start?: string | null
+          prior_auth_utn?: string | null
           recurrence_days?: number[] | null
           recurrence_end_date?: string | null
           recurrence_start_date?: string | null
