@@ -51,7 +51,23 @@ export const PRIMARY_IMPRESSION_GROUPS: DropdownGroup[] = [
 
 export const PRIMARY_IMPRESSIONS: string[] = PRIMARY_IMPRESSION_GROUPS.flatMap((g) => g.items);
 
-// Per-transport-type defaults (au
+// Per-transport-type defaults (auto-applied when patient template and PCR fields are blank)
+export interface TransportTypeDefaults {
+  chief_complaint: string;
+  primary_impression: string;
+  icd10_codes: string[];
+}
+
+export const TRANSPORT_TYPE_DEFAULTS: Record<string, TransportTypeDefaults> = {
+  dialysis:           { chief_complaint: "ESRD — Scheduled Dialysis Transport", primary_impression: "ESRD on Dialysis",                      icd10_codes: ["Z99.2", "N18.6"] },
+  wound_care:         { chief_complaint: "Wound Check / Dressing Change",        primary_impression: "Chronic Wound Care",                   icd10_codes: ["L97.909", "L89.90"] },
+  psych_transport:    { chief_complaint: "Behavioral / Psychiatric Emergency",   primary_impression: "Psychiatric — Stable",                 icd10_codes: ["F32.9", "F41.9"] },
+  ift:                { chief_complaint: "Transfer — No Acute Complaint",        primary_impression: "Transfer — No Acute Complaint",        icd10_codes: ["Z09"] },
+  discharge:          { chief_complaint: "No Complaint — Routine Transport",     primary_impression: "No Acute Findings — Routine Transport", icd10_codes: ["Z09", "Z51.89"] },
+  outpatient:         { chief_complaint: "No Complaint — Routine Transport",     primary_impression: "No Acute Findings — Routine Transport", icd10_codes: ["Z09"] },
+  bariatric:          { chief_complaint: "Bariatric Transport",                  primary_impression: "Bariatric — Stable",                   icd10_codes: ["E66.01", "Z68.45"] },
+  als_non_emergency:  { chief_complaint: "General Weakness / Debility",          primary_impression: "Cardiovascular — Stable for Transport", icd10_codes: ["R53.1"] },
+};
 
 export const MEDICAL_NECESSITY_REASONS = [
   "Patient cannot sit safely in upright position",
