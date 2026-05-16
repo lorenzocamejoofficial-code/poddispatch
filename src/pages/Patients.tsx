@@ -729,6 +729,21 @@ export default function Patients() {
           </div>
         )}
 
+        {!templatesView && patients.filter(p => (p as any).is_template).length === 0 && (
+          <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-foreground flex items-start gap-2">
+            <FlaskConical className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+            <span>
+              <strong>No simulation templates yet.</strong> To let the Simulation
+              Lab seeder generate realistic test trips, click the{" "}
+              <span className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 align-middle">
+                <Bookmark className="h-3 w-3" /> Template
+              </span>{" "}
+              button on any patient row below to flag them as a template.
+              Templates are never used in real production claims.
+            </span>
+          </div>
+        )}
+
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3 flex-1">
