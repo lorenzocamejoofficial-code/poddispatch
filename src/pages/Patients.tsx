@@ -1555,14 +1555,15 @@ export default function Patients() {
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           <Button
-                            variant="ghost"
-                            size="icon"
+                            variant={(p as any).is_template ? "default" : "outline"}
+                            size="sm"
+                            className="h-7 gap-1 px-2 text-[11px]"
                             onClick={() => toggleTemplate(p)}
                             title={(p as any).is_template ? "Unmark as simulation template" : "Mark as simulation template"}
                           >
                             {(p as any).is_template
-                              ? <BookmarkCheck className="h-3.5 w-3.5 text-primary" />
-                              : <Bookmark className="h-3.5 w-3.5" />}
+                              ? <><BookmarkCheck className="h-3 w-3" /> Template</>
+                              : <><Bookmark className="h-3 w-3" /> Template</>}
                           </Button>
                           <Button
                             variant="ghost"
