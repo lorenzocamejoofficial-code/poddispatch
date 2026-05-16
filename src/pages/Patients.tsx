@@ -1441,6 +1441,32 @@ export default function Patients() {
                             <Input type="date" value={form.auth_expiration} onChange={(e) => setForm({ ...form, auth_expiration: e.target.value })} />
                           </div>
                         )}
+                        {/* RSNAT Prior Authorization (Medicare repetitive non-emergency) */}
+                        <div className="rounded-md border border-dashed p-3 space-y-2">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">RSNAT Prior Auth (Medicare)</p>
+                            <p className="text-[11px] text-muted-foreground">Required when a Medicare patient runs ≥3 round trips/10 days or ≥1/week for ≥3 weeks. UTN from MAC affirmative decision.</p>
+                          </div>
+                          <div>
+                            <Label>UTN (Unique Tracking Number)</Label>
+                            <Input
+                              className={ringIfMissing("prior_auth_utn")}
+                              value={form.prior_auth_utn}
+                              onChange={(e) => setForm({ ...form, prior_auth_utn: e.target.value })}
+                              placeholder="e.g. UTN1234567890"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label>Auth Period Start</Label>
+                              <Input type="date" value={form.prior_auth_period_start} onChange={(e) => setForm({ ...form, prior_auth_period_start: e.target.value })} />
+                            </div>
+                            <div>
+                              <Label>Auth Period End</Label>
+                              <Input type="date" value={form.prior_auth_period_end} onChange={(e) => setForm({ ...form, prior_auth_period_end: e.target.value })} />
+                            </div>
+                          </div>
+                        </div>
                         {/* PCS */}
                         <div className="flex items-center justify-between">
                           <Label>PCS on File</Label>
