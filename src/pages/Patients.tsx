@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -30,8 +30,8 @@ import { PatientScheduleOverridesEditor, saveScheduleOverrides, type ScheduleOve
 import { ICD10Picker } from "@/components/pcr/ICD10Picker";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import {
-  CHIEF_COMPLAINTS,
-  PRIMARY_IMPRESSIONS,
+  CHIEF_COMPLAINT_GROUPS,
+  PRIMARY_IMPRESSION_GROUPS,
   MEDICAL_NECESSITY_REASONS,
   BH_AUTHORIZATION_TYPES,
   WOUND_TYPES,
@@ -1196,7 +1196,12 @@ export default function Patients() {
                               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                               <SelectContent className="max-h-72">
                                 <SelectItem value="none">— None —</SelectItem>
-                                {CHIEF_COMPLAINTS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                {CHIEF_COMPLAINT_GROUPS.map((g) => (
+                                  <SelectGroup key={g.parent}>
+                                    <SelectLabel className="text-[10px] tracking-wider text-muted-foreground">{g.parent}</SelectLabel>
+                                    {g.items.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                  </SelectGroup>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
@@ -1206,7 +1211,12 @@ export default function Patients() {
                               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                               <SelectContent className="max-h-72">
                                 <SelectItem value="none">— None —</SelectItem>
-                                {PRIMARY_IMPRESSIONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                {PRIMARY_IMPRESSION_GROUPS.map((g) => (
+                                  <SelectGroup key={g.parent}>
+                                    <SelectLabel className="text-[10px] tracking-wider text-muted-foreground">{g.parent}</SelectLabel>
+                                    {g.items.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                  </SelectGroup>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
