@@ -1,8 +1,7 @@
-import { useMemo } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CHIEF_COMPLAINTS, PRIMARY_IMPRESSIONS, PHYSICAL_EXAM_SYSTEMS } from "@/lib/pcr-dropdowns";
+import { CHIEF_COMPLAINT_GROUPS, PRIMARY_IMPRESSION_GROUPS, PHYSICAL_EXAM_SYSTEMS } from "@/lib/pcr-dropdowns";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
@@ -24,14 +23,6 @@ export function AssessmentCard({ trip, updateField, requiredFields = ["chief_com
     return isFilled(f) ? "border-emerald-400" : "border-destructive/50";
   };
 
-  // Merge psych impressions when transport is psych
-  const tripType = String(trip.trip_type || trip.pcr_type || "").toLowerCase();
-  const isPsych = tripType.includes("psych") || tripType.includes("behavioral");
-  const impressionOptions = useMemo(
-    () => PRIMARY_IMPRESSIONS,
-    [isPsych]
-  );
-
   return (
     <div className="space-y-4">
       <div>
@@ -41,8 +32,13 @@ export function AssessmentCard({ trip, updateField, requiredFields = ["chief_com
         </label>
         <Select value={trip.chief_complaint || ""} onValueChange={(v) => updateField("chief_complaint", v)}>
           <SelectTrigger className={cn("h-12 text-base", fieldBorder("chief_complaint"))}><SelectValue placeholder="Select..." /></SelectTrigger>
-          <SelectContent>
-            {CHIEF_COMPLAINTS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          <SelectContent className="max-h-80">
+            {CHIEF_COMPLAINT_GROUPS.map(g => (
+              <SelectGroup key={g.parent}>
+                <SelectLabel className="text-[10px] tracking-wider text-muted-foreground">{g.parent}</SelectLabel>
+                {g.items.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectGroup>
+            ))}
           </SelectContent>
         </Select>
         {trip.chief_complaint === "Other" && (
@@ -58,8 +54,13 @@ export function AssessmentCard({ trip, updateField, requiredFields = ["chief_com
         </label>
         <Select value={trip.primary_impression || ""} onValueChange={(v) => updateField("primary_impression", v)}>
           <SelectTrigger className={cn("h-12 text-base", fieldBorder("primary_impression"))}><SelectValue placeholder="Select..." /></SelectTrigger>
-          <SelectContent>
-            {impressionOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          <SelectContent className="max-h-80">
+            {PRIMARY_IMPRESSION_GROUPS.map(g => (
+              <SelectGroup key={g.parent}>
+                <SelectLabel className="text-[10px] tracking-wider text-muted-foreground">{g.parent}</SelectLabel>
+                {g.items.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectGroup>
+            ))}
           </SelectContent>
         </Select>
       </div>
