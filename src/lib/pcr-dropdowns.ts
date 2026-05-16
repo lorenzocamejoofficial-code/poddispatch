@@ -69,6 +69,112 @@ export const TRANSPORT_TYPE_DEFAULTS: Record<string, TransportTypeDefaults> = {
   als_non_emergency:  { chief_complaint: "General Weakness / Debility",          primary_impression: "Cardiovascular — Stable for Transport", icd10_codes: ["R53.1"] },
 };
 
+// ─────────────────────────────────────────────────────────────────────
+// Patient-record required fields for clean-claim submission.
+// Source: 42 CFR 410.40 + CMS MLN ambulance services guidance.
+// These are evaluated AT THE PATIENT LEVEL — separate from PCR-completion
+// gates (see pcr-field-requirements.ts). Both must pass at submit-for-billing.
+// ─────────────────────────────────────────────────────────────────────
+export interface PatientRequiredField {
+  field: string;            // column name on patients
+  label: string;            // human-readable label for UI / toast
+  check: (p: any) => boolean; // returns true if satisfied
+}
+
+const hasStr  = (v: any) => typeof v === "string" && v.trim().length > 0;
+const hasArr  = (v: any) => Array.isArray(v) && v.length > 0;
+const isTrue  = (v: any) => v === true;
+
+const BASE_FIELDS: PatientRequiredField[] = [
+  { field: "default_chief_complaint",          label: "Default chief complaint",          check: p => hasStr(p?.default_chief_complaint) },
+  { field: "default_primary_impression",       label: "Default primary impression",       check: p => hasStr(p?.default_primary_impression) },
+  { field: "icd10_codes",                      label: "At least one ICD-10 code",         check: p => hasArr(p?.icd10_codes) },
+  { field: "primary_payer",                    label: "Primary payer",                    check: p => hasStr(p?.primary_payer) },
+];
+
+const MOBILITY: PatientRequiredField = {
+  field: "mobility", label: "Mobility level",
+  // "ambulatory" is the column default — treat as "not set" so admin
+  // is forced to explicitly confirm mobility level on non-ambulatory patients.
+  check: p => hasStr(p?.mobility) && p.mobility !== "ambulatory",
+};
+const PCS: PatientRequiredField = {
+  field: "pcs_on_file", label: "PCS on file (Physician Certification Statement)",
+  check: p => isTrue(p?.pcs_on_file),
+};
+const NECESSITY: PatientRequiredField = {
+  field: "default_medical_necessity_reason", label: "Medical necessity reason",
+  check: p => hasStr(p?.default_medical_necessity_reason),
+};
+const WOUND_FIELDS: PatientRequiredField[] = [
+  { field: "default_wound_type",     label: "Wound type",     check: p => hasStr(p?.default_wound_type) },
+  { field: "default_wound_location", label: "Wound location", check: p => hasStr(p?.default_wound_location) },
+  { field: "default_wound_stage",    label: "Wound stage",    check: p => hasStr(p?.default_wound_stage) },
+];
+
+export const TRANSPORT_TYPE_CLAIM_REQUIREMENTS: Record<string, PatientRequiredField[]> = {
+  dialysis:           [...BASE_FIELDS, MOBILITY, PCS, NECESSITY],
+  wound_care:         [...BASE_FIELDS, MOBILITY, PCS, NECESSITY, ...WOUND_FIELDS],
+  ift:                [...BASE_FIELDS, MOBILITY, PCS, NECESSITY],
+  ift_discharge:      [...BASE_FIELDS, MOBILITY, PCS, NECESSITY],
+  discharge:          [...BASE_FIELDS, MOBILITY, PCS, NECESSITY],
+  outpatient:         [...BASE_FIELDS, PCS],
+  outpatient_specialty: [...BASE_FIELDS, PCS],
+  psych_transport:    [...BASE_FIELDS],  // BH auth fields gated separately by payer
+  // Emergency: PCS NOT required; payer often missing/self-pay → omit payer too.
+  emergency:          [BASE_FIELDS[0], BASE_FIELDS[1], BASE_FIELDS[2]],
+  private_pay:        [BASE_FIELDS[0], BASE_FIELDS[1]],
+};
+
+/**
+ * Frequency-based payer overlay. Per CMS RSNAT model:
+ * If primary_payer=medicare AND patient runs >=3 round trips/10 days OR
+ * >=1/week for >=3 weeks, prior authorization (UTN from MAC) is required.
+ *
+ * We detect the threshold via the patient's recurring schedule config:
+ *   - dialysis MWF / TTS = 3 days/week (auto-triggers)
+ *   - any recurrence_days array with >=1 day on a standing/recurring order
+ */
+export function getFrequencyPayerRequirements(p: any): PatientRequiredField[] {
+  if (!p) return [];
+  const payer = String(p.primary_payer ?? "").toLowerCase().trim();
+  if (payer !== "medicare") return [];
+
+  const schedDays = String(p.schedule_days ?? "").trim();
+  const recDays = Array.isArray(p.recurrence_days) ? p.recurrence_days : [];
+  const isHighFrequency =
+    schedDays === "MWF" || schedDays === "TTS" ||
+    recDays.length >= 1 ||
+    isTrue(p.standing_order);
+
+  if (!isHighFrequency) return [];
+
+  return [{
+    field: "prior_auth_utn",
+    label: "Prior authorization UTN (Medicare RSNAT)",
+    check: q => hasStr(q?.prior_auth_utn),
+  }];
+}
+
+/** Combined evaluator: returns the list of missing required fields for a patient. */
+export function getMissingPatientRequirements(p: any): PatientRequiredField[] {
+  if (!p) return [];
+  const tType = String(p.transport_type ?? "").trim();
+  const base = TRANSPORT_TYPE_CLAIM_REQUIREMENTS[tType] ?? [];
+  const freq = getFrequencyPayerRequirements(p);
+  return [...base, ...freq].filter(f => !f.check(p));
+}
+
+/**
+ * Display helper: if a vocabulary value is "Other" and an _other text exists,
+ * format as "Other — <text>". Otherwise return the value as-is.
+ */
+export function formatOtherDisplay(value: string | null | undefined, other: string | null | undefined): string {
+  if (!value) return "";
+  if (value === "Other" && other && other.trim()) return `Other — ${other.trim()}`;
+  return value;
+}
+
 export const MEDICAL_NECESSITY_REASONS = [
   "Patient cannot sit safely in upright position",
   "Patient requires monitoring enroute",

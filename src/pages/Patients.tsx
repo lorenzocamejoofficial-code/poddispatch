@@ -36,6 +36,9 @@ import {
   BH_AUTHORIZATION_TYPES,
   WOUND_TYPES,
   PRESSURE_ULCER_STAGES,
+  TRANSPORT_TYPE_DEFAULTS,
+  getMissingPatientRequirements,
+  formatOtherDisplay,
 } from "@/lib/pcr-dropdowns";
 
 type Patient = Tables<"patients">;
@@ -168,6 +171,12 @@ export default function Patients() {
     default_wound_type: "",
     default_wound_location: "",
     default_wound_stage: "",
+    // Phase 3 — Other free-text overrides + RSNAT prior auth
+    default_chief_complaint_other: "",
+    default_primary_impression_other: "",
+    prior_auth_utn: "",
+    prior_auth_period_start: "",
+    prior_auth_period_end: "",
   });
 
   const fetchPatients = async () => {
@@ -277,6 +286,11 @@ export default function Patients() {
       default_wound_type: "",
       default_wound_location: "",
       default_wound_stage: "",
+      default_chief_complaint_other: "",
+      default_primary_impression_other: "",
+      prior_auth_utn: "",
+      prior_auth_period_start: "",
+      prior_auth_period_end: "",
     });
     setEditing(null);
     setBLegWarnings([]);
@@ -352,6 +366,11 @@ export default function Patients() {
       default_wound_type: (p as any).default_wound_type ?? "",
       default_wound_location: (p as any).default_wound_location ?? "",
       default_wound_stage: (p as any).default_wound_stage ?? "",
+      default_chief_complaint_other: (p as any).default_chief_complaint_other ?? "",
+      default_primary_impression_other: (p as any).default_primary_impression_other ?? "",
+      prior_auth_utn: (p as any).prior_auth_utn ?? "",
+      prior_auth_period_start: (p as any).prior_auth_period_start ?? "",
+      prior_auth_period_end: (p as any).prior_auth_period_end ?? "",
     });
     setBLegWarnings([]);
     setDialogOpen(true);
@@ -432,9 +451,26 @@ export default function Patients() {
       default_wound_type: form.default_wound_type || null,
       default_wound_location: form.default_wound_location || null,
       default_wound_stage: form.default_wound_stage || null,
+      // Phase 3
+      default_chief_complaint_other: form.default_chief_complaint === "Other" ? (form.default_chief_complaint_other || null) : null,
+      default_primary_impression_other: form.default_primary_impression === "Other" ? (form.default_primary_impression_other || null) : null,
+      prior_auth_utn: form.prior_auth_utn || null,
+      prior_auth_period_start: form.prior_auth_period_start || null,
+      prior_auth_period_end: form.prior_auth_period_end || null,
     };
 
     if (!payload.first_name || !payload.last_name) { setSaving(false); return; }
+
+    // Phase 3 — Item 2: warn (don't block) on missing required fields per transport type + Medicare frequency.
+    {
+      const missing = getMissingPatientRequirements(payload);
+      if (missing.length > 0) {
+        toast.warning(
+          `Saved as draft — missing required fields: ${missing.map(m => m.label).join(", ")}`,
+          { duration: 8000 }
+        );
+      }
+    }
 
     if (editing) {
       const editingId = editing.id;
@@ -688,6 +724,41 @@ export default function Patients() {
   // All transport types on patient form are repetitive
   const isRepetitive = true;
 
+  // Phase 3 — Item 2: live set of missing required field names for red-border styling.
+  const missingFieldSet = useMemo(() => {
+    const projected = {
+      transport_type: form.transport_type,
+      primary_payer: form.primary_payer,
+      mobility: form.mobility,
+      pcs_on_file: form.pcs_on_file,
+      icd10_codes: form.icd10_codes,
+      default_chief_complaint: form.default_chief_complaint,
+      default_primary_impression: form.default_primary_impression,
+      default_medical_necessity_reason: form.default_medical_necessity_reason,
+      default_wound_type: form.default_wound_type,
+      default_wound_location: form.default_wound_location,
+      default_wound_stage: form.default_wound_stage,
+      schedule_days: form.schedule_days,
+      recurrence_days: form.recurrence_days,
+      standing_order: form.standing_order,
+      prior_auth_utn: form.prior_auth_utn,
+    };
+    return new Set(getMissingPatientRequirements(projected).map(m => m.field));
+  }, [form]);
+  const ringIfMissing = (field: string) => missingFieldSet.has(field) ? "ring-2 ring-destructive/60 rounded-md" : "";
+
+  // Phase 3 — Item 3: auto-fill defaults on transport_type change (only blanks).
+  const handleTransportTypeChange = (newType: TransportType) => {
+    const defaults = TRANSPORT_TYPE_DEFAULTS[newType];
+    setForm(prev => ({
+      ...prev,
+      transport_type: newType,
+      default_chief_complaint: prev.default_chief_complaint || (defaults?.chief_complaint ?? ""),
+      default_primary_impression: prev.default_primary_impression || (defaults?.primary_impression ?? ""),
+      icd10_codes: prev.icd10_codes.length > 0 ? prev.icd10_codes : (defaults?.icd10_codes ?? []),
+    }));
+  };
+
   // Compute B-leg earliest for display in recurrence section
   const bLegEarliestDisplay = form.transport_type === "dialysis" && form.chair_time
     ? getEarliestBLegPickup(form.chair_time, parseInt(form.chair_time_duration_hours) || 0, parseInt(form.chair_time_duration_minutes) || 0)
@@ -874,7 +945,7 @@ export default function Patients() {
                               name="transport_type"
                               value={opt.value}
                               checked={form.transport_type === opt.value}
-                              onChange={() => setForm({ ...form, transport_type: opt.value })}
+                              onChange={() => handleTransportTypeChange(opt.value)}
                               className="mt-0.5 accent-primary"
                             />
                             <div className="text-sm font-medium text-foreground">{opt.label}</div>
@@ -1192,8 +1263,19 @@ export default function Patients() {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label>Default Chief Complaint</Label>
-                            <Select value={form.default_chief_complaint || "none"} onValueChange={(v) => setForm({ ...form, default_chief_complaint: v === "none" ? "" : v })}>
-                              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                            <Select
+                              value={form.default_chief_complaint || "none"}
+                              onValueChange={(v) => {
+                                const next = v === "none" ? "" : v;
+                                setForm({
+                                  ...form,
+                                  default_chief_complaint: next,
+                                  // Clear _other when moving away from "Other"
+                                  default_chief_complaint_other: next === "Other" ? form.default_chief_complaint_other : "",
+                                });
+                              }}
+                            >
+                              <SelectTrigger className={ringIfMissing("default_chief_complaint")}><SelectValue placeholder="Select" /></SelectTrigger>
                               <SelectContent className="max-h-72">
                                 <SelectItem value="none">— None —</SelectItem>
                                 {CHIEF_COMPLAINT_GROUPS.map((g) => (
@@ -1204,11 +1286,29 @@ export default function Patients() {
                                 ))}
                               </SelectContent>
                             </Select>
+                            {form.default_chief_complaint === "Other" && (
+                              <Input
+                                className="mt-2"
+                                placeholder="Describe chief complaint…"
+                                value={form.default_chief_complaint_other}
+                                onChange={(e) => setForm({ ...form, default_chief_complaint_other: e.target.value })}
+                              />
+                            )}
                           </div>
                           <div>
                             <Label>Default Primary Impression</Label>
-                            <Select value={form.default_primary_impression || "none"} onValueChange={(v) => setForm({ ...form, default_primary_impression: v === "none" ? "" : v })}>
-                              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                            <Select
+                              value={form.default_primary_impression || "none"}
+                              onValueChange={(v) => {
+                                const next = v === "none" ? "" : v;
+                                setForm({
+                                  ...form,
+                                  default_primary_impression: next,
+                                  default_primary_impression_other: next === "Other" ? form.default_primary_impression_other : "",
+                                });
+                              }}
+                            >
+                              <SelectTrigger className={ringIfMissing("default_primary_impression")}><SelectValue placeholder="Select" /></SelectTrigger>
                               <SelectContent className="max-h-72">
                                 <SelectItem value="none">— None —</SelectItem>
                                 {PRIMARY_IMPRESSION_GROUPS.map((g) => (
@@ -1219,6 +1319,14 @@ export default function Patients() {
                                 ))}
                               </SelectContent>
                             </Select>
+                            {form.default_primary_impression === "Other" && (
+                              <Input
+                                className="mt-2"
+                                placeholder="Describe primary impression…"
+                                value={form.default_primary_impression_other}
+                                onChange={(e) => setForm({ ...form, default_primary_impression_other: e.target.value })}
+                              />
+                            )}
                           </div>
                         </div>
                         <div>
@@ -1333,6 +1441,32 @@ export default function Patients() {
                             <Input type="date" value={form.auth_expiration} onChange={(e) => setForm({ ...form, auth_expiration: e.target.value })} />
                           </div>
                         )}
+                        {/* RSNAT Prior Authorization (Medicare repetitive non-emergency) */}
+                        <div className="rounded-md border border-dashed p-3 space-y-2">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">RSNAT Prior Auth (Medicare)</p>
+                            <p className="text-[11px] text-muted-foreground">Required when a Medicare patient runs ≥3 round trips/10 days or ≥1/week for ≥3 weeks. UTN from MAC affirmative decision.</p>
+                          </div>
+                          <div>
+                            <Label>UTN (Unique Tracking Number)</Label>
+                            <Input
+                              className={ringIfMissing("prior_auth_utn")}
+                              value={form.prior_auth_utn}
+                              onChange={(e) => setForm({ ...form, prior_auth_utn: e.target.value })}
+                              placeholder="e.g. UTN1234567890"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label>Auth Period Start</Label>
+                              <Input type="date" value={form.prior_auth_period_start} onChange={(e) => setForm({ ...form, prior_auth_period_start: e.target.value })} />
+                            </div>
+                            <div>
+                              <Label>Auth Period End</Label>
+                              <Input type="date" value={form.prior_auth_period_end} onChange={(e) => setForm({ ...form, prior_auth_period_end: e.target.value })} />
+                            </div>
+                          </div>
+                        </div>
                         {/* PCS */}
                         <div className="flex items-center justify-between">
                           <Label>PCS on File</Label>
