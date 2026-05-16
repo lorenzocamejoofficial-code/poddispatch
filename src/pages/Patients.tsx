@@ -89,6 +89,7 @@ export default function Patients() {
   const { activeCompanyId, role } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [templatesView, setTemplatesView] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -357,6 +358,9 @@ export default function Patients() {
   };
 
   const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
     const payload: any = {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
@@ -534,6 +538,9 @@ export default function Patients() {
     setDialogOpen(false);
     resetForm();
     fetchPatients();
+    } finally {
+      setSaving(false);
+    }
   };
 
   // ── Single delete ──
@@ -1319,7 +1326,9 @@ export default function Patients() {
                     </div>
                   )}
 
-                  <Button onClick={handleSave}>{editing ? "Save Changes" : "Add Patient"}</Button>
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? (editing ? "Saving..." : "Adding...") : (editing ? "Save Changes" : "Add Patient")}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
