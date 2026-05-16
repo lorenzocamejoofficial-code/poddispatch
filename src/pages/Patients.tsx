@@ -527,9 +527,40 @@ export default function Patients() {
       })();
     } else {
       payload.company_id = activeCompanyId;
-      const { data: inserted, error } = await supabase.from("patients").insert(payload).select("id").single();
-      if (error || !inserted?.id) {
-        toast.error("Failed to add patient");
+      // Retry the insert on transient failures (network blips, brief auth refresh,
+      // pooler timeout). This was the cause of "had to click Add twice" reports.
+      let inserted: { id: string } | null = null;
+      let lastError: any = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data, error } = await supabase
+          .from("patients")
+          .insert(payload)
+          .select("id")
+          .single();
+        if (!error && data?.id) {
+          inserted = data;
+          lastError = null;
+          break;
+        }
+        lastError = error;
+        // Don't retry hard validation / constraint errors — only transient ones.
+        const code = (error as any)?.code as string | undefined;
+        const msg = (error?.message || "").toLowerCase();
+        const transient =
+          !code ||
+          msg.includes("fetch") ||
+          msg.includes("network") ||
+          msg.includes("timeout") ||
+          msg.includes("temporarily") ||
+          code.startsWith("08") || // connection exceptions
+          code === "57P03" ||      // cannot_connect_now
+          code === "XX000";        // internal_error (often transient)
+        if (!transient) break;
+        await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+      }
+      if (!inserted?.id) {
+        console.error("Patient insert failed", lastError);
+        toast.error(lastError?.message ? `Failed to add patient: ${lastError.message}` : "Failed to add patient");
         setSaving(false);
         return;
       }
