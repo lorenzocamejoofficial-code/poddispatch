@@ -36,6 +36,9 @@ import {
   BH_AUTHORIZATION_TYPES,
   WOUND_TYPES,
   PRESSURE_ULCER_STAGES,
+  TRANSPORT_TYPE_DEFAULTS,
+  getMissingPatientRequirements,
+  formatOtherDisplay,
 } from "@/lib/pcr-dropdowns";
 
 type Patient = Tables<"patients">;
@@ -168,6 +171,12 @@ export default function Patients() {
     default_wound_type: "",
     default_wound_location: "",
     default_wound_stage: "",
+    // Phase 3 — Other free-text overrides + RSNAT prior auth
+    default_chief_complaint_other: "",
+    default_primary_impression_other: "",
+    prior_auth_utn: "",
+    prior_auth_period_start: "",
+    prior_auth_period_end: "",
   });
 
   const fetchPatients = async () => {
