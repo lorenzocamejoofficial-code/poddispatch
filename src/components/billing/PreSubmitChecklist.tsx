@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { computeClaimScore, getScoreBgClass, type ClaimScoreResult } from "@/lib/claim-score";
 import { BillerPcsPanel } from "@/components/billing/BillerPcsPanel";
 import { normalizeTransportKey } from "@/lib/pcr-field-requirements";
+import { getMissingPatientRequirements } from "@/lib/pcr-dropdowns";
 
 // Local helper mirroring pcr-field-requirements.hasValue — used by the
 // Audit Fix 2 + 3 checks below to keep the billing gate aligned with the
@@ -181,6 +182,25 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         || (t.necessity_notes && String(t.necessity_notes).trim()));
 
       const checks: ChecklistItem[] = [];
+
+      // ──────────────────────────────────────────────────────────────────
+      // Phase 3 — Patient-record required fields (runs BEFORE PCR-completion).
+      // Source: 42 CFR 410.40 + RSNAT prior-auth model. The same evaluator
+      // powers the red-border indicators on the patient form.
+      // ──────────────────────────────────────────────────────────────────
+      if (p) {
+        // Project trip transport_type onto patient if patient doesn't have one
+        // (covers one-off runs and edge cases where trip.trip_type is canonical).
+        const projected = { ...p, transport_type: p.transport_type ?? normalizeTransportKey(t.trip_type ?? t.pcr_type) };
+        const missing = getMissingPatientRequirements(projected);
+        for (const m of missing) {
+          checks.push({
+            label: `Patient record missing: ${m.label}`,
+            passed: false,
+            detail: `Open the patient record and complete the "${m.label}" field before submitting this claim.`,
+          });
+        }
+      }
 
       if (ediUnenrolledWarning) {
         checks.push({
