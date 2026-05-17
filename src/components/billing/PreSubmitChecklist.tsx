@@ -9,6 +9,7 @@ import { computeClaimScore, getScoreBgClass, type ClaimScoreResult } from "@/lib
 import { BillerPcsPanel } from "@/components/billing/BillerPcsPanel";
 import { normalizeTransportKey } from "@/lib/pcr-field-requirements";
 import { getMissingPatientRequirements } from "@/lib/pcr-dropdowns";
+import { isValidNpi, NPI_INVALID_MESSAGE } from "@/lib/npi-luhn";
 
 // Local helper mirroring pcr-field-requirements.hasValue — used by the
 // Audit Fix 2 + 3 checks below to keep the billing gate aligned with the
