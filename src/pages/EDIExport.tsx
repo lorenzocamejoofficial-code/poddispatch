@@ -164,6 +164,11 @@ export default function EDIExport() {
           patient_member_id: pat.member_id || c.member_id || (isOneoff ? leg?.oneoff_member_id : null),
           patient_primary_payer: pat.primary_payer ?? (isOneoff ? leg?.oneoff_primary_payer : null),
           trip_loaded_miles: trip.loaded_miles,
+          // Patient-level PCS context — used by EDI generator to enforce
+          // NM1*DK referring-provider segment when pcs_on_file is asserted.
+          patient_pcs_on_file: !!pat.pcs_on_file,
+          patient_pcs_physician_npi: pat.pcs_physician_npi ?? null,
+          patient_pcs_physician_name: pat.pcs_physician_name ?? null,
         };
       });
 
