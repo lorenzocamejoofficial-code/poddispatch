@@ -771,6 +771,18 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         signature_data_url: "data:image/svg+xml;base64,PHN2Zy8+",
       }] : null;
 
+      // Two saved vitals sets (initial + en-route) using the exact shape the
+      // Pre-Submit Checklist expects: `timestamp` + `saved: true` + numeric
+      // bp_systolic/bp_diastolic/pulse/respiration/spo2.
+      const v1Ts = `${today}T${addMinutes(pickupTime, 4)}:00`;
+      const v2Ts = `${today}T${addMinutes(pickupTime, 18)}:00`;
+      const vitalsJson = hasTimes ? [
+        { timestamp: v1Ts, taken_at: v1Ts, saved: true,
+          bp_systolic: 128, bp_diastolic: 78, pulse: 82, respiration: 16, respiratory_rate: 16, spo2: 98, temperature: 98.6, blood_glucose: 110 },
+        { timestamp: v2Ts, taken_at: v2Ts, saved: true,
+          bp_systolic: 124, bp_diastolic: 76, pulse: 80, respiration: 16, respiratory_rate: 16, spo2: 99, temperature: 98.6 },
+      ] : null;
+
       const pcrType = tripType === "dialysis" ? "nemt_dialysis"
         : tripType === "discharge" ? "ift_discharge"
         : tripType === "hospital" ? "emergency_ems"
@@ -818,6 +830,13 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         primary_impression: tpl.default_primary_impression || (tripType === "dialysis" ? "ESRD on Dialysis" : "No Acute Findings — Routine Transport"),
         medical_necessity_reason: tpl.default_medical_necessity_reason || "Bed-confined, requires stretcher transport",
         narrative: "Patient was transported by stretcher per medical necessity. Crew monitored throughout. Patient delivered to destination without incident. Documentation complete per company policy and CMS standards. (Synthetic seed.)",
+        // Audit-clean PCR fields required by Pre-Submit Checklist & 837P scrubber
+        vitals_json: vitalsJson,
+        level_of_consciousness: "alert_ox4",
+        skin_condition: "normal",
+        stretcher_placement: "Draw Sheet",
+        patient_mobility: "Bedbound",
+        patient_position: "Semi-Fowlers (30°)",
         primary_payer: (tpl.primary_payer || "medicare").toString().toLowerCase(),
         member_id: tpl.member_id ?? `SIM${String(i + 1).padStart(6, "0")}`,
         service_level: tpl.default_service_level || "BLS",
