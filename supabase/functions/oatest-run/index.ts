@@ -318,6 +318,37 @@ Deno.serve(async (req) => {
       .from("patients").insert(patientPayload).select("*").single();
     if (patientErr) return await recordFailure("seeding", `patient clone failed: ${patientErr.message}`);
 
+    // Ensure the charge master has a row for every standard payer type, so the
+    // claim that gets auto-created downstream actually has rates to look up.
+    // Without this the seeded Medicaid/default/private/self_pay claims come
+    // out at $0.00 with no HCPCS codes, and the "Refresh Existing Claims"
+    // button has nothing to pull from.
+    const defaultRates: Array<{ payer_type: string; base_rate: number; mileage_rate: number }> = [
+      { payer_type: "medicare", base_rate: 250.00, mileage_rate: 8.50 },
+      { payer_type: "medicaid", base_rate: 200.00, mileage_rate: 6.00 },
+      { payer_type: "default",  base_rate: 225.00, mileage_rate: 7.00 },
+      { payer_type: "private",  base_rate: 300.00, mileage_rate: 9.00 },
+      { payer_type: "self_pay", base_rate: 275.00, mileage_rate: 8.00 },
+    ];
+    const { data: existingRates } = await admin
+      .from("charge_master").select("payer_type")
+      .eq("company_id", LORENZO_TEST_COMPANY_ID);
+    const existing = new Set((existingRates ?? []).map((r: any) => String(r.payer_type).toLowerCase()));
+    const missing = defaultRates.filter(r => !existing.has(r.payer_type));
+    if (missing.length > 0) {
+      await admin.from("charge_master").insert(
+        missing.map(r => ({
+          company_id: LORENZO_TEST_COMPANY_ID,
+          payer_type: r.payer_type,
+          base_rate: r.base_rate,
+          mileage_rate: r.mileage_rate,
+          wait_rate_per_min: 0,
+          oxygen_fee: 50,
+          bariatric_fee: 150,
+        })),
+      );
+    }
+
     // Build the leg
     const originType = normLoc(tplData.leg?.origin_type ?? scenario.origin_modifier);
     const destType = normLoc(tplData.leg?.destination_type ?? scenario.destination_modifier);
