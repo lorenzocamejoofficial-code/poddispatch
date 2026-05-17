@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { seedChargeMasterForNewCompany } from "../_shared/seed-charge-master.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -163,6 +164,15 @@ serve(async (req) => {
     await supabaseAdmin.from("migration_settings").insert({
       company_id: companyId, wizard_step: 0, wizard_completed: false,
     });
+
+    // 8b. Auto-seed charge_master with real CMS 2026 Medicare rates for this ZIP.
+    try {
+      const seed = await seedChargeMasterForNewCompany(supabaseAdmin, companyId, zip5);
+      if (!seed.ok) console.error("Charge master seed failed:", seed.error);
+      else console.log(`Charge master seeded for ${companyId} (medicare=${seed.medicareSeeded}, rural=${seed.ruralFlag})`);
+    } catch (seedErr) {
+      console.error("Charge master seed threw:", seedErr);
+    }
 
     // 9. Log onboarding event
     await supabaseAdmin.from("onboarding_events").insert({
