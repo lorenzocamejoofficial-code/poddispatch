@@ -1545,9 +1545,9 @@ export default function Patients() {
                     if (tType !== "dialysis") return null;
                     const now = new Date();
                     const pcsExp = (p as any).pcs_expiration_date ? parseISO((p as any).pcs_expiration_date) : null;
-                    const authExp = (p as any).prior_auth_expiration ? parseISO((p as any).prior_auth_expiration) : null;
+                    const authExp = (p as any).prior_auth_period_end ? parseISO((p as any).prior_auth_period_end) : null;
                     const pcsOnFile = (p as any).pcs_on_file;
-                    const authOnFile = (p as any).prior_auth_on_file;
+                    const authOnFile = !!(p as any).prior_auth_utn;
                     let worst: "expired" | "expiring" | null = null;
                     if (pcsOnFile && pcsExp) {
                       const d = differenceInDays(pcsExp, now);
