@@ -563,12 +563,17 @@ export function generateEDI837P(
     // dispatched for vs. what crew actually found. NTE*ADD = "Additional
     // Information"; alphanumeric, hyphen, comma, period and space allowed.
     const noteParts: string[] = [];
-    if (claim.chief_complaint && claim.chief_complaint.trim()) {
-      noteParts.push(`DISPATCH: ${claim.chief_complaint.trim()}`);
-    }
-    if (claim.primary_impression && claim.primary_impression.trim()) {
-      noteParts.push(`IMPRESSION: ${claim.primary_impression.trim()}`);
-    }
+    // When the vocabulary value is the literal "Other", swap in the
+    // free-text the crew typed (assessment_json.*_other). Emitting "Other"
+    // alone gives payer reviewers no useful dispatch context.
+    const resolvedChief = (claim.chief_complaint && claim.chief_complaint.trim() === "Other"
+      ? (claim.chief_complaint_other || "").trim()
+      : (claim.chief_complaint || "").trim());
+    const resolvedImpression = (claim.primary_impression && claim.primary_impression.trim() === "Other"
+      ? (claim.primary_impression_other || "").trim()
+      : (claim.primary_impression || "").trim());
+    if (resolvedChief) noteParts.push(`DISPATCH: ${resolvedChief}`);
+    if (resolvedImpression) noteParts.push(`IMPRESSION: ${resolvedImpression}`);
     if (noteParts.length > 0) {
       // 837P NTE02 max length is 80 chars per implementation guide.
       const noteText = noteParts.join(" | ")
