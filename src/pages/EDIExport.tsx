@@ -463,6 +463,10 @@ export default function EDIExport() {
           // and are emitted as NTE*ADD on Loop 2300 in the 837P.
           chief_complaint: (c as any).chief_complaint ?? null,
           primary_impression: (c as any).primary_impression ?? null,
+          // Free-text override for "Other" — sourced from PCR assessment_json
+          // so the 837P NTE segment emits the actual text rather than "Other".
+          chief_complaint_other: (trip.assessment_json || {})?.chief_complaint_other ?? null,
+          primary_impression_other: (trip.assessment_json || {})?.primary_impression_other ?? null,
           // Patient-level PCS flag drives the generator's strict NM1*DK rule.
           // Fall back to patient's stored NPI/name if the biller didn't override
           // on the claim record. Claim values still win when both are present.
@@ -741,6 +745,8 @@ export default function EDIExport() {
           pcs_diagnosis: (c as any).pcs_diagnosis ?? null,
           chief_complaint: (c as any).chief_complaint ?? null,
           primary_impression: (c as any).primary_impression ?? null,
+          chief_complaint_other: (trip.assessment_json || {})?.chief_complaint_other ?? null,
+          primary_impression_other: (trip.assessment_json || {})?.primary_impression_other ?? null,
           pcs_on_file: !!(c as any).patient_pcs_on_file,
           ...((!(c as any).pcs_physician_npi && (c as any).patient_pcs_physician_npi)
             ? { pcs_physician_npi: (c as any).patient_pcs_physician_npi as string }
