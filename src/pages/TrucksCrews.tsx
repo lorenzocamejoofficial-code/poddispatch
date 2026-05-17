@@ -932,10 +932,56 @@ export default function TrucksCrews() {
             <div className="space-y-4 py-2">
               <div className="rounded-md border bg-muted/30 p-3">
                 <Label className="text-xs text-muted-foreground">Source Week</Label>
-                <p className="text-sm font-semibold text-foreground mt-1">{getWeekLabel(weekDates)}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {crews.length} crew assignment{crews.length !== 1 ? "s" : ""} on this week
-                </p>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => {
+                      const d = new Date((copySourceWeekRef || currentWeekRef) + "T12:00:00");
+                      d.setDate(d.getDate() - 7);
+                      setCopySourceWeekRef(d.toISOString().split("T")[0]);
+                    }}
+                  >
+                    ‹ Prev
+                  </Button>
+                  <p className="text-sm font-semibold text-foreground text-center flex-1">
+                    {getWeekLabel(getWeekDates(copySourceWeekRef || currentWeekRef))}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => {
+                      const d = new Date((copySourceWeekRef || currentWeekRef) + "T12:00:00");
+                      d.setDate(d.getDate() + 7);
+                      setCopySourceWeekRef(d.toISOString().split("T")[0]);
+                    }}
+                  >
+                    Next ›
+                  </Button>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <Input
+                    type="date"
+                    value={copySourceWeekRef || currentWeekRef}
+                    onChange={(e) => setCopySourceWeekRef(e.target.value)}
+                    className="h-7 text-xs"
+                  />
+                  {(copySourceWeekRef && copySourceWeekRef !== currentWeekRef) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setCopySourceWeekRef(currentWeekRef)}
+                    >
+                      Reset
+                    </Button>
+                  )}
+                </div>
               </div>
               <div>
                 <Label className="mb-2 block">Extend pattern for</Label>
