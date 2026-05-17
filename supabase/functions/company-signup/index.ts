@@ -17,7 +17,7 @@ serve(async (req) => {
       email, password, fullName, companyName, phone, agreements, clientIp,
       npiNumber, stateOfOperation, serviceAreaType, truckCount, payerMix,
       currentSoftware, yearsInOperation, hasInhouseBiller, hipaaPrivacyOfficer,
-      einNumber,
+      einNumber, addressStreet, addressCity, addressZip,
     } = await req.json();
 
     if (!email || !password || !fullName || !companyName) {
@@ -30,6 +30,15 @@ serve(async (req) => {
     if (!npiNumber || !stateOfOperation || !serviceAreaType) {
       return new Response(
         JSON.stringify({ error: "NPI number, state, and service area type are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Address is required so we can derive Medicare locality / rural flag from ZIP.
+    const zip5 = String(addressZip ?? "").replace(/\D/g, "").slice(0, 5);
+    if (!addressStreet || !addressCity || zip5.length !== 5) {
+      return new Response(
+        JSON.stringify({ error: "Business street address, city, and 5-digit ZIP are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -90,6 +99,10 @@ serve(async (req) => {
         ein_number: einDigits,
         state_of_operation: stateOfOperation || null,
         service_area_type: serviceAreaType || "urban",
+        address_street: String(addressStreet).trim(),
+        address_city: String(addressCity).trim(),
+        address_state: stateOfOperation || null,
+        address_zip: zip5,
         payer_mix_medicare: payerMix?.medicare ?? 0,
         payer_mix_medicaid: payerMix?.medicaid ?? 0,
         payer_mix_facility: payerMix?.facility ?? 0,

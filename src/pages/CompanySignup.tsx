@@ -61,6 +61,9 @@ export default function CompanySignup() {
   const [einNumber, setEinNumber] = useState("");
   const [stateOfOperation, setStateOfOperation] = useState("");
   const [serviceAreaType, setServiceAreaType] = useState("");
+  const [addressStreet, setAddressStreet] = useState("");
+  const [addressCity, setAddressCity] = useState("");
+  const [addressZip, setAddressZip] = useState("");
   const [truckCount, setTruckCount] = useState("");
   const [payerMix, setPayerMix] = useState({ medicare: 40, medicaid: 30, facility: 20, private: 10 });
 
@@ -101,6 +104,9 @@ export default function CompanySignup() {
     if (!einDigits) return setError("EIN (Tax ID) is required.");
     if (einDigits.length !== 9) return setError("EIN must be exactly 9 digits (format XX-XXXXXXX).");
     if (!stateOfOperation) return setError("State of operation is required.");
+    if (!addressStreet.trim()) return setError("Street address is required.");
+    if (!addressCity.trim()) return setError("City is required.");
+    if (!/^\d{5}$/.test(addressZip.trim())) return setError("ZIP code must be exactly 5 digits.");
     if (!serviceAreaType) return setError("Service area type is required.");
     if (!truckCount || parseInt(truckCount) < 1) return setError("Number of active trucks is required.");
     if (payerTotal !== 100) return setError(`Payer mix must add up to 100%. Currently ${payerTotal}%.`);
@@ -132,6 +138,9 @@ export default function CompanySignup() {
             einNumber: einNumber.replace(/\D/g, ""),
             stateOfOperation,
             serviceAreaType,
+            addressStreet: addressStreet.trim(),
+            addressCity: addressCity.trim(),
+            addressZip: addressZip.trim(),
             truckCount: parseInt(truckCount),
             payerMix,
             currentSoftware: currentSoftware || null,
@@ -310,6 +319,39 @@ export default function CompanySignup() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label>Business Street Address *</Label>
+              <Input
+                value={addressStreet}
+                onChange={(e) => setAddressStreet(e.target.value)}
+                placeholder="123 Main St"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label>City *</Label>
+                <Input
+                  value={addressCity}
+                  onChange={(e) => setAddressCity(e.target.value)}
+                  placeholder="Atlanta"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>ZIP Code *</Label>
+                <Input
+                  value={addressZip}
+                  onChange={(e) => setAddressZip(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                  placeholder="30303"
+                  maxLength={5}
+                  inputMode="numeric"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Your ZIP determines the correct Medicare ambulance fee schedule (urban / rural / super-rural) for your locality.
+            </p>
 
             <div className="space-y-2">
               <Label>Service Area Type *</Label>
