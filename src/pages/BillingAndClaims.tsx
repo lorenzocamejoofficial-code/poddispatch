@@ -1601,16 +1601,16 @@ export default function BillingAndClaims() {
                             className="h-7 text-xs border-amber-500 text-amber-700 hover:bg-amber-50 dark:text-amber-300"
                             onClick={async () => {
                               if (Number(rate.base_rate) <= 0 || Number(rate.mileage_rate) <= 0) {
-                                toast({ title: "Enter a rate first", description: "Base rate and $/mile must both be greater than $0 before confirming.", variant: "destructive" });
+                                toast.error("Enter a rate first — base rate and $/mile must both be greater than $0.");
                                 openEditRate(rate);
                                 return;
                               }
                               const { error } = await supabase.from("charge_master" as any).update({ needs_review: false }).eq("id", rate.id);
                               if (error) {
-                                toast({ title: "Could not confirm", description: error.message, variant: "destructive" });
+                                toast.error(`Could not confirm: ${error.message}`);
                               } else {
-                                toast({ title: "Rate confirmed", description: `${rate.payer_type} rate marked as verified.` });
-                                await loadAll();
+                                toast.success(`${rate.payer_type} rate confirmed.`);
+                                await fetchData();
                               }
                             }}
                           >
