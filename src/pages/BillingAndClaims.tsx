@@ -141,6 +141,8 @@ interface ChargeMaster {
   extra_attendant_fee: number;
   bariatric_fee: number;
   updated_at: string;
+  auto_seeded?: boolean;
+  needs_review?: boolean;
 }
 
 const CLAIM_COLUMNS: { status: ClaimStatus; label: string; icon: React.ReactNode; color: string }[] = [
@@ -1568,8 +1570,22 @@ export default function BillingAndClaims() {
               </thead>
               <tbody>
                 {chargeMaster.map(rate => (
-                  <tr key={rate.id} className="border-b hover:bg-muted/30">
-                    <td className="px-4 py-3 font-medium capitalize">{rate.payer_type}</td>
+                  <tr key={rate.id} className={`border-b hover:bg-muted/30 ${rate.needs_review ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}`}>
+                    <td className="px-4 py-3 font-medium capitalize">
+                      <div className="flex items-center gap-2">
+                        <span>{rate.payer_type}</span>
+                        {rate.needs_review && (
+                          <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-200 uppercase tracking-wide">
+                            Needs verification
+                          </span>
+                        )}
+                        {rate.auto_seeded && !rate.needs_review && (
+                          <span className="inline-flex items-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-200 uppercase tracking-wide">
+                            Auto-seeded
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-right">${Number(rate.base_rate).toFixed(2)}</td>
                     <td className="px-4 py-3 text-right">${Number(rate.mileage_rate).toFixed(4)}</td>
                     <td className="px-4 py-3 text-right">${Number(rate.wait_rate_per_min).toFixed(4)}</td>
@@ -1577,7 +1593,32 @@ export default function BillingAndClaims() {
                     <td className="px-4 py-3 text-right">${Number(rate.extra_attendant_fee).toFixed(2)}</td>
                     <td className="px-4 py-3 text-right">${Number(rate.bariatric_fee).toFixed(2)}</td>
                     <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => openEditRate(rate)}>Edit</Button>
+                      <div className="flex items-center justify-end gap-1">
+                        {rate.needs_review && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs border-amber-500 text-amber-700 hover:bg-amber-50 dark:text-amber-300"
+                            onClick={async () => {
+                              if (Number(rate.base_rate) <= 0 || Number(rate.mileage_rate) <= 0) {
+                                toast({ title: "Enter a rate first", description: "Base rate and $/mile must both be greater than $0 before confirming.", variant: "destructive" });
+                                openEditRate(rate);
+                                return;
+                              }
+                              const { error } = await supabase.from("charge_master" as any).update({ needs_review: false }).eq("id", rate.id);
+                              if (error) {
+                                toast({ title: "Could not confirm", description: error.message, variant: "destructive" });
+                              } else {
+                                toast({ title: "Rate confirmed", description: `${rate.payer_type} rate marked as verified.` });
+                                await loadAll();
+                              }
+                            }}
+                          >
+                            Confirm
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => openEditRate(rate)}>Edit</Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
