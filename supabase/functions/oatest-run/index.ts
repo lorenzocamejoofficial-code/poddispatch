@@ -347,8 +347,10 @@ Deno.serve(async (req) => {
       .from("scheduling_legs").insert(legPayload).select("*").single();
     if (legErr) return await recordFailure("seeding", `leg insert failed: ${legErr.message}`, { readiness_issues: { leg_payload: legPayload } as any });
 
-    // Build the trip with a fully-completed PCR; setting pcr_status='submitted'
-    // fires auto_create_claim_on_pcr_submit.
+    // Build the trip with a fully-completed PCR. The database auto-claim
+    // trigger is AFTER UPDATE OF pcr_status, not AFTER INSERT, so insert as
+    // not_started first, then update to submitted below to fire the same path
+    // crews use in production.
     const tripPayload: any = {
       company_id: LORENZO_TEST_COMPANY_ID,
       leg_id: leg.id,
@@ -388,8 +390,8 @@ Deno.serve(async (req) => {
       icd10_codes: tplData.pcr?.icd10_codes ?? ["R53.1"],
       pcs_attached: tplData.patient?.pcs_on_file ?? true,
       signature_obtained: true,
-      pcr_status: "submitted",
-      pcr_completed_at: new Date().toISOString(),
+      pcr_status: "not_started",
+      pcr_completed_at: null,
       pcr_submitted_by: submitterProfileId,
       pcr_type: scenario.transport_type === "emergency" ? "emergency" : "non_emergency",
       is_simulated: true,
@@ -402,6 +404,16 @@ Deno.serve(async (req) => {
     const { data: trip, error: tripErr } = await admin
       .from("trip_records").insert(tripPayload).select("*").single();
     if (tripErr) return await recordFailure("seeding", `trip insert failed: ${tripErr.message}`, { readiness_issues: { trip_payload_keys: Object.keys(tripPayload) } as any });
+
+    const { error: submitErr } = await admin
+      .from("trip_records")
+      .update({
+        pcr_status: "submitted",
+        pcr_completed_at: new Date().toISOString(),
+        pcr_submitted_by: submitterProfileId,
+      })
+      .eq("id", trip.id);
+    if (submitErr) return await recordFailure("seeding", `PCR submit update failed: ${submitErr.message}`, { trip_id: trip.id });
 
     // Wait briefly for the auto-claim trigger
     await new Promise(r => setTimeout(r, 400));
