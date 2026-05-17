@@ -34,6 +34,20 @@ type Run = {
   oatest_scenarios?: { slug: string; name: string } | null;
 };
 
+type Preconditions = {
+  today: string;
+  companyId: string;
+  trucks: number;
+  crews: number;
+  crewsAssignedToday: number;
+  trucksWithCrewToday: number;
+  templatePatients: number;
+  facilities: number;
+  enabledScenarios: number;
+  npiOnFile: boolean;
+  taxIdOnFile: boolean;
+};
+
 const STATUS_TONE: Record<string, string> = {
   pending: "bg-muted text-muted-foreground",
   seeding: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
@@ -48,6 +62,8 @@ export function OatestScenarioRunner() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
   const [bootstrapping, setBootstrapping] = useState(true);
+  const [pre, setPre] = useState<Preconditions | null>(null);
+  const [preLoading, setPreLoading] = useState(false);
 
   const loadScenarios = useCallback(async () => {
     const { data, error } = await (supabase as any)
@@ -64,9 +80,25 @@ export function OatestScenarioRunner() {
     if (!error) setRuns(data ?? []);
   }, []);
 
+  const loadPreconditions = useCallback(async () => {
+    setPreLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("oatest-run", {
+        body: { action: "preconditions", local_date: getLocalToday() },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error ?? "unknown");
+      setPre(data.preconditions as Preconditions);
+    } catch (e: any) {
+      toast({ title: "Failed to load OATEST preconditions", description: e.message, variant: "destructive" });
+    } finally {
+      setPreLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
-    Promise.all([loadScenarios(), loadRuns()]).finally(() => setBootstrapping(false));
-  }, [loadScenarios, loadRuns]);
+    Promise.all([loadScenarios(), loadRuns(), loadPreconditions()]).finally(() => setBootstrapping(false));
+  }, [loadScenarios, loadRuns, loadPreconditions]);
 
   const trigger = async (slug: string, action: "seed" | "submit" | "seed_and_submit") => {
     setLoading(`${slug}_${action}`);
@@ -93,6 +125,7 @@ export function OatestScenarioRunner() {
         });
       }
       await loadRuns();
+      await loadPreconditions();
     } catch (e: any) {
       toast({ title: "OATEST call failed", description: e.message, variant: "destructive" });
     } finally {
@@ -107,6 +140,40 @@ export function OatestScenarioRunner() {
 
   return (
     <div className="space-y-4">
+      <Card className="border-primary/20">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">Seeder preconditions ({pre?.today ?? "—"})</CardTitle>
+            <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={loadPreconditions} disabled={preLoading}>
+              {preLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Refresh"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {!pre ? (
+            <p className="text-xs text-muted-foreground">Loading preconditions…</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+              {[
+                { label: "Active trucks", value: pre.trucks, ok: pre.trucks > 0 },
+                { label: "Crews (total)", value: pre.crews, ok: pre.crews > 0 },
+                { label: "Crews assigned today", value: pre.crewsAssignedToday, ok: pre.crewsAssignedToday > 0 },
+                { label: "Trucks w/ crew today", value: pre.trucksWithCrewToday, ok: pre.trucksWithCrewToday > 0 },
+                { label: "Template patients", value: pre.templatePatients, ok: pre.templatePatients > 0 },
+                { label: "Facilities", value: pre.facilities, ok: pre.facilities > 0 },
+                { label: "Enabled scenarios", value: pre.enabledScenarios, ok: pre.enabledScenarios > 0 },
+                { label: "NPI + Tax ID", value: pre.npiOnFile && pre.taxIdOnFile ? "yes" : "no", ok: pre.npiOnFile && pre.taxIdOnFile },
+              ].map(s => (
+                <div key={s.label} className={`rounded-md border p-2 ${s.ok ? "" : "border-destructive/40 bg-destructive/5"}`}>
+                  <p className="text-muted-foreground">{s.label}</p>
+                  <p className={`font-semibold ${s.ok ? "text-foreground" : "text-destructive"}`}>{String(s.value)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card className="border-primary/30">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
