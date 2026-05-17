@@ -494,6 +494,12 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
   const rowErrors: SeedRowError[] = [];
   const runId = crypto.randomUUID();
   const today = getToday();
+  const { data: submitterProfile } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const submitterProfileId = submitterProfile?.id ?? null;
 
   const sizeMultiplier = SEED_SIZES[seedSize] || SEED_SIZES.small;
   const config: ScenarioConfig = {
@@ -847,7 +853,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         .update({
           pcr_status: "submitted",
           pcr_completed_at: new Date().toISOString(),
-          pcr_submitted_by: userId,
+          pcr_submitted_by: submitterProfileId,
           status: "ready_for_billing",
           claim_ready: true,
           documentation_complete: true,
