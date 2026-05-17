@@ -56,7 +56,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           .eq("id", tripId)
           .maybeSingle(),
         patientId
-          ? supabase.from("patients").select("*").eq("id", patientId).maybeSingle()
+          ? supabase.from("patients").select("*, pcs_signed_date, pcs_physician_npi").eq("id", patientId).maybeSingle()
           : Promise.resolve({ data: null }),
         supabase
           .from("claim_records" as any)
