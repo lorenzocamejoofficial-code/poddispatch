@@ -1,12 +1,20 @@
-// Auto-generate professional EMS narrative in CHART format
+// Natural-prose EMS narrative generator — reads like a medic wrote it.
+// Inputs are aggregated from the trip record, attached patient, equipment
+// usage, ICD-10 codes, PCS-on-file status, and crew observations.
+
 import {
   LEVEL_OF_CONSCIOUSNESS,
   SKIN_CONDITIONS,
   PHYSICAL_EXAM_SYSTEMS,
-  MEDICAL_NECESSITY_REASONS,
+  formatOtherDisplay,
 } from "./pcr-dropdowns";
 
-interface NarrativeInput {
+export interface NarrativeICD10 {
+  code: string;
+  description: string;
+}
+
+export interface NarrativeInput {
   truckName: string;
   transportType: string;
   patientName: string;
@@ -14,6 +22,9 @@ interface NarrativeInput {
   patientSex: string;
   pickupAddress: string;
   destination: string;
+  // Location types (residence / hospital / SNF / dialysis...)
+  originType?: string | null;
+  destinationType?: string | null;
   // Times
   dispatchTime: string | null;
   atSceneTime: string | null;
@@ -23,7 +34,9 @@ interface NarrativeInput {
   inServiceTime: string | null;
   // Clinical
   chiefComplaint: string | null;
+  chiefComplaintOther?: string | null;
   primaryImpression: string | null;
+  primaryImpressionOther?: string | null;
   medicalNecessityReason: string | null;
   levelOfConsciousness: string | null;
   skinCondition: string | null;
@@ -33,6 +46,17 @@ interface NarrativeInput {
   conditionOnArrival: any;
   transportCondition: string | null;
   disposition: string | null;
+  // Mobility / bariatric / equipment flags
+  mobility?: string | null;
+  bariatric?: boolean;
+  stairChairRequired?: boolean;
+  oxygenDuringTransport?: boolean;
+  oxygenLpm?: number | string | null;
+  // ICD-10 context
+  icd10?: NarrativeICD10[];
+  // PCS status (42 CFR 410.40(d))
+  pcsOnFile?: boolean;
+  pcsSignedDate?: string | null;
   // IFT specific
   sendingFacility: any;
   hospitalOutcome: any;
@@ -54,218 +78,243 @@ function fmtTime(ts: string | null): string {
   } catch { return "[time not recorded]"; }
 }
 
-function getLOCNarrative(val: string | null): string {
-  if (!val) return "";
-  const found = LEVEL_OF_CONSCIOUSNESS.find(l => l.value === val);
-  return found ? found.narrative : val;
+function fmtDate(d: string | null | undefined): string {
+  if (!d) return "[date not recorded]";
+  try {
+    const dt = new Date(d.length === 10 ? d + "T00:00:00" : d);
+    return dt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  } catch { return d; }
 }
 
-function getSkinNarrative(val: string | null): string {
+function loc(val: string | null): string {
   if (!val) return "";
-  const found = SKIN_CONDITIONS.find(s => s.value === val);
-  return found ? found.narrative : val;
+  return LEVEL_OF_CONSCIOUSNESS.find((l) => l.value === val)?.narrative ?? val.toLowerCase();
+}
+function skin(val: string | null): string {
+  if (!val) return "";
+  return SKIN_CONDITIONS.find((s) => s.value === val)?.narrative ?? val.toLowerCase();
 }
 
-function buildVitalsString(vitals: any[]): string {
-  if (!vitals || vitals.length === 0) return "";
-  const v = vitals[0];
+function vitalsSet(v: any): string {
+  if (!v) return "";
   const parts: string[] = [];
   if (v.bp_systolic && v.bp_diastolic) parts.push(`BP ${v.bp_systolic}/${v.bp_diastolic}`);
   if (v.pulse) parts.push(`HR ${v.pulse}`);
   if (v.respiratory_rate) parts.push(`RR ${v.respiratory_rate}`);
   if (v.spo2) parts.push(`SpO2 ${v.spo2}%`);
-  if (v.temperature) parts.push(`Temp ${v.temperature}°F`);
+  if (v.temperature) parts.push(`temp ${v.temperature}°F`);
   if (v.blood_glucose) parts.push(`BGL ${v.blood_glucose}`);
   return parts.join(", ");
 }
 
-function buildExamNarrative(exam: Record<string, any>): string {
-  const parts: string[] = [];
-  for (const [system, data] of Object.entries(exam)) {
-    const sysConfig = PHYSICAL_EXAM_SYSTEMS[system];
-    if (!sysConfig || !data?.findings?.length) continue;
-    for (const findingVal of data.findings) {
-      const found = sysConfig.findings.find(f => f.value === findingVal);
-      if (found) parts.push(found.narrative);
-    }
-  }
-  return parts.join(". ") + (parts.length > 0 ? "." : "");
+function vitalsAllStable(vitals: any[]): boolean {
+  if (!vitals?.length) return false;
+  return vitals.every((v) => {
+    if (!v) return false;
+    const sys = Number(v.bp_systolic), dia = Number(v.bp_diastolic);
+    const hr = Number(v.pulse), rr = Number(v.respiratory_rate), spo2 = Number(v.spo2);
+    if (sys && (sys < 90 || sys > 180)) return false;
+    if (dia && (dia < 50 || dia > 110)) return false;
+    if (hr && (hr < 50 || hr > 120)) return false;
+    if (rr && (rr < 10 || rr > 24)) return false;
+    if (spo2 && spo2 < 92) return false;
+    return true;
+  });
 }
 
-function buildEquipmentString(eq: any): string {
-  if (!eq) return "";
-  const parts: string[] = [];
-  if (eq.oxygen && eq.oxygen_flow_rate) {
-    parts.push(`oxygen at ${eq.oxygen_flow_rate} LPM via ${eq.oxygen_delivery_method || "nasal cannula"}`);
+function examFindings(exam: Record<string, any>): string[] {
+  const out: string[] = [];
+  for (const [system, data] of Object.entries(exam || {})) {
+    const cfg = PHYSICAL_EXAM_SYSTEMS[system];
+    if (!cfg || !data?.findings?.length) continue;
+    for (const f of data.findings) {
+      const found = cfg.findings.find((cf) => cf.value === f);
+      if (found?.narrative) out.push(found.narrative.replace(/\.$/, "").toLowerCase());
+    }
   }
-  if (eq.stretcher_type) parts.push(`${eq.stretcher_type.toLowerCase()}`);
-  if (eq.stair_chair) parts.push("stair chair utilized");
-  if (eq.cardiac_monitor) parts.push("cardiac monitor applied");
-  if (eq.other) parts.push(eq.other);
+  return out;
+}
+
+function locationPhrase(type: string | null | undefined, fallback: string, role: "from" | "to"): string {
+  const t = (type || "").toLowerCase();
+  const mapped =
+    t.includes("residence") || t === "r" || t === "home" ? "the patient's residence" :
+    t.includes("hospital") ? "the hospital" :
+    t.includes("snf") || t.includes("skilled") || t === "n" ? "the skilled nursing facility" :
+    t.includes("dialysis") || t === "g" ? "the outpatient dialysis facility" :
+    t.includes("physician") || t.includes("office") || t === "p" ? "the physician's office" :
+    t.includes("scene") || t === "s" ? "the scene" :
+    t.includes("rehab") || t === "e" ? "the rehab facility" :
+    t.includes("intermediate") || t === "i" ? "an intermediate stop" :
+    t.includes("outpatient") ? "the outpatient facility" :
+    "";
+  if (mapped) return mapped;
+  return fallback || (role === "from" ? "the pickup location" : "the receiving facility");
+}
+
+function buildDiagnosisClause(icd: NarrativeICD10[] | undefined): string {
+  if (!icd || !icd.length) return "";
+  const descs = icd
+    .map((c) => (c.description || "").trim())
+    .filter(Boolean)
+    .map((d) => d.toLowerCase().replace(/\.$/, ""));
+  if (!descs.length) return "";
+  if (descs.length === 1) return descs[0];
+  if (descs.length === 2) return `${descs[0]} and ${descs[1]}`;
+  return `${descs.slice(0, -1).join(", ")}, and ${descs[descs.length - 1]}`;
+}
+
+function mobilityPhrase(input: NarrativeInput): string {
+  const parts: string[] = [];
+  const m = (input.mobility || "").toLowerCase();
+  if (m.includes("bed")) parts.push("bed-confined");
+  else if (m.includes("non") && m.includes("ambul")) parts.push("non-ambulatory");
+  else if (m.includes("wheelchair")) parts.push("wheelchair-dependent");
+  else if (m) parts.push(m);
+  if (input.bariatric) parts.push("requiring bariatric equipment");
   return parts.join(", ");
 }
 
+function equipmentPhrase(input: NarrativeInput): string {
+  const eq = input.equipment || {};
+  const parts: string[] = [];
+  const lpm = input.oxygenLpm ?? eq.oxygen_flow_rate;
+  if (input.oxygenDuringTransport || eq.oxygen) {
+    if (lpm) parts.push(`continuous oxygen at ${lpm} LPM via ${eq.oxygen_delivery_method || "nasal cannula"}`);
+    else parts.push("continuous oxygen during transport");
+  }
+  if (eq.stretcher_type) parts.push(`${String(eq.stretcher_type).toLowerCase()}`);
+  if (input.stairChairRequired || eq.stair_chair) parts.push("stair chair");
+  if (eq.cardiac_monitor) parts.push("cardiac monitor applied");
+  return parts.join(", ");
+}
+
+function joinSentences(...parts: (string | null | undefined)[]): string {
+  return parts
+    .map((p) => (p || "").trim())
+    .filter(Boolean)
+    .map((p) => (p.endsWith(".") ? p : p + "."))
+    .join(" ");
+}
+
 export function generateNarrative(input: NarrativeInput): string {
-  const type = input.transportType.toLowerCase();
-  const ageStr = input.patientAge ? `${input.patientAge} year old` : "";
-  const sexStr = input.patientSex === "M" ? "male" : input.patientSex === "F" ? "female" : "";
-  const loc = getLOCNarrative(input.levelOfConsciousness);
-  const skin = getSkinNarrative(input.skinCondition);
-  const vitalsStr = buildVitalsString(input.vitals);
-  const examStr = buildExamNarrative(input.physicalExam || {});
-  const equipStr = buildEquipmentString(input.equipment);
+  // Resolve "Other" placeholders into the free-text the user typed.
+  const chief = formatOtherDisplay(input.chiefComplaint, input.chiefComplaintOther || null);
+  const impression = formatOtherDisplay(input.primaryImpression, input.primaryImpressionOther || null);
+  const chiefLower = chief ? chief.replace(/^Other\s*—\s*/i, "").toLowerCase() : "";
+  const impressionLower = impression ? impression.replace(/^Other\s*—\s*/i, "").toLowerCase() : "";
 
-  if (type.includes("wound")) {
-    const coa = input.conditionOnArrival || {};
-    const woundType = coa.wound_type === "Other" ? (coa.wound_type_other || "wound") : (coa.wound_type || "wound");
-    const woundStage = coa.pressure_ulcer_stage ? ` (${coa.pressure_ulcer_stage})` : "";
-    const woundLoc = coa.wound_location ? ` located at ${coa.wound_location}` : "";
-    const mobility = coa.patient_mobility || coa.mobility || "";
+  const ageStr = input.patientAge ? `${input.patientAge}-year-old` : "";
+  const sexStr = input.patientSex === "M" ? "male" : input.patientSex === "F" ? "female" : "patient";
+  const dx = buildDiagnosisClause(input.icd10);
+  const mob = mobilityPhrase(input);
+  const equip = equipmentPhrase(input);
+  const v0 = vitalsSet(input.vitals?.[0]);
+  const stable = vitalsAllStable(input.vitals || []);
+  const exam = examFindings(input.physicalExam || {});
+  const origin = locationPhrase(input.originType, input.pickupAddress, "from");
+  const destination = locationPhrase(input.destinationType, input.destination, "to");
+  const tType = (input.transportType || "").toLowerCase();
+  const isEmergency = tType.includes("911") || tType.includes("emerg");
+  const isIft = tType.includes("ift") || tType.includes("inter") || tType.includes("discharge");
+  const isDialysis = tType.includes("dialysis");
+  const isWound = tType.includes("wound");
 
-    let narrative = `Unit ${input.truckName} was dispatched at ${fmtTime(input.dispatchTime)} for a scheduled wound care transport. `;
-    narrative += `Crew made patient contact at ${fmtTime(input.patientContactTime || input.atSceneTime)} at ${input.pickupAddress}. `;
-    narrative += `Patient is a ${ageStr} ${sexStr}`.trim();
-    narrative += ` presenting for scheduled wound care treatment. `;
-
-    narrative += `Patient has a documented ${woundType.toLowerCase()}${woundStage}${woundLoc}. `;
-    if (coa.wound_notes) narrative += `${coa.wound_notes}. `;
-
-    // Wound-care-specific medical necessity criteria
-    const wcCriteria: string[] = [];
-    if (input.wc_unsafe_positioning) wcCriteria.push("patient cannot maintain safe positioning in a standard vehicle due to wound location");
-    if (input.wc_sterile_dressing) wcCriteria.push("wound requires monitoring or sterile dressing maintenance during transport");
-    if (input.wc_wound_vac_drainage) wcCriteria.push("patient is on wound VAC or has active drainage requiring oversight during transit");
-    if (input.wc_dehiscence_risk) wcCriteria.push("patient condition creates risk of wound injury or dehiscence during movement");
-    if (input.wc_stretcher_required) wcCriteria.push("patient requires stretcher positioning unachievable in a wheelchair van or standard vehicle");
-    const uniqueCriteria = Array.from(new Set(wcCriteria));
-
-    if (uniqueCriteria.length > 0) {
-      narrative += `Ambulance transport is medically necessary because ${uniqueCriteria.join("; ")}. `;
-    } else if (input.medicalNecessityReason) {
-      narrative += `Ambulance transport is medically necessary: ${input.medicalNecessityReason.toLowerCase()}. `;
-    }
-
-    if (mobility) narrative += `Patient mobility: ${String(mobility).toLowerCase()}. `;
-
-    if (loc) narrative += `On assessment, patient was ${loc}`;
-    if (skin) narrative += `, skin ${skin}`;
-    narrative += ". ";
-
-    if (vitalsStr) narrative += `Vital signs: ${vitalsStr}. `;
-    if (equipStr) narrative += `Equipment: ${equipStr}. `;
-
-    narrative += `Wound integrity maintained throughout transport. Patient transported without incident to ${input.destination}, arriving at ${fmtTime(input.atDestinationTime || input.leftSceneTime)}. `;
-    narrative += `Transfer of care given to wound care facility staff at ${fmtTime(input.atDestinationTime)}. `;
-    narrative += `Crew returned to service at ${fmtTime(input.inServiceTime)}.`;
-
-    if (input.attendingMedicName) {
-      narrative += `\n\nAttending Medic: ${input.attendingMedicName}`;
-    }
-
-    return narrative;
+  // PCS phrasing — covers the dialysis-style "Bed-confined per PCS dated …"
+  // sentence the user wants. Falls back to medical-necessity reason if no PCS.
+  let pcsClause = "";
+  if (input.pcsOnFile && input.pcsSignedDate) {
+    const bedPart = mob ? `${mob.charAt(0).toUpperCase() + mob.slice(1)}` : "Medically necessary stretcher transport";
+    pcsClause = `${bedPart} per Physician Certification Statement signed ${fmtDate(input.pcsSignedDate)}`;
+  } else if (input.pcsOnFile) {
+    pcsClause = `${mob ? mob.charAt(0).toUpperCase() + mob.slice(1) : "Medically necessary"} per Physician Certification Statement on file`;
+  } else if (input.medicalNecessityReason) {
+    pcsClause = `Ambulance transport medically necessary because ${input.medicalNecessityReason.toLowerCase().replace(/\.$/, "")}`;
   }
 
-  if (type.includes("dialysis") || type.includes("outpatient")) {
-    const transportDesc = type.includes("dialysis") ? "scheduled non-emergency dialysis transport" : "scheduled outpatient transport";
+  // ---------- Sentence 1: dispatch & patient identification ----------
+  const dispatchKind = isEmergency ? "an emergency response"
+    : isDialysis ? "a scheduled non-emergency dialysis transport"
+    : isWound ? "a scheduled wound care transport"
+    : isIft ? "an inter-facility transfer"
+    : tType ? `a scheduled ${tType.replace(/_/g, " ")} transport`
+    : "a non-emergency transport";
 
-    let narrative = `Unit ${input.truckName} was dispatched at ${fmtTime(input.dispatchTime)} for a ${transportDesc}. `;
-    narrative += `Crew made patient contact at ${fmtTime(input.patientContactTime || input.atSceneTime)} at ${input.pickupAddress}. `;
-    narrative += `Patient is a ${ageStr} ${sexStr}`.trim();
+  const s1 = `Unit ${input.truckName} was dispatched at ${fmtTime(input.dispatchTime)} for ${dispatchKind} and made patient contact at ${fmtTime(input.patientContactTime || input.atSceneTime)}`;
 
-    if (input.chiefComplaint && input.chiefComplaint !== "No Complaint (routine transport)") {
-      narrative += ` presenting with ${input.chiefComplaint.toLowerCase()}. `;
-    } else {
-      narrative += ` presenting for routine ${type.includes("dialysis") ? "dialysis" : "medical"} treatment. `;
+  // ---------- Sentence 2: clinical picture — age/sex + diagnoses + complaint ----------
+  const patientPhrase = [ageStr, sexStr].filter(Boolean).join(" ") || "patient";
+  let s2 = `Patient is a ${patientPhrase}`;
+  if (dx) s2 += ` with ${dx}`;
+  if (chiefLower && !chiefLower.includes("routine") && !chiefLower.includes("no complaint") && !chiefLower.includes("transfer")) {
+    s2 += `, presenting with ${chiefLower}`;
+  } else if (isDialysis) {
+    s2 += `, transported for scheduled outpatient dialysis treatment`;
+  } else if (isWound) {
+    s2 += `, transported for scheduled wound care treatment`;
+  } else if (chiefLower) {
+    s2 += `, transported for ${chiefLower}`;
+  }
+  if (impressionLower && impressionLower !== chiefLower) s2 += `; on-scene impression is ${impressionLower}`;
+
+  // ---------- Sentence 3: PCS / medical necessity + mode of transport ----------
+  const modePhrase = mob.includes("bed") || isDialysis || isWound || isIft
+    ? "transferred via stretcher with crew assist"
+    : input.stairChairRequired
+      ? "moved via stair chair and stretcher with crew assist"
+      : "transported by stretcher with crew assist";
+
+  const s3 = pcsClause
+    ? `${pcsClause}, ${modePhrase} from ${origin} to ${destination}`
+    : `Patient ${modePhrase} from ${origin} to ${destination}`;
+
+  // ---------- Sentence 4: equipment & oxygen ----------
+  let s4 = "";
+  if (equip) s4 = `Equipment in use during transport included ${equip}`;
+
+  // ---------- Sentence 5: assessment ----------
+  const assessBits: string[] = [];
+  if (loc(input.levelOfConsciousness)) assessBits.push(`patient was ${loc(input.levelOfConsciousness)}`);
+  if (skin(input.skinCondition)) assessBits.push(`skin was ${skin(input.skinCondition)}`);
+  if (exam.length) assessBits.push(`exam notable for ${exam.slice(0, 3).join(", ")}`);
+  let s5 = assessBits.length ? `On assessment, ${assessBits.join("; ")}` : "";
+
+  // ---------- Sentence 6: vitals ----------
+  let s6 = "";
+  if (v0) {
+    s6 = `Initial vitals: ${v0}`;
+    if (input.vitals && input.vitals.length > 1) {
+      s6 += `, with ${input.vitals.length - 1} additional set${input.vitals.length > 2 ? "s" : ""} obtained en route`;
     }
-
-    if (input.medicalNecessityReason) {
-      const reason = input.medicalNecessityReason.toLowerCase();
-      narrative += `Patient requires stretcher transport due to: ${reason}. `;
-    }
-
-    if (loc) narrative += `On assessment, patient was ${loc}`;
-    if (skin) narrative += `, skin ${skin}`;
-    narrative += ". ";
-
-    if (vitalsStr) narrative += `Vital signs: ${vitalsStr}. `;
-    if (equipStr) narrative += `Equipment: ${equipStr}. `;
-
-    narrative += `Patient was loaded and transported without incident to ${input.destination}, arriving at ${fmtTime(input.atDestinationTime || input.leftSceneTime)}. `;
-    narrative += `Transfer of care given to facility staff at ${fmtTime(input.atDestinationTime)}. `;
-    narrative += `Crew returned to service at ${fmtTime(input.inServiceTime)}.`;
-
-    if (input.attendingMedicName) {
-      narrative += `\n\nAttending Medic: ${input.attendingMedicName}`;
-    }
-
-    return narrative;
+    if (stable) s6 += "; vitals remained stable throughout transport";
+  } else {
+    s6 = "Vitals stable throughout transport";
   }
 
-  if (type.includes("ift") || type.includes("discharge")) {
-    let narrative = `Unit ${input.truckName} was dispatched at ${fmtTime(input.dispatchTime)} for an inter-facility transfer. `;
-
-    if (input.sendingFacility?.facility_name) {
-      narrative += `Transfer requested from ${input.sendingFacility.facility_name}`;
-      if (input.sendingFacility.physician_name) narrative += ` by Dr. ${input.sendingFacility.physician_name}`;
-      if (input.sendingFacility.diagnosis) narrative += ` for ${input.sendingFacility.diagnosis}`;
-      narrative += ". ";
-    }
-
-    narrative += `Crew arrived on scene at ${fmtTime(input.atSceneTime)} and made patient contact at ${fmtTime(input.patientContactTime || input.atSceneTime)}. `;
-    narrative += `Patient is a ${ageStr} ${sexStr}`.trim() + ". ";
-
-    if (loc) narrative += `Patient was ${loc}`;
-    if (skin) narrative += `, skin ${skin}`;
-    narrative += ". ";
-
-    if (vitalsStr) narrative += `Vital signs: ${vitalsStr}. `;
-    if (examStr) narrative += examStr + " ";
-    if (equipStr) narrative += `Equipment: ${equipStr}. `;
-
-    narrative += `Patient was transported to ${input.destination}, arriving at ${fmtTime(input.atDestinationTime)}. `;
-    narrative += `Transfer of care completed. Crew in service at ${fmtTime(input.inServiceTime)}.`;
-
-    if (input.attendingMedicName) {
-      narrative += `\n\nAttending Medic: ${input.attendingMedicName}`;
-    }
-
-    return narrative;
+  // ---------- Sentence 7: course / disposition ----------
+  let s7 = "";
+  if (isEmergency) {
+    s7 = `Patient transported to ${destination}, arriving at ${fmtTime(input.atDestinationTime)}${input.disposition ? `, disposition ${input.disposition.toLowerCase()}` : ""}`;
+  } else {
+    s7 = `No acute complaints during transit. Patient arrived at ${destination} at ${fmtTime(input.atDestinationTime || input.leftSceneTime)} and transfer of care was given to receiving staff without incident`;
   }
 
-  // Emergency / complex
-  let narrative = `Unit ${input.truckName} was dispatched at ${fmtTime(input.dispatchTime)} for an emergency response. `;
-  narrative += `Crew arrived on scene at ${fmtTime(input.atSceneTime)} and established patient contact at ${fmtTime(input.patientContactTime || input.atSceneTime)}. `;
-  narrative += `Patient is a ${ageStr} ${sexStr}`.trim();
+  let s8 = `Crew returned to service at ${fmtTime(input.inServiceTime)}`;
 
-  if (input.chiefComplaint) {
-    narrative += ` with chief complaint of ${input.chiefComplaint.toLowerCase()}`;
-  }
-  narrative += ". ";
+  // ---------- Wound-care medical-necessity bullet → prose ----------
+  const wcReasons: string[] = [];
+  if (input.wc_unsafe_positioning) wcReasons.push("patient cannot maintain safe positioning in a standard vehicle due to wound location");
+  if (input.wc_sterile_dressing) wcReasons.push("wound requires sterile dressing maintenance during transport");
+  if (input.wc_wound_vac_drainage) wcReasons.push("patient is on wound VAC or has active drainage requiring oversight");
+  if (input.wc_dehiscence_risk) wcReasons.push("patient condition creates risk of wound dehiscence during movement");
+  if (input.wc_stretcher_required) wcReasons.push("patient requires stretcher positioning unachievable in a standard vehicle");
+  const woundClause = wcReasons.length
+    ? `Stretcher transport remains medically necessary because ${Array.from(new Set(wcReasons)).join("; ")}`
+    : "";
 
-  if (input.primaryImpression) narrative += `Primary impression: ${input.primaryImpression}. `;
-  if (loc) narrative += `Patient was ${loc}`;
-  if (skin) narrative += `, skin ${skin}`;
-  narrative += ". ";
+  const narrative = joinSentences(s1, s2, s3, woundClause, s4, s5, s6, s7, s8);
 
-  if (vitalsStr) narrative += `Initial vital signs: ${vitalsStr}. `;
-
-  if (input.vitals && input.vitals.length > 1) {
-    for (let i = 1; i < input.vitals.length; i++) {
-      const rv = buildVitalsString([input.vitals[i]]);
-      if (rv) narrative += `Repeat vitals set ${i + 1}: ${rv}. `;
-    }
-  }
-
-  if (examStr) narrative += `Physical exam findings: ${examStr} `;
-  if (equipStr) narrative += `Equipment: ${equipStr}. `;
-
-  narrative += `Patient transported to ${input.destination}, arriving at ${fmtTime(input.atDestinationTime)}. `;
-  if (input.disposition) narrative += `Disposition: ${input.disposition}. `;
-  narrative += `Crew in service at ${fmtTime(input.inServiceTime)}.`;
-
-  if (input.attendingMedicName) {
-    narrative += `\n\nAttending Medic: ${input.attendingMedicName}`;
-  }
-
-  return narrative;
+  return input.attendingMedicName
+    ? `${narrative}\n\nAttending Medic: ${input.attendingMedicName}`
+    : narrative;
 }
