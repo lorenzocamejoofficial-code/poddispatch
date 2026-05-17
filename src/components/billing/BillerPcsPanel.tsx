@@ -104,8 +104,16 @@ export function BillerPcsPanel({ tripId, patientId, onCompleted }: Props) {
       toast.error("All four fields are required to mark PCS complete");
       return;
     }
-    if (!/^\d{10}$/.test(form.pcs_physician_npi.trim())) {
+    const cleanNpi = form.pcs_physician_npi.trim();
+    if (!/^\d{10}$/.test(cleanNpi)) {
       toast.error("NPI must be exactly 10 digits");
+      return;
+    }
+    // Full Luhn checksum per CMS NPI spec (prefix 80840). Catches typos and
+    // transposed digits the bare 10-digit regex would let through.
+    const { isValidNpi, NPI_INVALID_MESSAGE } = await import("@/lib/npi-luhn");
+    if (!isValidNpi(cleanNpi)) {
+      toast.error(NPI_INVALID_MESSAGE);
       return;
     }
     setSaving(true);
