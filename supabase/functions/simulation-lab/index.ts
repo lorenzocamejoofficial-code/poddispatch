@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { ensureCmsChargeMasterForCompany } from "../_shared/seed-charge-master.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -527,6 +528,15 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
     step: "sandbox_tenant_company_ready",
     status: "ok",
     detail: `company_id=${companyId}`,
+  });
+
+  const rateSeed = await ensureCmsChargeMasterForCompany(admin, companyId);
+  pushSeedLog(logs, {
+    step: "cms_charge_master_ready",
+    status: rateSeed.ok ? "ok" : "error",
+    detail: rateSeed.ok
+      ? `medicareSeeded=${rateSeed.medicareSeeded}, ruralFlag=${rateSeed.ruralFlag ?? "unknown"}, updated=${rateSeed.updated ?? 0}`
+      : rateSeed.error,
   });
 
   try {
@@ -1698,6 +1708,8 @@ Deno.serve(async (req) => {
           facilities: facilities.count ?? 0,
           templatePatients: templates.count ?? 0,
         };
+        const rateSeed = await ensureCmsChargeMasterForCompany(admin, companyId);
+        result.chargeMaster = rateSeed;
         break;
       }
       case "status": {

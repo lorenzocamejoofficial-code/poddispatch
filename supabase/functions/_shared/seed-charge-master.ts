@@ -18,66 +18,64 @@ type SupabaseAdmin = any;
 const BASE_HCPCS = "A0428";   // BLS non-emergency base
 const MILEAGE_HCPCS = "A0425";
 
+async function lookupCmsRates(supabaseAdmin: SupabaseAdmin, zip5: string) {
+  const cleanZip = String(zip5 ?? "").replace(/\D/g, "").slice(0, 5);
+  let carrier: string | null = null;
+  let locality: string | null = null;
+  let ruralFlag: string | null = null;
+
+  if (cleanZip.length === 5) {
+    const { data: zipRow } = await supabaseAdmin
+      .from("cms_zip_locality")
+      .select("carrier, locality, rural_flag")
+      .eq("zip5", cleanZip)
+      .maybeSingle();
+    if (zipRow) {
+      carrier = zipRow.carrier;
+      locality = zipRow.locality;
+      ruralFlag = zipRow.rural_flag;
+    }
+  }
+
+  let medicareBase = 0;
+  let medicareMileage = 0;
+  let medicareSeeded = false;
+
+  if (carrier && locality) {
+    const { data: rates } = await supabaseAdmin
+      .from("cms_ambulance_fee_schedule")
+      .select("hcpcs, urban_rate, rural_rate, rural_lowest_quartile_rate, rural_miles_1_17_rate")
+      .eq("carrier", carrier)
+      .eq("locality", locality)
+      .in("hcpcs", [BASE_HCPCS, MILEAGE_HCPCS]);
+
+    const baseRow = rates?.find((r: any) => r.hcpcs === BASE_HCPCS);
+    const mileRow = rates?.find((r: any) => r.hcpcs === MILEAGE_HCPCS);
+    const pickBase = (r: any) =>
+      ruralFlag === "B" ? (r?.rural_lowest_quartile_rate ?? r?.rural_rate)
+      : ruralFlag === "R" ? r?.rural_rate
+      : r?.urban_rate;
+    const pickMileage = (r: any) =>
+      ruralFlag === "B" ? (r?.rural_miles_1_17_rate ?? r?.rural_rate)
+      : ruralFlag === "R" ? r?.rural_rate
+      : r?.urban_rate;
+
+    const b = baseRow ? Number(pickBase(baseRow)) : NaN;
+    const m = mileRow ? Number(pickMileage(mileRow)) : NaN;
+    if (Number.isFinite(b) && b > 0) { medicareBase = b; medicareSeeded = true; }
+    if (Number.isFinite(m) && m > 0) { medicareMileage = m; }
+  }
+
+  return { cleanZip, carrier, locality, ruralFlag, medicareBase, medicareMileage, medicareSeeded };
+}
+
 export async function seedChargeMasterForNewCompany(
   supabaseAdmin: SupabaseAdmin,
   companyId: string,
   zip5: string,
 ): Promise<{ ok: boolean; medicareSeeded: boolean; ruralFlag?: string; error?: string }> {
   try {
-    const cleanZip = String(zip5 ?? "").replace(/\D/g, "").slice(0, 5);
-
-    // 1. Lookup carrier+locality+rural flag from ZIP.
-    let carrier: string | null = null;
-    let locality: string | null = null;
-    let ruralFlag: string | null = null;
-
-    if (cleanZip.length === 5) {
-      const { data: zipRow } = await supabaseAdmin
-        .from("cms_zip_locality")
-        .select("carrier, locality, rural_flag")
-        .eq("zip5", cleanZip)
-        .maybeSingle();
-      if (zipRow) {
-        carrier = zipRow.carrier;
-        locality = zipRow.locality;
-        ruralFlag = zipRow.rural_flag;
-      }
-    }
-
-    // 2. Lookup base + mileage rates for that locality.
-    let medicareBase = 0;
-    let medicareMileage = 0;
-    let medicareSeeded = false;
-
-    if (carrier && locality) {
-      const { data: rates } = await supabaseAdmin
-        .from("cms_ambulance_fee_schedule")
-        .select("hcpcs, urban_rate, rural_rate, rural_lowest_quartile_rate, rural_miles_1_17_rate")
-        .eq("carrier", carrier)
-        .eq("locality", locality)
-        .in("hcpcs", [BASE_HCPCS, MILEAGE_HCPCS]);
-
-      const baseRow = rates?.find((r: any) => r.hcpcs === BASE_HCPCS);
-      const mileRow = rates?.find((r: any) => r.hcpcs === MILEAGE_HCPCS);
-
-      // Pick the right column based on rural flag.
-      // U = urban, R = rural, B = super-rural (lowest quartile bonus applies).
-      const pickBase = (r: any) =>
-        ruralFlag === "B" ? (r?.rural_lowest_quartile_rate ?? r?.rural_rate)
-        : ruralFlag === "R" ? r?.rural_rate
-        : r?.urban_rate;
-
-      const pickMileage = (r: any) =>
-        ruralFlag === "B" ? (r?.rural_miles_1_17_rate ?? r?.rural_rate)
-        : ruralFlag === "R" ? r?.rural_rate
-        : r?.urban_rate;
-
-      const b = baseRow ? Number(pickBase(baseRow)) : NaN;
-      const m = mileRow ? Number(pickMileage(mileRow)) : NaN;
-
-      if (Number.isFinite(b) && b > 0) { medicareBase = b; medicareSeeded = true; }
-      if (Number.isFinite(m) && m > 0) { medicareMileage = m; }
-    }
+    const { ruralFlag, medicareBase, medicareMileage, medicareSeeded } = await lookupCmsRates(supabaseAdmin, zip5);
 
     // 3. Build 5 standard payer rows.
     const rows = [
@@ -108,6 +106,66 @@ export async function seedChargeMasterForNewCompany(
     }
 
     return { ok: true, medicareSeeded, ruralFlag: ruralFlag ?? undefined };
+  } catch (err) {
+    return { ok: false, medicareSeeded: false, error: String(err) };
+  }
+}
+
+export async function ensureCmsChargeMasterForCompany(
+  supabaseAdmin: SupabaseAdmin,
+  companyId: string,
+): Promise<{ ok: boolean; medicareSeeded: boolean; ruralFlag?: string; updated?: number; error?: string }> {
+  try {
+    const { data: company } = await supabaseAdmin
+      .from("companies")
+      .select("address_zip")
+      .eq("id", companyId)
+      .maybeSingle();
+    const { ruralFlag, medicareBase, medicareMileage, medicareSeeded } = await lookupCmsRates(supabaseAdmin, company?.address_zip ?? "");
+
+    const standardRows = [
+      { payer_type: "medicare", base_rate: medicareBase, mileage_rate: medicareMileage, oxygen_fee: 50, bariatric_fee: 150, needs_review: !medicareSeeded },
+      { payer_type: "medicaid", base_rate: 0, mileage_rate: 0, oxygen_fee: 0, bariatric_fee: 0, needs_review: true },
+      { payer_type: "private", base_rate: 0, mileage_rate: 0, oxygen_fee: 0, bariatric_fee: 0, needs_review: true },
+      { payer_type: "self_pay", base_rate: 0, mileage_rate: 0, oxygen_fee: 0, bariatric_fee: 0, needs_review: true },
+      { payer_type: "default", base_rate: 0, mileage_rate: 0, oxygen_fee: 0, bariatric_fee: 0, needs_review: true },
+    ];
+
+    const { data: existingRates } = await supabaseAdmin
+      .from("charge_master")
+      .select("id, payer_type, base_rate, mileage_rate, auto_seeded")
+      .eq("company_id", companyId);
+
+    let updated = 0;
+    for (const row of standardRows) {
+      const existing = (existingRates ?? []).find((r: any) => String(r.payer_type).toLowerCase() === row.payer_type);
+      if (!existing) {
+        const { error } = await supabaseAdmin.from("charge_master").insert({
+          company_id: companyId,
+          ...row,
+          wait_rate_per_min: 0,
+          auto_seeded: true,
+        });
+        if (error) return { ok: false, medicareSeeded, ruralFlag: ruralFlag ?? undefined, error: error.message };
+        updated++;
+        continue;
+      }
+
+      if (row.payer_type === "medicare" && medicareSeeded && (!existing.auto_seeded || Number(existing.base_rate) <= 0 || Number(existing.mileage_rate) <= 0)) {
+        const { error } = await supabaseAdmin.from("charge_master").update({
+          base_rate: medicareBase,
+          mileage_rate: medicareMileage,
+          oxygen_fee: 50,
+          bariatric_fee: 150,
+          auto_seeded: true,
+          needs_review: false,
+        }).eq("id", existing.id);
+        if (error) return { ok: false, medicareSeeded, ruralFlag: ruralFlag ?? undefined, error: error.message };
+        updated++;
+      }
+    }
+
+    return { ok: true, medicareSeeded, ruralFlag: ruralFlag ?? undefined, updated };
   } catch (err) {
     return { ok: false, medicareSeeded: false, error: String(err) };
   }
