@@ -161,6 +161,13 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
   const userId = userData.user.id;
 
+  // pcr_submitted_by references profiles(id), NOT auth.users(id). Look up the
+  // creator's profile row so the FK on trip_records is satisfied; fall back to
+  // null (column is nullable) if no profile exists.
+  const { data: creatorProfile } = await admin
+    .from("profiles").select("id").eq("user_id", userId).maybeSingle();
+  const submitterProfileId: string | null = creatorProfile?.id ?? null;
+
   let body: ActionBody;
   try { body = await req.json(); } catch { return fail("Invalid JSON body"); }
   if (!body.action) return fail("action is required");
@@ -383,7 +390,7 @@ Deno.serve(async (req) => {
       signature_obtained: true,
       pcr_status: "submitted",
       pcr_completed_at: new Date().toISOString(),
-      pcr_submitted_by: userId,
+      pcr_submitted_by: submitterProfileId,
       pcr_type: scenario.transport_type === "emergency" ? "emergency" : "non_emergency",
       is_simulated: true,
       primary_payer: desiredPayer,
