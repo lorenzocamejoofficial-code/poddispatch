@@ -23,6 +23,8 @@ type ActionBody = {
   action: "seed" | "submit" | "seed_and_submit";
   scenario_slug?: string;
   run_id?: string;
+  local_date?: string; // YYYY-MM-DD from the caller's browser, so today
+                      // matches the Sim Lab seeder preconditions exactly.
 };
 
 function ok(payload: unknown, status = 200) {
@@ -163,6 +165,13 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return fail("Invalid JSON body"); }
   if (!body.action) return fail("action is required");
 
+  // Resolve "today" the same way the simulation-lab seeder preconditions do:
+  // honor an explicit local_date from the client; otherwise fall back to UTC.
+  const todayRe = /^\d{4}-\d{2}-\d{2}$/;
+  const today = body.local_date && todayRe.test(body.local_date)
+    ? body.local_date
+    : new Date().toISOString().slice(0, 10);
+
   // ── Helpers ──
   const loadScenario = async (slug: string) => {
     const { data, error } = await admin
@@ -195,8 +204,8 @@ Deno.serve(async (req) => {
     };
 
     // Preconditions: an active truck w/ a crew today + a template patient + at
-    // least one facility in Lorenzo Test Company
-    const today = new Date().toISOString().slice(0, 10);
+    // least one facility in Lorenzo Test Company. `today` is resolved above
+    // from the caller's local_date so we don't drift off the Sim Lab seeder.
     const [{ data: trucks }, { data: crews }, { data: templates }, { data: facilities }] = await Promise.all([
       admin.from("trucks").select("id, name, active").eq("company_id", LORENZO_TEST_COMPANY_ID).eq("active", true).limit(50),
       admin.from("crews").select("id, truck_id, member1_id").eq("company_id", LORENZO_TEST_COMPANY_ID).eq("active_date", today),
@@ -205,7 +214,11 @@ Deno.serve(async (req) => {
     ]);
     const crewByTruck = new Map<string, any>((crews ?? []).map((c: any) => [c.truck_id, c]));
     const truck = (trucks ?? []).find((t: any) => crewByTruck.has(t.id));
-    if (!truck) return await recordFailure("seeding", "No active truck with a crew assigned today in Lorenzo Test Company. Open Sim Lab → Seeder preconditions.");
+    if (!truck) return await recordFailure(
+      "seeding",
+      `No active truck with a crew assigned today (${today}) in Lorenzo Test Company. Open Sim Lab → Seeder preconditions and assign a crew for ${today}.`,
+      { readiness_issues: { today, trucks: (trucks ?? []).length, crews: (crews ?? []).length } as any },
+    );
     if (!templates || templates.length === 0) return await recordFailure("seeding", "No template patients exist. Mark at least one patient as a template in Patients → Templates.");
     if (!facilities || facilities.length === 0) return await recordFailure("seeding", "No facilities exist. Create at least one facility before running OATEST.");
     const crew = crewByTruck.get(truck.id)!;
