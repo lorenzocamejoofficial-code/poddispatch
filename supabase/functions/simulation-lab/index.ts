@@ -1625,6 +1625,12 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
+    // Honor the browser's local date so "today" matches /scheduling.
+    CURRENT_TODAY =
+      typeof body?.local_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.local_date)
+        ? body.local_date
+        : null;
+
     const companyId = await getTestTenantId(admin);
 
     let result: any;
