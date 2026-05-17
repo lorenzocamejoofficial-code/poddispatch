@@ -129,51 +129,24 @@ export default function SimulationLab() {
   }, [callLabChecked, toast]);
 
   const loadPrecond = useCallback(async () => {
-    const today = new Date().toISOString().slice(0, 10);
-    const cid = LORENZO_TEST_COMPANY_ID;
-    const sb: any = supabase;
-    // IMPORTANT: these queries must mirror the simulation-lab edge function's
-    // precondition checks exactly (see supabase/functions/simulation-lab/index.ts
-    // around the "Read REAL setup data" block). If they drift, this card will
-    // lie to the user — saying setup is missing when the seeder would actually
-    // accept it, or vice-versa.
-    const trucksRes: any = await sb
-      .from("trucks")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", cid)
-      .eq("is_simulated", false)
-      .eq("active", true);
-    // Crews today: same shape the seeder uses — crews row with active_date=today,
-    // joined back to an active, non-simulated truck.
-    const crewsTodayRes: any = await sb
-      .from("crews")
-      .select("id, truck_id, truck:trucks!inner(id, active, is_simulated)")
-      .eq("company_id", cid)
-      .eq("active_date", today)
-      .eq("truck.is_simulated", false)
-      .eq("truck.active", true);
-    const crewsAnyRes: any = await sb
-      .from("crews")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", cid);
-    const facilitiesRes: any = await sb
-      .from("facilities")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", cid)
-      .eq("is_simulated", false);
-    const templatesRes: any = await sb
-      .from("patients")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", cid)
-      .eq("is_template", true);
-    setPrecond({
-      trucks: trucksRes.count ?? 0,
-      crews: crewsAnyRes.count ?? 0,
-      facilities: facilitiesRes.count ?? 0,
-      templatePatients: templatesRes.count ?? 0,
-      crewsAssignedToday: (crewsTodayRes.data ?? []).length,
-    });
-  }, []);
+    // Route through the simulation-lab edge function (service role) so the
+    // counts are not subject to client-side RLS. Previously these were direct
+    // supabase reads, which returned 0 for any creator who was not also a
+    // member of the test tenant's company — making the card lie ("Crews: 0")
+    // even when crews were properly seeded.
+    try {
+      const result = await callLabChecked({ action: "preconditions" });
+      setPrecond({
+        trucks: result?.trucks ?? 0,
+        crews: result?.crews ?? 0,
+        facilities: result?.facilities ?? 0,
+        templatePatients: result?.templatePatients ?? 0,
+        crewsAssignedToday: result?.crewsAssignedToday ?? 0,
+      });
+    } catch (e: any) {
+      toast({ title: "Precondition load failed", description: e.message, variant: "destructive" });
+    }
+  }, [callLabChecked, toast]);
 
   const seedScenario = async (scenario: string) => {
     setLoading(`seed_${scenario}`);
