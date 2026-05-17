@@ -80,6 +80,7 @@ import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
+import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
 import { SecondaryClaimPanel } from "@/components/billing/SecondaryClaimPanel";
 import { RevenueCycleTab } from "@/components/billing/RevenueCycleTab";
 import { EmergencyEventPanel } from "@/components/billing/EmergencyEventPanel";
@@ -187,6 +188,7 @@ export default function BillingAndClaims() {
   const [secondaryFilter, setSecondaryFilter] = useState(false);
   const [hideTestClaims, setHideTestClaims] = useState(false);
   const { simulationRunId, refreshToken } = useSimulationSession();
+  const isSimulationCompany = useIsSimulationCompany();
   const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
   const [oaSending, setOaSending] = useState(false);
   const [oaReceiving, setOaReceiving] = useState(false);
@@ -196,7 +198,10 @@ export default function BillingAndClaims() {
   const fetchData = useCallback(async () => {
     setLoading(true);
 
-    let claimsQuery = supabase.from("claim_records" as any).select("*").or("is_simulated.eq.false,is_simulated.is.null").order("run_date", { ascending: false }).limit(1000);
+    let claimsQuery = supabase.from("claim_records" as any).select("*").order("run_date", { ascending: false }).limit(1000);
+    if (!isSimulationCompany) {
+      claimsQuery = claimsQuery.or("is_simulated.eq.false,is_simulated.is.null");
+    }
     if (simulationRunId) {
       claimsQuery = claimsQuery.eq("simulation_run_id", simulationRunId);
     }
@@ -256,7 +261,7 @@ export default function BillingAndClaims() {
       .then(({ data }) => {
         setReversalClaimIds(new Set(((data as any[]) ?? []).map((r: any) => r.claim_record_id)));
       });
-  }, [simulationRunId]);
+  }, [simulationRunId, isSimulationCompany]);
 
   const fetchQueueTrips = useCallback(async () => {
     setQueueLoading(true);
