@@ -280,8 +280,8 @@ Deno.serve(async (req) => {
     const [{ data: templates }, { data: facilities }] = await Promise.all([
       admin.from("patients").select("*")
         .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("is_template", true).limit(20),
-      admin.from("facilities").select("id, name, facility_type, address_line, city, state, postal_code")
-        .eq("company_id", LORENZO_TEST_COMPANY_ID).limit(30),
+      admin.from("facilities").select("id, name, facility_type, address")
+        .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("is_simulated", false).limit(30),
     ]);
     const truck = pre.raw.trucks.find((t: any) =>
       pre.raw.crewsToday.some((c: any) => c.truck_id === t.id),
@@ -318,8 +318,8 @@ Deno.serve(async (req) => {
     const serviceLevel = (tplData.pcr?.service_level ?? tplData.leg?.service_level ?? scenario.transport_type ?? "BLS").toString().toUpperCase();
     const originFac = facilities[0];
     const destFac = facilities[Math.min(1, facilities.length - 1)];
-    const pickupAddr = `${originFac.address_line ?? "100 Test St"}, ${originFac.city ?? "Atlanta"}, ${originFac.state ?? "GA"} ${originFac.postal_code ?? "30301"}`;
-    const dropoffAddr = `${destFac.address_line ?? "200 Test Ave"}, ${destFac.city ?? "Atlanta"}, ${destFac.state ?? "GA"} ${destFac.postal_code ?? "30302"}`;
+    const pickupAddr = originFac.address ?? "100 Test St, Atlanta, GA 30301";
+    const dropoffAddr = destFac.address ?? "200 Test Ave, Atlanta, GA 30302";
 
     const legPayload = {
       patient_id: patient.id,
@@ -442,13 +442,14 @@ Deno.serve(async (req) => {
       return fail(summary, { stage, run_id: runId });
     };
 
-    const [{ data: claim }, { data: company }, { data: verif }] = await Promise.all([
+    const [{ data: claim }, { data: company }] = await Promise.all([
       admin.from("claim_records").select("*").eq("id", run.claim_id).maybeSingle(),
-      admin.from("companies").select("name, address_line, city, state, postal_code").eq("id", LORENZO_TEST_COMPANY_ID).maybeSingle(),
-      admin.from("company_verifications").select("npi_number, tax_id").eq("company_id", LORENZO_TEST_COMPANY_ID).maybeSingle(),
+      admin.from("companies").select("name, npi_number, ein_number, address_street, address_city, address_state, address_zip").eq("id", LORENZO_TEST_COMPANY_ID).maybeSingle(),
     ]);
     if (!claim) return await recordSubmitFailure("generator", "claim not found");
-    if (!verif?.npi_number || !verif?.tax_id) return await recordSubmitFailure("generator", "Lorenzo Test Company is missing NPI or Tax ID — set them in Verification before running OATEST.");
+    const providerNpi = s(company?.npi_number).replace(/\D/g, "");
+    const providerTaxId = s(company?.ein_number).replace(/\D/g, "");
+    if (providerNpi.length !== 10 || providerTaxId.length < 9) return await recordSubmitFailure("generator", "Lorenzo Test Company is missing Provider NPI or EIN/Tax ID — set them on the company profile before running OATEST.");
 
     const { data: patient } = await admin
       .from("patients").select("*").eq("id", claim.patient_id!).maybeSingle();
@@ -461,12 +462,12 @@ Deno.serve(async (req) => {
       filename, testMode: true,
       provider: {
         name: company?.name ?? "LORENZO TEST",
-        npi: verif.npi_number,
-        tax_id: verif.tax_id,
-        addr: company?.address_line ?? "100 TEST ST",
-        city: company?.city ?? "ATLANTA",
-        state: company?.state ?? "GA",
-        zip: (company?.postal_code ?? "30301").slice(0, 5),
+        npi: providerNpi,
+        tax_id: providerTaxId,
+        addr: company?.address_street ?? "100 TEST ST",
+        city: company?.address_city ?? "ATLANTA",
+        state: company?.address_state ?? "GA",
+        zip: (company?.address_zip ?? "30301").slice(0, 5),
       },
       submitter: { name: "PODDISPATCH", id: "PODDISPATCH", contact: "LORENZO", phone: "4045551212" },
       receiver: { name: "OFFICE ALLY", id: "OFFALLY" },
