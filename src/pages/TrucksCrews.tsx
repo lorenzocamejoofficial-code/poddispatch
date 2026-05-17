@@ -274,6 +274,7 @@ export default function TrucksCrews() {
   const [copyDialog, setCopyDialog] = useState(false);
   const [copyHorizon, setCopyHorizon] = useState<"1m" | "3m" | "rest_of_year">("1m");
   const [copyMode, setCopyMode] = useState<"match" | "every_day">("match");
+  const [copySourceWeekRef, setCopySourceWeekRef] = useState<string>("");
   const [copying, setCopying] = useState(false);
 
   const fetchAll = useCallback(async () => {
@@ -545,11 +546,45 @@ export default function TrucksCrews() {
   // Existing assignments on any target date are preserved (never overwritten),
   // so dispatchers can still tweak individual trucks/crews/days afterward.
   const copyWeekForward = async () => {
-    if (crews.length === 0) { toast.error("No assignments on this week to copy"); return; }
     setCopying(true);
     try {
+      // Resolve source week (defaults to currently viewed week)
+      const sourceRef = copySourceWeekRef || currentWeekRef;
+      const sourceWeekDates = getWeekDates(sourceRef);
+
+      // Load source-week crews (use cached `crews` if it's the viewed week)
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      let sourceCrews: CrewRecord[] = [];
+      if (sourceWeekDates[0] === weekDates[0]) {
+        sourceCrews = crews;
+      } else {
+        const { data: srcData, error: srcErr } = await supabase
+          .from("crews")
+          .select("*")
+          .eq("company_id", companyId)
+          .gte("active_date", sourceWeekDates[0])
+          .lte("active_date", sourceWeekDates[6]);
+        if (srcErr) throw srcErr;
+        sourceCrews = (srcData ?? []).map((cr: any) => ({
+          id: cr.id,
+          truck_id: cr.truck_id,
+          member1_id: cr.member1_id ?? null,
+          member2_id: cr.member2_id ?? null,
+          member3_id: cr.member3_id ?? null,
+          member1_name: null,
+          member2_name: null,
+          member3_name: null,
+          active_date: cr.active_date,
+        }));
+      }
+      if (sourceCrews.length === 0) {
+        toast.error("No assignments on the selected source week");
+        setCopying(false);
+        return;
+      }
+
       // Compute horizon end date (exclusive of source week)
-      const sourceStart = new Date(weekDates[0] + "T12:00:00");
+      const sourceStart = new Date(sourceWeekDates[0] + "T12:00:00");
       const horizonEnd = new Date(sourceStart);
       if (copyHorizon === "1m") horizonEnd.setMonth(horizonEnd.getMonth() + 1);
       else if (copyHorizon === "3m") horizonEnd.setMonth(horizonEnd.getMonth() + 3);
@@ -570,7 +605,6 @@ export default function TrucksCrews() {
       rangeEndDate.setDate(rangeEndDate.getDate() + 6);
       const rangeEnd = rangeEndDate.toISOString().split("T")[0];
 
-      const { data: companyId } = await supabase.rpc("get_my_company_id");
       const { data: existingCrews } = await supabase
         .from("crews").select("active_date, truck_id")
         .eq("company_id", companyId)
@@ -583,8 +617,8 @@ export default function TrucksCrews() {
         // to the matching day-of-week in each target week.
         for (const weekStart of targetWeekStarts) {
           const targetDates = getWeekDates(weekStart);
-          for (const crew of crews) {
-            const srcIdx = weekDates.indexOf(crew.active_date);
+          for (const crew of sourceCrews) {
+            const srcIdx = sourceWeekDates.indexOf(crew.active_date);
             if (srcIdx === -1) continue;
             const targetDate = targetDates[srcIdx];
             const key = `${targetDate}_${crew.truck_id}`;
@@ -605,7 +639,7 @@ export default function TrucksCrews() {
         // week, use its latest source assignment as the template and apply it
         // to all 7 days of each target week.
         const templateByTruck = new Map<string, CrewRecord>();
-        for (const crew of crews) {
+        for (const crew of sourceCrews) {
           const existing = templateByTruck.get(crew.truck_id);
           if (!existing || crew.active_date > existing.active_date) {
             templateByTruck.set(crew.truck_id, crew);
@@ -776,7 +810,7 @@ export default function TrucksCrews() {
               <Button variant="outline" size="sm" className="h-8" onClick={goToToday}><CalendarDays className="mr-1.5 h-3.5 w-3.5" /> Today</Button>
               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigateWeek(1)}><ChevronRight className="h-4 w-4" /></Button>
               <span className="text-sm font-semibold text-foreground">{getWeekLabel(weekDates)}</span>
-              <Button variant="outline" size="sm" className="h-8" onClick={() => { setCopyHorizon("1m"); setCopyDialog(true); }}>
+              <Button variant="outline" size="sm" className="h-8" onClick={() => { setCopyHorizon("1m"); setCopySourceWeekRef(currentWeekRef); setCopyDialog(true); }}>
                 <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy Week
               </Button>
             </div>
@@ -898,10 +932,56 @@ export default function TrucksCrews() {
             <div className="space-y-4 py-2">
               <div className="rounded-md border bg-muted/30 p-3">
                 <Label className="text-xs text-muted-foreground">Source Week</Label>
-                <p className="text-sm font-semibold text-foreground mt-1">{getWeekLabel(weekDates)}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {crews.length} crew assignment{crews.length !== 1 ? "s" : ""} on this week
-                </p>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => {
+                      const d = new Date((copySourceWeekRef || currentWeekRef) + "T12:00:00");
+                      d.setDate(d.getDate() - 7);
+                      setCopySourceWeekRef(d.toISOString().split("T")[0]);
+                    }}
+                  >
+                    ‹ Prev
+                  </Button>
+                  <p className="text-sm font-semibold text-foreground text-center flex-1">
+                    {getWeekLabel(getWeekDates(copySourceWeekRef || currentWeekRef))}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => {
+                      const d = new Date((copySourceWeekRef || currentWeekRef) + "T12:00:00");
+                      d.setDate(d.getDate() + 7);
+                      setCopySourceWeekRef(d.toISOString().split("T")[0]);
+                    }}
+                  >
+                    Next ›
+                  </Button>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <Input
+                    type="date"
+                    value={copySourceWeekRef || currentWeekRef}
+                    onChange={(e) => setCopySourceWeekRef(e.target.value)}
+                    className="h-7 text-xs"
+                  />
+                  {(copySourceWeekRef && copySourceWeekRef !== currentWeekRef) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setCopySourceWeekRef(currentWeekRef)}
+                    >
+                      Reset
+                    </Button>
+                  )}
+                </div>
               </div>
               <div>
                 <Label className="mb-2 block">Extend pattern for</Label>
