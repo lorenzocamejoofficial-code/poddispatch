@@ -475,6 +475,15 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
 // `is_simulated=true`.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Shared "today" reference. Set by the request handler from `body.local_date`
+// so seeding, preconditions, status, and verify all share the SAME day as the
+// browser. Without this we fall back to UTC, which silently reports 0 crews
+// assigned when the user's local day is one behind UTC.
+let CURRENT_TODAY: string | null = null;
+function getToday(): string {
+  return CURRENT_TODAY ?? new Date().toISOString().slice(0, 10);
+}
+
 async function seedScenario(admin: any, companyId: string, userId: string, scenarioKey: string, seedSize: string = "small") {
   const baseConfig = SCENARIOS[scenarioKey];
   if (!baseConfig) {
@@ -484,7 +493,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
   const logs: SeedStepLog[] = [];
   const rowErrors: SeedRowError[] = [];
   const runId = crypto.randomUUID();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getToday();
 
   const sizeMultiplier = SEED_SIZES[seedSize] || SEED_SIZES.small;
   const config: ScenarioConfig = {
@@ -935,7 +944,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
 }
 
 async function injectEvent(admin: any, companyId: string, eventType: string) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getToday();
 
   switch (eventType) {
     case "facility_behind": {
@@ -1053,7 +1062,7 @@ async function injectEvent(admin: any, companyId: string, eventType: string) {
       const { data: completed } = await admin.from("trip_records")
         .select("id")
         .eq("company_id", companyId).eq("is_simulated", true)
-        .eq("status", "completed").eq("run_date", new Date().toISOString().slice(0, 10))
+        .eq("status", "completed").eq("run_date", getToday())
         .limit(5);
       if (completed) {
         for (const t of completed) {
@@ -1076,7 +1085,7 @@ async function injectEvent(admin: any, companyId: string, eventType: string) {
 }
 
 async function runChecks(admin: any, companyId: string) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getToday();
   const results: { name: string; category: string; pass: boolean; reason: string }[] = [];
 
   // DISPATCH CHECK 1: No overlapping runs per truck
@@ -1351,7 +1360,7 @@ async function runChecks(admin: any, companyId: string) {
 }
 
 async function generateSummary(admin: any, companyId: string) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getToday();
 
   const [tripsRes, patientsRes, trucksRes, crewsRes, overridesRes, bLegsRes] = await Promise.all([
     admin.from("trip_records").select("*").eq("company_id", companyId).eq("is_simulated", true).eq("run_date", today),
@@ -1616,6 +1625,12 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
+    // Honor the browser's local date so "today" matches /scheduling.
+    CURRENT_TODAY =
+      typeof body?.local_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.local_date)
+        ? body.local_date
+        : null;
+
     const companyId = await getTestTenantId(admin);
 
     let result: any;
@@ -1655,7 +1670,7 @@ Deno.serve(async (req) => {
         // Mirrors the seedScenario() precondition reads, using the service-role
         // admin client so it is not subject to RLS (the client-side equivalent
         // returned 0 for creators not in the test tenant's company).
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getToday();
         const [trucks, crewsToday, crewsAny, facilities, templates] = await Promise.all([
           admin.from("trucks").select("id", { count: "exact", head: true })
             .eq("company_id", companyId).eq("is_simulated", false).eq("active", true),
@@ -1699,7 +1714,7 @@ Deno.serve(async (req) => {
       }
       case "verify": {
         // Cross-module wiring verification
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getToday();
         const checks: { name: string; pass: boolean; detail: string; table?: string }[] = [];
 
         // 1. Count consistency: trucks
@@ -1756,7 +1771,7 @@ Deno.serve(async (req) => {
         break;
       }
       case "scheduling_validate": {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getToday();
         const checks: { name: string; pass: boolean; detail: string }[] = [];
 
         // 1. Trucks created
