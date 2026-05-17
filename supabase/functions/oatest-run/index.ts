@@ -379,6 +379,8 @@ Deno.serve(async (req) => {
       left_scene_time: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
       arrived_dropoff_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
       in_service_time: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+      loaded_at: new Date(Date.now() - 65 * 60 * 1000).toISOString(),
+      dropped_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
       vitals_json: [{ taken_at: new Date(Date.now() - 70 * 60 * 1000).toISOString(), bp: "120/80", hr: 80, rr: 16, spo2: 98 }],
       blood_pressure: "120/80", heart_rate: 80, oxygen_saturation: 98, respiration_rate: 16,
       vitals_taken_at: new Date(Date.now() - 70 * 60 * 1000).toISOString(),
