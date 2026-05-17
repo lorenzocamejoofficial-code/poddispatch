@@ -104,7 +104,15 @@ export default function SimulationLab() {
   }, [queryClient]);
 
   const callLab = useCallback(async (body: any) => {
-    const { data, error } = await supabase.functions.invoke("simulation-lab", { body });
+    // Always send the browser's LOCAL date so the edge function's notion of
+    // "today" matches what the user sees in /scheduling. Without this the
+    // function defaults to UTC and reports stale/zero counts when the user's
+    // local day is one behind UTC (evening US timezones).
+    const n = new Date();
+    const localDate = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`;
+    const { data, error } = await supabase.functions.invoke("simulation-lab", {
+      body: { local_date: localDate, ...body },
+    });
     if (error) throw new Error(error.message);
     return data;
   }, []);
