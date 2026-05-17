@@ -273,6 +273,7 @@ export default function TrucksCrews() {
   // Copy week dialog – extrapolate current week's pattern forward
   const [copyDialog, setCopyDialog] = useState(false);
   const [copyHorizon, setCopyHorizon] = useState<"1m" | "3m" | "rest_of_year">("1m");
+  const [copyMode, setCopyMode] = useState<"match" | "every_day">("match");
   const [copying, setCopying] = useState(false);
 
   const fetchAll = useCallback(async () => {
@@ -577,23 +578,56 @@ export default function TrucksCrews() {
       const existingKeys = new Set((existingCrews ?? []).map((c) => `${c.active_date}_${c.truck_id}`));
 
       const newCrews: any[] = [];
-      for (const weekStart of targetWeekStarts) {
-        const targetDates = getWeekDates(weekStart);
+      if (copyMode === "match") {
+        // Replicate week exactly: only the days that have assignments get copied
+        // to the matching day-of-week in each target week.
+        for (const weekStart of targetWeekStarts) {
+          const targetDates = getWeekDates(weekStart);
+          for (const crew of crews) {
+            const srcIdx = weekDates.indexOf(crew.active_date);
+            if (srcIdx === -1) continue;
+            const targetDate = targetDates[srcIdx];
+            const key = `${targetDate}_${crew.truck_id}`;
+            if (existingKeys.has(key)) continue;
+            existingKeys.add(key);
+            newCrews.push({
+              truck_id: crew.truck_id,
+              member1_id: crew.member1_id,
+              member2_id: crew.member2_id,
+              member3_id: crew.member3_id,
+              active_date: targetDate,
+              company_id: companyId,
+            });
+          }
+        }
+      } else {
+        // Every-day mode: for each truck that has ANY assignment in the source
+        // week, use its latest source assignment as the template and apply it
+        // to all 7 days of each target week.
+        const templateByTruck = new Map<string, CrewRecord>();
         for (const crew of crews) {
-          const srcIdx = weekDates.indexOf(crew.active_date);
-          if (srcIdx === -1) continue;
-          const targetDate = targetDates[srcIdx];
-          const key = `${targetDate}_${crew.truck_id}`;
-          if (existingKeys.has(key)) continue;
-          existingKeys.add(key);
-          newCrews.push({
-            truck_id: crew.truck_id,
-            member1_id: crew.member1_id,
-            member2_id: crew.member2_id,
-            member3_id: crew.member3_id,
-            active_date: targetDate,
-            company_id: companyId,
-          });
+          const existing = templateByTruck.get(crew.truck_id);
+          if (!existing || crew.active_date > existing.active_date) {
+            templateByTruck.set(crew.truck_id, crew);
+          }
+        }
+        for (const weekStart of targetWeekStarts) {
+          const targetDates = getWeekDates(weekStart);
+          for (const targetDate of targetDates) {
+            for (const [truckId, tmpl] of templateByTruck) {
+              const key = `${targetDate}_${truckId}`;
+              if (existingKeys.has(key)) continue;
+              existingKeys.add(key);
+              newCrews.push({
+                truck_id: truckId,
+                member1_id: tmpl.member1_id,
+                member2_id: tmpl.member2_id,
+                member3_id: tmpl.member3_id,
+                active_date: targetDate,
+                company_id: companyId,
+              });
+            }
+          }
         }
       }
 
@@ -891,6 +925,25 @@ export default function TrucksCrews() {
                     <div className="text-sm">
                       <div className="font-medium">Rest of the year</div>
                       <div className="text-xs text-muted-foreground">Repeat through Dec 31 of the source year</div>
+                    </div>
+                  </label>
+                </RadioGroup>
+              </div>
+              <div>
+                <Label className="mb-2 block">How should days fill in?</Label>
+                <RadioGroup value={copyMode} onValueChange={(v) => setCopyMode(v as any)} className="space-y-2">
+                  <label className="flex items-center gap-2 rounded-md border p-2.5 cursor-pointer hover:bg-muted/40">
+                    <RadioGroupItem value="match" id="mode-match" />
+                    <div className="text-sm">
+                      <div className="font-medium">Match this week exactly</div>
+                      <div className="text-xs text-muted-foreground">Only the days assigned here get copied to the same day each week (empty days stay empty)</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-2 rounded-md border p-2.5 cursor-pointer hover:bg-muted/40">
+                    <RadioGroupItem value="every_day" id="mode-every" />
+                    <div className="text-sm">
+                      <div className="font-medium">Apply to every day</div>
+                      <div className="text-xs text-muted-foreground">Each assigned truck/crew here fills all 7 days of every upcoming week</div>
                     </div>
                   </label>
                 </RadioGroup>
