@@ -20,7 +20,7 @@ const corsHeaders = {
 const LORENZO_TEST_COMPANY_ID = "f53311c3-a40e-4b2b-b4c2-5aec852f7789";
 
 type ActionBody = {
-  action: "seed" | "submit" | "seed_and_submit";
+  action: "seed" | "submit" | "seed_and_submit" | "preconditions";
   scenario_slug?: string;
   run_id?: string;
   local_date?: string; // YYYY-MM-DD from the caller's browser, so today
@@ -181,6 +181,56 @@ Deno.serve(async (req) => {
     return data;
   };
 
+  // Shared preconditions read: every check the runner depends on, in ONE
+  // place. `seed` consumes this; the `preconditions` action just returns it
+  // so the UI can render a status panel that matches the Sim Lab seeder.
+  const readPreconditions = async () => {
+    const [trucksRes, crewsTodayRes, crewsAnyRes, templatesRes, facilitiesRes, verifRes, scenariosRes] = await Promise.all([
+      admin.from("trucks").select("id, name, active")
+        .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("active", true).limit(50),
+      admin.from("crews").select("id, truck_id, member1_id")
+        .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("active_date", today),
+      admin.from("crews").select("id", { count: "exact", head: true })
+        .eq("company_id", LORENZO_TEST_COMPANY_ID),
+      admin.from("patients").select("id", { count: "exact", head: true })
+        .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("is_template", true),
+      admin.from("facilities").select("id", { count: "exact", head: true })
+        .eq("company_id", LORENZO_TEST_COMPANY_ID),
+      admin.from("company_verifications").select("npi_number, tax_id")
+        .eq("company_id", LORENZO_TEST_COMPANY_ID).maybeSingle(),
+      admin.from("oatest_scenarios").select("id", { count: "exact", head: true }).eq("enabled", true),
+    ]);
+    const trucks = trucksRes.data ?? [];
+    const crewsToday = crewsTodayRes.data ?? [];
+    const truckIdsWithCrew = new Set(crewsToday.map((c: any) => c.truck_id));
+    const trucksWithCrewToday = trucks.filter((t: any) => truckIdsWithCrew.has(t.id)).length;
+    return {
+      today,
+      companyId: LORENZO_TEST_COMPANY_ID,
+      trucks: trucks.length,
+      crews: crewsAnyRes.count ?? 0,
+      crewsAssignedToday: crewsToday.length,
+      trucksWithCrewToday,
+      templatePatients: templatesRes.count ?? 0,
+      facilities: facilitiesRes.count ?? 0,
+      enabledScenarios: scenariosRes.count ?? 0,
+      npiOnFile: !!verifRes.data?.npi_number,
+      taxIdOnFile: !!verifRes.data?.tax_id,
+      raw: { trucks, crewsToday },
+    };
+  };
+
+  // ── PRECONDITIONS (read-only status for the UI panel) ──
+  if (body.action === "preconditions") {
+    try {
+      const pre = await readPreconditions();
+      const { raw: _raw, ...summary } = pre;
+      return ok({ ok: true, preconditions: summary });
+    } catch (e: any) {
+      return fail(`preconditions read failed: ${e.message}`);
+    }
+  }
+
   // ── SEED ──
   if (body.action === "seed" || body.action === "seed_and_submit") {
     if (!body.scenario_slug) return fail("scenario_slug is required");
@@ -203,25 +253,37 @@ Deno.serve(async (req) => {
       return fail(summary, { stage, run_id: runId });
     };
 
-    // Preconditions: an active truck w/ a crew today + a template patient + at
-    // least one facility in Lorenzo Test Company. `today` is resolved above
-    // from the caller's local_date so we don't drift off the Sim Lab seeder.
-    const [{ data: trucks }, { data: crews }, { data: templates }, { data: facilities }] = await Promise.all([
-      admin.from("trucks").select("id, name, active").eq("company_id", LORENZO_TEST_COMPANY_ID).eq("active", true).limit(50),
-      admin.from("crews").select("id, truck_id, member1_id").eq("company_id", LORENZO_TEST_COMPANY_ID).eq("active_date", today),
-      admin.from("patients").select("*").eq("company_id", LORENZO_TEST_COMPANY_ID).eq("is_template", true).limit(20),
-      admin.from("facilities").select("id, name, facility_type, address_line, city, state, postal_code").eq("company_id", LORENZO_TEST_COMPANY_ID).limit(30),
+    // Pull every precondition the runner depends on and bail with a single,
+    // structured failure that the UI panel can render.
+    const pre = await readPreconditions();
+    const issues: string[] = [];
+    if (pre.trucksWithCrewToday === 0) issues.push(`No active truck with a crew assigned today (${today})`);
+    if (pre.templatePatients === 0) issues.push("No template patients exist (Patients → Templates)");
+    if (pre.facilities === 0) issues.push("No facilities exist");
+    if (!pre.npiOnFile || !pre.taxIdOnFile) issues.push("Lorenzo Test Company is missing NPI or Tax ID (Verification)");
+    if (pre.enabledScenarios === 0) issues.push("No OATEST scenarios are enabled");
+    if (issues.length > 0) {
+      const { raw: _raw, ...summary } = pre;
+      return await recordFailure(
+        "preconditions",
+        issues.join(" | "),
+        { readiness_issues: { preconditions: summary } as any },
+      );
+    }
+    // Re-read the rows we actually need (templates + facilities full records).
+    const [{ data: templates }, { data: facilities }] = await Promise.all([
+      admin.from("patients").select("*")
+        .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("is_template", true).limit(20),
+      admin.from("facilities").select("id, name, facility_type, address_line, city, state, postal_code")
+        .eq("company_id", LORENZO_TEST_COMPANY_ID).limit(30),
     ]);
-    const crewByTruck = new Map<string, any>((crews ?? []).map((c: any) => [c.truck_id, c]));
-    const truck = (trucks ?? []).find((t: any) => crewByTruck.has(t.id));
-    if (!truck) return await recordFailure(
-      "seeding",
-      `No active truck with a crew assigned today (${today}) in Lorenzo Test Company. Open Sim Lab → Seeder preconditions and assign a crew for ${today}.`,
-      { readiness_issues: { today, trucks: (trucks ?? []).length, crews: (crews ?? []).length } as any },
-    );
-    if (!templates || templates.length === 0) return await recordFailure("seeding", "No template patients exist. Mark at least one patient as a template in Patients → Templates.");
-    if (!facilities || facilities.length === 0) return await recordFailure("seeding", "No facilities exist. Create at least one facility before running OATEST.");
-    const crew = crewByTruck.get(truck.id)!;
+    const truck = pre.raw.trucks.find((t: any) =>
+      pre.raw.crewsToday.some((c: any) => c.truck_id === t.id),
+    )!;
+    const crew = pre.raw.crewsToday.find((c: any) => c.truck_id === truck.id)!;
+    if (!templates || templates.length === 0 || !facilities || facilities.length === 0) {
+      return await recordFailure("preconditions", "template/facility re-read returned empty");
+    }
 
     // Build a fresh patient cloned from template, overriding payer per scenario
     const tpl = templates[0];
