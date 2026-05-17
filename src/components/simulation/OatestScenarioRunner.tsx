@@ -162,7 +162,7 @@ export function OatestScenarioRunner() {
                 { label: "Template patients", value: pre.templatePatients, ok: pre.templatePatients > 0 },
                 { label: "Facilities", value: pre.facilities, ok: pre.facilities > 0 },
                 { label: "Enabled scenarios", value: pre.enabledScenarios, ok: pre.enabledScenarios > 0 },
-                { label: "NPI + Tax ID", value: pre.npiOnFile && pre.taxIdOnFile ? "yes" : "no", ok: pre.npiOnFile && pre.taxIdOnFile },
+                { label: "Provider NPI + EIN", value: pre.npiOnFile && pre.taxIdOnFile ? "yes" : "no", ok: pre.npiOnFile && pre.taxIdOnFile },
               ].map(s => (
                 <div key={s.label} className={`rounded-md border p-2 ${s.ok ? "" : "border-destructive/40 bg-destructive/5"}`}>
                   <p className="text-muted-foreground">{s.label}</p>
@@ -186,7 +186,8 @@ export function OatestScenarioRunner() {
           <p className="text-[11px] text-muted-foreground mt-1">
             Each scenario drives the same dispatch → PCR → claim pipeline a tenant uses. <strong>Seed</strong> creates the
             trip + completes the PCR; <strong>Submit</strong> generates a real 837P (OATEST envelope) and queues it for
-            Office Ally. Failures show the exact pipeline stage that broke — that's a real software gap.
+            Office Ally. Provider NPI/EIN are read from Lorenzo Test Company's company profile. Failures show the exact
+            pipeline stage that broke — that's a real software gap.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">

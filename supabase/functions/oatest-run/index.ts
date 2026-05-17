@@ -185,25 +185,31 @@ Deno.serve(async (req) => {
   // place. `seed` consumes this; the `preconditions` action just returns it
   // so the UI can render a status panel that matches the Sim Lab seeder.
   const readPreconditions = async () => {
-    const [trucksRes, crewsTodayRes, crewsAnyRes, templatesRes, facilitiesRes, verifRes, scenariosRes] = await Promise.all([
-      admin.from("trucks").select("id, name, active")
-        .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("active", true).limit(50),
-      admin.from("crews").select("id, truck_id, member1_id")
+    const [trucksRes, crewsTodayRes, crewsAnyRes, templatesRes, facilitiesRes, companyRes, scenariosRes] = await Promise.all([
+      admin.from("trucks").select("id, name, active, is_simulated")
+        .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("is_simulated", false).eq("active", true).limit(50),
+      admin.from("crews").select("id, truck_id, member1_id, member2_id, member3_id")
         .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("active_date", today),
       admin.from("crews").select("id", { count: "exact", head: true })
         .eq("company_id", LORENZO_TEST_COMPANY_ID),
       admin.from("patients").select("id", { count: "exact", head: true })
         .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("is_template", true),
       admin.from("facilities").select("id", { count: "exact", head: true })
-        .eq("company_id", LORENZO_TEST_COMPANY_ID),
-      admin.from("company_verifications").select("npi_number, tax_id")
-        .eq("company_id", LORENZO_TEST_COMPANY_ID).maybeSingle(),
+        .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("is_simulated", false),
+      admin.from("companies").select("npi_number, ein_number")
+        .eq("id", LORENZO_TEST_COMPANY_ID).maybeSingle(),
       admin.from("oatest_scenarios").select("id", { count: "exact", head: true }).eq("enabled", true),
     ]);
+    for (const [label, res] of Object.entries({ trucksRes, crewsTodayRes, crewsAnyRes, templatesRes, facilitiesRes, companyRes, scenariosRes })) {
+      if ((res as any).error) throw new Error(`${label}: ${(res as any).error.message}`);
+    }
     const trucks = trucksRes.data ?? [];
-    const crewsToday = crewsTodayRes.data ?? [];
+    const activeRealTruckIds = new Set(trucks.map((t: any) => t.id));
+    const crewsToday = (crewsTodayRes.data ?? []).filter((c: any) => activeRealTruckIds.has(c.truck_id));
     const truckIdsWithCrew = new Set(crewsToday.map((c: any) => c.truck_id));
     const trucksWithCrewToday = trucks.filter((t: any) => truckIdsWithCrew.has(t.id)).length;
+    const providerNpi = s(companyRes.data?.npi_number).replace(/\D/g, "");
+    const providerTaxId = s(companyRes.data?.ein_number).replace(/\D/g, "");
     return {
       today,
       companyId: LORENZO_TEST_COMPANY_ID,
@@ -214,8 +220,8 @@ Deno.serve(async (req) => {
       templatePatients: templatesRes.count ?? 0,
       facilities: facilitiesRes.count ?? 0,
       enabledScenarios: scenariosRes.count ?? 0,
-      npiOnFile: !!verifRes.data?.npi_number,
-      taxIdOnFile: !!verifRes.data?.tax_id,
+      npiOnFile: providerNpi.length === 10,
+      taxIdOnFile: providerTaxId.length >= 9,
       raw: { trucks, crewsToday },
     };
   };
@@ -260,7 +266,7 @@ Deno.serve(async (req) => {
     if (pre.trucksWithCrewToday === 0) issues.push(`No active truck with a crew assigned today (${today})`);
     if (pre.templatePatients === 0) issues.push("No template patients exist (Patients → Templates)");
     if (pre.facilities === 0) issues.push("No facilities exist");
-    if (!pre.npiOnFile || !pre.taxIdOnFile) issues.push("Lorenzo Test Company is missing NPI or Tax ID (Verification)");
+    if (!pre.npiOnFile || !pre.taxIdOnFile) issues.push("Lorenzo Test Company is missing Provider NPI or EIN/Tax ID (company profile)");
     if (pre.enabledScenarios === 0) issues.push("No OATEST scenarios are enabled");
     if (issues.length > 0) {
       const { raw: _raw, ...summary } = pre;
@@ -274,8 +280,8 @@ Deno.serve(async (req) => {
     const [{ data: templates }, { data: facilities }] = await Promise.all([
       admin.from("patients").select("*")
         .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("is_template", true).limit(20),
-      admin.from("facilities").select("id, name, facility_type, address_line, city, state, postal_code")
-        .eq("company_id", LORENZO_TEST_COMPANY_ID).limit(30),
+      admin.from("facilities").select("id, name, facility_type, address")
+        .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("is_simulated", false).limit(30),
     ]);
     const truck = pre.raw.trucks.find((t: any) =>
       pre.raw.crewsToday.some((c: any) => c.truck_id === t.id),
@@ -312,8 +318,8 @@ Deno.serve(async (req) => {
     const serviceLevel = (tplData.pcr?.service_level ?? tplData.leg?.service_level ?? scenario.transport_type ?? "BLS").toString().toUpperCase();
     const originFac = facilities[0];
     const destFac = facilities[Math.min(1, facilities.length - 1)];
-    const pickupAddr = `${originFac.address_line ?? "100 Test St"}, ${originFac.city ?? "Atlanta"}, ${originFac.state ?? "GA"} ${originFac.postal_code ?? "30301"}`;
-    const dropoffAddr = `${destFac.address_line ?? "200 Test Ave"}, ${destFac.city ?? "Atlanta"}, ${destFac.state ?? "GA"} ${destFac.postal_code ?? "30302"}`;
+    const pickupAddr = originFac.address ?? "100 Test St, Atlanta, GA 30301";
+    const dropoffAddr = destFac.address ?? "200 Test Ave, Atlanta, GA 30302";
 
     const legPayload = {
       patient_id: patient.id,
@@ -436,13 +442,14 @@ Deno.serve(async (req) => {
       return fail(summary, { stage, run_id: runId });
     };
 
-    const [{ data: claim }, { data: company }, { data: verif }] = await Promise.all([
+    const [{ data: claim }, { data: company }] = await Promise.all([
       admin.from("claim_records").select("*").eq("id", run.claim_id).maybeSingle(),
-      admin.from("companies").select("name, address_line, city, state, postal_code").eq("id", LORENZO_TEST_COMPANY_ID).maybeSingle(),
-      admin.from("company_verifications").select("npi_number, tax_id").eq("company_id", LORENZO_TEST_COMPANY_ID).maybeSingle(),
+      admin.from("companies").select("name, npi_number, ein_number, address_street, address_city, address_state, address_zip").eq("id", LORENZO_TEST_COMPANY_ID).maybeSingle(),
     ]);
     if (!claim) return await recordSubmitFailure("generator", "claim not found");
-    if (!verif?.npi_number || !verif?.tax_id) return await recordSubmitFailure("generator", "Lorenzo Test Company is missing NPI or Tax ID — set them in Verification before running OATEST.");
+    const providerNpi = s(company?.npi_number).replace(/\D/g, "");
+    const providerTaxId = s(company?.ein_number).replace(/\D/g, "");
+    if (providerNpi.length !== 10 || providerTaxId.length < 9) return await recordSubmitFailure("generator", "Lorenzo Test Company is missing Provider NPI or EIN/Tax ID — set them on the company profile before running OATEST.");
 
     const { data: patient } = await admin
       .from("patients").select("*").eq("id", claim.patient_id!).maybeSingle();
@@ -455,12 +462,12 @@ Deno.serve(async (req) => {
       filename, testMode: true,
       provider: {
         name: company?.name ?? "LORENZO TEST",
-        npi: verif.npi_number,
-        tax_id: verif.tax_id,
-        addr: company?.address_line ?? "100 TEST ST",
-        city: company?.city ?? "ATLANTA",
-        state: company?.state ?? "GA",
-        zip: (company?.postal_code ?? "30301").slice(0, 5),
+        npi: providerNpi,
+        tax_id: providerTaxId,
+        addr: company?.address_street ?? "100 TEST ST",
+        city: company?.address_city ?? "ATLANTA",
+        state: company?.address_state ?? "GA",
+        zip: (company?.address_zip ?? "30301").slice(0, 5),
       },
       submitter: { name: "PODDISPATCH", id: "PODDISPATCH", contact: "LORENZO", phone: "4045551212" },
       receiver: { name: "OFFICE ALLY", id: "OFFALLY" },
