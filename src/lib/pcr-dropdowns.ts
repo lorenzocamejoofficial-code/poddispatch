@@ -92,6 +92,43 @@ const BASE_FIELDS: PatientRequiredField[] = [
   { field: "primary_payer",                    label: "Primary payer",                    check: p => hasStr(p?.primary_payer) },
 ];
 
+// Loose address-parseability check: looks for "<state-abbrev> <5-digit-zip>"
+// anywhere in the string. Mirrors the no-comma parser in edi-837p-generator.ts
+// without dragging in the full parseAddressString. Avoids circular imports.
+const looksParseableAddress = (v: any): boolean =>
+  typeof v === "string" && /\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b/i.test(v.trim());
+
+/**
+ * Universal clean-claim fields — required regardless of transport type.
+ * These map 1:1 to 837P loops the clearinghouse rejects on if blank:
+ *   first/last → NM1*IL, dob/sex → DMG, member_id → NM1*IL[9],
+ *   patient_address → N3/N4. DOB sentinel "1900-01-01" is treated as unset
+ *   because the EDI generator falls back to that placeholder when blank.
+ */
+export const UNIVERSAL_CLAIM_REQUIREMENTS: PatientRequiredField[] = [
+  { field: "first_name",     label: "First name",     check: p => hasStr(p?.first_name) },
+  { field: "last_name",      label: "Last name",      check: p => hasStr(p?.last_name) },
+  { field: "dob",            label: "Date of birth",  check: p => hasStr(p?.dob) && p.dob !== "1900-01-01" },
+  { field: "sex",            label: "Sex",            check: p => hasStr(p?.sex) },
+  { field: "member_id",      label: "Member ID",      check: p => hasStr(p?.member_id) },
+  { field: "pickup_address", label: "Patient address (with city/state/ZIP)", check: p => looksParseableAddress(p?.pickup_address) },
+];
+
+/**
+ * PCS-conditional requirement. When pcs_on_file = true, CMS requires the
+ * signing physician's NPI (42 CFR 410.40(d)) so the 837P NM1*DK loop can
+ * carry referring-provider data. Loose 10-digit numeric check; Luhn checksum
+ * validation is deferred.
+ */
+export function getPcsConditionalRequirements(p: any): PatientRequiredField[] {
+  if (!isTrue(p?.pcs_on_file)) return [];
+  return [{
+    field: "pcs_physician_npi",
+    label: "PCS physician NPI",
+    check: q => hasStr(q?.pcs_physician_npi) && /^\d{10}$/.test(String(q.pcs_physician_npi).trim()),
+  }];
+}
+
 const MOBILITY: PatientRequiredField = {
   field: "mobility", label: "Mobility level",
   // "ambulatory" is the column default — treat as "not set" so admin
@@ -162,7 +199,13 @@ export function getMissingPatientRequirements(p: any): PatientRequiredField[] {
   const tType = String(p.transport_type ?? "").trim();
   const base = TRANSPORT_TYPE_CLAIM_REQUIREMENTS[tType] ?? [];
   const freq = getFrequencyPayerRequirements(p);
-  return [...base, ...freq].filter(f => !f.check(p));
+  const pcs = getPcsConditionalRequirements(p);
+  // De-duplicate by field name (e.g. primary_payer appears in BASE_FIELDS and
+  // could also be added elsewhere) so the UI doesn't show the same warning twice.
+  const merged = [...UNIVERSAL_CLAIM_REQUIREMENTS, ...base, ...freq, ...pcs];
+  const seen = new Set<string>();
+  const dedup = merged.filter(f => (seen.has(f.field) ? false : (seen.add(f.field), true)));
+  return dedup.filter(f => !f.check(p));
 }
 
 /**

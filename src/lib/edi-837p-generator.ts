@@ -64,6 +64,10 @@ export interface ClaimForEDI {
   pcs_physician_npi?: string | null;
   pcs_certification_date?: string | null; // YYYY-MM-DD
   pcs_diagnosis?: string | null;
+  /** Patient-level PCS-on-file flag. When true, the generator REQUIRES a
+   *  valid 10-digit pcs_physician_npi and will throw rather than silently
+   *  omit the NM1*DK referring-provider segment. Per 42 CFR 410.40(d). */
+  pcs_on_file?: boolean;
   /** Original dispatch reason / call complaint — what crew was sent for.
    *  Maps to claim_records.chief_complaint, which is captured at scheduling
    *  and carried into the PCR. Emitted as NTE*ADD on Loop 2300 so payers can

@@ -38,6 +38,8 @@ export const ADMIN_TOOLTIPS: Record<string, string> = {
   prior_auth_period_end: "Last date the RSNAT prior authorization covers. Trips after this date require a new UTN.",
   pcs_signed_date: "Date the physician signed the Physician Certification Statement (PCS). PCS is valid for 60 days per CMS rules; the system will flag expiration automatically.",
   other_payer_auth: "Use for non-Medicare-RSNAT prior authorizations: Medicaid managed care plans, commercial payer pre-auth, or any payer-specific auth requirement that isn't governed by 42 CFR 410.40. For Medicare RSNAT auth, use the RSNAT block above.",
+  pcs_physician_npi: "10-digit National Provider Identifier of the physician who signed the PCS. Required by 42 CFR 410.40(d). Found on the PCS form.",
+  pcs_physician_name: "Full name of the PCS-signing physician as it appears on the PCS form.",
 
   // Scheduling
   pickup_time: "The time the crew will arrive to pick up the patient",
