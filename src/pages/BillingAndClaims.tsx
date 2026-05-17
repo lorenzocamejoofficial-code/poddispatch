@@ -275,7 +275,7 @@ export default function BillingAndClaims() {
       .or("status.in.(completed,ready_for_billing),claim_ready.eq.true")
       .order("scheduled_pickup_time");
 
-    if (simulationRunId) {
+    if (simulationRunId && !isSimulationCompany) {
       tripQuery = tripQuery.eq("simulation_run_id", simulationRunId);
     }
 
@@ -313,7 +313,7 @@ export default function BillingAndClaims() {
       })
     );
     setQueueLoading(false);
-  }, [dateFilter, simulationRunId]);
+  }, [dateFilter, simulationRunId, isSimulationCompany]);
 
   const fetchOverrideLogs = useCallback(async () => {
     const tripScope = simulationRunId
