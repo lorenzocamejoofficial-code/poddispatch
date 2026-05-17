@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RefreshCw, Trash2 } from "lucide-react";
 import { generateNarrative } from "@/lib/pcr-narrative";
+import { ICD10_DESCRIPTIONS } from "@/lib/icd10-codes";
 import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
 import {
   AlertDialog,
