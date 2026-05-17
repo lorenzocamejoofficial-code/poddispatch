@@ -150,9 +150,6 @@ export default function Patients() {
     pcs_on_file: false,
     pcs_signed_date: "",
     pcs_expiration_date: "",
-    prior_auth_on_file: false,
-    prior_auth_number: "",
-    prior_auth_expiration: "",
     // Clinical & Billing Defaults (pre-fill PCR)
     icd10_codes: [] as string[],
     default_chief_complaint: "",
