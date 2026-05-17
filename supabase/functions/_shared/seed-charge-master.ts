@@ -110,3 +110,63 @@ export async function seedChargeMasterForNewCompany(
     return { ok: false, medicareSeeded: false, error: String(err) };
   }
 }
+
+export async function ensureCmsChargeMasterForCompany(
+  supabaseAdmin: SupabaseAdmin,
+  companyId: string,
+): Promise<{ ok: boolean; medicareSeeded: boolean; ruralFlag?: string; updated?: number; error?: string }> {
+  try {
+    const { data: company } = await supabaseAdmin
+      .from("companies")
+      .select("address_zip")
+      .eq("id", companyId)
+      .maybeSingle();
+    const { ruralFlag, medicareBase, medicareMileage, medicareSeeded } = await lookupCmsRates(supabaseAdmin, company?.address_zip ?? "");
+
+    const standardRows = [
+      { payer_type: "medicare", base_rate: medicareBase, mileage_rate: medicareMileage, oxygen_fee: 50, bariatric_fee: 150, needs_review: !medicareSeeded },
+      { payer_type: "medicaid", base_rate: 0, mileage_rate: 0, oxygen_fee: 0, bariatric_fee: 0, needs_review: true },
+      { payer_type: "private", base_rate: 0, mileage_rate: 0, oxygen_fee: 0, bariatric_fee: 0, needs_review: true },
+      { payer_type: "self_pay", base_rate: 0, mileage_rate: 0, oxygen_fee: 0, bariatric_fee: 0, needs_review: true },
+      { payer_type: "default", base_rate: 0, mileage_rate: 0, oxygen_fee: 0, bariatric_fee: 0, needs_review: true },
+    ];
+
+    const { data: existingRates } = await supabaseAdmin
+      .from("charge_master")
+      .select("id, payer_type, base_rate, mileage_rate, auto_seeded")
+      .eq("company_id", companyId);
+
+    let updated = 0;
+    for (const row of standardRows) {
+      const existing = (existingRates ?? []).find((r: any) => String(r.payer_type).toLowerCase() === row.payer_type);
+      if (!existing) {
+        const { error } = await supabaseAdmin.from("charge_master").insert({
+          company_id: companyId,
+          ...row,
+          wait_rate_per_min: 0,
+          auto_seeded: true,
+        });
+        if (error) return { ok: false, medicareSeeded, ruralFlag: ruralFlag ?? undefined, error: error.message };
+        updated++;
+        continue;
+      }
+
+      if (row.payer_type === "medicare" && medicareSeeded && (!existing.auto_seeded || Number(existing.base_rate) <= 0 || Number(existing.mileage_rate) <= 0)) {
+        const { error } = await supabaseAdmin.from("charge_master").update({
+          base_rate: medicareBase,
+          mileage_rate: medicareMileage,
+          oxygen_fee: 50,
+          bariatric_fee: 150,
+          auto_seeded: true,
+          needs_review: false,
+        }).eq("id", existing.id);
+        if (error) return { ok: false, medicareSeeded, ruralFlag: ruralFlag ?? undefined, error: error.message };
+        updated++;
+      }
+    }
+
+    return { ok: true, medicareSeeded, ruralFlag: ruralFlag ?? undefined, updated };
+  } catch (err) {
+    return { ok: false, medicareSeeded: false, error: String(err) };
+  }
+}
