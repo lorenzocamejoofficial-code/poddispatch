@@ -565,7 +565,17 @@ export default function TrucksCrews() {
           .gte("active_date", sourceWeekDates[0])
           .lte("active_date", sourceWeekDates[6]);
         if (srcErr) throw srcErr;
-        sourceCrews = (srcData ?? []) as CrewRecord[];
+        sourceCrews = (srcData ?? []).map((cr: any) => ({
+          id: cr.id,
+          truck_id: cr.truck_id,
+          member1_id: cr.member1_id ?? null,
+          member2_id: cr.member2_id ?? null,
+          member3_id: cr.member3_id ?? null,
+          member1_name: null,
+          member2_name: null,
+          member3_name: null,
+          active_date: cr.active_date,
+        }));
       }
       if (sourceCrews.length === 0) {
         toast.error("No assignments on the selected source week");
