@@ -351,36 +351,42 @@ export type Database = {
       }
       charge_master: {
         Row: {
+          auto_seeded: boolean
           bariatric_fee: number | null
           base_rate: number
           company_id: string
           extra_attendant_fee: number | null
           id: string
           mileage_rate: number
+          needs_review: boolean
           oxygen_fee: number | null
           payer_type: string
           updated_at: string
           wait_rate_per_min: number | null
         }
         Insert: {
+          auto_seeded?: boolean
           bariatric_fee?: number | null
           base_rate?: number
           company_id: string
           extra_attendant_fee?: number | null
           id?: string
           mileage_rate?: number
+          needs_review?: boolean
           oxygen_fee?: number | null
           payer_type?: string
           updated_at?: string
           wait_rate_per_min?: number | null
         }
         Update: {
+          auto_seeded?: boolean
           bariatric_fee?: number | null
           base_rate?: number
           company_id?: string
           extra_attendant_fee?: number | null
           id?: string
           mileage_rate?: number
+          needs_review?: boolean
           oxygen_fee?: number | null
           payer_type?: string
           updated_at?: string
@@ -1256,6 +1262,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cms_locality_gaf: {
+        Row: {
+          carrier: string
+          created_at: string
+          effective_year: number
+          gaf_ambulance: number
+          locality: string
+        }
+        Insert: {
+          carrier: string
+          created_at?: string
+          effective_year: number
+          gaf_ambulance: number
+          locality: string
+        }
+        Update: {
+          carrier?: string
+          created_at?: string
+          effective_year?: number
+          gaf_ambulance?: number
+          locality?: string
+        }
+        Relationships: []
+      }
+      cms_zip_locality: {
+        Row: {
+          carrier: string
+          created_at: string
+          effective_year: number
+          locality: string
+          rural_flag: string
+          state: string
+          zip5: string
+        }
+        Insert: {
+          carrier: string
+          created_at?: string
+          effective_year: number
+          locality: string
+          rural_flag: string
+          state: string
+          zip5: string
+        }
+        Update: {
+          carrier?: string
+          created_at?: string
+          effective_year?: number
+          locality?: string
+          rural_flag?: string
+          state?: string
+          zip5?: string
+        }
+        Relationships: []
       }
       comms_events: {
         Row: {
