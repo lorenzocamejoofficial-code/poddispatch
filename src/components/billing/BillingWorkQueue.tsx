@@ -13,6 +13,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { TimelineTrigger } from "@/components/billing/ClaimTimelineDrawer";
+import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
 
 /* ---------- types ---------- */
 export interface WorkItem {
@@ -46,6 +47,7 @@ interface BillingWorkQueueProps {
 
 export function BillingWorkQueue({ onOpenClaim, refreshKey }: BillingWorkQueueProps) {
   const { activeCompanyId } = useAuth();
+  const isSimulationCompany = useIsSimulationCompany();
   const navigate = useNavigate();
   const [items, setItems] = useState<WorkItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,32 +59,35 @@ export function BillingWorkQueue({ onOpenClaim, refreshKey }: BillingWorkQueuePr
     const allItems: WorkItem[] = [];
 
     // ---- Fetch claims (submitted, denied, needs_correction) ----
-    const { data: claims } = await supabase
+    let claimsQ = supabase
       .from("claim_records")
       .select("id, trip_id, payer_name, payer_type, run_date, total_charge, status, submitted_at, denial_code, patient_id, company_id")
       .eq("company_id", activeCompanyId)
-      .eq("is_simulated", false)
       .in("status", ["submitted", "denied", "needs_correction"] as any)
       .order("run_date", { ascending: true });
+    if (!isSimulationCompany) claimsQ = claimsQ.eq("is_simulated", false);
+    const { data: claims } = await claimsQ;
 
     // ---- Fetch trips ready_for_billing with no claim ----
-    const { data: readyTrips } = await supabase
+    let readyTripsQ = supabase
       .from("trip_records" as any)
       .select("id, patient_id, truck_id, run_date, company_id, status, pcr_status")
       .eq("company_id", activeCompanyId)
-      .eq("is_simulated", false)
       .eq("status", "ready_for_billing");
+    if (!isSimulationCompany) readyTripsQ = readyTripsQ.eq("is_simulated", false);
+    const { data: readyTrips } = await readyTripsQ;
 
     // ---- Fetch PCR incomplete trips ----
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-    const { data: pcrTrips } = await supabase
+    let pcrTripsQ = supabase
       .from("trip_records" as any)
       .select("id, patient_id, truck_id, run_date, company_id, status, pcr_status")
       .eq("company_id", activeCompanyId)
-      .eq("is_simulated", false)
       .eq("status", "completed")
       .gte("run_date", ninetyDaysAgo.toISOString().split("T")[0]);
+    if (!isSimulationCompany) pcrTripsQ = pcrTripsQ.eq("is_simulated", false);
+    const { data: pcrTrips } = await pcrTripsQ;
 
     // ---- Gather patient IDs and truck IDs ----
     const patientIds = new Set<string>();
