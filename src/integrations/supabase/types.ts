@@ -5905,6 +5905,14 @@ export type Database = {
         Args: { p_reason: string; p_trip_id: string }
         Returns: Json
       }
+      derive_ambulance_hcpcs: {
+        Args: { _is_emergency: boolean; _service_level: string }
+        Returns: string
+      }
+      derive_ambulance_modifier_letter: {
+        Args: { _loc_type: string }
+        Returns: string
+      }
       enter_creator_simulation: {
         Args: { _company_id: string }
         Returns: string
