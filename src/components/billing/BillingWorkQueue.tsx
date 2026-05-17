@@ -272,7 +272,7 @@ export function BillingWorkQueue({ onOpenClaim, refreshKey }: BillingWorkQueuePr
     allItems.sort((a, b) => a.priority - b.priority || b.amount - a.amount);
     setItems(allItems);
     setLoading(false);
-  }, [activeCompanyId]);
+  }, [activeCompanyId, isSimulationCompany]);
 
   useEffect(() => { fetchWorkItems(); }, [fetchWorkItems, refreshKey]);
 
