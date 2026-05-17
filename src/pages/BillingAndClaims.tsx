@@ -80,6 +80,7 @@ import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
+import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
 import { SecondaryClaimPanel } from "@/components/billing/SecondaryClaimPanel";
 import { RevenueCycleTab } from "@/components/billing/RevenueCycleTab";
 import { EmergencyEventPanel } from "@/components/billing/EmergencyEventPanel";
@@ -187,6 +188,7 @@ export default function BillingAndClaims() {
   const [secondaryFilter, setSecondaryFilter] = useState(false);
   const [hideTestClaims, setHideTestClaims] = useState(false);
   const { simulationRunId, refreshToken } = useSimulationSession();
+  const isSimulationCompany = useIsSimulationCompany();
   const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
   const [oaSending, setOaSending] = useState(false);
   const [oaReceiving, setOaReceiving] = useState(false);
