@@ -291,7 +291,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
 
       // Authorization — gated by payer rule
       if (need.auth && p?.auth_required) {
-        const hasAuth = !!(p?.prior_auth_number && (!p?.auth_expiration || new Date(p.auth_expiration) >= new Date(t.run_date)));
+        const hasAuth = !!(p?.prior_auth_utn && (!p?.auth_expiration || new Date(p.auth_expiration) >= new Date(t.run_date)));
         checks.push({
           label: "Prior authorization on file and not expired",
           passed: hasAuth,
