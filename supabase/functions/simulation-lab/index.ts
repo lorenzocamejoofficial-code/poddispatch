@@ -475,6 +475,15 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
 // `is_simulated=true`.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Shared "today" reference. Set by the request handler from `body.local_date`
+// so seeding, preconditions, status, and verify all share the SAME day as the
+// browser. Without this we fall back to UTC, which silently reports 0 crews
+// assigned when the user's local day is one behind UTC.
+let CURRENT_TODAY: string | null = null;
+function getToday(): string {
+  return CURRENT_TODAY ?? new Date().toISOString().slice(0, 10);
+}
+
 async function seedScenario(admin: any, companyId: string, userId: string, scenarioKey: string, seedSize: string = "small") {
   const baseConfig = SCENARIOS[scenarioKey];
   if (!baseConfig) {
