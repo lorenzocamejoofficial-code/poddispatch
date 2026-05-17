@@ -185,25 +185,31 @@ Deno.serve(async (req) => {
   // place. `seed` consumes this; the `preconditions` action just returns it
   // so the UI can render a status panel that matches the Sim Lab seeder.
   const readPreconditions = async () => {
-    const [trucksRes, crewsTodayRes, crewsAnyRes, templatesRes, facilitiesRes, verifRes, scenariosRes] = await Promise.all([
-      admin.from("trucks").select("id, name, active")
-        .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("active", true).limit(50),
-      admin.from("crews").select("id, truck_id, member1_id")
+    const [trucksRes, crewsTodayRes, crewsAnyRes, templatesRes, facilitiesRes, companyRes, scenariosRes] = await Promise.all([
+      admin.from("trucks").select("id, name, active, is_simulated")
+        .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("is_simulated", false).eq("active", true).limit(50),
+      admin.from("crews").select("id, truck_id, member1_id, member2_id, member3_id")
         .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("active_date", today),
       admin.from("crews").select("id", { count: "exact", head: true })
         .eq("company_id", LORENZO_TEST_COMPANY_ID),
       admin.from("patients").select("id", { count: "exact", head: true })
         .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("is_template", true),
       admin.from("facilities").select("id", { count: "exact", head: true })
-        .eq("company_id", LORENZO_TEST_COMPANY_ID),
-      admin.from("company_verifications").select("npi_number, tax_id")
-        .eq("company_id", LORENZO_TEST_COMPANY_ID).maybeSingle(),
+        .eq("company_id", LORENZO_TEST_COMPANY_ID).eq("is_simulated", false),
+      admin.from("companies").select("npi_number, ein_number")
+        .eq("id", LORENZO_TEST_COMPANY_ID).maybeSingle(),
       admin.from("oatest_scenarios").select("id", { count: "exact", head: true }).eq("enabled", true),
     ]);
+    for (const [label, res] of Object.entries({ trucksRes, crewsTodayRes, crewsAnyRes, templatesRes, facilitiesRes, companyRes, scenariosRes })) {
+      if ((res as any).error) throw new Error(`${label}: ${(res as any).error.message}`);
+    }
     const trucks = trucksRes.data ?? [];
-    const crewsToday = crewsTodayRes.data ?? [];
+    const activeRealTruckIds = new Set(trucks.map((t: any) => t.id));
+    const crewsToday = (crewsTodayRes.data ?? []).filter((c: any) => activeRealTruckIds.has(c.truck_id));
     const truckIdsWithCrew = new Set(crewsToday.map((c: any) => c.truck_id));
     const trucksWithCrewToday = trucks.filter((t: any) => truckIdsWithCrew.has(t.id)).length;
+    const providerNpi = s(companyRes.data?.npi_number).replace(/\D/g, "");
+    const providerTaxId = s(companyRes.data?.ein_number).replace(/\D/g, "");
     return {
       today,
       companyId: LORENZO_TEST_COMPANY_ID,
@@ -214,8 +220,8 @@ Deno.serve(async (req) => {
       templatePatients: templatesRes.count ?? 0,
       facilities: facilitiesRes.count ?? 0,
       enabledScenarios: scenariosRes.count ?? 0,
-      npiOnFile: !!verifRes.data?.npi_number,
-      taxIdOnFile: !!verifRes.data?.tax_id,
+      npiOnFile: providerNpi.length === 10,
+      taxIdOnFile: providerTaxId.length >= 9,
       raw: { trucks, crewsToday },
     };
   };
