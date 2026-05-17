@@ -390,7 +390,7 @@ Deno.serve(async (req) => {
       signature_obtained: true,
       pcr_status: "submitted",
       pcr_completed_at: new Date().toISOString(),
-      pcr_submitted_by: userId,
+      pcr_submitted_by: submitterProfileId,
       pcr_type: scenario.transport_type === "emergency" ? "emergency" : "non_emergency",
       is_simulated: true,
       primary_payer: desiredPayer,
