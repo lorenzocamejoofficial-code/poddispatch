@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Play, Send, Rocket, CheckCircle2, XCircle, AlertTriangle, FlaskConical } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { getLocalToday } from "@/lib/local-date";
 
 type Scenario = {
   id: string;
@@ -70,7 +71,12 @@ export function OatestScenarioRunner() {
   const trigger = async (slug: string, action: "seed" | "submit" | "seed_and_submit") => {
     setLoading(`${slug}_${action}`);
     try {
-      const { data, error } = await supabase.functions.invoke("oatest-run", { body: { action, scenario_slug: slug } });
+      // Send the browser-local date so the runner's seeder preconditions
+      // (active truck + crew assigned today) line up with what the user sees
+      // in Sim Lab. Without this, UTC rollover reports "0 crews today".
+      const { data, error } = await supabase.functions.invoke("oatest-run", {
+        body: { action, scenario_slug: slug, local_date: getLocalToday() },
+      });
       if (error) throw new Error(error.message);
       if (!data?.ok) {
         toast({
