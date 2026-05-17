@@ -1651,6 +1651,34 @@ Deno.serve(async (req) => {
         result = data;
         break;
       }
+      case "preconditions": {
+        // Mirrors the seedScenario() precondition reads, using the service-role
+        // admin client so it is not subject to RLS (the client-side equivalent
+        // returned 0 for creators not in the test tenant's company).
+        const today = new Date().toISOString().slice(0, 10);
+        const [trucks, crewsToday, crewsAny, facilities, templates] = await Promise.all([
+          admin.from("trucks").select("id", { count: "exact", head: true })
+            .eq("company_id", companyId).eq("is_simulated", false).eq("active", true),
+          admin.from("crews").select("id, truck:trucks!inner(id, active, is_simulated)")
+            .eq("company_id", companyId).eq("active_date", today)
+            .eq("truck.is_simulated", false).eq("truck.active", true),
+          admin.from("crews").select("id", { count: "exact", head: true })
+            .eq("company_id", companyId),
+          admin.from("facilities").select("id", { count: "exact", head: true })
+            .eq("company_id", companyId).eq("is_simulated", false),
+          admin.from("patients").select("id", { count: "exact", head: true })
+            .eq("company_id", companyId).eq("is_template", true),
+        ]);
+        result = {
+          companyId,
+          trucks: trucks.count ?? 0,
+          crews: crewsAny.count ?? 0,
+          crewsAssignedToday: (crewsToday.data ?? []).length,
+          facilities: facilities.count ?? 0,
+          templatePatients: templates.count ?? 0,
+        };
+        break;
+      }
       case "status": {
         const [trucks, patients, trips, runs, crews] = await Promise.all([
           admin.from("trucks").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("is_simulated", true),
