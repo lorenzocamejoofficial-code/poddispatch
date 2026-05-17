@@ -75,10 +75,13 @@ const SCENARIOS = [
 ];
 
 const EVENTS = [
+  { key: "facility_behind", label: "Facility Behind", icon: Clock, desc: "Pickup delays at one facility" },
+  { key: "crew_slow", label: "Crew Slow", icon: Users, desc: "Adds on-scene drag to active crews" },
   { key: "patient_not_ready", label: "Patient Not Ready", icon: UserX, desc: "Marks trips as not ready" },
   { key: "late_add_discharge", label: "Late Add Discharge", icon: Plus, desc: "Inserts mid-day discharge" },
   { key: "cancel_no_show", label: "Cancel / No Show", icon: Ban, desc: "Cancels scheduled trips" },
   { key: "truck_down", label: "Truck Down", icon: Wrench, desc: "Disables truck, unassigns runs" },
+  { key: "cascade_pressure", label: "Cascade Pressure", icon: AlertTriangle, desc: "Stacks multiple pressures at once" },
 ];
 
 export default function SimulationLab() {
