@@ -183,3 +183,18 @@ Closes Item 4 (multi-tenant hardening).
 - **POLISH — Creator multi-tenant batch UI.** The 837P generator now supports multiple billing providers per file, but no UI exposes it. Build when there's a real use case (creator submits a consolidated batch on behalf of multiple customers, or a single customer with multiple LLCs wants one submission). Implementation note: the writer side of `claim_submission_artifacts` (and `claim_submission_queue`) still assumes a single `company_id` per row — when the cross-tenant flow lands, iterate the generated file's ST boundaries and insert one artifact / queue row per company group.
 
 **Item 4 (multi-tenant hardening) is now fully closed:** 4A (audit) → 4B (NOT NULL) → 4C (FKs) → 4D (RLS) → 4E (seeds) → 4F (payer enrollment) → 4G (EDI generator). Outstanding follow-ups are tracked above and remain optional polish.
+
+## Phase 3 — Patient PCS / Universal Requirements (deferred)
+
+- **PCS 60-day expiration vs trip.run_date at PreSubmit time.** Current submit
+  check only verifies `pcs_on_file` + presence of `pcs_signed_date`; it does
+  not block a claim whose run_date is more than 60 days after the signature.
+  CMS rule lives in 42 CFR 410.40(d). Add a per-trip check in
+  `PreSubmitChecklist.tsx` reading `patients.pcs_expiration_date` against
+  `trip_records.run_date`.
+
+- **NPI Luhn checksum validation.** `pcs_physician_npi` currently passes a
+  loose `/^\d{10}$/` check in both the form and the EDI generator. A real
+  NPI also satisfies the Luhn check after prepending `80840`. Add a shared
+  `isValidNpi(npi: string)` helper and wire it into both the form warning
+  and `getPcsConditionalRequirements`.
