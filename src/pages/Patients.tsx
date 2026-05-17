@@ -150,6 +150,8 @@ export default function Patients() {
     pcs_on_file: false,
     pcs_signed_date: "",
     pcs_expiration_date: "",
+    pcs_physician_npi: "",
+    pcs_physician_name: "",
     // Clinical & Billing Defaults (pre-fill PCR)
     icd10_codes: [] as string[],
     default_chief_complaint: "",
@@ -265,6 +267,8 @@ export default function Patients() {
       pcs_on_file: false,
       pcs_signed_date: "",
       pcs_expiration_date: "",
+      pcs_physician_npi: "",
+      pcs_physician_name: "",
       icd10_codes: [],
       default_chief_complaint: "",
       default_primary_impression: "",
@@ -342,6 +346,8 @@ export default function Patients() {
       pcs_on_file: (p as any).pcs_on_file ?? false,
       pcs_signed_date: (p as any).pcs_signed_date ?? "",
       pcs_expiration_date: (p as any).pcs_expiration_date ?? "",
+      pcs_physician_npi: (p as any).pcs_physician_npi ?? "",
+      pcs_physician_name: (p as any).pcs_physician_name ?? "",
       icd10_codes: (p as any).icd10_codes ?? [],
       default_chief_complaint: (p as any).default_chief_complaint ?? "",
       default_primary_impression: (p as any).default_primary_impression ?? "",
@@ -423,6 +429,8 @@ export default function Patients() {
       pcs_on_file: form.pcs_on_file,
       pcs_signed_date: form.pcs_signed_date || null,
       pcs_expiration_date: form.pcs_signed_date ? format(addDays(parseISO(form.pcs_signed_date), 60), "yyyy-MM-dd") : null,
+      pcs_physician_npi: form.pcs_physician_npi.trim() || null,
+      pcs_physician_name: form.pcs_physician_name.trim() || null,
       // Clinical & Billing Defaults — used to pre-fill PCR fields when a trip is created
       icd10_codes: form.icd10_codes.length > 0 ? form.icd10_codes : null,
       default_chief_complaint: form.default_chief_complaint || null,
@@ -716,9 +724,16 @@ export default function Patients() {
   const missingFieldSet = useMemo(() => {
     const projected = {
       transport_type: form.transport_type,
+      first_name: form.first_name,
+      last_name: form.last_name,
+      dob: form.dob,
+      sex: form.sex,
+      member_id: form.member_id,
+      pickup_address: form.pickup_address,
       primary_payer: form.primary_payer,
       mobility: form.mobility,
       pcs_on_file: form.pcs_on_file,
+      pcs_physician_npi: form.pcs_physician_npi,
       icd10_codes: form.icd10_codes,
       default_chief_complaint: form.default_chief_complaint,
       default_primary_impression: form.default_primary_impression,
@@ -848,16 +863,16 @@ export default function Patients() {
 
                   {/* Basic Info */}
                    <div className="grid grid-cols-2 gap-3" data-focus="name">
-                     <div><Label>First Name *<PCRTooltip text={ADMIN_TOOLTIPS.first_name} /></Label><Input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
-                    <div><Label>Last Name *<PCRTooltip text={ADMIN_TOOLTIPS.last_name} /></Label><Input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></div>
+                     <div><Label>First Name *<PCRTooltip text={ADMIN_TOOLTIPS.first_name} /></Label><Input className={ringIfMissing("first_name")} value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
+                    <div><Label>Last Name *<PCRTooltip text={ADMIN_TOOLTIPS.last_name} /></Label><Input className={ringIfMissing("last_name")} value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                     <div data-focus="dob"><Label>DOB<PCRTooltip text={ADMIN_TOOLTIPS.dob} /></Label><Input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></div>
+                     <div data-focus="dob"><Label>DOB<PCRTooltip text={ADMIN_TOOLTIPS.dob} /></Label><Input className={ringIfMissing("dob")} type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></div>
                     <div><Label>Phone<PCRTooltip text={ADMIN_TOOLTIPS.phone} /></Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
                   </div>
                    <div data-focus="sex">
                     <Label>Sex<PCRTooltip text="Patient biological sex — required for Medicare claim demographics." /></Label>
-                    <div className="flex gap-2 mt-1.5">
+                    <div className={`flex gap-2 mt-1.5 ${ringIfMissing("sex")}`}>
                       {([{ value: "M", label: "Male" }, { value: "F", label: "Female" }, { value: "U", label: "Unknown" }] as const).map((opt) => (
                         <label key={opt.value} className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs cursor-pointer transition-colors ${form.sex === opt.value ? "border-primary bg-primary/5 font-medium" : "border-border text-muted-foreground hover:border-primary/40"}`}>
                           <input type="radio" name="patient-sex" className="sr-only" checked={form.sex === opt.value} onChange={() => setForm({ ...form, sex: opt.value })} />
@@ -866,7 +881,7 @@ export default function Patients() {
                       ))}
                     </div>
                   </div>
-                   <div data-focus="address"><Label>Pickup Address<PCRTooltip text={ADMIN_TOOLTIPS.pickup_address} /></Label><Input value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} /></div>
+                   <div data-focus="address"><Label>Pickup Address<PCRTooltip text={ADMIN_TOOLTIPS.pickup_address} /></Label><Input className={ringIfMissing("pickup_address")} value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} placeholder="Street, City, ST ZIP" /></div>
 
                   {/* Home Location Type */}
                   <div className="grid grid-cols-2 gap-3">
@@ -1099,7 +1114,7 @@ export default function Patients() {
                        <div data-focus="primary_payer">
                         <Label>Primary Payer<PCRTooltip text={ADMIN_TOOLTIPS.primary_payer} /></Label>
                         <Select value={form.primary_payer || "none"} onValueChange={v => setForm({ ...form, primary_payer: v === "none" ? "" : v })}>
-                          <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
+                          <SelectTrigger className={ringIfMissing("primary_payer")}><SelectValue placeholder="Select payer" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">— None —</SelectItem>
                             <SelectItem value="medicare">Medicare</SelectItem>
@@ -1111,7 +1126,7 @@ export default function Patients() {
                       </div>
                         <div data-focus="member_id">
                         <Label>Member ID<PCRTooltip text={ADMIN_TOOLTIPS.member_id} /></Label>
-                        <Input value={form.member_id} onChange={e => setForm({ ...form, member_id: e.target.value })} />
+                        <Input className={ringIfMissing("member_id")} value={form.member_id} onChange={e => setForm({ ...form, member_id: e.target.value })} />
                       </div>
                     </div>
                     <Collapsible>
@@ -1159,7 +1174,7 @@ export default function Patients() {
                       <div>
                         <Label>Mobility<PCRTooltip text={ADMIN_TOOLTIPS.mobility} /></Label>
                         <Select value={form.mobility} onValueChange={v => setForm({ ...form, mobility: v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger className={ringIfMissing("mobility")}><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="ambulatory">Ambulatory</SelectItem>
                             <SelectItem value="wheelchair">Wheelchair</SelectItem>
@@ -1241,12 +1256,14 @@ export default function Patients() {
                       <CollapsibleContent className="space-y-3 mt-3">
                          <div data-focus="icd10">
                           <Label>Standing ICD-10 Codes</Label>
-                          <ICD10Picker
-                            selectedCodes={form.icd10_codes}
-                            onCodesChange={(codes) => setForm({ ...form, icd10_codes: codes })}
-                            chiefComplaint={form.default_chief_complaint}
-                            patientPayer={form.primary_payer}
-                          />
+                          <div className={ringIfMissing("icd10_codes")}>
+                            <ICD10Picker
+                              selectedCodes={form.icd10_codes}
+                              onCodesChange={(codes) => setForm({ ...form, icd10_codes: codes })}
+                              chiefComplaint={form.default_chief_complaint}
+                              patientPayer={form.primary_payer}
+                            />
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
@@ -1320,7 +1337,7 @@ export default function Patients() {
                         <div>
                           <Label>Medical Necessity Reason</Label>
                           <Select value={form.default_medical_necessity_reason || "none"} onValueChange={(v) => setForm({ ...form, default_medical_necessity_reason: v === "none" ? "" : v })}>
-                            <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectTrigger className={ringIfMissing("default_medical_necessity_reason")}><SelectValue placeholder="Select" /></SelectTrigger>
                             <SelectContent className="max-h-72">
                               <SelectItem value="none">— None —</SelectItem>
                               {MEDICAL_NECESSITY_REASONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -1380,7 +1397,7 @@ export default function Patients() {
                             <div>
                               <Label>Default Wound Type</Label>
                               <Select value={form.default_wound_type || "none"} onValueChange={(v) => setForm({ ...form, default_wound_type: v === "none" ? "" : v })}>
-                                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                                <SelectTrigger className={ringIfMissing("default_wound_type")}><SelectValue placeholder="Select" /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="none">— None —</SelectItem>
                                   {WOUND_TYPES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -1389,12 +1406,12 @@ export default function Patients() {
                             </div>
                             <div>
                               <Label>Default Wound Location</Label>
-                              <Input value={form.default_wound_location} onChange={(e) => setForm({ ...form, default_wound_location: e.target.value })} placeholder="e.g. left heel, sacrum" />
+                              <Input className={ringIfMissing("default_wound_location")} value={form.default_wound_location} onChange={(e) => setForm({ ...form, default_wound_location: e.target.value })} placeholder="e.g. left heel, sacrum" />
                             </div>
                             <div>
                               <Label>Default Wound Stage</Label>
                               <Select value={form.default_wound_stage || "none"} onValueChange={(v) => setForm({ ...form, default_wound_stage: v === "none" ? "" : v })}>
-                                <SelectTrigger><SelectValue placeholder="Select stage" /></SelectTrigger>
+                                <SelectTrigger className={ringIfMissing("default_wound_stage")}><SelectValue placeholder="Select stage" /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="none">— None —</SelectItem>
                                   {PRESSURE_ULCER_STAGES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -1445,7 +1462,7 @@ export default function Patients() {
                           </div>
                         </div>
                         {/* PCS */}
-                        <div className="flex items-center justify-between">
+                        <div className={`flex items-center justify-between rounded-md px-1 ${ringIfMissing("pcs_on_file")}`}>
                           <Label>PCS on File<PCRTooltip text={ADMIN_TOOLTIPS.pcs_on_file ?? "Physician Certification Statement on file for this patient."} /></Label>
                           <Switch checked={form.pcs_on_file} onCheckedChange={(v) => setForm({ ...form, pcs_on_file: v })} />
                         </div>
@@ -1466,6 +1483,25 @@ export default function Patients() {
                                 </p>
                               );
                             })()}
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label>PCS Physician Name<PCRTooltip text={ADMIN_TOOLTIPS.pcs_physician_name} /></Label>
+                                <Input value={form.pcs_physician_name} onChange={(e) => setForm({ ...form, pcs_physician_name: e.target.value })} placeholder="Dr. Jane Smith" />
+                              </div>
+                              <div>
+                                <Label>PCS Physician NPI<PCRTooltip text={ADMIN_TOOLTIPS.pcs_physician_npi} /></Label>
+                                <Input
+                                  className={ringIfMissing("pcs_physician_npi")}
+                                  value={form.pcs_physician_npi}
+                                  onChange={(e) => setForm({ ...form, pcs_physician_npi: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+                                  placeholder="10-digit NPI"
+                                  inputMode="numeric"
+                                />
+                                {form.pcs_physician_npi && !/^\d{10}$/.test(form.pcs_physician_npi) && (
+                                  <p className="text-[11px] text-destructive mt-1">NPI must be exactly 10 digits.</p>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         )}
 

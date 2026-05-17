@@ -3102,6 +3102,8 @@ export type Database = {
           oxygen_required: boolean | null
           pcs_expiration_date: string | null
           pcs_on_file: boolean | null
+          pcs_physician_name: string | null
+          pcs_physician_npi: string | null
           pcs_signed_date: string | null
           phone: string | null
           pickup_address: string | null
@@ -3177,6 +3179,8 @@ export type Database = {
           oxygen_required?: boolean | null
           pcs_expiration_date?: string | null
           pcs_on_file?: boolean | null
+          pcs_physician_name?: string | null
+          pcs_physician_npi?: string | null
           pcs_signed_date?: string | null
           phone?: string | null
           pickup_address?: string | null
@@ -3252,6 +3256,8 @@ export type Database = {
           oxygen_required?: boolean | null
           pcs_expiration_date?: string | null
           pcs_on_file?: boolean | null
+          pcs_physician_name?: string | null
+          pcs_physician_npi?: string | null
           pcs_signed_date?: string | null
           phone?: string | null
           pickup_address?: string | null

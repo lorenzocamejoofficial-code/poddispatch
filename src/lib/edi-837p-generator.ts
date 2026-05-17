@@ -64,6 +64,10 @@ export interface ClaimForEDI {
   pcs_physician_npi?: string | null;
   pcs_certification_date?: string | null; // YYYY-MM-DD
   pcs_diagnosis?: string | null;
+  /** Patient-level PCS-on-file flag. When true, the generator REQUIRES a
+   *  valid 10-digit pcs_physician_npi and will throw rather than silently
+   *  omit the NM1*DK referring-provider segment. Per 42 CFR 410.40(d). */
+  pcs_on_file?: boolean;
   /** Original dispatch reason / call complaint — what crew was sent for.
    *  Maps to claim_records.chief_complaint, which is captured at scheduling
    *  and carried into the PCR. Emitted as NTE*ADD on Loop 2300 so payers can
@@ -602,7 +606,15 @@ export function generateEDI837P(
     // (service line) per their specific guide — never re-add here.
     // Intentionally not emitted.
 
-    // Loop 2310A — Referring/Ordering Physician (PCS signing physician)
+    // Loop 2310A — Referring/Ordering Physician (PCS signing physician).
+    // Fail loud if pcs_on_file is asserted but NPI is missing/invalid —
+    // shipping a claim with an empty NM1*DK guarantees a Medicare rejection
+    // and silently dropping the segment hides the data-quality bug.
+    if (claim.pcs_on_file && (!claim.pcs_physician_npi || !/^\d{10}$/.test(claim.pcs_physician_npi))) {
+      throw new Error(
+        `generateEDI837P: claim ${claim.claim_id} has pcs_on_file=true but pcs_physician_npi is missing or not a 10-digit NPI. Update the patient record (or biller PCS panel) with a valid NPI before exporting this claim.`
+      );
+    }
     if (claim.pcs_physician_npi && /^\d{10}$/.test(claim.pcs_physician_npi)) {
       const physName = (claim.pcs_physician_name || "PHYSICIAN").toUpperCase();
       // Split "Dr. Jane Smith" → last/first best-effort

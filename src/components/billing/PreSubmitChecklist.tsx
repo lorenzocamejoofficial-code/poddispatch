@@ -290,8 +290,12 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       }
 
       // Authorization — gated by payer rule
+      // Bug fix (Phase 3 cleanup): RSNAT auth window lives on
+      // patients.prior_auth_period_end, NOT the legacy patients.auth_expiration
+      // column (which is for non-RSNAT other-payer auth). Reading the wrong
+      // column caused valid RSNAT auths to be reported as expired.
       if (need.auth && p?.auth_required) {
-        const hasAuth = !!(p?.prior_auth_utn && (!p?.auth_expiration || new Date(p.auth_expiration) >= new Date(t.run_date)));
+        const hasAuth = !!(p?.prior_auth_utn && (!p?.prior_auth_period_end || new Date(p.prior_auth_period_end) >= new Date(t.run_date)));
         checks.push({
           label: "Prior authorization on file and not expired",
           passed: hasAuth,
