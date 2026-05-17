@@ -169,15 +169,24 @@ export default function OnboardingWizard() {
     setCurrentStep(1);
   };
 
-  // ---------- Auto-detect step completion (rates needs base_rate>0 AND mileage_rate>0) ----------
+  // ---------- Auto-detect step completion ----------
+  // Rates gate: all 5 standard payers present AND none still flagged needs_review.
+  // (Medicare is auto-seeded from CMS at company creation; the other 4 are placeholders
+  // the owner must confirm in /billing?tab=charge-master.)
   const refreshAutoDetect = async () => {
     if (!activeCompanyId) return;
-    // Rates: must have at least one row with both base_rate>0 AND mileage_rate>0
     const { data: rates } = await supabase
       .from("charge_master")
-      .select("base_rate, mileage_rate")
+      .select("payer_type, base_rate, mileage_rate, needs_review")
       .eq("company_id", activeCompanyId);
-    const ratesValid = (rates ?? []).some((r: any) => Number(r.base_rate) > 0 && Number(r.mileage_rate) > 0);
+    const REQUIRED = ["medicare", "medicaid", "private", "self_pay", "default"];
+    const byType = new Map((rates ?? []).map((r: any) => [String(r.payer_type).toLowerCase(), r]));
+    const allPresent = REQUIRED.every(t => byType.has(t));
+    const noneNeedReview = REQUIRED.every(t => {
+      const r = byType.get(t);
+      return r && r.needs_review === false && Number(r.base_rate) > 0 && Number(r.mileage_rate) > 0;
+    });
+    const ratesValid = allPresent && noneNeedReview;
     if (ratesValid && !progress.step_rates_verified) {
       await progress.markStep("step_rates_verified", true);
       return;
