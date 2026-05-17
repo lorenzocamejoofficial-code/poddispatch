@@ -299,7 +299,7 @@ export default function EDIExport() {
       const localTripsMap: Record<string, any> = {};
       const localPatsMap: Record<string, any> = {};
       if (selTripIds.length > 0) {
-        const { data: trs } = await supabase.from("trip_records").select("id, loaded_miles, bed_confined, requires_monitoring, stretcher_placement, oxygen_during_transport, weight_lbs, pickup_location, destination_location").in("id", selTripIds);
+       const { data: trs } = await supabase.from("trip_records").select("id, loaded_miles, bed_confined, requires_monitoring, stretcher_placement, oxygen_during_transport, weight_lbs, pickup_location, destination_location, assessment_json").in("id", selTripIds);
         (trs || []).forEach(t => { localTripsMap[t.id] = t; });
       }
       if (selPatIds.length > 0) {
@@ -620,7 +620,7 @@ export default function EDIExport() {
       const localTripsMap: Record<string, any> = {};
       const localPatsMap: Record<string, any> = {};
       if (selTripIds.length > 0) {
-        const { data: trs } = await supabase.from("trip_records").select("id, loaded_miles, bed_confined, requires_monitoring, stretcher_placement, oxygen_during_transport, weight_lbs, pickup_location, destination_location, leg_id, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_dob, oneoff_primary_payer, oneoff_member_id, oneoff_sex, oneoff_pickup_address)").in("id", selTripIds);
+       const { data: trs } = await supabase.from("trip_records").select("id, loaded_miles, bed_confined, requires_monitoring, stretcher_placement, oxygen_during_transport, weight_lbs, pickup_location, destination_location, assessment_json, leg_id, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_dob, oneoff_primary_payer, oneoff_member_id, oneoff_sex, oneoff_pickup_address)").in("id", selTripIds);
         (trs || []).forEach((t: any) => { localTripsMap[t.id] = t; });
       }
       if (selPatIds.length > 0) {
