@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Plus, Truck, Pencil, Trash2, Check, X,
   ChevronLeft, ChevronRight, CalendarDays, Copy,
@@ -269,9 +270,9 @@ export default function TrucksCrews() {
     reason: "",
   });
 
-  // Copy week dialog
+  // Copy week dialog – extrapolate current week's pattern forward
   const [copyDialog, setCopyDialog] = useState(false);
-  const [copyTargetWeek, setCopyTargetWeek] = useState("");
+  const [copyHorizon, setCopyHorizon] = useState<"1m" | "3m" | "rest_of_year">("1m");
   const [copying, setCopying] = useState(false);
 
   const fetchAll = useCallback(async () => {
@@ -539,29 +540,72 @@ export default function TrucksCrews() {
     toast.success("Truck availability restored"); fetchAll();
   };
 
-  // Copy week forward
+  // Extrapolate the current week's crew pattern forward across a horizon.
+  // Existing assignments on any target date are preserved (never overwritten),
+  // so dispatchers can still tweak individual trucks/crews/days afterward.
   const copyWeekForward = async () => {
-    if (!copyTargetWeek) { toast.error("Select a target week start"); return; }
+    if (crews.length === 0) { toast.error("No assignments on this week to copy"); return; }
     setCopying(true);
     try {
-      const targetDates = getWeekDates(copyTargetWeek);
+      // Compute horizon end date (exclusive of source week)
+      const sourceStart = new Date(weekDates[0] + "T12:00:00");
+      const horizonEnd = new Date(sourceStart);
+      if (copyHorizon === "1m") horizonEnd.setMonth(horizonEnd.getMonth() + 1);
+      else if (copyHorizon === "3m") horizonEnd.setMonth(horizonEnd.getMonth() + 3);
+      else horizonEnd.setFullYear(sourceStart.getFullYear(), 11, 31); // Dec 31 of current year
+
+      // Build list of target week-start dates (each Sunday after source week)
+      const targetWeekStarts: string[] = [];
+      const cursor = new Date(sourceStart);
+      cursor.setDate(cursor.getDate() + 7);
+      while (cursor <= horizonEnd) {
+        targetWeekStarts.push(cursor.toISOString().split("T")[0]);
+        cursor.setDate(cursor.getDate() + 7);
+      }
+      if (targetWeekStarts.length === 0) { toast.error("Nothing to copy in selected horizon"); setCopying(false); return; }
+
+      const rangeStart = targetWeekStarts[0];
+      const rangeEndDate = new Date(targetWeekStarts[targetWeekStarts.length - 1] + "T12:00:00");
+      rangeEndDate.setDate(rangeEndDate.getDate() + 6);
+      const rangeEnd = rangeEndDate.toISOString().split("T")[0];
+
+      const { data: companyId } = await supabase.rpc("get_my_company_id");
       const { data: existingCrews } = await supabase
         .from("crews").select("active_date, truck_id")
-        .gte("active_date", targetDates[0]).lte("active_date", targetDates[6]);
+        .eq("company_id", companyId)
+        .gte("active_date", rangeStart).lte("active_date", rangeEnd);
       const existingKeys = new Set((existingCrews ?? []).map((c) => `${c.active_date}_${c.truck_id}`));
-      const { data: companyId } = await supabase.rpc("get_my_company_id");
+
       const newCrews: any[] = [];
-      for (const crew of crews) {
-        const srcIdx = weekDates.indexOf(crew.active_date);
-        if (srcIdx === -1) continue;
-        const targetDate = targetDates[srcIdx];
-        const key = `${targetDate}_${crew.truck_id}`;
-        if (existingKeys.has(key)) continue;
-        newCrews.push({ truck_id: crew.truck_id, member1_id: crew.member1_id, member2_id: crew.member2_id, member3_id: crew.member3_id, active_date: targetDate, company_id: companyId });
+      for (const weekStart of targetWeekStarts) {
+        const targetDates = getWeekDates(weekStart);
+        for (const crew of crews) {
+          const srcIdx = weekDates.indexOf(crew.active_date);
+          if (srcIdx === -1) continue;
+          const targetDate = targetDates[srcIdx];
+          const key = `${targetDate}_${crew.truck_id}`;
+          if (existingKeys.has(key)) continue;
+          existingKeys.add(key);
+          newCrews.push({
+            truck_id: crew.truck_id,
+            member1_id: crew.member1_id,
+            member2_id: crew.member2_id,
+            member3_id: crew.member3_id,
+            active_date: targetDate,
+            company_id: companyId,
+          });
+        }
       }
-      if (newCrews.length > 0) await supabase.from("crews").insert(newCrews);
-      toast.success(`Copied ${newCrews.length} crew assignment(s) to target week.`);
-      setCopyDialog(false); setCopyTargetWeek("");
+
+      if (newCrews.length > 0) {
+        const { error } = await supabase.from("crews").insert(newCrews);
+        if (error) throw error;
+      }
+      toast.success(
+        `Extended schedule across ${targetWeekStarts.length} week${targetWeekStarts.length !== 1 ? "s" : ""}: ${newCrews.length} new assignment${newCrews.length !== 1 ? "s" : ""} created (existing ones preserved).`
+      );
+      setCopyDialog(false);
+      fetchAll();
     } catch { toast.error("Failed to copy week"); }
     finally { setCopying(false); }
   };
@@ -698,7 +742,7 @@ export default function TrucksCrews() {
               <Button variant="outline" size="sm" className="h-8" onClick={goToToday}><CalendarDays className="mr-1.5 h-3.5 w-3.5" /> Today</Button>
               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigateWeek(1)}><ChevronRight className="h-4 w-4" /></Button>
               <span className="text-sm font-semibold text-foreground">{getWeekLabel(weekDates)}</span>
-              <Button variant="outline" size="sm" className="h-8" onClick={() => { setCopyTargetWeek(nextWeekStart); setCopyDialog(true); }}>
+              <Button variant="outline" size="sm" className="h-8" onClick={() => { setCopyHorizon("1m"); setCopyDialog(true); }}>
                 <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy Week
               </Button>
             </div>
@@ -807,34 +851,52 @@ export default function TrucksCrews() {
           </DialogContent>
         </Dialog>
 
-        {/* Copy Week Dialog */}
+        {/* Copy Week Dialog – extend current week's pattern forward */}
         <Dialog open={copyDialog} onOpenChange={setCopyDialog}>
-          <DialogContent className="sm:max-w-sm">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Copy Week Schedule</DialogTitle>
+              <DialogTitle>Extend Week Forward</DialogTitle>
               <DialogDescription>
-                Duplicate crew assignments from one week to another. Existing assignments on the target week will not be overwritten.
+                Repeat the assignments from <strong>{getWeekLabel(weekDates)}</strong> across upcoming weeks.
+                Any existing assignments are preserved — you can still adjust individual days, trucks, or crews afterward.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-3 py-2">
+            <div className="space-y-4 py-2">
               <div className="rounded-md border bg-muted/30 p-3">
-                <Label className="text-xs text-muted-foreground">Source Week (copying from)</Label>
+                <Label className="text-xs text-muted-foreground">Source Week</Label>
                 <p className="text-sm font-semibold text-foreground mt-1">{getWeekLabel(weekDates)}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {crews.length} crew assignment{crews.length !== 1 ? "s" : ""} on this week
                 </p>
               </div>
               <div>
-                <Label>Destination Week (pick any date in the target week)</Label>
-                <Input type="date" value={copyTargetWeek} onChange={(e) => setCopyTargetWeek(e.target.value)} />
-                {copyTargetWeek && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Target: <strong>{getWeekLabel(getWeekDates(copyTargetWeek))}</strong>
-                  </p>
-                )}
+                <Label className="mb-2 block">Extend pattern for</Label>
+                <RadioGroup value={copyHorizon} onValueChange={(v) => setCopyHorizon(v as any)} className="space-y-2">
+                  <label className="flex items-center gap-2 rounded-md border p-2.5 cursor-pointer hover:bg-muted/40">
+                    <RadioGroupItem value="1m" id="hz-1m" />
+                    <div className="text-sm">
+                      <div className="font-medium">Next 1 month</div>
+                      <div className="text-xs text-muted-foreground">Repeat the week for ~4 weeks forward</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-2 rounded-md border p-2.5 cursor-pointer hover:bg-muted/40">
+                    <RadioGroupItem value="3m" id="hz-3m" />
+                    <div className="text-sm">
+                      <div className="font-medium">Next 3 months</div>
+                      <div className="text-xs text-muted-foreground">Repeat the week for ~13 weeks forward</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-2 rounded-md border p-2.5 cursor-pointer hover:bg-muted/40">
+                    <RadioGroupItem value="rest_of_year" id="hz-rest" />
+                    <div className="text-sm">
+                      <div className="font-medium">Rest of the year</div>
+                      <div className="text-xs text-muted-foreground">Repeat through Dec 31 of the source year</div>
+                    </div>
+                  </label>
+                </RadioGroup>
               </div>
-              <Button onClick={copyWeekForward} disabled={copying || !copyTargetWeek} className="w-full">
-                <Copy className="mr-1.5 h-4 w-4" /> {copying ? "Copying..." : "Copy Assignments"}
+              <Button onClick={copyWeekForward} disabled={copying} className="w-full">
+                <Copy className="mr-1.5 h-4 w-4" /> {copying ? "Extending..." : "Extend Schedule Forward"}
               </Button>
             </div>
           </DialogContent>
