@@ -77,6 +77,14 @@ export interface ClaimForEDI {
    *  claim_records.primary_impression. Combined with chief_complaint to give
    *  Medicare reviewers full dispatch-to-assessment context. */
   primary_impression?: string | null;
+  /** Free-text override when chief_complaint === "Other". Sourced from
+   *  trip.assessment_json.chief_complaint_other. When present, the NTE
+   *  segment emits this text instead of the literal "Other" so payer
+   *  reviewers see a meaningful dispatch reason. */
+  chief_complaint_other?: string | null;
+  /** Free-text override when primary_impression === "Other". Sourced from
+   *  trip.assessment_json.primary_impression_other. Same NTE rule applies. */
+  primary_impression_other?: string | null;
 }
 
 export interface ProviderInfo {
