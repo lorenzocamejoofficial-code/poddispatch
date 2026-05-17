@@ -63,6 +63,10 @@ export function AssessmentCard({ trip, updateField, requiredFields = ["chief_com
             ))}
           </SelectContent>
         </Select>
+        {trip.primary_impression === "Other" && (
+          <Textarea className="mt-2" placeholder="Specify..." value={assessment.primary_impression_other || ""}
+            onChange={(e) => updateField("assessment_json", { ...assessment, primary_impression_other: e.target.value })} rows={2} />
+        )}
       </div>
 
       <div>

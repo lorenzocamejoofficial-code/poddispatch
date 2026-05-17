@@ -9,6 +9,7 @@ import { computeClaimScore, getScoreBgClass, type ClaimScoreResult } from "@/lib
 import { BillerPcsPanel } from "@/components/billing/BillerPcsPanel";
 import { normalizeTransportKey } from "@/lib/pcr-field-requirements";
 import { getMissingPatientRequirements } from "@/lib/pcr-dropdowns";
+import { isValidNpi, NPI_INVALID_MESSAGE } from "@/lib/npi-luhn";
 
 // Local helper mirroring pcr-field-requirements.hasValue — used by the
 // Audit Fix 2 + 3 checks below to keep the billing gate aligned with the
@@ -55,7 +56,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           .eq("id", tripId)
           .maybeSingle(),
         patientId
-          ? supabase.from("patients").select("*").eq("id", patientId).maybeSingle()
+          ? supabase.from("patients").select("*, pcs_signed_date, pcs_physician_npi").eq("id", patientId).maybeSingle()
           : Promise.resolve({ data: null }),
         supabase
           .from("claim_records" as any)
@@ -213,23 +214,61 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
 
       // PCS — gated by payer rule
       if (need.pcs) {
+        // 42 CFR 410.40(d) — non-emergency scheduled transport requires a
+        // Physician Certification Statement DATED WITHIN 60 DAYS of the
+        // service date. Compute against patient PCS or biller-entered PCS;
+        // whichever provides the most recent signed date.
+        const referenceSigned: string | null =
+          (p as any)?.pcs_signed_date || (claim as any)?.pcs_certification_date || null;
+        let pcsExpired60 = false;
+        let pcsAgeDays: number | null = null;
+        if (!pcsSkippable && referenceSigned && t.run_date) {
+          const signed = new Date(referenceSigned + "T00:00:00");
+          const run = new Date(t.run_date + "T00:00:00");
+          pcsAgeDays = Math.floor((run.getTime() - signed.getTime()) / 86400000);
+          pcsExpired60 = pcsAgeDays > 60;
+        }
+        const fmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-US");
+        const sixtyDayDetail = pcsExpired60 && referenceSigned && t.run_date
+          ? `PCS signed ${fmt(referenceSigned)} is more than 60 days before trip date ${fmt(t.run_date)}. CMS requires PCS dated within 60 days of service per 42 CFR 410.40(d). Update PCS on file or get a new physician certification.`
+          : undefined;
         checks.push({
           label: "PCS on file and not expired",
           passed: pcsSkippable
-            ? true
+            ? !pcsExpired60
             : billerPcsComplete
-              ? true
+              ? !pcsExpired60
               : false,
           detail: isEmergency
             ? "Not required for emergency transport"
             : isUnscheduled
             ? "Same-day unscheduled — PCS not required at submission"
+            : pcsExpired60
+              ? sixtyDayDetail
             : patientPcsValid
               ? (p?.pcs_expiration_date ? `On file — expires ${p.pcs_expiration_date}` : "On file, no expiration")
             : billerPcsComplete
               ? `Completed by biller — ${claim.pcs_physician_name}, NPI ${claim.pcs_physician_npi}`
               : "Not on file — use the PCS panel below to enter physician details, or upload a PCS form",
         });
+
+        // NPI Luhn — only enforce when a PCS NPI has actually been entered.
+        // Either patient.pcs_physician_npi or claim.pcs_physician_npi can
+        // supply it; the EDI generator already rejects pcs_on_file=true with
+        // a malformed NPI at 837P build time, so this gate makes the same
+        // failure visible in the pre-submit checklist instead.
+        const candidateNpi: string | null =
+          (claim as any)?.pcs_physician_npi || (p as any)?.pcs_physician_npi || null;
+        if (candidateNpi && !pcsSkippable) {
+          const valid = isValidNpi(candidateNpi);
+          checks.push({
+            label: "PCS physician NPI passes Luhn checksum",
+            passed: valid,
+            detail: valid
+              ? `NPI ${candidateNpi} — checksum valid`
+              : `${NPI_INVALID_MESSAGE} (entered: ${candidateNpi})`,
+          });
+        }
       }
 
       // Medical necessity — gated by payer rule

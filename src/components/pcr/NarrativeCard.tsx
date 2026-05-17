@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RefreshCw, Trash2 } from "lucide-react";
 import { generateNarrative } from "@/lib/pcr-narrative";
+import { ICD10_DESCRIPTIONS } from "@/lib/icd10-codes";
 import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
 import {
   AlertDialog,
@@ -31,6 +32,12 @@ export function NarrativeCard({ trip, truckName, updateField, required = true }:
   const narrativeFilled = !!trip.narrative && trip.narrative.trim().length > 0;
 
   const regenerate = () => {
+    // Resolve ICD-10 codes to descriptions for natural-prose mentions in the
+    // diagnosis clause. We keep the lookup local to the picker's well-known
+    // codes; unknown codes still surface in the narrative as bare codes so
+    // billers can see them but won't anchor the prose sentence.
+    const assessment = trip.assessment_json || {};
+    const icd10Codes: string[] = Array.isArray(trip.icd10_codes) ? trip.icd10_codes : [];
     const text = generateNarrative({
       truckName,
       transportType: trip.trip_type || trip.pcr_type || "dialysis",
@@ -39,6 +46,8 @@ export function NarrativeCard({ trip, truckName, updateField, required = true }:
       patientSex: patient?.sex || "",
       pickupAddress: trip.pickup_location || "",
       destination: trip.destination_location || "",
+      originType: trip.origin_type || null,
+      destinationType: trip.destination_type || null,
       dispatchTime: trip.dispatch_time,
       atSceneTime: trip.at_scene_time,
       patientContactTime: trip.patient_contact_time,
@@ -46,7 +55,9 @@ export function NarrativeCard({ trip, truckName, updateField, required = true }:
       atDestinationTime: trip.arrived_dropoff_at,
       inServiceTime: trip.in_service_time,
       chiefComplaint: trip.chief_complaint,
+      chiefComplaintOther: assessment.chief_complaint_other || null,
       primaryImpression: trip.primary_impression,
+      primaryImpressionOther: assessment.primary_impression_other || null,
       medicalNecessityReason: trip.medical_necessity_reason,
       levelOfConsciousness: trip.level_of_consciousness,
       skinCondition: trip.skin_condition,
@@ -56,6 +67,14 @@ export function NarrativeCard({ trip, truckName, updateField, required = true }:
       conditionOnArrival: trip.condition_on_arrival || {},
       transportCondition: trip.transport_condition,
       disposition: trip.disposition,
+      mobility: patient?.mobility || null,
+      bariatric: !!patient?.bariatric,
+      stairChairRequired: !!patient?.stair_chair_required || !!trip.stair_chair_required,
+      oxygenDuringTransport: !!trip.oxygen_during_transport || !!patient?.oxygen_required,
+      oxygenLpm: (trip.equipment_used_json || {}).oxygen_flow_rate || patient?.oxygen_lpm || null,
+      icd10: icd10Codes.map((c) => ({ code: c, description: ICD10_DESCRIPTIONS[c] || "" })),
+      pcsOnFile: !!patient?.pcs_on_file,
+      pcsSignedDate: patient?.pcs_signed_date || null,
       sendingFacility: trip.sending_facility_json || {},
       hospitalOutcome: trip.hospital_outcome_json || {},
       attendingMedicName: trip.attending_medic_name,
