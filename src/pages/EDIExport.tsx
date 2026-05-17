@@ -117,7 +117,7 @@ export default function EDIExport() {
       if (patientIds.length > 0) {
         const { data: patients } = await supabase
           .from("patients")
-          .select("id, first_name, last_name, dob, pickup_address, member_id, primary_payer, sex, prior_auth_number, auth_required, weight_lbs")
+          .select("id, first_name, last_name, dob, pickup_address, member_id, primary_payer, sex, prior_auth_utn, auth_required, weight_lbs")
           .in("id", patientIds);
         (patients || []).forEach((p) => {
           patientsMap[p.id] = p;
