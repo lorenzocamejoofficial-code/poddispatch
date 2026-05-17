@@ -481,7 +481,7 @@ const SCENARIOS: Record<string, ScenarioConfig> = {
 // assigned when the user's local day is one behind UTC.
 let CURRENT_TODAY: string | null = null;
 function getToday(): string {
-  return CURRENT_TODAY ?? getToday();
+  return CURRENT_TODAY ?? new Date().toISOString().slice(0, 10);
 }
 
 async function seedScenario(admin: any, companyId: string, userId: string, scenarioKey: string, seedSize: string = "small") {
