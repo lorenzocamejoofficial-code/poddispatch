@@ -150,9 +150,6 @@ export default function Patients() {
     pcs_on_file: false,
     pcs_signed_date: "",
     pcs_expiration_date: "",
-    prior_auth_on_file: false,
-    prior_auth_number: "",
-    prior_auth_expiration: "",
     // Clinical & Billing Defaults (pre-fill PCR)
     icd10_codes: [] as string[],
     default_chief_complaint: "",
@@ -268,9 +265,6 @@ export default function Patients() {
       pcs_on_file: false,
       pcs_signed_date: "",
       pcs_expiration_date: "",
-      prior_auth_on_file: false,
-      prior_auth_number: "",
-      prior_auth_expiration: "",
       icd10_codes: [],
       default_chief_complaint: "",
       default_primary_impression: "",
@@ -348,9 +342,6 @@ export default function Patients() {
       pcs_on_file: (p as any).pcs_on_file ?? false,
       pcs_signed_date: (p as any).pcs_signed_date ?? "",
       pcs_expiration_date: (p as any).pcs_expiration_date ?? "",
-      prior_auth_on_file: (p as any).prior_auth_on_file ?? false,
-      prior_auth_number: (p as any).prior_auth_number ?? "",
-      prior_auth_expiration: (p as any).prior_auth_expiration ?? "",
       icd10_codes: (p as any).icd10_codes ?? [],
       default_chief_complaint: (p as any).default_chief_complaint ?? "",
       default_primary_impression: (p as any).default_primary_impression ?? "",
@@ -432,9 +423,6 @@ export default function Patients() {
       pcs_on_file: form.pcs_on_file,
       pcs_signed_date: form.pcs_signed_date || null,
       pcs_expiration_date: form.pcs_signed_date ? format(addDays(parseISO(form.pcs_signed_date), 60), "yyyy-MM-dd") : null,
-      prior_auth_on_file: form.prior_auth_on_file,
-      prior_auth_number: form.prior_auth_number || null,
-      prior_auth_expiration: form.prior_auth_expiration || null,
       // Clinical & Billing Defaults — used to pre-fill PCR fields when a trip is created
       icd10_codes: form.icd10_codes.length > 0 ? form.icd10_codes : null,
       default_chief_complaint: form.default_chief_complaint || null,
@@ -1420,7 +1408,7 @@ export default function Patients() {
                   </Collapsible>
 
                   {/* Compliance & Authorization — visible for ALL transport types */}
-                  <Collapsible defaultOpen={form.pcs_on_file || form.prior_auth_on_file || form.auth_required}>
+                  <Collapsible defaultOpen={form.pcs_on_file || !!form.prior_auth_utn || form.auth_required}>
                     <div className="border-t pt-3">
                       <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
                         <div>
@@ -1430,17 +1418,6 @@ export default function Patients() {
                         <span className="text-xs text-muted-foreground">▸</span>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="space-y-3 mt-3">
-                        {/* Auth Required toggle — visible for ALL transport types */}
-                        <div className="flex items-center justify-between">
-                          <Label>Authorization Required</Label>
-                          <Switch checked={form.auth_required} onCheckedChange={(v) => setForm({ ...form, auth_required: v })} />
-                        </div>
-                        {form.auth_required && (
-                          <div>
-                            <Label>Authorization Expiration</Label>
-                            <Input type="date" value={form.auth_expiration} onChange={(e) => setForm({ ...form, auth_expiration: e.target.value })} />
-                          </div>
-                        )}
                         {/* RSNAT Prior Authorization (Medicare repetitive non-emergency) */}
                         <div className="rounded-md border border-dashed p-3 space-y-2">
                           <div>
@@ -1448,7 +1425,7 @@ export default function Patients() {
                             <p className="text-[11px] text-muted-foreground">Required when a Medicare patient runs ≥3 round trips/10 days or ≥1/week for ≥3 weeks. UTN from MAC affirmative decision.</p>
                           </div>
                           <div>
-                            <Label>UTN (Unique Tracking Number)</Label>
+                            <Label>UTN (Unique Tracking Number)<PCRTooltip text={ADMIN_TOOLTIPS.prior_auth_utn} /></Label>
                             <Input
                               className={ringIfMissing("prior_auth_utn")}
                               value={form.prior_auth_utn}
@@ -1458,24 +1435,24 @@ export default function Patients() {
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <Label>Auth Period Start</Label>
+                              <Label>Auth Period Start<PCRTooltip text={ADMIN_TOOLTIPS.prior_auth_period_start} /></Label>
                               <Input type="date" value={form.prior_auth_period_start} onChange={(e) => setForm({ ...form, prior_auth_period_start: e.target.value })} />
                             </div>
                             <div>
-                              <Label>Auth Period End</Label>
+                              <Label>Auth Period End<PCRTooltip text={ADMIN_TOOLTIPS.prior_auth_period_end} /></Label>
                               <Input type="date" value={form.prior_auth_period_end} onChange={(e) => setForm({ ...form, prior_auth_period_end: e.target.value })} />
                             </div>
                           </div>
                         </div>
                         {/* PCS */}
                         <div className="flex items-center justify-between">
-                          <Label>PCS on File</Label>
+                          <Label>PCS on File<PCRTooltip text={ADMIN_TOOLTIPS.pcs_on_file ?? "Physician Certification Statement on file for this patient."} /></Label>
                           <Switch checked={form.pcs_on_file} onCheckedChange={(v) => setForm({ ...form, pcs_on_file: v })} />
                         </div>
                         {form.pcs_on_file && (
                           <div className="space-y-3 pl-1">
                             <div>
-                              <Label>PCS Signed Date</Label>
+                              <Label>PCS Signed Date<PCRTooltip text={ADMIN_TOOLTIPS.pcs_signed_date} /></Label>
                               <Input type="date" value={form.pcs_signed_date} onChange={(e) => setForm({ ...form, pcs_signed_date: e.target.value })} />
                             </div>
                             {form.pcs_signed_date && (() => {
@@ -1492,34 +1469,23 @@ export default function Patients() {
                           </div>
                         )}
 
-                        {/* Prior Auth */}
-                        <div className="flex items-center justify-between">
-                          <Label>Prior Auth on File</Label>
-                          <Switch checked={form.prior_auth_on_file} onCheckedChange={(v) => setForm({ ...form, prior_auth_on_file: v })} />
-                        </div>
-                        {form.prior_auth_on_file && (
-                          <div className="space-y-3 pl-1">
-                            <div>
-                              <Label>Prior Auth Number (UTN)</Label>
-                              <Input value={form.prior_auth_number} onChange={(e) => setForm({ ...form, prior_auth_number: e.target.value })} placeholder="Enter UTN" />
-                            </div>
-                            <div>
-                              <Label>Prior Auth Expiration</Label>
-                              <Input type="date" value={form.prior_auth_expiration} onChange={(e) => setForm({ ...form, prior_auth_expiration: e.target.value })} />
-                            </div>
-                            {form.prior_auth_expiration && (() => {
-                              const expDate = parseISO(form.prior_auth_expiration);
-                              const daysLeft = differenceInDays(expDate, new Date());
-                              const colorClass = daysLeft < 0 ? "text-destructive" : daysLeft <= 14 ? "text-[hsl(var(--status-yellow))]" : "text-emerald-600";
-                              return (
-                                <p className={`text-xs font-medium ${colorClass}`}>
-                                  Expires: {format(expDate, "MMM dd, yyyy")}
-                                  {daysLeft < 0 ? " (Expired)" : daysLeft <= 14 ? ` (${daysLeft} days left)` : ""}
-                                </p>
-                              );
-                            })()}
+                        {/* Other Payer Authorization (non-RSNAT) — Medicaid MCO, commercial pre-auth */}
+                        <div className="rounded-md border border-dashed p-3 space-y-2">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Other Payer Authorization (non-RSNAT)</p>
+                            <p className="text-[11px] text-muted-foreground">Medicaid MCO, commercial pre-auth, or other payer-specific authorization.</p>
                           </div>
-                        )}
+                          <div className="flex items-center justify-between">
+                            <Label>Authorization Required<PCRTooltip text={ADMIN_TOOLTIPS.other_payer_auth} /></Label>
+                            <Switch checked={form.auth_required} onCheckedChange={(v) => setForm({ ...form, auth_required: v })} />
+                          </div>
+                          {form.auth_required && (
+                            <div>
+                              <Label>Authorization Expiration<PCRTooltip text={ADMIN_TOOLTIPS.auth_expiration} /></Label>
+                              <Input type="date" value={form.auth_expiration} onChange={(e) => setForm({ ...form, auth_expiration: e.target.value })} />
+                            </div>
+                          )}
+                        </div>
                       </CollapsibleContent>
                     </div>
                   </Collapsible>
@@ -1579,9 +1545,9 @@ export default function Patients() {
                     if (tType !== "dialysis") return null;
                     const now = new Date();
                     const pcsExp = (p as any).pcs_expiration_date ? parseISO((p as any).pcs_expiration_date) : null;
-                    const authExp = (p as any).prior_auth_expiration ? parseISO((p as any).prior_auth_expiration) : null;
+                    const authExp = (p as any).prior_auth_period_end ? parseISO((p as any).prior_auth_period_end) : null;
                     const pcsOnFile = (p as any).pcs_on_file;
-                    const authOnFile = (p as any).prior_auth_on_file;
+                    const authOnFile = !!(p as any).prior_auth_utn;
                     let worst: "expired" | "expiring" | null = null;
                     if (pcsOnFile && pcsExp) {
                       const d = differenceInDays(pcsExp, now);

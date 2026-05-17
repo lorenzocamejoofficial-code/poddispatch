@@ -3106,9 +3106,6 @@ export type Database = {
           phone: string | null
           pickup_address: string | null
           primary_payer: string | null
-          prior_auth_expiration: string | null
-          prior_auth_number: string | null
-          prior_auth_on_file: boolean | null
           prior_auth_period_end: string | null
           prior_auth_period_start: string | null
           prior_auth_utn: string | null
@@ -3184,9 +3181,6 @@ export type Database = {
           phone?: string | null
           pickup_address?: string | null
           primary_payer?: string | null
-          prior_auth_expiration?: string | null
-          prior_auth_number?: string | null
-          prior_auth_on_file?: boolean | null
           prior_auth_period_end?: string | null
           prior_auth_period_start?: string | null
           prior_auth_utn?: string | null
@@ -3262,9 +3256,6 @@ export type Database = {
           phone?: string | null
           pickup_address?: string | null
           primary_payer?: string | null
-          prior_auth_expiration?: string | null
-          prior_auth_number?: string | null
-          prior_auth_on_file?: boolean | null
           prior_auth_period_end?: string | null
           prior_auth_period_start?: string | null
           prior_auth_utn?: string | null

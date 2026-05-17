@@ -377,7 +377,7 @@ const PAYER_AUGMENTATIONS: Record<PayerType, FieldRequirement[]> = {
       check: (t) => {
         const required = !!(t.patient?.auth_required);
         if (!required) return true;
-        return hasValue(t.patient?.prior_auth_number);
+        return hasValue(t.patient?.prior_auth_utn);
       }},
   ],
   private: [],
