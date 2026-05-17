@@ -1263,27 +1263,48 @@ export type Database = {
           },
         ]
       }
-      cms_locality_gaf: {
+      cms_ambulance_fee_schedule: {
         Row: {
+          base_rate: number | null
           carrier: string
           created_at: string
           effective_year: number
-          gaf_ambulance: number
+          gpci: number | null
+          hcpcs: string
           locality: string
+          rural_lowest_quartile_rate: number | null
+          rural_miles_1_17_rate: number | null
+          rural_rate: number | null
+          rvu: number | null
+          urban_rate: number | null
         }
         Insert: {
+          base_rate?: number | null
           carrier: string
           created_at?: string
           effective_year: number
-          gaf_ambulance: number
+          gpci?: number | null
+          hcpcs: string
           locality: string
+          rural_lowest_quartile_rate?: number | null
+          rural_miles_1_17_rate?: number | null
+          rural_rate?: number | null
+          rvu?: number | null
+          urban_rate?: number | null
         }
         Update: {
+          base_rate?: number | null
           carrier?: string
           created_at?: string
           effective_year?: number
-          gaf_ambulance?: number
+          gpci?: number | null
+          hcpcs?: string
           locality?: string
+          rural_lowest_quartile_rate?: number | null
+          rural_miles_1_17_rate?: number | null
+          rural_rate?: number | null
+          rvu?: number | null
+          urban_rate?: number | null
         }
         Relationships: []
       }
