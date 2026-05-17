@@ -261,7 +261,7 @@ export default function BillingAndClaims() {
       .then(({ data }) => {
         setReversalClaimIds(new Set(((data as any[]) ?? []).map((r: any) => r.claim_record_id)));
       });
-  }, [simulationRunId]);
+  }, [simulationRunId, isSimulationCompany]);
 
   const fetchQueueTrips = useCallback(async () => {
     setQueueLoading(true);
