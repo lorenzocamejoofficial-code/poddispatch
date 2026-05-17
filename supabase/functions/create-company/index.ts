@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { seedChargeMasterForNewCompany } from "../_shared/seed-charge-master.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -147,6 +148,16 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from("payer_billing_rules").insert(payerRules);
     } catch (e) {
       console.error("Seed payer_billing_rules failed:", e);
+    }
+
+    // Seed charge_master with 5 standard payer rows. Without a ZIP we can't
+    // populate real Medicare rates, so all 5 land as needs_review=true
+    // placeholders that the wizard will force the owner to confirm.
+    try {
+      const seed = await seedChargeMasterForNewCompany(supabaseAdmin, companyId, "");
+      if (!seed.ok) console.error("Charge master seed failed:", seed.error);
+    } catch (seedErr) {
+      console.error("Charge master seed threw:", seedErr);
     }
 
     console.log(`Company ${companyName} created by ${userEmail} (${userId})`);
