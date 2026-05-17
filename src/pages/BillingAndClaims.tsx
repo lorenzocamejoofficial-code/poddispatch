@@ -542,7 +542,8 @@ export default function BillingAndClaims() {
         origin_zip: extractZip(t.pickup_location),
         destination_zip: extractZip(t.destination_location),
         patient_sex: t.patient?.sex ?? (isOneoff ? leg?.oneoff_sex : null) ?? null,
-        auth_number: t.patient?.prior_auth_utn ?? (t.patient?.auth_required ? null : null),
+        // Prefer RSNAT UTN; emit REF*G1 whenever a UTN is on file (independent of generic auth_required toggle).
+        auth_number: t.patient?.prior_auth_utn ?? null,
       },
     };
   };
