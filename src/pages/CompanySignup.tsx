@@ -321,6 +321,39 @@ export default function CompanySignup() {
             </div>
 
             <div className="space-y-2">
+              <Label>Business Street Address *</Label>
+              <Input
+                value={addressStreet}
+                onChange={(e) => setAddressStreet(e.target.value)}
+                placeholder="123 Main St"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label>City *</Label>
+                <Input
+                  value={addressCity}
+                  onChange={(e) => setAddressCity(e.target.value)}
+                  placeholder="Atlanta"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>ZIP Code *</Label>
+                <Input
+                  value={addressZip}
+                  onChange={(e) => setAddressZip(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                  placeholder="30303"
+                  maxLength={5}
+                  inputMode="numeric"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Your ZIP determines the correct Medicare ambulance fee schedule (urban / rural / super-rural) for your locality.
+            </p>
+
+            <div className="space-y-2">
               <Label>Service Area Type *</Label>
               <Select value={serviceAreaType} onValueChange={setServiceAreaType}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
