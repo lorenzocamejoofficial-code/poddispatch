@@ -202,7 +202,10 @@ export default function BillingAndClaims() {
     if (!isSimulationCompany) {
       claimsQuery = claimsQuery.or("is_simulated.eq.false,is_simulated.is.null");
     }
-    if (simulationRunId) {
+    // In real tenants, scope to the active simulation run when one is set.
+    // In the sim company itself (App Simulator), show ALL seeded claims so
+    // OATEST trips created without a simulation_run_id are still visible.
+    if (simulationRunId && !isSimulationCompany) {
       claimsQuery = claimsQuery.eq("simulation_run_id", simulationRunId);
     }
 
@@ -272,7 +275,7 @@ export default function BillingAndClaims() {
       .or("status.in.(completed,ready_for_billing),claim_ready.eq.true")
       .order("scheduled_pickup_time");
 
-    if (simulationRunId) {
+    if (simulationRunId && !isSimulationCompany) {
       tripQuery = tripQuery.eq("simulation_run_id", simulationRunId);
     }
 
@@ -310,7 +313,7 @@ export default function BillingAndClaims() {
       })
     );
     setQueueLoading(false);
-  }, [dateFilter, simulationRunId]);
+  }, [dateFilter, simulationRunId, isSimulationCompany]);
 
   const fetchOverrideLogs = useCallback(async () => {
     const tripScope = simulationRunId
