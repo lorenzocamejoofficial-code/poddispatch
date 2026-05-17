@@ -1256,12 +1256,14 @@ export default function Patients() {
                       <CollapsibleContent className="space-y-3 mt-3">
                          <div data-focus="icd10">
                           <Label>Standing ICD-10 Codes</Label>
-                          <ICD10Picker
-                            selectedCodes={form.icd10_codes}
-                            onCodesChange={(codes) => setForm({ ...form, icd10_codes: codes })}
-                            chiefComplaint={form.default_chief_complaint}
-                            patientPayer={form.primary_payer}
-                          />
+                          <div className={ringIfMissing("icd10_codes")}>
+                            <ICD10Picker
+                              selectedCodes={form.icd10_codes}
+                              onCodesChange={(codes) => setForm({ ...form, icd10_codes: codes })}
+                              chiefComplaint={form.default_chief_complaint}
+                              patientPayer={form.primary_payer}
+                            />
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
