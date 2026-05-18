@@ -1289,25 +1289,6 @@ export default function BillingAndClaims() {
           </div>
         </div>
 
-        {/* Trip Queue - One Screen View */}
-        <TabsContent value="trip-queue" className="m-0">
-          {queueLoading && queueTrips.length === 0 ? (
-            <div className="space-y-2 p-2">
-              <div className="h-6 w-64 animate-pulse rounded bg-muted" />
-              <div className="h-20 w-full animate-pulse rounded bg-muted" />
-              <div className="h-20 w-full animate-pulse rounded bg-muted" />
-              <div className="h-20 w-full animate-pulse rounded bg-muted" />
-              <p className="text-xs text-muted-foreground text-center pt-2">Loading trip queue…</p>
-            </div>
-          ) : (
-            <BillingQueueView
-              trips={queueTrips}
-              payerRulesMap={payerRulesMap}
-              onRefresh={() => { fetchQueueTrips(); fetchData(); fetchOverrideLogs(); }}
-            />
-          )}
-        </TabsContent>
-
         {/* Claims Board */}
         <TabsContent value="claims" className="m-0">
           {/* Sandbox filter — show all by default; user can hide test submissions to see only real AR. */}
