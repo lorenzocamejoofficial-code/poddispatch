@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TrendingUp, Truck, AlertTriangle, XCircle, CheckCircle, Clock, DollarSign } from "lucide-react";
+import { RevenueCycleTab } from "@/components/billing/RevenueCycleTab";
 import { computeAgingBuckets, computeAverageDaysToPayment } from "@/lib/billing-utils";
 import { isBLegTooEarly } from "@/lib/dialysis-validation";
 import { cn } from "@/lib/utils";
@@ -85,8 +86,9 @@ export default function ReportsAndMetrics() {
         supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, denial_reason, submitted_at, paid_at, trip_id").gte("run_date", start).lte("run_date", end).eq("is_simulated", false),
         supabase.from("operational_alerts" as any).select("id").gte("run_date", start).lte("run_date", end).eq("status", "open"),
         supabase.from("trucks").select("id, name").eq("is_simulated", false),
-        // All claims for AR aging (not date filtered)
-        supabase.from("claim_records" as any).select("id, status, total_charge, submitted_at, paid_at").eq("is_simulated", false),
+        // All claims for AR aging + Revenue Cycle tab (not date filtered).
+        // Revenue Cycle needs the richer field set, so we pull it once here.
+        supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, submitted_at, paid_at, denial_code, denial_reason, payer_type, payer_name, adjustment_codes, patient_secondary_payer, secondary_claim_generated, patient_responsibility_amount, run_date").eq("is_simulated", false),
         // Daily truck metrics for OTP/risk
         supabase.from("daily_truck_metrics" as any).select("*").gte("run_date", start).lte("run_date", end).is("simulation_run_id", null),
       ]);
@@ -275,6 +277,7 @@ export default function ReportsAndMetrics() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="otp"><Clock className="h-3.5 w-3.5 mr-1" />OTP & Risk</TabsTrigger>
             <TabsTrigger value="ar-aging"><DollarSign className="h-3.5 w-3.5 mr-1" />AR Aging</TabsTrigger>
+            <TabsTrigger value="revenue-cycle"><TrendingUp className="h-3.5 w-3.5 mr-1" />Revenue Cycle</TabsTrigger>
           </TabsList>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={range} onValueChange={setRange}>
@@ -605,6 +608,14 @@ export default function ReportsAndMetrics() {
                 </div>
               )}
             </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="revenue-cycle" className="m-0">
+          {loading ? (
+            <PageLoader label="Loading revenue cycle…" />
+          ) : (
+            <RevenueCycleTab claims={allClaims} />
           )}
         </TabsContent>
       </Tabs>

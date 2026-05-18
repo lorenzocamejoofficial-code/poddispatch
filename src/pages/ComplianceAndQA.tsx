@@ -8,11 +8,12 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, Settings2, FileWarning, ClipboardCheck } from "lucide-react";
+import { CheckCircle, Settings2, FileWarning, ClipboardCheck, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { QAQueuePanel } from "@/components/compliance/QAQueuePanel";
 import { VehicleInspectionsTab } from "@/components/compliance/VehicleInspectionsTab";
 import { IncidentsTab } from "@/components/compliance/IncidentsTab";
+import { OverridesLogTab } from "@/components/compliance/OverridesLogTab";
 
 interface PayerRule {
   id: string;
@@ -72,12 +73,17 @@ export default function ComplianceAndQA() {
         <TabsList>
           <TabsTrigger value="qa">QA Queue</TabsTrigger>
           <TabsTrigger value="incidents"><FileWarning className="h-3.5 w-3.5 mr-1.5" />Incidents</TabsTrigger>
+          <TabsTrigger value="overrides-log"><ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Overrides Log</TabsTrigger>
           <TabsTrigger value="payer-rules"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Payer Rules</TabsTrigger>
           <TabsTrigger value="inspections"><ClipboardCheck className="h-3.5 w-3.5 mr-1.5" />Vehicle Inspections</TabsTrigger>
         </TabsList>
 
         <TabsContent value="qa" className="m-0">
           <QAQueuePanel />
+        </TabsContent>
+
+        <TabsContent value="overrides-log" className="m-0">
+          <OverridesLogTab />
         </TabsContent>
 
         <TabsContent value="payer-rules" className="m-0 space-y-4">
