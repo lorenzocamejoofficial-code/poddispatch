@@ -47,12 +47,11 @@ const navItems: NavItem[] = [
    { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send, roles: ["owner", "manager", "dispatcher"] },
    { path: "/patients", label: "Patients", icon: Users, roles: ["owner", "manager", "dispatcher", "billing"] },
    { path: "/trips", label: "Trips & Clinical", icon: FileText, roles: ["owner", "manager", "billing"] },
-   { path: "/billing", label: "Billing & Claims", icon: DollarSign, roles: ["owner", "manager", "billing"] },
-   // EDI Export is now a debug-only inspector. Single-claim and group submit
-   // both flow through Billing → Submit Claim / Send via Office Ally, which
-   // queue the validated 837P for the SFTP worker. Route stays mounted for
-   // creators / direct URL access; it's just out of the daily nav.
-   { path: "/ar-command-center", label: "AR Command Center", icon: ClipboardList, roles: ["owner", "manager", "billing"] },
+   { path: "/billing", label: "Money", icon: DollarSign, roles: ["owner", "manager", "billing"] },
+   // EDI Export, AR Command Center: both moved off the daily nav. EDI Export
+   // is debug-only (route /edi-export). AR work has been folded into Money
+   // (Claims Board + Revenue Cycle + Missing Money + Payer Directory tabs).
+   // Trip lifecycle (PCR → Ready → Submit) lives entirely on Trips & Clinical.
    { path: "/compliance", label: "Compliance & QA", icon: ShieldCheck, roles: ["owner", "manager", "billing"] },
    { path: "/facilities", label: "Facilities", icon: Building2, roles: ["owner", "manager", "dispatcher", "billing"] },
    { path: "/reports", label: "Reports & Metrics", icon: BarChart3, roles: ["owner", "manager", "billing"] },
