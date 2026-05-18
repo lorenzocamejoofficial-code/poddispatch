@@ -375,6 +375,22 @@ export default function Patients() {
     setDialogOpen(true);
   };
 
+  // Auto-open the editor when the page is reached with ?patientId=<id>
+  // (e.g. from a "Fix in patient chart" link on the Money/Claims page).
+  useEffect(() => {
+    const pid = searchParams.get("patientId");
+    if (!pid || patients.length === 0) return;
+    const target = patients.find((p) => p.id === pid);
+    if (!target) return;
+    openEdit(target);
+    // Strip patientId from the URL so re-renders don't reopen the dialog,
+    // but keep ?focus= so useFocusScroll still highlights the field.
+    const next = new URLSearchParams(searchParams);
+    next.delete("patientId");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patients, searchParams]);
+
   const handleSave = async () => {
     if (saving) return;
     setSaving(true);
