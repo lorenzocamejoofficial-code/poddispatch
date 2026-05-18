@@ -610,6 +610,14 @@ export default function ReportsAndMetrics() {
             </>
           )}
         </TabsContent>
+
+        <TabsContent value="revenue-cycle" className="m-0">
+          {loading ? (
+            <PageLoader label="Loading revenue cycle…" />
+          ) : (
+            <RevenueCycleTab claims={allClaims} />
+          )}
+        </TabsContent>
       </Tabs>
     </AdminLayout>
   );
