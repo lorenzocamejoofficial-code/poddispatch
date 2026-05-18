@@ -764,12 +764,13 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         .select("id, company_id")
         .eq("trip_id", tripId)
         .maybeSingle();
-      if (!claim?.id || !claim?.company_id) {
+      const claimRow = claim as any;
+      if (!claimRow?.id || !claimRow?.company_id) {
         toast.error("No claim record found for this trip");
         setSubmitting(false);
         return;
       }
-      const result = await queueClaimsForSubmission([claim.id], claim.company_id);
+      const result = await queueClaimsForSubmission([claimRow.id], claimRow.company_id);
       if (!result.ok) {
         if (result.setupErrors.length) {
           toast.error(`Submission blocked — ${result.setupErrors[0]}`, { duration: 8000 });
