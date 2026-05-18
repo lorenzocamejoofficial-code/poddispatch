@@ -242,7 +242,7 @@ function CategoryDetailCard({ cat, navigate }: { cat: MissingMoneyCategorySummar
                             if (cat.category === "no_pcr" || cat.category === "pcr_not_billed") {
                               navigate("/trips");
                             } else if (cat.category === "no_followup" || cat.category === "denial_no_action") {
-                              navigate("/ar-command-center");
+                              navigate("/billing");
                             } else {
                               navigate("/billing");
                             }
@@ -251,7 +251,7 @@ function CategoryDetailCard({ cat, navigate }: { cat: MissingMoneyCategorySummar
                           {cat.category === "no_pcr" || cat.category === "pcr_not_billed"
                             ? "Open PCR"
                             : cat.category === "no_followup" || cat.category === "denial_no_action"
-                              ? "Go to AR"
+                              ? "Open Claim"
                               : "Open Claim"}
                         </Button>
                         </div>

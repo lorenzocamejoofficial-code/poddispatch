@@ -13,7 +13,7 @@ function getRoleLanding(role: string | null, isSystemCreator: boolean): string {
     case "owner": return "/";
     case "manager": return "/";
     case "dispatcher": return "/";
-    case "biller": return "/ar-command-center";
+    case "biller": return "/billing";
     case "crew": return "/crew-dashboard";
     default: return "/";
   }

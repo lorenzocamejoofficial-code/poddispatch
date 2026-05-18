@@ -287,7 +287,7 @@ export function BillingWorkQueue({ onOpenClaim, refreshKey }: BillingWorkQueuePr
         navigate(`/billing?claimId=${item.claimId}`);
       }
     } else if (item.type === "trip" && item.tripId) {
-      navigate("/billing?tab=trip-queue");
+      navigate("/trips");
     } else if (item.type === "pcr" && item.tripId) {
       navigate(`/pcr?tripId=${item.tripId}`);
     }

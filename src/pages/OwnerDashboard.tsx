@@ -359,8 +359,8 @@ export default function OwnerDashboard() {
                     <p className="text-xs text-muted-foreground">{denialRecovery.count} recoverable claims</p>
                     <p className="text-lg font-bold text-destructive">${fmt(denialRecovery.amount)}</p>
                   </div>
-                  <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => navigate("/ar-command-center")}>
-                    <ArrowRight className="h-3 w-3 mr-1" />Open AR Command Center
+                  <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => navigate("/billing")}>
+                    <ArrowRight className="h-3 w-3 mr-1" />Open Money
                   </Button>
                 </>
               ) : (

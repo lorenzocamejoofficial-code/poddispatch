@@ -287,7 +287,7 @@ export function useMissingMoneyScan() {
           count: cat3Items.length,
           amount: cat3Items.reduce((s, i) => s + i.amount, 0),
           items: cat3Items,
-          route: "/ar-command-center",
+          route: "/billing",
         },
         {
           category: "secondary_not_billed",
@@ -303,7 +303,7 @@ export function useMissingMoneyScan() {
           count: cat5Items.length,
           amount: cat5Items.reduce((s, i) => s + i.amount, 0),
           items: cat5Items,
-          route: "/ar-command-center",
+          route: "/billing",
         },
       ];
 

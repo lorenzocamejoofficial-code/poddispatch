@@ -179,8 +179,6 @@ export function getBadgeForPath(path: string, counts: SidebarBadgeCounts): numbe
       return counts.compliance;
     case "/trips":
       return counts.trips;
-    case "/ar-command-center":
-      return counts.arTasks;
     default:
       return 0;
   }
