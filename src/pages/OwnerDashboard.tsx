@@ -411,7 +411,7 @@ export default function OwnerDashboard() {
                   <p className="text-[10px] text-muted-foreground">Missing</p>
                 </div>
               </div>
-              <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => navigate("/")}>
+              <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => navigate("/dispatch")}>
                 <ArrowRight className="h-3 w-3 mr-1" />Open Dispatch Board
               </Button>
             </CardContent>
