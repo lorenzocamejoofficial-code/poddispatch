@@ -7,6 +7,10 @@ interface CleanTripBadgeProps {
   payerRules?: Parameters<typeof computeCleanTripStatus>[1];
   authInfo?: Parameters<typeof computeCleanTripStatus>[2];
   size?: "sm" | "md";
+  /** When true, the badge is hidden if the only issues are warnings (level === "review").
+   *  Use on screens where soft warnings (e.g. missing stretcher placement) shouldn't
+   *  clutter the UI — only true blockers should surface. */
+  hideWarningsOnly?: boolean;
 }
 
 const BADGE_CONFIG: Record<CleanTripResult["level"], {
@@ -31,8 +35,9 @@ const BADGE_CONFIG: Record<CleanTripResult["level"], {
   },
 };
 
-export function CleanTripBadge({ trip, payerRules, authInfo, size = "sm" }: CleanTripBadgeProps) {
+export function CleanTripBadge({ trip, payerRules, authInfo, size = "sm", hideWarningsOnly = false }: CleanTripBadgeProps) {
   const result = computeCleanTripStatus(trip, payerRules, authInfo);
+  if (hideWarningsOnly && result.level === "review") return null;
   const config = BADGE_CONFIG[result.level];
   const Icon = config.icon;
 
