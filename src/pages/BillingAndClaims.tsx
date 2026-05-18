@@ -193,6 +193,9 @@ export default function BillingAndClaims() {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [secondaryFilter, setSecondaryFilter] = useState(false);
   const [hideTestClaims, setHideTestClaims] = useState(false);
+  const [statusTab, setStatusTab] = useState<ClaimStatus>("ready_to_bill");
+  const [statusPage, setStatusPage] = useState(1);
+  const STATUS_PAGE_SIZE = 25;
   const { simulationRunId, refreshToken } = useSimulationSession();
   const isSimulationCompany = useIsSimulationCompany();
   const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
@@ -1326,25 +1329,54 @@ export default function BillingAndClaims() {
           {loading ? (
             <PageLoader label="Loading claims…" />
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-              {CLAIM_COLUMNS.map(col => {
-                const baseList = secondaryFilter
-                  ? claims.filter(c => c.status === "paid" && c.patient_secondary_payer && !c.secondary_claim_generated)
-                  : claims;
-                const colClaims = baseList
-                  .filter(c => !hideTestClaims || !c.is_test_submission)
-                  .filter(c => c.status === col.status);
-                return (
-                  <div key={col.status} className={`rounded-lg border p-3 space-y-2 ${col.color}`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      {col.icon}
-                      <span className="text-xs font-semibold uppercase tracking-wider">{col.label}</span>
-                      <span className="ml-auto rounded-full bg-background/60 px-2 py-0.5 text-xs font-bold">{colClaims.length}</span>
-                    </div>
+            (() => {
+              const baseList = secondaryFilter
+                ? claims.filter(c => c.status === "paid" && c.patient_secondary_payer && !c.secondary_claim_generated)
+                : claims;
+              const filteredAll = baseList.filter(c => !hideTestClaims || !c.is_test_submission);
+              const counts: Record<string, number> = {};
+              CLAIM_COLUMNS.forEach(col => {
+                counts[col.status] = filteredAll.filter(c => c.status === col.status).length;
+              });
+              const activeCol = CLAIM_COLUMNS.find(c => c.status === statusTab) ?? CLAIM_COLUMNS[0];
+              const colClaims = filteredAll.filter(c => c.status === activeCol.status);
+              const totalPages = Math.max(1, Math.ceil(colClaims.length / STATUS_PAGE_SIZE));
+              const safePage = Math.min(Math.max(1, statusPage), totalPages);
+              const start = (safePage - 1) * STATUS_PAGE_SIZE;
+              const pageClaims = colClaims.slice(start, start + STATUS_PAGE_SIZE);
+              return (
+                <div className="space-y-3">
+                  {/* Status pills */}
+                  <div className="flex flex-wrap gap-2 border-b pb-3">
+                    {CLAIM_COLUMNS.map(col => {
+                      const active = col.status === statusTab;
+                      return (
+                        <button
+                          key={col.status}
+                          onClick={() => { setStatusTab(col.status); setStatusPage(1); }}
+                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                            active
+                              ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                              : "border-border bg-background hover:bg-muted text-foreground"
+                          }`}
+                        >
+                          {col.icon}
+                          <span className="uppercase tracking-wider">{col.label}</span>
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? "bg-primary-foreground/20" : "bg-muted"}`}>
+                            {counts[col.status] ?? 0}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* List */}
+                  <div className={`rounded-lg border p-3 ${activeCol.color}`}>
                     {colClaims.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-4">None</p>
+                      <p className="text-sm text-muted-foreground text-center py-8">No claims in {activeCol.label}</p>
                     ) : (
-                      colClaims.map(claim => (
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {pageClaims.map(claim => (
                         <button
                           key={claim.id}
                           onClick={() => openClaim(claim)}
@@ -1471,12 +1503,31 @@ export default function BillingAndClaims() {
                             )}
                           </div>
                         </button>
-                      ))
+                        ))}
+                      </div>
                     )}
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* Pagination */}
+                  {colClaims.length > STATUS_PAGE_SIZE && (
+                    <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                      <span>
+                        Showing <span className="font-medium text-foreground">{start + 1}–{Math.min(start + STATUS_PAGE_SIZE, colClaims.length)}</span> of <span className="font-medium text-foreground">{colClaims.length}</span>
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setStatusPage(safePage - 1)}>
+                          ← Prev
+                        </Button>
+                        <span className="px-2">Page <span className="font-medium text-foreground">{safePage}</span> of {totalPages}</span>
+                        <Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setStatusPage(safePage + 1)}>
+                          Next →
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()
           )}
         </TabsContent>
 
