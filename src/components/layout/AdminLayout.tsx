@@ -24,6 +24,8 @@ import {
   Eye,
   FileOutput,
   Mail,
+  Home,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +34,7 @@ import { ContextualHelpPanel, HelpIconButton } from "@/components/help/Contextua
 import { useCompanyName } from "@/hooks/useCompanyName";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { CompanySwitcher } from "@/components/layout/CompanySwitcher";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface NavItem {
   path: string;
@@ -40,28 +43,78 @@ interface NavItem {
   roles: string[]; // which roles can see this nav item
 }
 
-const navItems: NavItem[] = [
-  { path: "/dispatch", label: "Dispatch Command", icon: LayoutDashboard, roles: ["owner", "manager", "dispatcher"] },
-   { path: "/owner-dashboard", label: "Owner Command Center", icon: BarChart3, roles: ["owner", "manager"] },
-   { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList, roles: ["owner", "manager", "dispatcher"] },
-   { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send, roles: ["owner", "manager", "dispatcher"] },
-   { path: "/patients", label: "Patients", icon: Users, roles: ["owner", "manager", "dispatcher", "billing"] },
-   { path: "/trips", label: "Trips & Clinical", icon: FileText, roles: ["owner", "manager", "billing"] },
-   { path: "/billing", label: "Money", icon: DollarSign, roles: ["owner", "manager", "billing"] },
-   // EDI Export, AR Command Center: both moved off the daily nav. EDI Export
-   // is debug-only (route /edi-export). AR work has been folded into Money
-   // (Claims Board + Revenue Cycle + Missing Money + Payer Directory tabs).
-   // Trip lifecycle (PCR → Ready → Submit) lives entirely on Trips & Clinical.
-   { path: "/compliance", label: "Compliance & QA", icon: ShieldCheck, roles: ["owner", "manager", "billing"] },
-   { path: "/facilities", label: "Facilities", icon: Building2, roles: ["owner", "manager", "dispatcher", "billing"] },
-   { path: "/reports", label: "Reports & Metrics", icon: BarChart3, roles: ["owner", "manager", "billing"] },
-   { path: "/employees", label: "Employees", icon: UserPlus, roles: ["owner", "manager", "dispatcher"] },
-   { path: "/trucks", label: "Trucks & Crews", icon: Truck, roles: ["owner", "manager", "dispatcher"] },
-   { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft, roles: ["owner", "manager", "dispatcher"] },
-  { path: "/override-monitor", label: "Override Monitor", icon: Eye, roles: ["owner"] },
-  { path: "/admin/email-activity", label: "Email Activity", icon: Mail, roles: ["owner"] },
-   { path: "/settings", label: "Settings", icon: Settings, roles: ["owner", "manager", "dispatcher"] },
+interface NavSection {
+  id: string;
+  label: string | null; // null = no header (Home)
+  items: NavItem[];
+}
+
+// Grouped sidebar sections. Item-level `roles` continues to drive visibility
+// using the same pattern used elsewhere in the app. Sections render only if
+// at least one item is visible for the current role.
+const navSections: NavSection[] = [
+  {
+    id: "dispatch",
+    label: "Dispatch",
+    items: [
+      { path: "/dispatch", label: "Dispatch Command", icon: LayoutDashboard, roles: ["owner", "manager", "dispatcher"] },
+      { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList, roles: ["owner", "manager", "dispatcher"] },
+      { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send, roles: ["owner", "manager", "dispatcher"] },
+      { path: "/trucks", label: "Trucks & Crews", icon: Truck, roles: ["owner", "manager", "dispatcher"] },
+      { path: "/override-monitor", label: "Override Monitor", icon: Eye, roles: ["owner"] },
+    ],
+  },
+  {
+    id: "clinical",
+    label: "Clinical",
+    items: [
+      { path: "/trips", label: "Trips & Clinical", icon: FileText, roles: ["owner", "manager", "billing"] },
+      { path: "/compliance", label: "Compliance & QA", icon: ShieldCheck, roles: ["owner", "manager", "billing"] },
+    ],
+  },
+  {
+    id: "billing",
+    label: "Billing",
+    items: [
+      { path: "/billing", label: "Money", icon: DollarSign, roles: ["owner", "manager", "billing"] },
+      { path: "/reports", label: "Reports & Metrics", icon: BarChart3, roles: ["owner", "manager", "billing"] },
+    ],
+  },
+  {
+    id: "company",
+    label: "Company",
+    items: [
+      { path: "/patients", label: "Patients", icon: Users, roles: ["owner", "manager", "dispatcher", "billing"] },
+      { path: "/facilities", label: "Facilities", icon: Building2, roles: ["owner", "manager", "dispatcher"] },
+      { path: "/employees", label: "Employees", icon: UserPlus, roles: ["owner", "manager"] },
+    ],
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    items: [
+      { path: "/settings", label: "Company Settings", icon: Settings, roles: ["owner", "manager", "dispatcher"] },
+      { path: "/migration", label: "Migration & Onboarding", icon: ArrowRightLeft, roles: ["owner", "manager"] },
+      { path: "/admin/email-activity", label: "Email Activity", icon: Mail, roles: ["owner"] },
+      { path: "/legal", label: "Legal & Compliance", icon: ShieldCheck, roles: ["owner", "manager", "dispatcher", "billing"] },
+    ],
+  },
 ];
+
+// Role-adaptive Home landing path.
+function homePathForRole(role: string | null | undefined): string {
+  switch (role) {
+    case "dispatcher":
+      return "/dispatch";
+    case "billing":
+    case "biller":
+      return "/billing";
+    case "owner":
+    case "manager":
+    default:
+      return "/owner-dashboard";
+  }
+}
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { user, signOut, role, isSystemCreator } = useAuth();
@@ -80,11 +133,68 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     return null;
   }
 
-  // System creator sees everything; regular users see role-filtered nav
-  // For creators, remap "/" to "/simulation" since "/" redirects to /system
-  const visibleNav = isSystemCreator
-    ? navItems.map(item => item.path === "/" ? { ...item, path: "/simulation" } : item)
-    : navItems.filter(item => effectiveNavRole && item.roles.includes(effectiveNavRole));
+  // Filter sections/items by role. Creator sees every item.
+  const visibleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: isSystemCreator
+        ? section.items
+        : section.items.filter((it) => effectiveNavRole && it.roles.includes(effectiveNavRole)),
+    }))
+    .filter((section) => section.items.length > 0);
+
+  const homePath = homePathForRole(effectiveNavRole);
+
+  // Persisted per-section collapse state. Default: all open.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem("sidebar_section_state");
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return {};
+  });
+  const toggleSection = (id: string) => {
+    setOpenSections((prev) => {
+      const next = { ...prev, [id]: prev[id] === false ? true : false };
+      try { localStorage.setItem("sidebar_section_state", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  // Flat list of all visible items (for header title lookup).
+  const allVisibleItems = visibleSections.flatMap((s) => s.items);
+
+  const renderItem = (item: NavItem) => {
+    const active = location.pathname === item.path;
+    const badgeCount = getBadgeForPath(item.path, badgeCounts);
+    return (
+      <Link
+        key={item.path}
+        to={item.path}
+        onClick={() => setSidebarOpen(false)}
+        className={cn(
+          "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+          active
+            ? "bg-sidebar-accent text-sidebar-primary"
+            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+        )}
+      >
+        <item.icon className="h-4 w-4" />
+        <span className="flex-1">{item.label}</span>
+        {badgeCount > 0 && (
+          <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
+            {badgeCount > 99 ? "99+" : badgeCount}
+          </span>
+        )}
+      </Link>
+    );
+  };
+
+  // Settings always renders at the bottom, separated.
+  const mainSections = visibleSections.filter((s) => s.id !== "settings");
+  const settingsSection = visibleSections.find((s) => s.id === "settings");
+
+  const homeActive = location.pathname === homePath || location.pathname === "/";
 
   return (
     <div className="flex h-screen overflow-hidden bg-dispatch-surface">
@@ -147,31 +257,58 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               </p>
             </>
           )}
-          {visibleNav.map((item) => {
-            const active = location.pathname === item.path;
-            const badgeCount = getBadgeForPath(item.path, badgeCounts);
+
+          {/* Home — role-adaptive landing */}
+          <Link
+            to={homePath}
+            onClick={() => setSidebarOpen(false)}
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors mb-2",
+              homeActive
+                ? "bg-sidebar-accent text-sidebar-primary"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            )}
+          >
+            <Home className="h-4 w-4" />
+            <span className="flex-1">Home</span>
+          </Link>
+
+          {mainSections.map((section) => {
+            const isOpen = openSections[section.id] !== false; // default open
+            const hasActive = section.items.some((it) => location.pathname === it.path);
             return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setSidebarOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-sidebar-accent text-sidebar-primary"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                <span className="flex-1">{item.label}</span>
-                {badgeCount > 0 && (
-                  <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
-                    {badgeCount > 99 ? "99+" : badgeCount}
-                  </span>
-                )}
-              </Link>
+              <Collapsible key={section.id} open={isOpen || hasActive} onOpenChange={() => toggleSection(section.id)}>
+                <CollapsibleTrigger className="flex w-full items-center gap-1 px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40 hover:text-sidebar-foreground/70 transition-colors">
+                  <ChevronDown className={cn("h-3 w-3 transition-transform", !(isOpen || hasActive) && "-rotate-90")} />
+                  <span>{section.label}</span>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-1">
+                  {section.items.map(renderItem)}
+                </CollapsibleContent>
+              </Collapsible>
             );
           })}
+
+          {settingsSection && (
+            <>
+              <div className="my-3 border-t border-sidebar-border" />
+              {(() => {
+                const isOpen = openSections[settingsSection.id] !== false;
+                const hasActive = settingsSection.items.some((it) => location.pathname === it.path);
+                return (
+                  <Collapsible open={isOpen || hasActive} onOpenChange={() => toggleSection(settingsSection.id)}>
+                    <CollapsibleTrigger className="flex w-full items-center gap-1 px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40 hover:text-sidebar-foreground/70 transition-colors">
+                      <ChevronDown className={cn("h-3 w-3 transition-transform", !(isOpen || hasActive) && "-rotate-90")} />
+                      <span>{settingsSection.label}</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-1">
+                      {settingsSection.items.map(renderItem)}
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              })()}
+            </>
+          )}
         </nav>
 
         <div className="border-t border-sidebar-border p-3">
@@ -222,7 +359,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             <Menu className="h-5 w-5" />
           </Button>
           <h2 className="text-lg font-semibold text-foreground flex-1">
-            {navItems.find((i) => i.path === location.pathname)?.label ?? "PodDispatch"}
+            {allVisibleItems.find((i) => i.path === location.pathname)?.label ?? "PodDispatch"}
           </h2>
           <BugReportDialog currentPath={location.pathname} userId={user?.id} />
           <HelpIconButton onClick={() => setHelpOpen(prev => !prev)} />
