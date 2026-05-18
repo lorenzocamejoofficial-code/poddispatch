@@ -1457,6 +1457,7 @@ export default function BillingAndClaims() {
                                 trip_id: (claim as any).trip_id,
                                 patient_id: (claim as any).patient_id,
                                 patient_address:
+                                  (claim as any).patient_address ??
                                   (claim as any).patient?.pickup_address ??
                                   (claim as any).leg?.oneoff_pickup_address ??
                                   (claim as any).origin_address ??
