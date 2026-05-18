@@ -1438,6 +1438,9 @@ export default function BillingAndClaims() {
                                   loaded_at: claim.trip_loaded_at,
                                   dropped_at: claim.trip_dropped_at,
                                   trip_type: claim.trip_type,
+                                  stretcher_placement: (claim as any).stretcher_placement,
+                                  patient_mobility: (claim as any).patient_mobility,
+                                  odometer_at_destination: (claim as any).odometer_at_destination,
                                 }}
                               />
                             </div>
