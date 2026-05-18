@@ -185,7 +185,10 @@ export default function BillingAndClaims() {
   const [overrideLogs, setOverrideLogs] = useState<any[]>([]);
   const [overrideLogSort, setOverrideLogSort] = useState<"date" | "user" | "reason">("date");
   const [searchParams] = useSearchParams();
-  const initialTab = searchParams.get("tab") ?? "trip-queue";
+  // Trip Queue lives on /trips now (Trips & Clinical owns the lifecycle).
+  // Default Money to Claims Board; legacy ?tab=trip-queue redirects to claims.
+  const rawInitialTab = searchParams.get("tab");
+  const initialTab = !rawInitialTab || rawInitialTab === "trip-queue" ? "claims" : rawInitialTab;
   useFocusScroll();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [secondaryFilter, setSecondaryFilter] = useState(false);
