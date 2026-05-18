@@ -38,6 +38,22 @@ function fail(message: string, extras: Record<string, unknown> = {}, status = 20
   return ok({ ok: false, error: message, ...extras }, status);
 }
 
+// CMS NPI Luhn checksum (prefix 80840 + first 9 digits, last digit = check).
+// Office Ally rejects any 10-digit NPI that fails this check.
+function isLuhnValidNpi(raw: string): boolean {
+  const npi = (raw ?? "").replace(/\D/g, "");
+  if (!/^\d{10}$/.test(npi)) return false;
+  const digits = ("80840" + npi.slice(0, 9)).split("").map((d) => parseInt(d, 10));
+  let sum = 0;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    const fromCheck = digits.length - i;
+    let d = digits[i];
+    if (fromCheck % 2 === 1) { d *= 2; if (d > 9) d -= 9; }
+    sum += d;
+  }
+  return ((10 - (sum % 10)) % 10) === parseInt(npi[9], 10);
+}
+
 // ── Normalizers ──────────────────────────────────────────────────────────────
 const ORIGIN_DEST_MAP: Record<string, string> = {
   R: "residence", residence: "residence", home: "residence",
