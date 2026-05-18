@@ -1442,6 +1442,7 @@ export default function BillingAndClaims() {
                                   patient_mobility: (claim as any).patient_mobility,
                                   odometer_at_destination: (claim as any).odometer_at_destination,
                                 }}
+                                hideWarningsOnly
                               />
                             </div>
                           </div>
