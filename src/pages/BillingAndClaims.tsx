@@ -84,6 +84,7 @@ import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
 import { SecondaryClaimPanel } from "@/components/billing/SecondaryClaimPanel";
 import { RevenueCycleTab } from "@/components/billing/RevenueCycleTab";
 import { EmergencyEventPanel } from "@/components/billing/EmergencyEventPanel";
+import { queueClaimsForSubmission } from "@/lib/queue-claims-for-submission";
 
 type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction" | "needs_review";
 
@@ -397,22 +398,37 @@ export default function BillingAndClaims() {
     fetchOverrideLogs();
   }, [refreshToken, fetchData, fetchQueueTrips, fetchOverrideLogs]);
 
+  // Group Submit — funnels every ready_to_bill claim on the board through
+  // the shared generator → claim_submission_queue → SFTP worker pipeline.
+  // This is the SAME path the Pre-Submit Checklist single-submit uses, so
+  // every customer's claim ends up looking like the OATEST file Office
+  // Ally already accepted clean.
   const handleSendViaOA = async () => {
     if (!activeCompanyId) return;
+    const ready = claims.filter(c => c.status === "ready_to_bill");
+    if (!ready.length) {
+      toast.info("No claims in Ready to Bill");
+      return;
+    }
+    if (!window.confirm(`Submit ${ready.length} claim(s) to Office Ally?`)) return;
     setOaSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-claims-officeally", {
-        body: { company_id: activeCompanyId },
-      });
-      if (error) throw error;
-      if (data?.disabled) {
-        toast.info(
-          "Automated submission is disabled. Use Billing → EDI Export to generate claim files."
-        );
-      } else if (data?.sent > 0) {
-        toast.success(`Sent ${data.sent} claims via Office Ally`);
+      const result = await queueClaimsForSubmission(
+        ready.map(c => c.id),
+        activeCompanyId,
+      );
+      if (!result.ok) {
+        if (result.setupErrors.length) {
+          toast.error(`Submission blocked — ${result.setupErrors[0]}`, { duration: 8000 });
+        } else {
+          toast.error(result.error ?? "Failed to queue claims");
+        }
       } else {
-        toast.info("No new claims to send");
+        const skipped = result.blocked.length;
+        toast.success(
+          `${result.queuedCount} claim(s) queued for Office Ally (${result.filename})${skipped ? ` · ${skipped} skipped by validation` : ""}`,
+          { duration: 8000 },
+        );
       }
       fetchData();
     } catch (err: any) {

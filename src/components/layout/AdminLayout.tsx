@@ -48,7 +48,10 @@ const navItems: NavItem[] = [
    { path: "/patients", label: "Patients", icon: Users, roles: ["owner", "manager", "dispatcher", "billing"] },
    { path: "/trips", label: "Trips & Clinical", icon: FileText, roles: ["owner", "manager", "billing"] },
    { path: "/billing", label: "Billing & Claims", icon: DollarSign, roles: ["owner", "manager", "billing"] },
-   { path: "/edi-export", label: "EDI Export", icon: FileOutput, roles: ["owner", "manager", "billing"] },
+   // EDI Export is now a debug-only inspector. Single-claim and group submit
+   // both flow through Billing → Submit Claim / Send via Office Ally, which
+   // queue the validated 837P for the SFTP worker. Route stays mounted for
+   // creators / direct URL access; it's just out of the daily nav.
    { path: "/ar-command-center", label: "AR Command Center", icon: ClipboardList, roles: ["owner", "manager", "billing"] },
    { path: "/compliance", label: "Compliance & QA", icon: ShieldCheck, roles: ["owner", "manager", "billing"] },
    { path: "/facilities", label: "Facilities", icon: Building2, roles: ["owner", "manager", "dispatcher", "billing"] },
