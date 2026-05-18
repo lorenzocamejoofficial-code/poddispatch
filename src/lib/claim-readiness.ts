@@ -72,7 +72,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     push({
       field: "member_id", severity: "block",
       message: "Missing member ID",
-      fixPath: `${patientPath}?focus=member_id`,
+      fixPath: patientFix("member_id"),
       fixLabel: "Fix in patient chart",
     });
   }
@@ -107,7 +107,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     push({
       field: "payer_name", severity: "block",
       message: "Missing payer information",
-      fixPath: `${patientPath}?focus=primary_payer`,
+      fixPath: patientFix("primary_payer"),
       fixLabel: "Fix in patient chart",
     });
   }
@@ -129,7 +129,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     push({
       field: "patient_name", severity: "block",
       message: "Missing patient first or last name",
-      fixPath: `${patientPath}?focus=name`,
+      fixPath: patientFix("name"),
       fixLabel: "Fix in patient chart",
     });
   }
@@ -140,7 +140,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     push({
       field: "patient_dob", severity: "block",
       message: "Missing patient date of birth",
-      fixPath: `${patientPath}?focus=dob`,
+      fixPath: patientFix("dob"),
       fixLabel: "Fix in patient chart",
     });
   }
@@ -151,7 +151,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     push({
       field: "patient_sex", severity: "block",
       message: "Missing patient sex",
-      fixPath: `${patientPath}?focus=sex`,
+      fixPath: patientFix("sex"),
       fixLabel: "Fix in patient chart",
     });
   }
@@ -165,7 +165,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     push({
       field: "patient_address", severity: "block",
       message: "Patient address incomplete — update patient record before submitting.",
-      fixPath: `${patientPath}?focus=address`,
+      fixPath: patientFix("address"),
       fixLabel: "Fix in patient chart",
     });
   }
@@ -210,7 +210,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     const isOneoff = !!claim.is_oneoff || !claim.patient_id;
     const zipFixPath = isOneoff
       ? (tripPath ? `${tripPath}&focus=origin_zip` : undefined)
-      : `${patientPath}?focus=address`;
+      : patientFix("address");
     const zipFixLabel = isOneoff
       ? (tripPath ? "Fix in PCR" : undefined)
       : "Fix in patient chart";
