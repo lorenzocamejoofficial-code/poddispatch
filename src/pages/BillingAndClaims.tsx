@@ -1725,9 +1725,45 @@ export default function BillingAndClaims() {
               />
             )}
             {selectedClaim && <TripStatusTimeline tripId={selectedClaim.trip_id} label="Trip Status Timeline" />}
-            <Button className="w-full" onClick={saveClaim} disabled={savingClaim}>
-              {savingClaim ? "Saving…" : "Save Claim"}
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button className="w-full" onClick={saveClaim} disabled={savingClaim}>
+                {savingClaim ? "Saving…" : "Save Claim"}
+              </Button>
+              {selectedClaim && selectedClaim.status === "ready_to_bill" && (
+                <Button
+                  className="w-full gap-2"
+                  variant="default"
+                  disabled={oaSending}
+                  onClick={async () => {
+                    if (!activeCompanyId || !selectedClaim) return;
+                    if (!window.confirm(`Submit this claim to Office Ally?`)) return;
+                    setOaSending(true);
+                    try {
+                      const result = await queueClaimsForSubmission([selectedClaim.id], activeCompanyId);
+                      if (!result.ok) {
+                        if (result.setupErrors.length) {
+                          toast.error(`Submission blocked — ${result.setupErrors[0]}`, { duration: 8000 });
+                        } else if (result.blocked.length) {
+                          toast.error(result.blocked[0].issues[0]?.message ?? "Claim blocked by validation", { duration: 8000 });
+                        } else {
+                          toast.error(result.error ?? "Failed to queue claim");
+                        }
+                      } else {
+                        toast.success(`Claim queued for Office Ally (${result.filename})`, { duration: 6000 });
+                        setSelectedClaim(null);
+                        fetchData();
+                      }
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to submit claim");
+                    }
+                    setOaSending(false);
+                  }}
+                >
+                  {oaSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {oaSending ? "Submitting…" : "Submit to Office Ally"}
+                </Button>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
