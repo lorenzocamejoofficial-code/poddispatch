@@ -179,8 +179,8 @@ export async function queueClaimsForSubmission(
     const isOneoff = !c.patient_id && leg?.is_oneoff;
     const oneoffName = leg?.oneoff_name ?? "";
     const oneoffParts = oneoffName.trim().split(/\s+/);
-    const patientFirst = pat.first_name ?? (isOneoff ? oneoffParts[0] ?? "" : "");
-    const patientLast = pat.last_name ?? (isOneoff ? (oneoffParts.slice(1).join(" ") || oneoffParts[0] ?? "") : "");
+    const patientFirst = pat.first_name ?? (isOneoff ? (oneoffParts[0] ?? "") : "");
+    const patientLast = pat.last_name ?? (isOneoff ? (oneoffParts.slice(1).join(" ") || (oneoffParts[0] ?? "")) : "");
 
     const rawPatientAddr = String(pat.pickup_address ?? (isOneoff ? leg?.oneoff_pickup_address : "") ?? "").trim();
     const parsedPat = parseAddressString(rawPatientAddr);
