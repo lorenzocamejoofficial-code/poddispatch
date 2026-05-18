@@ -228,7 +228,7 @@ Deno.serve(async (req) => {
       templatePatients: templatesRes.count ?? 0,
       facilities: facilitiesRes.count ?? 0,
       enabledScenarios: scenariosRes.count ?? 0,
-      npiOnFile: providerNpi.length === 10,
+      npiOnFile: providerNpi.length === 10 && isLuhnValidNpi(providerNpi),
       taxIdOnFile: providerTaxId.length >= 9,
       raw: { trucks, crewsToday },
     };
@@ -274,7 +274,7 @@ Deno.serve(async (req) => {
     if (pre.trucksWithCrewToday === 0) issues.push(`No active truck with a crew assigned today (${today})`);
     if (pre.templatePatients === 0) issues.push("No template patients exist (Patients → Templates)");
     if (pre.facilities === 0) issues.push("No facilities exist");
-    if (!pre.npiOnFile || !pre.taxIdOnFile) issues.push("Lorenzo Test Company is missing Provider NPI or EIN/Tax ID (company profile)");
+    if (!pre.npiOnFile || !pre.taxIdOnFile) issues.push("Lorenzo Test Company is missing Provider NPI (must be a 10-digit Luhn-valid NPI) or 9-digit EIN/Tax ID — fix it on the company profile");
     if (pre.enabledScenarios === 0) issues.push("No OATEST scenarios are enabled");
     if (issues.length > 0) {
       const { raw: _raw, ...summary } = pre;
