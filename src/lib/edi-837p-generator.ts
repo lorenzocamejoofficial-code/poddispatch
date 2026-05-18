@@ -623,12 +623,12 @@ export function generateEDI837P(
     // Fail loud if pcs_on_file is asserted but NPI is missing/invalid —
     // shipping a claim with an empty NM1*DK guarantees a Medicare rejection
     // and silently dropping the segment hides the data-quality bug.
-    if (claim.pcs_on_file && (!claim.pcs_physician_npi || !/^\d{10}$/.test(claim.pcs_physician_npi))) {
+    if (claim.pcs_on_file && (!claim.pcs_physician_npi || !/^\d{10}$/.test(claim.pcs_physician_npi) || !isLuhnValidNpi(claim.pcs_physician_npi))) {
       throw new Error(
-        `generateEDI837P: claim ${claim.claim_id} has pcs_on_file=true but pcs_physician_npi is missing or not a 10-digit NPI. Update the patient record (or biller PCS panel) with a valid NPI before exporting this claim.`
+        `generateEDI837P: claim ${claim.claim_id} has pcs_on_file=true but pcs_physician_npi is missing, not 10 digits, or fails Luhn checksum. Update the patient record (or biller PCS panel) with a valid NPI before exporting this claim.`
       );
     }
-    if (claim.pcs_physician_npi && /^\d{10}$/.test(claim.pcs_physician_npi)) {
+    if (claim.pcs_physician_npi && /^\d{10}$/.test(claim.pcs_physician_npi) && isLuhnValidNpi(claim.pcs_physician_npi)) {
       const physName = (claim.pcs_physician_name || "PHYSICIAN").toUpperCase();
       // Split "Dr. Jane Smith" → last/first best-effort
       const parts = physName.replace(/^DR\.?\s+/i, "").split(/\s+/);
@@ -800,6 +800,11 @@ export function validateProviderInfo(info: ProviderInfo): string[] {
   const errors: string[] = [];
   const npi = (info.npi ?? "").replace(/\D/g, "");
   if (npi.length !== 10) errors.push("Provider NPI must be exactly 10 digits.");
+  else if (!isLuhnValidNpi(npi)) {
+    errors.push(
+      "Provider NPI failed Luhn checksum — Office Ally rejects any 10-digit NPI whose check digit does not validate against the CMS 80840 prefix. Verify the number against NPPES."
+    );
+  }
   const ein = (info.tax_id ?? "").replace(/\D/g, "");
   if (ein.length !== 9) errors.push("Provider Tax ID (EIN) must be exactly 9 digits.");
   if (!(info.organization_name ?? "").trim()) errors.push("Provider organization name is required.");
@@ -819,6 +824,26 @@ export function validateProviderInfo(info: ProviderInfo): string[] {
     errors.push("Provider ZIP must be 5 or 9 digits.");
   }
   return errors;
+}
+
+/** CMS NPI Luhn validation (prefix 80840 + first 9 digits, last digit = check).
+ *  Inlined here so the EDI generator has no cross-file dependency. */
+function isLuhnValidNpi(npi: string): boolean {
+  if (!/^\d{10}$/.test(npi)) return false;
+  const full = "80840" + npi.slice(0, 9);
+  const digits = full.split("").map((d) => parseInt(d, 10));
+  let sum = 0;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    const fromCheck = digits.length - i;
+    let d = digits[i];
+    if (fromCheck % 2 === 1) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+  }
+  const check = (10 - (sum % 10)) % 10;
+  return check === parseInt(npi[9], 10);
 }
 
 /** Validate a map of per-company ProviderInfo objects. Returns an aggregated

@@ -38,6 +38,22 @@ function fail(message: string, extras: Record<string, unknown> = {}, status = 20
   return ok({ ok: false, error: message, ...extras }, status);
 }
 
+// CMS NPI Luhn checksum (prefix 80840 + first 9 digits, last digit = check).
+// Office Ally rejects any 10-digit NPI that fails this check.
+function isLuhnValidNpi(raw: string): boolean {
+  const npi = (raw ?? "").replace(/\D/g, "");
+  if (!/^\d{10}$/.test(npi)) return false;
+  const digits = ("80840" + npi.slice(0, 9)).split("").map((d) => parseInt(d, 10));
+  let sum = 0;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    const fromCheck = digits.length - i;
+    let d = digits[i];
+    if (fromCheck % 2 === 1) { d *= 2; if (d > 9) d -= 9; }
+    sum += d;
+  }
+  return ((10 - (sum % 10)) % 10) === parseInt(npi[9], 10);
+}
+
 // ── Normalizers ──────────────────────────────────────────────────────────────
 const ORIGIN_DEST_MAP: Record<string, string> = {
   R: "residence", residence: "residence", home: "residence",
@@ -228,7 +244,7 @@ Deno.serve(async (req) => {
       templatePatients: templatesRes.count ?? 0,
       facilities: facilitiesRes.count ?? 0,
       enabledScenarios: scenariosRes.count ?? 0,
-      npiOnFile: providerNpi.length === 10,
+      npiOnFile: providerNpi.length === 10 && isLuhnValidNpi(providerNpi),
       taxIdOnFile: providerTaxId.length >= 9,
       raw: { trucks, crewsToday },
     };
@@ -274,7 +290,7 @@ Deno.serve(async (req) => {
     if (pre.trucksWithCrewToday === 0) issues.push(`No active truck with a crew assigned today (${today})`);
     if (pre.templatePatients === 0) issues.push("No template patients exist (Patients → Templates)");
     if (pre.facilities === 0) issues.push("No facilities exist");
-    if (!pre.npiOnFile || !pre.taxIdOnFile) issues.push("Lorenzo Test Company is missing Provider NPI or EIN/Tax ID (company profile)");
+    if (!pre.npiOnFile || !pre.taxIdOnFile) issues.push("Lorenzo Test Company is missing Provider NPI (must be a 10-digit Luhn-valid NPI) or 9-digit EIN/Tax ID — fix it on the company profile");
     if (pre.enabledScenarios === 0) issues.push("No OATEST scenarios are enabled");
     if (issues.length > 0) {
       const { raw: _raw, ...summary } = pre;
@@ -488,7 +504,12 @@ Deno.serve(async (req) => {
     if (!claim) return await recordSubmitFailure("generator", "claim not found");
     const providerNpi = s(company?.npi_number).replace(/\D/g, "");
     const providerTaxId = s(company?.ein_number).replace(/\D/g, "");
-    if (providerNpi.length !== 10 || providerTaxId.length < 9) return await recordSubmitFailure("generator", "Lorenzo Test Company is missing Provider NPI or EIN/Tax ID — set them on the company profile before running OATEST.");
+    if (providerNpi.length !== 10 || !isLuhnValidNpi(providerNpi) || providerTaxId.length < 9) {
+      return await recordSubmitFailure(
+        "generator",
+        "Lorenzo Test Company Provider NPI must be exactly 10 digits and pass the CMS Luhn checksum, and EIN/Tax ID must be 9 digits — fix the company profile before running OATEST.",
+      );
+    }
 
     const { data: patient } = await admin
       .from("patients").select("*").eq("id", claim.patient_id!).maybeSingle();
