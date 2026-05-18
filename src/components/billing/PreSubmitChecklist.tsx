@@ -10,6 +10,7 @@ import { BillerPcsPanel } from "@/components/billing/BillerPcsPanel";
 import { normalizeTransportKey } from "@/lib/pcr-field-requirements";
 import { getMissingPatientRequirements } from "@/lib/pcr-dropdowns";
 import { isValidNpi, NPI_INVALID_MESSAGE } from "@/lib/npi-luhn";
+import { queueClaimsForSubmission } from "@/lib/queue-claims-for-submission";
 
 // Local helper mirroring pcr-field-requirements.hasValue — used by the
 // Audit Fix 2 + 3 checks below to keep the billing gate aligned with the
@@ -754,17 +755,38 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      // Move claim to submitted
-      await supabase
+      // Resolve claim_record for this trip, then push it through the
+      // shared generator → claim_submission_queue → SFTP worker pipeline.
+      // Same path Office Ally already accepted on OATEST — that's the
+      // whole point of this single funnel.
+      const { data: claim } = await supabase
         .from("claim_records" as any)
-        .update({ status: "submitted", submitted_at: new Date().toISOString() } as any)
-        .eq("trip_id", tripId);
-
-      toast.success("Claim submitted successfully");
+        .select("id, company_id")
+        .eq("trip_id", tripId)
+        .maybeSingle();
+      const claimRow = claim as any;
+      if (!claimRow?.id || !claimRow?.company_id) {
+        toast.error("No claim record found for this trip");
+        setSubmitting(false);
+        return;
+      }
+      const result = await queueClaimsForSubmission([claimRow.id], claimRow.company_id);
+      if (!result.ok) {
+        if (result.setupErrors.length) {
+          toast.error(`Submission blocked — ${result.setupErrors[0]}`, { duration: 8000 });
+        } else if (result.blocked.length) {
+          toast.error(`Claim blocked by validation: ${result.blocked[0].issues[0]?.message ?? "see details"}`);
+        } else {
+          toast.error(result.error ?? "Failed to queue claim");
+        }
+        setSubmitting(false);
+        return;
+      }
+      toast.success(`Claim queued for Office Ally (${result.filename})`);
       onOpenChange(false);
       onSubmit?.();
-    } catch {
-      toast.error("Failed to submit claim");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to submit claim");
     } finally {
       setSubmitting(false);
     }
