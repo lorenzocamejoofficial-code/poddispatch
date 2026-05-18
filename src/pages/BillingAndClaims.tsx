@@ -1176,9 +1176,7 @@ export default function BillingAndClaims() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="claims">Claims Board</TabsTrigger>
-            <TabsTrigger value="overrides-log"><ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Overrides Log</TabsTrigger>
             <TabsTrigger value="charge-master"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Charge Master</TabsTrigger>
-            <TabsTrigger value="revenue-cycle"><TrendingUp className="h-3.5 w-3.5 mr-1.5" />Revenue Cycle</TabsTrigger>
             <TabsTrigger value="missing-money"><DollarSign className="h-3.5 w-3.5 mr-1.5" />Missing Money</TabsTrigger>
             <TabsTrigger value="payer-directory"><BookOpen className="h-3.5 w-3.5 mr-1.5" />Payer Directory</TabsTrigger>
           </TabsList>
@@ -1274,11 +1272,7 @@ export default function BillingAndClaims() {
         )}
 
         {/* Summary KPIs */}
-        <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
-          <div className="rounded-lg border bg-card p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Collected</p>
-            <p className="text-2xl font-bold text-[hsl(var(--status-green))]">${totalRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
-          </div>
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
           <div className="rounded-lg border bg-card p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Pending A/R</p>
             <p className="text-2xl font-bold text-foreground">${totalPending.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
@@ -1467,82 +1461,6 @@ export default function BillingAndClaims() {
           )}
         </TabsContent>
 
-        {/* Overrides Log */}
-        <TabsContent value="overrides-log" className="m-0 space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-foreground">All Billing Overrides</p>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-muted-foreground">Sort by:</span>
-              {(["date", "user", "reason"] as const).map(s => (
-                <Button
-                  key={s}
-                  variant={overrideLogSort === s ? "default" : "outline"}
-                  size="sm"
-                  className="h-7 text-xs capitalize"
-                  onClick={() => setOverrideLogSort(s)}
-                >
-                  {s}
-                </Button>
-              ))}
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={fetchOverrideLogs}>
-                <RefreshCw className="h-3 w-3 mr-1" />Refresh
-              </Button>
-            </div>
-          </div>
-          {overrideLogs.length === 0 ? (
-            <div className="rounded-lg border bg-card p-8 text-center">
-              <ShieldAlert className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">No billing overrides recorded yet</p>
-            </div>
-          ) : (
-            <div className="rounded-lg border bg-card overflow-x-auto">
-              <table className="w-full text-sm min-w-[800px]">
-                <thead>
-                  <tr className="border-b bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    <th className="px-4 py-3 text-left">Date</th>
-                    <th className="px-4 py-3 text-left">Patient / Trip</th>
-                    <th className="px-4 py-3 text-left">User</th>
-                    <th className="px-4 py-3 text-left">Reason</th>
-                    <th className="px-4 py-3 text-left">Original Blockers</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...overrideLogs]
-                    .sort((a, b) => {
-                      if (overrideLogSort === "date") return new Date(b.created_at ?? b.overridden_at).getTime() - new Date(a.created_at ?? a.overridden_at).getTime();
-                      if (overrideLogSort === "user") return (a.user_id ?? a.overridden_by ?? "").localeCompare(b.user_id ?? b.overridden_by ?? "");
-                      return (a.reason ?? a.override_reason ?? "").localeCompare(b.reason ?? b.override_reason ?? "");
-                    })
-                    .map((o: any) => (
-                      <tr key={o.id} className="border-b hover:bg-muted/30">
-                        <td className="px-4 py-3 text-xs whitespace-nowrap">
-                          {new Date(o.created_at ?? o.overridden_at).toLocaleDateString()}<br />
-                          <span className="text-muted-foreground">{new Date(o.created_at ?? o.overridden_at).toLocaleTimeString()}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="text-xs font-medium">{o.patient_name}</p>
-                          <p className="text-[10px] text-muted-foreground">{o.run_date}</p>
-                        </td>
-                        <td className="px-4 py-3 text-xs font-mono text-muted-foreground">
-                          {(o.user_id ?? o.overridden_by)?.slice(0, 8) ?? "—"}…
-                        </td>
-                        <td className="px-4 py-3 text-xs max-w-[200px] truncate">{o.reason ?? o.override_reason}</td>
-                        <td className="px-4 py-3 text-[10px] text-muted-foreground max-w-[200px] truncate">
-                          {(o.snapshot ?? o.previous_blockers_snapshot)
-                            ? (((o.snapshot ?? o.previous_blockers_snapshot) as any)?.blockers?.join(", ") ||
-                               ((o.snapshot ?? o.previous_blockers_snapshot) as any)?.missing?.join(", ") ||
-                               (o.previous_blockers ?? []).join(", ") ||
-                               "—")
-                            : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </TabsContent>
-
         {/* Charge Master */}
         <TabsContent value="charge-master" className="m-0 space-y-4">
           <ChargeRateNotice chargeMaster={chargeMaster} />
@@ -1624,11 +1542,6 @@ export default function BillingAndClaims() {
               </tbody>
             </table>
           </div>
-        </TabsContent>
-
-        {/* Revenue Cycle */}
-        <TabsContent value="revenue-cycle" className="m-0">
-          <RevenueCycleTab claims={claims} />
         </TabsContent>
 
         {/* Missing Money */}
