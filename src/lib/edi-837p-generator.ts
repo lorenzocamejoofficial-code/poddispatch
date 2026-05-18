@@ -623,12 +623,12 @@ export function generateEDI837P(
     // Fail loud if pcs_on_file is asserted but NPI is missing/invalid —
     // shipping a claim with an empty NM1*DK guarantees a Medicare rejection
     // and silently dropping the segment hides the data-quality bug.
-    if (claim.pcs_on_file && (!claim.pcs_physician_npi || !/^\d{10}$/.test(claim.pcs_physician_npi))) {
+    if (claim.pcs_on_file && (!claim.pcs_physician_npi || !/^\d{10}$/.test(claim.pcs_physician_npi) || !isLuhnValidNpi(claim.pcs_physician_npi))) {
       throw new Error(
-        `generateEDI837P: claim ${claim.claim_id} has pcs_on_file=true but pcs_physician_npi is missing or not a 10-digit NPI. Update the patient record (or biller PCS panel) with a valid NPI before exporting this claim.`
+        `generateEDI837P: claim ${claim.claim_id} has pcs_on_file=true but pcs_physician_npi is missing, not 10 digits, or fails Luhn checksum. Update the patient record (or biller PCS panel) with a valid NPI before exporting this claim.`
       );
     }
-    if (claim.pcs_physician_npi && /^\d{10}$/.test(claim.pcs_physician_npi)) {
+    if (claim.pcs_physician_npi && /^\d{10}$/.test(claim.pcs_physician_npi) && isLuhnValidNpi(claim.pcs_physician_npi)) {
       const physName = (claim.pcs_physician_name || "PHYSICIAN").toUpperCase();
       // Split "Dr. Jane Smith" → last/first best-effort
       const parts = physName.replace(/^DR\.?\s+/i, "").split(/\s+/);
