@@ -63,7 +63,7 @@ export async function queueClaimsForSubmission(
   const [{ data: company }, { data: vendor }] = await Promise.all([
     supabase
       .from("companies")
-      .select("name, npi_number, ein_number, state_of_operation, address_street, address_city, address_state, address_zip, phone")
+      .select("name, npi_number, ein_number, state_of_operation, address_street, address_city, address_state, address_zip")
       .eq("id", companyId)
       .maybeSingle(),
     supabase
@@ -81,7 +81,7 @@ export async function queueClaimsForSubmission(
     city: (company as any)?.address_city ?? "",
     state: (company as any)?.address_state ?? (company as any)?.state_of_operation ?? "",
     zip: (company as any)?.address_zip ?? "",
-    phone: ((company as any)?.phone ?? "").toString().replace(/\D/g, ""),
+    phone: "",
   };
   const testMode = opts.testMode ?? !!(vendor as any)?.test_mode;
   const submitterInfo: SubmitterInfo = {
