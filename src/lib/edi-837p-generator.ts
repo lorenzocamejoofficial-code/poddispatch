@@ -634,7 +634,11 @@ export function generateEDI837P(
       const parts = physName.replace(/^DR\.?\s+/i, "").split(/\s+/);
       const physLast = parts.length > 1 ? parts[parts.length - 1] : physName;
       const physFirst = parts.length > 1 ? parts.slice(0, -1).join(" ") : "";
-      addSeg(["NM1", "DK", "1", physLast, physFirst, "", "", "", "XX", claim.pcs_physician_npi].join(ES));
+      // Loop 2310A qualifier must be DN (Referring Provider) in 837P 5010.
+      // DK (Ordering Provider) is only valid at the service-line level
+      // (Loop 2420E) and causes Office Ally to reject with IK3*NM1*..*2300*2
+      // ("Unexpected Segment"), which cascades to NM1*PW and NM1*45.
+      addSeg(["NM1", "DN", "1", physLast, physFirst, "", "", "", "XX", claim.pcs_physician_npi].join(ES));
     }
 
     // CR1 - Ambulance Transport Information
