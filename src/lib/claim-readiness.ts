@@ -118,7 +118,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     push({
       field: "icd10_codes", severity: "block",
       message: "ICD-10 code required — enter code from PCR",
-      fixPath: tripPath ? `${tripPath}&focus=icd10` : `${patientPath}?focus=icd10`,
+      fixPath: tripPath ? `${tripPath}&focus=icd10` : patientFix("icd10"),
       fixLabel: tripPath ? "Fix in PCR" : "Fix in patient chart",
     });
   }
