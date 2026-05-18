@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useAuth } from "@/hooks/useAuth";
@@ -91,6 +92,7 @@ export default function Patients() {
   useFocusScroll();
   const { activeCompanyId, role } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [templatesView, setTemplatesView] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
@@ -372,6 +374,22 @@ export default function Patients() {
     setBLegWarnings([]);
     setDialogOpen(true);
   };
+
+  // Auto-open the editor when the page is reached with ?patientId=<id>
+  // (e.g. from a "Fix in patient chart" link on the Money/Claims page).
+  useEffect(() => {
+    const pid = searchParams.get("patientId");
+    if (!pid || patients.length === 0) return;
+    const target = patients.find((p) => p.id === pid);
+    if (!target) return;
+    openEdit(target);
+    // Strip patientId from the URL so re-renders don't reopen the dialog,
+    // but keep ?focus= so useFocusScroll still highlights the field.
+    const next = new URLSearchParams(searchParams);
+    next.delete("patientId");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patients, searchParams]);
 
   const handleSave = async () => {
     if (saving) return;
