@@ -185,7 +185,10 @@ export default function BillingAndClaims() {
   const [overrideLogs, setOverrideLogs] = useState<any[]>([]);
   const [overrideLogSort, setOverrideLogSort] = useState<"date" | "user" | "reason">("date");
   const [searchParams] = useSearchParams();
-  const initialTab = searchParams.get("tab") ?? "trip-queue";
+  // Trip Queue lives on /trips now (Trips & Clinical owns the lifecycle).
+  // Default Money to Claims Board; legacy ?tab=trip-queue redirects to claims.
+  const rawInitialTab = searchParams.get("tab");
+  const initialTab = !rawInitialTab || rawInitialTab === "trip-queue" ? "claims" : rawInitialTab;
   useFocusScroll();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [secondaryFilter, setSecondaryFilter] = useState(false);
@@ -1172,7 +1175,6 @@ export default function BillingAndClaims() {
       <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <TabsList className="flex-wrap h-auto gap-1">
-            <TabsTrigger value="trip-queue"><ClipboardList className="h-3.5 w-3.5 mr-1.5" />Trip Queue</TabsTrigger>
             <TabsTrigger value="claims">Claims Board</TabsTrigger>
             <TabsTrigger value="overrides-log"><ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Overrides Log</TabsTrigger>
             <TabsTrigger value="charge-master"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Charge Master</TabsTrigger>
