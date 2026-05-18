@@ -488,7 +488,12 @@ Deno.serve(async (req) => {
     if (!claim) return await recordSubmitFailure("generator", "claim not found");
     const providerNpi = s(company?.npi_number).replace(/\D/g, "");
     const providerTaxId = s(company?.ein_number).replace(/\D/g, "");
-    if (providerNpi.length !== 10 || providerTaxId.length < 9) return await recordSubmitFailure("generator", "Lorenzo Test Company is missing Provider NPI or EIN/Tax ID — set them on the company profile before running OATEST.");
+    if (providerNpi.length !== 10 || !isLuhnValidNpi(providerNpi) || providerTaxId.length < 9) {
+      return await recordSubmitFailure(
+        "generator",
+        "Lorenzo Test Company Provider NPI must be exactly 10 digits and pass the CMS Luhn checksum, and EIN/Tax ID must be 9 digits — fix the company profile before running OATEST.",
+      );
+    }
 
     const { data: patient } = await admin
       .from("patients").select("*").eq("id", claim.patient_id!).maybeSingle();
