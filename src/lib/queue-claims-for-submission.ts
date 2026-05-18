@@ -63,7 +63,7 @@ export async function queueClaimsForSubmission(
   const [{ data: company }, { data: vendor }] = await Promise.all([
     supabase
       .from("companies")
-      .select("name, npi_number, ein_number, state_of_operation, address_street, address_city, address_state, address_zip")
+      .select("name, npi_number, ein_number, state_of_operation, address_street, address_city, address_state, address_zip, is_sandbox")
       .eq("id", companyId)
       .maybeSingle(),
     supabase
@@ -83,7 +83,24 @@ export async function queueClaimsForSubmission(
     zip: (company as any)?.address_zip ?? "",
     phone: "",
   };
-  const testMode = opts.testMode ?? !!(vendor as any)?.test_mode;
+  // Sandbox tenants and any simulation-seeded claims must ALWAYS go out as
+  // OATEST (ISA15=T) so they hit Office Ally's test endpoint and never touch
+  // production AR. We probe the claim rows here so a single simulated claim
+  // in the batch forces the whole envelope to T.
+  const isSandboxCompany = !!(company as any)?.is_sandbox;
+  let hasSimulatedClaim = false;
+  if (!isSandboxCompany && opts.testMode === undefined) {
+    const { data: simProbe } = await supabase
+      .from("claim_records" as any)
+      .select("id")
+      .in("id", claimIds)
+      .eq("company_id", companyId)
+      .eq("is_simulated", true)
+      .limit(1);
+    hasSimulatedClaim = !!(simProbe && simProbe.length);
+  }
+  const forcedTest = isSandboxCompany || hasSimulatedClaim;
+  const testMode = opts.testMode ?? (forcedTest || !!(vendor as any)?.test_mode);
   const submitterInfo: SubmitterInfo = {
     submitter_id: (vendor as any)?.submitter_id ?? "",
     submitter_name: (vendor as any)?.submitter_name ?? "",
