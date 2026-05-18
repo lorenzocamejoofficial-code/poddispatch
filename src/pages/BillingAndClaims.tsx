@@ -229,14 +229,24 @@ export default function BillingAndClaims() {
     const tripIds = [...new Set(((claimRows ?? []) as any[]).map((c: any) => c.trip_id).filter(Boolean))];
     const [{ data: pRows }, { data: tripRows }] = await Promise.all([
       patientIds.length > 0
-        ? supabase.from("patients").select("id, first_name, last_name, secondary_payer, secondary_member_id, secondary_payer_id").in("id", patientIds)
+        ? supabase.from("patients").select("id, first_name, last_name, dob, sex, primary_payer, member_id, pickup_address, secondary_payer, secondary_member_id, secondary_payer_id").in("id", patientIds)
         : Promise.resolve({ data: [] }),
       tripIds.length > 0
         ? supabase.from("trip_records" as any).select("id, leg_id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type, updated_at, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name)").in("id", tripIds)
         : Promise.resolve({ data: [] }),
     ]);
 
-    const pMap = new Map((pRows ?? []).map((p: any) => [p.id, { name: `${p.first_name} ${p.last_name}`, secondary_payer: p.secondary_payer, secondary_member_id: p.secondary_member_id, secondary_payer_id: p.secondary_payer_id }]));
+    const pMap = new Map((pRows ?? []).map((p: any) => [p.id, {
+      name: `${p.first_name} ${p.last_name}`,
+      dob: p.dob,
+      sex: p.sex,
+      primary_payer: p.primary_payer,
+      member_id: p.member_id,
+      pickup_address: p.pickup_address,
+      secondary_payer: p.secondary_payer,
+      secondary_member_id: p.secondary_member_id,
+      secondary_payer_id: p.secondary_payer_id,
+    }]));
     const tMap = new Map((tripRows ?? []).map((t: any) => [t.id, t]));
 
     setClaims(
@@ -246,6 +256,15 @@ export default function BillingAndClaims() {
         return {
           ...c,
           patient_name: patData?.name ?? (tripData?.leg?.is_oneoff ? tripData.leg.oneoff_name : null) ?? "Unknown",
+          // Fields below feed evaluateClaimReadiness on the claim card so the
+          // "Missing payer / DOB / sex / member ID" warnings clear as soon as
+          // the patient chart is filled in (without waiting for the claim row
+          // to be re-synced from the patient record).
+          patient_dob: c.patient_dob ?? patData?.dob ?? null,
+          patient_sex: c.patient_sex ?? patData?.sex ?? null,
+          patient_address: patData?.pickup_address ?? null,
+          member_id: c.member_id ?? patData?.member_id ?? null,
+          payer_name: c.payer_name ?? patData?.primary_payer ?? c.payer_type ?? null,
           trip_loaded_miles: tripData?.loaded_miles ?? null,
           trip_signature: tripData?.signature_obtained ?? false,
           trip_pcs: tripData?.pcs_attached ?? false,
