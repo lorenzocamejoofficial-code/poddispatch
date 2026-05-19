@@ -374,6 +374,7 @@ export async function queueClaimsForSubmission(
       primary_impression: c.primary_impression ?? null,
       chief_complaint_other: (trip.assessment_json || {})?.chief_complaint_other ?? null,
       primary_impression_other: (trip.assessment_json || {})?.primary_impression_other ?? null,
+      cob: cobByClaimId[c.id] ?? null,
     };
 
     const issues = evaluateClaimReadiness({
