@@ -579,6 +579,7 @@ export type Database = {
           denial_reason: string | null
           event_type: string
           id: string
+          is_simulated: boolean
           patient_responsibility: number
           payer_claim_control_number: string | null
           payment_date: string | null
@@ -599,6 +600,7 @@ export type Database = {
           denial_reason?: string | null
           event_type: string
           id?: string
+          is_simulated?: boolean
           patient_responsibility?: number
           payer_claim_control_number?: string | null
           payment_date?: string | null
@@ -619,6 +621,7 @@ export type Database = {
           denial_reason?: string | null
           event_type?: string
           id?: string
+          is_simulated?: boolean
           patient_responsibility?: number
           payer_claim_control_number?: string | null
           payment_date?: string | null
@@ -3496,6 +3499,7 @@ export type Database = {
           created_at: string
           fiscal_period: string | null
           id: string
+          is_simulated: boolean
           provider_npi: string | null
           reason_code: string
           reference_id: string | null
@@ -3507,6 +3511,7 @@ export type Database = {
           created_at?: string
           fiscal_period?: string | null
           id?: string
+          is_simulated?: boolean
           provider_npi?: string | null
           reason_code: string
           reference_id?: string | null
@@ -3518,6 +3523,7 @@ export type Database = {
           created_at?: string
           fiscal_period?: string | null
           id?: string
+          is_simulated?: boolean
           provider_npi?: string | null
           reason_code?: string
           reference_id?: string | null
@@ -3737,6 +3743,7 @@ export type Database = {
           id: string
           imported_at: string
           imported_by: string | null
+          is_simulated: boolean
           payer_name: string | null
           payment_date: string | null
           reconciled: boolean
@@ -3756,6 +3763,7 @@ export type Database = {
           id?: string
           imported_at?: string
           imported_by?: string | null
+          is_simulated?: boolean
           payer_name?: string | null
           payment_date?: string | null
           reconciled?: boolean
@@ -3775,6 +3783,7 @@ export type Database = {
           id?: string
           imported_at?: string
           imported_by?: string | null
+          is_simulated?: boolean
           payer_name?: string | null
           payment_date?: string | null
           reconciled?: boolean
