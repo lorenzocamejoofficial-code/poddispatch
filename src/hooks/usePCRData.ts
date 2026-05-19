@@ -76,7 +76,7 @@ export interface PCRTripData {
   icd10_codes: string[];
   weight_lbs: number | null;
   // Pertinent medical history (NEMSIS eHistory.08) — snapshot at time of transport
-  pertinent_history: { na: boolean; items: string[]; other: string } | null;
+  pertinent_history: any;
   // Leg info (joined from scheduling_legs)
   leg_type: string | null;
   chair_time: string | null;
