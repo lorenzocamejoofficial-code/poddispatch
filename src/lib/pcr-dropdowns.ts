@@ -575,7 +575,8 @@ export type PCRCardType =
   | "signatures" | "narrative" | "billing" | "sending_facility" | "assessment"
   | "physical_exam" | "hospital_outcome" | "chief_complaint" | "airway"
   | "procedures" | "medications" | "iv_access" | "medical_necessity"
-  | "stretcher_mobility" | "isolation_precautions" | "behavioral_health";
+  | "stretcher_mobility" | "isolation_precautions" | "behavioral_health"
+  | "pertinent_history";
 
 export interface PCRCardConfig {
   type: PCRCardType;
@@ -595,6 +596,7 @@ export const PCR_CARDS_BY_TRANSPORT: Record<string, PCRCardConfig[]> = {
     { type: "patient_info", label: "Patient Info", required: false },
     { type: "vitals", label: "Vitals", required: true },
     { type: "condition_on_arrival", label: "Condition on Arrival", required: true },
+    { type: "pertinent_history", label: "Pertinent Medical History", required: true },
     { type: "medical_necessity", label: "Medical Necessity", required: true },
     { type: "stretcher_mobility", label: "Stretcher & Mobility", required: true },
     { type: "isolation_precautions", label: "Isolation Precautions", required: true },
@@ -606,6 +608,7 @@ export const PCR_CARDS_BY_TRANSPORT: Record<string, PCRCardConfig[]> = {
     { type: "patient_info", label: "Patient Info", required: false },
     { type: "vitals", label: "Vitals", required: true },
     { type: "condition_on_arrival", label: "Condition on Arrival", required: true },
+    { type: "pertinent_history", label: "Pertinent Medical History", required: true },
     { type: "medical_necessity", label: "Medical Necessity", required: true },
     { type: "stretcher_mobility", label: "Stretcher & Mobility", required: true },
     { type: "isolation_precautions", label: "Isolation Precautions", required: false },
@@ -617,6 +620,7 @@ export const PCR_CARDS_BY_TRANSPORT: Record<string, PCRCardConfig[]> = {
     { type: "patient_info", label: "Patient Info", required: false },
     { type: "vitals", label: "Vitals", required: true },
     { type: "condition_on_arrival", label: "Condition on Arrival", required: true },
+    { type: "pertinent_history", label: "Pertinent Medical History", required: true },
     { type: "medical_necessity", label: "Medical Necessity", required: true },
     { type: "stretcher_mobility", label: "Stretcher & Mobility", required: true },
     { type: "isolation_precautions", label: "Isolation Precautions", required: false },
@@ -630,6 +634,7 @@ export const PCR_CARDS_BY_TRANSPORT: Record<string, PCRCardConfig[]> = {
     { type: "vitals", label: "Vitals", required: true },
     { type: "assessment", label: "Assessment", required: true },
     { type: "physical_exam", label: "Physical Exam", required: true },
+    { type: "pertinent_history", label: "Pertinent Medical History", required: true },
     { type: "medical_necessity", label: "Medical Necessity", required: true },
     { type: "stretcher_mobility", label: "Stretcher & Mobility", required: true },
     { type: "isolation_precautions", label: "Isolation Precautions", required: true },
@@ -644,6 +649,7 @@ export const PCR_CARDS_BY_TRANSPORT: Record<string, PCRCardConfig[]> = {
     { type: "vitals", label: "Vitals — Multiple Sets", required: true },
     { type: "assessment", label: "Assessment / Primary Impression", required: true },
     { type: "physical_exam", label: "Physical Exam", required: true },
+    { type: "pertinent_history", label: "Pertinent Medical History", required: true },
     { type: "airway", label: "Airway / Interventions", required: true },
     { type: "procedures", label: "Procedures", required: true },
     { type: "medications", label: "Medications", required: true },
@@ -661,6 +667,7 @@ export const PCR_CARDS_BY_TRANSPORT: Record<string, PCRCardConfig[]> = {
     { type: "vitals", label: "Vitals", required: true },
     { type: "assessment", label: "Assessment", required: true },
     { type: "physical_exam", label: "Physical Exam", required: true },
+    { type: "pertinent_history", label: "Pertinent Medical History", required: true },
     { type: "medical_necessity", label: "Medical Necessity", required: true },
     { type: "stretcher_mobility", label: "Stretcher & Mobility", required: true },
     { type: "isolation_precautions", label: "Isolation Precautions", required: false },
@@ -673,6 +680,7 @@ export const PCR_CARDS_BY_TRANSPORT: Record<string, PCRCardConfig[]> = {
     { type: "patient_info", label: "Patient Info", required: true },
     { type: "vitals", label: "Vitals", required: true },
     { type: "condition_on_arrival", label: "Condition on Arrival", required: true },
+    { type: "pertinent_history", label: "Pertinent Medical History", required: true },
     { type: "medical_necessity", label: "Medical Necessity", required: true },
     { type: "stretcher_mobility", label: "Stretcher & Mobility", required: true },
     { type: "isolation_precautions", label: "Isolation Precautions", required: false },
@@ -684,6 +692,7 @@ export const PCR_CARDS_BY_TRANSPORT: Record<string, PCRCardConfig[]> = {
     { type: "patient_info", label: "Patient Info", required: true },
     { type: "vitals", label: "Vitals", required: false },
     { type: "condition_on_arrival", label: "Condition on Arrival", required: false },
+    { type: "pertinent_history", label: "Pertinent Medical History", required: false },
     { type: "stretcher_mobility", label: "Stretcher & Mobility", required: true },
     { type: "isolation_precautions", label: "Isolation Precautions", required: false },
     { type: "equipment", label: "Equipment in Use", required: false },
@@ -696,6 +705,7 @@ export const PCR_CARDS_BY_TRANSPORT: Record<string, PCRCardConfig[]> = {
     { type: "vitals", label: "Vitals", required: true },
     { type: "assessment", label: "Assessment", required: true },
     { type: "physical_exam", label: "Physical Exam", required: true },
+    { type: "pertinent_history", label: "Pertinent Medical History", required: true },
     { type: "medical_necessity", label: "Medical Necessity", required: true },
     { type: "stretcher_mobility", label: "Stretcher & Mobility", required: true },
     { type: "isolation_precautions", label: "Isolation Precautions", required: true },
@@ -709,6 +719,7 @@ export const PCR_CARDS_BY_TRANSPORT: Record<string, PCRCardConfig[]> = {
     { type: "behavioral_health", label: "Behavioral Health Transport", required: true },
     { type: "vitals", label: "Vitals", required: true },
     { type: "assessment", label: "Assessment / Primary Impression", required: true },
+    { type: "pertinent_history", label: "Pertinent Medical History", required: true },
     { type: "medical_necessity", label: "Medical Necessity", required: true },
     { type: "stretcher_mobility", label: "Stretcher & Mobility", required: true },
     { type: "isolation_precautions", label: "Isolation Precautions", required: false },
