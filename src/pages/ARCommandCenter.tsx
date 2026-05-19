@@ -52,6 +52,7 @@ interface ARClaim {
   submitted_at: string | null;
   denial_code: string | null;
   denial_reason: string | null;
+  denial_category: string | null;
   last_contacted_at: string | null;
   company_id: string | null;
   resubmission_count: number | null;
@@ -147,6 +148,7 @@ export default function ARCommandCenter() {
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterPayer, setFilterPayer] = useState<string>("all");
   const [filterAck, setFilterAck] = useState<string>("all");
+  const [filterDenialCat, setFilterDenialCat] = useState<string>("all");
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   const [writeOffReason, setWriteOffReason] = useState("");
   const [recoveryOpen, setRecoveryOpen] = useState(false);
@@ -179,7 +181,7 @@ export default function ARCommandCenter() {
     const [{ data, error }, { data: payerDir }] = await Promise.all([
       supabase
         .from("claim_records")
-        .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at, acknowledgment_status, rejection_reason, rejection_codes")
+        .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, denial_category, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at, acknowledgment_status, rejection_reason, rejection_codes")
         .eq("company_id", activeCompanyId)
         .eq("is_simulated", false)
         .in("status", ["submitted", "denied", "needs_correction"] as any)
@@ -390,18 +392,19 @@ export default function ARCommandCenter() {
       if (filterAck === "any_rejected" && !["rejected_999","rejected_277ca"].includes(c.acknowledgment_status ?? "")) return false;
       if (filterAck === "accepted" && !["accepted_999","accepted_277ca","forwarded_to_payer"].includes(c.acknowledgment_status ?? "")) return false;
       if (filterAck === "no_ack" && c.acknowledgment_status) return false;
+      if (filterDenialCat !== "all" && c.denial_category !== filterDenialCat) return false;
       if (search) {
         const q = search.toLowerCase();
         if (!c.patient_name.toLowerCase().includes(q) && !(c.member_id ?? "").toLowerCase().includes(q)) return false;
       }
       return true;
     });
-  }, [claims, filterPriority, filterPayer, filterAck, search]);
+  }, [claims, filterPriority, filterPayer, filterAck, filterDenialCat, search]);
 
   // Pagination — keeps DOM render small as AR queue grows past hundreds of rows
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  useEffect(() => { setPage(1); }, [search, filterPriority, filterPayer, filterAck, pageSize]);
+  useEffect(() => { setPage(1); }, [search, filterPriority, filterPayer, filterAck, filterDenialCat, pageSize]);
   const pageStart = (page - 1) * pageSize;
   const paginatedClaims = useMemo(() => filtered.slice(pageStart, pageStart + pageSize), [filtered, pageStart, pageSize]);
 
@@ -409,6 +412,16 @@ export default function ARCommandCenter() {
   const totalOutstanding = claims.reduce((sum, c) => sum + ((c.total_charge ?? 0) - (c.amount_paid ?? 0)), 0);
   const actionToday = claims.filter(c => c.priority <= 3).length;
   const timelyFilingRisk = claims.filter(c => c.priority === 1).reduce((s, c) => s + (c.total_charge ?? 0), 0);
+
+  /* Denial category counts (denied claims only) */
+  const denialCounts = useMemo(() => {
+    const c = { appeal: 0, correct_resubmit: 0, write_off: 0, patient_responsibility: 0, followup: 0 };
+    for (const cl of claims) {
+      if (cl.status !== "denied" || !cl.denial_category) continue;
+      if (cl.denial_category in c) (c as any)[cl.denial_category]++;
+    }
+    return c;
+  }, [claims]);
 
   // Recovered this month — need separate query, approximate with paid claims
   const [recoveredThisMonth, setRecoveredThisMonth] = useState(0);
