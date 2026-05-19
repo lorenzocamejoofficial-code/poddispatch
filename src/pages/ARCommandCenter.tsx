@@ -82,11 +82,22 @@ function computePriority(claim: {
   payer_type: string | null;
   days_outstanding: number;
   filing_limit_days?: number;
+  acknowledgment_status?: string | null;
 }): { priority: number; label: string; color: string } {
   const dosDate = new Date(claim.run_date);
   const filingLimit = claim.filing_limit_days ?? 365;
   const daysSinceDOS = (Date.now() - dosDate.getTime()) / (1000 * 60 * 60 * 24);
   const daysToDeadline = filingLimit - daysSinceDOS;
+
+  // 0. Missing Acknowledgment — submitted >24h ago with no 999/277CA back yet
+  if (
+    claim.status === "submitted" &&
+    claim.submitted_at &&
+    (Date.now() - new Date(claim.submitted_at).getTime()) > 24 * 60 * 60 * 1000 &&
+    !claim.acknowledgment_status
+  ) {
+    return { priority: 0, label: "Missing Acknowledgment", color: "destructive" };
+  }
 
   // 1. Filing Deadline — within 30 days of payer-specific deadline
   if (daysToDeadline <= 30) {
@@ -505,6 +516,7 @@ export default function ARCommandCenter() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="Missing Acknowledgment">Missing Acknowledgment</SelectItem>
                   <SelectItem value="Filing Deadline">Filing Deadline</SelectItem>
                   <SelectItem value="Denied — Action Required">Denied — Action Required</SelectItem>
                   <SelectItem value="No Response — 45+ Days">No Response — 45+ Days</SelectItem>
