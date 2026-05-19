@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle, Lock } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { AlertTriangle, CheckCircle, Loader2, Sparkles } from "lucide-react";
+import { createSecondaryClaim } from "@/lib/create-secondary-claim";
+import { useToast } from "@/hooks/use-toast";
 
 interface SecondaryClaimPanelProps {
   claimId: string;
@@ -46,7 +47,9 @@ export function SecondaryClaimPanel({
   secondaryPayerId,
   onGenerated,
 }: SecondaryClaimPanelProps) {
-  const [generated] = useState(false);
+  const [generated, setGenerated] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
 
   // Only show when: claim is paid, patient has secondary payer, not already generated
   const isPaid = status === "paid";
@@ -66,6 +69,19 @@ export function SecondaryClaimPanel({
     }
     return null;
   }
+
+  const handleGenerate = async () => {
+    setBusy(true);
+    const res = await createSecondaryClaim(claimId);
+    setBusy(false);
+    if (!res.ok) {
+      toast({ title: "Could not create secondary claim", description: res.error, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Secondary claim created", description: "It's queued in Billing & Claims as ready_to_bill." });
+    setGenerated(true);
+    onGenerated?.();
+  };
 
   return (
     <div className="rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] p-3 space-y-3">
@@ -100,25 +116,12 @@ export function SecondaryClaimPanel({
         </div>
       </div>
 
-      <TooltipProvider delayDuration={150}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="block">
-              <Button disabled size="sm" className="w-full gap-1.5 cursor-not-allowed">
-                <Lock className="h-3.5 w-3.5" />
-                Generate Secondary Claim
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs text-xs">
-            Coordination of benefits EDI (Loop 2320) is not yet implemented. Submit secondary
-            claims via your clearinghouse portal until this ships.
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Button size="sm" className="w-full gap-1.5" onClick={handleGenerate} disabled={busy}>
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+        Generate Secondary Claim
+      </Button>
       <p className="text-[10px] text-muted-foreground leading-snug">
-        We're tracking this opportunity so you can recover it manually. EDI COB support is on the
-        roadmap.
+        Spawns a new claim with Loop 2320/2330 (COB) populated from the primary remittance.
       </p>
     </div>
   );
