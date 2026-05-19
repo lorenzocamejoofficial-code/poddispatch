@@ -41,6 +41,24 @@ export async function createSecondaryClaim(
     return { ok: false, error: "primary claim is missing patient_id (one-off — no secondary lookup possible)" };
   }
 
+  // Secondary claim charges = unpaid balance left for the secondary payer to
+  // adjudicate (i.e. the primary's patient_responsibility_amount). We scale
+  // base/mileage/extras proportionally so SV1 line charges still sum to CLM02
+  // (the 837P generator emits CLM02 from total_charge and SV1 from base+mileage).
+  const primaryTotal = Number(p.total_charge) || 0;
+  const patResp = Number(p.patient_responsibility_amount) || 0;
+  if (patResp <= 0) {
+    return { ok: false, error: "primary has no patient_responsibility_amount — nothing left for secondary to bill" };
+  }
+  const ratio = primaryTotal > 0 ? patResp / primaryTotal : 0;
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  let secBase = round2((Number(p.base_charge) || 0) * ratio);
+  let secMileage = round2((Number(p.mileage_charge) || 0) * ratio);
+  let secExtras = round2((Number(p.extras_charge) || 0) * ratio);
+  // Fix rounding drift so components sum exactly to patResp
+  const drift = round2(patResp - (secBase + secMileage + secExtras));
+  if (drift !== 0) secBase = round2(secBase + drift);
+
   const { data: pat } = await supabase
     .from("patients")
     .select("id, secondary_payer, secondary_payer_id, secondary_member_id")
@@ -67,10 +85,10 @@ export async function createSecondaryClaim(
     payer_type: secPayerType,
     payer_name: secPayerName,
     member_id: patient.secondary_member_id,
-    total_charge: p.total_charge,
-    base_charge: p.base_charge,
-    mileage_charge: p.mileage_charge,
-    extras_charge: p.extras_charge,
+    total_charge: patResp,
+    base_charge: secBase,
+    mileage_charge: secMileage,
+    extras_charge: secExtras,
     hcpcs_codes: p.hcpcs_codes,
     hcpcs_modifiers: p.hcpcs_modifiers,
     hcpcs_manually_set: p.hcpcs_manually_set,
