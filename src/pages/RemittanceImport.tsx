@@ -291,6 +291,7 @@ export default function RemittanceImport() {
             denial_code: primaryDenial?.code ?? null,
             denial_reason: denialReason,
             adjustment_codes: adjustmentCodes,
+            cas_adjustments: rem.adjustment_groups,
             payer_claim_control_number: rem.payer_claim_control_number || null,
             remittance_file_id: remittanceFileId,
             payment_date: rem.payment_date || envelope?.payment_date || null,

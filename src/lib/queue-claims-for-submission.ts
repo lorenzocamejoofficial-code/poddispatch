@@ -25,6 +25,7 @@ import {
   type ClaimForEDI,
   type ProviderInfo,
   type SubmitterInfo,
+  type ClaimCobInfo,
 } from "@/lib/edi-837p-generator";
 import { evaluateClaimReadiness, type ReadinessIssue } from "@/lib/claim-readiness";
 import { logAuditEvent } from "@/lib/audit-logger";
@@ -129,6 +130,7 @@ export async function queueClaimsForSubmission(
 
   const tripIds = [...new Set(claims.map(c => c.trip_id).filter(Boolean))];
   const patientIds = [...new Set(claims.map(c => c.patient_id).filter(Boolean))];
+  const primaryClaimIds = [...new Set(claims.map(c => c.original_claim_id).filter(Boolean))] as string[];
 
   const [{ data: trips }, { data: patients }] = await Promise.all([
     tripIds.length
@@ -149,6 +151,100 @@ export async function queueClaimsForSubmission(
   (trips ?? []).forEach((t: any) => { tripMap[t.id] = t; });
   const patMap: Record<string, any> = {};
   (patients ?? []).forEach((p: any) => { patMap[p.id] = p; });
+
+  // ── 2b. COB context for secondary claims ─────────────────────────────
+  // Only loaded when at least one selected claim is a secondary (has
+  // original_claim_id). We fetch the primary claim_records + their
+  // claim_payments so we can replay the adjudication into Loop 2320.
+  const cobByClaimId: Record<string, ClaimCobInfo> = {};
+  if (primaryClaimIds.length) {
+    const [{ data: primaries }, { data: primPays }] = await Promise.all([
+      supabase
+        .from("claim_records" as any)
+        .select("id, payer_name, payer_type, member_id, patient_id, status, run_date")
+        .in("id", primaryClaimIds),
+      supabase
+        .from("claim_payments" as any)
+        .select("claim_record_id, amount, payment_date, applied_at, cas_adjustments, adjustment_codes")
+        .in("claim_record_id", primaryClaimIds),
+    ]);
+    const primById: Record<string, any> = {};
+    (primaries ?? []).forEach((p: any) => { primById[p.id] = p; });
+    const paysByClaim: Record<string, any[]> = {};
+    (primPays ?? []).forEach((p: any) => {
+      (paysByClaim[p.claim_record_id] ||= []).push(p);
+    });
+
+    for (const sec of claims) {
+      const primId = sec.original_claim_id;
+      if (!primId) continue;
+      const prim = primById[primId];
+      const pays = paysByClaim[primId] || [];
+      if (!prim) throw new Error(`Secondary claim ${sec.id}: primary ${primId} not found.`);
+      if (prim.status !== "paid" && prim.status !== "denied") {
+        throw new Error(`Secondary claim ${sec.id}: primary must be paid or denied (currently ${prim.status}).`);
+      }
+      if (!pays.length) {
+        throw new Error(`Secondary claim ${sec.id}: primary ${primId} has no claim_payments — cannot emit COB.`);
+      }
+      if (!prim.payer_name && !prim.payer_type) {
+        throw new Error(`Secondary claim ${sec.id}: primary payer info missing on ${primId}.`);
+      }
+
+      const sumPaid = pays.reduce((s, p) => s + Number(p.amount || 0), 0);
+      const lastPaid = [...pays].sort((a, b) =>
+        String(b.payment_date || b.applied_at).localeCompare(String(a.payment_date || a.applied_at)))[0];
+      const adjDate = (lastPaid?.payment_date || (lastPaid?.applied_at || "").slice(0, 10)) || sec.run_date;
+
+      // Aggregate CAS triplets across all payment events on the primary,
+      // grouping by group_code then summing within (group_code,reason_code).
+      const groupMap = new Map<string, Map<string, number>>();
+      for (const p of pays) {
+        const arr: any[] = Array.isArray(p.cas_adjustments) ? p.cas_adjustments : [];
+        for (const a of arr) {
+          if (!a?.group_code || !a?.reason_code) continue;
+          const inner = groupMap.get(a.group_code) || new Map<string, number>();
+          inner.set(a.reason_code, (inner.get(a.reason_code) || 0) + Number(a.amount || 0));
+          groupMap.set(a.group_code, inner);
+        }
+      }
+      const cas_groups = [...groupMap.entries()].map(([group_code, inner]) => ({
+        group_code,
+        adjustments: [...inner.entries()].map(([reason_code, amount]) => ({ reason_code, amount })),
+      }));
+
+      const pat = patMap[sec.patient_id] || {};
+      const subAddr = parseAddressString(String(pat.pickup_address ?? ""));
+      const primPayerName = (prim.payer_name || prim.payer_type || "PRIMARY PAYER").toString();
+      const primPayerId =
+        (prim.payer_type === "medicare" ? "MEDICARE" :
+         prim.payer_type === "medicaid" ? "MEDICAID" :
+         (prim.payer_name || "UNKNOWN")).toString().toUpperCase();
+
+      cobByClaimId[sec.id] = {
+        rel_code: "18", // Self — typical NEMT case
+        group_number: "",
+        group_name: "",
+        payer_filing_indicator:
+          prim.payer_type === "medicare" ? "MC" :
+          prim.payer_type === "medicaid" ? "MD" :
+          prim.payer_type === "commercial" ? "CI" : "ZZ",
+        paid_amount: Number(sumPaid.toFixed(2)),
+        adjudication_date: adjDate,
+        cas_groups,
+        subscriber: {
+          last: (pat.last_name || "UNKNOWN").toUpperCase(),
+          first: (pat.first_name || "UNKNOWN").toUpperCase(),
+          member_id: prim.member_id || pat.member_id || "UNKNOWN",
+          address: subAddr.street || String(pat.pickup_address ?? ""),
+          city: subAddr.city || "",
+          state: subAddr.state || "",
+          zip: subAddr.zip || "",
+        },
+        payer: { name: primPayerName.toUpperCase(), payer_id: primPayerId },
+      };
+    }
+  }
 
   // ── 3. Facility lookup (drives G/J modifiers + dest address resolution) ─
   const candidateNames = new Set<string>();
@@ -278,6 +374,7 @@ export async function queueClaimsForSubmission(
       primary_impression: c.primary_impression ?? null,
       chief_complaint_other: (trip.assessment_json || {})?.chief_complaint_other ?? null,
       primary_impression_other: (trip.assessment_json || {})?.primary_impression_other ?? null,
+      cob: cobByClaimId[c.id] ?? null,
     };
 
     const issues = evaluateClaimReadiness({
