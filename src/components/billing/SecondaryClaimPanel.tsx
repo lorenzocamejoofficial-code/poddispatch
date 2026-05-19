@@ -1,11 +1,8 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, ArrowRight, CheckCircle } from "lucide-react";
-import { toast } from "sonner";
-import { logAuditEvent } from "@/lib/audit-logger";
+import { AlertTriangle, CheckCircle, Lock } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 interface SecondaryClaimPanelProps {
   claimId: string;
@@ -49,8 +46,7 @@ export function SecondaryClaimPanel({
   secondaryPayerId,
   onGenerated,
 }: SecondaryClaimPanelProps) {
-  const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(false);
+  const [generated] = useState(false);
 
   // Only show when: claim is paid, patient has secondary payer, not already generated
   const isPaid = status === "paid";
@@ -70,74 +66,6 @@ export function SecondaryClaimPanel({
     }
     return null;
   }
-
-  const handleGenerate = async () => {
-    // Fix 7: Warn if secondary member ID is missing
-    if (!secondaryMemberId) {
-      const confirmed = window.confirm(
-        "Secondary member ID is missing — the claim may be rejected at the clearinghouse. Generate anyway?"
-      );
-      if (!confirmed) return;
-    }
-    setGenerating(true);
-    try {
-      const secondaryCharge = patResp > 0 ? patResp : totalCharge;
-
-      // Create secondary claim
-      const { data: newClaimData, error: insertError } = await supabase
-        .from("claim_records" as any)
-        .insert({
-          trip_id: tripId,
-          patient_id: patientId,
-          run_date: runDate,
-          payer_type: secondaryPayer,
-          payer_name: secondaryPayer,
-          member_id: secondaryMemberId || null,
-          total_charge: secondaryCharge,
-          base_charge: secondaryCharge,
-          mileage_charge: 0,
-          extras_charge: 0,
-          status: "ready_to_bill",
-          hcpcs_codes: hcpcsCodes,
-          hcpcs_modifiers: hcpcsModifiers,
-          origin_type: originType,
-          destination_type: destinationType,
-          icd10_codes: icd10Codes,
-          original_claim_id: claimId,
-          notes: `Secondary claim — primary paid $${(amountPaid ?? 0).toFixed(2)}, patient responsibility $${patResp.toFixed(2)}`,
-        } as any)
-        .select("id")
-        .single();
-
-      if (insertError) throw insertError;
-      const newClaimId = (newClaimData as any)?.id;
-
-      // Update primary claim
-      await supabase
-        .from("claim_records" as any)
-        .update({
-          secondary_claim_generated: true,
-          secondary_claim_id: newClaimId,
-        } as any)
-        .eq("id", claimId);
-
-      await logAuditEvent({
-        action: "edit",
-        tableName: "claim_records",
-        recordId: claimId,
-        notes: `Generated secondary claim for ${secondaryPayer} — $${secondaryCharge.toFixed(2)}`,
-        newData: { secondary_claim_id: newClaimId, secondary_payer: secondaryPayer },
-      });
-
-      setGenerated(true);
-      toast.success(`Secondary claim created for ${secondaryPayer}`);
-      onGenerated?.();
-    } catch (err: any) {
-      toast.error("Failed to generate secondary claim: " + err.message);
-    } finally {
-      setGenerating(false);
-    }
-  };
 
   return (
     <div className="rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] p-3 space-y-3">
@@ -172,19 +100,26 @@ export function SecondaryClaimPanel({
         </div>
       </div>
 
-      <Button
-        onClick={handleGenerate}
-        disabled={generating}
-        size="sm"
-        className="w-full gap-1.5"
-      >
-        {generating ? (
-          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-        ) : (
-          <ArrowRight className="h-3.5 w-3.5" />
-        )}
-        Generate Secondary Claim
-      </Button>
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="block">
+              <Button disabled size="sm" className="w-full gap-1.5 cursor-not-allowed">
+                <Lock className="h-3.5 w-3.5" />
+                Generate Secondary Claim
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs text-xs">
+            Coordination of benefits EDI (Loop 2320) is not yet implemented. Submit secondary
+            claims via your clearinghouse portal until this ships.
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <p className="text-[10px] text-muted-foreground leading-snug">
+        We're tracking this opportunity so you can recover it manually. EDI COB support is on the
+        roadmap.
+      </p>
     </div>
   );
 }
