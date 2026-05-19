@@ -204,6 +204,34 @@ export function PatientInfoCard({ trip, updateField: _updateField }: PatientInfo
         </div>
       )}
 
+      {patient?.pertinent_history && (() => {
+        const ph: any = patient.pertinent_history;
+        if (ph.na) {
+          return (
+            <div className="pt-2">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Pertinent History</p>
+              <p className="text-sm text-muted-foreground italic">N/A — none pertinent on file</p>
+            </div>
+          );
+        }
+        const items: string[] = Array.isArray(ph.items) ? ph.items : [];
+        const other: string = ph.other || "";
+        if (items.length === 0 && !other.trim()) return null;
+        return (
+          <div className="pt-2">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Pertinent History</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {items.map((k) => (
+                <Badge key={k} variant="outline" className="text-[10px] border-amber-400 text-amber-800 dark:text-amber-300">
+                  {k.replace(/_/g, " ")}
+                </Badge>
+              ))}
+            </div>
+            {other.trim() && <p className="text-sm text-foreground mt-1">{other}</p>}
+          </div>
+        );
+      })()}
+
       {!patient && (
         <p className="text-xs text-muted-foreground italic pt-1">
           No patient record linked — fields above can be documented manually.
