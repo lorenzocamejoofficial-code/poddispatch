@@ -11,7 +11,6 @@
  * legitimately share the trip_id with the primary.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { logAuditEvent } from "@/lib/audit-logger";
 
 export interface CreateSecondaryClaimResult {
   ok: boolean;
@@ -111,14 +110,6 @@ export async function createSecondaryClaim(
     .from("claim_records" as any)
     .update({ secondary_claim_generated: true, secondary_claim_id: newId } as any)
     .eq("id", primaryClaimId);
-
-  await logAuditEvent({
-    action: "secondary_claim_created",
-    tableName: "claim_records",
-    recordId: newId,
-    notes: `Secondary claim spawned from ${primaryClaimId} → payer ${secPayerName}`,
-    newData: { primary_claim_id: primaryClaimId, secondary_claim_id: newId, payer: secPayerName },
-  });
 
   return { ok: true, secondaryClaimId: newId };
 }
