@@ -20,6 +20,7 @@ import { SignaturesCard } from "@/components/pcr/SignaturesCard";
 import { NarrativeCard } from "@/components/pcr/NarrativeCard";
 import { BillingCard } from "@/components/pcr/BillingCard";
 import { StretcherMobilityCard } from "@/components/pcr/StretcherMobilityCard";
+import { PertinentHistoryCard } from "@/components/pcr/PertinentHistoryCard";
 import { IsolationPrecautionsCard } from "@/components/pcr/IsolationPrecautionsCard";
 import { BehavioralHealthCard } from "@/components/pcr/BehavioralHealthCard";
 import { AirwayCard } from "@/components/pcr/AirwayCard";
@@ -1106,7 +1107,7 @@ export default function PCRPage() {
       "vitals", "assessment", "chief_complaint", "physical_exam",
       "condition_on_arrival", "medical_necessity", "stretcher_mobility",
       "isolation_precautions", "equipment", "narrative", "behavioral_health",
-      "sending_facility", "hospital_outcome",
+      "sending_facility", "hospital_outcome", "pertinent_history",
     ]);
     if (isPreContact && PRE_CONTACT_LOCKED_CARDS.has(type)) {
       return (
@@ -1134,6 +1135,7 @@ export default function PCRPage() {
       case "hospital_outcome": return <HospitalOutcomeCard trip={trip} updateField={updateField} updateMultipleFields={updateMultipleFields} requiredFields={required} />;
       case "stretcher_mobility": return <StretcherMobilityCard trip={trip} updateField={updateField} requiredFields={required} />;
       case "isolation_precautions": return <IsolationPrecautionsCard trip={trip} updateField={updateField} />;
+      case "pertinent_history": return <PertinentHistoryCard trip={trip} updateField={updateField} required={cards.find(c => c.type === "pertinent_history")?.required ?? true} />;
       case "behavioral_health": return <BehavioralHealthCard trip={trip} updateField={updateField} requiredFields={required} />;
       case "airway": return <AirwayCard trip={trip} updateField={updateField} requiredFields={required} />;
       case "procedures": return <ProceduresCard trip={trip} updateField={updateField} requiredFields={required} />;
