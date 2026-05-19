@@ -229,6 +229,7 @@ export type Database = {
           dismiss_reason: string | null
           due_date: string
           id: string
+          patient_id: string | null
           priority: number
           status: string
           task_type: string
@@ -247,6 +248,7 @@ export type Database = {
           dismiss_reason?: string | null
           due_date?: string
           id?: string
+          patient_id?: string | null
           priority?: number
           status?: string
           task_type: string
@@ -265,6 +267,7 @@ export type Database = {
           dismiss_reason?: string | null
           due_date?: string
           id?: string
+          patient_id?: string | null
           priority?: number
           status?: string
           task_type?: string
@@ -285,6 +288,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "biller_tasks_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
             referencedColumns: ["id"]
           },
           {
@@ -2818,6 +2828,7 @@ export type Database = {
           id: string
           message: string
           notification_type: string | null
+          related_patient_id: string | null
           related_run_id: string | null
           user_id: string
         }
@@ -2828,6 +2839,7 @@ export type Database = {
           id?: string
           message: string
           notification_type?: string | null
+          related_patient_id?: string | null
           related_run_id?: string | null
           user_id: string
         }
@@ -2838,10 +2850,19 @@ export type Database = {
           id?: string
           message?: string
           notification_type?: string | null
+          related_patient_id?: string | null
           related_run_id?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notifications_related_patient_id_fkey"
+            columns: ["related_patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       oatest_runs: {
         Row: {
@@ -5918,6 +5939,7 @@ export type Database = {
         Returns: Json
       }
       cancel_submission_queue: { Args: { p_queue_id: string }; Returns: Json }
+      categorize_denial_code: { Args: { _code: string }; Returns: string }
       derive_ambulance_hcpcs: {
         Args: { _is_emergency: boolean; _service_level: string }
         Returns: string
@@ -5939,6 +5961,8 @@ export type Database = {
         Returns: Json
       }
       generate_biller_tasks: { Args: never; Returns: undefined }
+      generate_pcs_expiration_alerts: { Args: never; Returns: undefined }
+      generate_rsnat_auth_alerts: { Args: never; Returns: undefined }
       get_my_company_id: { Args: never; Returns: string }
       get_my_role: { Args: never; Returns: string }
       has_role: {
@@ -5964,6 +5988,7 @@ export type Database = {
       }
       reap_stale_loadtest_reports: { Args: never; Returns: number }
       retry_claim_creation: { Args: { p_trip_id: string }; Returns: Json }
+      run_daily_proactive_alerts: { Args: never; Returns: undefined }
       safe_assign_crew:
         | {
             Args: {
