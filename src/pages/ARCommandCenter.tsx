@@ -513,6 +513,33 @@ export default function ARCommandCenter() {
 
             {/* Filters */}
             <div className="flex flex-wrap gap-3 items-center">
+              {/* Denial category chips */}
+              {(["appeal","correct_resubmit","write_off","patient_responsibility","followup"] as const).some(k => denialCounts[k] > 0) && (
+                <div className="w-full flex flex-wrap items-center gap-2 pb-1">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mr-1">Denials:</span>
+                  {([
+                    ["appeal","Appealable","destructive"],
+                    ["correct_resubmit","Correct & Resubmit","warning"],
+                    ["write_off","Write-Off","secondary"],
+                    ["patient_responsibility","Patient Resp.","secondary"],
+                    ["followup","Follow-Up","outline"],
+                  ] as const).map(([key, label, variant]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setFilterDenialCat(filterDenialCat === key ? "all" : key)}
+                      className={`transition-opacity ${filterDenialCat !== "all" && filterDenialCat !== key ? "opacity-40" : ""}`}
+                    >
+                      <Badge variant={variant as any} className="text-xs cursor-pointer">
+                        {denialCounts[key]} {label}
+                      </Badge>
+                    </button>
+                  ))}
+                  {filterDenialCat !== "all" && (
+                    <button type="button" onClick={() => setFilterDenialCat("all")} className="text-xs text-muted-foreground underline">clear</button>
+                  )}
+                </div>
+              )}
               <div className="relative flex-1 min-w-[200px] max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
