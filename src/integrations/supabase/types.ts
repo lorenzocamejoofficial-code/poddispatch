@@ -5905,6 +5905,7 @@ export type Database = {
         Args: { p_reason: string; p_trip_id: string }
         Returns: Json
       }
+      cancel_submission_queue: { Args: { p_queue_id: string }; Returns: Json }
       derive_ambulance_hcpcs: {
         Args: { _is_emergency: boolean; _service_level: string }
         Returns: string
@@ -5913,9 +5914,17 @@ export type Database = {
         Args: { _loc_type: string }
         Returns: string
       }
+      dismiss_claim_creation_failure: {
+        Args: { p_failure_id: string }
+        Returns: Json
+      }
       enter_creator_simulation: {
         Args: { _company_id: string }
         Returns: string
+      }
+      force_retry_submission_queue: {
+        Args: { p_queue_id: string }
+        Returns: Json
       }
       generate_biller_tasks: { Args: never; Returns: undefined }
       get_my_company_id: { Args: never; Returns: string }
@@ -5942,6 +5951,7 @@ export type Database = {
         Returns: boolean
       }
       reap_stale_loadtest_reports: { Args: never; Returns: number }
+      retry_claim_creation: { Args: { p_trip_id: string }; Returns: Json }
       safe_assign_crew:
         | {
             Args: {
