@@ -3213,6 +3213,7 @@ export type Database = {
           pcs_physician_name: string | null
           pcs_physician_npi: string | null
           pcs_signed_date: string | null
+          pertinent_history: Json | null
           phone: string | null
           pickup_address: string | null
           primary_payer: string | null
@@ -3290,6 +3291,7 @@ export type Database = {
           pcs_physician_name?: string | null
           pcs_physician_npi?: string | null
           pcs_signed_date?: string | null
+          pertinent_history?: Json | null
           phone?: string | null
           pickup_address?: string | null
           primary_payer?: string | null
@@ -3367,6 +3369,7 @@ export type Database = {
           pcs_physician_name?: string | null
           pcs_physician_npi?: string | null
           pcs_signed_date?: string | null
+          pertinent_history?: Json | null
           phone?: string | null
           pickup_address?: string | null
           primary_payer?: string | null
@@ -4914,6 +4917,7 @@ export type Database = {
           pcr_submitted_by: string | null
           pcr_type: string | null
           pcs_attached: boolean | null
+          pertinent_history: Json | null
           physical_exam_json: Json | null
           pickup_location: string | null
           pre_handoff_signatures_snapshot: Json | null
@@ -5090,6 +5094,7 @@ export type Database = {
           pcr_submitted_by?: string | null
           pcr_type?: string | null
           pcs_attached?: boolean | null
+          pertinent_history?: Json | null
           physical_exam_json?: Json | null
           pickup_location?: string | null
           pre_handoff_signatures_snapshot?: Json | null
@@ -5266,6 +5271,7 @@ export type Database = {
           pcr_submitted_by?: string | null
           pcr_type?: string | null
           pcs_attached?: boolean | null
+          pertinent_history?: Json | null
           physical_exam_json?: Json | null
           pickup_location?: string | null
           pre_handoff_signatures_snapshot?: Json | null
