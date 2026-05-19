@@ -757,10 +757,11 @@ export function generateEDI837P(
         throw new Error(`generateEDI837P: claim ${claim.claim_id} cob.payer name/id missing`);
       }
 
-      // SBR — Other Subscriber Information.
-      // Layout: SBR*S*<rel>*<group#>*<group_name>*****<filing_ind>
+      // SBR — Other Subscriber Information (Loop 2320). SBR01 = OTHER payer's
+      // position relative to this claim. For a claim being billed to the
+      // secondary payer, the OTHER payer is the Primary → "P".
       addSeg([
-        "SBR", "S", cob.rel_code || "18", cob.group_number || "", cob.group_name || "",
+        "SBR", "P", cob.rel_code || "18", cob.group_number || "", cob.group_name || "",
         "", "", "", "", cob.payer_filing_indicator || "ZZ",
       ].join(ES));
 
