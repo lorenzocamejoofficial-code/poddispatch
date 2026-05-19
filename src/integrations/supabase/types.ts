@@ -570,6 +570,7 @@ export type Database = {
           allowed_amount: number | null
           amount: number
           applied_at: string
+          cas_adjustments: Json
           claim_record_id: string
           clp_status_code: string | null
           company_id: string
@@ -589,6 +590,7 @@ export type Database = {
           allowed_amount?: number | null
           amount?: number
           applied_at?: string
+          cas_adjustments?: Json
           claim_record_id: string
           clp_status_code?: string | null
           company_id: string
@@ -608,6 +610,7 @@ export type Database = {
           allowed_amount?: number | null
           amount?: number
           applied_at?: string
+          cas_adjustments?: Json
           claim_record_id?: string
           clp_status_code?: string | null
           company_id?: string
