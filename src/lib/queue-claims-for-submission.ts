@@ -147,6 +147,11 @@ export async function queueClaimsForSubmission(
       : Promise.resolve({ data: [] as any[] }),
   ]);
 
+  const tripMap: Record<string, any> = {};
+  (trips ?? []).forEach((t: any) => { tripMap[t.id] = t; });
+  const patMap: Record<string, any> = {};
+  (patients ?? []).forEach((p: any) => { patMap[p.id] = p; });
+
   // ── 2b. COB context for secondary claims ─────────────────────────────
   // Only loaded when at least one selected claim is a secondary (has
   // original_claim_id). We fetch the primary claim_records + their
@@ -240,11 +245,6 @@ export async function queueClaimsForSubmission(
       };
     }
   }
-
-  const tripMap: Record<string, any> = {};
-  (trips ?? []).forEach((t: any) => { tripMap[t.id] = t; });
-  const patMap: Record<string, any> = {};
-  (patients ?? []).forEach((p: any) => { patMap[p.id] = p; });
 
   // ── 3. Facility lookup (drives G/J modifiers + dest address resolution) ─
   const candidateNames = new Set<string>();
