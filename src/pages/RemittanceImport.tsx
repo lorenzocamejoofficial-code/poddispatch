@@ -21,6 +21,7 @@ import {
   type ParsedRemittanceItem,
 } from "@/lib/edi-835-parser";
 import { getDenialTranslation } from "@/lib/denial-code-translations";
+import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
 
 interface MatchedItem {
   remittance: ParsedRemittanceItem;
@@ -31,6 +32,12 @@ interface MatchedItem {
 }
 
 export default function RemittanceImport() {
+  // True when the active tenant is a creator_test_tenant or is_sandbox. Any 835 imported
+  // in that context is implicitly synthetic — we flag remittance_files / claim_payments /
+  // plb_adjustments accordingly so downstream metrics ignore the rows. The DB guardrail
+  // (guard_simulated_payment) refuses is_simulated=true on real tenants, so this is the
+  // only path that produces simulated payment data.
+  const isSimTenant = useIsSimulationCompany();
   const [fileName, setFileName] = useState("");
   const [rawContent, setRawContent] = useState("");
   const [matchedItems, setMatchedItems] = useState<MatchedItem[]>([]);
