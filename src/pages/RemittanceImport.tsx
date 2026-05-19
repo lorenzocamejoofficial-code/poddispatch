@@ -256,6 +256,7 @@ export default function RemittanceImport() {
           eft_trace_number: envelope?.eft_trace_number || null,
           reconciled,
           reconciliation_variance: variance,
+          is_simulated: isSimTenant,
         } as any)
         .select("id")
         .single();
@@ -302,6 +303,7 @@ export default function RemittanceImport() {
             payer_claim_control_number: rem.payer_claim_control_number || null,
             remittance_file_id: remittanceFileId,
             payment_date: rem.payment_date || envelope?.payment_date || null,
+            is_simulated: isSimTenant,
           } as any);
 
         if (!payErr) {
@@ -329,6 +331,7 @@ export default function RemittanceImport() {
           reason_code: p.reason_code,
           reference_id: p.reference_id || null,
           amount: p.amount,
+          is_simulated: isSimTenant,
         }));
         await supabase.from("plb_adjustments" as any).insert(plbRows as any);
       }
