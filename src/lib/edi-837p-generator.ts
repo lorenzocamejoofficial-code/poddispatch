@@ -547,7 +547,12 @@ export function generateEDI837P(
     // --- SUBSCRIBER HL (2000B) ---
     subscriberHlIndex++;
     addSeg(["HL", String(subscriberHlIndex), "1", "22", "0"].join(ES));
-    addSeg(["SBR", "P", "18", "", "", "", "", "", "", payerCode].join(ES));
+    // SBR01 reflects THIS claim's payer position for the destination payer
+    // (Loop 2000B). When `cob` is present this is a secondary claim, so the
+    // destination payer is Secondary ("S"); the OTHER (primary) payer is
+    // emitted as "P" in Loop 2320 below. For primaries SBR01 stays "P".
+    const destSbr01 = claim.cob ? "S" : "P";
+    addSeg(["SBR", destSbr01, "18", "", "", "", "", "", "", payerCode].join(ES));
 
     // --- SUBSCRIBER (2010BA) ---
     addSeg(["NM1", "IL", "1", patLast, patFirst, "", "", "", "MI", claim.member_id].join(ES));
