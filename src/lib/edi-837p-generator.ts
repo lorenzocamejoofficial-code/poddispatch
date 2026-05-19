@@ -728,6 +728,81 @@ export function generateEDI837P(
       addSeg(["N4", destCity, destState, destZip].join(ES));
     }
 
+    // --- Loop 2320 / 2330A / 2330B: Coordination of Benefits (COB) ---
+    // Emitted only on secondary claims (claim has primary adjudication on file).
+    // Per X222A1, 2310 loops close before 2320 opens, and 2320 closes before
+    // the service lines (LX/SV1) begin. Order inside Loop 2320 is fixed:
+    //   SBR → CAS* → AMT*D → OI → DTP*573 → NM1*IL (2330A) → N3 → N4 →
+    //   NM1*PR (2330B) → DTP*573
+    // Missing any required element will trigger an Office Ally 999 rejection,
+    // so we throw loudly upstream rather than emit a partial loop.
+    if (claim.cob) {
+      const cob = claim.cob;
+      // Hard validation — never ship a half-built COB loop.
+      if (!cob.paid_amount && cob.paid_amount !== 0) {
+        throw new Error(`generateEDI837P: claim ${claim.claim_id} cob.paid_amount missing`);
+      }
+      if (!cob.adjudication_date || !/^\d{4}-\d{2}-\d{2}$/.test(cob.adjudication_date)) {
+        throw new Error(`generateEDI837P: claim ${claim.claim_id} cob.adjudication_date must be YYYY-MM-DD`);
+      }
+      if (!cob.subscriber?.last || !cob.subscriber?.member_id) {
+        throw new Error(`generateEDI837P: claim ${claim.claim_id} cob.subscriber name/member_id missing`);
+      }
+      if (!cob.payer?.name || !cob.payer?.payer_id) {
+        throw new Error(`generateEDI837P: claim ${claim.claim_id} cob.payer name/id missing`);
+      }
+
+      // SBR — Other Subscriber Information.
+      // Layout: SBR*S*<rel>*<group#>*<group_name>*****<filing_ind>
+      addSeg([
+        "SBR", "S", cob.rel_code || "18", cob.group_number || "", cob.group_name || "",
+        "", "", "", "", cob.payer_filing_indicator || "ZZ",
+      ].join(ES));
+
+      // CAS — one segment per group_code, up to 6 adjustment triplets per segment.
+      for (const g of cob.cas_groups || []) {
+        if (!g.adjustments?.length) continue;
+        for (let i = 0; i < g.adjustments.length; i += 6) {
+          const chunk = g.adjustments.slice(i, i + 6);
+          const parts: string[] = ["CAS", g.group_code];
+          for (const a of chunk) {
+            parts.push(a.reason_code, formatAmount(a.amount), a.quantity != null ? String(a.quantity) : "");
+          }
+          // Strip trailing empties to keep segment compact.
+          while (parts.length && parts[parts.length - 1] === "") parts.pop();
+          addSeg(parts.join(ES));
+        }
+      }
+
+      // AMT*D — Payer Paid Amount
+      addSeg(["AMT", "D", formatAmount(cob.paid_amount)].join(ES));
+
+      // OI — Other Insurance Coverage Information
+      // OI*<claim_filing>*<claim_submission_reason>*<benefits_assignment>*<patient_signature_source>*<release_of_info>
+      // Standard values when patient/sub auth on file: OI***Y***Y
+      addSeg(["OI", "", "", "Y", "", "", "Y"].join(ES));
+
+      // DTP*573 — Date Claim Paid by primary
+      addSeg(["DTP", "573", "D8", formatDate8(cob.adjudication_date)].join(ES));
+
+      // --- Loop 2330A: Other Subscriber Name ---
+      addSeg([
+        "NM1", "IL", "1", cob.subscriber.last, cob.subscriber.first,
+        "", "", "", "MI", cob.subscriber.member_id,
+      ].join(ES));
+      if (cob.subscriber.address) addSeg(["N3", cob.subscriber.address].join(ES));
+      if (cob.subscriber.city || cob.subscriber.state || cob.subscriber.zip) {
+        addSeg(["N4", cob.subscriber.city || "", cob.subscriber.state || "", cob.subscriber.zip || ""].join(ES));
+      }
+
+      // --- Loop 2330B: Other Payer Name ---
+      addSeg([
+        "NM1", "PR", "2", (cob.payer.name || "").toUpperCase(),
+        "", "", "", "", "PI", (cob.payer.payer_id || "").toUpperCase(),
+      ].join(ES));
+      addSeg(["DTP", "573", "D8", formatDate8(cob.adjudication_date)].join(ES));
+    }
+
     // --- SERVICE LINES (2400) ---
     // Independent ambulance suppliers must append QN to every HCPCS line.
     // Origin/destination modifier is required on every ambulance line as well.
