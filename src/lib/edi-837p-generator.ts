@@ -85,6 +85,41 @@ export interface ClaimForEDI {
   /** Free-text override when primary_impression === "Other". Sourced from
    *  trip.assessment_json.primary_impression_other. Same NTE rule applies. */
   primary_impression_other?: string | null;
+  /** Coordination of Benefits (COB) data — present only when this claim is a
+   *  secondary claim (claim_records.original_claim_id IS NOT NULL). When set,
+   *  the generator emits Loop 2320 (Other Subscriber Information) +
+   *  Loop 2330A (Other Subscriber Name) + Loop 2330B (Other Payer Name) per
+   *  X12N 837P 5010. If a secondary claim is passed without `cob`, the
+   *  generator throws — partial COB emission is rejected by clearinghouses. */
+  cob?: ClaimCobInfo | null;
+}
+
+/** Coordination of Benefits — primary payer's adjudication context replayed
+ *  into Loop 2320/2330 when emitting a secondary 837P claim. */
+export interface ClaimCobInfo {
+  /** SBR02 patient relationship to primary subscriber (X12 IL relationship).
+   *  "18" = Self (the typical NEMT case where patient is the primary subscriber). */
+  rel_code: string;
+  /** SBR03 group / policy number on the primary plan. Empty string when N/A. */
+  group_number: string;
+  /** SBR04 group / plan name. Empty string when N/A. */
+  group_name: string;
+  /** SBR09 claim filing indicator for the PRIMARY payer (MC/MD/CI/ZZ). */
+  payer_filing_indicator: string;
+  /** AMT*D — total amount the primary actually paid (sum of claim_payments.amount). */
+  paid_amount: number;
+  /** DTP*573 — primary adjudication date, YYYY-MM-DD. Most recent payment date. */
+  adjudication_date: string;
+  /** CAS groups parsed from primary's 835. Each group emits one CAS segment
+   *  (up to 6 adjustment triplets per segment per spec). */
+  cas_groups: { group_code: string; adjustments: { reason_code: string; amount: number; quantity?: number }[] }[];
+  /** Loop 2330A — primary subscriber identity (typically same as patient). */
+  subscriber: {
+    last: string; first: string; member_id: string;
+    address: string; city: string; state: string; zip: string;
+  };
+  /** Loop 2330B — primary payer identity. */
+  payer: { name: string; payer_id: string };
 }
 
 export interface ProviderInfo {
