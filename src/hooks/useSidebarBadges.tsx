@@ -10,9 +10,10 @@ export interface SidebarBadgeCounts {
   compliance: number;
   trips: number;
   arTasks: number;
+  claimFailures: number;
 }
 
-const EMPTY: SidebarBadgeCounts = { dispatch: 0, billing: 0, overrides: 0, compliance: 0, trips: 0, arTasks: 0 };
+const EMPTY: SidebarBadgeCounts = { dispatch: 0, billing: 0, overrides: 0, compliance: 0, trips: 0, arTasks: 0, claimFailures: 0 };
 
 /* ── localStorage helpers for last-seen timestamps ── */
 
@@ -106,6 +107,14 @@ export function useSidebarBadges(role: string | null) {
       jobs.push(
         countAfter("qa_reviews", { status: "pending" }, seenCompliance).then(c => { next.compliance = c; })
       );
+      // Unresolved claim creation failures (dead-letter queue)
+      jobs.push((async () => {
+        const { count } = await supabase
+          .from("claim_creation_failures" as any)
+          .select("id", { count: "exact", head: true })
+          .is("resolved_at", null);
+        next.claimFailures = count ?? 0;
+      })());
       // AR tasks pending count
       jobs.push((async () => {
         const { count } = await supabase
@@ -159,8 +168,15 @@ export function useSidebarBadges(role: string | null) {
       .on("postgres_changes", { event: "*", schema: "public", table: "safety_overrides" }, () => fetchCounts())
       .on("postgres_changes", { event: "*", schema: "public", table: "billing_overrides" }, () => fetchCounts())
       .on("postgres_changes", { event: "*", schema: "public", table: "qa_reviews" }, () => fetchCounts())
+      .on("postgres_changes", { event: "*", schema: "public", table: "claim_creation_failures" }, () => fetchCounts())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
+  }, [fetchCounts]);
+
+  // Poll every 30s as a fallback (realtime may not be enabled on this table)
+  useEffect(() => {
+    const id = setInterval(fetchCounts, 30000);
+    return () => clearInterval(id);
   }, [fetchCounts]);
 
   return counts;
@@ -176,7 +192,8 @@ export function getBadgeForPath(path: string, counts: SidebarBadgeCounts): numbe
     case "/override-monitor":
       return counts.overrides;
     case "/compliance":
-      return counts.compliance;
+      // Compliance badge surfaces both QA queue and claim-creation failures
+      return counts.compliance + counts.claimFailures;
     case "/trips":
       return counts.trips;
     default:
