@@ -735,9 +735,11 @@ export function generateEDI837P(
 
     // --- Loop 2320 / 2330A / 2330B: Coordination of Benefits (COB) ---
     // Emitted only on secondary claims (claim has primary adjudication on file).
-    // Per X222A1, 2310 loops close before 2320 opens, and 2320 closes before
-    // the service lines (LX/SV1) begin. Order inside Loop 2320 is fixed:
-    //   SBR → CAS* → AMT*D → OI → DTP*573 → NM1*IL (2330A) → N3 → N4 →
+    // Per X12N TR3 005010X222A1 §2320, Loop 2320 segment list is:
+    //   SBR, CAS (×5 max), AMT (D/EAF/F2), OI, MIA, MOA, DMG. There is NO DTP
+    //   in Loop 2320 — DTP*573 (Claim Check or Remittance Date) is defined
+    //   only in Loop 2330B. Order:
+    //   SBR → CAS* → AMT*D → OI → NM1*IL (2330A) → N3 → N4 →
     //   NM1*PR (2330B) → DTP*573
     // Missing any required element will trigger an Office Ally 999 rejection,
     // so we throw loudly upstream rather than emit a partial loop.
@@ -787,9 +789,6 @@ export function generateEDI837P(
       // OI*<claim_filing>*<claim_submission_reason>*<benefits_assignment>*<patient_signature_source>*<release_of_info>
       // Standard values when patient/sub auth on file: OI***Y***Y
       addSeg(["OI", "", "", "Y", "", "", "Y"].join(ES));
-
-      // DTP*573 — Date Claim Paid by primary
-      addSeg(["DTP", "573", "D8", formatDate8(cob.adjudication_date)].join(ES));
 
       // --- Loop 2330A: Other Subscriber Name ---
       addSeg([
