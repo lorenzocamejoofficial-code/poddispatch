@@ -18,6 +18,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { SimulationSummary } from "@/components/simulation/SimulationSummary";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 import { OatestScenarioRunner } from "@/components/simulation/OatestScenarioRunner";
+import { OatestResubmitOrphansPanel } from "@/components/simulation/OatestResubmitOrphansPanel";
 
 // Constant: matches LORENZO_TEST_COMPANY_ID in the simulation-lab edge
 // function. The lab no longer spawns sandbox companies on demand — every
@@ -381,6 +382,8 @@ export default function SimulationLab() {
         {/* OATEST Scenario Runner — drives oatest_scenarios through the same
             seed → PCR submit → claim trigger → 837P queue path a tenant uses */}
         <OatestScenarioRunner />
+
+        <OatestResubmitOrphansPanel />
 
         {/* Scenario Seeder */}
         <Card>
