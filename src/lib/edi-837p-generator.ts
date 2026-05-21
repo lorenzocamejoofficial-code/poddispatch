@@ -818,6 +818,16 @@ export function generateEDI837P(
     };
     const baseModSet = ensureQn([facilityCode, ...(claim.hcpcs_modifiers || [])]);
 
+    // SV107 Composite Diagnosis Code Pointer — Required per X12N TR3
+    // 005010X222A1 §2400 SV1, X12 RFI #2776, #2338. Values 1-12 reference
+    // HI composite positions. Count cannot exceed HI code count. Multiple
+    // pointers joined by ":". Max 4 pointers per service line.
+    const diagCount = Math.min(uniqueDiag.length, 12);
+    const pointerCount = Math.min(diagCount, 4);
+    const diagPointer = pointerCount > 0
+      ? Array.from({ length: pointerCount }, (_, i) => String(i + 1)).join(SE_SEP)
+      : "";
+
     // Base rate line
     if (claim.base_charge > 0) {
       const baseHcpcs = claim.hcpcs_codes?.[0] || "A0428";
@@ -829,6 +839,8 @@ export function generateEDI837P(
         "UN",
         "1",
         "41",
+        "",            // SV106 (empty)
+        diagPointer,   // SV107 diagnosis pointer
       ];
       addSeg(sv1Parts.join(ES));
       addSeg(["DTP", "472", "D8", formatDate8(claim.run_date)].join(ES));
@@ -853,6 +865,8 @@ export function generateEDI837P(
           "UN",
           mileageQty,
           "41",
+          "",            // SV106 (empty)
+          diagPointer,   // SV107 diagnosis pointer
         ].join(ES)
       );
       addSeg(["DTP", "472", "D8", formatDate8(claim.run_date)].join(ES));
