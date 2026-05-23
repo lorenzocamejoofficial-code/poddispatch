@@ -388,6 +388,12 @@ export default function ARCommandCenter() {
 
   const writeOff = async () => {
     if (!selectedClaim || !writeOffReason.trim()) return;
+    const medicareRisk = isMedicareCoinsuranceWriteOffRisk(selectedClaim);
+    if (medicareRisk && !writeOffAttested) return;
+    if (medicareRisk && writeOffReason.trim().length < 20) {
+      toast.error("Medicare coinsurance write-offs require a detailed reason (20+ chars) documenting hardship or uncollectibility.");
+      return;
+    }
     setSaving(true);
     await supabase
       .from("claim_records")
@@ -399,13 +405,14 @@ export default function ARCommandCenter() {
       tableName: "claim_records",
       recordId: selectedClaim.id,
       oldData: { status: selectedClaim.status, total_charge: selectedClaim.total_charge },
-      newData: { status: "voided", write_off_reason: writeOffReason.trim() },
-      notes: `AR write-off: ${writeOffReason.trim()}`,
+      newData: { status: "voided", write_off_reason: writeOffReason.trim(), medicare_coinsurance_attested: medicareRisk || undefined },
+      notes: `AR write-off${medicareRisk ? " (Medicare coinsurance — hardship attested)" : ""}: ${writeOffReason.trim()}`,
     });
 
     await logNote(`Claim written off. Reason: ${writeOffReason.trim()}`);
     setWriteOffOpen(false);
     setWriteOffReason("");
+    setWriteOffAttested(false);
     setSelectedClaim(null);
     await fetchClaims();
     setSaving(false);
