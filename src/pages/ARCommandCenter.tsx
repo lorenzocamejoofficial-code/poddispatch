@@ -16,6 +16,9 @@ import {
   DollarSign, AlertTriangle, Clock, TrendingUp, Phone,
   ArrowUpRight, XCircle, Search, Filter,
 } from "lucide-react";
+import { Wrench as WrenchIcon, FileText, UserCheck, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { createSecondaryClaim } from "@/lib/create-secondary-claim";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -65,6 +68,10 @@ interface ARClaim {
   priority: number;
   priority_label: string;
   priority_color: string;
+  patient_id?: string | null;
+  has_secondary_on_file?: boolean;
+  secondary_already_generated?: boolean;
+  is_partial_paid?: boolean;
 }
 
 interface FollowUpNote {
