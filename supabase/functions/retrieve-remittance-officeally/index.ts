@@ -267,13 +267,35 @@ Deno.serve(async (req) => {
                 if (payerControlNum) {
                   const { data: matchedClaims } = await supabase
                     .from("claim_records")
-                    .select("id, company_id")
+                    .select("id, company_id, patient_id, payer_type, payer_name")
                     .eq("company_id", settings.company_id)
                     .eq("payer_claim_control_number", payerControlNum)
                     .limit(1);
 
                   if (matchedClaims?.length) {
                     claimsMatched++;
+                    // Cap patient_responsibility for Medicaid primary and dual-eligible.
+                    // 42 CFR §447.15 — Medicaid payment is payment in full.
+                    const mc: any = matchedClaims[0];
+                    let cappedPatientResp = patientResp;
+                    let prCapReason: string | null = null;
+                    const primary = String(mc.payer_type ?? mc.payer_name ?? "").toLowerCase();
+                    let secondary = "";
+                    if (mc.patient_id) {
+                      const { data: pat } = await supabase
+                        .from("patients")
+                        .select("secondary_payer")
+                        .eq("id", mc.patient_id)
+                        .maybeSingle();
+                      secondary = String(pat?.secondary_payer ?? "").toLowerCase();
+                    }
+                    if (patientResp > 0 && primary.includes("medicaid")) {
+                      cappedPatientResp = 0;
+                      prCapReason = "Medicaid primary — 42 CFR §447.15";
+                    } else if (patientResp > 0 && primary.includes("medicare") && secondary.includes("medicaid")) {
+                      cappedPatientResp = 0;
+                      prCapReason = "Dual-eligible — secondary Medicaid absorbs balance";
+                    }
                     const newStatus = (statusCode === "1" || statusCode === "19") ? "paid" :
                                       (statusCode === "3" || statusCode === "4") ? "denied" : "needs_correction";
 
@@ -281,7 +303,7 @@ Deno.serve(async (req) => {
                       .from("claim_records")
                       .update({
                         amount_paid: paidAmount,
-                        patient_responsibility_amount: patientResp,
+                        patient_responsibility_amount: cappedPatientResp,
                         status: newStatus,
                         paid_at: paidAmount > 0 ? new Date().toISOString() : null,
                         remittance_date: new Date().toISOString().split("T")[0],
@@ -291,6 +313,17 @@ Deno.serve(async (req) => {
                     if (!upErr) {
                       claimsUpdated++;
                       totalPaid += paidAmount;
+                      if (prCapReason) {
+                        await supabase.from("audit_logs").insert({
+                          company_id: settings.company_id,
+                          action: "edit",
+                          table_name: "claim_records",
+                          record_id: matchedClaims[0].id,
+                          old_data: { patient_responsibility_amount: patientResp },
+                          new_data: { patient_responsibility_amount: 0, capped: true },
+                          notes: `PR auto-capped on Office Ally 835 retrieval: ${prCapReason}`,
+                        }).catch(() => undefined);
+                      }
                     }
                   } else {
                     // No matching claim under this company — quarantine for review.
