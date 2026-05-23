@@ -285,9 +285,21 @@ export default function RemittanceImport() {
         const co45 = extractCO45WriteOff(rem.adjustment_groups);
         const primaryDenial = getPrimaryDenialCode(rem.adjustment_groups);
         const adjustmentCodes = rem.raw_denial_codes;
-        const prAmount = rem.adjustment_groups
+        const rawPrAmount = rem.adjustment_groups
           .filter((a) => a.group_code === "PR")
           .reduce((sum, a) => sum + a.amount, 0);
+        const prCap = capPatientResponsibility(rawPrAmount, item.primaryPayer, item.secondaryPayer);
+        const prAmount = prCap.capped;
+        if (prCap.wasCapped) {
+          await logAuditEvent({
+            action: "update",
+            tableName: "claim_records",
+            recordId: item.matchedClaimId!,
+            oldData: { patient_responsibility: prCap.original },
+            newData: { patient_responsibility: 0, capped: true },
+            notes: `PR auto-capped on 835 import: ${prCap.reason}`,
+          });
+        }
         const eventType = mapToEventType(rem.claim_status_code);
         const translation = primaryDenial
           ? getDenialTranslation(primaryDenial.code)
