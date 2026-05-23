@@ -240,13 +240,16 @@ export default function ARCommandCenter() {
       const isPartial = c.status === "paid"
         && Number(c.amount_paid ?? 0) > 0
         && Number(c.amount_paid ?? 0) < Number(c.total_charge ?? 0);
+      const finalPri = isPartial
+        ? { priority: 2, label: "Partial Pay — Recover", color: "warning" }
+        : pri;
       return {
         ...c,
         patient_name: patientMap[c.patient_id] ?? tripLegMap[c.trip_id] ?? "Unknown Patient",
         days_outstanding: days,
-        priority: pri.priority,
-        priority_label: pri.label,
-        priority_color: pri.color,
+        priority: finalPri.priority,
+        priority_label: finalPri.label,
+        priority_color: finalPri.color,
         has_secondary_on_file: c.patient_id ? !!patientSecondaryMap[c.patient_id] : false,
         secondary_already_generated: !!c.secondary_claim_generated,
         is_partial_paid: isPartial,
