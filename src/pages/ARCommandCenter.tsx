@@ -132,7 +132,11 @@ function computePriority(claim: {
     return { priority: 5, label: "Follow Up", color: "secondary" };
   }
 
-  // Default: low priority
+  // Default: submitted and not yet aging — show as Pending so the customer
+  // knows the claim is alive at the payer, not "Active" (which reads vague).
+  if (claim.status === "submitted") {
+    return { priority: 6, label: "Pending — Awaiting Payer", color: "outline" };
+  }
   return { priority: 6, label: "Active", color: "outline" };
 }
 
@@ -668,9 +672,11 @@ export default function ARCommandCenter() {
                   <SelectItem value="Missing Acknowledgment">Missing Acknowledgment</SelectItem>
                   <SelectItem value="Filing Deadline">Filing Deadline</SelectItem>
                   <SelectItem value="Denied — Action Required">Denied — Action Required</SelectItem>
+                  <SelectItem value="Partial Pay — Recover">Partial Pay — Recover</SelectItem>
                   <SelectItem value="No Response — 45+ Days">No Response — 45+ Days</SelectItem>
                   <SelectItem value="Aging — Monitor">Aging — Monitor</SelectItem>
                   <SelectItem value="Follow Up">Follow Up</SelectItem>
+                  <SelectItem value="Pending — Awaiting Payer">Pending — Awaiting Payer</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={filterPayer} onValueChange={setFilterPayer}>
@@ -736,7 +742,11 @@ export default function ARCommandCenter() {
                         )}
                       </td>
                       <td className="p-3 text-right">{claim.days_outstanding}</td>
-                      <td className="p-3"><Badge variant="outline" className="text-xs">{claim.status}</Badge></td>
+                      <td className="p-3">
+                        <Badge variant="outline" className="text-xs">
+                          {claim.is_partial_paid ? "partial paid" : claim.status}
+                        </Badge>
+                      </td>
                       <td className="p-3">
                         {claim.acknowledgment_status === "rejected_999" && (
                           <Badge variant="destructive" className="text-xs whitespace-nowrap" title={claim.rejection_reason ?? ""}>999 Rejected</Badge>
