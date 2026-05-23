@@ -132,7 +132,11 @@ function computePriority(claim: {
     return { priority: 5, label: "Follow Up", color: "secondary" };
   }
 
-  // Default: low priority
+  // Default: submitted and not yet aging — show as Pending so the customer
+  // knows the claim is alive at the payer, not "Active" (which reads vague).
+  if (claim.status === "submitted") {
+    return { priority: 6, label: "Pending — Awaiting Payer", color: "outline" };
+  }
   return { priority: 6, label: "Active", color: "outline" };
 }
 
