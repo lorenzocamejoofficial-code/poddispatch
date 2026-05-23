@@ -166,6 +166,7 @@ export default function ARCommandCenter() {
   const [filterDenialCat, setFilterDenialCat] = useState<string>("all");
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   const [writeOffReason, setWriteOffReason] = useState("");
+  const [writeOffAttested, setWriteOffAttested] = useState(false);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [recoveryClaim, setRecoveryClaim] = useState<ARClaim | null>(null);
   const [workQueueRefreshKey, setWorkQueueRefreshKey] = useState(0);
