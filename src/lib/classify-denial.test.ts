@@ -23,19 +23,27 @@ describe("classifyDenial", () => {
     expect(v.nextActionKind).toBe("start_recovery");
   });
 
-  it("CO-109 (wrong payer) + secondary on file → bill_secondary", () => {
+  it("CO-109 (wrong payer) → fix and resubmit via recovery", () => {
+    // CO-109 means "wrong payer entirely" — biller has to correct the payer
+    // on the claim, not bill a secondary. Recovery engine handles that.
+    const v = classifyDenial({ status: "denied", denial_code: "CO-109" });
+    expect(v.nextActionKind).toBe("start_recovery");
+    expect(v.recoverable).toBe("yes");
+  });
+
+  it("CO-22 (covered by another payer) → bill_secondary when on file", () => {
     const v = classifyDenial({
       status: "denied",
-      denial_code: "CO-109",
+      denial_code: "CO-22",
       has_secondary_on_file: true,
     });
     expect(v.nextActionKind).toBe("bill_secondary");
   });
 
-  it("CO-109 + no secondary on file → check_for_secondary", () => {
+  it("CO-22 + no secondary on file → check_for_secondary", () => {
     const v = classifyDenial({
       status: "denied",
-      denial_code: "CO-109",
+      denial_code: "CO-22",
       has_secondary_on_file: false,
     });
     expect(v.nextActionKind).toBe("check_for_secondary");
