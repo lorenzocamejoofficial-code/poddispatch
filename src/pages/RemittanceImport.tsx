@@ -292,7 +292,7 @@ export default function RemittanceImport() {
         const prAmount = prCap.capped;
         if (prCap.wasCapped) {
           await logAuditEvent({
-            action: "update",
+            action: "edit",
             tableName: "claim_records",
             recordId: item.matchedClaimId!,
             oldData: { patient_responsibility: prCap.original },
