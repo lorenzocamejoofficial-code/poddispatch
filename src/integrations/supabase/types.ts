@@ -164,6 +164,63 @@ export type Database = {
           },
         ]
       }
+      audit_exports: {
+        Row: {
+          company_id: string
+          date_from: string
+          date_to: string
+          file_path: string
+          file_size_bytes: number | null
+          filters: Json
+          generated_at: string
+          generated_by: string
+          generated_by_email: string | null
+          id: string
+          include_test_data: boolean
+          is_sealed: boolean
+          manifest: Json
+          regime: string
+          row_counts: Json
+          sha256: string
+        }
+        Insert: {
+          company_id: string
+          date_from: string
+          date_to: string
+          file_path: string
+          file_size_bytes?: number | null
+          filters?: Json
+          generated_at?: string
+          generated_by: string
+          generated_by_email?: string | null
+          id?: string
+          include_test_data?: boolean
+          is_sealed?: boolean
+          manifest?: Json
+          regime: string
+          row_counts?: Json
+          sha256: string
+        }
+        Update: {
+          company_id?: string
+          date_from?: string
+          date_to?: string
+          file_path?: string
+          file_size_bytes?: number | null
+          filters?: Json
+          generated_at?: string
+          generated_by?: string
+          generated_by_email?: string | null
+          id?: string
+          include_test_data?: boolean
+          is_sealed?: boolean
+          manifest?: Json
+          regime?: string
+          row_counts?: Json
+          sha256?: string
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
