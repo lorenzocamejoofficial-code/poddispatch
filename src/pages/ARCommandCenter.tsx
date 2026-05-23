@@ -398,6 +398,94 @@ export default function ARCommandCenter() {
     toast.success("Claim written off");
   };
 
+  /* ---------- Per-row "Next Step" CTA ----------
+   * Single visible action per claim row so customers don't have to dig
+   * into the detail sheet to recover money. Surfaces logic that's
+   * already built (Denial Recovery, Secondary Insurance, payer contact)
+   * as one obvious button.
+   */
+  type NextAction = {
+    label: string;
+    icon: typeof WrenchIcon;
+    variant: "default" | "outline" | "secondary";
+    run: () => void | Promise<void>;
+  } | null;
+
+  const getNextAction = useCallback((claim: ARClaim): NextAction => {
+    // Denied → guided recovery
+    if (claim.status === "denied") {
+      return {
+        label: "Start recovery",
+        icon: WrenchIcon,
+        variant: "default",
+        run: () => { setRecoveryClaim(claim); setRecoveryOpen(true); },
+      };
+    }
+
+    // Partial pay with secondary on file → spawn secondary claim
+    if (claim.is_partial_paid && claim.has_secondary_on_file && !claim.secondary_already_generated) {
+      return {
+        label: "Bill secondary",
+        icon: ArrowRight,
+        variant: "default",
+        run: async () => {
+          const res = await createSecondaryClaim(claim.id);
+          if (res.ok) {
+            toast.success("Secondary claim created — ready to submit");
+            await fetchClaims();
+          } else {
+            toast.error(res.error ?? "Could not create secondary claim");
+          }
+        },
+      };
+    }
+
+    // Partial pay, secondary already generated → just nav to it
+    if (claim.is_partial_paid && claim.secondary_already_generated) {
+      return {
+        label: "View secondary",
+        icon: FileText,
+        variant: "secondary",
+        run: () => navigate("/billing-claims"),
+      };
+    }
+
+    // Partial pay without secondary on file → push customer to chart
+    if (claim.is_partial_paid && !claim.has_secondary_on_file) {
+      return {
+        label: "Check for secondary",
+        icon: UserCheck,
+        variant: "outline",
+        run: () => {
+          if (claim.patient_id) navigate(`/patients?patientId=${claim.patient_id}&focus=primary_payer`);
+          else navigate("/patients");
+        },
+      };
+    }
+
+    // Stuck >30 days with no movement → call payer
+    if (claim.status === "submitted" && claim.days_outstanding > 30) {
+      return {
+        label: "Call payer",
+        icon: Phone,
+        variant: "default",
+        run: () => setSelectedClaim(claim),
+      };
+    }
+
+    // Needs correction → open detail sheet
+    if (claim.status === "needs_correction") {
+      return {
+        label: "Review",
+        icon: ArrowRight,
+        variant: "outline",
+        run: () => setSelectedClaim(claim),
+      };
+    }
+
+    return null;
+  }, [fetchClaims, navigate]);
+
   /* -- filters -- */
   const payers = useMemo(() => {
     const set = new Set(claims.map(c => c.payer_name).filter(Boolean));
