@@ -672,9 +672,11 @@ export default function ARCommandCenter() {
                   <SelectItem value="Missing Acknowledgment">Missing Acknowledgment</SelectItem>
                   <SelectItem value="Filing Deadline">Filing Deadline</SelectItem>
                   <SelectItem value="Denied — Action Required">Denied — Action Required</SelectItem>
+                  <SelectItem value="Partial Pay — Recover">Partial Pay — Recover</SelectItem>
                   <SelectItem value="No Response — 45+ Days">No Response — 45+ Days</SelectItem>
                   <SelectItem value="Aging — Monitor">Aging — Monitor</SelectItem>
                   <SelectItem value="Follow Up">Follow Up</SelectItem>
+                  <SelectItem value="Pending — Awaiting Payer">Pending — Awaiting Payer</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={filterPayer} onValueChange={setFilterPayer}>
