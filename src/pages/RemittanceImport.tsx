@@ -22,12 +22,15 @@ import {
 } from "@/lib/edi-835-parser";
 import { getDenialTranslation } from "@/lib/denial-code-translations";
 import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
+import { capPatientResponsibility } from "@/lib/payer-compliance";
 
 interface MatchedItem {
   remittance: ParsedRemittanceItem;
   matchedClaimId: string | null;
   matchedPatientId: string | null;
   hasSecondaryPayer: boolean;
+  primaryPayer: string | null;
+  secondaryPayer: string | null;
   errors: string[];
 }
 
