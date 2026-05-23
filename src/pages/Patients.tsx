@@ -30,6 +30,7 @@ import { TablePagination } from "@/components/ui/table-pagination";
 import { PatientScheduleOverridesEditor, saveScheduleOverrides, type ScheduleOverride } from "@/components/patients/PatientScheduleOverridesEditor";
 import { ICD10Picker } from "@/components/pcr/ICD10Picker";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
+import { UpstreamReadinessPanel } from "@/components/billing/UpstreamReadinessPanel";
 import {
   CHIEF_COMPLAINT_GROUPS,
   PRIMARY_IMPRESSION_GROUPS,
