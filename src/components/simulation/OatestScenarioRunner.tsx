@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Play, Send, Rocket, CheckCircle2, XCircle, AlertTriangle, FlaskConical } from "lucide-react";
+import { Loader2, Play, Send, Rocket, CheckCircle2, XCircle, AlertTriangle, FlaskConical, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { getLocalToday } from "@/lib/local-date";
 
@@ -64,6 +64,8 @@ export function OatestScenarioRunner() {
   const [bootstrapping, setBootstrapping] = useState(true);
   const [pre, setPre] = useState<Preconditions | null>(null);
   const [preLoading, setPreLoading] = useState(false);
+  const [runsPage, setRunsPage] = useState(0);
+  const RUNS_PER_PAGE = 10;
 
   const loadScenarios = useCallback(async () => {
     const { data, error } = await (supabase as any)
@@ -76,7 +78,7 @@ export function OatestScenarioRunner() {
     const { data, error } = await (supabase as any)
       .from("oatest_runs")
       .select("id,scenario_id,status,failure_stage,failure_summary,filename,ack_999_status,ack_277ca_status,started_at,completed_at,oatest_scenarios(slug,name)")
-      .order("started_at", { ascending: false }).limit(15);
+      .order("started_at", { ascending: false }).limit(200);
     if (!error) setRuns(data ?? []);
   }, []);
 
@@ -137,6 +139,10 @@ export function OatestScenarioRunner() {
     (acc[s.transport_type] ??= []).push(s);
     return acc;
   }, {});
+
+  const totalPages = Math.max(1, Math.ceil(runs.length / RUNS_PER_PAGE));
+  const currentPage = Math.min(runsPage, totalPages - 1);
+  const pagedRuns = runs.slice(currentPage * RUNS_PER_PAGE, (currentPage + 1) * RUNS_PER_PAGE);
 
   return (
     <div className="space-y-4">
