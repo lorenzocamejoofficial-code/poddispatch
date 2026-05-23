@@ -144,6 +144,7 @@ function daysFromSubmission(submittedAt: string | null): number {
 /* ---------- component ---------- */
 export default function ARCommandCenter() {
   const { activeCompanyId, user, isSystemCreator } = useAuth();
+  const navigate = useNavigate();
   const [claims, setClaims] = useState<ARClaim[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClaim, setSelectedClaim] = useState<ARClaim | null>(null);
