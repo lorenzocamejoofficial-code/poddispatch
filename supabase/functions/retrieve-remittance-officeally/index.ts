@@ -314,15 +314,17 @@ Deno.serve(async (req) => {
                       claimsUpdated++;
                       totalPaid += paidAmount;
                       if (prCapReason) {
-                        await supabase.from("audit_logs").insert({
-                          company_id: settings.company_id,
-                          action: "edit",
-                          table_name: "claim_records",
-                          record_id: matchedClaims[0].id,
-                          old_data: { patient_responsibility_amount: patientResp },
-                          new_data: { patient_responsibility_amount: 0, capped: true },
-                          notes: `PR auto-capped on Office Ally 835 retrieval: ${prCapReason}`,
-                        }).catch(() => undefined);
+                        try {
+                          await supabase.from("audit_logs").insert({
+                            company_id: settings.company_id,
+                            action: "edit",
+                            table_name: "claim_records",
+                            record_id: matchedClaims[0].id,
+                            old_data: { patient_responsibility_amount: patientResp },
+                            new_data: { patient_responsibility_amount: 0, capped: true },
+                            notes: `PR auto-capped on Office Ally 835 retrieval: ${prCapReason}`,
+                          });
+                        } catch (_) { /* best-effort */ }
                       }
                     }
                   } else {
