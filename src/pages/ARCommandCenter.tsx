@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from "react";
+import React, { useEffect, useState, useCallback, useMemo, lazy, Suspense } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,6 +24,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { classifyDenial, type NextActionKind } from "@/lib/classify-denial";
+import { ChevronDown, ChevronRight, Info, CheckCircle2 } from "lucide-react";
 // DenialRecoveryEngine is heavy (650+ lines, multiple data fetches) and only
 // renders when the user clicks "Recover This Claim". Lazy-load it so it
 // doesn't block the AR page or the detail sheet from opening.
@@ -166,6 +168,11 @@ export default function ARCommandCenter() {
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [recoveryClaim, setRecoveryClaim] = useState<ARClaim | null>(null);
   const [workQueueRefreshKey, setWorkQueueRefreshKey] = useState(0);
+  // Per-row "why?" toggle for the inline plain-English denial explanation.
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  // Close-out confirmation for non-recoverable denials (CO-45, CO-29, etc.)
+  const [closeOutClaim, setCloseOutClaim] = useState<ARClaim | null>(null);
+  const [closeOutOpen, setCloseOutOpen] = useState(false);
   // Defer mounting the Sheet's heavy children (PayerContactLookup,
   // TimelyFilingBadge, ResubmissionHistory, notes fetch) until after the
   // sheet's slide-in animation has had a frame to paint. Without this, the
@@ -416,79 +423,89 @@ export default function ARCommandCenter() {
   } | null;
 
   const getNextAction = useCallback((claim: ARClaim): NextAction => {
-    // Denied → guided recovery
-    if (claim.status === "denied") {
-      return {
-        label: "Start recovery",
-        icon: WrenchIcon,
-        variant: "default",
-        run: () => { setRecoveryClaim(claim); setRecoveryOpen(true); },
-      };
-    }
+    // Honest classifier — never tells the biller to "Start recovery" on a
+    // contractual write-off, and never tells them to "Mark closed" on
+    // something they could actually appeal.
+    const verdict = classifyDenial(claim);
+    if (verdict.nextActionKind === "none") return null;
 
-    // Partial pay with secondary on file → spawn secondary claim
-    if (claim.is_partial_paid && claim.has_secondary_on_file && !claim.secondary_already_generated) {
-      return {
-        label: "Bill secondary",
-        icon: ArrowRight,
-        variant: "default",
-        run: async () => {
+    const iconFor = (kind: NextActionKind) => {
+      switch (kind) {
+        case "start_recovery":    return WrenchIcon;
+        case "bill_secondary":    return ArrowRight;
+        case "check_for_secondary": return UserCheck;
+        case "bill_patient":      return UserCheck;
+        case "mark_closed":       return CheckCircle2;
+        case "call_payer":        return Phone;
+        case "review":            return FileText;
+        default:                  return ArrowRight;
+      }
+    };
+    const variantFor = (kind: NextActionKind): "default" | "outline" | "secondary" => {
+      if (kind === "mark_closed") return "secondary";
+      if (kind === "review" || kind === "check_for_secondary") return "outline";
+      return "default";
+    };
+
+    const run = async () => {
+      switch (verdict.nextActionKind) {
+        case "start_recovery":
+          setRecoveryClaim(claim); setRecoveryOpen(true); return;
+        case "bill_secondary": {
           const res = await createSecondaryClaim(claim.id);
-          if (res.ok) {
-            toast.success("Secondary claim created — ready to submit");
-            await fetchClaims();
-          } else {
-            toast.error(res.error ?? "Could not create secondary claim");
-          }
-        },
-      };
-    }
-
-    // Partial pay, secondary already generated → just nav to it
-    if (claim.is_partial_paid && claim.secondary_already_generated) {
-      return {
-        label: "View secondary",
-        icon: FileText,
-        variant: "secondary",
-        run: () => navigate("/billing-claims"),
-      };
-    }
-
-    // Partial pay without secondary on file → push customer to chart
-    if (claim.is_partial_paid && !claim.has_secondary_on_file) {
-      return {
-        label: "Check for secondary",
-        icon: UserCheck,
-        variant: "outline",
-        run: () => {
+          if (res.ok) { toast.success("Secondary claim created — ready to submit"); await fetchClaims(); }
+          else toast.error(res.error ?? "Could not create secondary claim");
+          return;
+        }
+        case "check_for_secondary":
           if (claim.patient_id) navigate(`/patients?patientId=${claim.patient_id}&focus=primary_payer`);
           else navigate("/patients");
-        },
-      };
-    }
+          return;
+        case "bill_patient":
+          if (claim.patient_id) navigate(`/patients?patientId=${claim.patient_id}&focus=billing`);
+          else navigate("/patients");
+          return;
+        case "mark_closed":
+          setCloseOutClaim(claim); setCloseOutOpen(true); return;
+        case "call_payer":
+        case "review":
+        default:
+          setSelectedClaim(claim); return;
+      }
+    };
 
-    // Stuck >30 days with no movement → call payer
-    if (claim.status === "submitted" && claim.days_outstanding > 30) {
-      return {
-        label: "Call payer",
-        icon: Phone,
-        variant: "default",
-        run: () => setSelectedClaim(claim),
-      };
-    }
-
-    // Needs correction → open detail sheet
-    if (claim.status === "needs_correction") {
-      return {
-        label: "Review",
-        icon: ArrowRight,
-        variant: "outline",
-        run: () => setSelectedClaim(claim),
-      };
-    }
-
-    return null;
+    return {
+      label: verdict.nextAction,
+      icon: iconFor(verdict.nextActionKind),
+      variant: variantFor(verdict.nextActionKind),
+      run,
+    };
   }, [fetchClaims, navigate]);
+
+  /** Close a non-recoverable denial honestly (CO-45 etc.) — voids without
+   *  pretending the customer should appeal. */
+  const confirmCloseOut = async () => {
+    if (!closeOutClaim) return;
+    const verdict = classifyDenial(closeOutClaim);
+    setSaving(true);
+    await supabase
+      .from("claim_records")
+      .update({ status: "voided" } as any)
+      .eq("id", closeOutClaim.id);
+    await logAuditEvent({
+      action: "delete",
+      tableName: "claim_records",
+      recordId: closeOutClaim.id,
+      oldData: { status: closeOutClaim.status, denial_code: closeOutClaim.denial_code },
+      newData: { status: "voided", reason: verdict.headline },
+      notes: `Closed by classifier: ${verdict.headline} — ${verdict.plainEnglish}`,
+    });
+    setCloseOutOpen(false);
+    setCloseOutClaim(null);
+    await fetchClaims();
+    setSaving(false);
+    toast.success("Claim closed");
+  };
 
   /* -- filters -- */
   const payers = useMemo(() => {
@@ -725,12 +742,31 @@ export default function ARCommandCenter() {
                     <tr><td colSpan={9} className="text-center py-10 text-muted-foreground">No claims requiring AR follow-up</td></tr>
                   )}
                   {paginatedClaims.map(claim => (
+                    <React.Fragment key={claim.id}>
                     <tr
-                      key={claim.id}
                       className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
                       onClick={() => setSelectedClaim(claim)}
                     >
-                      <td className="p-3 font-medium">{claim.patient_name}</td>
+                      <td className="p-3 font-medium">
+                        <div className="flex items-center gap-1.5">
+                          {(claim.status === "denied" || claim.is_partial_paid) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedRow(expandedRow === claim.id ? null : claim.id);
+                              }}
+                              className="text-muted-foreground hover:text-foreground"
+                              aria-label="Why this status?"
+                            >
+                              {expandedRow === claim.id
+                                ? <ChevronDown className="h-3.5 w-3.5" />
+                                : <ChevronRight className="h-3.5 w-3.5" />}
+                            </button>
+                          )}
+                          <span>{claim.patient_name}</span>
+                        </div>
+                      </td>
                       <td className="p-3 text-muted-foreground">{claim.payer_name ?? "—"}</td>
                       <td className="p-3 text-muted-foreground">{claim.run_date}</td>
                       <td className="p-3 text-right">
@@ -791,6 +827,35 @@ export default function ARCommandCenter() {
                         })()}
                       </td>
                     </tr>
+                    {expandedRow === claim.id && (claim.status === "denied" || claim.is_partial_paid) && (() => {
+                      const v = classifyDenial(claim);
+                      const tone =
+                        v.recoverable === "no"  ? "border-l-muted-foreground/30 bg-muted/40"
+                      : v.recoverable === "yes" ? "border-l-emerald-500 bg-emerald-500/5"
+                                                : "border-l-amber-500 bg-amber-500/5";
+                      return (
+                        <tr className="border-b">
+                          <td colSpan={9} className={`p-3 border-l-4 ${tone}`}>
+                            <div className="flex items-start gap-2 text-sm">
+                              <Info className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                              <div className="space-y-1">
+                                <p className="font-medium">
+                                  {v.headline}
+                                  {v.carc && <span className="ml-2 text-xs text-muted-foreground">({v.carc.code})</span>}
+                                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                    {v.recoverable === "yes"  && "· Recoverable"}
+                                    {v.recoverable === "no"   && "· Not recoverable"}
+                                    {v.recoverable === "maybe"&& "· Review needed"}
+                                  </span>
+                                </p>
+                                <p className="text-muted-foreground">{v.plainEnglish}</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })()}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
@@ -1009,6 +1074,41 @@ export default function ARCommandCenter() {
         </Suspense>
       )}
       <ClaimTimelineDrawer />
+
+      {/* Close-out confirmation for non-recoverable denials */}
+      <Dialog open={closeOutOpen} onOpenChange={(o) => { setCloseOutOpen(o); if (!o) setCloseOutClaim(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Close this claim?</DialogTitle>
+            <DialogDescription asChild>
+              {closeOutClaim ? (
+                <div className="space-y-2 text-sm">
+                  <p>
+                    <span className="font-medium text-foreground">{closeOutClaim.patient_name}</span>
+                    {" · $"}{(closeOutClaim.total_charge ?? 0).toFixed(2)}
+                  </p>
+                  {(() => {
+                    const v = classifyDenial(closeOutClaim);
+                    return (
+                      <div className="rounded-md border bg-muted/40 p-3 space-y-1">
+                        <p className="font-medium text-foreground">{v.headline}{v.carc && <span className="ml-2 text-xs text-muted-foreground">({v.carc.code})</span>}</p>
+                        <p>{v.plainEnglish}</p>
+                      </div>
+                    );
+                  })()}
+                  <p className="text-muted-foreground">
+                    Closing marks the claim as voided. Use this only when the classifier confirms there is no recoverable balance.
+                  </p>
+                </div>
+              ) : <span />}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloseOutOpen(false)}>Cancel</Button>
+            <Button variant="destructive" disabled={saving} onClick={confirmCloseOut}>Close claim</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
