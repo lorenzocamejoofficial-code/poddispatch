@@ -16,6 +16,9 @@ import {
   DollarSign, AlertTriangle, Clock, TrendingUp, Phone,
   ArrowUpRight, XCircle, Search, Filter,
 } from "lucide-react";
+import { Wrench as WrenchIcon, FileText, UserCheck, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { createSecondaryClaim } from "@/lib/create-secondary-claim";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -65,6 +68,10 @@ interface ARClaim {
   priority: number;
   priority_label: string;
   priority_color: string;
+  patient_id?: string | null;
+  has_secondary_on_file?: boolean;
+  secondary_already_generated?: boolean;
+  is_partial_paid?: boolean;
 }
 
 interface FollowUpNote {
@@ -137,6 +144,7 @@ function daysFromSubmission(submittedAt: string | null): number {
 /* ---------- component ---------- */
 export default function ARCommandCenter() {
   const { activeCompanyId, user, isSystemCreator } = useAuth();
+  const navigate = useNavigate();
   const [claims, setClaims] = useState<ARClaim[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClaim, setSelectedClaim] = useState<ARClaim | null>(null);
@@ -181,10 +189,10 @@ export default function ARCommandCenter() {
     const [{ data, error }, { data: payerDir }] = await Promise.all([
       supabase
         .from("claim_records")
-        .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, denial_category, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at, acknowledgment_status, rejection_reason, rejection_codes")
+        .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, denial_category, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at, acknowledgment_status, rejection_reason, rejection_codes, secondary_claim_generated, original_claim_id")
         .eq("company_id", activeCompanyId)
         .eq("is_simulated", false)
-        .in("status", ["submitted", "denied", "needs_correction"] as any)
+        .in("status", ["submitted", "denied", "needs_correction", "paid"] as any)
         .order("run_date", { ascending: true }),
       supabase
         .from("payer_directory")
@@ -207,18 +215,20 @@ export default function ARCommandCenter() {
     const patientIds = [...new Set((data ?? []).map((c: any) => c.patient_id).filter(Boolean))];
     const tripIds = [...new Set((data ?? []).map((c: any) => c.trip_id).filter(Boolean))];
     let patientMap: Record<string, string> = {};
+    let patientSecondaryMap: Record<string, boolean> = {};
     let tripLegMap: Record<string, any> = {};
 
     const [{ data: patients }, { data: tripLegs }] = await Promise.all([
       patientIds.length > 0
-        ? supabase.from("patients").select("id, first_name, last_name").in("id", patientIds)
+        ? supabase.from("patients").select("id, first_name, last_name, secondary_payer, secondary_member_id").in("id", patientIds)
         : Promise.resolve({ data: [] as any[] }),
       tripIds.length > 0
         ? supabase.from("trip_records" as any).select("id, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name)").in("id", tripIds)
         : Promise.resolve({ data: [] as any[] }),
     ]);
-    for (const p of patients ?? []) {
+    for (const p of (patients ?? []) as any[]) {
       patientMap[p.id] = `${p.first_name} ${p.last_name}`;
+      patientSecondaryMap[p.id] = !!(p.secondary_payer && p.secondary_member_id);
     }
     for (const t of (tripLegs ?? []) as any[]) {
       if (t.leg?.is_oneoff) tripLegMap[t.id] = t.leg.oneoff_name;
@@ -228,15 +238,26 @@ export default function ARCommandCenter() {
       const days = daysFromSubmission(c.submitted_at);
       const filingLimitDays = filingMap[(c.payer_type ?? "").toLowerCase()] ?? 365;
       const pri = computePriority({ ...c, days_outstanding: days, filing_limit_days: filingLimitDays });
+      const isPartial = c.status === "paid"
+        && Number(c.amount_paid ?? 0) > 0
+        && Number(c.amount_paid ?? 0) < Number(c.total_charge ?? 0);
+      const finalPri = isPartial
+        ? { priority: 2, label: "Partial Pay — Recover", color: "warning" }
+        : pri;
       return {
         ...c,
         patient_name: patientMap[c.patient_id] ?? tripLegMap[c.trip_id] ?? "Unknown Patient",
         days_outstanding: days,
-        priority: pri.priority,
-        priority_label: pri.label,
-        priority_color: pri.color,
+        priority: finalPri.priority,
+        priority_label: finalPri.label,
+        priority_color: finalPri.color,
+        has_secondary_on_file: c.patient_id ? !!patientSecondaryMap[c.patient_id] : false,
+        secondary_already_generated: !!c.secondary_claim_generated,
+        is_partial_paid: isPartial,
       };
-    });
+    })
+    // Drop fully-paid claims — only partial-pay belongs in AR
+    .filter((c: any) => c.status !== "paid" || c.is_partial_paid);
 
     mapped.sort((a, b) => a.priority - b.priority || b.days_outstanding - a.days_outstanding);
     setClaims(mapped);
@@ -376,6 +397,94 @@ export default function ARCommandCenter() {
     setSaving(false);
     toast.success("Claim written off");
   };
+
+  /* ---------- Per-row "Next Step" CTA ----------
+   * Single visible action per claim row so customers don't have to dig
+   * into the detail sheet to recover money. Surfaces logic that's
+   * already built (Denial Recovery, Secondary Insurance, payer contact)
+   * as one obvious button.
+   */
+  type NextAction = {
+    label: string;
+    icon: typeof WrenchIcon;
+    variant: "default" | "outline" | "secondary";
+    run: () => void | Promise<void>;
+  } | null;
+
+  const getNextAction = useCallback((claim: ARClaim): NextAction => {
+    // Denied → guided recovery
+    if (claim.status === "denied") {
+      return {
+        label: "Start recovery",
+        icon: WrenchIcon,
+        variant: "default",
+        run: () => { setRecoveryClaim(claim); setRecoveryOpen(true); },
+      };
+    }
+
+    // Partial pay with secondary on file → spawn secondary claim
+    if (claim.is_partial_paid && claim.has_secondary_on_file && !claim.secondary_already_generated) {
+      return {
+        label: "Bill secondary",
+        icon: ArrowRight,
+        variant: "default",
+        run: async () => {
+          const res = await createSecondaryClaim(claim.id);
+          if (res.ok) {
+            toast.success("Secondary claim created — ready to submit");
+            await fetchClaims();
+          } else {
+            toast.error(res.error ?? "Could not create secondary claim");
+          }
+        },
+      };
+    }
+
+    // Partial pay, secondary already generated → just nav to it
+    if (claim.is_partial_paid && claim.secondary_already_generated) {
+      return {
+        label: "View secondary",
+        icon: FileText,
+        variant: "secondary",
+        run: () => navigate("/billing-claims"),
+      };
+    }
+
+    // Partial pay without secondary on file → push customer to chart
+    if (claim.is_partial_paid && !claim.has_secondary_on_file) {
+      return {
+        label: "Check for secondary",
+        icon: UserCheck,
+        variant: "outline",
+        run: () => {
+          if (claim.patient_id) navigate(`/patients?patientId=${claim.patient_id}&focus=primary_payer`);
+          else navigate("/patients");
+        },
+      };
+    }
+
+    // Stuck >30 days with no movement → call payer
+    if (claim.status === "submitted" && claim.days_outstanding > 30) {
+      return {
+        label: "Call payer",
+        icon: Phone,
+        variant: "default",
+        run: () => setSelectedClaim(claim),
+      };
+    }
+
+    // Needs correction → open detail sheet
+    if (claim.status === "needs_correction") {
+      return {
+        label: "Review",
+        icon: ArrowRight,
+        variant: "outline",
+        run: () => setSelectedClaim(claim),
+      };
+    }
+
+    return null;
+  }, [fetchClaims, navigate]);
 
   /* -- filters -- */
   const payers = useMemo(() => {
@@ -601,12 +710,13 @@ export default function ARCommandCenter() {
                     <th className="text-right p-3 font-medium">Days Out</th>
                     <th className="text-left p-3 font-medium">Status</th>
                     <th className="text-left p-3 font-medium">Clearinghouse</th>
-                    <th className="text-left p-3 font-medium">Action</th>
+                    <th className="text-left p-3 font-medium">Priority</th>
+                    <th className="text-left p-3 font-medium">Next Step</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 && (
-                    <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">No claims requiring AR follow-up</td></tr>
+                    <tr><td colSpan={9} className="text-center py-10 text-muted-foreground">No claims requiring AR follow-up</td></tr>
                   )}
                   {paginatedClaims.map(claim => (
                     <tr
@@ -617,7 +727,14 @@ export default function ARCommandCenter() {
                       <td className="p-3 font-medium">{claim.patient_name}</td>
                       <td className="p-3 text-muted-foreground">{claim.payer_name ?? "—"}</td>
                       <td className="p-3 text-muted-foreground">{claim.run_date}</td>
-                      <td className="p-3 text-right">${(claim.total_charge ?? 0).toFixed(2)}</td>
+                      <td className="p-3 text-right">
+                        ${(claim.total_charge ?? 0).toFixed(2)}
+                        {claim.is_partial_paid && (
+                          <div className="text-[10px] text-amber-600 font-medium">
+                            paid ${(claim.amount_paid ?? 0).toFixed(2)}
+                          </div>
+                        )}
+                      </td>
                       <td className="p-3 text-right">{claim.days_outstanding}</td>
                       <td className="p-3"><Badge variant="outline" className="text-xs">{claim.status}</Badge></td>
                       <td className="p-3">
@@ -644,6 +761,24 @@ export default function ARCommandCenter() {
                         <Badge variant={claim.priority_color as any} className="text-xs whitespace-nowrap">
                           {claim.priority_label}
                         </Badge>
+                      </td>
+                      <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                        {(() => {
+                          const a = getNextAction(claim);
+                          if (!a) return <span className="text-xs text-muted-foreground">—</span>;
+                          const Icon = a.icon;
+                          return (
+                            <Button
+                              size="sm"
+                              variant={a.variant}
+                              className="h-7 text-xs whitespace-nowrap"
+                              onClick={() => a.run()}
+                            >
+                              <Icon className="h-3 w-3 mr-1" />
+                              {a.label}
+                            </Button>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))}

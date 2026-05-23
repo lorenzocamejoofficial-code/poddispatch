@@ -30,6 +30,7 @@ import { TablePagination } from "@/components/ui/table-pagination";
 import { PatientScheduleOverridesEditor, saveScheduleOverrides, type ScheduleOverride } from "@/components/patients/PatientScheduleOverridesEditor";
 import { ICD10Picker } from "@/components/pcr/ICD10Picker";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
+import { UpstreamReadinessPanel } from "@/components/billing/UpstreamReadinessPanel";
 import {
   CHIEF_COMPLAINT_GROUPS,
   PRIMARY_IMPRESSION_GROUPS,
@@ -878,6 +879,23 @@ export default function Patients() {
                   <DialogDescription>Enter patient details including contact info, addresses, and recurring transport schedule.</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-2">
+
+                  {/* Upstream claim-readiness preview — surfaces obvious
+                      blockers (missing DOB, member ID, address, payer, PCS)
+                      before any trip is created from this patient. */}
+                  <UpstreamReadinessPanel
+                    input={{
+                      first_name: form.first_name,
+                      last_name: form.last_name,
+                      dob: form.dob,
+                      sex: form.sex,
+                      pickup_address: form.pickup_address,
+                      primary_payer: form.primary_payer,
+                      member_id: form.member_id,
+                      pcs_on_file: form.pcs_on_file,
+                      pcs_expiration_date: form.pcs_expiration_date,
+                    }}
+                  />
 
                   {/* Basic Info */}
                    <div className="grid grid-cols-2 gap-3" data-focus="name">
