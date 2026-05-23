@@ -21,10 +21,12 @@ import { useNavigate } from "react-router-dom";
 import { createSecondaryClaim } from "@/lib/create-secondary-claim";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { classifyDenial, type NextActionKind } from "@/lib/classify-denial";
+import { isMedicareCoinsuranceWriteOffRisk } from "@/lib/payer-compliance";
 import { ChevronDown, ChevronRight, Info, CheckCircle2 } from "lucide-react";
 // DenialRecoveryEngine is heavy (650+ lines, multiple data fetches) and only
 // renders when the user clicks "Recover This Claim". Lazy-load it so it
@@ -165,6 +167,7 @@ export default function ARCommandCenter() {
   const [filterDenialCat, setFilterDenialCat] = useState<string>("all");
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   const [writeOffReason, setWriteOffReason] = useState("");
+  const [writeOffAttested, setWriteOffAttested] = useState(false);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [recoveryClaim, setRecoveryClaim] = useState<ARClaim | null>(null);
   const [workQueueRefreshKey, setWorkQueueRefreshKey] = useState(0);
@@ -386,6 +389,12 @@ export default function ARCommandCenter() {
 
   const writeOff = async () => {
     if (!selectedClaim || !writeOffReason.trim()) return;
+    const medicareRisk = isMedicareCoinsuranceWriteOffRisk(selectedClaim);
+    if (medicareRisk && !writeOffAttested) return;
+    if (medicareRisk && writeOffReason.trim().length < 20) {
+      toast.error("Medicare coinsurance write-offs require a detailed reason (20+ chars) documenting hardship or uncollectibility.");
+      return;
+    }
     setSaving(true);
     await supabase
       .from("claim_records")
@@ -397,13 +406,14 @@ export default function ARCommandCenter() {
       tableName: "claim_records",
       recordId: selectedClaim.id,
       oldData: { status: selectedClaim.status, total_charge: selectedClaim.total_charge },
-      newData: { status: "voided", write_off_reason: writeOffReason.trim() },
-      notes: `AR write-off: ${writeOffReason.trim()}`,
+      newData: { status: "voided", write_off_reason: writeOffReason.trim(), medicare_coinsurance_attested: medicareRisk || undefined },
+      notes: `AR write-off${medicareRisk ? " (Medicare coinsurance — hardship attested)" : ""}: ${writeOffReason.trim()}`,
     });
 
     await logNote(`Claim written off. Reason: ${writeOffReason.trim()}`);
     setWriteOffOpen(false);
     setWriteOffReason("");
+    setWriteOffAttested(false);
     setSelectedClaim(null);
     await fetchClaims();
     setSaving(false);
@@ -1040,7 +1050,7 @@ export default function ARCommandCenter() {
       </Sheet>
 
       {/* Write-off confirmation */}
-      <Dialog open={writeOffOpen} onOpenChange={setWriteOffOpen}>
+      <Dialog open={writeOffOpen} onOpenChange={(o) => { setWriteOffOpen(o); if (!o) { setWriteOffReason(""); setWriteOffAttested(false); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Write Off Claim</DialogTitle>
@@ -1048,15 +1058,58 @@ export default function ARCommandCenter() {
               This will void the claim for {selectedClaim?.patient_name ?? "this patient"} (${(selectedClaim?.total_charge ?? 0).toFixed(2)}). This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {selectedClaim && isMedicareCoinsuranceWriteOffRisk(selectedClaim) && (
+            <Alert variant="destructive" className="border-amber-500/60 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-xs space-y-2">
+                <p className="font-semibold">Medicare coinsurance/deductible — compliance warning</p>
+                <p>
+                  This claim was paid by Medicare. The remaining balance is the patient's 20% coinsurance and/or unmet deductible.
+                  Routinely waiving Medicare cost-sharing without a documented hardship determination or proof of uncollectibility
+                  is an OIG Anti-Kickback / False Claims Act risk.
+                </p>
+                <p>
+                  Provide a specific reason (financial hardship verified, deceased, returned mail after collection attempts, etc.)
+                  and check the attestation below to proceed.
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
           <Textarea
             value={writeOffReason}
             onChange={e => setWriteOffReason(e.target.value)}
-            placeholder="Reason for write-off (required)..."
+            placeholder={
+              selectedClaim && isMedicareCoinsuranceWriteOffRisk(selectedClaim)
+                ? "Document hardship / collection attempts / reason (20+ chars required)..."
+                : "Reason for write-off (required)..."
+            }
             className="min-h-[80px]"
           />
+          {selectedClaim && isMedicareCoinsuranceWriteOffRisk(selectedClaim) && (
+            <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={writeOffAttested}
+                onChange={(e) => setWriteOffAttested(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                I attest that this write-off is supported by documented hardship or good-faith collection efforts and is
+                not a routine waiver of Medicare cost-sharing.
+              </span>
+            </label>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setWriteOffOpen(false)}>Cancel</Button>
-            <Button variant="destructive" disabled={!writeOffReason.trim() || saving} onClick={writeOff}>
+            <Button
+              variant="destructive"
+              disabled={
+                !writeOffReason.trim() ||
+                saving ||
+                (selectedClaim && isMedicareCoinsuranceWriteOffRisk(selectedClaim) && (!writeOffAttested || writeOffReason.trim().length < 20))
+              }
+              onClick={writeOff}
+            >
               Write Off
             </Button>
           </DialogFooter>
