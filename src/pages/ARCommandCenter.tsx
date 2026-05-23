@@ -1074,6 +1074,41 @@ export default function ARCommandCenter() {
         </Suspense>
       )}
       <ClaimTimelineDrawer />
+
+      {/* Close-out confirmation for non-recoverable denials */}
+      <Dialog open={closeOutOpen} onOpenChange={(o) => { setCloseOutOpen(o); if (!o) setCloseOutClaim(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Close this claim?</DialogTitle>
+            <DialogDescription asChild>
+              {closeOutClaim ? (
+                <div className="space-y-2 text-sm">
+                  <p>
+                    <span className="font-medium text-foreground">{closeOutClaim.patient_name}</span>
+                    {" · $"}{(closeOutClaim.total_charge ?? 0).toFixed(2)}
+                  </p>
+                  {(() => {
+                    const v = classifyDenial(closeOutClaim);
+                    return (
+                      <div className="rounded-md border bg-muted/40 p-3 space-y-1">
+                        <p className="font-medium text-foreground">{v.headline}{v.carc && <span className="ml-2 text-xs text-muted-foreground">({v.carc.code})</span>}</p>
+                        <p>{v.plainEnglish}</p>
+                      </div>
+                    );
+                  })()}
+                  <p className="text-muted-foreground">
+                    Closing marks the claim as voided. Use this only when the classifier confirms there is no recoverable balance.
+                  </p>
+                </div>
+              ) : <span />}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloseOutOpen(false)}>Cancel</Button>
+            <Button variant="destructive" disabled={saving} onClick={confirmCloseOut}>Close claim</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
