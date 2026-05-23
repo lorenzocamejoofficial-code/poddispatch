@@ -70,6 +70,19 @@ export function classifyDenial(input: ClassifyInput): DenialVerdict {
   // --- Partial-pay branch: usually NOT a denial; it's coordination of benefits
   //     or a contractual adjustment. Don't show "Start recovery" here.
   if (input.is_partial_paid) {
+    // If a secondary has already been spawned for this primary, surface that
+    // first — don't tell the biller to "bill secondary" again or push them
+    // into a generic "review" bucket.
+    if (input.secondary_already_generated) {
+      return {
+        recoverable: "yes",
+        headline: "Secondary claim already created",
+        plainEnglish: "A coordination-of-benefits claim was already generated for the remaining balance. Open it to track its status.",
+        nextAction: "View secondary",
+        nextActionKind: "review",
+        carc,
+      };
+    }
     // Patient-responsibility CARCs → bill patient (the carrier paid what it owed)
     if (carc?.category === "patient_responsibility") {
       return {
