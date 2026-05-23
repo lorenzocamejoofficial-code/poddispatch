@@ -141,6 +141,8 @@ export default function RemittanceImport() {
         let matchedClaimId: string | null = null;
         let matchedPatientId: string | null = null;
         let hasSecondaryPayer = false;
+        let primaryPayer: string | null = null;
+        let secondaryPayer: string | null = null;
 
         // Primary match: CLP01 patient control number (YYMMDD-XXXXXXXX)
         const pcn = parsePatientControlNumber(rem.patient_control_number);
@@ -191,11 +193,18 @@ export default function RemittanceImport() {
           errors.push("No matching claim found");
         }
 
+        // Capture primary payer from matched claim record (for PR capping)
+        if (matchedClaimId) {
+          const cm = claimsList.find((c: any) => c.id === matchedClaimId);
+          if (cm) primaryPayer = (cm.payer_type ?? cm.payer_name ?? null) as string | null;
+        }
+
         // Check secondary payer
         if (matchedPatientId) {
           const pat = patientMap.get(matchedPatientId);
           if (pat?.secondary_payer) {
             hasSecondaryPayer = true;
+            secondaryPayer = pat.secondary_payer;
           }
         } else {
           const fallbackMemberId = rem.patient_member_id?.trim().toUpperCase();
@@ -203,11 +212,12 @@ export default function RemittanceImport() {
             const pat = memberToPatient.get(fallbackMemberId);
             if (pat?.secondary_payer) {
               hasSecondaryPayer = true;
+              secondaryPayer = pat.secondary_payer;
             }
           }
         }
 
-        return { remittance: rem, matchedClaimId, matchedPatientId, hasSecondaryPayer, errors };
+        return { remittance: rem, matchedClaimId, matchedPatientId, hasSecondaryPayer, primaryPayer, secondaryPayer, errors };
       });
 
       setMatchedItems(matched);
