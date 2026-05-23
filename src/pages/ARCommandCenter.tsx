@@ -710,12 +710,13 @@ export default function ARCommandCenter() {
                     <th className="text-right p-3 font-medium">Days Out</th>
                     <th className="text-left p-3 font-medium">Status</th>
                     <th className="text-left p-3 font-medium">Clearinghouse</th>
-                    <th className="text-left p-3 font-medium">Action</th>
+                    <th className="text-left p-3 font-medium">Priority</th>
+                    <th className="text-left p-3 font-medium">Next Step</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 && (
-                    <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">No claims requiring AR follow-up</td></tr>
+                    <tr><td colSpan={9} className="text-center py-10 text-muted-foreground">No claims requiring AR follow-up</td></tr>
                   )}
                   {paginatedClaims.map(claim => (
                     <tr
@@ -726,7 +727,14 @@ export default function ARCommandCenter() {
                       <td className="p-3 font-medium">{claim.patient_name}</td>
                       <td className="p-3 text-muted-foreground">{claim.payer_name ?? "—"}</td>
                       <td className="p-3 text-muted-foreground">{claim.run_date}</td>
-                      <td className="p-3 text-right">${(claim.total_charge ?? 0).toFixed(2)}</td>
+                      <td className="p-3 text-right">
+                        ${(claim.total_charge ?? 0).toFixed(2)}
+                        {claim.is_partial_paid && (
+                          <div className="text-[10px] text-amber-600 font-medium">
+                            paid ${(claim.amount_paid ?? 0).toFixed(2)}
+                          </div>
+                        )}
+                      </td>
                       <td className="p-3 text-right">{claim.days_outstanding}</td>
                       <td className="p-3"><Badge variant="outline" className="text-xs">{claim.status}</Badge></td>
                       <td className="p-3">
@@ -753,6 +761,24 @@ export default function ARCommandCenter() {
                         <Badge variant={claim.priority_color as any} className="text-xs whitespace-nowrap">
                           {claim.priority_label}
                         </Badge>
+                      </td>
+                      <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                        {(() => {
+                          const a = getNextAction(claim);
+                          if (!a) return <span className="text-xs text-muted-foreground">—</span>;
+                          const Icon = a.icon;
+                          return (
+                            <Button
+                              size="sm"
+                              variant={a.variant}
+                              className="h-7 text-xs whitespace-nowrap"
+                              onClick={() => a.run()}
+                            >
+                              <Icon className="h-3 w-3 mr-1" />
+                              {a.label}
+                            </Button>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))}
