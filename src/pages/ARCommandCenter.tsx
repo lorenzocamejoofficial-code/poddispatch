@@ -21,6 +21,7 @@ import { useNavigate } from "react-router-dom";
 import { createSecondaryClaim } from "@/lib/create-secondary-claim";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { logAuditEvent } from "@/lib/audit-logger";
