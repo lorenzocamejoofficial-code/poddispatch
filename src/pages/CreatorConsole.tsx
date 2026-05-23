@@ -31,6 +31,7 @@ import { logAuditEvent } from "@/lib/audit-logger";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RemittanceQuarantinePanel } from "@/components/creator/RemittanceQuarantinePanel";
 import { ReconciliationReportPanel } from "@/components/creator/ReconciliationReportPanel";
+import { AcknowledgmentsPanel } from "@/components/creator/AcknowledgmentsPanel";
 import { SupportTicketsPanel } from "@/components/creator/SupportTicketsPanel";
 import { LoadTestHarnessPanel } from "@/components/creator/LoadTestHarnessPanel";
 import { TablePagination } from "@/components/ui/table-pagination";
