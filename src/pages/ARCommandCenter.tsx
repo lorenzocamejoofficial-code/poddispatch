@@ -188,10 +188,10 @@ export default function ARCommandCenter() {
     const [{ data, error }, { data: payerDir }] = await Promise.all([
       supabase
         .from("claim_records")
-        .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, denial_category, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at, acknowledgment_status, rejection_reason, rejection_codes")
+        .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, denial_category, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at, acknowledgment_status, rejection_reason, rejection_codes, secondary_claim_generated, original_claim_id")
         .eq("company_id", activeCompanyId)
         .eq("is_simulated", false)
-        .in("status", ["submitted", "denied", "needs_correction"] as any)
+        .in("status", ["submitted", "denied", "needs_correction", "paid"] as any)
         .order("run_date", { ascending: true }),
       supabase
         .from("payer_directory")
@@ -214,18 +214,20 @@ export default function ARCommandCenter() {
     const patientIds = [...new Set((data ?? []).map((c: any) => c.patient_id).filter(Boolean))];
     const tripIds = [...new Set((data ?? []).map((c: any) => c.trip_id).filter(Boolean))];
     let patientMap: Record<string, string> = {};
+    let patientSecondaryMap: Record<string, boolean> = {};
     let tripLegMap: Record<string, any> = {};
 
     const [{ data: patients }, { data: tripLegs }] = await Promise.all([
       patientIds.length > 0
-        ? supabase.from("patients").select("id, first_name, last_name").in("id", patientIds)
+        ? supabase.from("patients").select("id, first_name, last_name, secondary_payer, secondary_member_id").in("id", patientIds)
         : Promise.resolve({ data: [] as any[] }),
       tripIds.length > 0
         ? supabase.from("trip_records" as any).select("id, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name)").in("id", tripIds)
         : Promise.resolve({ data: [] as any[] }),
     ]);
-    for (const p of patients ?? []) {
+    for (const p of (patients ?? []) as any[]) {
       patientMap[p.id] = `${p.first_name} ${p.last_name}`;
+      patientSecondaryMap[p.id] = !!(p.secondary_payer && p.secondary_member_id);
     }
     for (const t of (tripLegs ?? []) as any[]) {
       if (t.leg?.is_oneoff) tripLegMap[t.id] = t.leg.oneoff_name;
@@ -235,6 +237,9 @@ export default function ARCommandCenter() {
       const days = daysFromSubmission(c.submitted_at);
       const filingLimitDays = filingMap[(c.payer_type ?? "").toLowerCase()] ?? 365;
       const pri = computePriority({ ...c, days_outstanding: days, filing_limit_days: filingLimitDays });
+      const isPartial = c.status === "paid"
+        && Number(c.amount_paid ?? 0) > 0
+        && Number(c.amount_paid ?? 0) < Number(c.total_charge ?? 0);
       return {
         ...c,
         patient_name: patientMap[c.patient_id] ?? tripLegMap[c.trip_id] ?? "Unknown Patient",
@@ -242,8 +247,13 @@ export default function ARCommandCenter() {
         priority: pri.priority,
         priority_label: pri.label,
         priority_color: pri.color,
+        has_secondary_on_file: c.patient_id ? !!patientSecondaryMap[c.patient_id] : false,
+        secondary_already_generated: !!c.secondary_claim_generated,
+        is_partial_paid: isPartial,
       };
-    });
+    })
+    // Drop fully-paid claims — only partial-pay belongs in AR
+    .filter((c: any) => c.status !== "paid" || c.is_partial_paid);
 
     mapped.sort((a, b) => a.priority - b.priority || b.days_outstanding - a.days_outstanding);
     setClaims(mapped);
