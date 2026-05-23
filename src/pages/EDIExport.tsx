@@ -62,7 +62,7 @@ interface ExportableClaim {
 }
 
 export default function EDIExport() {
-  const { activeCompanyId } = useAuth();
+  const { activeCompanyId, isSystemCreator } = useAuth();
   const [claims, setClaims] = useState<ExportableClaim[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -221,7 +221,10 @@ export default function EDIExport() {
       .maybeSingle();
     if (vendor) {
       const row = vendor as any;
-      setTestMode(row.test_mode === true);
+      // OATEST / test-mode envelope is a creator-only diagnostic. Real
+      // tenants always submit live to Office Ally, regardless of what the
+      // vendor row says.
+      setTestMode(row.test_mode === true && isSystemCreator);
       setSubmitterInfo({
         submitter_id: row.submitter_id || "",
         submitter_name: row.submitter_name || "",
@@ -229,10 +232,10 @@ export default function EDIExport() {
         contact_phone: row.contact_phone || "",
         receiver_id: row.receiver_id || "330897513",
         receiver_name: row.receiver_name || "OFFICE ALLY",
-        usage_indicator: row.test_mode === true ? "T" : "P",
+        usage_indicator: row.test_mode === true && isSystemCreator ? "T" : "P",
       });
     }
-  }, [activeCompanyId]);
+  }, [activeCompanyId, isSystemCreator]);
 
   useEffect(() => {
     fetchClaims();
@@ -841,14 +844,13 @@ export default function EDIExport() {
           </Badge>
         </div>
 
-        {testMode && (
+        {testMode && isSystemCreator && (
           <Alert className="border-amber-400/50 bg-amber-50/60 dark:bg-amber-950/20">
             <FlaskConical className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             <AlertDescription className="text-sm">
               <strong>Sandbox / Test Mode is ON.</strong> Generated 837P files will use the OATEST envelope
-              (ISA15=T) and exported claims will be tagged as test submissions — they won't pollute your real
-              AR or revenue numbers. Toggle this off in <RouterLink to="/admin-settings" className="underline">
-              Settings → Clearinghouse → Step 4</RouterLink> when you're ready to go live.
+              (ISA15=T) and exported claims will be tagged as test submissions — creator-only diagnostic
+              path. Real tenants never see this and always submit live.
             </AlertDescription>
           </Alert>
         )}
