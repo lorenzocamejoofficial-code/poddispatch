@@ -1285,6 +1285,7 @@ export default function BillingAndClaims() {
         </div>
 
         {/* Remittance Activity (only when Office Ally is wired up) */}
+        {activeCompanyId && <SubmissionPipelineStrip companyId={activeCompanyId} />}
         {activeCompanyId && <SubmissionQueueErrorsPanel companyId={activeCompanyId} />}
 
         {clearinghouseConfigured && activeCompanyId && (
