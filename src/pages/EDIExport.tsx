@@ -1192,23 +1192,25 @@ export default function EDIExport() {
                   <Eye className="h-4 w-4" />
                   Preview Summary
                 </Button>
-                <Button
-                  onClick={handleSubmitSingleTest}
-                  disabled={generating || !testMode || selectedClaims.length !== 1}
-                  size="lg"
-                  variant="secondary"
-                  className="gap-2 ml-2"
-                  title={
-                    !testMode
-                      ? "Enable Test Mode in Clearinghouse Settings first"
-                      : selectedClaims.length !== 1
-                        ? "Select exactly one claim"
-                        : "Generate a single OATEST claim file"
-                  }
-                >
-                  <FileCheck2 className="h-4 w-4" />
-                  Submit Single Test Claim
-                </Button>
+                {isSystemCreator && (
+                  <Button
+                    onClick={handleSubmitSingleTest}
+                    disabled={generating || !testMode || selectedClaims.length !== 1}
+                    size="lg"
+                    variant="secondary"
+                    className="gap-2 ml-2"
+                    title={
+                      !testMode
+                        ? "Flip vendor test_mode on in Creator Console first"
+                        : selectedClaims.length !== 1
+                          ? "Select exactly one claim"
+                          : "Generate a single OATEST claim file (creator diagnostic)"
+                    }
+                  >
+                    <FileCheck2 className="h-4 w-4" />
+                    Submit Single OATEST Claim
+                  </Button>
+                )}
                 <Button
                   onClick={handleSubmitToQueue}
                   disabled={submitting || generating || selectedClaims.length === 0}
@@ -1242,9 +1244,15 @@ export default function EDIExport() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 Readable Claim Summary
-                <Badge variant={testMode ? "outline" : "default"} className={testMode ? "border-amber-400 text-amber-700" : ""}>
-                  {testMode ? "🧪 TEST MODE (OATEST)" : "🟢 LIVE MODE (Production)"}
-                </Badge>
+                {isSystemCreator ? (
+                  <Badge variant={testMode ? "outline" : "default"} className={testMode ? "border-amber-400 text-amber-700" : ""}>
+                    {testMode ? "🧪 TEST MODE (OATEST)" : "🟢 LIVE MODE (Production)"}
+                  </Badge>
+                ) : (
+                  <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-600">
+                    Live → Office Ally
+                  </Badge>
+                )}
               </DialogTitle>
               <DialogDescription className="text-xs">
                 What's actually inside the 837P file you're about to download. No EDI knowledge needed.
@@ -1303,7 +1311,7 @@ export default function EDIExport() {
                 </table>
               </div>
 
-              {testMode && (
+              {testMode && isSystemCreator && (
                 <Alert className="border-amber-400/50 bg-amber-50/60 dark:bg-amber-950/20">
                   <FlaskConical className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   <AlertDescription className="text-xs">
