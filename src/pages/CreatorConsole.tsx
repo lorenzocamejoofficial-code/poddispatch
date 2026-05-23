@@ -794,6 +794,7 @@ export default function CreatorConsole() {
             <TabsTrigger value="archived">Archived ({counts.archived})</TabsTrigger>
             <TabsTrigger value="remittance_quarantine">Remittance Quarantine</TabsTrigger>
             <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
+            <TabsTrigger value="acknowledgments">Acknowledgments</TabsTrigger>
             <TabsTrigger value="support">Support</TabsTrigger>
             <TabsTrigger value="loadtest">Load Test</TabsTrigger>
           </TabsList>
@@ -821,6 +822,9 @@ export default function CreatorConsole() {
           </TabsContent>
           <TabsContent value="reconciliation">
             <ReconciliationReportPanel />
+          </TabsContent>
+          <TabsContent value="acknowledgments">
+            <AcknowledgmentsPanel />
           </TabsContent>
           <TabsContent value="support">
             <SupportTicketsPanel />
