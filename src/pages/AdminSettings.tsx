@@ -12,7 +12,6 @@ import { toast } from "sonner";
 import { Settings2, Network, Phone, Mail } from "lucide-react";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { TrialBanner } from "@/components/onboarding/TrialBanner";
-import { ClearinghouseSettings } from "@/components/settings/ClearinghouseSettings";
 
 export default function AdminSettings() {
   const { role } = useAuth();
@@ -106,11 +105,6 @@ export default function AdminSettings() {
             <TabsTrigger value="company" className="gap-1.5">
               <Settings2 className="h-3.5 w-3.5" /> Company
             </TabsTrigger>
-            {isOwner && (
-              <TabsTrigger value="clearinghouse" className="gap-1.5">
-                <Network className="h-3.5 w-3.5" /> Clearinghouse
-              </TabsTrigger>
-            )}
           </TabsList>
 
           <TabsContent value="company">
@@ -319,14 +313,6 @@ export default function AdminSettings() {
         </Button>
             </div>
           </TabsContent>
-
-          {isOwner && (
-            <TabsContent value="clearinghouse">
-              <div className="max-w-2xl">
-                <ClearinghouseSettings />
-              </div>
-            </TabsContent>
-          )}
         </Tabs>
       </div>
     </AdminLayout>
