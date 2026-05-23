@@ -742,12 +742,32 @@ export default function ARCommandCenter() {
                     <tr><td colSpan={9} className="text-center py-10 text-muted-foreground">No claims requiring AR follow-up</td></tr>
                   )}
                   {paginatedClaims.map(claim => (
+                    <>
                     <tr
                       key={claim.id}
                       className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
                       onClick={() => setSelectedClaim(claim)}
                     >
-                      <td className="p-3 font-medium">{claim.patient_name}</td>
+                      <td className="p-3 font-medium">
+                        <div className="flex items-center gap-1.5">
+                          {(claim.status === "denied" || claim.is_partial_paid) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedRow(expandedRow === claim.id ? null : claim.id);
+                              }}
+                              className="text-muted-foreground hover:text-foreground"
+                              aria-label="Why this status?"
+                            >
+                              {expandedRow === claim.id
+                                ? <ChevronDown className="h-3.5 w-3.5" />
+                                : <ChevronRight className="h-3.5 w-3.5" />}
+                            </button>
+                          )}
+                          <span>{claim.patient_name}</span>
+                        </div>
+                      </td>
                       <td className="p-3 text-muted-foreground">{claim.payer_name ?? "—"}</td>
                       <td className="p-3 text-muted-foreground">{claim.run_date}</td>
                       <td className="p-3 text-right">
@@ -808,6 +828,35 @@ export default function ARCommandCenter() {
                         })()}
                       </td>
                     </tr>
+                    {expandedRow === claim.id && (claim.status === "denied" || claim.is_partial_paid) && (() => {
+                      const v = classifyDenial(claim);
+                      const tone =
+                        v.recoverable === "no"  ? "border-l-muted-foreground/30 bg-muted/40"
+                      : v.recoverable === "yes" ? "border-l-emerald-500 bg-emerald-500/5"
+                                                : "border-l-amber-500 bg-amber-500/5";
+                      return (
+                        <tr key={claim.id + "_why"} className="border-b">
+                          <td colSpan={9} className={`p-3 border-l-4 ${tone}`}>
+                            <div className="flex items-start gap-2 text-sm">
+                              <Info className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                              <div className="space-y-1">
+                                <p className="font-medium">
+                                  {v.headline}
+                                  {v.carc && <span className="ml-2 text-xs text-muted-foreground">({v.carc.code})</span>}
+                                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                    {v.recoverable === "yes"  && "· Recoverable"}
+                                    {v.recoverable === "no"   && "· Not recoverable"}
+                                    {v.recoverable === "maybe"&& "· Review needed"}
+                                  </span>
+                                </p>
+                                <p className="text-muted-foreground">{v.plainEnglish}</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })()}
+                    </>
                   ))}
                 </tbody>
               </table>
