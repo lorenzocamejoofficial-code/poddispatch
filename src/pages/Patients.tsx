@@ -880,6 +880,23 @@ export default function Patients() {
                 </DialogHeader>
                 <div className="grid gap-4 py-2">
 
+                  {/* Upstream claim-readiness preview — surfaces obvious
+                      blockers (missing DOB, member ID, address, payer, PCS)
+                      before any trip is created from this patient. */}
+                  <UpstreamReadinessPanel
+                    input={{
+                      first_name: form.first_name,
+                      last_name: form.last_name,
+                      dob: form.dob,
+                      sex: form.sex,
+                      pickup_address: form.pickup_address,
+                      primary_payer: form.primary_payer,
+                      member_id: form.member_id,
+                      pcs_on_file: form.pcs_on_file,
+                      pcs_expiration_date: form.pcs_expiration_date,
+                    }}
+                  />
+
                   {/* Basic Info */}
                    <div className="grid grid-cols-2 gap-3" data-focus="name">
                      <div><Label>First Name *<PCRTooltip text={ADMIN_TOOLTIPS.first_name} /></Label><Input className={ringIfMissing("first_name")} value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
