@@ -742,9 +742,8 @@ export default function ARCommandCenter() {
                     <tr><td colSpan={9} className="text-center py-10 text-muted-foreground">No claims requiring AR follow-up</td></tr>
                   )}
                   {paginatedClaims.map(claim => (
-                    <>
+                    <React.Fragment key={claim.id}>
                     <tr
-                      key={claim.id}
                       className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
                       onClick={() => setSelectedClaim(claim)}
                     >
@@ -835,7 +834,7 @@ export default function ARCommandCenter() {
                       : v.recoverable === "yes" ? "border-l-emerald-500 bg-emerald-500/5"
                                                 : "border-l-amber-500 bg-amber-500/5";
                       return (
-                        <tr key={claim.id + "_why"} className="border-b">
+                        <tr className="border-b">
                           <td colSpan={9} className={`p-3 border-l-4 ${tone}`}>
                             <div className="flex items-start gap-2 text-sm">
                               <Info className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
@@ -856,7 +855,7 @@ export default function ARCommandCenter() {
                         </tr>
                       );
                     })()}
-                    </>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
