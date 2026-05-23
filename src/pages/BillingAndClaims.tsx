@@ -1413,6 +1413,25 @@ export default function BillingAndClaims() {
                                   <FlaskConical className="h-2.5 w-2.5" /> SANDBOX
                                 </Badge>
                               )}
+                              {/* Clearinghouse acknowledgment status (999 / 277CA) */}
+                              {(claim as any).acknowledgment_status === "rejected_999" && (
+                                <Badge variant="destructive" className="text-[9px] px-1 py-0" title={(claim as any).rejection_reason ?? "999 rejected"}>999 ✗</Badge>
+                              )}
+                              {(claim as any).acknowledgment_status === "rejected_277ca" && (
+                                <Badge variant="destructive" className="text-[9px] px-1 py-0" title={(claim as any).rejection_reason ?? "277CA rejected"}>277CA ✗</Badge>
+                              )}
+                              {(claim as any).acknowledgment_status === "accepted_999" && (
+                                <Badge variant="secondary" className="text-[9px] px-1 py-0" title="Passed clearinghouse syntax check">999 ✓</Badge>
+                              )}
+                              {(claim as any).acknowledgment_status === "accepted_277ca" && (
+                                <Badge variant="secondary" className="text-[9px] px-1 py-0" title="Accepted by payer front-end">277CA ✓</Badge>
+                              )}
+                              {(claim as any).acknowledgment_status === "forwarded_to_payer" && (
+                                <Badge variant="secondary" className="text-[9px] px-1 py-0">Forwarded</Badge>
+                              )}
+                              {claim.submitted_at && !(claim as any).acknowledgment_status && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 text-muted-foreground" title="Waiting on 999 from clearinghouse">Ack pending</Badge>
+                              )}
                               {/* Fix 3: Rate Missing badge for $0 claims */}
                               {claim.total_charge === 0 && (
                                 <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-400 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20">
