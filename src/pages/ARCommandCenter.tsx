@@ -742,7 +742,11 @@ export default function ARCommandCenter() {
                         )}
                       </td>
                       <td className="p-3 text-right">{claim.days_outstanding}</td>
-                      <td className="p-3"><Badge variant="outline" className="text-xs">{claim.status}</Badge></td>
+                      <td className="p-3">
+                        <Badge variant="outline" className="text-xs">
+                          {claim.is_partial_paid ? "partial paid" : claim.status}
+                        </Badge>
+                      </td>
                       <td className="p-3">
                         {claim.acknowledgment_status === "rejected_999" && (
                           <Badge variant="destructive" className="text-xs whitespace-nowrap" title={claim.rejection_reason ?? ""}>999 Rejected</Badge>
