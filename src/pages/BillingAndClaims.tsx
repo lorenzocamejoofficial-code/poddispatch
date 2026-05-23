@@ -3,6 +3,7 @@ import { useSearchParams, Link } from "react-router-dom";
 import { PageLoader } from "@/components/ui/page-loader";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { SubmissionQueueErrorsPanel } from "@/components/billing/SubmissionQueueErrorsPanel";
+import { SubmissionPipelineStrip } from "@/components/billing/SubmissionPipelineStrip";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -1284,6 +1285,7 @@ export default function BillingAndClaims() {
         </div>
 
         {/* Remittance Activity (only when Office Ally is wired up) */}
+        {activeCompanyId && <SubmissionPipelineStrip companyId={activeCompanyId} />}
         {activeCompanyId && <SubmissionQueueErrorsPanel companyId={activeCompanyId} />}
 
         {clearinghouseConfigured && activeCompanyId && (

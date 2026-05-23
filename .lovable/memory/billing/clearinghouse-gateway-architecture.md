@@ -39,3 +39,17 @@ type: feature
 - Tenants CAN export their own claims (CSV via Billing & Claims, 837P
   via EDI Export) for their records — that's encouraged. They just can't
   flip envelope/test-mode or touch credentials.
+
+## Single submission funnel (UI)
+- There is exactly ONE way for a tenant to submit claims to Office Ally:
+  the "Submit to Office Ally" buttons on `/billing-claims` (group submit
+  + per-claim drawer submit). Both call `queueClaimsForSubmission`.
+- `/edi-export` is download/inspection only for tenants. "Submit to
+  Office Ally" on that page is gated behind `isSystemCreator` for
+  diagnostic OATEST runs. Tenants see an alert directing them back to
+  Billing & Claims for actual submission.
+- `SubmissionPipelineStrip` on Billing & Claims renders explainer copy
+  ("single or batch, same queue, worker polls ~30s") plus live counts
+  (pending in queue, claims sent today, failed). This prevents the
+  "did it actually go?" support question and reinforces the one-pipeline
+  mental model.
