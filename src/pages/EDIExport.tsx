@@ -1211,20 +1211,23 @@ export default function EDIExport() {
                     Submit Single OATEST Claim
                   </Button>
                 )}
-                <Button
-                  onClick={handleSubmitToQueue}
-                  disabled={submitting || generating || selectedClaims.length === 0}
-                  size="lg"
-                  variant="default"
-                  className="gap-2 ml-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  {submitting ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  ) : (
-                    <Upload className="h-4 w-4" />
-                  )}
-                  Submit to Office Ally
-                </Button>
+                {isSystemCreator && (
+                  <Button
+                    onClick={handleSubmitToQueue}
+                    disabled={submitting || generating || selectedClaims.length === 0}
+                    size="lg"
+                    variant="default"
+                    className="gap-2 ml-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    title="Creator-only diagnostic submission. Tenants submit via Billing & Claims."
+                  >
+                    {submitting ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    Submit to Office Ally
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1233,9 +1236,11 @@ export default function EDIExport() {
         <Alert className="border-muted">
           <Info className="h-4 w-4" />
           <AlertDescription className="text-xs text-muted-foreground">
-            The generated 837P file follows ANSI X12 005010X222A1 format compatible with Office Ally,
-            Availity, Trizetto, and other standard clearinghouses. Upload the downloaded .txt file to
-            your clearinghouse portal for submission.
+            <strong>This page is for downloading copies of your 837P files for your own records</strong>{" "}
+            (audits, payer disputes, internal review). To actually submit claims to Office Ally, use the
+            "Submit to Office Ally" button on the <a href="/billing-claims" className="underline font-medium">Billing &amp; Claims</a>{" "}
+            page — that's the single pipeline every submission funnels through. Files generated here
+            follow ANSI X12 005010X222A1 format.
           </AlertDescription>
         </Alert>
 
