@@ -26,3 +26,16 @@ type: feature
 ## Downloadable worker package
 - Generated at /mnt/documents/poddispatch-sftp-worker/
 - Deploy to Railway with env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SFTP_PASSWORD
+
+## Tenant-side surface (locked down)
+- Tenants NEVER see per-company Office Ally credential setup. The
+  Clearinghouse tab in `/admin-settings` was removed — all SFTP/credential
+  configuration is creator-only because every tenant routes through
+  Lorenzo's single OA account (NPI-gated).
+- Tenants NEVER see OATEST / test-mode envelope toggles. `EDIExport`
+  forces `usage_indicator = "P"` and hides the "Submit Single OATEST
+  Claim" button unless `isSystemCreator`. Real customers always submit
+  live to Office Ally.
+- Tenants CAN export their own claims (CSV via Billing & Claims, 837P
+  via EDI Export) for their records — that's encouraged. They just can't
+  flip envelope/test-mode or touch credentials.
