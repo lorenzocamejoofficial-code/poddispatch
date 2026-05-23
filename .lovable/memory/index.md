@@ -95,3 +95,4 @@ Single Office Ally account gateway — all tenant 837Ps submit through PodDispat
 - [Transport Context Cascading](mem://features/transport-context-cascading) — Run record drives service level, HCPCS, PCS, PCR sections, QA rules downstream
 - [Clearinghouse Gateway Architecture](mem://billing/clearinghouse-gateway-architecture) — Single OA account gateway: all tenants submit via PodDispatch's SFTP, 835s routed back by NPI
 - [EDI Submission Feedback Loop](mem://billing/edi-submission-feedback-loop) — Persisted 837P artifacts + structured rejection capture for diagnosing clearinghouse failures
+- [Payer Compliance Cap](mem://billing/payer-compliance-cap) — Medicaid + dual-eligible patient_responsibility auto-cap to $0 on 835 posting; Medicare coinsurance write-off attestation gate
