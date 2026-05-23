@@ -24,7 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { logAuditEvent } from "@/lib/audit-logger";
-import { classifyDenial, type DenialVerdict, type NextActionKind } from "@/lib/classify-denial";
+import { classifyDenial, type NextActionKind } from "@/lib/classify-denial";
 import { ChevronDown, ChevronRight, Info, CheckCircle2 } from "lucide-react";
 // DenialRecoveryEngine is heavy (650+ lines, multiple data fetches) and only
 // renders when the user clicks "Recover This Claim". Lazy-load it so it
