@@ -36,6 +36,7 @@ import { OperationalAlertsPanel, type OperationalAlert } from "@/components/disp
 import { CommsOutbox } from "@/components/dispatch/CommsOutbox";
 import { useSchedulingStore, type LegDisplay } from "@/hooks/useSchedulingStore";
 import { RunReassignmentDialog } from "@/components/scheduling/RunReassignmentDialog";
+import { UpstreamReadinessPanel } from "@/components/billing/UpstreamReadinessPanel";
 import { detectTimeConflicts, type TimeConflict } from "@/lib/time-conflict";
 import {
   DndContext,
