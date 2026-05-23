@@ -1425,6 +1425,19 @@ export default function Scheduling() {
                 <div className="rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] px-3 py-2 text-xs text-[hsl(var(--status-yellow))]">
                   This run will NOT create a permanent patient record. It's for same-day dispatch only.
                 </div>
+                <UpstreamReadinessPanel
+                  title="Claim Readiness Preview (this run)"
+                  input={{
+                    full_name: oneoffForm.name,
+                    dob: oneoffForm.dob,
+                    sex: oneoffForm.sex,
+                    pickup_address: oneoffForm.pickup_location,
+                    primary_payer: oneoffForm.primary_payer,
+                    member_id: oneoffForm.member_id,
+                    pcs_on_file: oneoffForm.pcs_obtained,
+                    transport_type: oneoffForm.trip_type,
+                  }}
+                />
                 <div><Label>Patient Name *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_name} /></Label><Input value={oneoffForm.name} onChange={(e) => setOneoffForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. John Smith" /></div>
                 <div>
                   <Label>Transport Type<PCRTooltip text={ADMIN_TOOLTIPS.trip_type} /></Label>
