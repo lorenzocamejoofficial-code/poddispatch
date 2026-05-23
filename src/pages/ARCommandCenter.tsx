@@ -168,6 +168,11 @@ export default function ARCommandCenter() {
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [recoveryClaim, setRecoveryClaim] = useState<ARClaim | null>(null);
   const [workQueueRefreshKey, setWorkQueueRefreshKey] = useState(0);
+  // Per-row "why?" toggle for the inline plain-English denial explanation.
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  // Close-out confirmation for non-recoverable denials (CO-45, CO-29, etc.)
+  const [closeOutClaim, setCloseOutClaim] = useState<ARClaim | null>(null);
+  const [closeOutOpen, setCloseOutOpen] = useState(false);
   // Defer mounting the Sheet's heavy children (PayerContactLookup,
   // TimelyFilingBadge, ResubmissionHistory, notes fetch) until after the
   // sheet's slide-in animation has had a frame to paint. Without this, the
@@ -418,79 +423,89 @@ export default function ARCommandCenter() {
   } | null;
 
   const getNextAction = useCallback((claim: ARClaim): NextAction => {
-    // Denied → guided recovery
-    if (claim.status === "denied") {
-      return {
-        label: "Start recovery",
-        icon: WrenchIcon,
-        variant: "default",
-        run: () => { setRecoveryClaim(claim); setRecoveryOpen(true); },
-      };
-    }
+    // Honest classifier — never tells the biller to "Start recovery" on a
+    // contractual write-off, and never tells them to "Mark closed" on
+    // something they could actually appeal.
+    const verdict = classifyDenial(claim);
+    if (verdict.nextActionKind === "none") return null;
 
-    // Partial pay with secondary on file → spawn secondary claim
-    if (claim.is_partial_paid && claim.has_secondary_on_file && !claim.secondary_already_generated) {
-      return {
-        label: "Bill secondary",
-        icon: ArrowRight,
-        variant: "default",
-        run: async () => {
+    const iconFor = (kind: NextActionKind) => {
+      switch (kind) {
+        case "start_recovery":    return WrenchIcon;
+        case "bill_secondary":    return ArrowRight;
+        case "check_for_secondary": return UserCheck;
+        case "bill_patient":      return UserCheck;
+        case "mark_closed":       return CheckCircle2;
+        case "call_payer":        return Phone;
+        case "review":            return FileText;
+        default:                  return ArrowRight;
+      }
+    };
+    const variantFor = (kind: NextActionKind): "default" | "outline" | "secondary" => {
+      if (kind === "mark_closed") return "secondary";
+      if (kind === "review" || kind === "check_for_secondary") return "outline";
+      return "default";
+    };
+
+    const run = async () => {
+      switch (verdict.nextActionKind) {
+        case "start_recovery":
+          setRecoveryClaim(claim); setRecoveryOpen(true); return;
+        case "bill_secondary": {
           const res = await createSecondaryClaim(claim.id);
-          if (res.ok) {
-            toast.success("Secondary claim created — ready to submit");
-            await fetchClaims();
-          } else {
-            toast.error(res.error ?? "Could not create secondary claim");
-          }
-        },
-      };
-    }
-
-    // Partial pay, secondary already generated → just nav to it
-    if (claim.is_partial_paid && claim.secondary_already_generated) {
-      return {
-        label: "View secondary",
-        icon: FileText,
-        variant: "secondary",
-        run: () => navigate("/billing-claims"),
-      };
-    }
-
-    // Partial pay without secondary on file → push customer to chart
-    if (claim.is_partial_paid && !claim.has_secondary_on_file) {
-      return {
-        label: "Check for secondary",
-        icon: UserCheck,
-        variant: "outline",
-        run: () => {
+          if (res.ok) { toast.success("Secondary claim created — ready to submit"); await fetchClaims(); }
+          else toast.error(res.error ?? "Could not create secondary claim");
+          return;
+        }
+        case "check_for_secondary":
           if (claim.patient_id) navigate(`/patients?patientId=${claim.patient_id}&focus=primary_payer`);
           else navigate("/patients");
-        },
-      };
-    }
+          return;
+        case "bill_patient":
+          if (claim.patient_id) navigate(`/patients?patientId=${claim.patient_id}&focus=billing`);
+          else navigate("/patients");
+          return;
+        case "mark_closed":
+          setCloseOutClaim(claim); setCloseOutOpen(true); return;
+        case "call_payer":
+        case "review":
+        default:
+          setSelectedClaim(claim); return;
+      }
+    };
 
-    // Stuck >30 days with no movement → call payer
-    if (claim.status === "submitted" && claim.days_outstanding > 30) {
-      return {
-        label: "Call payer",
-        icon: Phone,
-        variant: "default",
-        run: () => setSelectedClaim(claim),
-      };
-    }
-
-    // Needs correction → open detail sheet
-    if (claim.status === "needs_correction") {
-      return {
-        label: "Review",
-        icon: ArrowRight,
-        variant: "outline",
-        run: () => setSelectedClaim(claim),
-      };
-    }
-
-    return null;
+    return {
+      label: verdict.nextAction,
+      icon: iconFor(verdict.nextActionKind),
+      variant: variantFor(verdict.nextActionKind),
+      run,
+    };
   }, [fetchClaims, navigate]);
+
+  /** Close a non-recoverable denial honestly (CO-45 etc.) — voids without
+   *  pretending the customer should appeal. */
+  const confirmCloseOut = async () => {
+    if (!closeOutClaim) return;
+    const verdict = classifyDenial(closeOutClaim);
+    setSaving(true);
+    await supabase
+      .from("claim_records")
+      .update({ status: "voided" } as any)
+      .eq("id", closeOutClaim.id);
+    await logAuditEvent({
+      action: "delete",
+      tableName: "claim_records",
+      recordId: closeOutClaim.id,
+      oldData: { status: closeOutClaim.status, denial_code: closeOutClaim.denial_code },
+      newData: { status: "voided", reason: verdict.headline },
+      notes: `Closed by classifier: ${verdict.headline} — ${verdict.plainEnglish}`,
+    });
+    setCloseOutOpen(false);
+    setCloseOutClaim(null);
+    await fetchClaims();
+    setSaving(false);
+    toast.success("Claim closed");
+  };
 
   /* -- filters -- */
   const payers = useMemo(() => {
