@@ -257,7 +257,7 @@ export function OatestScenarioRunner() {
             <p className="text-xs text-muted-foreground">No runs yet. Click Seed or Seed + Submit on a scenario above.</p>
           ) : (
             <div className="space-y-1.5">
-              {runs.map(r => {
+              {pagedRuns.map(r => {
                 const isFail = r.status === "failed";
                 const isOk = r.status === "submitted" || r.status === "ready";
                 return (
@@ -282,6 +282,26 @@ export function OatestScenarioRunner() {
                   </div>
                 );
               })}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-2 border-t mt-2">
+                  <span className="text-[10px] text-muted-foreground">
+                    Showing {currentPage * RUNS_PER_PAGE + 1}–{Math.min((currentPage + 1) * RUNS_PER_PAGE, runs.length)} of {runs.length}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="outline" className="h-7 px-2" disabled={currentPage === 0}
+                      onClick={() => setRunsPage(p => Math.max(0, p - 1))}>
+                      <ChevronLeft className="h-3 w-3" />
+                    </Button>
+                    <span className="text-[10px] text-muted-foreground px-1">
+                      {currentPage + 1} / {totalPages}
+                    </span>
+                    <Button size="sm" variant="outline" className="h-7 px-2" disabled={currentPage >= totalPages - 1}
+                      onClick={() => setRunsPage(p => Math.min(totalPages - 1, p + 1))}>
+                      <ChevronRight className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
