@@ -88,6 +88,7 @@ export function useMissingMoneyScan() {
         .eq("status", "submitted")
         .lt("submitted_at", fortyFiveDaysAgo)
         .or("is_simulated.eq.false,is_simulated.is.null")
+        .eq("is_test_submission", false)
         .limit(500);
 
       // ---- CHECK 4: Secondary not billed ----
@@ -98,6 +99,7 @@ export function useMissingMoneyScan() {
         .eq("secondary_claim_generated", false)
         .gt("patient_responsibility_amount", 0)
         .or("is_simulated.eq.false,is_simulated.is.null")
+        .eq("is_test_submission", false)
         .limit(500);
 
       // ---- CHECK 5: Denied recoverable no action ----
@@ -106,6 +108,7 @@ export function useMissingMoneyScan() {
         .select("id, patient_id, payer_name, total_charge, denial_code, run_date, status")
         .eq("status", "denied")
         .or("is_simulated.eq.false,is_simulated.is.null")
+        .eq("is_test_submission", false)
         .limit(500);
 
       // Gather all patient and truck IDs for enrichment

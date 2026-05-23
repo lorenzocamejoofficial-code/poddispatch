@@ -203,6 +203,7 @@ export default function ARCommandCenter() {
         .select("id, trip_id, payer_name, payer_type, run_date, total_charge, amount_paid, status, submitted_at, denial_code, denial_reason, denial_category, last_contacted_at, company_id, member_id, patient_id, resubmission_count, resubmitted_at, acknowledgment_status, rejection_reason, rejection_codes, secondary_claim_generated, original_claim_id")
         .eq("company_id", activeCompanyId)
         .eq("is_simulated", false)
+        .eq("is_test_submission", false)
         .in("status", ["submitted", "denied", "needs_correction", "paid"] as any)
         .order("run_date", { ascending: true }),
       supabase
