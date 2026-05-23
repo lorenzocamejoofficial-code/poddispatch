@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from "react";
+import React, { useEffect, useState, useCallback, useMemo, lazy, Suspense } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
