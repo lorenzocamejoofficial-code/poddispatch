@@ -26,23 +26,33 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Validate that userId matches the authenticated caller (if auth header present)
+    // Require authenticated caller and verify userId matches their JWT sub.
     const authHeader = req.headers.get("Authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      const anonClient = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_ANON_KEY")!,
-        { global: { headers: { Authorization: authHeader } } }
-      );
-      const { data: claimsData, error: claimsErr } = await anonClient.auth.getClaims(
-        authHeader.replace("Bearer ", "")
-      );
-      if (!claimsErr && claimsData?.claims?.sub && claimsData.claims.sub !== userId) {
-        return new Response(JSON.stringify({ error: "userId does not match authenticated user" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Authentication required" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const anonClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: claimsData, error: claimsErr } = await anonClient.auth.getClaims(
+      authHeader.replace("Bearer ", "")
+    );
+    if (claimsErr || !claimsData?.claims?.sub) {
+      return new Response(JSON.stringify({ error: "Invalid session" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (claimsData.claims.sub !== userId) {
+      return new Response(JSON.stringify({ error: "userId does not match authenticated user" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Look up the invite + linked profile (token-only invite, person/company data on profile)

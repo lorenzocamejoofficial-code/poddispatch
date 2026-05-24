@@ -57,6 +57,26 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const admin = createClient(supabaseUrl, serviceKey);
 
+  // Require authenticated dispatcher/admin caller
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Authentication required" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const anonClient = createClient(
+    supabaseUrl,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: authHeader } } },
+  );
+  const { data: userData, error: userErr } = await anonClient.auth.getUser();
+  if (userErr || !userData?.user) {
+    return new Response(JSON.stringify({ error: "Invalid session" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const callerUserId = userData.user.id;
+
   let body: RequestBody;
   try {
     body = await req.json();
@@ -74,6 +94,38 @@ Deno.serve(async (req) => {
       JSON.stringify({ error: "comms_event_id, to_number, and script are required" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
+  }
+
+  // Validate to_number is E.164 format
+  if (!/^\+[1-9]\d{6,14}$/.test(to_number)) {
+    return new Response(JSON.stringify({ error: "to_number must be E.164 format (e.g. +15555551234)" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Verify caller is dispatcher/admin/owner in the company that owns the comms_event
+  const { data: ev } = await admin
+    .from("comms_events")
+    .select("company_id")
+    .eq("id", comms_event_id)
+    .maybeSingle();
+  const eventCompanyId = (ev as { company_id?: string } | null)?.company_id ?? null;
+  if (!eventCompanyId) {
+    return new Response(JSON.stringify({ error: "comms_event not found" }), {
+      status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const { data: membership } = await admin
+    .from("company_memberships")
+    .select("role")
+    .eq("user_id", callerUserId)
+    .eq("company_id", eventCompanyId)
+    .maybeSingle();
+  const allowedRoles = ["dispatcher", "manager", "owner", "creator", "admin"];
+  if (!membership || !allowedRoles.includes(String((membership as { role?: string }).role))) {
+    return new Response(JSON.stringify({ error: "Not authorized to place calls for this company" }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
@@ -97,18 +149,7 @@ Deno.serve(async (req) => {
     : TWILIO_PHONE_NUMBER;
 
   // ---- Per-company rate limit (60 / hour) ----
-  // company_id isn't on the request body, so resolve it from the comms_events row.
-  let companyId: string | null = null;
-  try {
-    const { data: ev } = await admin
-      .from("comms_events")
-      .select("company_id")
-      .eq("id", comms_event_id)
-      .maybeSingle();
-    companyId = (ev as { company_id?: string } | null)?.company_id ?? null;
-  } catch (err) {
-    console.error("make-outbound-call: failed to load comms_event for rate limit", err);
-  }
+  const companyId: string | null = eventCompanyId;
 
   if (companyId) {
     try {

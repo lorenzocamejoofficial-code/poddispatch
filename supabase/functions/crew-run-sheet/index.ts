@@ -19,7 +19,7 @@ async function validateToken(token: string) {
   // The token's valid_from is the authoritative schedule date.
   const { data: tokenRow, error } = await supabaseAdmin
     .from("crew_share_tokens")
-    .select("truck_id, valid_from, valid_until")
+    .select("truck_id, valid_from, valid_until, company_id")
     .eq("token", token)
     .eq("active", true)
     .maybeSingle();
@@ -445,6 +445,7 @@ Deno.serve(async (req) => {
         .from("hold_timers")
         .select("*")
         .eq("id", timer_id)
+        .eq("company_id", (tokenRow as any).company_id)
         .eq("is_active", true)
         .maybeSingle();
 
@@ -510,7 +511,8 @@ Deno.serve(async (req) => {
       const { error: updateErr } = await supabaseAdmin
         .from("operational_alerts")
         .update({ status: "resolved", resolved_at: new Date().toISOString(), resolved_by: "crew" })
-        .eq("id", alert_id);
+        .eq("id", alert_id)
+        .eq("truck_id", tokenRow.truck_id);
 
       if (updateErr) {
         return dbErrorResponse("Failed to resolve alert", updateErr);
