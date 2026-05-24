@@ -672,7 +672,7 @@ Deno.serve(async (req) => {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-        result = await billingHygieneCheck(trip_id);
+        result = await billingHygieneCheck(trip_id, companyId);
         break;
       }
 
@@ -717,7 +717,7 @@ Deno.serve(async (req) => {
 
         const results = [];
         for (const t of completedTrips ?? []) {
-          const r = await billingHygieneCheck(t.id);
+          const r = await billingHygieneCheck(t.id, companyId);
           results.push({ trip_id: t.id, ...r });
         }
         result = { checked: results.length, results };
