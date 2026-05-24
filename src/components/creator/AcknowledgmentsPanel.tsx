@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, RefreshCw, FileText, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 interface AckRow {
   id: string;
@@ -58,17 +59,25 @@ export function AcknowledgmentsPanel() {
   const [rows, setRows] = useState<AckRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [polling, setPolling] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error, count } = await supabase
       .from("clearinghouse_ack_files" as any)
-      .select("id, filename, submitted_filename, file_type, claims_matched, claims_updated, unmatched_count, parsed_summary, parse_error, received_at, raw_content")
+      .select("id, filename, submitted_filename, file_type, claims_matched, claims_updated, unmatched_count, parsed_summary, parse_error, received_at, raw_content", { count: "exact" })
       .order("received_at", { ascending: false })
-      .limit(30);
-    if (!error && data) setRows(data as unknown as AckRow[]);
+      .range(from, to);
+    if (!error && data) {
+      setRows(data as unknown as AckRow[]);
+      setTotalCount(count ?? 0);
+    }
     setLoading(false);
-  }, []);
+  }, [page, pageSize]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -104,7 +113,7 @@ export function AcknowledgmentsPanel() {
             Clearinghouse Acknowledgments
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Last 30 999 / 277CA files received from Office Ally. Round-trip status for every submitted batch (real and OATEST).
+            999 / 277CA files received from Office Ally. Round-trip status for every submitted batch (real and OATEST).
           </p>
         </div>
         <div className="flex gap-2">
