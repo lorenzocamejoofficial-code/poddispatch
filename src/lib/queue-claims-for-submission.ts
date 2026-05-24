@@ -225,11 +225,13 @@ export async function queueClaimsForSubmission(
         payer_name: prim.payer_name,
         payer_type: prim.payer_type,
       });
-      if (!primResolution.ok) {
+      if (primResolution.ok === false) {
+        const reason = primResolution.reason;
+        const detail = primResolution.detail ?? "";
         throw new Error(
           `Secondary claim ${sec.id}: primary payer (${prim.payer_name || prim.payer_type}) ` +
-          `not resolvable in payer_directory — ${primResolution.reason}` +
-          (primResolution.detail ? ` (${primResolution.detail})` : "")
+          `not resolvable in payer_directory — ${reason}` +
+          (detail ? ` (${detail})` : "")
         );
       }
       const primPayerName = primResolution.payer_name;
@@ -414,7 +416,7 @@ export async function queueClaimsForSubmission(
     }).filter(x => x.severity === "block");
     if (issues.length) {
       blocked.push({ claimId: c.id, issues });
-      if (!payerResolution.ok) {
+      if (payerResolution.ok === false) {
         payerBlocked.push({
           claimId: c.id,
           reason: payerResolution.reason,
