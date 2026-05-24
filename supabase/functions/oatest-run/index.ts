@@ -20,6 +20,65 @@ const corsHeaders = {
 
 const LORENZO_TEST_COMPANY_ID = "f53311c3-a40e-4b2b-b4c2-5aec852f7789";
 
+/**
+ * Edge-function port of src/lib/payer-directory-lookup.ts#resolvePayerForClaim.
+ * Kept inline because Deno edge functions can't import from src/. Behavior
+ * must stay in lockstep with the app helper — every change here needs the
+ * same change in the TS helper and vice versa.
+ *
+ * Resolution order: oa_payer_id → payer_name → payer_type (only if unique).
+ * Never falls back to a payer-name string in NM109.
+ */
+async function resolvePayerForClaimEdge(
+  admin: ReturnType<typeof createClient>,
+  input: { company_id: string; payer_name?: string | null; payer_type?: string | null; oa_payer_id?: string | null },
+): Promise<
+  | { ok: true; oa_payer_id: string; payer_name: string; payer_type: string | null; match_strategy: string }
+  | { ok: false; reason: string; detail?: string }
+> {
+  const payerName = (input.payer_name ?? "").trim();
+  const payerType = (input.payer_type ?? "").trim().toLowerCase();
+  const oaId = (input.oa_payer_id ?? "").trim();
+  if (!input.company_id) return { ok: false, reason: "missing_inputs", detail: "company_id required" };
+  if (!payerName && !payerType && !oaId) {
+    return { ok: false, reason: "missing_inputs", detail: "payer_name, payer_type, or oa_payer_id required" };
+  }
+  if (oaId) {
+    const { data } = await admin.from("payer_directory")
+      .select("id, payer_name, payer_type, oa_payer_id")
+      .eq("company_id", input.company_id).ilike("oa_payer_id", oaId).limit(1).maybeSingle();
+    if (data && (data as any).oa_payer_id) {
+      const r = data as any;
+      return { ok: true, oa_payer_id: r.oa_payer_id, payer_name: r.payer_name, payer_type: r.payer_type, match_strategy: "oa_payer_id" };
+    }
+  }
+  if (payerName) {
+    const { data } = await admin.from("payer_directory")
+      .select("id, payer_name, payer_type, oa_payer_id")
+      .eq("company_id", input.company_id).ilike("payer_name", payerName).limit(1).maybeSingle();
+    if (data) {
+      const r = data as any;
+      if (!r.oa_payer_id) return { ok: false, reason: "directory_row_missing_oa_payer_id", detail: r.payer_name };
+      return { ok: true, oa_payer_id: r.oa_payer_id, payer_name: r.payer_name, payer_type: r.payer_type, match_strategy: "payer_name" };
+    }
+  }
+  if (payerType) {
+    const { data } = await admin.from("payer_directory")
+      .select("id, payer_name, payer_type, oa_payer_id")
+      .eq("company_id", input.company_id).eq("payer_type", payerType).limit(2);
+    const rows = (data ?? []) as any[];
+    if (rows.length === 1) {
+      const r = rows[0];
+      if (!r.oa_payer_id) return { ok: false, reason: "directory_row_missing_oa_payer_id", detail: r.payer_name };
+      return { ok: true, oa_payer_id: r.oa_payer_id, payer_name: r.payer_name, payer_type: r.payer_type, match_strategy: "payer_type_unique" };
+    }
+    if (rows.length > 1) {
+      return { ok: false, reason: "ambiguous_payer_type", detail: `multiple rows for payer_type="${payerType}"` };
+    }
+  }
+  return { ok: false, reason: "no_directory_match", detail: `name="${payerName}" type="${payerType}" oa_id="${oaId}"` };
+}
+
 type ActionBody = {
   action: "seed" | "submit" | "seed_and_submit" | "preconditions";
   scenario_slug?: string;
@@ -518,6 +577,31 @@ Deno.serve(async (req) => {
     const sc = (run as any).oatest_scenarios;
     const charge = (claim.total_charge as number) ?? 250;
     const filename = `OATEST_${sc.slug.toUpperCase().replace(/-/g, "_")}_${new Date().toISOString().slice(0,10).replace(/-/g,"")}_${Math.floor(Math.random()*1e4)}.837`;
+
+    // Resolve payer via payer_directory BEFORE building the envelope. No
+    // hardcoded "MEDICARE" / "MEDICAID" / "OATEST" payer.id fallbacks — the
+    // simulator must look up the real Office Ally payer ID just like the
+    // production submit path does. If the scenario's payer_type / payer_name
+    // isn't seeded in the directory, the scenario fails LOUDLY so we can
+    // catch directory gaps before they reach Office Ally.
+    const payerResolution = await resolvePayerForClaimEdge(admin, {
+      company_id: LORENZO_TEST_COMPANY_ID,
+      payer_name: (claim.payer_name as string) ?? null,
+      payer_type: (sc.payer_type as string) ?? (claim.payer_type as string) ?? null,
+    });
+    if (payerResolution.ok === false) {
+      return await recordSubmitFailure(
+        "generator",
+        `payer_resolution: ${payerResolution.reason}` +
+          (payerResolution.detail ? ` - ${payerResolution.detail}` : "") +
+          ` (scenario "${sc.slug}", payer_type="${sc.payer_type}", payer_name="${claim.payer_name ?? ""}"). ` +
+          `Seed payer_directory for company ${LORENZO_TEST_COMPANY_ID} and rerun.`,
+      );
+    }
+    const resolvedPayerName = payerResolution.payer_name;
+    const resolvedPayerId = payerResolution.oa_payer_id;
+    const resolvedPayerType = (payerResolution.payer_type ?? sc.payer_type ?? "").toLowerCase();
+
     const edi = build837P({
       filename, testMode: true,
       provider: {
@@ -542,9 +626,9 @@ Deno.serve(async (req) => {
         zip: (patient.postal_code ?? "30301").slice(0, 5),
       },
       payer: {
-        name: (claim.payer_name ?? sc.payer_type ?? "MEDICARE").toString(),
-        id: sc.payer_type === "medicare" ? "MEDICARE" : sc.payer_type === "medicaid" ? "MEDICAID" : "OATEST",
-        type: sc.payer_type === "medicare" ? "MB" : sc.payer_type === "medicaid" ? "MC" : "CI",
+        name: resolvedPayerName,
+        id: resolvedPayerId,
+        type: resolvedPayerType === "medicare" ? "MB" : resolvedPayerType === "medicaid" ? "MC" : "CI",
       },
       claim: {
         control: `OA${runId.slice(0, 8)}`.toUpperCase(),

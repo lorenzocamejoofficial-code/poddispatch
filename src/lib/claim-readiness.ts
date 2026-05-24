@@ -10,6 +10,7 @@
  * behavior at the export gate is unchanged.
  */
 import { parseAddressString, timelyFilingDays, type ClaimForEDI } from "./edi-837p-generator";
+import type { PayerResolution } from "./payer-directory-lookup";
 
 export type ReadinessStage = "scheduling" | "pcr" | "biller" | "export";
 export type ReadinessSeverity = "block" | "warn";
@@ -34,6 +35,14 @@ export interface ReadinessInputs {
     is_oneoff?: boolean | null;
   };
   billingState?: string | null;
+  /**
+   * Result of resolvePayerForClaim() for this claim, computed upstream by the
+   * queue layer (see queue-claims-for-submission.ts). When present, drives the
+   * payer-directory readiness gate — a failed resolution becomes a hard block
+   * BEFORE EDI generation. evaluateClaimReadiness stays synchronous; the async
+   * resolve happens in the queue path that already has to await Supabase.
+   */
+  payerResolution?: PayerResolution;
 }
 
 function splitName(name: string): { last: string; first: string } {
@@ -102,13 +111,25 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     });
   }
 
-  // Payer info
+  // Payer info — directory-backed. Upstream (queue layer) calls
+  // resolvePayerForClaim() and forwards the result. A claim with no payer
+  // identifiers at all is still a basic-data block; a claim whose payer is
+  // not in the directory is a payer-mapping block. Either way we never let a
+  // claim reach the generator without a real OA payer ID.
   if (!claim.payer_name && !claim.payer_id) {
     push({
       field: "payer_name", severity: "block",
       message: "Missing payer information",
       fixPath: patientFix("primary_payer"),
       fixLabel: "Fix in patient chart",
+    });
+  } else if (inputs.payerResolution && inputs.payerResolution.ok === false) {
+    const r = inputs.payerResolution;
+    push({
+      field: "payer_name", severity: "block",
+      message: `Payer not in directory: ${r.reason}${r.detail ? ` - ${r.detail}` : ""}`,
+      fixPath: "/billing-settings?tab=payer-directory",
+      fixLabel: "Open payer directory",
     });
   }
 

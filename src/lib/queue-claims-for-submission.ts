@@ -29,6 +29,7 @@ import {
 } from "@/lib/edi-837p-generator";
 import { evaluateClaimReadiness, type ReadinessIssue } from "@/lib/claim-readiness";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { resolvePayerForClaim, type PayerResolution } from "@/lib/payer-directory-lookup";
 
 export interface QueueResult {
   ok: boolean;
@@ -215,11 +216,26 @@ export async function queueClaimsForSubmission(
 
       const pat = patMap[sec.patient_id] || {};
       const subAddr = parseAddressString(String(pat.pickup_address ?? ""));
-      const primPayerName = (prim.payer_name || prim.payer_type || "PRIMARY PAYER").toString();
-      const primPayerId =
-        (prim.payer_type === "medicare" ? "MEDICARE" :
-         prim.payer_type === "medicaid" ? "MEDICAID" :
-         (prim.payer_name || "UNKNOWN")).toString().toUpperCase();
+      // COB primary payer MUST resolve to a real Office Ally payer ID via
+      // payer_directory. No hardcoded "MEDICARE"/"MEDICAID" fallback — Loop
+      // 2330B is required to carry a real PI value and the generator now
+      // throws if it doesn't.
+      const primResolution = await resolvePayerForClaim({
+        company_id: companyId,
+        payer_name: prim.payer_name,
+        payer_type: prim.payer_type,
+      });
+      if (primResolution.ok === false) {
+        const reason = primResolution.reason;
+        const detail = primResolution.detail ?? "";
+        throw new Error(
+          `Secondary claim ${sec.id}: primary payer (${prim.payer_name || prim.payer_type}) ` +
+          `not resolvable in payer_directory — ${reason}` +
+          (detail ? ` (${detail})` : "")
+        );
+      }
+      const primPayerName = primResolution.payer_name;
+      const primPayerId = primResolution.oa_payer_id;
 
       cobByClaimId[sec.id] = {
         rel_code: "18", // Self — typical NEMT case
@@ -284,6 +300,10 @@ export async function queueClaimsForSubmission(
   const ediClaims: ClaimForEDI[] = [];
   const blocked: { claimId: string; issues: ReadinessIssue[] }[] = [];
   const acceptedClaimIds: string[] = [];
+  /** Claim IDs blocked specifically because their payer wasn't in the
+   *  directory. We persist claim_status='blocked_payer_mapping' + a readable
+   *  blocked_reason on these so the biller sees them in the work queue. */
+  const payerBlocked: { claimId: string; reason: string; detail: string }[] = [];
 
   for (const c of claims) {
     const trip = tripMap[c.trip_id] || {};
@@ -319,6 +339,16 @@ export async function queueClaimsForSubmission(
       }
     }
 
+    // ── Resolve payer via directory BEFORE building the envelope. ────────
+    // No hardcoded MEDICARE/MEDICAID/payer_name fallbacks. If the directory
+    // can't resolve it, the claim is marked blocked_payer_mapping below and
+    // never reaches the generator.
+    const payerResolution: PayerResolution = await resolvePayerForClaim({
+      company_id: companyId,
+      payer_name: c.payer_name,
+      payer_type: c.payer_type,
+    });
+
     const ec: ClaimForEDI = {
       claim_id: c.id,
       company_id: companyId,
@@ -330,9 +360,11 @@ export async function queueClaimsForSubmission(
       patient_state: parsedPat.state || providerInfo.state || "",
       patient_zip: parsedPat.zip || c.origin_zip || "",
       member_id: pat.member_id || c.member_id || (isOneoff ? leg?.oneoff_member_id ?? "" : "") || "UNKNOWN",
-      payer_name: c.payer_name || c.payer_type || "MEDICARE",
-      payer_id: c.payer_type === "medicare" ? "MEDICARE" : c.payer_type === "medicaid" ? "MEDICAID" : (c.payer_name || "UNKNOWN"),
-      payer_type: c.payer_type || "medicare",
+      // Project the resolved directory row (or empty strings on failure — the
+      // payer_directory readiness gate will block it before generation).
+      payer_name: payerResolution.ok ? payerResolution.payer_name : (c.payer_name || ""),
+      payer_id:   payerResolution.ok ? payerResolution.oa_payer_id : "",
+      payer_type: payerResolution.ok ? (payerResolution.payer_type || c.payer_type || "") : (c.payer_type || ""),
       run_date: c.run_date,
       hcpcs_codes: c.hcpcs_codes || ["A0428"],
       hcpcs_modifiers: c.hcpcs_modifiers || [],
@@ -380,12 +412,36 @@ export async function queueClaimsForSubmission(
     const issues = evaluateClaimReadiness({
       claim: { ...ec, id: c.id, trip_id: c.trip_id, patient_id: c.patient_id },
       billingState: providerInfo.state,
+      payerResolution,
     }).filter(x => x.severity === "block");
     if (issues.length) {
       blocked.push({ claimId: c.id, issues });
+      if (payerResolution.ok === false) {
+        payerBlocked.push({
+          claimId: c.id,
+          reason: payerResolution.reason,
+          detail: payerResolution.detail ?? "",
+        });
+      }
     } else {
       ediClaims.push(ec);
       acceptedClaimIds.push(c.id);
+    }
+  }
+
+  // Persist blocked_payer_mapping status + blocked_reason for every claim
+  // that failed payer resolution. These claims do NOT get queued — the
+  // biller has to add the payer to the directory and retry.
+  if (payerBlocked.length) {
+    for (const pb of payerBlocked) {
+      await supabase
+        .from("claim_records" as any)
+        .update({
+          status: "blocked_payer_mapping",
+          blocked_reason: `payer_resolution: ${pb.reason}${pb.detail ? ` - ${pb.detail}` : ""}`,
+        } as any)
+        .eq("id", pb.claimId)
+        .eq("company_id", companyId);
     }
   }
 

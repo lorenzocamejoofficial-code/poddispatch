@@ -721,6 +721,7 @@ export type Database = {
           amount_paid: number | null
           auth_number: string | null
           base_charge: number | null
+          blocked_reason: string | null
           chief_complaint: string | null
           claim_build_date: string | null
           clearinghouse_id: string | null
@@ -820,6 +821,7 @@ export type Database = {
           amount_paid?: number | null
           auth_number?: string | null
           base_charge?: number | null
+          blocked_reason?: string | null
           chief_complaint?: string | null
           claim_build_date?: string | null
           clearinghouse_id?: string | null
@@ -919,6 +921,7 @@ export type Database = {
           amount_paid?: number | null
           auth_number?: string | null
           base_charge?: number | null
+          blocked_reason?: string | null
           chief_complaint?: string | null
           claim_build_date?: string | null
           clearinghouse_id?: string | null
@@ -6112,6 +6115,7 @@ export type Database = {
         | "pending"
         | "reversal"
         | "forwarded"
+        | "blocked_payer_mapping"
       email_send_status:
         | "pending"
         | "sent"
@@ -6332,6 +6336,7 @@ export const Constants = {
         "pending",
         "reversal",
         "forwarded",
+        "blocked_payer_mapping",
       ],
       email_send_status: ["pending", "sent", "failed", "bounced", "suppressed"],
       email_type: [
