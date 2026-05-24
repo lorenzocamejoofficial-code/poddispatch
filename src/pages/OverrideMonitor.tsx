@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldAlert, DollarSign, Filter, Eye } from "lucide-react";
 import { format } from "date-fns";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 interface SafetyOverrideRow {
   id: string;
@@ -58,6 +59,9 @@ export default function OverrideMonitor() {
   const [safetyOverrides, setSafetyOverrides] = useState<SafetyOverrideRow[]>([]);
   const [billingOverrides, setBillingOverrides] = useState<BillingOverrideRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [safetyPage, setSafetyPage] = useState(1);
+  const [billingPage, setBillingPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Filters
   const [dateFrom, setDateFrom] = useState("");
@@ -171,6 +175,9 @@ export default function OverrideMonitor() {
     try { return format(new Date(dt), "MMM d, yyyy h:mm a"); } catch { return dt; }
   };
 
+  const safetySlice = safetyOverrides.slice((safetyPage - 1) * pageSize, safetyPage * pageSize);
+  const billingSlice = billingOverrides.slice((billingPage - 1) * pageSize, billingPage * pageSize);
+
   return (
     <AdminLayout>
       <div className="space-y-4">
@@ -244,7 +251,7 @@ export default function OverrideMonitor() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {safetyOverrides.map(so => (
+                    {safetySlice.map(so => (
                       <TableRow key={so.id}>
                         <TableCell>
                           <Badge variant={so.override_status === "BLOCKED" ? "destructive" : "secondary"} className="text-[10px]">
@@ -272,6 +279,13 @@ export default function OverrideMonitor() {
                     ))}
                   </TableBody>
                 </Table>
+                <TablePagination
+                  page={safetyPage}
+                  pageSize={pageSize}
+                  totalItems={safetyOverrides.length}
+                  onPageChange={setSafetyPage}
+                  onPageSizeChange={(s) => { setPageSize(s); setSafetyPage(1); setBillingPage(1); }}
+                />
               </div>
             )}
           </TabsContent>
@@ -298,7 +312,7 @@ export default function OverrideMonitor() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {billingOverrides.map(bo => (
+                    {billingSlice.map(bo => (
                       <TableRow key={bo.id}>
                         <TableCell className="text-sm">{bo.run_date ?? "—"}</TableCell>
                         <TableCell className="text-sm">{bo.patient_name}</TableCell>
@@ -323,6 +337,13 @@ export default function OverrideMonitor() {
                     ))}
                   </TableBody>
                 </Table>
+                <TablePagination
+                  page={billingPage}
+                  pageSize={pageSize}
+                  totalItems={billingOverrides.length}
+                  onPageChange={setBillingPage}
+                  onPageSizeChange={(s) => { setPageSize(s); setSafetyPage(1); setBillingPage(1); }}
+                />
               </div>
             )}
           </TabsContent>

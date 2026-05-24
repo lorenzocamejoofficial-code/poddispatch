@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Building2 } from "lucide-react";
 import { differenceInDays, format } from "date-fns";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 interface CompanyHealth {
   id: string;
@@ -23,6 +24,8 @@ interface CompanyHealth {
 export function CompanyHealthTable() {
   const [companies, setCompanies] = useState<CompanyHealth[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   useEffect(() => {
     loadHealth();
@@ -112,6 +115,8 @@ export function CompanyHealthTable() {
   if (loading) return <p className="text-sm text-muted-foreground">Loading company health...</p>;
   if (companies.length === 0) return null;
 
+  const pagedCompanies = companies.slice((page - 1) * pageSize, page * pageSize);
+
   return (
     <Card>
       <CardHeader>
@@ -135,7 +140,7 @@ export function CompanyHealthTable() {
             </tr>
           </thead>
           <tbody>
-            {companies.map((c) => (
+            {pagedCompanies.map((c) => (
               <tr key={c.id} className="border-b last:border-0">
                 <td className="py-2 pr-3 font-medium text-foreground">{c.name}</td>
                 <td className="py-2 pr-3 text-muted-foreground">
@@ -183,6 +188,13 @@ export function CompanyHealthTable() {
             ))}
           </tbody>
         </table>
+        <TablePagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={companies.length}
+          onPageChange={setPage}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        />
       </CardContent>
     </Card>
   );

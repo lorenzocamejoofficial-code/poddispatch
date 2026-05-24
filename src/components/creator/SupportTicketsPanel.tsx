@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, Mail, CheckCircle2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 interface TicketRow {
   id: string;
@@ -62,6 +63,8 @@ export function SupportTicketsPanel() {
   const [selected, setSelected] = useState<EnrichedTicket | null>(null);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,6 +129,9 @@ export function SupportTicketsPanel() {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
   }, [tickets, statusFilter, severityFilter, search]);
+
+  useEffect(() => { setPage(1); }, [statusFilter, severityFilter, search]);
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const openCounts = useMemo(() => ({
     open: tickets.filter((t) => t.status === "open").length,
@@ -225,7 +231,7 @@ export function SupportTicketsPanel() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((t) => (
+                {paged.map((t) => (
                   <TableRow key={t.id} className="cursor-pointer" onClick={() => { setSelected(t); setReply(t.creator_notes ?? ""); }}>
                     <TableCell className="font-mono text-xs">{t.ticket_number ?? "—"}</TableCell>
                     <TableCell><Badge variant={sevColor(t.severity) as any} className="text-[10px] uppercase">{t.severity}</Badge></TableCell>
@@ -237,6 +243,13 @@ export function SupportTicketsPanel() {
                 ))}
               </TableBody>
             </Table>
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalItems={filtered.length}
+              onPageChange={setPage}
+              onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+            />
           </div>
         )}
 

@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ResponsiveTable } from "@/components/ui/responsive-table";
 import { Mail, Filter, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 type Status = "all" | "pending" | "sent" | "failed" | "bounced" | "suppressed";
 
@@ -61,6 +62,8 @@ export default function EmailActivity() {
   const [status, setStatus] = useState<Status>("all");
   const [recipient, setRecipient] = useState("");
   const [range, setRange] = useState<string>("7d");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   useEffect(() => {
     (async () => {
@@ -99,6 +102,7 @@ export default function EmailActivity() {
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [status, companyFilter, range]);
+  useEffect(() => { setPage(1); }, [status, companyFilter, range, recipient]);
 
   // Load company list for the filter (only useful for creators)
   useEffect(() => {
@@ -124,6 +128,8 @@ export default function EmailActivity() {
     if (!id) return "—";
     return companies.find(c => c.id === id)?.name || id.slice(0, 8);
   };
+
+  const pagedRows = rows.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <AdminLayout>
@@ -235,7 +241,7 @@ export default function EmailActivity() {
                     <TableRow><TableCell colSpan={isCreator ? 7 : 6} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                   ) : rows.length === 0 ? (
                     <TableRow><TableCell colSpan={isCreator ? 7 : 6} className="text-center py-8 text-muted-foreground">No emails match these filters.</TableCell></TableRow>
-                  ) : rows.map(r => (
+                  ) : pagedRows.map(r => (
                     <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap text-xs">
                         {format(new Date(r.created_at), "MMM d, HH:mm:ss")}
@@ -259,6 +265,15 @@ export default function EmailActivity() {
                 </TableBody>
               </Table>
             </ResponsiveTable>
+            {!loading && rows.length > 0 && (
+              <TablePagination
+                page={page}
+                pageSize={pageSize}
+                totalItems={rows.length}
+                onPageChange={setPage}
+                onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
