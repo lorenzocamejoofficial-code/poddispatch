@@ -198,6 +198,15 @@ export function AcknowledgmentsPanel() {
           })
         )}
       </CardContent>
+      {totalCount > 0 && (
+        <TablePagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={totalCount}
+          onPageChange={setPage}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        />
+      )}
     </Card>
   );
 }
