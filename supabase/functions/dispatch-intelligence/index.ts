@@ -133,12 +133,22 @@ async function createCommsEvent(companyId: string, timer: any, eventType: string
 
 // ── Projection engine: compute trip projections for a truck ──
 async function computeProjections(companyId: string, truckId: string, runDate: string) {
+  // Verify truck belongs to companyId before touching its data
+  const { data: truckRow } = await admin
+    .from("trucks")
+    .select("id")
+    .eq("id", truckId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+  if (!truckRow) return;
+
   // Get all slots for this truck today, ordered
   const { data: slots } = await admin
     .from("truck_run_slots")
     .select("id, leg_id, slot_order, status")
     .eq("truck_id", truckId)
     .eq("run_date", runDate)
+    .eq("company_id", companyId)
     .order("slot_order");
 
   if (!slots || slots.length === 0) return;
@@ -294,14 +304,15 @@ function getModifierCode(locType: string | null): string | null {
 }
 
 // ── Billing hygiene check ──
-async function billingHygieneCheck(tripId: string) {
+async function billingHygieneCheck(tripId: string, companyId: string) {
   const { data: trip } = await admin
     .from("trip_records")
     .select("*, patient:patients!trip_records_patient_id_fkey(auth_required, auth_expiration, member_id, weight_lbs, oxygen_required, primary_payer, secondary_payer, bariatric)")
     .eq("id", tripId)
+    .eq("company_id", companyId)
     .maybeSingle();
 
-  if (!trip) return { checked: false };
+  if (!trip) return { checked: false, error: "trip_not_found_or_out_of_scope" };
 
   const payerType = trip.patient?.primary_payer ?? "default";
   const { data: rules } = await admin
@@ -426,6 +437,15 @@ async function billingHygieneCheck(tripId: string) {
 
 // ── On-time performance computation ──
 async function computeOnTimeMetrics(companyId: string, truckId: string, runDate: string) {
+  // Verify truck belongs to companyId
+  const { data: truckRow } = await admin
+    .from("trucks")
+    .select("id")
+    .eq("id", truckId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+  if (!truckRow) return;
+
   // Get all trips for this truck on this date
   const { data: trips } = await admin
     .from("trip_records")
