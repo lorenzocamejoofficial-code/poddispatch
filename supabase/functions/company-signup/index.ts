@@ -15,11 +15,18 @@ serve(async (req) => {
 
   try {
     const {
-      email, password, fullName, companyName, phone, agreements, clientIp,
+      email, password, fullName, companyName, phone, agreements,
       npiNumber, stateOfOperation, serviceAreaType, truckCount, payerMix,
       currentSoftware, yearsInOperation, hasInhouseBiller, hipaaPrivacyOfficer,
       einNumber, addressStreet, addressCity, addressZip,
     } = await req.json();
+
+    // Derive caller IP from trusted request headers — never trust a body field.
+    const realIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      req.headers.get("cf-connecting-ip") ||
+      req.headers.get("x-real-ip") ||
+      null;
 
     if (!email || !password || !fullName || !companyName) {
       return new Response(
@@ -150,7 +157,7 @@ serve(async (req) => {
     for (const type of agreementTypes) {
       await supabaseAdmin.from("legal_acceptances").insert({
         company_id: companyId, user_id: userId, agreement_type: type,
-        agreement_version: "2.0", accepted_ip: clientIp || null,
+        agreement_version: "2.0", accepted_ip: realIp,
       });
     }
 
