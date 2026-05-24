@@ -568,7 +568,21 @@ export function generateEDI837P(
     addSeg(["DMG", "D8", formatDate8(claim.patient_dob || "1900-01-01"), sexCode].join(ES));
 
     // --- PAYER (2010BB) ---
-    addSeg(["NM1", "PR", "2", (claim.payer_name || "MEDICARE").toUpperCase(), "", "", "", "", "PI", (claim.payer_id || "MEDICARE").toUpperCase()].join(ES));
+    // payer_id MUST be the real Office Ally payer ID, resolved upstream from
+    // payer_directory by resolvePayerForClaim() (see queue-claims-for-submission.ts
+    // and the OATEST simulator). The generator NEVER manufactures a payer ID —
+    // if upstream skipped the resolve, that's a programmer error and we want
+    // the failure to be loud, not a silent literal "MEDICARE" string in NM109.
+    const payerNm109 = (claim.payer_id || "").toString().trim();
+    if (!payerNm109) {
+      throw new Error(
+        `generateEDI837P: claim ${claim.claim_id} has empty payer_id at NM109 (Loop 2010BB). ` +
+        `Upstream must call resolvePayerForClaim() and project oa_payer_id onto the claim envelope. ` +
+        `Refusing to emit a payer-name string in place of a real Office Ally payer ID.`
+      );
+    }
+    const payerNm103 = (claim.payer_name || "").toString().trim().toUpperCase() || payerNm109;
+    addSeg(["NM1", "PR", "2", payerNm103, "", "", "", "", "PI", payerNm109.toUpperCase()].join(ES));
 
     // --- CLAIM (2300) ---
     const originCode = locationTypeCode(claim.origin_type, claim.origin_facility_meta);
@@ -801,9 +815,21 @@ export function generateEDI837P(
       }
 
       // --- Loop 2330B: Other Payer Name ---
+      // Same rule as Loop 2010BB above — cob.payer.payer_id must be a real
+      // Office Ally payer ID resolved via payer_directory. The COB builder in
+      // queue-claims-for-submission.ts is responsible for the resolve before
+      // calling generateEDI837P. Throw loudly if upstream skipped it.
+      const cobNm109 = (cob.payer.payer_id || "").toString().trim();
+      if (!cobNm109) {
+        throw new Error(
+          `generateEDI837P: claim ${claim.claim_id} cob.payer.payer_id empty at NM109 (Loop 2330B). ` +
+          `Upstream must resolve the primary payer via payer_directory before emitting COB.`
+        );
+      }
+      const cobNm103 = (cob.payer.name || "").toString().trim().toUpperCase() || cobNm109;
       addSeg([
-        "NM1", "PR", "2", (cob.payer.name || "").toUpperCase(),
-        "", "", "", "", "PI", (cob.payer.payer_id || "").toUpperCase(),
+        "NM1", "PR", "2", cobNm103,
+        "", "", "", "", "PI", cobNm109.toUpperCase(),
       ].join(ES));
       addSeg(["DTP", "573", "D8", formatDate8(cob.adjudication_date)].join(ES));
     }
