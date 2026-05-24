@@ -3528,6 +3528,7 @@ export type Database = {
           fax_number: string | null
           id: string
           notes: string | null
+          oa_payer_id: string | null
           payer_name: string
           payer_type: string | null
           phone_number: string | null
@@ -3542,6 +3543,7 @@ export type Database = {
           fax_number?: string | null
           id?: string
           notes?: string | null
+          oa_payer_id?: string | null
           payer_name: string
           payer_type?: string | null
           phone_number?: string | null
@@ -3556,6 +3558,7 @@ export type Database = {
           fax_number?: string | null
           id?: string
           notes?: string | null
+          oa_payer_id?: string | null
           payer_name?: string
           payer_type?: string | null
           phone_number?: string | null
