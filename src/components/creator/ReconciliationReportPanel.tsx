@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, RefreshCw, ScrollText, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 type CompanyRow = {
   company_id: string;
@@ -33,6 +34,8 @@ export function ReconciliationReportPanel() {
   const [rows, setRows] = useState<CompanyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("30");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,6 +130,8 @@ export function ReconciliationReportPanel() {
   }, [period]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setPage(1); }, [period]);
+  const pagedRows = rows.slice((page - 1) * pageSize, page * pageSize);
 
   const totalQuarantined = rows.reduce((s, r) => s + r.quarantine_pending, 0);
   const totalVariance = rows.reduce((s, r) => s + r.unreconciled_variance, 0);
@@ -190,7 +195,7 @@ export function ReconciliationReportPanel() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map(r => (
+              {pagedRows.map(r => (
                 <TableRow key={r.company_id}>
                   <TableCell className="font-medium">{r.company_name}</TableCell>
                   <TableCell className="text-xs font-mono">{r.npi ?? "—"}</TableCell>
@@ -217,6 +222,15 @@ export function ReconciliationReportPanel() {
               ))}
             </TableBody>
           </Table>
+        )}
+        {!loading && rows.length > 0 && (
+          <TablePagination
+            page={page}
+            pageSize={pageSize}
+            totalItems={rows.length}
+            onPageChange={setPage}
+            onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+          />
         )}
       </CardContent>
     </Card>

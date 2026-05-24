@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, RefreshCw, ShieldAlert, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { TablePagination } from "@/components/ui/table-pagination";
 
 type QuarantineRow = {
   id: string;
@@ -59,6 +60,8 @@ export function RemittanceQuarantinePanel() {
   const [resolutionStatus, setResolutionStatus] = useState<string>("resolved_ignored");
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,6 +102,8 @@ export function RemittanceQuarantinePanel() {
   }, [statusFilter, fileTypeFilter]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setPage(1); }, [statusFilter, fileTypeFilter]);
+  const pagedRows = rows.slice((page - 1) * pageSize, page * pageSize);
 
   const pendingCount = rows.filter(r => r.status === "pending_review").length;
 
@@ -191,7 +196,7 @@ export function RemittanceQuarantinePanel() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map(r => (
+              {pagedRows.map(r => (
                 <TableRow key={r.id}>
                   <TableCell className="text-xs">{format(new Date(r.created_at), "MMM d, HH:mm")}</TableCell>
                   <TableCell className="text-xs">
@@ -232,6 +237,15 @@ export function RemittanceQuarantinePanel() {
               ))}
             </TableBody>
           </Table>
+        )}
+        {!loading && rows.length > 0 && (
+          <TablePagination
+            page={page}
+            pageSize={pageSize}
+            totalItems={rows.length}
+            onPageChange={setPage}
+            onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+          />
         )}
       </CardContent>
 
