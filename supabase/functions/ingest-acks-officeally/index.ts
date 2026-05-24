@@ -325,11 +325,36 @@ Deno.serve(async (req) => {
 
   const sharedSecret = Deno.env.get("ACK_INGEST_SHARED_SECRET");
   const provided = req.headers.get("x-ack-shared-secret");
-  // Allow user-initiated manual upload (authenticated) without the worker secret.
   const authHeader = req.headers.get("Authorization");
   const isWorkerCall = !!sharedSecret && provided === sharedSecret;
-  const isAuthCall = !!authHeader;
-  if (!isWorkerCall && !isAuthCall) {
+
+  // Manual uploads must come from an authenticated system creator. The presence
+  // of an Authorization header alone is NOT sufficient (the anon publishable key
+  // is shipped to all browsers).
+  let isCreatorCall = false;
+  if (!isWorkerCall && authHeader?.startsWith("Bearer ")) {
+    try {
+      const anon = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const { data: userData } = await anon.auth.getUser();
+      if (userData?.user) {
+        const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+        const { data: creatorRow } = await admin
+          .from("system_creators")
+          .select("user_id")
+          .eq("user_id", userData.user.id)
+          .maybeSingle();
+        isCreatorCall = !!creatorRow;
+      }
+    } catch (err) {
+      console.error("ingest-acks auth check failed:", err);
+    }
+  }
+
+  if (!isWorkerCall && !isCreatorCall) {
     return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
