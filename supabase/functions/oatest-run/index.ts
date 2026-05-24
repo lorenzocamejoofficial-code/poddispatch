@@ -577,6 +577,31 @@ Deno.serve(async (req) => {
     const sc = (run as any).oatest_scenarios;
     const charge = (claim.total_charge as number) ?? 250;
     const filename = `OATEST_${sc.slug.toUpperCase().replace(/-/g, "_")}_${new Date().toISOString().slice(0,10).replace(/-/g,"")}_${Math.floor(Math.random()*1e4)}.837`;
+
+    // Resolve payer via payer_directory BEFORE building the envelope. No
+    // hardcoded "MEDICARE" / "MEDICAID" / "OATEST" payer.id fallbacks — the
+    // simulator must look up the real Office Ally payer ID just like the
+    // production submit path does. If the scenario's payer_type / payer_name
+    // isn't seeded in the directory, the scenario fails LOUDLY so we can
+    // catch directory gaps before they reach Office Ally.
+    const payerResolution = await resolvePayerForClaimEdge(admin, {
+      company_id: LORENZO_TEST_COMPANY_ID,
+      payer_name: (claim.payer_name as string) ?? null,
+      payer_type: (sc.payer_type as string) ?? (claim.payer_type as string) ?? null,
+    });
+    if (payerResolution.ok === false) {
+      return await recordSubmitFailure(
+        "generator",
+        `payer_resolution: ${payerResolution.reason}` +
+          (payerResolution.detail ? ` - ${payerResolution.detail}` : "") +
+          ` (scenario "${sc.slug}", payer_type="${sc.payer_type}", payer_name="${claim.payer_name ?? ""}"). ` +
+          `Seed payer_directory for company ${LORENZO_TEST_COMPANY_ID} and rerun.`,
+      );
+    }
+    const resolvedPayerName = payerResolution.payer_name;
+    const resolvedPayerId = payerResolution.oa_payer_id;
+    const resolvedPayerType = (payerResolution.payer_type ?? sc.payer_type ?? "").toLowerCase();
+
     const edi = build837P({
       filename, testMode: true,
       provider: {
@@ -601,9 +626,9 @@ Deno.serve(async (req) => {
         zip: (patient.postal_code ?? "30301").slice(0, 5),
       },
       payer: {
-        name: (claim.payer_name ?? sc.payer_type ?? "MEDICARE").toString(),
-        id: sc.payer_type === "medicare" ? "MEDICARE" : sc.payer_type === "medicaid" ? "MEDICAID" : "OATEST",
-        type: sc.payer_type === "medicare" ? "MB" : sc.payer_type === "medicaid" ? "MC" : "CI",
+        name: resolvedPayerName,
+        id: resolvedPayerId,
+        type: resolvedPayerType === "medicare" ? "MB" : resolvedPayerType === "medicaid" ? "MC" : "CI",
       },
       claim: {
         control: `OA${runId.slice(0, 8)}`.toUpperCase(),
