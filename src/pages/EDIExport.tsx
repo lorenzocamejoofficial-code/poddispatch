@@ -28,6 +28,48 @@ import {
 } from "@/lib/edi-837p-generator";
 import { evaluateClaimReadiness, type ReadinessIssue } from "@/lib/claim-readiness";
 import { useAuth } from "@/hooks/useAuth";
+import { resolvePayerForClaim } from "@/lib/payer-directory-lookup";
+
+// Resolve payer_directory rows for a batch of claims before EDI generation.
+// Pass 2 contract: NM109 must be a real OA payer ID — never a payer-name
+// literal. Any claim whose payer can't be resolved is excluded from the
+// export and surfaced to the user (see handleGenerate / handleSubmit).
+type PayerResolutionFailure = {
+  claim_id: string;
+  patient_name: string;
+  reason: string;
+  detail?: string;
+};
+async function resolvePayersForClaims(
+  companyId: string,
+  claims: Array<{ id: string; patient_first_name?: string; patient_last_name?: string; payer_name: string | null; payer_type: string }>,
+): Promise<{
+  resolved: Map<string, { oa_payer_id: string; payer_name: string }>;
+  failures: PayerResolutionFailure[];
+}> {
+  const resolved = new Map<string, { oa_payer_id: string; payer_name: string }>();
+  const failures: PayerResolutionFailure[] = [];
+  await Promise.all(
+    claims.map(async (c) => {
+      const r = await resolvePayerForClaim({
+        company_id: companyId,
+        payer_name: c.payer_name,
+        payer_type: c.payer_type,
+      });
+      if (r.ok) {
+        resolved.set(c.id, { oa_payer_id: r.oa_payer_id, payer_name: r.payer_name });
+      } else {
+        failures.push({
+          claim_id: c.id,
+          patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
+          reason: r.reason,
+          detail: r.detail,
+        });
+      }
+    }),
+  );
+  return { resolved, failures };
+}
 
 interface ExportableClaim {
   id: string;
