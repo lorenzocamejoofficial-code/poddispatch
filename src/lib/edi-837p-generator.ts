@@ -825,9 +825,11 @@ export function generateEDI837P(
       // queue-claims-for-submission.ts is responsible for the resolve before
       // calling generateEDI837P. Throw loudly if upstream skipped it.
       const cobNm109 = (cob.payer.payer_id || "").toString().trim();
-      if (!cobNm109) {
+      // Pass 2 hardened guard (Loop 2330B mirrors 2010BB).
+      if (!/^[A-Z0-9]{5}$/i.test(cobNm109)) {
         throw new Error(
-          `generateEDI837P: claim ${claim.claim_id} cob.payer.payer_id empty at NM109 (Loop 2330B). ` +
+          `generateEDI837P: claim ${claim.claim_id} has invalid cob.payer.payer_id "${cobNm109}" at NM109 (Loop 2330B). ` +
+          `Expected a 5-character Office Ally payer ID matching /^[A-Z0-9]{5}$/i (e.g. "10202", "GACS1"). ` +
           `Upstream must resolve the primary payer via payer_directory before emitting COB.`
         );
       }
