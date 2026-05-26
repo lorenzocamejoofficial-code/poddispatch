@@ -402,7 +402,31 @@ export default function EDIExport() {
         f ? { facility_type: f.facility_type, dialysis_subtype: f.dialysis_subtype ?? null } : null;
 
       // Build ClaimForEDI array
-      const ediClaims: ClaimForEDI[] = selectedClaims.map((c) => {
+      // Pass 2: resolve every claim's payer against payer_directory BEFORE
+      // building the EDI envelope. Any claim that can't be resolved is
+      // excluded; the user gets a UI-visible breakdown.
+      const { resolved: resolvedPayers, failures: payerFailures } =
+        await resolvePayersForClaims(activeCompanyId || "", selectedClaims as any);
+      const eligibleClaims = selectedClaims.filter((c) => resolvedPayers.has((c as any).id));
+      if (payerFailures.length > 0) {
+        const byReason: Record<string, number> = {};
+        for (const f of payerFailures) byReason[f.reason] = (byReason[f.reason] || 0) + 1;
+        const summary = Object.entries(byReason).map(([r, n]) => `${n} ${r}`).join(", ");
+        const detailLines = payerFailures
+          .slice(0, 10)
+          .map((f) => `• ${f.patient_name} — payer_resolution: ${f.reason}${f.detail ? ` — ${f.detail}` : ""}`)
+          .join("\n");
+        toast.error(
+          `${payerFailures.length} of ${selectedClaims.length} claim(s) excluded from export (${summary}):\n${detailLines}`,
+          { duration: 12000 },
+        );
+      }
+      if (eligibleClaims.length === 0) {
+        toast.error("No claims remain after payer resolution. Configure payer_directory entries before exporting.");
+        setGenerating(false);
+        return;
+      }
+      const ediClaims: ClaimForEDI[] = eligibleClaims.map((c) => {
         const trip = localTripsMap[(c as any).trip_id] || {};
         const pat = localPatsMap[(c as any).patient_id] || {};
         // Parse the patient pickup address into street/city/state/zip — never
@@ -460,8 +484,10 @@ export default function EDIExport() {
           patient_state: parsedPat.state || providerInfo.state || "",
           patient_zip: parsedPat.zip || c.origin_zip || "",
           member_id: c.patient_member_id || c.member_id || "UNKNOWN",
-          payer_name: c.payer_name || c.payer_type || "MEDICARE",
-          payer_id: c.payer_type === "medicare" ? "MEDICARE" : c.payer_type === "medicaid" ? "MEDICAID" : c.payer_name || "UNKNOWN",
+          // Pass 2: payer_id is the real Office Ally payer ID resolved from
+          // payer_directory upstream of this map. NEVER a payer-name literal.
+          payer_name: resolvedPayers.get((c as any).id)!.payer_name,
+          payer_id: resolvedPayers.get((c as any).id)!.oa_payer_id,
           payer_type: c.payer_type || "medicare",
           run_date: c.run_date,
           hcpcs_codes: c.hcpcs_codes || ["A0428"],
@@ -529,7 +555,7 @@ export default function EDIExport() {
       const blocked: { idx: number; ec: ClaimForEDI; issues: ReadinessIssue[] }[] = [];
       ediClaims.forEach((ec, i) => {
         const issues = evaluateClaimReadiness({
-          claim: { ...ec, id: (selectedClaims[i] as any).id, trip_id: (selectedClaims[i] as any).trip_id, patient_id: (selectedClaims[i] as any).patient_id },
+          claim: { ...ec, id: (eligibleClaims[i] as any).id, trip_id: (eligibleClaims[i] as any).trip_id, patient_id: (eligibleClaims[i] as any).patient_id },
           billingState: providerInfo.state,
         }).filter((x) => x.severity === "block");
         if (issues.length) blocked.push({ idx: i, ec, issues });
