@@ -588,8 +588,8 @@ export default function EDIExport() {
       link.click();
       URL.revokeObjectURL(url);
 
-      // Mark claims as exported
-      const ids = selectedClaims.map((c) => c.id);
+      // Mark claims as exported (only those actually included in the file)
+      const ids = eligibleClaims.map((c) => c.id);
       const now = new Date().toISOString();
 
       // Persist artifact (full EDI bytes) so we have ground truth for any
