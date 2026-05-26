@@ -56,16 +56,16 @@ async function resolvePayersForClaims(
         payer_name: c.payer_name,
         payer_type: c.payer_type,
       });
-      if (r.ok) {
+      if (r.ok === true) {
         resolved.set(c.id, { oa_payer_id: r.oa_payer_id, payer_name: r.payer_name });
-      } else {
-        failures.push({
-          claim_id: c.id,
-          patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
-          reason: r.reason,
-          detail: r.detail,
-        });
+        return;
       }
+      failures.push({
+        claim_id: c.id,
+        patient_name: `${c.patient_last_name || "UNKNOWN"}, ${c.patient_first_name || "UNKNOWN"}`,
+        reason: r.reason,
+        detail: r.detail,
+      });
     }),
   );
   return { resolved, failures };
