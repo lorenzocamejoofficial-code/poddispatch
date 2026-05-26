@@ -574,9 +574,14 @@ export function generateEDI837P(
     // if upstream skipped the resolve, that's a programmer error and we want
     // the failure to be loud, not a silent literal "MEDICARE" string in NM109.
     const payerNm109 = (claim.payer_id || "").toString().trim();
-    if (!payerNm109) {
+    // Pass 2 hardened guard: NM109 MUST be a real Office Ally payer ID
+    // (5 chars, [A-Z0-9], e.g. "10202", "GACS1", "5STAR"). Reject literal
+    // payer-name strings like "MEDICARE"/"MEDICAID"/"UNKNOWN" and any other
+    // shape — those indicate upstream skipped resolvePayerForClaim().
+    if (!/^[A-Z0-9]{5}$/i.test(payerNm109)) {
       throw new Error(
-        `generateEDI837P: claim ${claim.claim_id} has empty payer_id at NM109 (Loop 2010BB). ` +
+        `generateEDI837P: claim ${claim.claim_id} has invalid payer_id "${payerNm109}" at NM109 (Loop 2010BB). ` +
+        `Expected a 5-character Office Ally payer ID matching /^[A-Z0-9]{5}$/i (e.g. "10202", "GACS1"). ` +
         `Upstream must call resolvePayerForClaim() and project oa_payer_id onto the claim envelope. ` +
         `Refusing to emit a payer-name string in place of a real Office Ally payer ID.`
       );
@@ -820,9 +825,11 @@ export function generateEDI837P(
       // queue-claims-for-submission.ts is responsible for the resolve before
       // calling generateEDI837P. Throw loudly if upstream skipped it.
       const cobNm109 = (cob.payer.payer_id || "").toString().trim();
-      if (!cobNm109) {
+      // Pass 2 hardened guard (Loop 2330B mirrors 2010BB).
+      if (!/^[A-Z0-9]{5}$/i.test(cobNm109)) {
         throw new Error(
-          `generateEDI837P: claim ${claim.claim_id} cob.payer.payer_id empty at NM109 (Loop 2330B). ` +
+          `generateEDI837P: claim ${claim.claim_id} has invalid cob.payer.payer_id "${cobNm109}" at NM109 (Loop 2330B). ` +
+          `Expected a 5-character Office Ally payer ID matching /^[A-Z0-9]{5}$/i (e.g. "10202", "GACS1"). ` +
           `Upstream must resolve the primary payer via payer_directory before emitting COB.`
         );
       }
