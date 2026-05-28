@@ -241,10 +241,11 @@ export async function queueClaimsForSubmission(
         rel_code: "18", // Self — typical NEMT case
         group_number: "",
         group_name: "",
-        payer_filing_indicator:
-          prim.payer_type === "medicare" ? "MC" :
-          prim.payer_type === "medicaid" ? "MD" :
-          prim.payer_type === "commercial" ? "CI" : "ZZ",
+        // SBR09 for the COB primary payer comes from payer_directory via the
+        // resolver above — never derived from payer_type. This is the same
+        // architectural fix as the primary-claim path; see edi-837p-generator
+        // VALID_FILING_INDICATORS.
+        claim_filing_indicator: primResolution.claim_filing_indicator,
         paid_amount: Number(sumPaid.toFixed(2)),
         adjudication_date: adjDate,
         cas_groups,
@@ -365,6 +366,10 @@ export async function queueClaimsForSubmission(
       payer_name: payerResolution.ok ? payerResolution.payer_name : (c.payer_name || ""),
       payer_id:   payerResolution.ok ? payerResolution.oa_payer_id : "",
       payer_type: payerResolution.ok ? (payerResolution.payer_type || c.payer_type || "") : (c.payer_type || ""),
+      // Project the resolved X12 SBR09 indicator. Empty when resolution
+      // failed — the readiness gate above marks the claim
+      // blocked_payer_mapping and prevents it from reaching the generator.
+      claim_filing_indicator: payerResolution.ok ? payerResolution.claim_filing_indicator : "",
       run_date: c.run_date,
       hcpcs_codes: c.hcpcs_codes || ["A0428"],
       hcpcs_modifiers: c.hcpcs_modifiers || [],

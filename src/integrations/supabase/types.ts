@@ -3525,6 +3525,7 @@ export type Database = {
       }
       payer_directory: {
         Row: {
+          claim_filing_indicator: string
           claims_address: string | null
           company_id: string
           created_at: string
@@ -3540,6 +3541,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          claim_filing_indicator: string
           claims_address?: string | null
           company_id: string
           created_at?: string
@@ -3555,6 +3557,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          claim_filing_indicator?: string
           claims_address?: string | null
           company_id?: string
           created_at?: string
