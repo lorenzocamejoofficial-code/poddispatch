@@ -297,6 +297,17 @@ export function OatestScenarioRunner() {
                       {r.failure_summary && <p className="text-[10px] text-destructive mt-0.5">{r.failure_summary}</p>}
                       {r.filename && <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">{r.filename}</p>}
                     </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-[10px] gap-1 shrink-0"
+                      disabled={!r.artifact_id || pdfBusy === r.id}
+                      title={r.artifact_id ? "Download human-readable claim PDF" : "No claim generated."}
+                      onClick={() => handleDownloadPdf(r)}
+                    >
+                      {pdfBusy === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />}
+                      Review PDF
+                    </Button>
                   </div>
                 );
               })}
