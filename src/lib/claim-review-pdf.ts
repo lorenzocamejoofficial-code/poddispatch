@@ -348,14 +348,23 @@ async function loadClaimEnvelope(claimId: string): Promise<ResolvedClaim> {
       memberId: c.member_id ?? patient.member_id ?? null,
       address: patient.pickup_address ?? null,
     },
-    payer: {
-      name: resolution.ok ? resolution.payer_name : (c.payer_name || ""),
-      oaPayerId: resolution.ok ? resolution.oa_payer_id : "",
-      payerType: c.payer_type ?? null,
-      filingIndicator: resolution.ok ? resolution.claim_filing_indicator : "",
-      matchStrategy: resolution.ok ? resolution.match_strategy : "",
-      resolutionError: resolution.ok ? null : `${resolution.reason}${resolution.detail ? ` — ${resolution.detail}` : ""}`,
-    },
+    payer: resolution.ok
+      ? {
+          name: resolution.payer_name,
+          oaPayerId: resolution.oa_payer_id,
+          payerType: c.payer_type ?? null,
+          filingIndicator: resolution.claim_filing_indicator,
+          matchStrategy: resolution.match_strategy,
+          resolutionError: null,
+        }
+      : {
+          name: c.payer_name || "",
+          oaPayerId: "",
+          payerType: c.payer_type ?? null,
+          filingIndicator: "",
+          matchStrategy: "",
+          resolutionError: `${resolution.reason}${resolution.detail ? ` — ${resolution.detail}` : ""}`,
+        },
     secondary: patient.secondary_payer
       ? { name: patient.secondary_payer, memberId: patient.secondary_payer_id ?? null }
       : null,
