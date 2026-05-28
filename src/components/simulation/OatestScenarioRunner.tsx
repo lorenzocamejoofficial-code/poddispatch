@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Play, Send, Rocket, CheckCircle2, XCircle, AlertTriangle, FlaskConical, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Play, Send, Rocket, CheckCircle2, XCircle, AlertTriangle, FlaskConical, ChevronLeft, ChevronRight, FileDown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { getLocalToday } from "@/lib/local-date";
+import { downloadClaimReviewPdf } from "@/lib/claim-review-pdf";
 
 type Scenario = {
   id: string;
@@ -31,6 +32,7 @@ type Run = {
   ack_277ca_status: string | null;
   started_at: string;
   completed_at: string | null;
+  artifact_id: string | null;
   oatest_scenarios?: { slug: string; name: string } | null;
 };
 
@@ -66,6 +68,22 @@ export function OatestScenarioRunner() {
   const [preLoading, setPreLoading] = useState(false);
   const [runsPage, setRunsPage] = useState(0);
   const RUNS_PER_PAGE = 10;
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null);
+
+  const handleDownloadPdf = async (run: Run) => {
+    if (!run.artifact_id) return;
+    setPdfBusy(run.id);
+    try {
+      await downloadClaimReviewPdf({
+        artifactId: run.artifact_id,
+        scenarioName: run.oatest_scenarios?.name ?? null,
+      });
+    } catch (e: any) {
+      toast({ title: "PDF export failed", description: e.message, variant: "destructive" });
+    } finally {
+      setPdfBusy(null);
+    }
+  };
 
   const loadScenarios = useCallback(async () => {
     const { data, error } = await (supabase as any)
@@ -77,7 +95,7 @@ export function OatestScenarioRunner() {
   const loadRuns = useCallback(async () => {
     const { data, error } = await (supabase as any)
       .from("oatest_runs")
-      .select("id,scenario_id,status,failure_stage,failure_summary,filename,ack_999_status,ack_277ca_status,started_at,completed_at,oatest_scenarios(slug,name)")
+      .select("id,scenario_id,status,failure_stage,failure_summary,filename,ack_999_status,ack_277ca_status,started_at,completed_at,artifact_id,oatest_scenarios(slug,name)")
       .order("started_at", { ascending: false }).limit(200);
     if (!error) setRuns(data ?? []);
   }, []);
@@ -279,6 +297,17 @@ export function OatestScenarioRunner() {
                       {r.failure_summary && <p className="text-[10px] text-destructive mt-0.5">{r.failure_summary}</p>}
                       {r.filename && <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">{r.filename}</p>}
                     </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-[10px] gap-1 shrink-0"
+                      disabled={!r.artifact_id || pdfBusy === r.id}
+                      title={r.artifact_id ? "Download human-readable claim PDF" : "No claim generated."}
+                      onClick={() => handleDownloadPdf(r)}
+                    >
+                      {pdfBusy === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />}
+                      Review PDF
+                    </Button>
                   </div>
                 );
               })}
