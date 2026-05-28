@@ -36,7 +36,7 @@ export default function ForgotEmail() {
             <p className="font-medium mb-1">Still can't find your email?</p>
             <p>
               Contact your company owner/admin or reach out to{" "}
-              <span className="font-medium text-foreground">support@poddispatch.com</span>
+              <span className="font-medium text-foreground">support@thepoddispatch.com</span>
             </p>
           </div>
 

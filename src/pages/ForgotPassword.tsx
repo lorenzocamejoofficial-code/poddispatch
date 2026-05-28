@@ -73,7 +73,7 @@ export default function ForgotPassword() {
 
         <div className="mt-6 rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground text-center">
           <p className="font-medium mb-1">Forgot your email?</p>
-          <p>Contact your company owner/admin or reach out to <span className="font-medium text-foreground">support@poddispatch.com</span> for help.</p>
+          <p>Contact your company owner/admin or reach out to <span className="font-medium text-foreground">support@thepoddispatch.com</span> for help.</p>
         </div>
       </div>
     </div>
