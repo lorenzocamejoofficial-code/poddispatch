@@ -66,6 +66,22 @@ export function OatestScenarioRunner() {
   const [preLoading, setPreLoading] = useState(false);
   const [runsPage, setRunsPage] = useState(0);
   const RUNS_PER_PAGE = 10;
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null);
+
+  const handleDownloadPdf = async (run: Run) => {
+    if (!run.artifact_id) return;
+    setPdfBusy(run.id);
+    try {
+      await downloadClaimReviewPdf({
+        artifactId: run.artifact_id,
+        scenarioName: run.oatest_scenarios?.name ?? null,
+      });
+    } catch (e: any) {
+      toast({ title: "PDF export failed", description: e.message, variant: "destructive" });
+    } finally {
+      setPdfBusy(null);
+    }
+  };
 
   const loadScenarios = useCallback(async () => {
     const { data, error } = await (supabase as any)
