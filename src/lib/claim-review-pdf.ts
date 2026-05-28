@@ -325,23 +325,26 @@ async function loadClaimEnvelope(claimId: string): Promise<ResolvedClaim> {
     stretcherPlacement: t.stretcher_placement ?? null,
   });
 
-  const payerBlock: ResolvedClaim["payer"] = resolution.ok
-    ? {
-        name: resolution.payer_name,
-        oaPayerId: resolution.oa_payer_id,
-        payerType: c.payer_type ?? null,
-        filingIndicator: resolution.claim_filing_indicator,
-        matchStrategy: resolution.match_strategy,
-        resolutionError: null,
-      }
-    : {
-        name: c.payer_name || "",
-        oaPayerId: "",
-        payerType: c.payer_type ?? null,
-        filingIndicator: "",
-        matchStrategy: "",
-        resolutionError: `${resolution.reason}${resolution.detail ? ` — ${resolution.detail}` : ""}`,
-      };
+  let payerBlock: ResolvedClaim["payer"];
+  if (resolution.ok) {
+    payerBlock = {
+      name: resolution.payer_name,
+      oaPayerId: resolution.oa_payer_id,
+      payerType: c.payer_type ?? null,
+      filingIndicator: resolution.claim_filing_indicator,
+      matchStrategy: resolution.match_strategy,
+      resolutionError: null,
+    };
+  } else {
+    payerBlock = {
+      name: c.payer_name || "",
+      oaPayerId: "",
+      payerType: c.payer_type ?? null,
+      filingIndicator: "",
+      matchStrategy: "",
+      resolutionError: `${resolution.reason}${resolution.detail ? ` — ${resolution.detail}` : ""}`,
+    };
+  }
 
   // Short, biller-friendly claim reference (matches generator's CLM01).
   const claimRef = (() => {
