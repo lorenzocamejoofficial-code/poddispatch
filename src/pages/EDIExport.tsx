@@ -44,10 +44,10 @@ async function resolvePayersForClaims(
   companyId: string,
   claims: Array<{ id: string; patient_first_name?: string; patient_last_name?: string; payer_name: string | null; payer_type: string }>,
 ): Promise<{
-  resolved: Map<string, { oa_payer_id: string; payer_name: string }>;
+  resolved: Map<string, { oa_payer_id: string; payer_name: string; claim_filing_indicator: string }>;
   failures: PayerResolutionFailure[];
 }> {
-  const resolved = new Map<string, { oa_payer_id: string; payer_name: string }>();
+  const resolved = new Map<string, { oa_payer_id: string; payer_name: string; claim_filing_indicator: string }>();
   const failures: PayerResolutionFailure[] = [];
   await Promise.all(
     claims.map(async (c) => {
@@ -57,7 +57,11 @@ async function resolvePayersForClaims(
         payer_type: c.payer_type,
       });
       if (r.ok === true) {
-        resolved.set(c.id, { oa_payer_id: r.oa_payer_id, payer_name: r.payer_name });
+        resolved.set(c.id, {
+          oa_payer_id: r.oa_payer_id,
+          payer_name: r.payer_name,
+          claim_filing_indicator: r.claim_filing_indicator,
+        });
         return;
       }
       failures.push({

@@ -565,7 +565,9 @@ export function generateEDI837P(
     const { last: patLast, first: patFirst } = splitPatientName(claim.patient_name);
     const diagCodes = [...(claim.icd10_codes || []), ...(claim.diagnosis_codes || [])].filter(Boolean);
     const uniqueDiag = [...new Set(diagCodes)];
-    const payerCode = sbrPayerCode(claim.payer_type);
+    // SBR09 MUST come from payer_directory.claim_filing_indicator via
+    // resolvePayerForClaim() — never derived locally from payer_type.
+    const payerCode = assertFilingIndicator(claim.claim_filing_indicator, claim.claim_id, "Loop 2000B");
     const sexCode = dmgSexCode(claim.patient_sex);
 
     // --- SUBSCRIBER HL (2000B) ---
@@ -807,7 +809,8 @@ export function generateEDI837P(
       // secondary payer, the OTHER payer is the Primary → "P".
       addSeg([
         "SBR", "P", cob.rel_code || "18", cob.group_number || "", cob.group_name || "",
-        "", "", "", "", cob.payer_filing_indicator || "ZZ",
+        "", "", "", "",
+        assertFilingIndicator(cob.claim_filing_indicator, claim.claim_id, "Loop 2320 (COB)"),
       ].join(ES));
 
       // CAS — one segment per group_code, up to 6 adjustment triplets per segment.
