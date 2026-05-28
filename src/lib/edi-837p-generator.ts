@@ -92,6 +92,11 @@ export interface ClaimForEDI {
    *  X12N 837P 5010. If a secondary claim is passed without `cob`, the
    *  generator throws — partial COB emission is rejected by clearinghouses. */
   cob?: ClaimCobInfo | null;
+  /** X12 SBR09 claim filing indicator for the destination (primary) payer of
+   *  THIS claim. Projected from payer_directory.claim_filing_indicator by
+   *  resolvePayerForClaim() — see PayerResolution.claim_filing_indicator.
+   *  The generator rejects any value not in VALID_FILING_INDICATORS. */
+  claim_filing_indicator: string;
 }
 
 /** Coordination of Benefits — primary payer's adjudication context replayed
@@ -104,8 +109,9 @@ export interface ClaimCobInfo {
   group_number: string;
   /** SBR04 group / plan name. Empty string when N/A. */
   group_name: string;
-  /** SBR09 claim filing indicator for the PRIMARY payer (MC/MD/CI/ZZ). */
-  payer_filing_indicator: string;
+  /** SBR09 claim filing indicator for the PRIMARY payer. Must be projected
+   *  from PayerResolution.claim_filing_indicator (see payer_directory). */
+  claim_filing_indicator: string;
   /** AMT*D — total amount the primary actually paid (sum of claim_payments.amount). */
   paid_amount: number;
   /** DTP*573 — primary adjudication date, YYYY-MM-DD. Most recent payment date. */
@@ -321,14 +327,32 @@ function locationTypeCode(
   return "R";
 }
 
-/** Map payer_type to X12 SBR claim filing indicator code */
-function sbrPayerCode(payerType: string | null): string {
-  if (!payerType) return "ZZ";
-  const t = payerType.toLowerCase();
-  if (t === "medicare" || t === "mc") return "MC";
-  if (t === "medicaid" || t === "md") return "MD";
-  if (t === "commercial" || t === "private" || t === "ci") return "CI";
-  return "ZZ";
+/** X12 005010 SBR09 claim filing indicator code set (NEMT-relevant subset).
+ *  Sourced from CMS Pub 100-04 and X12N 837P 5010 TR3. Mirrors the CHECK
+ *  constraint on payer_directory.claim_filing_indicator. The generator NEVER
+ *  derives this value — it must arrive pre-resolved from the directory via
+ *  resolvePayerForClaim(). "ZZ" is a directory fallback flagged for biller
+ *  review; emission is still permitted so we don't deadlock submission, but
+ *  it should be treated as a data-quality bug. */
+const VALID_FILING_INDICATORS = new Set([
+  "MB", "MA", "MC", "CI", "16", "BL", "HM", "WC", "AM", "CH", "VA", "ZZ",
+]);
+
+/** Hardened guard: validate an SBR09 value before emitting it. Throws on any
+ *  value not in the X12 005010 code list. Catches every silent-fallback bug
+ *  class — empty strings, lowercase, payer_type strings ("medicare"), legacy
+ *  invalid codes ("MD"), and "UNKNOWN" placeholders. */
+function assertFilingIndicator(value: unknown, claimId: string, loop: string): string {
+  const v = typeof value === "string" ? value : "";
+  if (!VALID_FILING_INDICATORS.has(v)) {
+    throw new Error(
+      `generateEDI837P: claim ${claimId} ${loop} SBR09 rejected — got ${JSON.stringify(value)}, ` +
+      `expected one of ${[...VALID_FILING_INDICATORS].join("/")}. ` +
+      `This value must come from payer_directory.claim_filing_indicator via ` +
+      `resolvePayerForClaim() — upstream did not project it onto the claim envelope.`
+    );
+  }
+  return v;
 }
 
 /** Map patient sex to X12 DMG sex code */

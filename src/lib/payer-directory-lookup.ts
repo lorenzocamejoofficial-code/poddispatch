@@ -23,6 +23,7 @@ export type PayerDirectoryRow = {
   payer_name: string;
   payer_type: string | null;
   oa_payer_id: string | null;
+  claim_filing_indicator: string | null;
 };
 
 export type PayerResolution =
@@ -32,6 +33,11 @@ export type PayerResolution =
       oa_payer_id: string;
       payer_name: string;
       payer_type: string | null;
+      /** X12 SBR09 claim filing indicator from payer_directory.
+       *  MUST be projected onto ClaimForEDI.claim_filing_indicator and
+       *  ClaimCobInfo.claim_filing_indicator by every caller — the generator
+       *  rejects emissions that don't carry it. */
+      claim_filing_indicator: string;
       match_strategy: "oa_payer_id" | "payer_name" | "payer_type_unique";
     }
   | {
@@ -39,6 +45,7 @@ export type PayerResolution =
       reason:
         | "no_directory_match"
         | "directory_row_missing_oa_payer_id"
+        | "missing_claim_filing_indicator"
         | "ambiguous_payer_type"
         | "missing_inputs";
       detail?: string;
@@ -76,18 +83,26 @@ export async function resolvePayerForClaim(input: ResolveInput): Promise<PayerRe
   if (oaId) {
     const { data, error } = await supabase
       .from("payer_directory")
-      .select("id, company_id, payer_name, payer_type, oa_payer_id")
+      .select("id, company_id, payer_name, payer_type, oa_payer_id, claim_filing_indicator")
       .eq("company_id", company_id)
       .ilike("oa_payer_id", oaId)
       .limit(1)
       .maybeSingle();
     if (!error && data && data.oa_payer_id) {
+      if (!data.claim_filing_indicator) {
+        return {
+          ok: false,
+          reason: "missing_claim_filing_indicator",
+          detail: `Directory row "${data.payer_name}" missing X12 SBR09 code (claim_filing_indicator)`,
+        };
+      }
       return {
         ok: true,
         directory_id: data.id,
         oa_payer_id: data.oa_payer_id,
         payer_name: data.payer_name,
         payer_type: data.payer_type,
+        claim_filing_indicator: data.claim_filing_indicator,
         match_strategy: "oa_payer_id",
       };
     }
@@ -97,7 +112,7 @@ export async function resolvePayerForClaim(input: ResolveInput): Promise<PayerRe
   if (payerName) {
     const { data, error } = await supabase
       .from("payer_directory")
-      .select("id, company_id, payer_name, payer_type, oa_payer_id")
+      .select("id, company_id, payer_name, payer_type, oa_payer_id, claim_filing_indicator")
       .eq("company_id", company_id)
       .ilike("payer_name", payerName)
       .limit(1)
@@ -110,12 +125,20 @@ export async function resolvePayerForClaim(input: ResolveInput): Promise<PayerRe
           detail: `Directory row "${data.payer_name}" has no oa_payer_id configured`,
         };
       }
+      if (!data.claim_filing_indicator) {
+        return {
+          ok: false,
+          reason: "missing_claim_filing_indicator",
+          detail: `Directory row "${data.payer_name}" missing X12 SBR09 code (claim_filing_indicator)`,
+        };
+      }
       return {
         ok: true,
         directory_id: data.id,
         oa_payer_id: data.oa_payer_id,
         payer_name: data.payer_name,
         payer_type: data.payer_type,
+        claim_filing_indicator: data.claim_filing_indicator,
         match_strategy: "payer_name",
       };
     }
@@ -126,7 +149,7 @@ export async function resolvePayerForClaim(input: ResolveInput): Promise<PayerRe
   if (payerType) {
     const { data, error } = await supabase
       .from("payer_directory")
-      .select("id, company_id, payer_name, payer_type, oa_payer_id")
+      .select("id, company_id, payer_name, payer_type, oa_payer_id, claim_filing_indicator")
       .eq("company_id", company_id)
       .eq("payer_type", payerType)
       .limit(2);
@@ -139,12 +162,20 @@ export async function resolvePayerForClaim(input: ResolveInput): Promise<PayerRe
           detail: `Directory row "${row.payer_name}" has no oa_payer_id configured`,
         };
       }
+      if (!row.claim_filing_indicator) {
+        return {
+          ok: false,
+          reason: "missing_claim_filing_indicator",
+          detail: `Directory row "${row.payer_name}" missing X12 SBR09 code (claim_filing_indicator)`,
+        };
+      }
       return {
         ok: true,
         directory_id: row.id,
         oa_payer_id: row.oa_payer_id,
         payer_name: row.payer_name,
         payer_type: row.payer_type,
+        claim_filing_indicator: row.claim_filing_indicator,
         match_strategy: "payer_type_unique",
       };
     }
