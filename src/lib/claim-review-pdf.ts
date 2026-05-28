@@ -8,20 +8,35 @@ import { supabase } from "@/integrations/supabase/client";
  * record, the PDF prints "—" rather than fabricating a value.
  */
 export async function downloadClaimReviewPdf(opts: {
-  artifactId: string;
+  artifactId?: string | null;
+  claimId?: string | null;
+  runFilename?: string | null;
   scenarioName?: string | null;
 }): Promise<void> {
-  const { artifactId, scenarioName } = opts;
+  const { artifactId, claimId, runFilename, scenarioName } = opts;
+  if (!artifactId && !claimId && !runFilename) throw new Error("No claim generated");
 
-  const { data: artifact, error: aerr } = await (supabase as any)
-    .from("claim_submission_artifacts")
-    .select("id,filename,claim_ids,generated_at")
-    .eq("id", artifactId)
-    .maybeSingle();
-  if (aerr) throw new Error(aerr.message);
-  if (!artifact) throw new Error("Artifact not found");
+  let artifact: any = null;
+  if (artifactId) {
+    const { data, error } = await (supabase as any)
+      .from("claim_submission_artifacts")
+      .select("id,filename,claim_ids,generated_at")
+      .eq("id", artifactId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    artifact = data;
+  }
+  if (!artifact && runFilename) {
+    const { data, error } = await (supabase as any)
+      .from("claim_submission_artifacts")
+      .select("id,filename,claim_ids,generated_at")
+      .eq("filename", runFilename)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    artifact = data;
+  }
 
-  const claimIds: string[] = artifact.claim_ids ?? [];
+  const claimIds: string[] = artifact?.claim_ids?.length ? artifact.claim_ids : claimId ? [claimId] : [];
   if (claimIds.length === 0) throw new Error("Artifact contains no claims");
 
   const { data: claims, error: cerr } = await (supabase as any)
@@ -100,7 +115,7 @@ export async function downloadClaimReviewPdf(opts: {
     line("PODDISPATCH — CLAIM REVIEW", 14, true);
     line(`Scenario: ${scenarioName ?? "—"}`);
     line(`Generated: ${today}`);
-    line(`Artifact filename: ${artifact.filename ?? "—"}`);
+    line(`Artifact filename: ${artifact?.filename ?? runFilename ?? "—"}`);
 
     // PATIENT
     section("PATIENT");
@@ -190,6 +205,6 @@ export async function downloadClaimReviewPdf(opts: {
     doc.setTextColor(0);
   });
 
-  const safeName = (artifact.filename ?? `claim-${artifactId}`).replace(/[^\w.-]+/g, "_");
+  const safeName = (artifact?.filename ?? runFilename ?? `claim-${claimIds[0] ?? artifactId}`).replace(/[^\w.-]+/g, "_");
   doc.save(`review_${safeName}.pdf`);
 }
