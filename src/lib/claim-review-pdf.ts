@@ -326,13 +326,14 @@ async function loadClaimEnvelope(claimId: string): Promise<ResolvedClaim> {
   });
 
   let payerBlock: ResolvedClaim["payer"];
-  if (resolution.ok) {
+  const r = resolution as PayerResolution;
+  if (r.ok === true) {
     payerBlock = {
-      name: resolution.payer_name,
-      oaPayerId: resolution.oa_payer_id,
+      name: r.payer_name,
+      oaPayerId: r.oa_payer_id,
       payerType: c.payer_type ?? null,
-      filingIndicator: resolution.claim_filing_indicator,
-      matchStrategy: resolution.match_strategy,
+      filingIndicator: r.claim_filing_indicator,
+      matchStrategy: r.match_strategy,
       resolutionError: null,
     };
   } else {
@@ -342,7 +343,7 @@ async function loadClaimEnvelope(claimId: string): Promise<ResolvedClaim> {
       payerType: c.payer_type ?? null,
       filingIndicator: "",
       matchStrategy: "",
-      resolutionError: `${resolution.reason}${resolution.detail ? ` — ${resolution.detail}` : ""}`,
+      resolutionError: `${r.reason}${r.detail ? ` — ${r.detail}` : ""}`,
     };
   }
 
