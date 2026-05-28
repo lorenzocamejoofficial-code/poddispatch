@@ -33,7 +33,7 @@ async function resolvePayerForClaimEdge(
   admin: ReturnType<typeof createClient>,
   input: { company_id: string; payer_name?: string | null; payer_type?: string | null; oa_payer_id?: string | null },
 ): Promise<
-  | { ok: true; oa_payer_id: string; payer_name: string; payer_type: string | null; match_strategy: string }
+  | { ok: true; oa_payer_id: string; payer_name: string; payer_type: string | null; claim_filing_indicator: string; match_strategy: string }
   | { ok: false; reason: string; detail?: string }
 > {
   const payerName = (input.payer_name ?? "").trim();
@@ -45,32 +45,35 @@ async function resolvePayerForClaimEdge(
   }
   if (oaId) {
     const { data } = await admin.from("payer_directory")
-      .select("id, payer_name, payer_type, oa_payer_id")
+      .select("id, payer_name, payer_type, oa_payer_id, claim_filing_indicator")
       .eq("company_id", input.company_id).ilike("oa_payer_id", oaId).limit(1).maybeSingle();
     if (data && (data as any).oa_payer_id) {
       const r = data as any;
-      return { ok: true, oa_payer_id: r.oa_payer_id, payer_name: r.payer_name, payer_type: r.payer_type, match_strategy: "oa_payer_id" };
+      if (!r.claim_filing_indicator) return { ok: false, reason: "missing_claim_filing_indicator", detail: r.payer_name };
+      return { ok: true, oa_payer_id: r.oa_payer_id, payer_name: r.payer_name, payer_type: r.payer_type, claim_filing_indicator: r.claim_filing_indicator, match_strategy: "oa_payer_id" };
     }
   }
   if (payerName) {
     const { data } = await admin.from("payer_directory")
-      .select("id, payer_name, payer_type, oa_payer_id")
+      .select("id, payer_name, payer_type, oa_payer_id, claim_filing_indicator")
       .eq("company_id", input.company_id).ilike("payer_name", payerName).limit(1).maybeSingle();
     if (data) {
       const r = data as any;
       if (!r.oa_payer_id) return { ok: false, reason: "directory_row_missing_oa_payer_id", detail: r.payer_name };
-      return { ok: true, oa_payer_id: r.oa_payer_id, payer_name: r.payer_name, payer_type: r.payer_type, match_strategy: "payer_name" };
+      if (!r.claim_filing_indicator) return { ok: false, reason: "missing_claim_filing_indicator", detail: r.payer_name };
+      return { ok: true, oa_payer_id: r.oa_payer_id, payer_name: r.payer_name, payer_type: r.payer_type, claim_filing_indicator: r.claim_filing_indicator, match_strategy: "payer_name" };
     }
   }
   if (payerType) {
     const { data } = await admin.from("payer_directory")
-      .select("id, payer_name, payer_type, oa_payer_id")
+      .select("id, payer_name, payer_type, oa_payer_id, claim_filing_indicator")
       .eq("company_id", input.company_id).eq("payer_type", payerType).limit(2);
     const rows = (data ?? []) as any[];
     if (rows.length === 1) {
       const r = rows[0];
       if (!r.oa_payer_id) return { ok: false, reason: "directory_row_missing_oa_payer_id", detail: r.payer_name };
-      return { ok: true, oa_payer_id: r.oa_payer_id, payer_name: r.payer_name, payer_type: r.payer_type, match_strategy: "payer_type_unique" };
+      if (!r.claim_filing_indicator) return { ok: false, reason: "missing_claim_filing_indicator", detail: r.payer_name };
+      return { ok: true, oa_payer_id: r.oa_payer_id, payer_name: r.payer_name, payer_type: r.payer_type, claim_filing_indicator: r.claim_filing_indicator, match_strategy: "payer_type_unique" };
     }
     if (rows.length > 1) {
       return { ok: false, reason: "ambiguous_payer_type", detail: `multiple rows for payer_type="${payerType}"` };
@@ -150,7 +153,7 @@ function build837P(opts: {
   submitter: { name: string; id: string; contact: string; phone: string };
   receiver: { name: string; id: string };
   patient: { first: string; last: string; dob: string; sex: string; member_id: string; addr: string; city: string; state: string; zip: string };
-  payer: { name: string; id: string; type: string };
+  payer: { name: string; id: string; filing_indicator: string };
   claim: {
     control: string; charge: number; hcpcs: string; modifiers: string[];
     icd10: string[]; service_date: string; loaded_miles: number;
@@ -179,7 +182,9 @@ function build837P(opts: {
   push("N4", clean(opts.provider.city), opts.provider.state, opts.provider.zip);
   push("REF", "EI", opts.provider.tax_id);
   push("HL", "2", "1", "22", "0");
-  push("SBR", "P", "18", "", "", "", "", "", "", clean(opts.payer.type));
+  // SBR09 — X12 005010 claim filing indicator from payer_directory. The
+  // simulator NEVER derives this from payer_type; it must arrive pre-resolved.
+  push("SBR", "P", "18", "", "", "", "", "", "", opts.payer.filing_indicator);
   push("NM1", "IL", "1", clean(opts.patient.last), clean(opts.patient.first), "", "", "", "MI", opts.patient.member_id);
   push("N3", clean(opts.patient.addr));
   push("N4", clean(opts.patient.city), opts.patient.state, opts.patient.zip);
@@ -600,7 +605,7 @@ Deno.serve(async (req) => {
     }
     const resolvedPayerName = payerResolution.payer_name;
     const resolvedPayerId = payerResolution.oa_payer_id;
-    const resolvedPayerType = (payerResolution.payer_type ?? sc.payer_type ?? "").toLowerCase();
+    const resolvedFilingIndicator = payerResolution.claim_filing_indicator;
 
     const edi = build837P({
       filename, testMode: true,
@@ -628,7 +633,7 @@ Deno.serve(async (req) => {
       payer: {
         name: resolvedPayerName,
         id: resolvedPayerId,
-        type: resolvedPayerType === "medicare" ? "MB" : resolvedPayerType === "medicaid" ? "MC" : "CI",
+        filing_indicator: resolvedFilingIndicator,
       },
       claim: {
         control: `OA${runId.slice(0, 8)}`.toUpperCase(),
