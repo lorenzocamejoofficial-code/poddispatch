@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { RefreshCw, Trash2 } from "lucide-react";
+import { RefreshCw, Trash2, Save, CheckCircle2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "@/hooks/use-toast";
 import { generateNarrative } from "@/lib/pcr-narrative";
 import { ICD10_DESCRIPTIONS } from "@/lib/icd10-codes";
 import { PCRFieldDot } from "@/components/pcr/PCRFieldIndicator";
@@ -31,7 +33,26 @@ export function NarrativeCard({ trip, truckName, updateField, required = true }:
 
   const narrativeFilled = !!trip.narrative && trip.narrative.trim().length > 0;
 
-  const regenerate = () => {
+  // Track the last "baseline" — either the most recently generated text
+  // or the last text the biller explicitly marked as saved. Anything
+  // that drifts from this baseline is considered an unsaved manual edit.
+  const [baseline, setBaseline] = useState<string>(trip.narrative || "");
+  const [manuallySaved, setManuallySaved] = useState<boolean>(false);
+  const initialized = useRef(false);
+
+  // Re-seed baseline only when narrative arrives from the server for the
+  // first time (avoid resetting it on every keystroke / autosave).
+  useEffect(() => {
+    if (!initialized.current && trip.narrative) {
+      setBaseline(trip.narrative);
+      initialized.current = true;
+    }
+  }, [trip.narrative]);
+
+  const current = trip.narrative || "";
+  const isDirty = narrativeFilled && current !== baseline;
+
+  const doGenerate = () => {
     // Resolve ICD-10 codes to descriptions for natural-prose mentions in the
     // diagnosis clause. We keep the lookup local to the picker's well-known
     // codes; unknown codes still surface in the narrative as bare codes so
@@ -85,6 +106,19 @@ export function NarrativeCard({ trip, truckName, updateField, required = true }:
       wc_stretcher_required: !!trip.wc_stretcher_required,
     });
     updateField("narrative", text);
+    setBaseline(text);
+    setManuallySaved(false);
+  };
+
+  const saveEdit = async () => {
+    // Narrative is already autosaved on each keystroke via updateField.
+    // This button locks the current text in as the new baseline so the
+    // "unsaved edit" indicator clears and Generate will warn before
+    // overwriting it again.
+    await updateField("narrative", current);
+    setBaseline(current);
+    setManuallySaved(true);
+    toast({ title: "Narrative edit saved", description: "Your edited narrative is locked in. Generate will ask before overwriting." });
   };
 
   return (
@@ -93,8 +127,27 @@ export function NarrativeCard({ trip, truckName, updateField, required = true }:
         <p className="text-xs text-muted-foreground flex items-center">
           Auto-generated from your PCR entries. You can edit below.
           {required && <PCRFieldDot filled={narrativeFilled} className="ml-2" />}
+          {manuallySaved && !isDirty && (
+            <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-3 w-3" /> Manually edited
+            </span>
+          )}
+          {isDirty && (
+            <span className="ml-2 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+              · Unsaved edit
+            </span>
+          )}
         </p>
         <div className="flex gap-1.5">
+          {isDirty && (
+            <Button
+              size="sm"
+              className="gap-1.5 text-xs"
+              onClick={saveEdit}
+            >
+              <Save className="h-3.5 w-3.5" /> Save Edit
+            </Button>
+          )}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5 text-xs" disabled={!trip.narrative}>
@@ -108,15 +161,39 @@ export function NarrativeCard({ trip, truckName, updateField, required = true }:
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => updateField("narrative", "")} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                <AlertDialogAction onClick={() => { updateField("narrative", ""); setBaseline(""); setManuallySaved(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                   Clear
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-          <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={regenerate}>
-            <RefreshCw className="h-3.5 w-3.5" /> Generate
-          </Button>
+          {isDirty || manuallySaved ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                  <RefreshCw className="h-3.5 w-3.5" /> Generate
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Overwrite edited narrative?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This narrative has been manually edited. Regenerating will replace your edits with a fresh auto-generated version. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={doGenerate} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Overwrite
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={doGenerate}>
+              <RefreshCw className="h-3.5 w-3.5" /> Generate
+            </Button>
+          )}
         </div>
       </div>
       <Textarea
