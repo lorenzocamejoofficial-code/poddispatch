@@ -33,6 +33,7 @@ type Run = {
   started_at: string;
   completed_at: string | null;
   artifact_id: string | null;
+  claim_id: string | null;
   oatest_scenarios?: { slug: string; name: string } | null;
 };
 
@@ -71,11 +72,13 @@ export function OatestScenarioRunner() {
   const [pdfBusy, setPdfBusy] = useState<string | null>(null);
 
   const handleDownloadPdf = async (run: Run) => {
-    if (!run.artifact_id) return;
+    if (!run.artifact_id && !run.claim_id && !run.filename) return;
     setPdfBusy(run.id);
     try {
       await downloadClaimReviewPdf({
         artifactId: run.artifact_id,
+        claimId: run.claim_id,
+        runFilename: run.filename,
         scenarioName: run.oatest_scenarios?.name ?? null,
       });
     } catch (e: any) {
@@ -95,7 +98,7 @@ export function OatestScenarioRunner() {
   const loadRuns = useCallback(async () => {
     const { data, error } = await (supabase as any)
       .from("oatest_runs")
-      .select("id,scenario_id,status,failure_stage,failure_summary,filename,ack_999_status,ack_277ca_status,started_at,completed_at,artifact_id,oatest_scenarios(slug,name)")
+      .select("id,scenario_id,status,failure_stage,failure_summary,filename,ack_999_status,ack_277ca_status,started_at,completed_at,artifact_id,claim_id,oatest_scenarios(slug,name)")
       .order("started_at", { ascending: false }).limit(200);
     if (!error) setRuns(data ?? []);
   }, []);
@@ -278,6 +281,7 @@ export function OatestScenarioRunner() {
               {pagedRuns.map(r => {
                 const isFail = r.status === "failed";
                 const isOk = r.status === "submitted" || r.status === "ready";
+                const hasPdfSource = Boolean(r.artifact_id || r.claim_id || r.filename);
                 return (
                   <div key={r.id} className="flex items-start gap-2 rounded-md border p-2 text-xs">
                     {isOk ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" /> :
@@ -301,8 +305,8 @@ export function OatestScenarioRunner() {
                       size="sm"
                       variant="outline"
                       className="h-7 px-2 text-[10px] gap-1 shrink-0"
-                      disabled={!r.artifact_id || pdfBusy === r.id}
-                      title={r.artifact_id ? "Download human-readable claim PDF" : "No claim generated."}
+                      disabled={!hasPdfSource || pdfBusy === r.id}
+                      title={hasPdfSource ? "Download human-readable claim PDF" : "No claim generated."}
                       onClick={() => handleDownloadPdf(r)}
                     >
                       {pdfBusy === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileDown className="h-3 w-3" />}
