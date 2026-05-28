@@ -110,7 +110,7 @@ export default function PendingApproval() {
               {isRejected
                 ? "Contact "
                 : "This usually takes less than 24 hours. If you have questions, contact "}
-              <span className="font-medium text-foreground">support@poddispatch.com</span>.
+              <span className="font-medium text-foreground">support@thepoddispatch.com</span>.
             </p>
           </CardContent>
         </Card>

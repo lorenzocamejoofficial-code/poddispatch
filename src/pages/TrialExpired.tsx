@@ -53,7 +53,7 @@ export default function TrialExpired() {
           <div className="rounded-lg border bg-muted/30 p-4 text-sm">
             <div className="flex items-center gap-2 justify-center text-muted-foreground">
               <Mail className="h-4 w-4 text-primary" />
-              <span>Questions? <span className="font-medium text-foreground">support@poddispatch.com</span></span>
+              <span>Questions? <span className="font-medium text-foreground">support@thepoddispatch.com</span></span>
             </div>
           </div>
           <Button variant="outline" onClick={async () => { await signOut(); navigate("/login"); }} className="w-full">

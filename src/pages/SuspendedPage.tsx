@@ -58,7 +58,7 @@ export default function SuspendedPage() {
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Contact <span className="font-medium text-foreground">support@poddispatch.com</span> for assistance.
+              Contact <span className="font-medium text-foreground">support@thepoddispatch.com</span> for assistance.
             </p>
           </CardContent>
         </Card>

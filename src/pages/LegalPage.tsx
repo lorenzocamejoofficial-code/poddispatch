@@ -8,8 +8,8 @@ function LegalFooter() {
       <p>© {new Date().getFullYear()} PodDispatch LLC. All rights reserved.</p>
       <p className="mt-1">
         Questions? Contact{" "}
-        <a href="mailto:support@poddispatch.com" className="text-primary hover:underline">
-          support@poddispatch.com
+        <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">
+          support@thepoddispatch.com
         </a>
       </p>
     </div>
@@ -95,7 +95,7 @@ export default function LegalPage() {
               <p>These terms are governed by the laws of the State of Georgia. Any disputes shall be resolved in the courts of Georgia.</p>
 
               <h3>15. Contact</h3>
-              <p>For questions about these terms contact <a href="mailto:support@poddispatch.com" className="text-primary hover:underline">support@poddispatch.com</a>.</p>
+              <p>For questions about these terms contact <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a>.</p>
             </article>
           </TabsContent>
 
@@ -123,7 +123,7 @@ export default function LegalPage() {
               <p>PHI is retained for seven years following account termination in accordance with HIPAA requirements unless the operator requests earlier deletion consistent with applicable law. Full retention details are in the Data Retention and Deletion Policy.</p>
 
               <h3>Operator Data Deletion Requests</h3>
-              <p>Operators may request deletion of their company data by contacting PodDispatch LLC directly at <a href="mailto:support@poddispatch.com" className="text-primary hover:underline">support@poddispatch.com</a>. Deletion is processed within 60 days as described in the Data Retention and Deletion Policy and is subject to applicable legal-hold requirements.</p>
+              <p>Operators may request deletion of their company data by contacting PodDispatch LLC directly at <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a>. Deletion is processed within 60 days as described in the Data Retention and Deletion Policy and is subject to applicable legal-hold requirements.</p>
 
               <h3>Subprocessors and Infrastructure</h3>
               <p>PodDispatch uses Supabase for data storage, authentication, and serverless function infrastructure. PodDispatch uses Stripe for processing platform subscription payments (no PHI is shared with Stripe). Each subprocessor is bound by appropriate written agreements that protect PHI.</p>
@@ -138,7 +138,7 @@ export default function LegalPage() {
               <p>We may update this Privacy Policy from time to time. We will notify you of material changes by email or in-app notification. Continued use of the service after notification constitutes acceptance of the updated policy.</p>
 
               <h3>Contact</h3>
-              <p>For privacy-related questions contact <a href="mailto:support@poddispatch.com" className="text-primary hover:underline">support@poddispatch.com</a>.</p>
+              <p>For privacy-related questions contact <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a>.</p>
             </article>
           </TabsContent>
 
@@ -223,7 +223,7 @@ export default function LegalPage() {
               <p>Operators are responsible for the conduct of all users under their account, including employees, contractors, and any other workforce members granted access. The owner-role user is the responsible party for ensuring company-wide compliance with this policy.</p>
 
               <h3>Reporting Violations</h3>
-              <p>Suspected violations of this policy can be reported to <a href="mailto:support@poddispatch.com" className="text-primary hover:underline">support@poddispatch.com</a>.</p>
+              <p>Suspected violations of this policy can be reported to <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a>.</p>
             </article>
           </TabsContent>
 
@@ -262,7 +262,7 @@ export default function LegalPage() {
               <p>PodDispatch's role is limited to generating structured claim data from operator-entered documentation, applying ANSI X12 837P 5010A1 formatting, performing pre-submit validation against documented edits, and transmitting the resulting file when an operator-configured clearinghouse integration is enabled. PodDispatch does not adjudicate claims, does not provide coding advice, and does not act as a billing agent for the operator.</p>
 
               <h3>Contact</h3>
-              <p>Questions about this disclaimer can be sent to <a href="mailto:support@poddispatch.com" className="text-primary hover:underline">support@poddispatch.com</a>.</p>
+              <p>Questions about this disclaimer can be sent to <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a>.</p>
             </article>
           </TabsContent>
 
@@ -287,7 +287,7 @@ export default function LegalPage() {
               <p>Upon account termination, operators may request a data export within 30 days before deletion procedures begin. The export includes patient records, trip records, ePCRs, billing records, and audit logs in a structured format suitable for transfer to another system.</p>
 
               <h3>Deletion Requests</h3>
-              <p>PHI deletion requests are processed within 60 days of receipt and confirmed in writing by PodDispatch LLC. Deletion requests can be submitted to <a href="mailto:support@poddispatch.com" className="text-primary hover:underline">support@poddispatch.com</a> by the owner-role user of the operator account.</p>
+              <p>PHI deletion requests are processed within 60 days of receipt and confirmed in writing by PodDispatch LLC. Deletion requests can be submitted to <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a> by the owner-role user of the operator account.</p>
 
               <h3>Return or Destruction Under the BAA</h3>
               <p>PodDispatch LLC will return or destroy PHI as specified in the Business Associate Agreement upon termination of services where destruction is feasible and not prohibited by law.</p>
@@ -296,7 +296,7 @@ export default function LegalPage() {
               <p>Data that cannot be destroyed due to legal hold, regulatory requirement, or backup infrastructure constraints will remain protected under the terms of the BAA, will continue to be encrypted at rest, and will not be used for any purpose other than compliance with the obligation that prevents its destruction.</p>
 
               <h3>Contact</h3>
-              <p>Questions about data retention or deletion can be sent to <a href="mailto:support@poddispatch.com" className="text-primary hover:underline">support@poddispatch.com</a>.</p>
+              <p>Questions about data retention or deletion can be sent to <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a>.</p>
             </article>
           </TabsContent>
 
@@ -339,7 +339,7 @@ export default function LegalPage() {
               <p>PodDispatch LLC conducts a post-incident review following any confirmed breach, identifies root cause, implements corrective measures (technical controls, process changes, or workforce training), and documents the review in the company's compliance records.</p>
 
               <h3>Reporting a Suspected Incident</h3>
-              <p>Security incidents — suspected or confirmed — can be reported to PodDispatch LLC by contacting support through the platform or by emailing <a href="mailto:support@poddispatch.com" className="text-primary hover:underline">support@poddispatch.com</a>. Please include the operator company name, a description of what was observed, the time of observation, and any system messages or screenshots if available.</p>
+              <p>Security incidents — suspected or confirmed — can be reported to PodDispatch LLC by contacting support through the platform or by emailing <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a>. Please include the operator company name, a description of what was observed, the time of observation, and any system messages or screenshots if available.</p>
             </article>
           </TabsContent>
         </Tabs>

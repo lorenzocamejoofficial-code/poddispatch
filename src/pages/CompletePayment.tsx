@@ -87,7 +87,7 @@ export default function CompletePayment() {
           <div className="flex items-center gap-2 justify-center text-xs text-muted-foreground">
             <Mail className="h-3.5 w-3.5" />
             <span>
-              Questions? <span className="font-medium text-foreground">support@poddispatch.com</span>
+              Questions? <span className="font-medium text-foreground">support@thepoddispatch.com</span>
             </span>
           </div>
 
