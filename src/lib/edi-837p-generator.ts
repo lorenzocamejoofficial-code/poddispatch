@@ -303,7 +303,17 @@ export function extractFacilityName(location: string | null | undefined): string
  *       J (freestanding) / D (unknown or null subtype). This is the only
  *       reliable way to emit G or J — type strings never carry that info.
  *    2. Fallback: substring match on the legacy `type` string for non-dialysis
- *       location types (hospital, SNF, residence, etc.). */
+ *       location types (hospital, SNF, residence, etc.).
+ *
+ *  CANONICAL SOURCE for ambulance origin/dest letter resolution. Three other
+ *  sites currently mirror this logic byte-for-byte:
+ *    - src/lib/claim-review-pdf.ts        locationTypeCode()
+ *    - src/lib/billing-utils.ts           locationModifierCode()
+ *    - public.derive_ambulance_modifier_letter (DB function)
+ *  TODO(refactor): export locationTypeCode() from this module and have the
+ *  three sites above consume it directly, instead of maintaining four
+ *  parallel copies. Until then, any change here must be replicated in all
+ *  three mirrors in the same change. */
 function locationTypeCode(
   type: string | null,
   facilityMeta?: { facility_type?: string | null; dialysis_subtype?: string | null } | null
