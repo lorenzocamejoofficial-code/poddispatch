@@ -285,17 +285,50 @@ async function loadClaimEnvelope(claimId: string): Promise<ResolvedClaim> {
   const last = cleanPatientName(patient.last_name);
   const first = cleanPatientName(patient.first_name);
 
-  const originLetter = locationTypeCode(c.origin_type, null);
-  const destLetter = locationTypeCode(c.destination_type, null);
+  // Resolve origin/destination facility metadata so dialysis-subtype-driven
+  // letters (G hospital-based / J freestanding) match what
+  // queue-claims-for-submission.ts → generateEDI837P emits. Without this,
+  // the PDF would default to "D" (generic dialysis) while the EDI emits
+  // G or J, and the modifier pair would diverge from the actual SV1 line.
+  const facilityNames = [t.pickup_location, t.destination_location]
+    .map((n: string | null) => (n || "").trim()).filter(Boolean) as string[];
+  let originMeta: { facility_type: string | null; dialysis_subtype: string | null } | null = null;
+  let destMeta: { facility_type: string | null; dialysis_subtype: string | null } | null = null;
+  if (facilityNames.length) {
+    const { data: facs } = await (supabase as any)
+      .from("facilities")
+      .select("name,facility_type,dialysis_subtype")
+      .eq("company_id", c.company_id)
+      .in("name", facilityNames);
+    const byName: Record<string, any> = {};
+    (facs ?? []).forEach((f: any) => { byName[f.name] = f; });
+    const o = t.pickup_location ? byName[t.pickup_location.trim()] : null;
+    const d = t.destination_location ? byName[t.destination_location.trim()] : null;
+    if (o) originMeta = { facility_type: o.facility_type, dialysis_subtype: o.dialysis_subtype ?? null };
+    if (d) destMeta = { facility_type: d.facility_type, dialysis_subtype: d.dialysis_subtype ?? null };
+  }
+  const originLetter = locationTypeCode(c.origin_type, originMeta);
+  const destLetter = locationTypeCode(c.destination_type, destMeta);
+  const facilityPair = `${originLetter}${destLetter}`;
 
   // Service lines mirroring the generator's SV1 emission.
+  // The generator builds modifiers as ensureQn([facilityCode, ...hcpcs_modifiers])
+  // — a single origin/dest pair plus non-locational mods plus QN. Some claim
+  // records have a stale 2-letter location pair persisted in hcpcs_modifiers
+  // (legacy seed data); render only the resolved pair so the PDF matches the
+  // single SV1 line the EDI actually emits.
+  const isLocationPair = (m: string) =>
+    /^[A-Z]{2}$/.test(m) &&
+    LOCATION_CODE_TABLE[m[0]] !== undefined &&
+    LOCATION_CODE_TABLE[m[1]] !== undefined;
   const lines: ResolvedClaim["lines"] = [];
   const mods = (c.hcpcs_modifiers ?? []) as string[];
+  const nonLocMods = mods.filter((m) => !isLocationPair(m));
   const baseHcpcs = (c.hcpcs_codes ?? []).find((h: string) => h !== "A0425");
   if (baseHcpcs) {
     lines.push({
       hcpcs: baseHcpcs,
-      modifiers: [`${originLetter}${destLetter}`, ...mods.filter((m) => !/^[A-Z]{2}$/.test(m) || m === `${originLetter}${destLetter}` ? false : true)],
+      modifiers: [facilityPair, ...nonLocMods],
       units: 1,
       charge: Number(c.base_charge ?? 0),
     });
@@ -303,7 +336,7 @@ async function loadClaimEnvelope(claimId: string): Promise<ResolvedClaim> {
   if ((c.hcpcs_codes ?? []).includes("A0425") && (t.loaded_miles ?? 0) > 0) {
     lines.push({
       hcpcs: "A0425",
-      modifiers: [`${originLetter}${destLetter}`],
+      modifiers: [facilityPair],
       units: Number(t.loaded_miles ?? 0),
       charge: Number(c.mileage_charge ?? 0),
     });
