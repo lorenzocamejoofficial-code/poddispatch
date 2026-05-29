@@ -110,6 +110,13 @@ const PLACE_OF_SERVICE_41 = "41 — Ambulance (Land)";
 
 // ── Mirrors of generator helpers (NOT exported by generator; see header
 //    docblock for rationale on duplication). ────────────────────────────
+// CANONICAL SOURCE: src/lib/edi-837p-generator.ts locationTypeCode().
+// This is a byte-for-byte mirror. If this function changes, ALL FOUR copies
+// must change:
+//   1. src/lib/edi-837p-generator.ts          (canonical)
+//   2. src/lib/claim-review-pdf.ts            (this file)
+//   3. src/lib/billing-utils.ts               (locationModifierCode)
+//   4. public.derive_ambulance_modifier_letter (DB function, migration)
 function locationTypeCode(
   type: string | null,
   facilityMeta?: { facility_type?: string | null; dialysis_subtype?: string | null } | null,
@@ -119,17 +126,60 @@ function locationTypeCode(
     if (facilityMeta.dialysis_subtype === "freestanding") return "J";
     return "D";
   }
-  if (!type) return "R";
-  const t = type.toLowerCase();
-  if (t.includes("hospital outpatient") || t === "e") return "E";
-  if (t.includes("hospital inpatient") || t.includes("emergency room") || t === "h") return "H";
-  if (t.includes("dialysis") || t === "d") return "D";
-  if (t.includes("nursing") || t.includes("snf") || t === "n") return "N";
-  if (t.includes("scene") || t === "s") return "S";
-  if (t.includes("physician") || t.includes("doctor") || t === "p") return "P";
-  if (t.includes("site of transfer") || t.includes("ift") || t === "i") return "I";
-  if (t.includes("intermediate") || t === "x") return "X";
-  return "R";
+  if (!type || !type.trim()) {
+    throw new Error(
+      `claim-review-pdf: unmappable origin/destination type: ${JSON.stringify(type)} ` +
+      `— upstream did not populate origin_type/destination_type on the claim envelope.`
+    );
+  }
+  const t = type.trim().toLowerCase();
+
+  // Single-letter passthroughs (already CMS codes).
+  if (/^[degghijnprsx]$/.test(t)) return t.toUpperCase();
+
+  // E — Hospital emergency room (check BEFORE generic "hospital").
+  if (t.includes("emergency room") || t.includes("hospital er") || t === "er") return "E";
+
+  // G / J — explicit dialysis subtype strings (facilityMeta path already handled above).
+  if (t.includes("hospital-based dialysis") || t.includes("hospital based dialysis")) return "G";
+  if (t.includes("freestanding dialysis")) return "J";
+
+  // D — Diagnostic/therapeutic site, incl. generic dialysis when subtype unknown.
+  if (t.includes("dialysis") || t.includes("diagnostic") || t.includes("therapeutic")) return "D";
+
+  // H — Hospital (general, inpatient, outpatient). Must come AFTER ER check.
+  if (t.includes("hospital")) return "H";
+
+  // N — Skilled nursing facility.
+  if (t.includes("nursing") || t.includes("snf") || t.includes("skilled nursing")) return "N";
+
+  // S — Scene of accident / acute event.
+  if (t.includes("scene")) return "S";
+
+  // P — Physician's office.
+  if (t.includes("physician") || t.includes("doctor") || t.includes("clinic")) return "P";
+
+  // X — Intermediate stop at a physician's office en route to hospital.
+  if (t.includes("intermediate") && t.includes("physician")) return "X";
+
+  // I — Site of transfer (intermediate stop, generic).
+  if (t.includes("site of transfer") || t.includes("ift") || t.includes("intermediate")) return "I";
+
+  // R — Residence and residence-equivalents.
+  if (
+    t.includes("residence") ||
+    t.includes("home") ||
+    t.includes("assisted living") ||
+    t.includes("rehab") ||
+    t.includes("apartment") ||
+    t.includes("private")
+  ) return "R";
+
+  // No silent fallback. Loud failure mirrors generator behavior.
+  throw new Error(
+    `claim-review-pdf: unmappable origin/destination type: ${JSON.stringify(type)} ` +
+    `— add an explicit mapping in locationTypeCode() to one of D/E/G/H/I/J/N/P/R/S/X.`
+  );
 }
 
 function cr1ReasonCode(destinationType: string | null): "A" | "D" {
