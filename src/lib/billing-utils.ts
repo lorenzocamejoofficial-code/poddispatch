@@ -126,6 +126,11 @@ export function computeHcpcsCodes(trip: {
   destination_type?: string | null;
   origin_type?: string | null;
   assessment_json?: any;
+  // Pass 2 — Item 5: facility metadata so dialysis subtype (freestanding=J,
+  // hospital-based=G) can flow into the O/D pair instead of defaulting to D.
+  // Optional — when missing, the legacy substring-based fallback runs.
+  origin_facility_meta?: { facility_type?: string | null; dialysis_subtype?: string | null } | null;
+  destination_facility_meta?: { facility_type?: string | null; dialysis_subtype?: string | null } | null;
 }): { codes: string[]; modifiers: string[] } {
   // 1. Determine base transport code
   let baseCode: string;
@@ -153,8 +158,8 @@ export function computeHcpcsCodes(trip: {
   const modifiers: string[] = [];
 
   // Origin/Destination modifier pair (e.g. RH, HD, DR) — required by Medicare
-  const originLetter = locationModifierCode(trip.origin_type);
-  const destLetter = locationModifierCode(trip.destination_type);
+  const originLetter = locationModifierCode(trip.origin_type, trip.origin_facility_meta ?? null);
+  const destLetter = locationModifierCode(trip.destination_type, trip.destination_facility_meta ?? null);
   modifiers.push(`${originLetter}${destLetter}`);
 
   // QM — oxygen: check equipment_used_json for oxygen/O2 entries
