@@ -98,7 +98,9 @@ function computeActiveWeekdays(transportType: string, scheduleDays: string, recu
 export default function Patients() {
   useFocusScroll();
   const { activeCompanyId, role } = useAuth();
+  const { companyName } = useCompanyName();
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [viewPatient, setViewPatient] = useState<Patient | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [templatesView, setTemplatesView] = useState(false);
   const [saving, setSaving] = useState(false);
