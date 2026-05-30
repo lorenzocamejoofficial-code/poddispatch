@@ -93,6 +93,19 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
   const [odometerWarning, setOdometerWarning] = useState<string | null>(null);
   const [manualMilesOverride, setManualMilesOverride] = useState(false);
 
+  // Auto-fill Vehicle / Unit # from the assigned truck's name when blank so the
+  // crew doesn't have to retype what dispatch already knows. Crew can still edit.
+  const vehicleAutoFilledRef = useRef(false);
+  useEffect(() => {
+    if (isReadOnly) return;
+    if (vehicleAutoFilledRef.current) return;
+    const truckName = (trip as any)?.truck_name;
+    if (!trip?.vehicle_id && truckName) {
+      vehicleAutoFilledRef.current = true;
+      updateField("vehicle_id", truckName);
+    }
+  }, [trip?.vehicle_id, (trip as any)?.truck_name, isReadOnly, updateField]);
+
   const sequenceWarnings = getTimeSequenceWarnings(trip);
   const handleClearTimes = async () => {
     const fields = [
