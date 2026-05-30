@@ -43,6 +43,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ChevronLeft, Check, Loader2, Send, AlertCircle, Lock, AlertTriangle, Eye, Ban } from "lucide-react";
+import { FileText } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -611,6 +612,16 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     kicked_back: { label: "Returned", color: "bg-destructive/10 text-destructive border-destructive/30" },
   };
 
+  const TRANSPORT_COLORS: Record<string, string> = {
+    dialysis: "bg-primary/10 text-primary",
+    outpatient: "bg-accent text-accent-foreground",
+    ift: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+    discharge: "bg-muted text-muted-foreground",
+    outpatient_specialty: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400",
+    private_pay: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
+    emergency: "bg-destructive/10 text-destructive",
+  };
+
   if (inspectionGated) {
     return (
       <div className="flex flex-col items-center justify-center p-10 space-y-4 text-center">
@@ -634,30 +645,40 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
         const pcr = PCR_STATUS_CONFIG[run.pcrStatus] ?? PCR_STATUS_CONFIG.not_started;
 
         return (
-          <button
+          <div
             key={run.legId}
-            onClick={() => handleSelect(run)}
-            disabled={isCancelled || creating === run.legId}
             className={cn(
-              "w-full text-left rounded-lg border p-4 transition-colors",
-              isCancelled
-                ? "bg-muted/40 opacity-60 cursor-not-allowed"
-                : "bg-card hover:bg-accent/50 cursor-pointer"
+              "border border-border rounded-lg bg-card px-4 py-3",
+              isCancelled && "bg-muted/40 opacity-60"
             )}
           >
-            <div className="flex items-start gap-3">
-              <Badge variant="secondary" className={cn(
-                "text-xs px-1.5 py-0 mt-0.5 shrink-0",
-                run.legType === "A" ? "bg-primary/10 text-primary" : run.legType === "B" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" : ""
-              )}>
+            <div className="flex items-start gap-2">
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "text-[10px] px-1.5 py-0 mt-0.5 shrink-0",
+                  run.legType === "A" ? "bg-primary/10 text-primary" : run.legType === "B" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" : ""
+                )}
+              >
                 {run.legType}
               </Badge>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-foreground truncate">{run.patientName}</p>
-                <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                  {run.pickupTime && <><span className="font-medium">@ {run.pickupTime?.substring(0,5)}</span> · </>}
-                  {run.pickupLocation} → {run.destinationLocation}
-                </p>
+                <p className="text-sm font-medium text-foreground truncate">{run.patientName}</p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  {run.pickupTime && (
+                    <span className="text-xs text-muted-foreground font-mono">{run.pickupTime?.substring(0, 5)}</span>
+                  )}
+                  {run.tripType && (
+                    <Badge variant="secondary" className={cn("text-[10px] px-1.5 py-0", TRANSPORT_COLORS[run.tripType])}>
+                      {run.tripType.replace(/_/g, " ")}
+                    </Badge>
+                  )}
+                </div>
+                {(run.pickupLocation || run.destinationLocation) && (
+                  <p className="text-xs text-muted-foreground mt-1 truncate">
+                    {run.pickupLocation ?? "—"} → {run.destinationLocation ?? "—"}
+                  </p>
+                )}
               </div>
               <div className="shrink-0">
                 {isCancelled ? (
@@ -667,20 +688,43 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
                   </span>
                 ) : creating === run.legId ? (
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                ) : (
-                  <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold", pcr.color)}>
-                    {run.pcrStatus === "not_started" ? "Start PCR" :
-                     run.pcrStatus === "in_progress" ? "Continue" :
-                     run.pcrStatus === "submitted" ? "View" :
-                     run.pcrStatus === "kicked_back" ? "Correct" : pcr.label}
-                  </span>
-                )}
+                ) : run.pcrStatus === "not_started" ? (
+                  <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => handleSelect(run)}>
+                    <FileText className="h-3 w-3" /> Start
+                  </Button>
+                ) : run.pcrStatus === "in_progress" ? (
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-amber-300 text-amber-700" onClick={() => handleSelect(run)}>
+                    <FileText className="h-3 w-3" /> Continue
+                  </Button>
+                ) : run.pcrStatus === "kicked_back" ? (
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-destructive/40 text-destructive" onClick={() => handleSelect(run)}>
+                    <AlertTriangle className="h-3 w-3" /> Correct
+                  </Button>
+                ) : (run.pcrStatus === "completed" || run.pcrStatus === "submitted") ? (
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => handleSelect(run)}>
+                    <Eye className="h-3 w-3" /> View
+                  </Button>
+                ) : null}
               </div>
             </div>
+
+            <div className="mt-2 flex items-center gap-1.5">
+              <span className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                run.pcrStatus === "not_started" ? "bg-muted-foreground" :
+                run.pcrStatus === "in_progress" ? "bg-amber-500" :
+                run.pcrStatus === "kicked_back" ? "bg-destructive" :
+                (run.pcrStatus === "completed" || run.pcrStatus === "submitted") ? "bg-emerald-500" : "bg-muted-foreground"
+              )} />
+              <span className="text-[10px] text-muted-foreground capitalize">
+                {pcr.label}
+              </span>
+            </div>
+
             {isCancelled && run.cancellationReason && (
               <p className="text-xs text-muted-foreground italic mt-2 pl-8">Reason: {run.cancellationReason}</p>
             )}
-          </button>
+          </div>
         );
       })}
 
