@@ -42,7 +42,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
       { q: "What is the Run Pool?", a: "The Run Pool shows all unassigned runs for the selected day. Runs are automatically generated for recurring patients — dialysis patients on their scheduled days, outpatient patients on their appointment days. You can also add one-off runs manually using Add Leg on a truck." },
       { q: "What does Auto-Fill do?", a: "Auto-Fill generates A and B legs from your recurring patient schedules for the selected date and places them all in the unassigned pool. Use it each morning to populate the day then assign runs to trucks." },
       { q: "Why is a run showing as unsafe?", a: "The safety check compares what the patient needs — bariatric stretcher, oxygen, stair chair — against what the assigned truck has. If the truck is missing required equipment the run shows as unsafe." },
-      { q: "How do I assign crew to a truck?", a: "Crew assignment happens on the Dispatch Command page. Changes made there will update this page automatically within a few seconds." },
+      { q: "How do I assign crew to a truck?", a: "Crew assignment for a specific day happens on Trucks & Crews. Pick the truck and day, choose 1, 2, or 3 crew members, and save. The assignment shows up here and on the Dispatch Command within a few seconds." },
     ],
   },
 
