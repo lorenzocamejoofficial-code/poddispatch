@@ -197,6 +197,21 @@ export function usePCRData(
         console.warn(`Trip ${tripId} has no patient_id — patient info card will be empty`);
       }
 
+      // Fetch truck name so PCR can auto-fill the Vehicle / Unit # field
+      let truck_name: string | null = null;
+      if (data.truck_id) {
+        const { data: tData, error: tErr } = await supabase
+          .from("trucks")
+          .select("name")
+          .eq("id", data.truck_id)
+          .maybeSingle();
+        if (tErr) {
+          console.error("Truck fetch error for truck_id", data.truck_id, tErr);
+        } else if (tData) {
+          truck_name = tData.name ?? null;
+        }
+      }
+
       setTrip({
         ...data,
         vitals_json: Array.isArray(data.vitals_json) ? data.vitals_json : [],
@@ -223,6 +238,7 @@ export function usePCRData(
         leg_type,
         chair_time,
         patient,
+        truck_name,
       } as PCRTripData);
     } else {
       // Distinguish RLS denial from genuine not-found by probing audit_logs.
