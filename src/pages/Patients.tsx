@@ -1805,7 +1805,14 @@ export default function Patients() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-card-foreground">{p.first_name} {p.last_name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setViewPatient(p)}
+                            className="font-medium text-card-foreground hover:text-primary hover:underline underline-offset-2 text-left"
+                            title="View patient profile, trips, and claims"
+                          >
+                            {p.first_name} {p.last_name}
+                          </button>
                           {(p as any).is_template && (
                             <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/40 text-primary gap-1">
                               <FlaskConical className="h-2.5 w-2.5" />
