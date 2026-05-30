@@ -1986,6 +1986,16 @@ export default function Patients() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* View Patient dialog — read-only profile, trips, claims */}
+      <PatientViewDialog
+        patient={viewPatient}
+        onOpenChange={(o) => { if (!o) setViewPatient(null); }}
+      />
+
+      {/* Claim timeline drawer — opened from Claims tab inside PatientViewDialog.
+          URL-driven (?claim=); closing it does not affect the View dialog. */}
+      <ClaimTimelineDrawer />
     </AdminLayout>
   );
 }
