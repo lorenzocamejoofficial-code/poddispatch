@@ -41,6 +41,8 @@ const TIMES_FIELDS: FieldRequirement[] = [
   { field: "loaded_miles", label: "Loaded Miles", section: "times", check: (t) => t.loaded_miles != null && t.loaded_miles >= 0 },
   { field: "origin_type", label: "Origin Type", section: "times", check: (t) => hasValue(t.origin_type) },
   { field: "destination_type", label: "Destination Type", section: "times", check: (t) => hasValue(t.destination_type) },
+  { field: "odometer_at_scene", label: "Odometer at Scene", section: "times", check: (t) => t.odometer_at_scene != null },
+  { field: "odometer_at_destination", label: "Odometer at Destination", section: "times", check: (t) => t.odometer_at_destination != null },
 ];
 
 const ODOMETER_FIELDS: FieldRequirement[] = [
