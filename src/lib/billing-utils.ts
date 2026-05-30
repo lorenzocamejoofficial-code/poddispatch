@@ -50,6 +50,11 @@ export const HCPCS_CODE_DESCRIPTIONS: Record<string, string> = {
  *    2. src/lib/claim-review-pdf.ts            (mirror)
  *    3. src/lib/billing-utils.ts               (this file)
  *    4. public.derive_ambulance_modifier_letter (DB function, migration) */
+// Pass 2 — Item 5: callers of computeHcpcsCodes() should pass
+// origin_facility_meta / destination_facility_meta whenever facility records
+// are loaded so dialysis subtype produces G or J instead of falling back to D.
+// The EDI generator strips any persisted location pair and asserts exactly
+// one pair on every SV1 line — see edi-837p-generator.ts §SERVICE LINES.
 function locationModifierCode(
   type: string | null,
   facilityMeta?: { facility_type?: string | null; dialysis_subtype?: string | null } | null
