@@ -781,6 +781,43 @@ export default function Patients() {
     }));
   };
 
+  // Pass 2 — Item 1: auto-populate Standing ICDs + chief complaint + primary
+  // impression on dialog open. resetForm() (Add Patient) and openEdit() (Edit)
+  // both initialize transport_type without firing handleTransportTypeChange,
+  // which left defaults blank on first render. This effect fills any blank
+  // defaults whenever the dialog is opened or the transport type changes
+  // outside the explicit handler.
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const defaults = TRANSPORT_TYPE_DEFAULTS[form.transport_type];
+    if (!defaults) return;
+    setForm(prev => {
+      const next = { ...prev };
+      let changed = false;
+      if (!prev.default_chief_complaint && defaults.chief_complaint) {
+        next.default_chief_complaint = defaults.chief_complaint; changed = true;
+      }
+      if (!prev.default_primary_impression && defaults.primary_impression) {
+        next.default_primary_impression = defaults.primary_impression; changed = true;
+      }
+      if ((!prev.icd10_codes || prev.icd10_codes.length === 0) && defaults.icd10_codes.length > 0) {
+        next.icd10_codes = [...defaults.icd10_codes]; changed = true;
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogOpen, form.transport_type]);
+
+  // Whether currently shown standing ICDs equal the transport-type defaults
+  // (i.e. were auto-filled and not customized). Drives the inline hint.
+  const icdsAreAutoFilled = useMemo(() => {
+    const defaults = TRANSPORT_TYPE_DEFAULTS[form.transport_type]?.icd10_codes ?? [];
+    if (defaults.length === 0 || form.icd10_codes.length !== defaults.length) return false;
+    const a = [...form.icd10_codes].sort();
+    const b = [...defaults].sort();
+    return a.every((c, i) => c === b[i]);
+  }, [form.transport_type, form.icd10_codes]);
+
   // Compute B-leg earliest for display in recurrence section
   const bLegEarliestDisplay = form.transport_type === "dialysis" && form.chair_time
     ? getEarliestBLegPickup(form.chair_time, parseInt(form.chair_time_duration_hours) || 0, parseInt(form.chair_time_duration_minutes) || 0)
@@ -1220,8 +1257,9 @@ export default function Patients() {
                         </Select>
                       </div>
                       <div>
-                        <Label>Trips/Week Limit<PCRTooltip text={ADMIN_TOOLTIPS.trips_per_week_limit} /></Label>
+                        <Label>One-way Trips/Week Limit<PCRTooltip text={ADMIN_TOOLTIPS.trips_per_week_limit} /></Label>
                         <Input type="number" value={form.trips_per_week_limit} onChange={e => setForm({ ...form, trips_per_week_limit: e.target.value })} placeholder="No limit" />
+                        <p className="text-[10px] text-muted-foreground mt-1">Counts each direction. A round-trip dialysis day = 2 legs.</p>
                       </div>
                     </div>
 
@@ -1267,15 +1305,51 @@ export default function Patients() {
                       </label>
                     </div>
                     <div className="flex flex-wrap gap-4">
-                      {[
-                        { key: "oxygen_required" as const, label: "Oxygen Required", tooltip: ADMIN_TOOLTIPS.oxygen_required },
-                        { key: "standing_order" as const, label: "Standing Order", tooltip: ADMIN_TOOLTIPS.standing_order },
-                      ].map(f => (
-                        <label key={f.key} className="flex items-center gap-2 text-sm cursor-pointer">
-                          <input type="checkbox" checked={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.checked })} className="accent-primary" />
-                          {f.label}<PCRTooltip text={f.tooltip} />
-                        </label>
-                      ))}
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={form.oxygen_required}
+                          onChange={e => setForm({ ...form, oxygen_required: e.target.checked })}
+                          className="accent-primary"
+                        />
+                        Oxygen Required<PCRTooltip text={ADMIN_TOOLTIPS.oxygen_required} />
+                      </label>
+                    </div>
+                    <div className="rounded-md border bg-muted/30 p-3 space-y-1">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={form.standing_order}
+                          onChange={e => setForm({ ...form, standing_order: e.target.checked })}
+                          className="accent-primary"
+                        />
+                        <span className="font-medium">Standing Physician Order on File</span>
+                        <PCRTooltip text={ADMIN_TOOLTIPS.standing_order} />
+                      </label>
+                      <p className="text-[11px] text-muted-foreground pl-6">
+                        Physician's signed order on file — separate from the schedule. Upload the signed document under{" "}
+                        {editing ? (
+                          <button
+                            type="button"
+                            className="underline text-primary hover:text-primary/80"
+                            onClick={() => {
+                              const el = document.querySelector('[data-section="documents"]');
+                              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }}
+                          >
+                            Documents
+                          </button>
+                        ) : (
+                          <span className="font-medium">Documents</span>
+                        )}
+                        {!editing && " (available after saving this patient)"}
+                        {" "}with document type <span className="font-mono text-foreground">Standing Order</span>.
+                      </p>
+                      {form.standing_order && !editing && (
+                        <p className="text-[11px] text-amber-700 dark:text-amber-400 pl-6">
+                          Reminder: save the patient, then return here to upload the signed order.
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -1291,7 +1365,7 @@ export default function Patients() {
                       </CollapsibleTrigger>
                       <CollapsibleContent className="space-y-3 mt-3">
                          <div data-focus="icd10">
-                          <Label>Standing ICD-10 Codes</Label>
+                          <Label>Standing ICD-10 Codes<PCRTooltip text={ADMIN_TOOLTIPS.icd10_codes_default} /></Label>
                           <div className={ringIfMissing("icd10_codes")}>
                             <ICD10Picker
                               selectedCodes={form.icd10_codes}
@@ -1300,10 +1374,15 @@ export default function Patients() {
                               patientPayer={form.primary_payer}
                             />
                           </div>
+                          {icdsAreAutoFilled && (
+                            <p className="text-[11px] text-muted-foreground mt-1">
+                              Auto-filled from transport type <span className="font-mono">{form.transport_type}</span> — edit to customize per patient.
+                            </p>
+                          )}
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <Label>Default Chief Complaint</Label>
+                            <Label>Default Chief Complaint<PCRTooltip text={ADMIN_TOOLTIPS.default_chief_complaint} /></Label>
                             <Select
                               value={form.default_chief_complaint || "none"}
                               onValueChange={(v) => {
@@ -1337,7 +1416,7 @@ export default function Patients() {
                             )}
                           </div>
                           <div>
-                            <Label>Default Primary Impression</Label>
+                            <Label>Default Primary Impression<PCRTooltip text={ADMIN_TOOLTIPS.default_primary_impression} /></Label>
                             <Select
                               value={form.default_primary_impression || "none"}
                               onValueChange={(v) => {
@@ -1371,7 +1450,7 @@ export default function Patients() {
                           </div>
                         </div>
                         <div>
-                          <Label>Medical Necessity Reason</Label>
+                          <Label>Medical Necessity Reason<PCRTooltip text={ADMIN_TOOLTIPS.default_medical_necessity_reason} /></Label>
                           <Select value={form.default_medical_necessity_reason || "none"} onValueChange={(v) => setForm({ ...form, default_medical_necessity_reason: v === "none" ? "" : v })}>
                             <SelectTrigger className={ringIfMissing("default_medical_necessity_reason")}><SelectValue placeholder="Select" /></SelectTrigger>
                             <SelectContent className="max-h-72">
@@ -1383,14 +1462,14 @@ export default function Patients() {
                         <div className="space-y-2">
                           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Medical Necessity Criteria</p>
                           {[
-                            { key: "default_bed_confined" as const, label: "Bed confined at origin" },
-                            { key: "default_cannot_transfer" as const, label: "Cannot safely transfer without stretcher" },
-                            { key: "default_requires_monitoring" as const, label: "Requires medical monitoring during transport" },
-                            { key: "default_oxygen_transport" as const, label: "Oxygen required during transport" },
+                            { key: "default_bed_confined" as const, label: "Bed confined at origin", tip: ADMIN_TOOLTIPS.default_bed_confined },
+                            { key: "default_cannot_transfer" as const, label: "Cannot safely transfer without stretcher", tip: ADMIN_TOOLTIPS.default_cannot_transfer },
+                            { key: "default_requires_monitoring" as const, label: "Requires medical monitoring during transport", tip: ADMIN_TOOLTIPS.default_requires_monitoring },
+                            { key: "default_oxygen_transport" as const, label: "Oxygen required during transport", tip: ADMIN_TOOLTIPS.default_oxygen_transport },
                           ].map((f) => (
                             <label key={f.key} className="flex items-center gap-2 text-sm cursor-pointer">
                               <input type="checkbox" checked={form[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.checked })} className="accent-primary" />
-                              {f.label}
+                              {f.label}<PCRTooltip text={f.tip} />
                             </label>
                           ))}
                         </div>
@@ -1400,7 +1479,7 @@ export default function Patients() {
                           <div className="space-y-3 rounded-md border border-dashed p-3">
                             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Behavioral Health Defaults</p>
                             <div>
-                              <Label>Default Authorization Type</Label>
+                              <Label>Default Authorization Type<PCRTooltip text={ADMIN_TOOLTIPS.default_bh_authorization_type} /></Label>
                               <Select value={form.default_bh_authorization_type || "none"} onValueChange={(v) => setForm({ ...form, default_bh_authorization_type: v === "none" ? "" : v })}>
                                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                                 <SelectContent>
@@ -1410,16 +1489,16 @@ export default function Patients() {
                               </Select>
                             </div>
                             <div>
-                              <Label>Authorizing Facility</Label>
+                              <Label>Authorizing Facility<PCRTooltip text={ADMIN_TOOLTIPS.default_bh_authorizing_facility} /></Label>
                               <Input value={form.default_bh_authorizing_facility} onChange={(e) => setForm({ ...form, default_bh_authorizing_facility: e.target.value })} />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div>
-                                <Label>Authorizing Physician Name</Label>
+                                <Label>Authorizing Physician Name<PCRTooltip text={ADMIN_TOOLTIPS.default_bh_authorizing_physician_name} /></Label>
                                 <Input value={form.default_bh_authorizing_physician_name} onChange={(e) => setForm({ ...form, default_bh_authorizing_physician_name: e.target.value })} />
                               </div>
                               <div>
-                                <Label>Authorizing Physician NPI</Label>
+                                <Label>Authorizing Physician NPI<PCRTooltip text={ADMIN_TOOLTIPS.default_bh_authorizing_physician_npi} /></Label>
                                 <Input value={form.default_bh_authorizing_physician_npi} onChange={(e) => setForm({ ...form, default_bh_authorizing_physician_npi: e.target.value })} />
                               </div>
                             </div>
@@ -1431,7 +1510,7 @@ export default function Patients() {
                           <div className="space-y-3 rounded-md border border-dashed p-3">
                             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Wound Care Defaults</p>
                             <div>
-                              <Label>Default Wound Type</Label>
+                              <Label>Default Wound Type<PCRTooltip text={ADMIN_TOOLTIPS.default_wound_type} /></Label>
                               <Select value={form.default_wound_type || "none"} onValueChange={(v) => setForm({ ...form, default_wound_type: v === "none" ? "" : v })}>
                                 <SelectTrigger className={ringIfMissing("default_wound_type")}><SelectValue placeholder="Select" /></SelectTrigger>
                                 <SelectContent>
@@ -1441,11 +1520,11 @@ export default function Patients() {
                               </Select>
                             </div>
                             <div>
-                              <Label>Default Wound Location</Label>
+                              <Label>Default Wound Location<PCRTooltip text={ADMIN_TOOLTIPS.default_wound_location} /></Label>
                               <Input className={ringIfMissing("default_wound_location")} value={form.default_wound_location} onChange={(e) => setForm({ ...form, default_wound_location: e.target.value })} placeholder="e.g. left heel, sacrum" />
                             </div>
                             <div>
-                              <Label>Default Wound Stage</Label>
+                              <Label>Default Wound Stage<PCRTooltip text={ADMIN_TOOLTIPS.default_wound_stage} /></Label>
                               <Select value={form.default_wound_stage || "none"} onValueChange={(v) => setForm({ ...form, default_wound_stage: v === "none" ? "" : v })}>
                                 <SelectTrigger className={ringIfMissing("default_wound_stage")}><SelectValue placeholder="Select stage" /></SelectTrigger>
                                 <SelectContent>
@@ -1564,7 +1643,7 @@ export default function Patients() {
 
                   {/* Documents section — visible only when editing */}
                   {editing && (
-                    <div className="border-t pt-3">
+                    <div className="border-t pt-3" data-section="documents">
                       <DocumentAttachments
                         recordType="patient"
                         recordId={editing.id}

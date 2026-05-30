@@ -117,6 +117,11 @@ const PLACE_OF_SERVICE_41 = "41 — Ambulance (Land)";
 //   2. src/lib/claim-review-pdf.ts            (this file)
 //   3. src/lib/billing-utils.ts               (locationModifierCode)
 //   4. public.derive_ambulance_modifier_letter (DB function, migration)
+//
+// Pass 2 — Item 5: the canonical generator now ALSO strips any persisted
+// 2-letter O/D pair from claim.hcpcs_modifiers before merging, and asserts
+// exactly one pair lands on each SV1 line. This PDF mirror has equivalent
+// strip logic in loadClaimEnvelope() (see comment near `isLocationPair`).
 function locationTypeCode(
   type: string | null,
   facilityMeta?: { facility_type?: string | null; dialysis_subtype?: string | null } | null,

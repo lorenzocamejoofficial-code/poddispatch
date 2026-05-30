@@ -6016,10 +6016,16 @@ export type Database = {
         Args: { _is_emergency: boolean; _service_level: string }
         Returns: string
       }
-      derive_ambulance_modifier_letter: {
-        Args: { _loc_type: string }
-        Returns: string
-      }
+      derive_ambulance_modifier_letter:
+        | { Args: { _loc_type: string }; Returns: string }
+        | {
+            Args: {
+              _dialysis_subtype: string
+              _facility_type: string
+              _loc_type: string
+            }
+            Returns: string
+          }
       dismiss_claim_creation_failure: {
         Args: { p_failure_id: string }
         Returns: Json
