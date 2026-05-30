@@ -347,6 +347,233 @@ export default function LegalPage() {
               <p>Security incidents — suspected or confirmed — can be reported to PodDispatch LLC by contacting support through the platform or by emailing <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a>. Please include the operator company name, a description of what was observed, the time of observation, and any system messages or screenshots if available.</p>
             </article>
           </TabsContent>
+
+          <TabsContent value="subscription">
+            <article className="prose prose-sm dark:prose-invert max-w-none mt-6">
+              <h2>PodDispatch Subscription &amp; Billing Terms</h2>
+              <p className="text-muted-foreground text-sm">Version 1.0 — Effective May 2026</p>
+
+              <h3>1. Scope</h3>
+              <p>These Subscription &amp; Billing Terms supplement the PodDispatch Terms of Service and govern all paid use of the platform. In the event of a conflict between these terms and the Terms of Service on a billing matter, these terms control.</p>
+
+              <h3>2. Subscription Model</h3>
+              <p>PodDispatch is sold as a recurring monthly software-as-a-service subscription on a per-company basis. Subscriptions begin on the date the operator submits valid payment information and converts from any trial to a paid plan. All subscriptions automatically renew on the same calendar day each month until cancelled.</p>
+
+              <h3>3. Free Trial</h3>
+              <p>New operator accounts may be offered a free trial of up to 45 days. Trials do not require a payment method until conversion. At the end of the trial period the account will be suspended unless the operator has entered a valid payment method and authorized recurring charges. Trial data is preserved during the suspended-pending-payment grace period described below.</p>
+
+              <h3>4. Fees and Taxes</h3>
+              <p>Current subscription fees are displayed in-app at sign-up and on the account settings page. Fees are quoted in US dollars and are exclusive of applicable sales, use, VAT, GST, or other transaction taxes, which will be added to the invoice where required by law. PodDispatch may modify subscription fees on at least 30 days&#x2019; written or in-app notice; new fees take effect at the next renewal.</p>
+
+              <h3>5. Payment Processing</h3>
+              <p>All subscription payments are processed by Stripe, Inc. By providing a payment method the operator authorizes PodDispatch and Stripe to charge that payment method on each renewal date for the then-current subscription fee and any applicable taxes. PodDispatch does not store full payment card numbers on its own infrastructure.</p>
+
+              <h3>6. Failed Payment and Grace Period</h3>
+              <p>If a recurring charge fails, PodDispatch will retry the charge through the standard Stripe retry schedule for up to 7 days. During this grace period the account remains active and the operator will receive in-app and email notifications. If payment is not successfully captured within 7 days, the account will be suspended: users will be locked out of dispatch, scheduling, ePCR, and billing features, but operator data is preserved. Accounts may be reactivated at any time within 30 days of suspension by updating the payment method and clearing the past-due balance.</p>
+
+              <h3>7. Cancellation</h3>
+              <p>Operators may cancel their subscription at any time through the account settings. Cancellation takes effect at the end of the then-current billing period. The account remains fully functional through that date and is then placed in a 30-day read-only export window before deletion procedures described in the Data Retention Policy begin. <strong>Cancellation does not trigger any refund of fees already paid.</strong></p>
+
+              <h3>8. No Refunds</h3>
+              <p>Except as expressly required by applicable law, <strong>all subscription fees are non-refundable</strong>. PodDispatch does not issue refunds, partial refunds, prorated refunds, or credits for:</p>
+              <ul>
+                <li>Unused portions of a billing period following voluntary cancellation;</li>
+                <li>Periods during which the operator chose not to use the platform;</li>
+                <li>Downgrades, role reductions, or removal of employees mid-cycle;</li>
+                <li>Accounts suspended or terminated for violation of the Terms of Service, Acceptable Use Policy, or Business Associate Agreement; or</li>
+                <li>Dissatisfaction with platform features, performance, or claim outcomes.</li>
+              </ul>
+              <p>Goodwill service credits for extended platform-wide outages, if any, are described in the Service Level document and are applied to the next invoice rather than refunded as cash.</p>
+
+              <h3>9. Chargebacks and Disputes</h3>
+              <p>Operators are expected to contact PodDispatch support before initiating a chargeback with their card issuer. Chargebacks filed without first contacting support may result in immediate suspension of the account pending resolution. PodDispatch reserves the right to dispute any chargeback it believes to be filed in bad faith.</p>
+
+              <h3>10. Plan Changes</h3>
+              <p>If PodDispatch offers tiered plans, upgrades take effect immediately and the operator will be charged a prorated difference for the remainder of the current billing period. Downgrades take effect at the next renewal and no credit is issued for unused features in the current period.</p>
+
+              <h3>11. Past Due Accounts</h3>
+              <p>Amounts not paid when due may accrue interest at the lesser of 1.5% per month or the maximum rate permitted by law. PodDispatch may also recover reasonable costs of collection, including attorneys&#x2019; fees.</p>
+
+              <h3>12. Contact</h3>
+              <p>For billing questions contact <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a>.</p>
+            </article>
+          </TabsContent>
+
+          <TabsContent value="sla">
+            <article className="prose prose-sm dark:prose-invert max-w-none mt-6">
+              <h2>PodDispatch Service Level Document</h2>
+              <p className="text-muted-foreground text-sm">Version 1.0 — Effective May 2026</p>
+
+              <h3>1. Purpose</h3>
+              <p>This Service Level document describes PodDispatch&#x2019;s target availability for the platform and the limited service-credit remedy that may be available to paying operators in the event of an extended platform-wide outage. Nothing in this document is intended to create a guarantee of uninterrupted service.</p>
+
+              <h3>2. Target Availability</h3>
+              <p>PodDispatch targets <strong>99.5% monthly uptime</strong> for the production platform, measured on a per-calendar-month basis and excluding the items in section 4. This is a target, not a contractual guarantee.</p>
+
+              <h3>3. Definition of Downtime</h3>
+              <p>"Downtime" means a sustained period of five (5) or more continuous minutes during which the core dispatch, scheduling, ePCR, and billing modules are unreachable for all operators due to an issue within PodDispatch&#x2019;s direct control. Slow performance, individual feature regressions, and outages affecting a single operator or a small subset of operators are not counted as downtime under this document.</p>
+
+              <h3>4. Exclusions</h3>
+              <p>The following periods are excluded from downtime calculations:</p>
+              <ul>
+                <li>Scheduled maintenance announced at least 24 hours in advance.</li>
+                <li>Emergency maintenance required to address a security vulnerability.</li>
+                <li>Outages caused by third-party services outside PodDispatch&#x2019;s control, including but not limited to Lovable Cloud, Stripe, Office Ally, Twilio, the operator&#x2019;s internet connection, or the operator&#x2019;s clearinghouse trading partner.</li>
+                <li>Outages caused by misuse, misconfiguration, or unauthorized modification by the operator or its workforce.</li>
+                <li>Force majeure events including but not limited to natural disasters, denial-of-service attacks, or government action.</li>
+              </ul>
+
+              <h3>5. Service Credits</h3>
+              <p>If monthly uptime (after exclusions) falls below the target, an operator on a paid plan may request a service credit applied to the next invoice as follows:</p>
+              <ul>
+                <li>Below 99.5% but at or above 99.0% — 5% of that month&#x2019;s subscription fee.</li>
+                <li>Below 99.0% but at or above 95.0% — 10% of that month&#x2019;s subscription fee.</li>
+                <li>Below 95.0% — 25% of that month&#x2019;s subscription fee.</li>
+              </ul>
+              <p>Service credits are the operator&#x2019;s <strong>sole and exclusive remedy</strong> for any failure to meet the availability target. Credits are not paid as cash, are not refunds, do not stack across months, and expire if the account is cancelled before the credit is applied.</p>
+
+              <h3>6. How to Request a Credit</h3>
+              <p>To request a credit, the operator must submit a written request to <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a> within 30 days of the end of the affected month. The request must identify the affected dates and approximate times. PodDispatch will review internal monitoring data and respond within 15 business days.</p>
+
+              <h3>7. Support Response Targets</h3>
+              <p>In addition to availability, PodDispatch targets the following initial-response times for in-app support tickets (measured during US business hours):</p>
+              <ul>
+                <li><strong>Urgent</strong> (platform-wide outage, billing blocked, PHI exposure suspected): within 4 hours.</li>
+                <li><strong>High</strong> (single tenant blocked from completing a run or claim): within 1 business day.</li>
+                <li><strong>Normal</strong> (bug or question that does not block operations): within 2 business days.</li>
+                <li><strong>Low</strong> (cosmetic issues, feature requests): best effort.</li>
+              </ul>
+              <p>Response targets are not credit-bearing and may be adjusted during the pilot period as described in the Pilot Addendum.</p>
+            </article>
+          </TabsContent>
+
+          <TabsContent value="subprocessors">
+            <article className="prose prose-sm dark:prose-invert max-w-none mt-6">
+              <h2>PodDispatch Subprocessors</h2>
+              <p className="text-muted-foreground text-sm">Version 1.0 — Effective May 2026</p>
+
+              <h3>Purpose</h3>
+              <p>PodDispatch LLC engages a limited number of third-party service providers ("subprocessors") to deliver the platform. Each subprocessor is contractually bound to protect operator data, including PHI where applicable, to a standard at least as strict as the Business Associate Agreement between PodDispatch and the operator.</p>
+
+              <h3>Current Subprocessors</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left py-2 pr-3">Subprocessor</th>
+                      <th className="text-left py-2 pr-3">Purpose</th>
+                      <th className="text-left py-2 pr-3">PHI Access</th>
+                      <th className="text-left py-2">Location</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-border/60">
+                      <td className="py-2 pr-3"><strong>Lovable Cloud</strong><br/><span className="text-xs text-muted-foreground">(Supabase, Inc.)</span></td>
+                      <td className="py-2 pr-3">Managed database, authentication, file storage, and serverless function infrastructure.</td>
+                      <td className="py-2 pr-3">Yes — BAA in place</td>
+                      <td className="py-2">United States</td>
+                    </tr>
+                    <tr className="border-b border-border/60">
+                      <td className="py-2 pr-3"><strong>Stripe, Inc.</strong></td>
+                      <td className="py-2 pr-3">Subscription billing and payment processing for the PodDispatch platform fee.</td>
+                      <td className="py-2 pr-3">No — no PHI shared</td>
+                      <td className="py-2">United States</td>
+                    </tr>
+                    <tr className="border-b border-border/60">
+                      <td className="py-2 pr-3"><strong>Office Ally</strong></td>
+                      <td className="py-2 pr-3">Optional clearinghouse for eligibility verification, 837P claim submission, and 835 remittance retrieval. Used only if the operator configures their own trading partner credentials.</td>
+                      <td className="py-2 pr-3">Yes — operator&#x2019;s direct trading partner agreement applies</td>
+                      <td className="py-2">United States</td>
+                    </tr>
+                    <tr className="border-b border-border/60">
+                      <td className="py-2 pr-3"><strong>Resend</strong></td>
+                      <td className="py-2 pr-3">Transactional and account email delivery (invitations, password resets, schedule notifications, support replies).</td>
+                      <td className="py-2 pr-3">Limited — email body may contain operator and patient identifiers in notification context</td>
+                      <td className="py-2">United States</td>
+                    </tr>
+                    <tr className="border-b border-border/60">
+                      <td className="py-2 pr-3"><strong>Twilio</strong></td>
+                      <td className="py-2 pr-3">Outbound voice calls for dispatch confirmation and patient reminders, when enabled by the operator.</td>
+                      <td className="py-2 pr-3">Limited — call metadata may contain patient phone number</td>
+                      <td className="py-2">United States</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <h3>Adding or Changing Subprocessors</h3>
+              <p>PodDispatch will update this page when a new subprocessor is engaged or an existing one is replaced. Operators that wish to receive proactive notice of subprocessor changes may subscribe by emailing <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a> with the subject line "Subprocessor Notice".</p>
+
+              <h3>Operator-Controlled Integrations</h3>
+              <p>Operators may independently configure additional third-party integrations through the platform (for example, their own clearinghouse, EHR, or accounting system). Those integrations are not PodDispatch subprocessors and are governed by the operator&#x2019;s direct agreement with that third party.</p>
+            </article>
+          </TabsContent>
+
+          <TabsContent value="cookies">
+            <article className="prose prose-sm dark:prose-invert max-w-none mt-6">
+              <h2>PodDispatch Cookies &amp; Tracking Notice</h2>
+              <p className="text-muted-foreground text-sm">Version 1.0 — Effective May 2026</p>
+
+              <h3>1. Overview</h3>
+              <p>PodDispatch is a workforce-facing operational platform, not a consumer marketing site. We use only the cookies and similar storage technologies that are strictly necessary to operate the platform.</p>
+
+              <h3>2. What We Use</h3>
+              <ul>
+                <li><strong>Authentication tokens</strong> stored in secure, http-only browser storage to keep your session active and to remember which company you are signed in to.</li>
+                <li><strong>Functional preferences</strong> stored in local browser storage, such as your selected company, sidebar state, last-viewed date on the dispatch board, and HIPAA acknowledgment.</li>
+                <li><strong>CSRF and security tokens</strong> required by the underlying authentication infrastructure.</li>
+              </ul>
+
+              <h3>3. What We Do Not Use</h3>
+              <p>PodDispatch does <strong>not</strong> use advertising cookies, cross-site tracking pixels, third-party marketing tags, behavioral retargeting, or session-replay tools that record PHI. We do not sell, share, or monetize browsing data.</p>
+
+              <h3>4. Future Analytics</h3>
+              <p>If PodDispatch later introduces optional product analytics or error-monitoring tools, this notice will be updated in advance and any tool that processes identifiable user data will be added to the Subprocessors page. PHI is never sent to analytics or error-monitoring tools.</p>
+
+              <h3>5. Managing Cookies</h3>
+              <p>Because the cookies we use are strictly necessary for the platform to function, disabling them in your browser will prevent you from signing in or using core features. You may clear local browser storage at any time through your browser settings; doing so will sign you out and reset your local preferences.</p>
+
+              <h3>6. Contact</h3>
+              <p>Questions about this notice may be sent to <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a>.</p>
+            </article>
+          </TabsContent>
+
+          <TabsContent value="pilot">
+            <article className="prose prose-sm dark:prose-invert max-w-none mt-6">
+              <h2>PodDispatch Pilot Program Addendum</h2>
+              <p className="text-muted-foreground text-sm">Version 1.0 — Effective May 2026 through end of pilot program</p>
+
+              <h3>1. Scope</h3>
+              <p>This Pilot Program Addendum (the "Addendum") applies to operator companies that PodDispatch LLC designates as pilot participants. Where this Addendum conflicts with the Terms of Service, Subscription &amp; Billing Terms, or Service Level document, this Addendum controls — but only for the duration of the pilot.</p>
+
+              <h3>2. Pilot Period</h3>
+              <p>The pilot period begins on the date the operator&#x2019;s account is activated as a pilot participant and ends on the earlier of (a) the date PodDispatch designates the operator as a general-availability ("GA") customer, (b) the date the operator notifies PodDispatch in writing that it is withdrawing from the pilot, or (c) the date PodDispatch terminates the pilot for that operator on at least 14 days&#x2019; notice.</p>
+
+              <h3>3. Pricing During Pilot</h3>
+              <p>Pilot pricing — including any discounted rate, extended trial, or fee waiver — is set out in the operator&#x2019;s welcome communication or in-app account page. Pilot pricing is not guaranteed beyond the pilot period; standard subscription pricing under the Subscription &amp; Billing Terms applies upon transition to GA.</p>
+
+              <h3>4. Service Levels During Pilot</h3>
+              <p>The 99.5% uptime target and service-credit table in the Service Level document <strong>do not apply</strong> during the pilot period. PodDispatch will use commercially reasonable efforts to keep the platform available and to respond promptly to support tickets, but no service credits are due during the pilot regardless of actual availability.</p>
+
+              <h3>5. Feature Changes</h3>
+              <p>Pilot operators acknowledge that the platform is under active development and that features may be added, removed, redesigned, or temporarily disabled on short notice. PodDispatch will provide reasonable advance notice for changes that materially affect day-to-day operations.</p>
+
+              <h3>6. Feedback License</h3>
+              <p>Operators may, but are not required to, provide feedback, suggestions, bug reports, screenshots, and feature requests to PodDispatch. The operator grants PodDispatch a perpetual, irrevocable, worldwide, royalty-free license to use, reproduce, modify, and incorporate that feedback into the platform without obligation to compensate or credit the operator. Feedback shall not include PHI; if PHI is inadvertently included, PodDispatch will handle it under the Business Associate Agreement.</p>
+
+              <h3>7. Limited Warranty</h3>
+              <p>During the pilot the platform is provided strictly <strong>"as is" and "as available"</strong>. PodDispatch disclaims all warranties, express or implied, including fitness for a particular purpose, merchantability, and non-infringement. Pilot operators are expected to maintain a parallel record of any data they cannot afford to lose during this period.</p>
+
+              <h3>8. HIPAA Obligations Unchanged</h3>
+              <p>Notwithstanding anything in this Addendum, PodDispatch&#x2019;s obligations under the Business Associate Agreement, the Incident Response Policy, and the Data Retention and Deletion Policy <strong>remain fully in effect</strong> during the pilot.</p>
+
+              <h3>9. Transition to GA</h3>
+              <p>At the end of the pilot, PodDispatch will provide the operator with at least 14 days&#x2019; notice of the transition to GA pricing and service levels. The operator may decline the transition and cancel without penalty during that notice period; standard data export and retention procedures will apply.</p>
+
+              <h3>10. Confidentiality</h3>
+              <p>Each party agrees to treat non-public information about the other party&#x2019;s business, pricing, roadmap, and pilot results as confidential and to use it only for purposes of evaluating and operating the platform.</p>
+            </article>
+          </TabsContent>
         </Tabs>
 
         <LegalFooter />
