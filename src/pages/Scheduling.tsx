@@ -34,7 +34,7 @@ import { UpcomingNonDialysisPanel } from "@/components/scheduling/UpcomingNonDia
 import { NotifyCrewModal } from "@/components/scheduling/NotifyCrewModal";
 import { OperationalAlertsPanel, type OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
 import { CommsOutbox } from "@/components/dispatch/CommsOutbox";
-import { useSchedulingStore, type LegDisplay } from "@/hooks/useSchedulingStore";
+import { useSchedulingStore, matchesScheduleDay, type LegDisplay } from "@/hooks/useSchedulingStore";
 import { RunReassignmentDialog } from "@/components/scheduling/RunReassignmentDialog";
 import { UpstreamReadinessPanel } from "@/components/billing/UpstreamReadinessPanel";
 import { detectTimeConflicts, type TimeConflict } from "@/lib/time-conflict";
