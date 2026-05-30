@@ -929,6 +929,62 @@ export default function Patients() {
                 Delete {selected.size} selected
               </Button>
             )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+                const rows = filtered.map((p) => {
+                  const rd = (p as any).recurrence_days as number[] | null;
+                  const sd = p.schedule_days as string | null;
+                  const days =
+                    rd && rd.length > 0
+                      ? rd.slice().sort((a, b) => a - b).map((d) => DAY_NAMES[d] ?? `Day${d}`).join("/")
+                      : sd === "MWF"
+                        ? "Mon/Wed/Fri"
+                        : sd === "TTS"
+                          ? "Tue/Thu/Sat"
+                          : sd ?? "";
+                  return {
+                    full_name: `${p.first_name} ${p.last_name}`,
+                    dob: p.dob ?? "",
+                    sex: p.sex ?? "",
+                    phone: p.phone ?? "",
+                    member_id: p.member_id ?? "",
+                    primary_payer: p.primary_payer ?? "",
+                    secondary_payer: p.secondary_payer ?? "",
+                    mobility: p.mobility ?? "",
+                    transport_type: (p as any).transport_type ?? "",
+                    recurrence_days: days,
+                    pcs_on_file: (p as any).pcs_on_file ? "Y" : "N",
+                    pcs_expiration_date: (p as any).pcs_expiration_date ?? "",
+                    status: (p as any).status ?? "",
+                    created_at: p.created_at ?? "",
+                  };
+                });
+                if (rows.length === 0) {
+                  toast.info("No patients to export");
+                  return;
+                }
+                const slug = (companyName || "company")
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, "-")
+                  .replace(/^-+|-+$/g, "");
+                const today = format(new Date(), "yyyy-MM-dd");
+                downloadCSV(rows, `patients_${slug}_${today}.csv`);
+                logAuditEvent({
+                  action: "export",
+                  tableName: "patients",
+                  notes: `Exported ${rows.length} patients`,
+                });
+                toast.success(`Exported ${rows.length} patient${rows.length === 1 ? "" : "s"}`);
+              }}
+              className="gap-1.5"
+              title="Export the filtered patient list as CSV"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
+            </Button>
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
               <DialogTrigger asChild>
                 <Button><Plus className="mr-1.5 h-4 w-4" /> Add Patient</Button>
