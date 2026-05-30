@@ -105,7 +105,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
     description: "Manage your team — add employees, assign roles, and control access.",
     questions: [
       { q: "What is this page for?", a: "This is where you manage your team. Add employees, assign roles, and control who has access to what in PodDispatch." },
-      { q: "What roles are available?", a: "Owner has full access to everything. Dispatcher manages the dispatch board and scheduling. Biller manages claims and billing workflows. Crew accesses only the crew UI for their assigned runs, daily inspection, and PCR documentation. Certified admins (Owner, Dispatcher, Biller) can also enter the crew UI directly without a separate account." },
+      { q: "What roles are available?", a: "Owner has full access to everything including subscription, NPI/EIN edits, owner promotion, and clearinghouse credentials. Manager has broad admin access across operations, scheduling, billing, and compliance, but cannot edit clearinghouse credentials, change the subscription, edit NPI/EIN, or promote another owner. Dispatcher manages the dispatch board, scheduling, patients, trucks, and employees. Biller manages claims, billing workflows, compliance/QA, and view-only patient/facility data. Crew accesses only the crew UI for their assigned runs, daily inspection, and PCR documentation. Certified admins (Owner, Manager, Dispatcher, Biller) can also enter the crew UI directly without a separate account." },
       { q: "How do I add a new employee?", a: "Click Add Employee and fill in their name, email, phone, role, and certification level. They will receive an invitation email with a link to set their password and access the system." },
       { q: "A crew member forgot their password — how do I help them?", a: "Click the Reset Password button next to their name on the employee list. This sends a password reset email to their registered address. The email contains a link they click to set a new password." },
       { q: "Can I see what email a crew member uses to log in?", a: "Yes. The Email column on the employee list shows the email address for every employee. This is the address they use to log in and where system notifications are sent." },
@@ -152,13 +152,16 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
 
   "/settings": {
     title: "Settings",
-    description: "Company operational settings and clearinghouse integration configuration.",
+    description: "Company operational settings — on-time grace window, service time defaults, session security, retention policy, system limits, and outbound caller ID.",
     questions: [
-      { q: "What is this page for?", a: "This is where you configure operational parameters like grace windows, service time defaults, session security, and data retention. The Clearinghouse tab lets you connect to Office Ally for automated claim submission and payment retrieval." },
-      { q: "How do I connect to Office Ally?", a: "Go to the Clearinghouse tab and follow the four-step setup wizard. You will create an Office Ally account, enter your Office Ally login credentials, configure folder paths, and enable automatic processing." },
-      { q: "What does the session timeout do?", a: "The session timeout automatically logs users out after 30 minutes of inactivity with a 5-minute warning. This is a HIPAA compliance requirement. Disabling it is not recommended." },
-      { q: "What is the data retention policy?", a: "This documents your company's commitment to retaining trip records, PCR data, and billing documents. Medicare requires a minimum 7-year retention period. No records are automatically deleted." },
-      { q: "What are system limits?", a: "System limits show the maximum number of admins, crews, trucks, and runs per truck allowed for your deployment. The overload threshold triggers a warning when a truck has more than 8 runs assigned." },
+      { q: "What is this page for?", a: "This is where you configure company-wide operational parameters: late-pickup grace window, service time defaults used by feasibility checks, HIPAA session timeout, data retention commitment, the outbound caller ID used for automated patient/facility calls, and a test-email diagnostic. Clearinghouse credentials (Office Ally) are configured separately in Billing & Claims, not here." },
+      { q: "What is the grace window?", a: "The late threshold — how many minutes after the scheduled pickup time a run can arrive before it is flagged as Late on the dispatch board and reports. Choose 15, 30, or 45 minutes based on how strict your on-time definition is." },
+      { q: "What are the service time defaults?", a: "Load time, unload time, facility delay, dialysis B-leg buffer, and discharge buffer are the minute values the scheduler uses when calculating feasibility — whether a new run will fit on a truck without colliding with adjacent runs. Tune these to match how long your crews actually take on scene." },
+      { q: "What does the session timeout do?", a: "When enabled, users are automatically logged out after 30 minutes of inactivity, with a 5-minute warning before logout. This is a HIPAA workforce control. Disabling it is flagged as a compliance risk and is not recommended." },
+      { q: "What is the data retention policy?", a: "This documents your company's commitment to retaining trip records, PCR data, and billing documents. Medicare requires a minimum 7-year retention period. No records are automatically deleted by the system — this setting is your declared retention policy for audits. Only Owners can change it." },
+      { q: "What are system limits?", a: "Operational caps for the deployment: up to 4 admins, 30 crew, 30 trucks, and 10 runs per truck. The overload threshold (8 runs/truck) is what turns a truck yellow/red on the Daily Ops Snapshot. These are platform-enforced, not editable." },
+      { q: "What is the Verified Caller ID?", a: "The phone number, in E.164 format (e.g. +15555550123), that automated outbound calls to patients and facilities will appear to come from. You must verify this number with our calling provider before it works. If left blank, the platform's default outbound number is used." },
+      { q: "What is the test email button?", a: "Sends a transactional test email to your own address so you can confirm deliverability and preview the sender name your crews, patients, and facilities will see. Useful right after onboarding or if a crew member reports missing invites." },
     ],
   },
 
@@ -248,6 +251,58 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
       { q: "What is this page for?", a: "It is the same daily run sheet as the Crew Dashboard, opened from a one-day share link your dispatcher sent you. Use it when you are not logged in to your full crew account." },
       { q: "Can I tap times and open a PCR from here?", a: "Yes — the share link supports the same time taps, alerts, and PCR access as the logged-in Crew Dashboard. The link is scoped to one truck for one day." },
       { q: "The link says expired — what now?", a: "Share links are issued per day. Ask dispatch to send you the link for today, or sign in to your crew account directly at the login page." },
+    ],
+  },
+
+  "/facilities": {
+    title: "Facilities",
+    description: "Directory of every dialysis center, hospital, SNF, and other pickup/dropoff facility your company services.",
+    questions: [
+      { q: "What is this page for?", a: "This is your facility directory — every dialysis center, hospital, nursing facility, or other site you pick up from or drop off at. Facilities are referenced by patient records and runs, so adding them here keeps addresses, contacts, and contracted rates consistent across the system." },
+      { q: "What facility types are supported?", a: "Six standard types: Dialysis (with subtype), Hospital, SNF / Nursing facility, and additional categories for ALF, clinic, and residence. Each type carries its own clinical and financial metadata used in scheduling and billing." },
+      { q: "What does the patient count column show?", a: "How many patient records currently use this facility as their dropoff (or treatment site). Use it to gauge volume and to spot unused facilities before deleting them." },
+      { q: "What is the contract payer type / rate type?", a: "If a facility pays you directly under a contract (rather than billing Medicare/Medicaid per patient), set the contract payer type and rate type here. These values drive which rate is applied on the charge master when claims are generated for runs to this facility." },
+      { q: "How do I deactivate a facility?", a: "Edit the facility and toggle Active off. Inactive facilities are hidden from new patient assignments and run creation, but historical trips and patient records that reference them are preserved." },
+      { q: "Can I delete a facility?", a: "Yes, using the trash icon — but only after confirming the deletion in the confirmation dialog. Facilities still referenced by active patients should be deactivated instead of deleted to keep historical records intact." },
+    ],
+  },
+
+  "/migration": {
+    title: "Migration & Import",
+    description: "Bring legacy data (patients, trips, trucks, employees) from your old system into PodDispatch.",
+    questions: [
+      { q: "What is this page for?", a: "This is the migration hub for moving off your old dispatch/billing system. From here you bulk-import patients, trips, trucks, and employees from CSV files, run a guided quick-start, operate in parallel-run mode while you cut over, and review the full history of every import you've performed." },
+      { q: "What is the Import tab?", a: "Upload a CSV, map its columns to PodDispatch fields, preview the result with duplicate and data-quality warnings, then commit. Each import is logged so you can see what was added, skipped, and flagged." },
+      { q: "What is the Quick Start wizard?", a: "A guided flow for new companies that walks you through importing the minimum data needed to start dispatching — patients, trucks, and crew — in the recommended order." },
+      { q: "What is Parallel Run Mode?", a: "Use this while you're still running your old system alongside PodDispatch. It lets you import recent trip data periodically so you can compare PodDispatch output (claims, reports) against your existing system before fully cutting over." },
+      { q: "How does duplicate detection work?", a: "On patient imports, the system matches first+last name against existing patients (case-insensitive, with partial-match warnings). Likely duplicates are shown in the preview so you can decide whether to skip them or import anyway." },
+      { q: "Where do I see past imports?", a: "The History tab lists every import run for your company — file name, data type, row counts, errors, and who performed it. Use it as an audit trail and to re-download error reports." },
+    ],
+  },
+
+  "/onboarding": {
+    title: "Onboarding Wizard",
+    description: "Six-step guided setup that gets your company ready to dispatch and bill.",
+    questions: [
+      { q: "What is this page for?", a: "The 6-step onboarding wizard that walks a new company from sign-up to a working dispatch + billing operation. It tracks progress on company info, charge master rates, clearinghouse connection, trucks, crew/employees, and first patient — and shows you which steps are done, in progress, or still needed." },
+      { q: "Why is the company info step locked here?", a: "Company identity fields (legal name, NPI, EIN, billing address) are captured at sign-up and are not editable from production pages — only Owners can change them, and the change is logged. This step confirms what was captured so you can fix it before going live." },
+      { q: "What does verifying my rates mean?", a: "Setting a base rate and a per-mile rate for each payer you plan to bill, on the Charge Master tab in Billing & Claims. At least one payer must have both values greater than $0 before the wizard considers this step complete — otherwise generated claims will have $0 amounts." },
+      { q: "Do I have to connect a clearinghouse to use PodDispatch?", a: "No. You can dispatch and document trips without it. But to electronically submit 837P claims and import 835 payments / 999 acknowledgments automatically, you need to connect Office Ally credentials. Until then you can still export 837P files manually and upload them to your clearinghouse portal." },
+      { q: "Can I skip steps and come back later?", a: "Yes. Each step records its own completion flag, so you can do them in any order and resume any time. The wizard is also accessible from the Onboarding Checklist that appears at the top of admin pages until everything is complete." },
+      { q: "What happens when all six steps are done?", a: "The wizard congratulates you and the persistent onboarding checklist disappears from admin pages. From that point on, this page is mostly informational — you can revisit it any time, but it stops nudging you." },
+    ],
+  },
+
+  "/admin/email-activity": {
+    title: "Email Activity",
+    description: "Log of every transactional email PodDispatch has sent on behalf of your company.",
+    questions: [
+      { q: "What is this page for?", a: "The deliverability log for every transactional email the platform sends out on your behalf — employee invites, password resets, crew schedule emails, support replies, and other system notifications. Use it to confirm an email went out, to whom, when, and whether it was delivered or bounced." },
+      { q: "What do the status values mean?", a: "Pending = handed off to the email provider, not yet confirmed. Sent = accepted and delivered by the provider. Failed = the provider rejected it (error message shown in the row). Bounced = the recipient's mail server rejected it after delivery. Suppressed = the address is on the platform's do-not-send list (typically after repeated bounces or complaints)." },
+      { q: "Why didn't my crew member get their invite?", a: "Filter by their email address and look at the most recent row. If the status is Sent but they don't have it, ask them to check spam and confirm the address is correct. If it's Bounced or Failed, the error message tells you why (bad address, full mailbox, blocked by their domain). Resend from the Employees page after fixing the issue." },
+      { q: "What is the Resend ID?", a: "The unique tracking ID returned by our email provider for that send. It's mainly useful for support — paste it into a support ticket and we can look up the full delivery trail (opens, clicks, provider-side bounces)." },
+      { q: "How far back does this go?", a: "The date-range filter spans the last 24 hours, 7 days, 30 days, or 90 days. Older entries are retained but aren't shown by default. Results are capped at the most recent 500 rows per filter to keep the page fast — narrow your filters if you need to find something older." },
+      { q: "Why do I see a Company column?", a: "Only system creators see the Company column and the company filter — they can view email activity across every company on the platform. Company users only see their own company's emails." },
     ],
   },
 };
