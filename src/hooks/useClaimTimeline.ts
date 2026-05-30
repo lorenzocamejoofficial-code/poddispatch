@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { translateIKCodes } from "@/lib/edi-999-translations";
 
 export type TimelineStage =
   | "submission"
@@ -245,6 +246,24 @@ export function useClaimTimeline(claimId: string | null): ClaimTimelineData {
         for (const ack of (acksRes.data ?? []) as any[]) {
           const accepted = ack.outcome === "accepted" || ack.outcome === "A";
           const rejected = ack.outcome === "rejected" || ack.outcome === "R";
+          // Translate IK/AK codes (999) to plain English. CARC codes (CO-/PR-/OA-)
+          // are translated separately by AR Command Center / DenialRecoveryEngine
+          // against denial-code-translations.ts and don't appear here.
+          const rawCodes: string[] = ack.rejection_codes ?? [];
+          const is999 =
+            typeof ack.file_type === "string" &&
+            (ack.file_type.includes("999") || ack.file_type.includes("997"));
+          const { translated: ikTranslated, unrecognized: ikUnrecognized } = is999
+            ? translateIKCodes(rawCodes)
+            : { translated: [], unrecognized: rawCodes };
+          const codesLine = rawCodes.length
+            ? is999 && ikTranslated.length
+              ? `Codes: ${rawCodes.join(", ")}`
+              : `Codes: ${rawCodes.join(", ")}`
+            : null;
+          const ikFootnotes = ikTranslated.map(
+            (t) => `${t.code} — ${t.plain_english_explanation} (Fix: ${t.example_fix})`,
+          );
           events.push({
             id: `ack-${ack.id}`,
             at: ack.received_at,
@@ -253,11 +272,12 @@ export function useClaimTimeline(claimId: string | null): ClaimTimelineData {
             title: `${ack.file_type ?? "Ack"} ${ack.outcome ?? ""}`.trim(),
             detail: [
               ack.payer_claim_control_number && `ICN ${ack.payer_claim_control_number}`,
-              ack.rejection_codes?.length ? `Codes: ${ack.rejection_codes.join(", ")}` : null,
+              codesLine,
               ack.rejection_reason,
             ]
               .filter(Boolean)
               .join(" · "),
+            footnotes: ikFootnotes.length ? ikFootnotes : undefined,
           });
         }
 
