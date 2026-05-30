@@ -31,6 +31,12 @@ import { PatientScheduleOverridesEditor, saveScheduleOverrides, type ScheduleOve
 import { ICD10Picker } from "@/components/pcr/ICD10Picker";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { UpstreamReadinessPanel } from "@/components/billing/UpstreamReadinessPanel";
+import { downloadCSV } from "@/lib/csv-export";
+import { logAuditEvent } from "@/lib/audit-logger";
+import { useCompanyName } from "@/hooks/useCompanyName";
+import { PatientViewDialog } from "@/components/patients/PatientViewDialog";
+import { ClaimTimelineDrawer } from "@/components/billing/ClaimTimelineDrawer";
+import { Download } from "lucide-react";
 import {
   CHIEF_COMPLAINT_GROUPS,
   PRIMARY_IMPRESSION_GROUPS,
