@@ -374,7 +374,18 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </Button>
         </header>
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
-        <ContextualHelpPanel routeKey={location.pathname} open={helpOpen} onOpenChange={setHelpOpen} />
+        <ContextualHelpPanel
+          routeKey={
+            // Disambiguate routes that exist in both AdminLayout (admin-side)
+            // and CrewLayout (crew-side) so the help content matches the
+            // surface the user is actually looking at.
+            location.pathname === "/crew-schedule"
+              ? "/crew-schedule-admin"
+              : location.pathname
+          }
+          open={helpOpen}
+          onOpenChange={setHelpOpen}
+        />
       </div>
     </div>
   );
