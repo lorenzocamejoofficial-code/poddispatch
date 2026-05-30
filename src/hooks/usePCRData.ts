@@ -82,6 +82,8 @@ export interface PCRTripData {
   chair_time: string | null;
   // Patient info (joined)
   patient?: any;
+  // Truck info (joined) — used to auto-fill vehicle_id in PCR
+  truck_name?: string | null;
 }
 
 // Per-field debounce map — prevents editing one field from canceling a pending save for another
