@@ -3,6 +3,7 @@ import { Clock, Check, RotateCcw, AlertTriangle, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
+import { useEffect, useRef } from "react";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
@@ -91,6 +92,19 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
   const [editingField, setEditingField] = useState<string | null>(null);
   const [odometerWarning, setOdometerWarning] = useState<string | null>(null);
   const [manualMilesOverride, setManualMilesOverride] = useState(false);
+
+  // Auto-fill Vehicle / Unit # from the assigned truck's name when blank so the
+  // crew doesn't have to retype what dispatch already knows. Crew can still edit.
+  const vehicleAutoFilledRef = useRef(false);
+  useEffect(() => {
+    if (isReadOnly) return;
+    if (vehicleAutoFilledRef.current) return;
+    const truckName = (trip as any)?.truck_name;
+    if (!trip?.vehicle_id && truckName) {
+      vehicleAutoFilledRef.current = true;
+      updateField("vehicle_id", truckName);
+    }
+  }, [trip?.vehicle_id, (trip as any)?.truck_name, isReadOnly, updateField]);
 
   const sequenceWarnings = getTimeSequenceWarnings(trip);
   const handleClearTimes = async () => {
@@ -335,7 +349,8 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
               Vehicle / Unit # <PCRTooltip text={PCR_TOOLTIPS.vehicle_id} />
             </label>
             <Input
-              defaultValue={trip.vehicle_id || ""}
+              key={`vehicle-${trip.vehicle_id ?? (trip as any).truck_name ?? ""}`}
+              defaultValue={trip.vehicle_id || (trip as any).truck_name || ""}
               placeholder="Unit #"
               className="h-11"
               onBlur={(e) => updateField("vehicle_id", e.target.value || null)}
