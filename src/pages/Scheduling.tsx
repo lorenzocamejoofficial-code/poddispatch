@@ -1149,6 +1149,37 @@ export default function Scheduling() {
           )}
         </div>
 
+        {/* Unscheduled recurring patients banner — patients matching today's schedule with no leg yet */}
+        {!weekView && (() => {
+          const scheduledPatientIds = new Set(legs.map((l) => l.patient_id).filter(Boolean));
+          const unscheduled = patients.filter((p) => {
+            if (p.status !== "active") return false;
+            if (p.transport_type === "adhoc") return false;
+            if (!p.pickup_address || !p.dropoff_facility) return false;
+            if (!matchesScheduleDay(selectedDate, p.schedule_days, p.recurrence_days)) return false;
+            if (p.recurrence_start_date && selectedDate < p.recurrence_start_date) return false;
+            if (p.recurrence_end_date && selectedDate > p.recurrence_end_date) return false;
+            return !scheduledPatientIds.has(p.id);
+          });
+          if (unscheduled.length === 0) return null;
+          return (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm dark:border-amber-900/60 dark:bg-amber-950/30">
+              <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>
+                  <strong>{unscheduled.length}</strong> recurring patient{unscheduled.length > 1 ? "s match" : " matches"} this day but {unscheduled.length > 1 ? "aren't" : "isn't"} scheduled yet
+                  {unscheduled.length <= 3 && (
+                    <span className="text-amber-700 dark:text-amber-300/80"> — {unscheduled.map((p) => p.name).join(", ")}</span>
+                  )}
+                </span>
+              </div>
+              <Button size="sm" onClick={handleAutoGenerate} disabled={generating}>
+                {generating ? "Generating…" : "Generate now"}
+              </Button>
+            </div>
+          );
+        })()}
+
         {/* WEEKLY VIEW */}
         {weekView ? (
           <div className="space-y-4">
