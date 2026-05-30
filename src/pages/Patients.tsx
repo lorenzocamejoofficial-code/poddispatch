@@ -31,6 +31,12 @@ import { PatientScheduleOverridesEditor, saveScheduleOverrides, type ScheduleOve
 import { ICD10Picker } from "@/components/pcr/ICD10Picker";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { UpstreamReadinessPanel } from "@/components/billing/UpstreamReadinessPanel";
+import { downloadCSV } from "@/lib/csv-export";
+import { logAuditEvent } from "@/lib/audit-logger";
+import { useCompanyName } from "@/hooks/useCompanyName";
+import { PatientViewDialog } from "@/components/patients/PatientViewDialog";
+import { ClaimTimelineDrawer } from "@/components/billing/ClaimTimelineDrawer";
+import { Download } from "lucide-react";
 import {
   CHIEF_COMPLAINT_GROUPS,
   PRIMARY_IMPRESSION_GROUPS,
@@ -92,7 +98,9 @@ function computeActiveWeekdays(transportType: string, scheduleDays: string, recu
 export default function Patients() {
   useFocusScroll();
   const { activeCompanyId, role } = useAuth();
+  const { companyName } = useCompanyName();
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [viewPatient, setViewPatient] = useState<Patient | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [templatesView, setTemplatesView] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -921,6 +929,62 @@ export default function Patients() {
                 Delete {selected.size} selected
               </Button>
             )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+                const rows = filtered.map((p) => {
+                  const rd = (p as any).recurrence_days as number[] | null;
+                  const sd = p.schedule_days as string | null;
+                  const days =
+                    rd && rd.length > 0
+                      ? rd.slice().sort((a, b) => a - b).map((d) => DAY_NAMES[d] ?? `Day${d}`).join("/")
+                      : sd === "MWF"
+                        ? "Mon/Wed/Fri"
+                        : sd === "TTS"
+                          ? "Tue/Thu/Sat"
+                          : sd ?? "";
+                  return {
+                    full_name: `${p.first_name} ${p.last_name}`,
+                    dob: p.dob ?? "",
+                    sex: p.sex ?? "",
+                    phone: p.phone ?? "",
+                    member_id: p.member_id ?? "",
+                    primary_payer: p.primary_payer ?? "",
+                    secondary_payer: p.secondary_payer ?? "",
+                    mobility: p.mobility ?? "",
+                    transport_type: (p as any).transport_type ?? "",
+                    recurrence_days: days,
+                    pcs_on_file: (p as any).pcs_on_file ? "Y" : "N",
+                    pcs_expiration_date: (p as any).pcs_expiration_date ?? "",
+                    status: (p as any).status ?? "",
+                    created_at: p.created_at ?? "",
+                  };
+                });
+                if (rows.length === 0) {
+                  toast.info("No patients to export");
+                  return;
+                }
+                const slug = (companyName || "company")
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, "-")
+                  .replace(/^-+|-+$/g, "");
+                const today = format(new Date(), "yyyy-MM-dd");
+                downloadCSV(rows, `patients_${slug}_${today}.csv`);
+                logAuditEvent({
+                  action: "export",
+                  tableName: "patients",
+                  notes: `Exported ${rows.length} patients`,
+                });
+                toast.success(`Exported ${rows.length} patient${rows.length === 1 ? "" : "s"}`);
+              }}
+              className="gap-1.5"
+              title="Export the filtered patient list as CSV"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
+            </Button>
             <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
               <DialogTrigger asChild>
                 <Button><Plus className="mr-1.5 h-4 w-4" /> Add Patient</Button>
@@ -1741,7 +1805,14 @@ export default function Patients() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-card-foreground">{p.first_name} {p.last_name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setViewPatient(p)}
+                            className="font-medium text-card-foreground hover:text-primary hover:underline underline-offset-2 text-left"
+                            title="View patient profile, trips, and claims"
+                          >
+                            {p.first_name} {p.last_name}
+                          </button>
                           {(p as any).is_template && (
                             <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/40 text-primary gap-1">
                               <FlaskConical className="h-2.5 w-2.5" />
@@ -1915,6 +1986,16 @@ export default function Patients() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* View Patient dialog — read-only profile, trips, claims */}
+      <PatientViewDialog
+        patient={viewPatient}
+        onOpenChange={(o) => { if (!o) setViewPatient(null); }}
+      />
+
+      {/* Claim timeline drawer — opened from Claims tab inside PatientViewDialog.
+          URL-driven (?claim=); closing it does not affect the View dialog. */}
+      <ClaimTimelineDrawer />
     </AdminLayout>
   );
 }
