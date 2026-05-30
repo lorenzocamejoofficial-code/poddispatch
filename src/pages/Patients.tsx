@@ -781,6 +781,43 @@ export default function Patients() {
     }));
   };
 
+  // Pass 2 — Item 1: auto-populate Standing ICDs + chief complaint + primary
+  // impression on dialog open. resetForm() (Add Patient) and openEdit() (Edit)
+  // both initialize transport_type without firing handleTransportTypeChange,
+  // which left defaults blank on first render. This effect fills any blank
+  // defaults whenever the dialog is opened or the transport type changes
+  // outside the explicit handler.
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const defaults = TRANSPORT_TYPE_DEFAULTS[form.transport_type];
+    if (!defaults) return;
+    setForm(prev => {
+      const next = { ...prev };
+      let changed = false;
+      if (!prev.default_chief_complaint && defaults.chief_complaint) {
+        next.default_chief_complaint = defaults.chief_complaint; changed = true;
+      }
+      if (!prev.default_primary_impression && defaults.primary_impression) {
+        next.default_primary_impression = defaults.primary_impression; changed = true;
+      }
+      if ((!prev.icd10_codes || prev.icd10_codes.length === 0) && defaults.icd10_codes.length > 0) {
+        next.icd10_codes = [...defaults.icd10_codes]; changed = true;
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogOpen, form.transport_type]);
+
+  // Whether currently shown standing ICDs equal the transport-type defaults
+  // (i.e. were auto-filled and not customized). Drives the inline hint.
+  const icdsAreAutoFilled = useMemo(() => {
+    const defaults = TRANSPORT_TYPE_DEFAULTS[form.transport_type]?.icd10_codes ?? [];
+    if (defaults.length === 0 || form.icd10_codes.length !== defaults.length) return false;
+    const a = [...form.icd10_codes].sort();
+    const b = [...defaults].sort();
+    return a.every((c, i) => c === b[i]);
+  }, [form.transport_type, form.icd10_codes]);
+
   // Compute B-leg earliest for display in recurrence section
   const bLegEarliestDisplay = form.transport_type === "dialysis" && form.chair_time
     ? getEarliestBLegPickup(form.chair_time, parseInt(form.chair_time_duration_hours) || 0, parseInt(form.chair_time_duration_minutes) || 0)
