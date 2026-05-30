@@ -1267,15 +1267,51 @@ export default function Patients() {
                       </label>
                     </div>
                     <div className="flex flex-wrap gap-4">
-                      {[
-                        { key: "oxygen_required" as const, label: "Oxygen Required", tooltip: ADMIN_TOOLTIPS.oxygen_required },
-                        { key: "standing_order" as const, label: "Standing Order", tooltip: ADMIN_TOOLTIPS.standing_order },
-                      ].map(f => (
-                        <label key={f.key} className="flex items-center gap-2 text-sm cursor-pointer">
-                          <input type="checkbox" checked={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.checked })} className="accent-primary" />
-                          {f.label}<PCRTooltip text={f.tooltip} />
-                        </label>
-                      ))}
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={form.oxygen_required}
+                          onChange={e => setForm({ ...form, oxygen_required: e.target.checked })}
+                          className="accent-primary"
+                        />
+                        Oxygen Required<PCRTooltip text={ADMIN_TOOLTIPS.oxygen_required} />
+                      </label>
+                    </div>
+                    <div className="rounded-md border bg-muted/30 p-3 space-y-1">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={form.standing_order}
+                          onChange={e => setForm({ ...form, standing_order: e.target.checked })}
+                          className="accent-primary"
+                        />
+                        <span className="font-medium">Standing Physician Order on File</span>
+                        <PCRTooltip text={ADMIN_TOOLTIPS.standing_order} />
+                      </label>
+                      <p className="text-[11px] text-muted-foreground pl-6">
+                        Physician's signed order on file — separate from the schedule. Upload the signed document under{" "}
+                        {editing ? (
+                          <button
+                            type="button"
+                            className="underline text-primary hover:text-primary/80"
+                            onClick={() => {
+                              const el = document.querySelector('[data-section="documents"]');
+                              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }}
+                          >
+                            Documents
+                          </button>
+                        ) : (
+                          <span className="font-medium">Documents</span>
+                        )}
+                        {!editing && " (available after saving this patient)"}
+                        {" "}with document type <span className="font-mono text-foreground">Standing Order</span>.
+                      </p>
+                      {form.standing_order && !editing && (
+                        <p className="text-[11px] text-amber-700 dark:text-amber-400 pl-6">
+                          Reminder: save the patient, then return here to upload the signed order.
+                        </p>
+                      )}
                     </div>
                   </div>
 
