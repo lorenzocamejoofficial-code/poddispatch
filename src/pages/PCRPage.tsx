@@ -612,6 +612,16 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     kicked_back: { label: "Returned", color: "bg-destructive/10 text-destructive border-destructive/30" },
   };
 
+  const TRANSPORT_COLORS: Record<string, string> = {
+    dialysis: "bg-primary/10 text-primary",
+    outpatient: "bg-accent text-accent-foreground",
+    ift: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+    discharge: "bg-muted text-muted-foreground",
+    outpatient_specialty: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400",
+    private_pay: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
+    emergency: "bg-destructive/10 text-destructive",
+  };
+
   if (inspectionGated) {
     return (
       <div className="flex flex-col items-center justify-center p-10 space-y-4 text-center">
