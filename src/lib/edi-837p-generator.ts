@@ -928,7 +928,44 @@ export function generateEDI837P(
       set.add("QN");
       return [...set];
     };
-    const baseModSet = ensureQn([facilityCode, ...(claim.hcpcs_modifiers || [])]);
+    // Pass 2 — Item 5 (SV1 dual modifier hardening).
+    //
+    // X12N TR3 005010X222A1 §2400 SV1 + CMS Pub 100-04 Ch.15 §10.4: an
+    // ambulance service line may carry EXACTLY ONE origin/destination
+    // modifier pair (a single 2-letter token whose letters are both drawn
+    // from D/E/G/H/I/J/N/P/R/S/X). Two pairs on one line — e.g. RJ AND RD —
+    // is a federal billing violation: the payer cannot tell which pair
+    // describes the trip, and the line will be denied/audited.
+    //
+    // Some persisted claim_records.hcpcs_modifiers values carry a stale 2-
+    // letter location pair from upstream sources that computed the pair
+    // without facility-subtype context (e.g. the DB trigger derived "RD"
+    // from origin_type=residence + destination_type=dialysis, missing the
+    // freestanding subtype that would have produced "RJ"). The generator
+    // recomputes the pair via locationTypeCode() with the resolved
+    // facility_meta and treats THAT as the single source of truth.
+    //
+    // Strip any pre-existing location pair from the persisted modifiers
+    // before merging, then assert exactly one pair survives in the final
+    // SV1 modifier set. Loud failure mirrors NM109/SBR09/locationTypeCode
+    // guards above — never emit a malformed SV1.
+    const LOC_LETTERS = new Set(["D","E","G","H","I","J","N","P","R","S","X"]);
+    const isLocationPair = (m: string): boolean => {
+      const v = (m || "").toUpperCase().trim();
+      return /^[A-Z]{2}$/.test(v) && LOC_LETTERS.has(v[0]) && LOC_LETTERS.has(v[1]);
+    };
+    const persistedMods = (claim.hcpcs_modifiers || []).filter(m => !isLocationPair(m));
+    const baseModSet = ensureQn([facilityCode, ...persistedMods]);
+    const pairsInBase = baseModSet.filter(isLocationPair);
+    if (pairsInBase.length !== 1) {
+      throw new Error(
+        `generateEDI837P: claim ${claim.claim_id} SV1 base line would emit ${pairsInBase.length} origin/destination pair(s) [${pairsInBase.join(", ")}] — expected exactly 1. ` +
+        `Computed facilityCode=${facilityCode}. ` +
+        `Persisted hcpcs_modifiers=${JSON.stringify(claim.hcpcs_modifiers || [])}. ` +
+        `An SV1 line may carry only one O/D pair per X12N TR3 005010X222A1 §2400 and CMS Pub 100-04 Ch.15 §10.4. ` +
+        `Investigate the upstream pipeline that populated hcpcs_modifiers for this claim.`
+      );
+    }
 
     // SV107 Composite Diagnosis Code Pointer — Required per X12N TR3
     // 005010X222A1 §2400 SV1, X12 RFI #2776, #2338. Values 1-12 reference
@@ -964,6 +1001,16 @@ export function generateEDI837P(
     // reported as whole miles. Empty quantity strings would fail the scrubber.
     if (claim.mileage_charge > 0 && claim.loaded_miles > 0) {
       const mileageMods = ensureQn([facilityCode]);
+      // Mirror assertion on the mileage line — only the single computed
+      // facilityCode pair is ever added here, but assert anyway so a future
+      // edit that accidentally splices in claim.hcpcs_modifiers can't quietly
+      // ship two pairs.
+      const mileagePairs = mileageMods.filter(isLocationPair);
+      if (mileagePairs.length !== 1) {
+        throw new Error(
+          `generateEDI837P: claim ${claim.claim_id} SV1 mileage line would emit ${mileagePairs.length} origin/destination pair(s) [${mileagePairs.join(", ")}] — expected exactly 1.`
+        );
+      }
       const miles = Number(claim.loaded_miles);
       const mileageQty = miles < 100
         ? miles.toFixed(1)              // 10.4
