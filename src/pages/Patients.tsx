@@ -1220,8 +1220,9 @@ export default function Patients() {
                         </Select>
                       </div>
                       <div>
-                        <Label>Trips/Week Limit<PCRTooltip text={ADMIN_TOOLTIPS.trips_per_week_limit} /></Label>
+                        <Label>One-way Trips/Week Limit<PCRTooltip text={ADMIN_TOOLTIPS.trips_per_week_limit} /></Label>
                         <Input type="number" value={form.trips_per_week_limit} onChange={e => setForm({ ...form, trips_per_week_limit: e.target.value })} placeholder="No limit" />
+                        <p className="text-[10px] text-muted-foreground mt-1">Counts each direction. A round-trip dialysis day = 2 legs.</p>
                       </div>
                     </div>
 
@@ -1600,7 +1601,7 @@ export default function Patients() {
 
                   {/* Documents section — visible only when editing */}
                   {editing && (
-                    <div className="border-t pt-3">
+                    <div className="border-t pt-3" data-section="documents">
                       <DocumentAttachments
                         recordType="patient"
                         recordId={editing.id}
