@@ -19,7 +19,7 @@ export const ADMIN_TOOLTIPS: Record<string, string> = {
   secondary_payer: "Secondary insurance that pays after the primary — Medicare patients often have Medicaid or supplemental as secondary",
   secondary_member_id: "The patient's secondary insurance member ID number",
   mobility: "How the patient gets around — affects crew preparation and stretcher requirements",
-  trips_per_week_limit: "Maximum number of insured transports per week — prevents over-scheduling beyond what the payer will cover",
+  trips_per_week_limit: "Soft cap on one-way legs per calendar week (each direction is one leg, so a round-trip dialysis day counts as 2). Used to flag over-scheduling before it hits payer frequency limits. Advisory only — does not block scheduling.",
   stairs_required: "Whether the crew will encounter stairs at pickup or dropoff — affects crew preparation",
   special_equipment: "Any special equipment required for this patient's transport",
   oxygen_lpm: "Oxygen flow rate in liters per minute if the patient requires supplemental oxygen during transport",
