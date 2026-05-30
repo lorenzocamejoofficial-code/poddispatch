@@ -294,6 +294,51 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       const allCrewIds = (allCrewRows ?? []).map(c => c.id);
 
       if (allCrewIds.length > 0) {
+        // --- 3a. Also include TODAY's in-progress/not-started trips across all crews
+        // the user belongs to. This catches PCRs started from the Schedule tab or
+        // any path that bypasses truck_run_slots / today's crew row lookup.
+        const { data: todayIncomplete } = await supabase
+          .from("trip_records")
+          .select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason, run_date, patient_id, truck_id, crew_id, scheduled_pickup_time, pickup_location, destination_location")
+          .in("crew_id", allCrewIds)
+          .in("pcr_status", ["not_started", "in_progress"])
+          .eq("run_date", today);
+
+        if (todayIncomplete && todayIncomplete.length > 0) {
+          const existingTripIds = new Set(items.map(i => i.tripId).filter(Boolean));
+          const newToday = todayIncomplete.filter((t: any) => !existingTripIds.has(t.id));
+          if (newToday.length > 0) {
+            const pIds = [...new Set(newToday.map((t: any) => t.patient_id).filter(Boolean))] as string[];
+            const { data: pats } = pIds.length > 0
+              ? await supabase.from("patients").select("id, first_name, last_name").in("id", pIds)
+              : { data: [] };
+            const pMap = new Map((pats ?? []).map((p: any) => [p.id, p]));
+            for (const trip of newToday) {
+              const p = pMap.get((trip as any).patient_id);
+              const patientName = p ? `${(p as any).first_name.charAt(0)}. ${(p as any).last_name}` : "Unknown Patient";
+              items.unshift({
+                tripId: trip.id,
+                legId: (trip as any).leg_id ?? "",
+                slotId: null,
+                legType: "—",
+                legTypeRaw: null,
+                patientName,
+                pickupTime: (trip as any).scheduled_pickup_time ?? null,
+                pickupLocation: (trip as any).pickup_location ?? "—",
+                destinationLocation: (trip as any).destination_location ?? "—",
+                tripType: (trip as any).trip_type ?? null,
+                pcrStatus: (trip as any).pcr_status ?? "not_started",
+                tripStatus: (trip as any).status ?? "scheduled",
+                truckId: (trip as any).truck_id ?? "",
+                crewId: (trip as any).crew_id ?? "",
+                companyId: (trip as any).company_id ?? null,
+                patientId: (trip as any).patient_id ?? null,
+                cancellationReason: (trip as any).cancellation_reason ?? null,
+              });
+            }
+          }
+        }
+
         const { data: pastIncomplete } = await supabase
           .from("trip_records")
           .select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason, run_date, patient_id, truck_id, crew_id, scheduled_pickup_time, pickup_location, destination_location")
