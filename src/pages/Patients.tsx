@@ -771,14 +771,29 @@ export default function Patients() {
 
   // Phase 3 — Item 3: auto-fill defaults on transport_type change (only blanks).
   const handleTransportTypeChange = (newType: TransportType) => {
-    const defaults = TRANSPORT_TYPE_DEFAULTS[newType];
-    setForm(prev => ({
-      ...prev,
-      transport_type: newType,
-      default_chief_complaint: prev.default_chief_complaint || (defaults?.chief_complaint ?? ""),
-      default_primary_impression: prev.default_primary_impression || (defaults?.primary_impression ?? ""),
-      icd10_codes: prev.icd10_codes.length > 0 ? prev.icd10_codes : (defaults?.icd10_codes ?? []),
-    }));
+    setForm(prev => {
+      const newDefaults = TRANSPORT_TYPE_DEFAULTS[newType];
+      const prevDefaults = TRANSPORT_TYPE_DEFAULTS[prev.transport_type];
+      const arraysEqual = (a: string[], b: string[]) => {
+        if (a.length !== b.length) return false;
+        const sa = [...a].sort(); const sb = [...b].sort();
+        return sa.every((x, i) => x === sb[i]);
+      };
+      // A value is "auto-filled" if it's blank OR equals the previous
+      // transport type's defaults (i.e. user hasn't customized it). Replace
+      // auto-filled values with the new transport type's defaults; preserve
+      // anything the user explicitly customized.
+      const ccAuto = !prev.default_chief_complaint || prev.default_chief_complaint === prevDefaults?.chief_complaint;
+      const piAuto = !prev.default_primary_impression || prev.default_primary_impression === prevDefaults?.primary_impression;
+      const icdAuto = !prev.icd10_codes?.length || (!!prevDefaults && arraysEqual(prev.icd10_codes, prevDefaults.icd10_codes));
+      return {
+        ...prev,
+        transport_type: newType,
+        default_chief_complaint: ccAuto ? (newDefaults?.chief_complaint ?? "") : prev.default_chief_complaint,
+        default_primary_impression: piAuto ? (newDefaults?.primary_impression ?? "") : prev.default_primary_impression,
+        icd10_codes: icdAuto ? [...(newDefaults?.icd10_codes ?? [])] : prev.icd10_codes,
+      };
+    });
   };
 
   // Pass 2 — Item 1: auto-populate Standing ICDs + chief complaint + primary
