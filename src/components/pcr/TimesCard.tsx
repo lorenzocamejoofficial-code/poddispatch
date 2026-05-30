@@ -349,7 +349,8 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
               Vehicle / Unit # <PCRTooltip text={PCR_TOOLTIPS.vehicle_id} />
             </label>
             <Input
-              defaultValue={trip.vehicle_id || ""}
+              key={`vehicle-${trip.vehicle_id ?? (trip as any).truck_name ?? ""}`}
+              defaultValue={trip.vehicle_id || (trip as any).truck_name || ""}
               placeholder="Unit #"
               className="h-11"
               onBlur={(e) => updateField("vehicle_id", e.target.value || null)}
