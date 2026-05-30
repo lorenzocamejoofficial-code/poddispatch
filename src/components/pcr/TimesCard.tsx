@@ -3,6 +3,7 @@ import { Clock, Check, RotateCcw, AlertTriangle, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
+import { useEffect, useRef } from "react";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
