@@ -161,4 +161,78 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
       { q: "What are system limits?", a: "System limits show the maximum number of admins, crews, trucks, and runs per truck allowed for your deployment. The overload threshold triggers a warning when a truck has more than 8 runs assigned." },
     ],
   },
+
+  "/crew-dashboard": {
+    title: "Crew Dashboard",
+    description: "Today's run sheet for your truck — start runs, tap times, and report what's happening in the field.",
+    questions: [
+      { q: "What is this page for?", a: "This is your shift home base. It shows every run assigned to your truck for today in order, who your partner is, and lets you tap timestamps, open the PCR for the active run, and raise issues to dispatch." },
+      { q: "Why don't I see any runs?", a: "You will only see runs when you are listed as a crew member on a truck for today and that truck has runs assigned in Scheduling. If you switched trucks mid-shift, ask your dispatcher to update the crew assignment in Trucks & Crews." },
+      { q: "How do I start a run?", a: "Tap the time buttons in order — En Route, At Scene, At Patient, At Destination, In Quarters — on the active run card. Tapping At Patient opens the PCR for that run. Timestamps must be in chronological order; the system blocks out-of-order taps." },
+      { q: "Patient is not ready — what do I do?", a: "Use the Patient Not Ready button on the run card. Add a short note (e.g. patient is still in dialysis) and submit. Dispatch sees a red alert on their board immediately and can decide whether to wait or reassign." },
+      { q: "What is the Incident Report button?", a: "Use it to log anything that happened in the field that should be on the record — patient refusal, equipment failure, near-miss, safety concern, exposure. Dispatch sees these in real time and they are kept in the compliance record." },
+      { q: "What does Emergency Upgrade do?", a: "If a non-emergency transport turns into an emergency, tap Emergency Upgrade and confirm. Within the first 120 seconds you can cancel an accidental trigger; after that it escalates to the dispatcher and is logged as an emergency incident." },
+      { q: "Why is the PCR button locked on a run?", a: "The PCR opens once you tap At Patient on that run. If your truck requires a pre-trip inspection (set by your admin) you also have to complete it on the Checklist tab before any PCR will open." },
+    ],
+  },
+
+  "/crew-patients": {
+    title: "Patients (Crew View)",
+    description: "Read-only patient lookup so you know what to expect before pickup.",
+    questions: [
+      { q: "What is this page for?", a: "Quick reference for any patient your company transports. Use it before pickup to check mobility, oxygen, bariatric flags, payer, and special notes." },
+      { q: "Can I edit a patient here?", a: "No. The crew view is read-only. If something is wrong on the patient record — wrong address, missing equipment, expired PCS — let dispatch or the office know so they can update it in the admin Patients page." },
+      { q: "How do I find a patient quickly?", a: "Use the search box at the top — it matches first name, last name, or phone number." },
+      { q: "What do the icons on the patient card mean?", a: "Droplets indicate dialysis transport. Weight icon flags bariatric. Accessibility icon flags mobility needs (wheelchair, stretcher, lift assist). Stethoscope means oxygen or specialty equipment is required." },
+    ],
+  },
+
+  "/crew-schedule": {
+    title: "Crew Schedule",
+    description: "Your upcoming runs across the week — see what is on the truck before the day starts.",
+    questions: [
+      { q: "What is this page for?", a: "It shows every run assigned to a truck you are crewed on, day by day for the current and upcoming weeks. Use it to plan your shift and to resume a PCR you already started." },
+      { q: "How do I resume a PCR I started earlier?", a: "Find the run on the right day and click Continue PCR. It opens the same PCR with everything you had filled in still saved. You can also resume from the PCR tab." },
+      { q: "Why is a run greyed out?", a: "A greyed run is on a day you are no longer assigned to that truck, or the run has been cancelled. The card stays visible so you can see what was on the schedule." },
+      { q: "Why does a run show a different time than I remember?", a: "Dispatch can apply a one-time exception on a single date — different pickup time, address, or note — without changing the patient's recurring schedule. The time on this card is always what dispatch wants you to use." },
+    ],
+  },
+
+  "/crew-checklist": {
+    title: "Pre-Trip Inspection",
+    description: "Daily Georgia DPH vehicle and equipment check that must be completed before patient contact.",
+    questions: [
+      { q: "What is this page for?", a: "This is your daily pre-trip inspection for the truck you are crewed on today. You go through each item, mark it OK or Missing, and submit. The submitted record is kept for compliance audits." },
+      { q: "Do I have to complete this every day?", a: "Yes — once per truck per day. If you switch trucks during the day, the new truck needs its own inspection. Your dispatcher sees a red badge on the Checklist tab until it is submitted." },
+      { q: "What if I mark something Missing?", a: "Add a short note describing what is missing or broken. The inspection still submits, but dispatch is alerted and the item shows up in the Vehicle Inspections compliance log. Severely missing items may block runs until they are fixed." },
+      { q: "Why is the checklist locked?", a: "You are either not currently crewed on a truck for today, or your admin has not enabled the inspection for your truck. Talk to dispatch — the assignment is set in Trucks & Crews." },
+      { q: "Can I redo today's inspection?", a: "No. Once submitted, the record is final for audit reasons. If something changed mid-shift, raise it as an Incident Report from the dashboard so it is properly logged." },
+    ],
+  },
+
+  "/pcr": {
+    title: "Patient Care Report (PCR)",
+    description: "Document the transport — times, vitals, assessments, signatures, and narrative.",
+    questions: [
+      { q: "What is this page for?", a: "This is the patient care report for a single run. You fill in times, vitals, assessment, equipment used, signatures, and the narrative. When complete and signed, it locks and the trip moves to billing." },
+      { q: "Why are some sections greyed out?", a: "Cards are turned on or off based on the transport type (dialysis, IFT, emergency, etc.) and the payer. Anything that does not apply to this trip is hidden so you only fill in what is needed." },
+      { q: "Why is a field showing red?", a: "Red means it is required for this transport/payer and is still empty. The Pre-Submit checklist will block submission until every required field is filled and the timestamps are in order." },
+      { q: "I started a PCR — where do I find it again?", a: "Open it from the Schedule tab or the PCR tab — both show a Continue button on any run that already has a saved-in-progress PCR. The PCR auto-saves as you type, so you will not lose work." },
+      { q: "What is the Vehicle / Unit field?", a: "It is pre-filled with your truck name when the PCR opens. You can edit it, but it should match the truck in the system so the narrative and the inspection record line up." },
+      { q: "Why is At Destination locked?", a: "You have to record at least one set of vitals before the At Destination timestamp is unlocked. This is a documentation gate to make sure the trip is properly assessed." },
+      { q: "How do signatures work?", a: "Each crew member on the truck signs their own crew signature. Then you collect a patient or representative signature. Some payers also need a Refusal-to-Sign or Partner Sign Here flow — those modals appear automatically when needed." },
+      { q: "Can I correct a PCR after it is submitted?", a: "Only admins can open a submitted PCR for correction. They use the targeted PCR Correction workflow which requires a reason and is fully audit-logged." },
+      { q: "What does the Cancellation button do?", a: "If the transport did not happen — no-show, refusal, sent on another vehicle — open the cancellation form. You pick the reason and capture the required documentation, and the trip is closed out instead of needing a full PCR." },
+    ],
+  },
+
+  "/crew/:token": {
+    title: "Daily Run Sheet (Share Link)",
+    description: "Read-only daily run list opened via a share link — typically used by crew on a personal device.",
+    questions: [
+      { q: "What is this page for?", a: "It is the same daily run sheet as the Crew Dashboard, opened from a one-day share link your dispatcher sent you. Use it when you are not logged in to your full crew account." },
+      { q: "Can I tap times and open a PCR from here?", a: "Yes — the share link supports the same time taps, alerts, and PCR access as the logged-in Crew Dashboard. The link is scoped to one truck for one day." },
+      { q: "The link says expired — what now?", a: "Share links are issued per day. Ask dispatch to send you the link for today, or sign in to your crew account directly at the login page." },
+    ],
+  },
 };
