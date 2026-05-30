@@ -152,13 +152,16 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
 
   "/settings": {
     title: "Settings",
-    description: "Company operational settings and clearinghouse integration configuration.",
+    description: "Company operational settings — on-time grace window, service time defaults, session security, retention policy, system limits, and outbound caller ID.",
     questions: [
-      { q: "What is this page for?", a: "This is where you configure operational parameters like grace windows, service time defaults, session security, and data retention. The Clearinghouse tab lets you connect to Office Ally for automated claim submission and payment retrieval." },
-      { q: "How do I connect to Office Ally?", a: "Go to the Clearinghouse tab and follow the four-step setup wizard. You will create an Office Ally account, enter your Office Ally login credentials, configure folder paths, and enable automatic processing." },
-      { q: "What does the session timeout do?", a: "The session timeout automatically logs users out after 30 minutes of inactivity with a 5-minute warning. This is a HIPAA compliance requirement. Disabling it is not recommended." },
-      { q: "What is the data retention policy?", a: "This documents your company's commitment to retaining trip records, PCR data, and billing documents. Medicare requires a minimum 7-year retention period. No records are automatically deleted." },
-      { q: "What are system limits?", a: "System limits show the maximum number of admins, crews, trucks, and runs per truck allowed for your deployment. The overload threshold triggers a warning when a truck has more than 8 runs assigned." },
+      { q: "What is this page for?", a: "This is where you configure company-wide operational parameters: late-pickup grace window, service time defaults used by feasibility checks, HIPAA session timeout, data retention commitment, the outbound caller ID used for automated patient/facility calls, and a test-email diagnostic. Clearinghouse credentials (Office Ally) are configured separately in Billing & Claims, not here." },
+      { q: "What is the grace window?", a: "The late threshold — how many minutes after the scheduled pickup time a run can arrive before it is flagged as Late on the dispatch board and reports. Choose 15, 30, or 45 minutes based on how strict your on-time definition is." },
+      { q: "What are the service time defaults?", a: "Load time, unload time, facility delay, dialysis B-leg buffer, and discharge buffer are the minute values the scheduler uses when calculating feasibility — whether a new run will fit on a truck without colliding with adjacent runs. Tune these to match how long your crews actually take on scene." },
+      { q: "What does the session timeout do?", a: "When enabled, users are automatically logged out after 30 minutes of inactivity, with a 5-minute warning before logout. This is a HIPAA workforce control. Disabling it is flagged as a compliance risk and is not recommended." },
+      { q: "What is the data retention policy?", a: "This documents your company's commitment to retaining trip records, PCR data, and billing documents. Medicare requires a minimum 7-year retention period. No records are automatically deleted by the system — this setting is your declared retention policy for audits. Only Owners can change it." },
+      { q: "What are system limits?", a: "Operational caps for the deployment: up to 4 admins, 30 crew, 30 trucks, and 10 runs per truck. The overload threshold (8 runs/truck) is what turns a truck yellow/red on the Daily Ops Snapshot. These are platform-enforced, not editable." },
+      { q: "What is the Verified Caller ID?", a: "The phone number, in E.164 format (e.g. +15555550123), that automated outbound calls to patients and facilities will appear to come from. You must verify this number with our calling provider before it works. If left blank, the platform's default outbound number is used." },
+      { q: "What is the test email button?", a: "Sends a transactional test email to your own address so you can confirm deliverability and preview the sender name your crews, patients, and facilities will see. Useful right after onboarding or if a crew member reports missing invites." },
     ],
   },
 
