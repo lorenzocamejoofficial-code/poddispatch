@@ -188,13 +188,28 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
   },
 
   "/crew-schedule": {
-    title: "Crew Schedule",
+    title: "Crew Schedule (Crew View)",
     description: "Your upcoming runs across the week — see what is on the truck before the day starts.",
     questions: [
       { q: "What is this page for?", a: "It shows every run assigned to a truck you are crewed on, day by day for the current and upcoming weeks. Use it to plan your shift and to resume a PCR you already started." },
       { q: "How do I resume a PCR I started earlier?", a: "Find the run on the right day and click Continue PCR. It opens the same PCR with everything you had filled in still saved. You can also resume from the PCR tab." },
       { q: "Why is a run greyed out?", a: "A greyed run is on a day you are no longer assigned to that truck, or the run has been cancelled. The card stays visible so you can see what was on the schedule." },
       { q: "Why does a run show a different time than I remember?", a: "Dispatch can apply a one-time exception on a single date — different pickup time, address, or note — without changing the patient's recurring schedule. The time on this card is always what dispatch wants you to use." },
+    ],
+  },
+
+  "/crew-schedule-admin": {
+    title: "Crew Schedule Delivery",
+    description: "Admin tool for delivering the daily schedule to crews — copy/text the day's run list, email it, or generate a one-day share link.",
+    questions: [
+      { q: "What is this page for?", a: "This is the admin delivery surface for getting today's schedule into crew hands. It is not the crew's own schedule view. From here you pick a truck and a date, then copy the formatted run list to paste into a text, email it directly to the assigned crew, or mint a one-day share link the crew can open on a personal device without logging in." },
+      { q: "How is this different from the crew Schedule page?", a: "The crew Schedule page (inside the crew UI) is read-only and shows the crew their own upcoming runs. This admin page does the opposite — it packages and pushes the schedule out. Crews never see this page; only owners, dispatchers, and managers do." },
+      { q: "What does Copy Daily Schedule do?", a: "It formats the selected truck's runs for the selected date into a clean text block — pickup times, patient names, addresses, return legs, and any flags — ready to paste into SMS, Slack, or any messenger. The system does not send the text for you; the copy-and-paste flow keeps you in control of which number you send it to." },
+      { q: "What does Email Schedule do?", a: "It sends today's run list for the selected truck to the email address of every active crew member currently assigned to that truck. You can override the recipient if you need to send it somewhere else (e.g. a relief driver). Send events are logged in Email Activity." },
+      { q: "What is a share link / Backup Link?", a: "A one-day, one-truck URL (under /crew/:token) that opens the daily run sheet without requiring login. Use it when a crew member is on a personal device, hasn't been onboarded yet, or has lost access. Links expire automatically — they are scoped to one truck for one date." },
+      { q: "Why is a truck missing from the dropdowns?", a: "Trucks marked Out of Service are excluded from schedule delivery — you cannot send a schedule for a truck that should not be running. Restore the truck in Trucks & Crews to make it selectable again." },
+      { q: "Why does the SMS button say Coming Soon?", a: "Direct outbound SMS from the platform is not enabled yet — use Copy Daily Schedule and paste into your messenger of choice, or use Email Schedule." },
+      { q: "Can I send tomorrow's schedule today?", a: "Yes. The date picker lets you pick any date in the current scheduling window (up to ~13 months out). Crews will receive whatever is on the board for that date at the moment you send it." },
     ],
   },
 
