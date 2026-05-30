@@ -448,10 +448,22 @@ export default function DispatchBoard() {
     fetchData();
 
     // Removed 30s polling — realtime + debouncedFetch already cover refresh.
-    // Keep a slow safety net every 5min in case of dropped subscription.
+    // Keep a safety net poll in case the realtime subscription drops silently
+    // (network blips, background-tab throttling, etc.).
     const pollInterval = setInterval(() => {
       fetchDataRef.current();
-    }, 300_000);
+    }, 30_000);
+
+    // Also refetch immediately when the tab regains focus or becomes visible.
+    // Mobile browsers and background tabs commonly suspend WebSocket traffic,
+    // so a dispatcher returning to the tab should see fresh data right away
+    // instead of waiting for the next poll tick.
+    const onFocus = () => fetchDataRef.current();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") fetchDataRef.current();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
 
     let channel: ReturnType<typeof supabase.channel> | null = null;
     (async () => {
@@ -475,6 +487,8 @@ export default function DispatchBoard() {
 
     return () => {
       clearInterval(pollInterval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (channel) supabase.removeChannel(channel);
       if (abortRef.current) abortRef.current.abort();
