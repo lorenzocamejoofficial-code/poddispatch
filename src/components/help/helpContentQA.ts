@@ -105,7 +105,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
     description: "Manage your team — add employees, assign roles, and control access.",
     questions: [
       { q: "What is this page for?", a: "This is where you manage your team. Add employees, assign roles, and control who has access to what in PodDispatch." },
-      { q: "What roles are available?", a: "Owner has full access to everything. Dispatcher manages the dispatch board and scheduling. Billing manages claims and billing workflows. Crew accesses only the crew UI for their assigned runs and PCR documentation." },
+      { q: "What roles are available?", a: "Owner has full access to everything. Dispatcher manages the dispatch board and scheduling. Biller manages claims and billing workflows. Crew accesses only the crew UI for their assigned runs, daily inspection, and PCR documentation. Certified admins (Owner, Dispatcher, Biller) can also enter the crew UI directly without a separate account." },
       { q: "How do I add a new employee?", a: "Click Add Employee and fill in their name, email, phone, role, and certification level. They will receive an invitation email with a link to set their password and access the system." },
       { q: "A crew member forgot their password — how do I help them?", a: "Click the Reset Password button next to their name on the employee list. This sends a password reset email to their registered address. The email contains a link they click to set a new password." },
       { q: "Can I see what email a crew member uses to log in?", a: "Yes. The Email column on the employee list shows the email address for every employee. This is the address they use to log in and where system notifications are sent." },
