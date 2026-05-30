@@ -28,7 +28,7 @@ export const ADMIN_TOOLTIPS: Record<string, string> = {
   stair_chair: "Patient requires a stair chair to navigate stairs at pickup or dropoff",
   oxygen_required: "Patient requires supplemental oxygen during transport — triggers QM billing modifier",
   bariatric: "Patient requires bariatric equipment — triggers QL billing modifier and bariatric rate",
-  standing_order: "A standing physician order is on file authorizing recurring transport — reduces documentation burden per trip",
+  standing_order: "Physician's signed order on file authorizing recurring transport — separate from the recurring schedule. Upload the signed document under Documents.",
   auth_required: "Prior authorization is required from the payer before transport — claim will be blocked if auth is missing or expired",
   auth_expiration: "The date the current prior authorization expires — system will flag runs after this date",
 
@@ -68,4 +68,21 @@ export const ADMIN_TOOLTIPS: Record<string, string> = {
   denial_code: "The payer-issued code explaining why the claim was denied — used for resubmission",
   denial_reason: "Plain language explanation of the denial — reference this when correcting and resubmitting",
   amount_paid: "The amount the payer actually remitted for this claim",
+
+  // Clinical & Billing Defaults — pre-fills the PCR every transport
+  icd10_codes_default: "Standing ICD-10 diagnosis codes for this patient — auto-populated from transport type, copied onto every PCR. Edit per encounter if the diagnosis changes.",
+  default_chief_complaint: "Default presenting complaint pre-filled on every PCR — NEMSIS eSituation.09. Crew can override per encounter.",
+  default_primary_impression: "Default working impression pre-filled on every PCR — NEMSIS eSituation.11. Crew can override per encounter.",
+  default_medical_necessity_reason: "Why ambulance transport (vs. wheelchair van or POV) is medically required. Required text on the claim per CMS MBPM Ch. 10.",
+  default_bed_confined: "Patient meets all three CMS bed-confinement criteria (unable to get up from bed without assistance, unable to ambulate, unable to sit in a chair/wheelchair).",
+  default_cannot_transfer: "Patient cannot safely transfer to a wheelchair or other vehicle — stretcher transport is medically required.",
+  default_requires_monitoring: "Patient requires medical monitoring (cardiac, airway, IV titration, restraint observation, etc.) during transport.",
+  default_oxygen_transport: "Patient requires supplemental oxygen administration during transport — triggers QM modifier on the claim.",
+  default_bh_authorization_type: "Behavioral-health legal authorization type that permits this transport (1013, ER hold, court order, voluntary). Required on every psych transport.",
+  default_bh_authorizing_facility: "Facility where the BH authorization was issued — typically the sending ED or psychiatric unit.",
+  default_bh_authorizing_physician_name: "Name of the physician who signed the BH authorization.",
+  default_bh_authorizing_physician_npi: "10-digit NPI of the physician who signed the BH authorization.",
+  default_wound_type: "Default wound classification (pressure ulcer, surgical, diabetic ulcer, etc.) — pre-fills wound care PCRs.",
+  default_wound_location: "Default anatomic location of the wound (e.g. left heel, sacrum) — pre-fills wound care PCRs.",
+  default_wound_stage: "Default pressure ulcer / wound stage — pre-fills wound care PCRs.",
 };
