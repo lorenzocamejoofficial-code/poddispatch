@@ -144,8 +144,9 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
       { q: "What is this page for?", a: "This is where you configure your fleet. Set equipment flags on each truck so the scheduling safety check knows what each truck can handle. Configure the pre-trip inspection checklist for each truck here." },
       { q: "What equipment flags should I set?", a: "Set Bariatric Stretcher if the truck has a bariatric-rated stretcher. This is the most important flag because it determines whether bariatric patients can be assigned to that truck. Other equipment is verified through the daily pre-trip inspection checklist." },
       { q: "What is the vehicle inspection configuration?", a: "Each truck has an inspection template where you choose which items from the Georgia DPH checklist crew must verify before each shift. You can also toggle the gate that requires inspection completion before crew can access any PCR for that truck." },
-      { q: "How do I assign crew to a truck?", a: "Crew assignment for a specific day happens on the Dispatch Command page or the Patient Runs and Scheduling page. The Trucks and Crews page is for permanent fleet configuration not daily crew assignment." },
       { q: "What does gate enabled mean on the inspection?", a: "When gate is enabled crew cannot open any PCR for that truck until they have submitted their pre-trip inspection for the day. This enforces compliance and ensures equipment is verified before patient contact." },
+      { q: "How do I assign crew to a truck?", a: "Use the weekly calendar grid on this page. Hover any truck/day cell, click Assign, and choose up to three crew members. The system blocks the same employee from being double-booked on two trucks on the same day, and respects the 45-minute minimum gap between runs." },
+      { q: "How do I mark a truck Out of Service?", a: "Use Mark Down on the truck row and pick a date range plus a reason (Maintenance or Out of Service). The truck is blocked from new assignments for those dates, and any existing runs must be reassigned manually in Scheduling." },
     ],
   },
 
