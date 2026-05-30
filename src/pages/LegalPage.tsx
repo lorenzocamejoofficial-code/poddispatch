@@ -37,11 +37,16 @@ export default function LegalPage() {
         </h1>
 
         <Tabs defaultValue={initialTab}>
-          <TabsList className="w-full grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 h-auto">
+          <TabsList className="w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 h-auto">
             <TabsTrigger value="terms">Terms</TabsTrigger>
             <TabsTrigger value="privacy">Privacy</TabsTrigger>
             <TabsTrigger value="baa">BAA</TabsTrigger>
             <TabsTrigger value="aup">Acceptable Use</TabsTrigger>
+            <TabsTrigger value="subscription">Subscription & Billing</TabsTrigger>
+            <TabsTrigger value="sla">Service Level</TabsTrigger>
+            <TabsTrigger value="subprocessors">Subprocessors</TabsTrigger>
+            <TabsTrigger value="cookies">Cookies & Tracking</TabsTrigger>
+            <TabsTrigger value="pilot">Pilot Addendum</TabsTrigger>
             <TabsTrigger value="clearinghouse">Clearinghouse</TabsTrigger>
             <TabsTrigger value="retention">Retention</TabsTrigger>
             <TabsTrigger value="incident">Incident Response</TabsTrigger>
@@ -68,7 +73,7 @@ export default function LegalPage() {
               <p>You must provide accurate and complete information when creating an account. The owner-role user who creates the account represents that they have authority to bind the operator company to these terms and to the Business Associate Agreement that is incorporated by reference upon account creation.</p>
 
               <h3>6. Subscription and Payment</h3>
-              <p>PodDispatch is offered on a monthly subscription basis. Payment is due at the beginning of each billing period. Subscriptions automatically renew unless cancelled before the renewal date. Refunds are available within 30 days of initial subscription if you have completed onboarding, run at least one trip through the system, and the software does not perform as described. No refunds are available after 30 days or following account suspension for terms violations.</p>
+              <p>PodDispatch is offered on a recurring monthly subscription basis. Payment is due in advance at the beginning of each billing period and is processed automatically by our payment provider. Subscriptions automatically renew at the end of each billing period unless cancelled before the renewal date through the account settings. <strong>All fees are non-refundable.</strong> You may cancel at any time to prevent the next renewal, but no partial-month, prorated, or retroactive refunds are issued for the current billing period, unused features, account suspensions for terms violations, or downgrades. Service credits for extended platform-wide outages, if any, are addressed in the Service Level document. Full subscription terms — including trials, failed payments, chargebacks, and tax — are set out in the Subscription &amp; Billing Terms, which are incorporated by reference into these Terms.</p>
 
               <h3>7. HIPAA Compliance</h3>
               <p>You acknowledge that you are a HIPAA covered entity or business associate and that you are responsible for your own HIPAA compliance. PodDispatch executes a Business Associate Agreement with you upon account creation by an owner-role user. You are responsible for ensuring your use of PodDispatch complies with all applicable federal and state privacy and security laws.</p>
