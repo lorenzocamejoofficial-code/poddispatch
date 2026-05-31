@@ -236,7 +236,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
           .from("trip_records")
           .select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason, truck_id, crew_id, scheduled_pickup_time, pickup_location, destination_location, patient_id")
           .eq("run_date", today)
-          .in("pcr_status", ["not_started", "in_progress"]);
+          .in("pcr_status", ["not_started", "in_progress", "kicked_back"]);
 
         // Filter to trips where crew_id matches a crew the user was on
         if (directTrips && directTrips.length > 0) {
@@ -302,7 +302,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
           .from("trip_records")
           .select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason, run_date, patient_id, truck_id, crew_id, scheduled_pickup_time, pickup_location, destination_location")
           .in("crew_id", allCrewIds)
-          .in("pcr_status", ["not_started", "in_progress"])
+          .in("pcr_status", ["not_started", "in_progress", "kicked_back"])
           .eq("run_date", today);
 
         if (todayIncomplete && todayIncomplete.length > 0) {
@@ -344,7 +344,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
           .from("trip_records")
           .select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason, run_date, patient_id, truck_id, crew_id, scheduled_pickup_time, pickup_location, destination_location")
           .in("crew_id", allCrewIds)
-          .in("pcr_status", ["not_started", "in_progress"])
+          .in("pcr_status", ["not_started", "in_progress", "kicked_back"])
           .lt("run_date", today);
 
         if (pastIncomplete && pastIncomplete.length > 0) {
