@@ -104,7 +104,7 @@ export function RunReassignmentDialog({
           .maybeSingle();
         const currentUpdatedAt = (currentSlot as any)?.updated_at;
         if (currentUpdatedAt && currentUpdatedAt !== slotUpdatedAt) {
-          toast.error("This run was already modified by another dispatcher — please refresh and try again.");
+          toast.error("This run was already modified by another dispatcher, please refresh and try again.");
           setProcessing(false);
           onOpenChange(false);
           return;
@@ -218,7 +218,7 @@ export function RunReassignmentDialog({
           new_data: { target_truck_id: targetTruckId, target_crew_id: (targetCrewRow as any)?.id ?? null },
         } as any);
 
-        toast.success("Handoff initiated — waiting for original crew to sign.");
+        toast.success("Handoff initiated, waiting for original crew to sign.");
         onOpenChange(false);
         onComplete();
         setProcessing(false);

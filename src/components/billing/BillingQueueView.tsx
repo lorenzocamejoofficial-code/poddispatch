@@ -309,7 +309,7 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
         const msg = result.message || "Unknown error";
         const code = result.error_code || "";
         if (code === "SIMULATION_RUN_MISMATCH") {
-          toast.error("Stale data — sandbox was reset. Refreshing…");
+          toast.error("Stale data, sandbox was reset. Refreshing…");
           onRefresh();
         } else {
           toast.error(`Override failed: ${msg}`);
@@ -328,7 +328,7 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
       }
 
       setSelectedTrip(prev => (prev ? { ...prev, claim_ready: true, status: "ready_for_billing" } : prev));
-      toast.success("Override applied — trip moved to Ready for Billing");
+      toast.success("Override applied, trip moved to Ready for Billing");
       setOverrideReason("");
       onRefresh();
     } catch (e: any) {

@@ -80,7 +80,7 @@ export function LoadTestHarnessPanel() {
     }
     setConfirmOpen(false);
     setRunning(true);
-    toast.info("Load test starting — runs in the background for ~" + (scenarioSeconds + 90) + "s. You can leave this page; results will appear here when finished.");
+    toast.info("Load test starting, runs in the background for ~" + (scenarioSeconds + 90) + "s. You can leave this page; results will appear here when finished.");
     try {
       const { data, error } = await supabase.functions.invoke("loadtest-harness", {
         body: { scenario_seconds: scenarioSeconds },

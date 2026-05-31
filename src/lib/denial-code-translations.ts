@@ -126,14 +126,14 @@ const DENIAL_CODES: Record<string, DenialTranslation> = {
     code: "CO-45",
     category: "contractual",
     plain_english_explanation: "Charge exceeds fee schedule or maximum allowable.",
-    action_required: "No action needed — this is a contractual adjustment. The allowed amount is what Medicare agreed to pay.",
+    action_required: "No action needed, this is a contractual adjustment. The allowed amount is what Medicare agreed to pay.",
     is_recoverable: false,
     typical_resolution: "no_action",
   },
   "CO-50": {
     code: "CO-50",
     category: "payer",
-    plain_english_explanation: "Non-covered service — not deemed a medical necessity.",
+    plain_english_explanation: "Non-covered service, not deemed a medical necessity.",
     action_required: "Add medical necessity documentation and appeal.",
     is_recoverable: true,
     typical_resolution: "appeal",
@@ -157,7 +157,7 @@ const DENIAL_CODES: Record<string, DenialTranslation> = {
   "CO-96": {
     code: "CO-96",
     category: "payer",
-    plain_english_explanation: "Non-covered charge — this service is not covered by this payer under this patient's plan.",
+    plain_english_explanation: "Non-covered charge, this service is not covered by this payer under this patient's plan.",
     action_required: "Verify coverage and consider billing secondary or patient.",
     is_recoverable: false,
     typical_resolution: "bill_patient",
@@ -255,7 +255,7 @@ const DENIAL_CODES: Record<string, DenialTranslation> = {
   "PR-96": {
     code: "PR-96",
     category: "patient_responsibility",
-    plain_english_explanation: "Non-covered charge — patient responsibility.",
+    plain_english_explanation: "Non-covered charge, patient responsibility.",
     action_required: "This service is not covered and patient may be billed.",
     is_recoverable: false,
     typical_resolution: "bill_patient",
@@ -265,7 +265,7 @@ const DENIAL_CODES: Record<string, DenialTranslation> = {
   "OA-18": {
     code: "OA-18",
     category: "other",
-    plain_english_explanation: "Duplicate claim — this claim was already processed.",
+    plain_english_explanation: "Duplicate claim, this claim was already processed.",
     action_required: "Verify the original claim was paid correctly. No resubmission needed.",
     is_recoverable: false,
     typical_resolution: "no_action",
@@ -281,7 +281,7 @@ const DENIAL_CODES: Record<string, DenialTranslation> = {
   "OA-96": {
     code: "OA-96",
     category: "other",
-    plain_english_explanation: "Non-covered charge — other adjustment.",
+    plain_english_explanation: "Non-covered charge, other adjustment.",
     action_required: "No additional billing is appropriate.",
     is_recoverable: false,
     typical_resolution: "write_off",

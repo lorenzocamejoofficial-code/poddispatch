@@ -33,12 +33,12 @@ export const CHIEF_COMPLAINTS: string[] = CHIEF_COMPLAINT_GROUPS.flatMap((g) => 
 export const PRIMARY_IMPRESSION_GROUPS: DropdownGroup[] = [
   { parent: "CARDIOVASCULAR", items: ["Hypertension — Stable", "Heart Failure / CHF", "Atrial Fibrillation / Dysrhythmia", "Acute Coronary Syndrome (suspected)", "Cardiac Arrest", "Cardiovascular — Stable for Transport"] },
   { parent: "RESPIRATORY", items: ["COPD / Asthma — Stable", "COPD / Asthma — Exacerbation", "Respiratory Failure", "Tracheostomy — Stable", "Ventilator Dependent — Stable"] },
-  { parent: "NEUROLOGICAL", items: ["CVA / TIA", "Seizure Disorder", "Dementia / Cognitive Impairment — Baseline", "Altered Mental Status", "Syncope", "Neurological — Stable"] },
-  { parent: "MUSCULOSKELETAL", items: ["Post-Operative Orthopedic — Stable", "Chronic Musculoskeletal Pain", "Hip / Femur Fracture — Post Stabilization", "Joint Replacement Aftercare"] },
+  { parent: "NEUROLOGICAL", items: ["CVA / TIA", "Seizure Disorder", "Dementia / Cognitive Impairment. Baseline", "Altered Mental Status", "Syncope", "Neurological — Stable"] },
+  { parent: "MUSCULOSKELETAL", items: ["Post-Operative Orthopedic — Stable", "Chronic Musculoskeletal Pain", "Hip / Femur Fracture. Post Stabilization", "Joint Replacement Aftercare"] },
   { parent: "GI / ABDOMINAL", items: ["GI Bleed", "Bowel Obstruction", "Abdominal Pain — Undifferentiated", "GI — Stable"] },
   { parent: "GU / RENAL", items: ["ESRD on Dialysis", "Acute Kidney Injury", "Urinary Retention / Catheter Care", "GU — Stable"] },
   { parent: "BEHAVIORAL / PSYCHIATRIC", items: ["Acute Psychosis", "Suicidal Ideation", "Homicidal Ideation", "Manic Episode", "Acute Anxiety / Panic", "Substance Intoxication", "Substance Withdrawal", "Behavioral Agitation", "Depression with Functional Impairment", "Psychiatric — Stable"] },
-  { parent: "ENDOCRINE", items: ["Diabetes — Controlled", "Diabetes — Uncontrolled (Hyper/Hypoglycemia)", "Endocrine — Stable"] },
+  { parent: "ENDOCRINE", items: ["Diabetes — Controlled", "Diabetes. Uncontrolled (Hyper/Hypoglycemia)", "Endocrine — Stable"] },
   { parent: "ENVIRONMENTAL", items: ["Hypothermia", "Hyperthermia"] },
   { parent: "INFECTIOUS DISEASE", items: ["Sepsis", "Active Infection (Pneumonia / UTI / Cellulitis)", "Isolation Precautions — Stable"] },
   { parent: "PAIN", items: ["Pain — Acute", "Pain — Chronic"] },
@@ -214,7 +214,7 @@ export function getMissingPatientRequirements(p: any): PatientRequiredField[] {
  */
 export function formatOtherDisplay(value: string | null | undefined, other: string | null | undefined): string {
   if (!value) return "";
-  if (value === "Other" && other && other.trim()) return `Other — ${other.trim()}`;
+  if (value === "Other" && other && other.trim()) return `Other, ${other.trim()}`;
   return value;
 }
 
@@ -226,7 +226,7 @@ export const MEDICAL_NECESSITY_REASONS = [
   "Patient is unconscious or requires airway management",
   "Patient requires restraints for safety",
   "Patient is morbidly obese requiring bariatric equipment",
-  "Patient has severe weakness — unable to ambulate",
+  "Patient has severe weakness, unable to ambulate",
   "Patient is bedbound",
   "Patient requires IV access or medication administration enroute",
   "Patient requires continuous oxygen titration during transport",
@@ -273,7 +273,7 @@ export const LEVEL_OF_CONSCIOUSNESS = [
   { value: "alert_ox3", label: "Alert and Oriented x3", narrative: "alert and oriented to person, place, and time" },
   { value: "alert_ox2", label: "Alert and Oriented x2", narrative: "alert and oriented to person and place" },
   { value: "alert_ox1", label: "Alert and Oriented x1", narrative: "alert and oriented to person only" },
-  { value: "baseline_self_only", label: "Baseline cognitive impairment — oriented to self only", narrative: "at baseline cognitive impairment, oriented to self only" },
+  { value: "baseline_self_only", label: "Baseline cognitive impairment, oriented to self only", narrative: "at baseline cognitive impairment, oriented to self only" },
   { value: "non_verbal_baseline", label: "Non-verbal at baseline", narrative: "non-verbal at baseline" },
   { value: "sedated", label: "Sedated", narrative: "sedated" },
   { value: "sleeping_arousable", label: "Sleeping but arousable", narrative: "sleeping but arousable" },

@@ -153,7 +153,7 @@ export function useEmergencyUpgrade(companyId: string | null) {
 
       // Step 4: Fire dispatch alerts
       const timeLabel = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-      const alertMsg = `🚨 EMERGENCY UPGRADE — Unit ${truckName} — Patient ${patientName} — Upgraded at ${timeLabel} — Emergency PCR in progress`;
+      const alertMsg = `🚨 EMERGENCY UPGRADE. Unit ${truckName}. Patient ${patientName}. Upgraded at ${timeLabel}. Emergency PCR in progress`;
 
       await Promise.all([
         supabase.from("alerts").insert({
@@ -202,7 +202,7 @@ export function useEmergencyUpgrade(companyId: string | null) {
         resolution: null,
       });
 
-      toast.success("Emergency upgrade confirmed — opening emergency PCR");
+      toast.success("Emergency upgrade confirmed, opening emergency PCR");
       return emergencyTripId;
     } catch (err: any) {
       toast.error(err.message || "Emergency upgrade failed");
@@ -243,7 +243,7 @@ export function useEmergencyUpgrade(companyId: string | null) {
       } as any).eq("id", state.originalTripId);
 
       // Update dispatch alert
-      const voidMsg = `⚠️ FALSE TRIGGER VOIDED — Unit ${truckName} — Voided by crew at ${timeLabel} — No emergency`;
+      const voidMsg = `⚠️ FALSE TRIGGER VOIDED. Unit ${truckName}. Voided by crew at ${timeLabel}. No emergency`;
       await supabase.from("alerts")
         .update({ message: voidMsg, severity: "yellow", dismissed: false })
         .eq("truck_id", (origTrip as any)?.truck_id)
@@ -257,7 +257,7 @@ export function useEmergencyUpgrade(companyId: string | null) {
         isVoided: true,
       }));
 
-      toast.success("Emergency upgrade voided — returning to original PCR");
+      toast.success("Emergency upgrade voided, returning to original PCR");
       return state.originalTripId;
     } catch (err: any) {
       toast.error(err.message || "Failed to void emergency upgrade");
@@ -294,16 +294,16 @@ export function useEmergencyUpgrade(companyId: string | null) {
 
       switch (resolutionType) {
         case "transfer_of_care":
-          billingRec = "Medicare may allow billing for emergency response without completed transport — biller must review Chapter 15 Section 10.3 — flagged for manual review";
+          billingRec = "Medicare may allow billing for emergency response without completed transport, biller must review Chapter 15 Section 10.3, flagged for manual review";
           alertSeverity = "yellow";
           break;
         case "patient_stabilized":
-          billingRec = "Two billing events on one transport — Medicare generally does not allow billing for both — biller must determine which event to bill — flagged for manual review";
+          billingRec = "Two billing events on one transport. Medicare generally does not allow billing for both, biller must determine which event to bill, flagged for manual review";
           reactivateOriginal = true;
           break;
         case "no_emergency":
         case "accidental_after_window":
-          billingRec = "Emergency assessed and downgraded — bill as standard non-emergency transport — no emergency claim should be generated";
+          billingRec = "Emergency assessed and downgraded, bill as standard non-emergency transport, no emergency claim should be generated";
           reactivateOriginal = true;
           break;
       }
@@ -328,7 +328,7 @@ export function useEmergencyUpgrade(companyId: string | null) {
       } as any).eq("id", state.emergencyTripId);
 
       // Update dispatch alert
-      const resolveMsg = `✅ EMERGENCY RESOLVED — ${resolutionType.replace(/_/g, " ")} — Unit ${truckName} — ${timeLabel}`;
+      const resolveMsg = `✅ EMERGENCY RESOLVED, ${resolutionType.replace(/_/g, " ")}. Unit ${truckName}, ${timeLabel}`;
       await supabase.from("alerts")
         .update({ message: resolveMsg, severity: alertSeverity, dismissed: false })
         .eq("truck_id", (origTrip as any)?.truck_id)

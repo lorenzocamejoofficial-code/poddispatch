@@ -88,7 +88,7 @@ export function classifyDenial(input: ClassifyInput): DenialVerdict {
       return {
         recoverable: "yes",
         headline: "Patient owes the balance",
-        plainEnglish: `${carc.plain_english_explanation} The payer paid their portion in full — the remainder is patient responsibility.`,
+        plainEnglish: `${carc.plain_english_explanation} The payer paid their portion in full, the remainder is patient responsibility.`,
         nextAction: "Bill patient",
         nextActionKind: "bill_patient",
         carc,

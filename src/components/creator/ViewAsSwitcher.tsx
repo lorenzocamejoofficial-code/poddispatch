@@ -15,7 +15,7 @@ export type ViewAsRole = "creator" | "owner" | "manager" | "dispatcher" | "bille
 const VIEW_OPTIONS: { value: ViewAsRole; label: string; desc: string }[] = [
   { value: "creator", label: "Creator Dashboard", desc: "System-level view (default)" },
   { value: "owner", label: "Company Owner", desc: "Full admin access — synthetic data" },
-  { value: "manager", label: "Manager", desc: "Broad admin — no clearinghouse/subscription" },
+  { value: "manager", label: "Manager", desc: "Broad admin, no clearinghouse/subscription" },
   { value: "dispatcher", label: "Dispatcher", desc: "Dispatch + scheduling view" },
   { value: "biller", label: "Biller", desc: "Billing & claims view" },
   { value: "crew", label: "Crew (Read-Only)", desc: "Mobile crew preview" },

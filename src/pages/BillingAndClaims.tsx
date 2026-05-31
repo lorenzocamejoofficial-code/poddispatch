@@ -446,7 +446,7 @@ export default function BillingAndClaims() {
       );
       if (!result.ok) {
         if (result.setupErrors.length) {
-          toast.error(`Submission blocked — ${result.setupErrors[0]}`, { duration: 8000 });
+          toast.error(`Submission blocked, ${result.setupErrors[0]}`, { duration: 8000 });
         } else {
           toast.error(result.error ?? "Failed to queue claims");
         }
@@ -510,7 +510,7 @@ export default function BillingAndClaims() {
   // Returns null when complete, or a human message when incomplete.
   const validatePatientAddress = (addr: string | null | undefined): string | null => {
     const raw = (addr ?? "").trim();
-    if (!raw) return "Patient address incomplete — update patient record before submitting.";
+    if (!raw) return "Patient address incomplete, update patient record before submitting.";
     // Require a 5-digit ZIP, at least one comma OR multi-word street, and a city token.
     const hasZip = /\b\d{5}(?:-\d{4})?\b/.test(raw);
     const tokens = raw.split(/[,\s]+/).filter(Boolean);
@@ -518,7 +518,7 @@ export default function BillingAndClaims() {
     // City heuristic: at least 3 distinct comma/space tokens beyond ZIP
     const hasCity = tokens.length >= 3;
     if (!hasZip || !hasStreet || !hasCity) {
-      return "Patient address incomplete — update patient record before submitting.";
+      return "Patient address incomplete, update patient record before submitting.";
     }
     return null;
   };
@@ -656,7 +656,7 @@ export default function BillingAndClaims() {
     const orphans = (trips as any[]).filter(t => !claimedTripIds.has(t.id));
 
     if (orphans.length === 0) {
-      toast.success("✓ Scan complete — every submitted PCR has a claim record");
+      toast.success("✓ Scan complete, every submitted PCR has a claim record");
       return;
     }
 
@@ -674,7 +674,7 @@ export default function BillingAndClaims() {
       .map(o => ({
         trip_id: o.id,
         company_id: o.company_id,
-        flag_reason: "PCR submitted but no claim record exists. The auto-create trigger may have failed — investigate before manually creating a claim.",
+        flag_reason: "PCR submitted but no claim record exists. The auto-create trigger may have failed, investigate before manually creating a claim.",
         severity: "red",
         flag_type: "missing_claim",
         status: "pending",
@@ -685,7 +685,7 @@ export default function BillingAndClaims() {
     }
 
     toast.warning(
-      `⚠ Found ${orphans.length} submitted PCR${orphans.length === 1 ? "" : "s"} with no claim record — ${newFlags.length} routed to the Compliance & QA queue.`,
+      `⚠ Found ${orphans.length} submitted PCR${orphans.length === 1 ? "" : "s"} with no claim record, ${newFlags.length} routed to the Compliance & QA queue.`,
       { duration: 12000 }
     );
   };
@@ -938,7 +938,7 @@ export default function BillingAndClaims() {
           resType = resolution || "pending";
         }
         const resolvedAt = t.emergency_upgrade_resolved_at ? new Date(t.emergency_upgrade_resolved_at).toLocaleString() : resTime;
-        (claim as any).emergency_event_summary = `Non-emergency transport started at ${pickupTime}. Emergency upgrade triggered at ${upgradeAt}. Resolution — ${resType}${resolvedAt ? ` — at ${resolvedAt}` : ""}.`;
+        (claim as any).emergency_event_summary = `Non-emergency transport started at ${pickupTime}. Emergency upgrade triggered at ${upgradeAt}. Resolution, ${resType}${resolvedAt ? ` — at ${resolvedAt}` : ""}.`;
         (claim as any).emergency_billing_recommendation = t.emergency_billing_recommendation ?? null;
       }
 
@@ -948,7 +948,7 @@ export default function BillingAndClaims() {
         const resType = (() => { try { return JSON.parse(resolution)?.type; } catch { return resolution; } })();
         if (resType === "transfer_of_care" || resType === "patient_stabilized") {
           claim.status = "needs_review";
-          claim.notes = `Emergency event requires biller review before submission — resolution: ${resType.replace(/_/g, " ")}`;
+          claim.notes = `Emergency event requires biller review before submission, resolution: ${resType.replace(/_/g, " ")}`;
           reviewClaims.push(claim);
           continue;
         }
@@ -986,7 +986,7 @@ export default function BillingAndClaims() {
     // Fix 3: Warn about $0 claims
     const zeroClaims = allClaims.filter(c => (c.total_charge ?? 0) === 0);
     if (zeroClaims.length > 0) {
-      toast.warning(`${zeroClaims.length} claim(s) created with $0.00 total — review the Charge Master to ensure rates are set for these payer types.`, {
+      toast.warning(`${zeroClaims.length} claim(s) created with $0.00 total, review the Charge Master to ensure rates are set for these payer types.`, {
         duration: 10000,
       });
     }
@@ -996,14 +996,14 @@ export default function BillingAndClaims() {
 
     // Warn about duplicate trip records that were skipped (same patient+date claim already exists)
     if (duplicateWarnings.length > 0) {
-      toast.warning(`Duplicate trip records detected — skipped claim creation for: ${duplicateWarnings.join(", ")}. Review and resolve duplicate trips before submitting.`, {
+      toast.warning(`Duplicate trip records detected, skipped claim creation for: ${duplicateWarnings.join(", ")}. Review and resolve duplicate trips before submitting.`, {
         duration: 15000,
       });
     }
 
     // Warn about duplicate billable trip records (same patient has multiple billable trips on same date)
     if (duplicateBillableWarnings.length > 0) {
-      toast.warning(`⚠ Duplicate billable trips detected — ${duplicateBillableWarnings.join("; ")}. Review these trip records before submitting claims to avoid payer denials.`, {
+      toast.warning(`⚠ Duplicate billable trips detected, ${duplicateBillableWarnings.join("; ")}. Review these trip records before submitting claims to avoid payer denials.`, {
         duration: 20000,
       });
     }
@@ -1012,7 +1012,7 @@ export default function BillingAndClaims() {
     const parts: string[] = [];
     if (cleanClaims.length > 0) parts.push(`${cleanClaims.length} claim(s) created and ready to bill`);
     if (reviewClaims.length > 0) parts.push(`${reviewClaims.length} claim(s) created with review flags`);
-    if (blockedTrips.length > 0) parts.push(`${blockedTrips.length} trip(s) blocked — documentation incomplete`);
+    if (blockedTrips.length > 0) parts.push(`${blockedTrips.length} trip(s) blocked, documentation incomplete`);
     if (duplicateWarnings.length > 0) parts.push(`${duplicateWarnings.length} duplicate(s) skipped`);
     if (duplicateBillableWarnings.length > 0) parts.push(`${duplicateBillableWarnings.length} duplicate billable trip(s) flagged`);
 
@@ -1032,7 +1032,7 @@ export default function BillingAndClaims() {
         for (const c of claimsToVoid as any[]) {
           await supabase.from("claim_records" as any).update({
             status: "voided",
-            notes: "Trip was cancelled — claim voided automatically",
+            notes: "Trip was cancelled, claim voided automatically",
           } as any).eq("id", c.id);
         }
         parts.push(`${claimsToVoid.length} claim(s) voided for cancelled trips`);
@@ -1102,7 +1102,7 @@ export default function BillingAndClaims() {
         .eq("id", selectedClaim.id)
         .maybeSingle();
       if (currentClaim && (currentClaim as any).updated_at !== claimOpenedAt) {
-        toast.error("This claim was already updated by another user — refreshing to show current state");
+        toast.error("This claim was already updated by another user, refreshing to show current state");
         setSavingClaim(false);
         setSelectedClaim(null);
         fetchData();
@@ -1147,7 +1147,7 @@ export default function BillingAndClaims() {
     if (handleOrphanSecondary && (selectedClaim as any).secondary_claim_id) {
       await supabase.from("claim_records" as any).update({
         status: "needs_review",
-        denial_reason: "Primary claim was deleted — review required",
+        denial_reason: "Primary claim was deleted, review required",
       } as any).eq("id", (selectedClaim as any).secondary_claim_id);
     }
 
@@ -1291,7 +1291,7 @@ export default function BillingAndClaims() {
                       </Button>
                     }
                     title="Submit claims to Office Ally?"
-                    description="This sends your Ready-to-Bill claims to Office Ally for live processing by the payer. Once submitted, claims cannot be unsent — they move to the Submitted column and you'll wait for the payer's 835 remittance response (days to weeks)."
+                    description="This sends your Ready-to-Bill claims to Office Ally for live processing by the payer. Once submitted, claims cannot be unsent, they move to the Submitted column and you'll wait for the payer's 835 remittance response (days to weeks)."
                     summary={
                       <div className="rounded-md border bg-muted/30 p-3 space-y-1">
                         <div className="flex justify-between">
@@ -1597,7 +1597,7 @@ export default function BillingAndClaims() {
                                 const exportedAt = (claim as any).exported_at;
                                 if (tripUpdated && exportedAt && new Date(tripUpdated) > new Date(exportedAt)) {
                                   return (
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-400 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20" title="Export outdated — trip data changed after last export. Regenerate before submitting.">
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-400 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20" title="Export outdated, trip data changed after last export. Regenerate before submitting.">
                                       Stale Export
                                     </Badge>
                                   );
@@ -1769,7 +1769,7 @@ export default function BillingAndClaims() {
                             className="h-7 text-xs border-amber-500 text-amber-700 hover:bg-amber-50 dark:text-amber-300"
                             onClick={async () => {
                               if (Number(rate.base_rate) <= 0 || Number(rate.mileage_rate) <= 0) {
-                                toast.error("Enter a rate first — base rate and $/mile must both be greater than $0.");
+                                toast.error("Enter a rate first, base rate and $/mile must both be greater than $0.");
                                 openEditRate(rate);
                                 return;
                               }
@@ -1918,7 +1918,7 @@ export default function BillingAndClaims() {
                       const result = await queueClaimsForSubmission([selectedClaim.id], activeCompanyId);
                       if (!result.ok) {
                         if (result.setupErrors.length) {
-                          toast.error(`Submission blocked — ${result.setupErrors[0]}`, { duration: 8000 });
+                          toast.error(`Submission blocked, ${result.setupErrors[0]}`, { duration: 8000 });
                         } else if (result.blocked.length) {
                           toast.error(result.blocked[0].issues[0]?.message ?? "Claim blocked by validation", { duration: 8000 });
                         } else {

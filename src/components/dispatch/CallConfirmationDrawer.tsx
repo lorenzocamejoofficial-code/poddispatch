@@ -171,9 +171,9 @@ export function CallConfirmationDrawer({
             .from("comms_events" as any)
             .update({ status: "failed", error_message: errMsg })
             .eq("id", commsEventId);
-          toast.error("Call failed — check the patient phone number and try again");
+          toast.error("Call failed, check the patient phone number and try again");
         } else {
-          toast.success("Call initiated — patient will be contacted shortly");
+          toast.success("Call initiated, patient will be contacted shortly");
           onOpenChange(false);
           onCallQueued();
           return;
@@ -183,7 +183,7 @@ export function CallConfirmationDrawer({
           .from("comms_events" as any)
           .update({ status: "failed", error_message: invokeErr?.message ?? "Invoke error" })
           .eq("id", commsEventId);
-        toast.error("Call failed — check the patient phone number and try again");
+        toast.error("Call failed, check the patient phone number and try again");
       }
     } catch (err: any) {
       toast.error("Failed to queue call: " + (err.message ?? "Unknown error"));

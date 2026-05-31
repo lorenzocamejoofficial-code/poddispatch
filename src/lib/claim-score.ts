@@ -47,7 +47,7 @@ export function computeClaimScore(
     trip.requires_monitoring ||
     trip.oxygen_during_transport
   );
-  if (!hasNecessity) deduct(20, "No medical necessity criteria — highest denial risk.");
+  if (!hasNecessity) deduct(20, "No medical necessity criteria, highest denial risk.");
 
   // --- Crew signature ---
   const hasSig =
@@ -92,7 +92,7 @@ export function computeClaimScore(
       const patientHasValidPcs = !!patient?.pcs_on_file && !patientPcsExpired;
 
       if (!tripPcsAttached && !patientHasValidPcs) {
-        deduct(15, "PCS missing or expired — required by this payer.");
+        deduct(15, "PCS missing or expired, required by this payer.");
       }
     }
   }

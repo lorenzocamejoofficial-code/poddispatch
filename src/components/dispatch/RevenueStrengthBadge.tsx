@@ -38,7 +38,7 @@ const CONFIG: Record<RevenueStrength, {
     label: "Underutilized",
     icon: AlertTriangle,
     className: "text-muted-foreground bg-muted",
-    desc: "Too few trips assigned — capacity wasted",
+    desc: "Too few trips assigned, capacity wasted",
   },
 };
 

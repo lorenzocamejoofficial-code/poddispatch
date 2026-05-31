@@ -210,7 +210,7 @@ export function TimesCard({ trip, recordTime, updateField, updateMultipleFields,
       updates.loaded_miles = parseFloat((destVal! - sceneVal!).toFixed(1));
       setOdometerWarning(null);
     } else if (scenePresent && destPresent && destVal! <= sceneVal!) {
-      setOdometerWarning("Check odometer values — destination reading is less than or equal to scene reading.");
+      setOdometerWarning("Check odometer values, destination reading is less than or equal to scene reading.");
     } else {
       setOdometerWarning(null);
     }

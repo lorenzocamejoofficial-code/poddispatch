@@ -61,7 +61,7 @@ export function capPatientResponsibility(
       capped: 0,
       original,
       wasCapped: true,
-      reason: "Medicaid primary — 42 CFR §447.15 prohibits balance-billing Medicaid patients.",
+      reason: "Medicaid primary, 42 CFR §447.15 prohibits balance-billing Medicaid patients.",
     };
   }
 
@@ -72,7 +72,7 @@ export function capPatientResponsibility(
       capped: 0,
       original,
       wasCapped: true,
-      reason: "Dual-eligible (Medicare primary, Medicaid secondary) — patient cannot be billed; route balance to Medicaid as secondary.",
+      reason: "Dual-eligible (Medicare primary, Medicaid secondary), patient cannot be billed; route balance to Medicaid as secondary.",
     };
   }
 

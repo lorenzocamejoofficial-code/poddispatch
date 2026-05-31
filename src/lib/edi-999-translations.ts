@@ -48,7 +48,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     code: "IK302",
     category: "segment_error",
     plain_english_explanation:
-      "Unexpected segment — segment appeared where it isn't allowed.",
+      "Unexpected segment, segment appeared where it isn't allowed.",
     action_required:
       "Either the segment was sent in the wrong loop, or a parent segment that should precede it is missing.",
     example_fix:
@@ -70,7 +70,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     action_required:
       "The segment was recognized but one or more of its elements failed validation. See the accompanying ELE-/IK4 codes for the specific element problems.",
     example_fix:
-      "Read the paired ELE-<n> codes — those identify which element inside this segment is wrong.",
+      "Read the paired ELE-<n> codes, those identify which element inside this segment is wrong.",
   },
   IK305: {
     code: "IK305",
@@ -99,7 +99,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     action_required:
       "Segments inside a loop must appear in the order specified by the implementation guide.",
     example_fix:
-      "Reorder segments — e.g. CLM must precede DTP*472 inside loop 2300.",
+      "Reorder segments, e.g. CLM must precede DTP*472 inside loop 2300.",
   },
   IK308: {
     code: "IK308",
@@ -109,7 +109,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     action_required:
       "Two elements have a relationship (one requires the other, or they're mutually exclusive) and that rule was broken.",
     example_fix:
-      "Inspect the segment's syntax rules in the IG — usually means a conditionally required companion element is missing.",
+      "Inspect the segment's syntax rules in the IG, usually means a conditionally required companion element is missing.",
   },
 
   // ── IK4 / AK4 — Element Syntax Error Code ──
@@ -120,7 +120,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     action_required:
       "A field the payer/IG marks as required for this situation was sent empty.",
     example_fix:
-      "Populate the field — commonly missing: rendering provider NPI, member ID, prior auth number, ambulance condition codes.",
+      "Populate the field, commonly missing: rendering provider NPI, member ID, prior auth number, ambulance condition codes.",
   },
   "IK403*2": {
     code: "IK403*2",
@@ -157,7 +157,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     action_required:
       "Value sent exceeds the maximum length defined by the IG.",
     example_fix:
-      "Truncate to the allowed max — common offenders: patient name, address line, payer name.",
+      "Truncate to the allowed max, common offenders: patient name, address line, payer name.",
   },
   "IK403*6": {
     code: "IK403*6",
@@ -166,7 +166,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     action_required:
       "Element contains a character outside the allowed character set (alpha/numeric/AN).",
     example_fix:
-      "Strip special characters — commas, ampersands, apostrophes, accented letters often cause this.",
+      "Strip special characters, commas, ampersands, apostrophes, accented letters often cause this.",
   },
   "IK403*7": {
     code: "IK403*7",
@@ -175,7 +175,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     action_required:
       "Value sent isn't part of the allowed code list for this element.",
     example_fix:
-      "Re-check the IG code list — common offenders: HCPCS modifier, place-of-service code, claim filing indicator, condition code.",
+      "Re-check the IG code list, common offenders: HCPCS modifier, place-of-service code, claim filing indicator, condition code.",
   },
   "IK403*8": {
     code: "IK403*8",
@@ -211,7 +211,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     action_required:
       "A repeating composite element exceeded its max repeat count.",
     example_fix:
-      "Reduce the number of repetitions — e.g. max 4 diagnosis code pointers per service line.",
+      "Reduce the number of repetitions, e.g. max 4 diagnosis code pointers per service line.",
   },
   "IK403*I6": {
     code: "IK403*I6",
@@ -220,7 +220,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     action_required:
       "Value sent is valid X12 but isn't permitted by the 837P implementation guide.",
     example_fix:
-      "Use only IG-approved values — e.g. some claim filing indicators are reserved/unused.",
+      "Use only IG-approved values, e.g. some claim filing indicators are reserved/unused.",
   },
   "IK403*I9": {
     code: "IK403*I9",
@@ -230,7 +230,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     action_required:
       "The IG marks this element required under the situational rule that applies here, but it wasn't sent.",
     example_fix:
-      "Add the missing element — frequently the rendering provider NPI in loop 2310B for ambulance claims, or the ambulance pick-up address ZIP in HSD.",
+      "Add the missing element, frequently the rendering provider NPI in loop 2310B for ambulance claims, or the ambulance pick-up address ZIP in HSD.",
   },
   "IK403*I10": {
     code: "IK403*I10",
@@ -249,7 +249,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     action_required:
       "Element matched the base X12 type but failed an implementation-specific regex (e.g. ICN format).",
     example_fix:
-      "Match the IG-specified pattern — e.g. payer claim control numbers often require a specific prefix/length.",
+      "Match the IG-specified pattern, e.g. payer claim control numbers often require a specific prefix/length.",
   },
 
   // ── IK5 / AK9 — Transaction Set / Functional Group Acknowledgment ──
@@ -257,7 +257,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     code: "IK501 (A)",
     category: "transaction_ack",
     plain_english_explanation: "Transaction set accepted.",
-    action_required: "No action — the transaction was accepted.",
+    action_required: "No action, the transaction was accepted.",
     example_fix: "—",
   },
   IK501E: {
@@ -282,7 +282,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     code: "IK501 (M)",
     category: "transaction_ack",
     plain_english_explanation:
-      "Transaction set rejected — message authentication code failure.",
+      "Transaction set rejected, message authentication code failure.",
     action_required:
       "Authentication/integrity check failed. Almost always a clearinghouse infrastructure issue.",
     example_fix: "Contact Office Ally support.",
@@ -291,7 +291,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     code: "IK501 (W)",
     category: "transaction_ack",
     plain_english_explanation:
-      "Transaction set rejected — assurance failed validity tests.",
+      "Transaction set rejected, assurance failed validity tests.",
     action_required:
       "Envelope or trailer counts don't match content. Indicates an emission bug.",
     example_fix:
@@ -301,7 +301,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     code: "IK501 (X)",
     category: "transaction_ack",
     plain_english_explanation:
-      "Transaction set rejected — content after decryption could not be analyzed.",
+      "Transaction set rejected, content after decryption could not be analyzed.",
     action_required:
       "Clearinghouse couldn't decrypt the file. Infrastructure issue.",
     example_fix: "Contact Office Ally support.",
@@ -310,7 +310,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     code: "AK9 (A)",
     category: "transaction_ack",
     plain_english_explanation:
-      "Functional group accepted — all transactions cleared.",
+      "Functional group accepted, all transactions cleared.",
     action_required: "No action.",
     example_fix: "—",
   },
@@ -327,7 +327,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     code: "AK9 (P)",
     category: "transaction_ack",
     plain_english_explanation:
-      "Functional group partially accepted — some transactions rejected.",
+      "Functional group partially accepted, some transactions rejected.",
     action_required:
       "Some claims were accepted; others were rejected. Resubmit rejected transactions only after fixing.",
     example_fix:
@@ -337,7 +337,7 @@ const IK_CODES: Record<string, IKTranslation> = {
     code: "AK9 (R)",
     category: "transaction_ack",
     plain_english_explanation:
-      "Functional group rejected — no transactions processed.",
+      "Functional group rejected, no transactions processed.",
     action_required:
       "Entire batch failed at the envelope level. Fix the structural error and resubmit.",
     example_fix:
@@ -417,5 +417,5 @@ export function translateIKCodes(rawCodes: string[]): {
 export function glossIKCode(raw: string): string {
   const t = translateIKCode(raw);
   if (!t) return raw;
-  return `${raw} — ${t.plain_english_explanation}`;
+  return `${raw}, ${t.plain_english_explanation}`;
 }

@@ -89,7 +89,7 @@ export function TemplateControls({ selectedDate, trucks, legs, onRefresh }: Prop
     try {
       // Resolve company_id using standard RPC
       const { data: companyId } = await supabase.rpc("get_my_company_id");
-      if (!companyId) { toast.error("Cannot determine company — are you logged in?"); return; }
+      if (!companyId) { toast.error("Cannot determine company, are you logged in?"); return; }
 
       // Build mapping: one rule per truck that has assigned legs
       const mapping: TemplateRule[] = trucks
@@ -105,7 +105,7 @@ export function TemplateControls({ selectedDate, trucks, legs, onRefresh }: Prop
         .filter(Boolean) as TemplateRule[];
 
       if (mapping.length === 0) {
-        toast.warning("No assigned runs found — assign runs to trucks before saving a template.");
+        toast.warning("No assigned runs found, assign runs to trucks before saving a template.");
         return;
       }
 
@@ -120,7 +120,7 @@ export function TemplateControls({ selectedDate, trucks, legs, onRefresh }: Prop
 
       if (error) { toast.error("Failed to save template"); console.error(error); return; }
 
-      toast.success(`Default ${dayType} setup saved — ${mapping.length} truck rule${mapping.length !== 1 ? "s" : ""} stored`);
+      toast.success(`Default ${dayType} setup saved, ${mapping.length} truck rule${mapping.length !== 1 ? "s" : ""} stored`);
       await loadTemplate();
     } finally {
       setSaving(false);
@@ -188,7 +188,7 @@ export function TemplateControls({ selectedDate, trucks, legs, onRefresh }: Prop
       }
 
       if (inserts.length === 0) {
-        toast.info("No unassigned runs matched the template rules — try Auto-Fill first.");
+        toast.info("No unassigned runs matched the template rules, try Auto-Fill first.");
         return;
       }
 
@@ -198,14 +198,14 @@ export function TemplateControls({ selectedDate, trucks, legs, onRefresh }: Prop
 
       if (error) {
         if (error.code === "23505") {
-          toast.warning("Some legs were already assigned — skipped duplicates.");
+          toast.warning("Some legs were already assigned, skipped duplicates.");
         } else {
           toast.error("Failed to apply template"); console.error(error); return;
         }
       }
 
       const trucksHit = new Set(inserts.map(i => i.truck_id)).size;
-      toast.success(`Applied template — ${inserts.length} run${inserts.length !== 1 ? "s" : ""} assigned across ${trucksHit} truck${trucksHit !== 1 ? "s" : ""}`);
+      toast.success(`Applied template, ${inserts.length} run${inserts.length !== 1 ? "s" : ""} assigned across ${trucksHit} truck${trucksHit !== 1 ? "s" : ""}`);
       onRefresh();
     } finally {
       setApplying(false);

@@ -271,7 +271,7 @@ const RULES: Record<PCRType, Partial<Record<PCRSectionKey, PCRSectionState>>> = 
 
 const LOCKED_REASONS: Partial<Record<PCRSectionKey, string>> = {
   esrd_dialysis: "Not applicable for this transport type",
-  sending_facility: "Not applicable — no sending facility for this transport",
+  sending_facility: "Not applicable, no sending facility for this transport",
   isolation_precautions: "Not applicable for this transport type",
   airway: "Airway interventions not applicable for this transport type",
   procedures: "Procedures not applicable for this transport type",

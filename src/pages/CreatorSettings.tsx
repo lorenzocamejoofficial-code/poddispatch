@@ -73,7 +73,7 @@ export default function CreatorSettings() {
   const handleMaintenanceToggle = async (v: boolean) => {
     setMaintenanceMode(v);
     const ok = await upsertFlag("maintenance_mode", v);
-    if (ok) toast.success(v ? "Maintenance mode ENABLED — non-creators are now blocked." : "Maintenance mode disabled.");
+    if (ok) toast.success(v ? "Maintenance mode ENABLED, non-creators are now blocked." : "Maintenance mode disabled.");
     else setMaintenanceMode(!v);
   };
 
@@ -159,7 +159,7 @@ export default function CreatorSettings() {
       });
     }
 
-    toast.success(`Company data reset complete — ${selectedResetCompany.name} is ready for fresh data.`);
+    toast.success(`Company data reset complete, ${selectedResetCompany.name} is ready for fresh data.`);
     setResetCompanyId("");
     setResetConfirmName("");
     setResetting(false);

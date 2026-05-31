@@ -138,7 +138,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
   if (allDiag.length === 0) {
     push({
       field: "icd10_codes", severity: "block",
-      message: "ICD-10 code required — enter code from PCR",
+      message: "ICD-10 code required, enter code from PCR",
       fixPath: tripPath ? `${tripPath}&focus=icd10` : patientFix("icd10"),
       fixLabel: tripPath ? "Fix in PCR" : "Fix in patient chart",
     });
@@ -185,7 +185,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
   if (!street.trim() || !city.trim() || !zip.trim()) {
     push({
       field: "patient_address", severity: "block",
-      message: "Patient address incomplete — update patient record before submitting.",
+      message: "Patient address incomplete, update patient record before submitting.",
       fixPath: patientFix("address"),
       fixLabel: "Fix in patient chart",
     });
@@ -200,7 +200,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
       const daysOver = Math.floor((Date.now() - deadline.getTime()) / (1000 * 60 * 60 * 24));
       push({
         field: "timely_filing", severity: "block",
-        message: `Timely filing deadline passed — DOS ${claim.run_date} is ${daysOver} days past the ${limit}-day limit for ${claim.payer_type ?? "payer"}.`,
+        message: `Timely filing deadline passed. DOS ${claim.run_date} is ${daysOver} days past the ${limit}-day limit for ${claim.payer_type ?? "payer"}.`,
       });
     }
   }
@@ -209,7 +209,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
   if (!claim.origin_type || !String(claim.origin_type).trim()) {
     push({
       field: "origin_type", severity: "block",
-      message: "Missing origin type — required for ambulance origin/destination modifier.",
+      message: "Missing origin type, required for ambulance origin/destination modifier.",
       fixPath: tripPath ? `${tripPath}&focus=origin_type` : undefined,
       fixLabel: tripPath ? "Fix in PCR" : undefined,
     });
@@ -217,7 +217,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
   if (!claim.destination_type || !String(claim.destination_type).trim()) {
     push({
       field: "destination_type", severity: "block",
-      message: "Missing destination type — required for ambulance origin/destination modifier.",
+      message: "Missing destination type, required for ambulance origin/destination modifier.",
       fixPath: tripPath ? `${tripPath}&focus=destination_type` : undefined,
       fixLabel: tripPath ? "Fix in PCR" : undefined,
     });
@@ -237,7 +237,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
       : "Fix in patient chart";
     push({
       field: "origin_zip", severity: "block",
-      message: "Missing or invalid pickup ZIP — required for Loop 2310E (Medicare GPCI lookup).",
+      message: "Missing or invalid pickup ZIP, required for Loop 2310E (Medicare GPCI lookup).",
       fixPath: zipFixPath,
       fixLabel: zipFixLabel,
     });

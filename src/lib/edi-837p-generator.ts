@@ -398,10 +398,10 @@ function assertFilingIndicator(value: unknown, claimId: string, loop: string): s
   const v = typeof value === "string" ? value : "";
   if (!VALID_FILING_INDICATORS.has(v)) {
     throw new Error(
-      `generateEDI837P: claim ${claimId} ${loop} SBR09 rejected — got ${JSON.stringify(value)}, ` +
+      `generateEDI837P: claim ${claimId} ${loop} SBR09 rejected, got ${JSON.stringify(value)}, ` +
       `expected one of ${[...VALID_FILING_INDICATORS].join("/")}. ` +
       `This value must come from payer_directory.claim_filing_indicator via ` +
-      `resolvePayerForClaim() — upstream did not project it onto the claim envelope.`
+      `resolvePayerForClaim(), upstream did not project it onto the claim envelope.`
     );
   }
   return v;
@@ -959,7 +959,7 @@ export function generateEDI837P(
     const pairsInBase = baseModSet.filter(isLocationPair);
     if (pairsInBase.length !== 1) {
       throw new Error(
-        `generateEDI837P: claim ${claim.claim_id} SV1 base line would emit ${pairsInBase.length} origin/destination pair(s) [${pairsInBase.join(", ")}] — expected exactly 1. ` +
+        `generateEDI837P: claim ${claim.claim_id} SV1 base line would emit ${pairsInBase.length} origin/destination pair(s) [${pairsInBase.join(", ")}], expected exactly 1. ` +
         `Computed facilityCode=${facilityCode}. ` +
         `Persisted hcpcs_modifiers=${JSON.stringify(claim.hcpcs_modifiers || [])}. ` +
         `An SV1 line may carry only one O/D pair per X12N TR3 005010X222A1 §2400 and CMS Pub 100-04 Ch.15 §10.4. ` +
@@ -1008,7 +1008,7 @@ export function generateEDI837P(
       const mileagePairs = mileageMods.filter(isLocationPair);
       if (mileagePairs.length !== 1) {
         throw new Error(
-          `generateEDI837P: claim ${claim.claim_id} SV1 mileage line would emit ${mileagePairs.length} origin/destination pair(s) [${mileagePairs.join(", ")}] — expected exactly 1.`
+          `generateEDI837P: claim ${claim.claim_id} SV1 mileage line would emit ${mileagePairs.length} origin/destination pair(s) [${mileagePairs.join(", ")}], expected exactly 1.`
         );
       }
       const miles = Number(claim.loaded_miles);
@@ -1070,17 +1070,17 @@ export function validateSubmitterInfo(info: SubmitterInfo): string[] {
   const errors: string[] = [];
   const sid = (info.submitter_id ?? "").trim();
   if (!sid) {
-    errors.push("Vendor Submitter ID is missing — configure it in vendor_clearinghouse_settings before exporting any 837P.");
+    errors.push("Vendor Submitter ID is missing, configure it in vendor_clearinghouse_settings before exporting any 837P.");
   }
   if (!(info.submitter_name ?? "").trim()) {
-    errors.push("Vendor Submitter Name is missing — configure it in vendor_clearinghouse_settings.");
+    errors.push("Vendor Submitter Name is missing, configure it in vendor_clearinghouse_settings.");
   }
   if (!(info.contact_name ?? "").trim()) {
-    errors.push("Vendor contact name is missing — configure it in vendor_clearinghouse_settings.");
+    errors.push("Vendor contact name is missing, configure it in vendor_clearinghouse_settings.");
   }
   const phoneDigits = (info.contact_phone ?? "").replace(/\D/g, "");
   if (phoneDigits.length < 10) {
-    errors.push("Vendor contact phone must be at least 10 digits — configure it in vendor_clearinghouse_settings.");
+    errors.push("Vendor contact phone must be at least 10 digits, configure it in vendor_clearinghouse_settings.");
   }
   return errors;
 }
@@ -1094,7 +1094,7 @@ export function validateProviderInfo(info: ProviderInfo): string[] {
   if (npi.length !== 10) errors.push("Provider NPI must be exactly 10 digits.");
   else if (!isLuhnValidNpi(npi)) {
     errors.push(
-      "Provider NPI failed Luhn checksum — Office Ally rejects any 10-digit NPI whose check digit does not validate against the CMS 80840 prefix. Verify the number against NPPES."
+      "Provider NPI failed Luhn checksum. Office Ally rejects any 10-digit NPI whose check digit does not validate against the CMS 80840 prefix. Verify the number against NPPES."
     );
   }
   const ein = (info.tax_id ?? "").replace(/\D/g, "");
@@ -1104,7 +1104,7 @@ export function validateProviderInfo(info: ProviderInfo): string[] {
   if (!addr) {
     errors.push("Provider street address is required (Loop 2010AA, N3).");
   } else if (/\bP\.?\s*O\.?\s*BOX\b/i.test(addr)) {
-    errors.push("Provider address cannot be a PO Box — Office Ally requires a physical street address for the Billing Provider.");
+    errors.push("Provider address cannot be a PO Box. Office Ally requires a physical street address for the Billing Provider.");
   }
   if (!(info.city ?? "").trim()) errors.push("Provider city is required (Loop 2010AA, N4).");
   const stateAbbr = (info.state ?? "").trim().toUpperCase();

@@ -64,7 +64,7 @@ export function StretcherMobilityCard({ trip, updateField, requiredFields = ["st
 
       <div>
         <Label className="text-sm font-medium text-foreground flex items-center">
-          Position During Transport <PCRTooltip text="Patient's body position during transport — required for stretcher transport documentation" />
+          Position During Transport <PCRTooltip text="Patient's body position during transport, required for stretcher transport documentation" />
           {isReq("patient_position") && <PCRFieldDot filled={isFilled("patient_position")} />}
         </Label>
         <Select

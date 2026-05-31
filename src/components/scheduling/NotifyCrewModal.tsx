@@ -83,7 +83,7 @@ export function NotifyCrewModal({ open, onOpenChange, selectedDate, onNotified }
 
         const truckName = truckNames.get(truckId) ?? "Truck";
         const messageLines = truckChanges.map(c => `• ${c.change_summary}`).join("\n");
-        const message = `Schedule Update — ${truckName}\n${messageLines}`;
+        const message = `Schedule Update, ${truckName}\n${messageLines}`;
 
         const userIds: string[] = [];
         if ((crewRow.member1 as any)?.user_id) userIds.push((crewRow.member1 as any).user_id);
@@ -111,7 +111,7 @@ export function NotifyCrewModal({ open, onOpenChange, selectedDate, onNotified }
           .in("id", changeIds);
       }
 
-      toast.success(`Crew notified — ${crewNotified} crew member${crewNotified !== 1 ? "s" : ""} received schedule update`);
+      toast.success(`Crew notified, ${crewNotified} crew member${crewNotified !== 1 ? "s" : ""} received schedule update`);
       onNotified();
       onOpenChange(false);
     } catch (err: any) {

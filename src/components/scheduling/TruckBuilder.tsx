@@ -528,7 +528,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
           notes: `Auto-cancelled B-Leg (linked A-Leg cancelled) for ${linkedB.patient_name} on ${selectedDate}`,
           new_data: { leg_type: "B", patient_name: linkedB.patient_name, run_date: selectedDate, auto_cancelled: true },
         } as any);
-        toast.success("A-Leg cancelled — linked B-Leg also cancelled");
+        toast.success("A-Leg cancelled, linked B-Leg also cancelled");
       } else {
         toast.success("Run cancelled");
       }
@@ -841,7 +841,7 @@ const TruckCard = memo(function TruckCard({
           <div className="flex items-center gap-1 font-semibold">
             <WrenchIcon className="h-3 w-3" />
             Truck unavailable
-            {downRecord!.reason && ` — ${downRecord!.reason}`}
+            {downRecord!.reason && `, ${downRecord!.reason}`}
           </div>
           {hasRunsWhileDown && (
             <div className="mt-1 flex items-center gap-1 text-[hsl(var(--status-yellow))] font-medium">

@@ -46,7 +46,7 @@ export function ClaimCreationFailuresPanel() {
       const friendly: Record<string, string> = {
         PERMISSION_DENIED: "You don't have permission to retry claim creation. Ask an admin or biller.",
         TRIP_NOT_FOUND: "This trip no longer exists in your company.",
-        PCR_NOT_SUBMITTED: "The PCR is no longer in submitted state — open the trip to review.",
+        PCR_NOT_SUBMITTED: "The PCR is no longer in submitted state, open the trip to review.",
       };
       toast.error(friendly[code] ?? `Retry failed: ${code}`);
       return;

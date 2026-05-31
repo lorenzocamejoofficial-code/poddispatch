@@ -474,7 +474,7 @@ export default function Scheduling() {
       setCopySearchOpen(false);
       setCopySearchQuery("");
     }
-    toast.info("Fields pre-filled from previous run — review before saving");
+    toast.info("Fields pre-filled from previous run, review before saving");
   };
 
   const openCreateDialog = (type: "A" | "B") => {
@@ -507,15 +507,15 @@ export default function Scheduling() {
       if (!oneoffForm.sex) { toast.error("Sex is required for one-off runs"); return; }
       if (!oneoffForm.member_id || !oneoffForm.member_id.trim()) { toast.error("Member ID is required for one-off runs"); return; }
       if (!oneoffForm.primary_payer || !String(oneoffForm.primary_payer).trim()) {
-        toast.error("Primary payer is required — select Medicare, Medicaid, Commercial, Self-Pay, or Workers' Comp.");
+        toast.error("Primary payer is required, select Medicare, Medicaid, Commercial, Self-Pay, or Workers' Comp.");
         return;
       }
       if (!oneoffForm.pickup_location_type) {
-        toast.error("Origin type is required — select from Residence, Hospital, SNF, Dialysis Facility, etc.");
+        toast.error("Origin type is required, select from Residence, Hospital, SNF, Dialysis Facility, etc.");
         return;
       }
       if (!oneoffForm.destination_type) {
-        toast.error("Destination type is required — select from Residence, Hospital, SNF, Dialysis Facility, etc.");
+        toast.error("Destination type is required, select from Residence, Hospital, SNF, Dialysis Facility, etc.");
         return;
       }
       const normalizedTripType = normalizeTripType(oneoffForm.trip_type);
@@ -622,11 +622,11 @@ export default function Scheduling() {
       return;
     }
     if (!legPickupLocationType) {
-      toast.error("Origin type is required — select from Residence, Hospital, SNF, Dialysis Facility, etc.");
+      toast.error("Origin type is required, select from Residence, Hospital, SNF, Dialysis Facility, etc.");
       return;
     }
     if (!legDestinationType) {
-      toast.error("Destination type is required — select from Residence, Hospital, SNF, Dialysis Facility, etc.");
+      toast.error("Destination type is required, select from Residence, Hospital, SNF, Dialysis Facility, etc.");
       return;
     }
 
@@ -784,7 +784,7 @@ export default function Scheduling() {
           leg_id: editingExceptionLeg.id,
         });
 
-        toast.success(`Run moved to ${exceptionNewDate} — it will appear in that day's run pool`);
+        toast.success(`Run moved to ${exceptionNewDate}, it will appear in that day's run pool`);
         setExceptionDialogOpen(false);
         refresh();
         return;
@@ -876,7 +876,7 @@ export default function Scheduling() {
       .delete()
       .eq("scheduling_leg_id", editingExceptionLeg.id)
       .eq("run_date", selectedDate);
-    toast.success("Exception removed — restored to series defaults");
+    toast.success("Exception removed, restored to series defaults");
     setExceptionDialogOpen(false);
     refresh();
   };
@@ -1038,7 +1038,7 @@ export default function Scheduling() {
       .limit(1);
     const downRecord = ((downRows ?? []) as any[])[0];
     if (downRecord && (downRecord.status === "down_maintenance" || downRecord.status === "down_out_of_service")) {
-      toast.error(`Cannot assign to ${truckName} — truck is DOWN${downRecord.reason ? `: ${downRecord.reason}` : ""}`);
+      toast.error(`Cannot assign to ${truckName}, truck is DOWN${downRecord.reason ? `: ${downRecord.reason}` : ""}`);
       return;
     }
 

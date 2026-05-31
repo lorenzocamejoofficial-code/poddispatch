@@ -238,7 +238,7 @@ export default function CreatorConsole() {
   const handleApprove = async (c: CompanyRecord) => {
     const vr = verificationResults[c.id];
     if (!vr) {
-      toast.error("Run the verification panel first — expand the company row.");
+      toast.error("Run the verification panel first, expand the company row.");
       return;
     }
     if (vr.npi.status === "pending" || vr.medicare.status === "pending" || vr.oig.status === "pending") {

@@ -234,7 +234,7 @@ export function CancellationDocForm({
         action: "cancellation_documented",
         tableName: "trip_records",
         recordId: tripId,
-        notes: `Cancellation documentation completed for ${patientName} — ${patientContact ? contactEndReason : noContactReason}`,
+        notes: `Cancellation documentation completed for ${patientName}, ${patientContact ? contactEndReason : noContactReason}`,
       });
 
       toast.success("Cancellation documentation saved");

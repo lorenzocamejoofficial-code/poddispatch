@@ -85,7 +85,7 @@ export function BillerPcsPanel({ tripId, patientId, onCompleted }: Props) {
     const { data, error } = await supabase.storage.from("documents").createSignedUrl(doc.file_path, 300);
     if (error || !data?.signedUrl) {
       newTab?.close();
-      toast.error(error?.message ?? "Could not open document — file may be missing from storage");
+      toast.error(error?.message ?? "Could not open document, file may be missing from storage");
       return;
     }
     if (newTab) {

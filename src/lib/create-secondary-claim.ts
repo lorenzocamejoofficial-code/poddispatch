@@ -38,7 +38,7 @@ export async function createSecondaryClaim(
     return { ok: true, secondaryClaimId: p.secondary_claim_id };
   }
   if (!p.patient_id) {
-    return { ok: false, error: "primary claim is missing patient_id (one-off — no secondary lookup possible)" };
+    return { ok: false, error: "primary claim is missing patient_id (one-off, no secondary lookup possible)" };
   }
 
   // Secondary claim charges = unpaid balance left for the secondary payer to
@@ -48,7 +48,7 @@ export async function createSecondaryClaim(
   const primaryTotal = Number(p.total_charge) || 0;
   const patResp = Number(p.patient_responsibility_amount) || 0;
   if (patResp <= 0) {
-    return { ok: false, error: "primary has no patient_responsibility_amount — nothing left for secondary to bill" };
+    return { ok: false, error: "primary has no patient_responsibility_amount, nothing left for secondary to bill" };
   }
   const ratio = primaryTotal > 0 ? patResp / primaryTotal : 0;
   const round2 = (n: number) => Math.round(n * 100) / 100;

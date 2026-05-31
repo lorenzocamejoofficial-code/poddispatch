@@ -80,14 +80,14 @@ export function EmergencyResolutionModal({
     {
       type: "patient_stabilized",
       icon: <HeartPulse className="h-6 w-6" />,
-      title: "Patient Stabilized — Continued Non-Emergency Transport",
+      title: "Patient Stabilized. Continued Non-Emergency Transport",
       desc: "Emergency resolved, patient stabilized and transport continued",
       visible: true,
     },
     {
       type: "no_emergency",
       icon: <ShieldX className="h-6 w-6" />,
-      title: "No Emergency Confirmed — Downgrade to Non-Emergency",
+      title: "No Emergency Confirmed. Downgrade to Non-Emergency",
       desc: "Assessment determined no emergency existed",
       visible: true,
     },

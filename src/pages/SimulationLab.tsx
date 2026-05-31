@@ -173,7 +173,7 @@ export default function SimulationLab() {
         invalidateAll();
         loadStatus();
       } else {
-        toast({ title: "Seed Failed", description: `Step: ${data.step} — ${data.error}`, variant: "destructive" });
+        toast({ title: "Seed Failed", description: `Step: ${data.step}, ${data.error}`, variant: "destructive" });
       }
     } catch (e: any) {
       setSeedResult({ ok: false, step: "network", error: e.message });

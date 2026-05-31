@@ -28,7 +28,7 @@ export default function AcceptInvite() {
   // Load invite details
   useEffect(() => {
     if (!token) {
-      setError("Invalid invite link — no token provided.");
+      setError("Invalid invite link, no token provided.");
       setLoading(false);
       return;
     }

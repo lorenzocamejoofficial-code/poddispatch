@@ -192,7 +192,7 @@ export function PlaceCallDialog({ open, onOpenChange, trucks, facilities, onPick
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-foreground">Call Patient</div>
                 <div className="text-xs text-muted-foreground">
-                  {noPhone ? "No phone on file — call cannot be placed" : run.patientName}
+                  {noPhone ? "No phone on file, call cannot be placed" : run.patientName}
                 </div>
               </div>
             </button>

@@ -80,7 +80,7 @@ export function evaluateUpstreamReadiness(input: UpstreamCheckInput): {
   if (!addr.hasStreet || !addr.hasCity || !addr.hasZip) {
     blockers.push({
       label: "Pickup address incomplete",
-      detail: "Need street, city, and 5-digit ZIP — the ZIP drives Medicare rate lookup.",
+      detail: "Need street, city, and 5-digit ZIP, the ZIP drives Medicare rate lookup.",
     });
   }
 
