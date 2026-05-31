@@ -1194,75 +1194,188 @@ export default function BillingAndClaims() {
     c => c.status === "paid" && c.patient_secondary_payer && !c.secondary_claim_generated
   ).length;
 
+  // ----- Money-at-a-glance metrics (reused from `realClaims`; no new queries) -----
+  const readyClaims = realClaims.filter(c => c.status === "ready_to_bill");
+  const readyCount = readyClaims.length;
+  const readyTotal = readyClaims.reduce((s, c) => s + (c.total_charge ?? 0), 0);
+
+  const submittedClaims = realClaims.filter(c => c.status === "submitted");
+  const submittedCount = submittedClaims.length;
+  const submittedTotal = submittedClaims.reduce((s, c) => s + (c.total_charge ?? 0), 0);
+
+  const deniedClaims = realClaims.filter(c => c.status === "denied");
+  const deniedCount = deniedClaims.length;
+  const deniedTotal = deniedClaims.reduce((s, c) => s + (c.total_charge ?? 0), 0);
+
+  const _now = new Date();
+  const _monthStart = new Date(_now.getFullYear(), _now.getMonth(), 1).getTime();
+  const postedThisMonth = realClaims
+    .filter(c => c.status === "paid" && c.paid_at && new Date(c.paid_at).getTime() >= _monthStart)
+    .reduce((s, c) => s + (c.amount_paid ?? 0), 0);
+
+  const fmtMoney = (n: number) =>
+    `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const goDenied = () => {
+    setActiveTab("claims");
+    setStatusTab("denied");
+    setStatusPage(1);
+  };
+
   return (
     <AdminLayout>
       <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <TabsList className="flex-wrap h-auto gap-1">
-            <TabsTrigger value="claims">Claims Board</TabsTrigger>
-            <TabsTrigger value="charge-master"><Settings2 className="h-3.5 w-3.5 mr-1.5" />Charge Master</TabsTrigger>
-            <TabsTrigger value="missing-money"><DollarSign className="h-3.5 w-3.5 mr-1.5" />Missing Money</TabsTrigger>
-            <TabsTrigger value="payer-directory"><BookOpen className="h-3.5 w-3.5 mr-1.5" />Payer Directory</TabsTrigger>
+        {/* 1. MONEY AT A GLANCE — reused metrics, no new queries */}
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-lg border bg-card p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Ready to send</p>
+            <p className="text-2xl font-bold text-foreground">{fmtMoney(readyTotal)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{readyCount} claim{readyCount === 1 ? "" : "s"}</p>
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Awaiting payer</p>
+            <p className="text-2xl font-bold text-foreground">{fmtMoney(submittedTotal)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{submittedCount} claim{submittedCount === 1 ? "" : "s"}</p>
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Denied — work now</p>
+            <p className={`text-2xl font-bold ${deniedCount > 0 ? "text-destructive" : "text-foreground"}`}>{fmtMoney(deniedTotal)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{deniedCount} claim{deniedCount === 1 ? "" : "s"} · {denialRate}% rate</p>
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Posted this month</p>
+            <p className="text-2xl font-bold text-foreground">{fmtMoney(postedThisMonth)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">paid</p>
+          </div>
+        </div>
+
+        {/* 2. NEEDS YOUR ACTION — task rows wired to existing handlers */}
+        {(readyCount > 0 || deniedCount > 0 || secondaryOpportunities > 0) && (
+          <div className="rounded-lg border bg-card divide-y">
+            <div className="px-4 py-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">
+              Needs your action
+            </div>
+            {readyCount > 0 && (
+              <div className="flex items-center gap-3 px-4 py-3 border-l-2 border-l-primary">
+                <Send className="h-4 w-4 text-primary shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Ready to submit</p>
+                  <p className="text-xs text-muted-foreground">
+                    {readyCount} claim{readyCount === 1 ? "" : "s"} · {fmtMoney(readyTotal)}
+                  </p>
+                </div>
+                {clearinghouseConfigured ? (
+                  <Button size="sm" onClick={handleSendViaOA} disabled={oaSending} className="gap-1.5">
+                    {oaSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    {oaSending ? "Sending…" : "Send via Office Ally"}
+                  </Button>
+                ) : (
+                  <a href="/edi-export">
+                    <Button size="sm" className="gap-1.5">
+                      <FileText className="h-3.5 w-3.5" />
+                      Open 837P Export
+                    </Button>
+                  </a>
+                )}
+              </div>
+            )}
+            {deniedCount > 0 && (
+              <div className="flex items-center gap-3 px-4 py-3">
+                <XCircle className="h-4 w-4 text-destructive shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Denials to work</p>
+                  <p className="text-xs text-muted-foreground">
+                    {deniedCount} denied · {fmtMoney(deniedTotal)} recoverable
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={goDenied} className="gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Work denials
+                </Button>
+              </div>
+            )}
+            {secondaryOpportunities > 0 && (
+              <div className="flex items-center gap-3 px-4 py-3">
+                <DollarSign className="h-4 w-4 text-[hsl(var(--status-yellow))] shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Secondary opportunities</p>
+                  <p className="text-xs text-muted-foreground">
+                    {secondaryOpportunities} paid claim{secondaryOpportunities === 1 ? "" : "s"} with secondary coverage
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { setActiveTab("claims"); setSecondaryFilter(prev => !prev); }}
+                >
+                  {secondaryFilter ? "Clear filter" : "Review"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 3. SUBMISSION STATUS — quiet pipeline strip, not a full panel */}
+        {activeCompanyId && <SubmissionPipelineStrip companyId={activeCompanyId} />}
+        {activeCompanyId && <SubmissionQueueErrorsPanel companyId={activeCompanyId} />}
+
+        {/* 4. TOOLS — low-weight row of secondary actions + section tabs */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-muted-foreground mr-1">Tools:</span>
+          <TabsList className="flex-wrap h-auto gap-1 bg-muted/40">
+            <TabsTrigger value="claims" className="text-xs">Claims Board</TabsTrigger>
+            <TabsTrigger value="charge-master" className="text-xs"><Settings2 className="h-3 w-3 mr-1" />Charge Master</TabsTrigger>
+            <TabsTrigger value="missing-money" className="text-xs"><DollarSign className="h-3 w-3 mr-1" />Missing Money</TabsTrigger>
+            <TabsTrigger value="payer-directory" className="text-xs"><BookOpen className="h-3 w-3 mr-1" />Payer Directory</TabsTrigger>
           </TabsList>
           <a href="/edi-export">
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <FileText className="h-3.5 w-3.5" />
-              837P Export
+            <Button variant="ghost" size="sm" className="gap-1 text-xs h-8">
+              <FileText className="h-3.5 w-3.5" />837P Export
             </Button>
           </a>
           <a href="/remittance-import">
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <Download className="h-3.5 w-3.5" />
-              835 Import
+            <Button variant="ghost" size="sm" className="gap-1 text-xs h-8">
+              <Download className="h-3.5 w-3.5" />835 Import
             </Button>
           </a>
           {clearinghouseConfigured && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs"
-                onClick={handleSendViaOA}
-                disabled={oaSending}
-              >
-                {oaSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                {oaSending ? "Sending..." : "Send via Office Ally"}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs"
-                onClick={handleCheckPayments}
-                disabled={oaReceiving}
-              >
-                {oaReceiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                {oaReceiving ? "Checking..." : "Check for Payments"}
-              </Button>
-            </>
-          )}
-          {secondaryOpportunities > 0 && (
-            <Badge
-              variant="secondary"
-              className="text-xs gap-1 bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] border border-[hsl(var(--status-yellow))]/30 cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => { setActiveTab("claims"); setSecondaryFilter(prev => !prev); }}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1 text-xs h-8"
+              onClick={handleCheckPayments}
+              disabled={oaReceiving}
             >
-              <AlertTriangle className="h-3 w-3" />
-              {secondaryOpportunities} secondary {secondaryOpportunities === 1 ? "opportunity" : "opportunities"}
-              {secondaryFilter && <X className="h-3 w-3 ml-0.5" />}
-            </Badge>
+              {oaReceiving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              {oaReceiving ? "Checking…" : "Check for payments"}
+            </Button>
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-40 h-9" />
-            <Button size="sm" variant="outline" onClick={scanForMissingClaims} title="Diagnostic: finds submitted PCRs without a claim record. Claims are auto-created by the database trigger; this scan should always come back clean.">
-              <ShieldAlert className="h-3.5 w-3.5 mr-1.5" />Scan for Missing Claims
-            </Button>
-            <Button size="sm" variant="outline" onClick={async () => { await syncClaimsFromTrips(); fetchData(); }} title="Recovery: creates claim records (with HCPCS codes) for any submitted PCRs that don't have a claim yet. Use this when the auto-create trigger missed a trip.">
-              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Sync Claims from Trips
-            </Button>
-            <Button size="sm" variant="outline" onClick={refreshExistingClaims}>
-              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Refresh Existing Claims
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => {
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1 text-xs h-8"
+            onClick={scanForMissingClaims}
+            title="Finds submitted PCRs without a claim record."
+          >
+            <ShieldAlert className="h-3.5 w-3.5" />Scan missing
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1 text-xs h-8"
+            onClick={async () => { await syncClaimsFromTrips(); fetchData(); }}
+            title="Recovery: creates claim records for any submitted PCRs that don't have one."
+          >
+            <RefreshCw className="h-3.5 w-3.5" />Sync from trips
+          </Button>
+          <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={refreshExistingClaims}>
+            <RotateCcw className="h-3.5 w-3.5" />Refresh
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1 text-xs h-8"
+            onClick={() => {
               const rows = claims.map(c => ({
                 patient_name: c.patient_name ?? "",
                 run_date: c.run_date,
@@ -1278,37 +1391,33 @@ export default function BillingAndClaims() {
               downloadCSV(rows, `claims_export_${dateFilter}.csv`);
               logAuditEvent({ action: "export", tableName: "claim_records", notes: `Exported ${rows.length} claims` });
               toast.success(`Exported ${rows.length} claims`);
-            }}>
-              <Download className="h-3.5 w-3.5 mr-1.5" />Export CSV
-            </Button>
-          </div>
+            }}
+          >
+            <Download className="h-3.5 w-3.5" />Export CSV
+          </Button>
+          <Input
+            type="date"
+            value={dateFilter}
+            onChange={e => setDateFilter(e.target.value)}
+            className="w-36 h-8 text-xs ml-auto"
+          />
         </div>
 
-        {/* Remittance Activity (only when Office Ally is wired up) */}
-        {activeCompanyId && <SubmissionPipelineStrip companyId={activeCompanyId} />}
-        {activeCompanyId && <SubmissionQueueErrorsPanel companyId={activeCompanyId} />}
-
+        {/* Remittance details — collapsed, tucked under tools so it doesn't compete with the action queue */}
         {clearinghouseConfigured && activeCompanyId && (
-          <>
-            <RemittanceActivityPanel
-              companyId={activeCompanyId}
-              refreshKey={remittanceRefreshKey}
-            />
-            <RemittanceHistoryPanel />
-          </>
+          <details className="rounded-lg border bg-card">
+            <summary className="cursor-pointer select-none px-4 py-2.5 text-xs uppercase tracking-wider text-muted-foreground font-medium hover:bg-muted/30">
+              Remittance activity &amp; history
+            </summary>
+            <div className="p-4 space-y-4 border-t">
+              <RemittanceActivityPanel
+                companyId={activeCompanyId}
+                refreshKey={remittanceRefreshKey}
+              />
+              <RemittanceHistoryPanel />
+            </div>
+          </details>
         )}
-
-        {/* Summary KPIs */}
-        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-          <div className="rounded-lg border bg-card p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Pending A/R</p>
-            <p className="text-2xl font-bold text-foreground">${totalPending.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
-          </div>
-          <div className="rounded-lg border bg-card p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Denial Rate</p>
-            <p className={`text-2xl font-bold ${parseFloat(denialRate) > 10 ? "text-destructive" : "text-foreground"}`}>{denialRate}%</p>
-          </div>
-        </div>
 
         {/* Claims Board */}
         <TabsContent value="claims" className="m-0">
