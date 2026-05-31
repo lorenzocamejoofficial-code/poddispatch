@@ -285,7 +285,16 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                   {(run as any).destination_name && <span className="break-words">→ {(run as any).destination_name}</span>}
                   <span className="capitalize shrink-0">{run.trip_type}</span>
                   {!isCancelled && (
-                    <BillingReadinessChip status={run.billing_status ?? null} issues={run.billing_issues} />
+                    (() => {
+                      const isPreCompletion = !run.billing_status || run.billing_status === "not_ready";
+                      if (isPreCompletion) {
+                        if (run.pre_trip_readiness === "needs_attention" && run.pre_trip_reasons && run.pre_trip_reasons.length > 0) {
+                          return <PreTripReadinessChip reasons={run.pre_trip_reasons} />;
+                        }
+                        return <BillingReadinessChip status={null} />;
+                      }
+                      return <BillingReadinessChip status={run.billing_status ?? null} issues={run.billing_issues} />;
+                    })()
                   )}
                 </div>
                 {/* Expanded details */}
