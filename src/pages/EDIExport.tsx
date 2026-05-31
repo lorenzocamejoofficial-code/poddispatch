@@ -965,7 +965,12 @@ export default function EDIExport() {
           </Alert>
         )}
 
-        {/* Provider & Submitter Info */}
+        {/* Provider & Submitter Info — creator-only diagnostic.
+            Regular tenants never see these cards: Billing Provider data is
+            auto-loaded from the company record, and Submitter is PodDispatch's
+            central vendor identity. Showing them to customers would expose
+            internal vendor credentials. */}
+        {isSystemCreator && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card>
             <CardHeader className="pb-3">
@@ -1110,6 +1115,7 @@ export default function EDIExport() {
             </CardContent>
           </Card>
         </div>
+        )}
 
         {/* Claims Selection */}
         <Card>
