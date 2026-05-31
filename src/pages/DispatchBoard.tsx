@@ -40,6 +40,8 @@ interface TruckData {
     patient_weight?: number | null;
     billing_status?: BillingStatus;
     billing_issues?: string[];
+    pre_trip_readiness?: "ready" | "needs_attention" | null;
+    pre_trip_reasons?: string[];
     hcpcs_codes?: string[];
     hcpcs_modifiers?: string[];
     loaded_miles?: number | null;
