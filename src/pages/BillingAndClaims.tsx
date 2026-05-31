@@ -471,19 +471,35 @@ export default function BillingAndClaims() {
       const { data, error } = await supabase.functions.invoke("retrieve-remittance-officeally", {
         body: { company_id: activeCompanyId },
       });
-      if (error) throw error;
+      if (error) {
+        // Surface the actual edge-function error body so users (and we) can
+        // see why the call failed instead of a generic "non-2xx" toast.
+        const ctx: any = (error as any).context;
+        let detail = "";
+        try {
+          const txt = await ctx?.text?.();
+          if (txt) {
+            try {
+              const j = JSON.parse(txt);
+              detail = j?.error || j?.message || txt;
+            } catch { detail = txt; }
+          }
+        } catch { /* noop */ }
+        throw new Error(detail || error.message || "Check for payments failed");
+      }
+      if (data?.error) throw new Error(data.error);
       if (data?.received > 0) {
         toast.success(`Imported ${data.received} payment files`);
       } else {
         toast.info("No new payment files found");
       }
       if (data?.errors?.length) {
-        toast.error(data.errors[0]);
+        toast.error(data.errors[0], { duration: 10000 });
       }
       fetchData();
       setRemittanceRefreshKey((k) => k + 1);
     } catch (err: any) {
-      toast.error(err.message || "Failed to check for payments");
+      toast.error(err?.message || "Failed to check for payments", { duration: 10000 });
       setRemittanceRefreshKey((k) => k + 1);
     }
     setOaReceiving(false);
