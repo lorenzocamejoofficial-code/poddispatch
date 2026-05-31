@@ -10,10 +10,18 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FileText, Download, Info, FlaskConical, Eye, FileCheck2, Upload, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ArrowLeft, ChevronDown, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Link as RouterLink, Link } from "react-router-dom";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { RecordRejectionDialog } from "@/components/billing/RecordRejectionDialog";
+import { downloadClaimReviewPdf } from "@/lib/claim-review-pdf";
 import {
   generateEDI837P,
   validateClaimForEDI,
