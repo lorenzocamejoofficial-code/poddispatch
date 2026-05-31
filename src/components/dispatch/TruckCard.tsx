@@ -120,7 +120,6 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
   const hasHeavy = runs.some((r) => (r.patient_weight ?? 0) > 200);
   const isDown = !!downStatus;
   const hasRunsWhileDown = isDown && runs.length > 0;
-  const [previewRun, setPreviewRun] = useState<RunInfo | null>(null);
   const [localExpanded, setLocalExpanded] = useState(false);
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const VISIBLE_COUNT = 3;
@@ -235,7 +234,6 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                         blue: "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400",
                         green: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400",
                       };
-                      if (rs.color === "gray") return null;
                       return (
                         <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold shrink-0 ${colorMap[rs.color] ?? colorMap.gray}`}>
                           {rs.label}
@@ -249,7 +247,6 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                         Undo
                       </Button>
                     )}
-                    <StatusBadge status={run.status} />
                   </div>
                 </div>
                 {/* Row 2: time + type */}
@@ -257,6 +254,9 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                   {run.pickup_time && <span className="shrink-0">{run.pickup_time}</span>}
                   {(run as any).destination_name && <span className="break-words">→ {(run as any).destination_name}</span>}
                   <span className="capitalize shrink-0">{run.trip_type}</span>
+                  {!isCancelled && (
+                    <BillingReadinessChip status={run.billing_status ?? null} issues={run.billing_issues} />
+                  )}
                 </div>
                 {/* Expanded details */}
                 {isRunExpanded && !isCancelled && (
