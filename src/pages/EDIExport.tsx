@@ -1336,7 +1336,7 @@ export default function EDIExport() {
           <AlertDescription className="text-xs text-muted-foreground">
             <strong>This page is for downloading copies of your 837P files for your own records</strong>{" "}
             (audits, payer disputes, internal review). To actually submit claims to Office Ally, use the
-            "Submit to Office Ally" button on the <a href="/billing-claims" className="underline font-medium">Billing &amp; Claims</a>{" "}
+            "Submit to Office Ally" button on the <a href="/billing" className="underline font-medium">Billing &amp; Claims</a>{" "}
             page — that's the single pipeline every submission funnels through. Files generated here
             follow ANSI X12 005010X222A1 format.
           </AlertDescription>

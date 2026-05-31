@@ -633,33 +633,6 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
     },
   },
 
-  "/runs": {
-    title: "Runs",
-    content: {
-      does: [
-        "Shows all runs for your company for a selected date with patient, truck, crew, and status.",
-        "Lets you create new runs: assign patient, truck, crew, pickup time, and trip type.",
-        "Displays run status progression: Pending → En Route → Arrived → With Patient → Transporting → Completed.",
-        "Filters runs by date.",
-        "All run data is scoped to your company only.",
-      ],
-      doesNot: [
-        "Does not support drag-and-drop reordering — use Scheduling for that.",
-        "Does not auto-assign trucks or crews — those must be selected manually.",
-        "Does not generate recurring runs — use patient recurrence profiles for that.",
-        "Does not show trip documentation — use Trips page for that.",
-      ],
-      tips: [
-        "Use this page for quick one-off run creation when you don't need the full scheduling workflow.",
-        "The Scheduling page provides a more powerful interface for daily run management.",
-      ],
-      symbols: [
-        { symbol: "Status badge (Pending / En Route / Arrived / etc.)", meaning: "Current run status — uses StatusBadge component." },
-        { symbol: "➕ Plus icon", meaning: "Create a new run." },
-      ],
-    },
-  },
-
   "/account": {
     title: "Account Settings",
     content: {
