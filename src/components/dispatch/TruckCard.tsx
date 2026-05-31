@@ -345,16 +345,6 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                         const risk = computeTimingRisk(run.pickup_time, run.status);
                         return risk ? <TimingRiskBadge risk={risk} pickupTime={run.pickup_time} /> : null;
                       })()}
-                      {!readOnly && <BillingStatusDot status={run.billing_status ?? null} issues={run.billing_issues} />}
-                      {!readOnly && run.billing_status && run.billing_status !== "not_ready" && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setPreviewRun(run); }}
-                          className="text-muted-foreground hover:text-foreground transition-colors"
-                          title="View Billing Preview"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
-                      )}
                     </div>
                   </>
                 )}
@@ -390,10 +380,6 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
         {/* Billing readiness summary */}
         <BillingReadinessSummary runs={runs} />
       </div>
-
-      {previewRun && (
-        <BillingPreviewDialog run={previewRun} open={!!previewRun} onOpenChange={v => { if (!v) setPreviewRun(null); }} />
-      )}
     </>
   );
 }
