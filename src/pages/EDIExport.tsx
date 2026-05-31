@@ -937,6 +937,10 @@ export default function EDIExport() {
   return (
     <AdminLayout>
       <div className="max-w-6xl mx-auto space-y-6">
+        <RouterLink to="/billing" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground -mb-2">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Billing &amp; Claims
+        </RouterLink>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">EDI 837P Export</h1>
