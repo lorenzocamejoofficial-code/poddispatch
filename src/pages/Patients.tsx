@@ -489,7 +489,7 @@ export default function Patients() {
       const missing = getMissingPatientRequirements(payload);
       if (missing.length > 0) {
         toast.warning(
-          `Saved as draft — missing required fields: ${missing.map(m => m.label).join(", ")}`,
+          `Saved as draft, missing required fields: ${missing.map(m => m.label).join(", ")}`,
           { duration: 8000 }
         );
       }
@@ -1023,7 +1023,7 @@ export default function Patients() {
                     <div><Label>Phone<PCRTooltip text={ADMIN_TOOLTIPS.phone} /></Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
                   </div>
                    <div data-focus="sex">
-                    <Label>Sex<PCRTooltip text="Patient biological sex — required for Medicare claim demographics." /></Label>
+                    <Label>Sex<PCRTooltip text="Patient biological sex, required for Medicare claim demographics." /></Label>
                     <div className={`flex gap-2 mt-1.5 ${ringIfMissing("sex")}`}>
                       {([{ value: "M", label: "Male" }, { value: "F", label: "Female" }, { value: "U", label: "Unknown" }] as const).map((opt) => (
                         <label key={opt.value} className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs cursor-pointer transition-colors ${form.sex === opt.value ? "border-primary bg-primary/5 font-medium" : "border-border text-muted-foreground hover:border-primary/40"}`}>

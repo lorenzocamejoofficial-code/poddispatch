@@ -32,7 +32,7 @@ const SIG_TYPES = [
 const SIG_EXPLANATIONS: Record<string, string> = {
   "Payment Authorization": "",
   "Patient Refusal": "Documents that the patient was informed of the medical risks of refusing transport or treatment and chose to refuse. Crew witness signature is required.",
-  "ABN / Non-covered Destination": "Advance Beneficiary Notice — informs the patient that Medicare may not cover this transport. Patient acknowledges they may be responsible for payment.",
+  "ABN / Non-covered Destination": "Advance Beneficiary Notice, informs the patient that Medicare may not cover this transport. Patient acknowledges they may be responsible for payment.",
 };
 
 const RECEIVING_FACILITY_EXPLANATIONS: Record<string, string> = {

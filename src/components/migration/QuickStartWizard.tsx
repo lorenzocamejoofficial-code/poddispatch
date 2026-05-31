@@ -11,7 +11,7 @@ import { toast } from "@/hooks/use-toast";
 
 const STEPS = [
   { icon: Truck, title: "How many trucks do you operate?", subtitle: "We'll set them up for dispatch." },
-  { icon: Users, title: "How many active dialysis patients?", subtitle: "Just a rough number — you'll add details next." },
+  { icon: Users, title: "How many active dialysis patients?", subtitle: "Just a rough number, you'll add details next." },
   { icon: Users, title: "Add your first patients", subtitle: "Start with your top 10. You can add the rest later." },
   { icon: Building2, title: "Add your primary facilities", subtitle: "Where do most patients go?" },
   { icon: CalendarDays, title: "You're ready!", subtitle: "Start building your schedule and dispatching." },

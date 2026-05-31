@@ -179,7 +179,7 @@ export function QAQueuePanel() {
         for (let i = 0; i < staleIds.length; i += 100) {
           await supabase.from("qa_reviews" as any).update({
             status: "auto_resolved",
-            qa_notes: "Issue no longer detected — auto-resolved on re-scan",
+            qa_notes: "Issue no longer detected, auto-resolved on re-scan",
             reviewed_at: new Date().toISOString(),
           }).in("id", staleIds.slice(i, i + 100));
         }
@@ -218,9 +218,9 @@ export function QAQueuePanel() {
           : `Flagged ${newFlags.length} issue(s) across ${new Set(newFlags.map(f => f.trip_id)).size} trip(s)`;
         toast.success(msg);
       } else if (resolvedCount > 0) {
-        toast.success(`All issues resolved — ${resolvedCount} stale flag(s) cleared`);
+        toast.success(`All issues resolved, ${resolvedCount} stale flag(s) cleared`);
       } else {
-        toast.info("No issues found — all trips passed QA checks");
+        toast.info("No issues found, all trips passed QA checks");
       }
       fetchData();
     } catch (err) {
@@ -243,7 +243,7 @@ export function QAQueuePanel() {
       tableName: "qa_reviews",
       recordId: overrideItem.id,
       newData: { status: "overridden", reason, flag_type: overrideItem.flag_type, flag_reason: overrideItem.flag_reason },
-      notes: `QA flag overridden: ${overrideItem.flag_reason} — Reason: ${reason}`,
+      notes: `QA flag overridden: ${overrideItem.flag_reason}. Reason: ${reason}`,
     });
 
     toast.success("Flag overridden and logged to audit trail");

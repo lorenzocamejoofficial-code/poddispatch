@@ -183,7 +183,7 @@ export async function resolvePayerForClaim(input: ResolveInput): Promise<PayerRe
       return {
         ok: false,
         reason: "ambiguous_payer_type",
-        detail: `Multiple directory rows match payer_type="${payerType}" — cannot disambiguate without payer_name`,
+        detail: `Multiple directory rows match payer_type="${payerType}", cannot disambiguate without payer_name`,
       };
     }
   }

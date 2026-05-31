@@ -194,7 +194,7 @@ export function usePCRData(
           secondary_member_id: null,
         };
       } else {
-        console.warn(`Trip ${tripId} has no patient_id — patient info card will be empty`);
+        console.warn(`Trip ${tripId} has no patient_id, patient info card will be empty`);
       }
 
       // Fetch truck name so PCR can auto-fill the Vehicle / Unit # field
@@ -316,7 +316,7 @@ export function usePCRData(
   const updateField = useCallback(async (field: string, value: any) => {
     if (!tripId || !trip) return;
     if (isAccessRevokedRef.current) {
-      toast.error("Your access to this PCR has been revoked — changes cannot be saved");
+      toast.error("Your access to this PCR has been revoked, changes cannot be saved");
       return;
     }
 
@@ -379,7 +379,7 @@ export function usePCRData(
   const recordTime = useCallback(async (timeField: string, statusUpdate?: string) => {
     if (!tripId) return;
     if (isAccessRevokedRef.current) {
-      toast.error("Your access to this PCR has been revoked — changes cannot be saved");
+      toast.error("Your access to this PCR has been revoked, changes cannot be saved");
       return;
     }
     // Idempotency: if the field already has a value, skip

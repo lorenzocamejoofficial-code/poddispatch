@@ -432,7 +432,7 @@ export default function TrucksCrews() {
 
     const { error } = await supabase.from("trucks").delete().eq("id", deleteTruckId);
     if (error) { toast.error("Failed to delete truck"); return; }
-    toast.success("Truck deleted — crew assignments, run slots, and availability records removed");
+    toast.success("Truck deleted, crew assignments, run slots, and availability records removed");
     setDeleteDialog(false);
     setDeleteTruckId(null);
     fetchAll();

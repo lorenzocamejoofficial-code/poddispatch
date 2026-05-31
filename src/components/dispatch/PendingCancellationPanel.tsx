@@ -119,7 +119,7 @@ export function PendingCancellationPanel({ cancellations, onResolved }: PendingC
         if (profile?.user_id) {
           await supabase.from("notifications").insert({
             user_id: profile.user_id,
-            message: `Cancellation disputed by dispatch — run is still active: ${note}`,
+            message: `Cancellation disputed by dispatch, run is still active: ${note}`,
             acknowledged: false,
             notification_type: "schedule_change",
           });

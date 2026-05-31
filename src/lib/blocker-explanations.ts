@@ -56,14 +56,14 @@ const BLOCKER_MAP: Record<string, Omit<BlockerExplanation, "code">> = {
   missing_miles: {
     title: "Missing Loaded Miles",
     explanation:
-      "Loaded mileage is not recorded. Medicare reimburses per loaded mile — this trip cannot be billed without documented mileage.",
+      "Loaded mileage is not recorded. Medicare reimburses per loaded mile, this trip cannot be billed without documented mileage.",
     fixLabel: "Open PCR",
     fixTarget: "pcr",
   },
   missing_loaded_miles: {
     title: "Missing Loaded Miles",
     explanation:
-      "Loaded mileage is not recorded. Medicare reimburses per loaded mile — this trip cannot be billed without documented mileage.",
+      "Loaded mileage is not recorded. Medicare reimburses per loaded mile, this trip cannot be billed without documented mileage.",
     fixLabel: "Open PCR",
     fixTarget: "pcr",
   },

@@ -186,7 +186,7 @@ export async function queueClaimsForSubmission(
         throw new Error(`Secondary claim ${sec.id}: primary must be paid or denied (currently ${prim.status}).`);
       }
       if (!pays.length) {
-        throw new Error(`Secondary claim ${sec.id}: primary ${primId} has no claim_payments — cannot emit COB.`);
+        throw new Error(`Secondary claim ${sec.id}: primary ${primId} has no claim_payments, cannot emit COB.`);
       }
       if (!prim.payer_name && !prim.payer_type) {
         throw new Error(`Secondary claim ${sec.id}: primary payer info missing on ${primId}.`);
@@ -230,7 +230,7 @@ export async function queueClaimsForSubmission(
         const detail = primResolution.detail ?? "";
         throw new Error(
           `Secondary claim ${sec.id}: primary payer (${prim.payer_name || prim.payer_type}) ` +
-          `not resolvable in payer_directory — ${reason}` +
+          `not resolvable in payer_directory, ${reason}` +
           (detail ? ` (${detail})` : "")
         );
       }

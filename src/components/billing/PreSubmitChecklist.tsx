@@ -243,14 +243,14 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           detail: isEmergency
             ? "Not required for emergency transport"
             : isUnscheduled
-            ? "Same-day unscheduled — PCS not required at submission"
+            ? "Same-day unscheduled. PCS not required at submission"
             : pcsExpired60
               ? sixtyDayDetail
             : patientPcsValid
-              ? (p?.pcs_expiration_date ? `On file — expires ${p.pcs_expiration_date}` : "On file, no expiration")
+              ? (p?.pcs_expiration_date ? `On file, expires ${p.pcs_expiration_date}` : "On file, no expiration")
             : billerPcsComplete
-              ? `Completed by biller — ${claim.pcs_physician_name}, NPI ${claim.pcs_physician_npi}`
-              : "Not on file — use the PCS panel below to enter physician details, or upload a PCS form",
+              ? `Completed by biller, ${claim.pcs_physician_name}, NPI ${claim.pcs_physician_npi}`
+              : "Not on file, use the PCS panel below to enter physician details, or upload a PCS form",
         });
 
         // NPI Luhn — only enforce when a PCS NPI has actually been entered.
@@ -321,7 +321,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           passed: derivedMiles >= 0.1,
           detail: derivedMiles >= 0.1
             ? `${derivedMiles.toFixed(1)} miles${(!t.loaded_miles || Number(t.loaded_miles) === 0) ? " (auto-derived from odometer)" : ""}`
-            : "Loaded miles must be at least 0.1 — record odometer readings or enter mileage on the PCR.",
+            : "Loaded miles must be at least 0.1, record odometer readings or enter mileage on the PCR.",
         });
         checks.push({
           label: "Odometer readings present",
@@ -339,7 +339,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         checks.push({
           label: "Prior authorization on file and not expired",
           passed: hasAuth,
-          detail: hasAuth ? undefined : "Patient requires authorization — add a valid prior auth number on the patient record",
+          detail: hasAuth ? undefined : "Patient requires authorization, add a valid prior auth number on the patient record",
         });
       }
 
@@ -357,12 +357,12 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       checks.push({
         label: "ICD-10 diagnosis codes present",
         passed: effectiveIcd10.length > 0,
-        detail: effectiveIcd10.length > 0 ? effectiveIcd10.join(", ") : "Diagnosis codes required — open the PCR and add at least one ICD-10 code in the Assessment section",
+        detail: effectiveIcd10.length > 0 ? effectiveIcd10.join(", ") : "Diagnosis codes required, open the PCR and add at least one ICD-10 code in the Assessment section",
       });
       checks.push({
         label: "Member ID present",
         passed: effectiveMemberId !== "",
-        detail: effectiveMemberId !== "" ? effectiveMemberId : "Member ID is missing — update the patient record (or one-off run details) before submitting",
+        detail: effectiveMemberId !== "" ? effectiveMemberId : "Member ID is missing, update the patient record (or one-off run details) before submitting",
       });
 
       // ──────────────────────────────────────────────────────────────────
@@ -382,7 +382,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         checks.push({
           label: "Vitals set saved",
           passed: hasSavedVitals,
-          detail: hasSavedVitals ? undefined : "No vitals recorded — complete the Vitals card before submitting.",
+          detail: hasSavedVitals ? undefined : "No vitals recorded, complete the Vitals card before submitting.",
         });
       }
 
@@ -393,7 +393,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           passed: hasValue(t.level_of_consciousness),
           detail: hasValue(t.level_of_consciousness)
             ? String(t.level_of_consciousness)
-            : "Level of consciousness not documented — complete the Condition on Arrival card.",
+            : "Level of consciousness not documented, complete the Condition on Arrival card.",
         });
       }
 
@@ -425,7 +425,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           passed: hasValue(t.narrative),
           detail: hasValue(t.narrative)
             ? undefined
-            : "Narrative not documented — complete the Narrative card before submitting.",
+            : "Narrative not documented, complete the Narrative card before submitting.",
         });
 
         // Soft warning: thin narratives on Medicare/Medicaid claims are a
@@ -438,7 +438,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
             label: "Narrative depth (audit advisory)",
             passed: false,
             isWarning: true,
-            detail: `Narrative is only ${narrativeLen} characters. Medicare/Medicaid auditors flag short narratives — consider adding specific medical necessity detail (mobility, condition, why ambulance was required).`,
+            detail: `Narrative is only ${narrativeLen} characters. Medicare/Medicaid auditors flag short narratives, consider adding specific medical necessity detail (mobility, condition, why ambulance was required).`,
           });
         }
       }
@@ -462,7 +462,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         passed: addressComplete,
         detail: addressComplete
           ? patientAddrRaw
-          : "Patient address incomplete — update patient record before submitting.",
+          : "Patient address incomplete, update patient record before submitting.",
       });
 
       // Emergency billing decision check — only applies when claim has emergency event
@@ -471,7 +471,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           label: "Emergency billing decision required",
           passed: !!claim.emergency_billing_reviewed_at,
           detail: !claim.emergency_billing_reviewed_at
-            ? "This claim involves an emergency event — open the claim detail to review and accept the billing recommendation before submitting"
+            ? "This claim involves an emergency event, open the claim detail to review and accept the billing recommendation before submitting"
             : undefined,
         });
       }
@@ -525,7 +525,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           checks.push({
             label: "Restraint type documented",
             passed: !!(eq.bh_restraint_type && String(eq.bh_restraint_type).trim()),
-            detail: eq.bh_restraint_type ? String(eq.bh_restraint_type) : "Restraints applied — record restraint type in the equipment card.",
+            detail: eq.bh_restraint_type ? String(eq.bh_restraint_type) : "Restraints applied, record restraint type in the equipment card.",
           });
         }
       }
@@ -578,7 +578,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           detail: dischargePcsOk
             ? undefined
             : t.pcs_attached === false
-              ? "Dispatcher marked PCS as not obtained — biller must complete the PCS panel below before submission."
+              ? "Dispatcher marked PCS as not obtained, biller must complete the PCS panel below before submission."
               : "Mark PCS as obtained on the Sending Facility card or attach a 1013 / patient-record PCS.",
         });
         checks.push({
@@ -725,10 +725,10 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         const roundTripCount = Math.floor(legIds.length / 2);
         if (oneWayCount >= 40 || roundTripCount >= 20) {
           checks.push({
-            label: "RSNAT prior auth not on file — trip history indicates threshold reached",
+            label: "RSNAT prior auth not on file, trip history indicates threshold reached",
             passed: false,
             isWarning: true,
-            detail: `RSNAT prior auth not on file but trip history indicates this patient meets RSNAT thresholds (≥3 round trips in 10 days, or weekly for 3+ weeks) — ${oneWayCount} one-way / ~${roundTripCount} round trips in last 60 days. Update the patient template to indicate a recurring schedule, then obtain a UTN from the MAC.`,
+            detail: `RSNAT prior auth not on file but trip history indicates this patient meets RSNAT thresholds (≥3 round trips in 10 days, or weekly for 3+ weeks), ${oneWayCount} one-way / ~${roundTripCount} round trips in last 60 days. Update the patient template to indicate a recurring schedule, then obtain a UTN from the MAC.`,
           });
         }
       }
@@ -773,7 +773,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const result = await queueClaimsForSubmission([claimRow.id], claimRow.company_id);
       if (!result.ok) {
         if (result.setupErrors.length) {
-          toast.error(`Submission blocked — ${result.setupErrors[0]}`, { duration: 8000 });
+          toast.error(`Submission blocked, ${result.setupErrors[0]}`, { duration: 8000 });
         } else if (result.blocked.length) {
           toast.error(`Claim blocked by validation: ${result.blocked[0].issues[0]?.message ?? "see details"}`);
         } else {

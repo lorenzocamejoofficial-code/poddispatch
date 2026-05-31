@@ -71,7 +71,7 @@ export function RecordRejectionDialog({ open, onOpenChange, claimId, claimLabel,
         } as any)
         .eq("id", claimId);
       if (error) throw error;
-      toast.success("Rejection recorded — diagnostic context saved to claim");
+      toast.success("Rejection recorded, diagnostic context saved to claim");
       setRaw(""); setLoop(""); setSegment(""); setByteStr("");
       onOpenChange(false);
       onSaved?.();

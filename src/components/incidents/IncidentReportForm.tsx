@@ -113,7 +113,7 @@ export function IncidentReportForm({
       if (recipients?.length) {
         const truckLabel = defaultTruckName ?? "Unknown unit";
         const timeLabel = new Date(form.incident_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-        const notifMessage = `⚠️ Incident Report: ${form.incident_type} — ${truckLabel} at ${timeLabel}${form.emergency_services_contacted ? " — Emergency services called" : ""}`;
+        const notifMessage = `⚠️ Incident Report: ${form.incident_type}, ${truckLabel} at ${timeLabel}${form.emergency_services_contacted ? ". Emergency services called" : ""}`;
 
         const notifRows = recipients.map(r => ({
           user_id: r.user_id,
@@ -127,7 +127,7 @@ export function IncidentReportForm({
 
       // Create red dispatch alert
       await supabase.from("alerts").insert({
-        message: `🚨 Incident: ${form.incident_type} — ${defaultTruckName ?? "Unit"}${form.emergency_services_contacted ? " [EMS CALLED]" : ""}`,
+        message: `🚨 Incident: ${form.incident_type}, ${defaultTruckName ?? "Unit"}${form.emergency_services_contacted ? " [EMS CALLED]" : ""}`,
         severity: "red",
         truck_id: defaultTruckId || null,
         company_id: companyId,

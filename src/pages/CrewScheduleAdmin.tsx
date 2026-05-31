@@ -178,7 +178,7 @@ export default function CrewScheduleAdmin() {
       .filter(l => l.assigned_truck_id === scheduleTruckId && l.slot_status !== "cancelled")
       .sort((a, b) => (a.slot_order ?? 0) - (b.slot_order ?? 0));
 
-    if (truckLegs.length === 0) return `Route ${truck.name} — No runs scheduled for ${formattedScheduleDate}`;
+    if (truckLegs.length === 0) return `Route ${truck.name}. No runs scheduled for ${formattedScheduleDate}`;
 
     // Issue 11: Show specific transport types instead of collapsing to Outpatient
     const transportTypeLabels: Record<string, string> = {
@@ -199,7 +199,7 @@ export default function CrewScheduleAdmin() {
       ? [crew.member1_name, crew.member2_name, crew.member3_name].filter(Boolean).join(" / ") || "TBD"
       : "No crew assigned";
 
-    let text = `Route ${truck.name} — ${transportMix}\n${crewNames}\n\n`;
+    let text = `Route ${truck.name}, ${transportMix}\n${crewNames}\n\n`;
 
     truckLegs.forEach((leg, i) => {
       // Issue 3: Apply leg_exceptions overlay
@@ -253,7 +253,7 @@ export default function CrewScheduleAdmin() {
         body: {
           kind: "schedule",
           to: scheduleEmailRecipient.trim(),
-          subject: `${companyName} — ${truck?.name ?? "Route"} schedule for ${formattedScheduleDate}`,
+          subject: `${companyName}, ${truck?.name ?? "Route"} schedule for ${formattedScheduleDate}`,
           message: text,
         },
       });
@@ -322,7 +322,7 @@ export default function CrewScheduleAdmin() {
     }
 
     if (blockedLegs.length > 0) {
-      toast.error(`Cannot generate share link — ${blockedLegs.length} run(s) BLOCKED: ${blockedLegs.join(", ")}`);
+      toast.error(`Cannot generate share link, ${blockedLegs.length} run(s) BLOCKED: ${blockedLegs.join(", ")}`);
       return;
     }
 

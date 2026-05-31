@@ -262,7 +262,7 @@ export function useClaimTimeline(claimId: string | null): ClaimTimelineData {
               : `Codes: ${rawCodes.join(", ")}`
             : null;
           const ikFootnotes = ikTranslated.map(
-            (t) => `${t.code} — ${t.plain_english_explanation} (Fix: ${t.example_fix})`,
+            (t) => `${t.code}, ${t.plain_english_explanation} (Fix: ${t.example_fix})`,
           );
           events.push({
             id: `ack-${ack.id}`,

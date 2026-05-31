@@ -96,7 +96,7 @@ export function checkTrip(
     if (rule?.requires_pcs) {
       if (!patient.pcs_on_file || (patient.pcs_expiration_date && patient.pcs_expiration_date < trip.run_date)) {
         const severity = isUnscheduled ? "yellow" : "red";
-        const suffix = isUnscheduled ? " (Same-day unscheduled — may be waived.)" : "";
+        const suffix = isUnscheduled ? " (Same-day unscheduled, may be waived.)" : "";
         push(flags, trip.id, cid, `PCS is missing or expired for this patient. An active Physician Certification Statement is required by the payer for billing.${suffix}`, severity, "pcs_missing_expired");
       }
     }

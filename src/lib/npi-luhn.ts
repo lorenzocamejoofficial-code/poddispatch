@@ -41,4 +41,4 @@ export function isValidNpi(npi: string | null | undefined): boolean {
 }
 
 export const NPI_INVALID_MESSAGE =
-  "NPI checksum invalid — verify the number against the physician's NPPES record.";
+  "NPI checksum invalid, verify the number against the physician's NPPES record.";

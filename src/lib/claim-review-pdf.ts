@@ -83,7 +83,7 @@ const FILING_INDICATOR_LABELS: Record<string, string> = {
   AM: "Automobile medical",
   CH: "CHAMPUS / TRICARE",
   VA: "Veterans Affairs plan",
-  ZZ: "Mutually defined — directory fallback, review",
+  ZZ: "Mutually defined, directory fallback, review",
 };
 
 /** CMS ambulance CRC*07 certification condition codes. */
@@ -93,7 +93,7 @@ const CRC_LABELS: Record<string, string> = {
   "05": "Patient was bed-confined before transport only",
   "06": "Patient was bed-confined after transport only",
   "07": "Transferred to a non-hospital facility (SNF, dialysis, etc.)",
-  "08": "Interfacility transport — patient is a hospital inpatient",
+  "08": "Interfacility transport, patient is a hospital inpatient",
   "09": "Patient was moved by stretcher",
 };
 
@@ -631,13 +631,13 @@ function renderClaim(doc: jsPDF, e: ResolvedClaim, ctx: Ctx) {
   // ── Section 1: PAYER ROUTING ─────────────────────────────────────────
   y = sectionHeader(doc, ctx, y, "Payer routing");
   if (e.payer.resolutionError) {
-    y = kv(doc, ctx, y, "Status", `Cannot route — ${e.payer.resolutionError}`, { warn: true });
+    y = kv(doc, ctx, y, "Status", `Cannot route, ${e.payer.resolutionError}`, { warn: true });
   } else {
     y = kv(doc, ctx, y, "Primary payer", e.payer.name);
     y = kv(doc, ctx, y, "Office Ally payer ID", e.payer.oaPayerId);
     const fi = e.payer.filingIndicator;
     y = kv(doc, ctx, y, "Claim filing indicator (SBR09)",
-      `${fi}  —  ${FILING_INDICATOR_LABELS[fi] ?? "(unknown code)"}`);
+      `${fi} ,  ${FILING_INDICATOR_LABELS[fi] ?? "(unknown code)"}`);
     y = kv(doc, ctx, y, "Directory match", strategyLabel(e.payer.matchStrategy));
   }
   if (e.secondary) {
@@ -665,7 +665,7 @@ function renderClaim(doc: jsPDF, e: ResolvedClaim, ctx: Ctx) {
   y = kv(doc, ctx, y, "Loaded miles",
     e.service.loadedMiles == null ? null : e.service.loadedMiles.toFixed(1));
   y = kv(doc, ctx, y, "Transport reason (CR1-04)",
-    `${e.service.cr1Reason}  —  ${CR1_REASON_LABELS[e.service.cr1Reason]}`);
+    `${e.service.cr1Reason} ,  ${CR1_REASON_LABELS[e.service.cr1Reason]}`);
   if (e.service.serviceLevel) {
     y = kv(doc, ctx, y, "Service level", e.service.serviceLevel);
   }
@@ -735,8 +735,8 @@ function renderClaim(doc: jsPDF, e: ResolvedClaim, ctx: Ctx) {
   doc.setFontSize(8);
   doc.setTextColor(...COLORS.muted);
   const leftFoot = e.isSimulated
-    ? "Synthetic test data — generated for biller review. Not a real billable claim."
-    : "Confidential — claim review document.";
+    ? "Synthetic test data, generated for biller review. Not a real billable claim."
+    : "Confidential, claim review document.";
   doc.text(leftFoot, ctx.margin, footerY);
   if (ctx.scenarioName) {
     doc.text(`Source: ${ctx.scenarioName}`, ctx.pageW - ctx.margin, footerY, { align: "right" });
@@ -877,7 +877,7 @@ function ensureRoom(doc: jsPDF, ctx: Ctx, y: number, needed: number): number {
 function locationLine(letter: string, type: string | null, addr: string | null): string {
   const meaning = LOCATION_CODE_TABLE[letter] ?? "(unknown location code)";
   const typeText = type ? `${type}` : "type unspecified";
-  const base = `${letter}  —  ${meaning}  ·  ${typeText}`;
+  const base = `${letter} ,  ${meaning}  ·  ${typeText}`;
   return addr ? `${base}\n${addr}` : base;
 }
 

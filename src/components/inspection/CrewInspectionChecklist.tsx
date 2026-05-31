@@ -162,7 +162,7 @@ export default function CrewInspectionChecklist() {
 
       // Create dispatch alert
       await supabase.from("alerts").insert({
-        message: `Unit ${truckName} pre-trip inspection flagged ${missingCount} missing item(s) — ${profileName}. Dispatcher acknowledgment required.`,
+        message: `Unit ${truckName} pre-trip inspection flagged ${missingCount} missing item(s), ${profileName}. Dispatcher acknowledgment required.`,
         severity: "red",
         truck_id: truckId,
         company_id: companyId,
@@ -179,7 +179,7 @@ export default function CrewInspectionChecklist() {
     } else {
       // Green alert — auto-dismiss after 2h
       await supabase.from("alerts").insert({
-        message: `Unit ${truckName} pre-trip inspection complete — ${profileName}. ${checkedItems.length} items checked, all present.`,
+        message: `Unit ${truckName} pre-trip inspection complete, ${profileName}. ${checkedItems.length} items checked, all present.`,
         severity: "green",
         truck_id: truckId,
         company_id: companyId,

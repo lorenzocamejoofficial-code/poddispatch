@@ -417,7 +417,7 @@ export default function TripsAndClinical() {
     // Guard: don't allow reverting billed trips
     if (trip.status === "ready_for_billing" && status === "cancelled") {
       // Allow cancellation but warn
-      toast.warning("Cancelling a trip that was ready for billing — any associated claims should be reviewed.");
+      toast.warning("Cancelling a trip that was ready for billing, any associated claims should be reviewed.");
     }
     await supabase.from("trip_records" as any).update({ status, updated_by: user?.id ?? null }).eq("id", trip.id);
     toast.success(`Status → ${STATUS_LABELS[status]}`);

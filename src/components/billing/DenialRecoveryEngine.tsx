@@ -344,7 +344,7 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: 
 
     // Log resubmission note
     const name = await getProfileName();
-    const noteText = `[RESUBMIT] Denial ${claim.denial_code} — ${correctionNotes}${changesCount ? ` — ${changesCount} field(s) corrected` : ""}`;
+    const noteText = `[RESUBMIT] Denial ${claim.denial_code}, ${correctionNotes}${changesCount ? ` — ${changesCount} field(s) corrected` : ""}`;
     await supabase.from("ar_followup_notes").insert({
       claim_id: claim.id,
       company_id: activeCompanyId,

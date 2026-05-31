@@ -225,7 +225,7 @@ export function VehicleInspectionsTab() {
                                           {alert?.dispatcher_response && (
                                             <span className={`font-medium ${alert.dispatcher_response === "cleared" ? "text-[hsl(var(--status-green))]" : "text-destructive"}`}>
                                               {alert.dispatcher_response === "cleared" ? "Cleared" : "Hold"} by {alert.acknowledged_by_name}
-                                              {alert.dispatcher_note && ` — ${alert.dispatcher_note}`}
+                                              {alert.dispatcher_note && `, ${alert.dispatcher_note}`}
                                             </span>
                                           )}
                                         </div>

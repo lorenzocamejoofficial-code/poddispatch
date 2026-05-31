@@ -392,7 +392,7 @@ export default function DispatchBoard() {
       const holdLabel = (ht.hold_type === "wait_patient" || ht.hold_type === "patient_not_ready") ? "Patient Not Ready" : "Facility Delay";
       return {
         id: `hold-${ht.id}`,
-        message: `${holdLabel} — ${truckName} · ${patientName}`,
+        message: `${holdLabel}, ${truckName} · ${patientName}`,
         severity: (ht.current_level === "red" ? "red" : "yellow") as "yellow" | "red",
         created_at: ht.started_at,
         hold_timer_started_at: ht.started_at,

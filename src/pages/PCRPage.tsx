@@ -1186,13 +1186,13 @@ export default function PCRPage() {
     // pending_original_signature (original crew member): every card except
     // signatures is locked so the crew can finalize signatures only.
     if (handoffOriginalSignMode && type !== "signatures") {
-      return <LockedSectionOverlay reason="This run has been reassigned — sign below to complete handoff." />;
+      return <LockedSectionOverlay reason="This run has been reassigned, sign below to complete handoff." />;
     }
     // pending_new_crew_acceptance (target crew member): all prior documentation
     // is read-only locked, including signatures (the section itself shows a
     // separate prior-crew block + new-crew sign UI when handoffNewCrewAcceptMode).
     if (handoffNewCrewAcceptMode && type !== "signatures") {
-      return <LockedSectionOverlay reason="Prior crew documentation — locked. Sign below to accept this run." />;
+      return <LockedSectionOverlay reason="Prior crew documentation, locked. Sign below to accept this run." />;
     }
     // Fix 4 — Pre-contact lock: until patient_contact_time is recorded, clinical sections are locked.
     // Always-accessible cards: times, patient_info, billing, signatures.
@@ -1204,7 +1204,7 @@ export default function PCRPage() {
     ]);
     if (isPreContact && PRE_CONTACT_LOCKED_CARDS.has(type)) {
       return (
-        <LockedSectionOverlay reason="Patient contact required — tap Patient Contact in the Times card to unlock this section." />
+        <LockedSectionOverlay reason="Patient contact required, tap Patient Contact in the Times card to unlock this section." />
       );
     }
     // Single source of truth: derive requiredFields from pcr-field-requirements.ts
@@ -1279,7 +1279,7 @@ export default function PCRPage() {
       tType.includes("wound");
     const narrativeLen = (trip.narrative || "").trim().length;
     if (isAmbulanceLevel && narrativeLen > 0 && narrativeLen < 150) {
-      missing.push(`Narrative too short (${narrativeLen}/150 chars — Medicare audit risk)`);
+      missing.push(`Narrative too short (${narrativeLen}/150 chars. Medicare audit risk)`);
     }
     return missing;
   };
@@ -1323,7 +1323,7 @@ export default function PCRPage() {
         await supabase.from("qa_reviews").insert({
           company_id: trip.company_id,
           trip_id: trip.id,
-          flag_reason: isQaFixMode ? "PCR corrected by admin/biller — resubmitted for billing" : isKickedBack ? "PCR resubmitted after kickback — pending QA review" : "PCR auto-submitted — pending QA review",
+          flag_reason: isQaFixMode ? "PCR corrected by admin/biller, resubmitted for billing" : isKickedBack ? "PCR resubmitted after kickback, pending QA review" : "PCR auto-submitted — pending QA review",
           status: isQaFixMode ? "approved" : "pending",
         });
       }
@@ -1357,7 +1357,7 @@ export default function PCRPage() {
             task_type: "new_claim_ready",
             priority: 4,
             title: "New trip ready to bill",
-            description: `${patientName} — ${trip.run_date}`,
+            description: `${patientName}, ${trip.run_date}`,
             status: "pending",
             due_date: new Date().toISOString().split("T")[0],
           });
@@ -1367,10 +1367,10 @@ export default function PCRPage() {
       }
 
       if (isQaFixMode) {
-        toast.success("PCR corrected and resubmitted — trip is ready for billing!");
+        toast.success("PCR corrected and resubmitted, trip is ready for billing!");
         navigate("/compliance");
       } else {
-        toast.success("PCR submitted — trip is ready for billing!");
+        toast.success("PCR submitted, trip is ready for billing!");
         navigate("/crew-dashboard");
       }
     } catch {
@@ -1682,7 +1682,7 @@ export default function PCRPage() {
                       await supabase.from("trip_records").update({
                         pcr_status: "kicked_back",
                         kickback_reasons: ["Crew Signatures"],
-                        kickback_note: "Returned by QA — crew signatures required.",
+                        kickback_note: "Returned by QA, crew signatures required.",
                         kicked_back_by: profileId,
                         kicked_back_at: new Date().toISOString(),
                         // Clear submission flags so it leaves the billing pipeline

@@ -426,7 +426,7 @@ export default function EDIExport() {
         const summary = Object.entries(byReason).map(([r, n]) => `${n} ${r}`).join(", ");
         const detailLines = payerFailures
           .slice(0, 10)
-          .map((f) => `• ${f.patient_name} — payer_resolution: ${f.reason}${f.detail ? ` — ${f.detail}` : ""}`)
+          .map((f) => `• ${f.patient_name}, payer_resolution: ${f.reason}${f.detail ? ` — ${f.detail}` : ""}`)
           .join("\n");
         toast.error(
           `${payerFailures.length} of ${selectedClaims.length} claim(s) excluded from export (${summary}):\n${detailLines}`,
@@ -575,7 +575,7 @@ export default function EDIExport() {
       });
       if (blocked.length > 0) {
         setValidationIssues(blocked);
-        toast.error(`${blocked.length} claim(s) blocked from export — see details below.`);
+        toast.error(`${blocked.length} claim(s) blocked from export, see details below.`);
         setGenerating(false);
         return;
       }
@@ -699,7 +699,7 @@ export default function EDIExport() {
       toast.error(
         selectedClaims.length === 0
           ? "Select exactly one claim to submit as a single test."
-          : `You have ${selectedClaims.length} claims selected. Single-test mode requires exactly one — deselect the others first.`
+          : `You have ${selectedClaims.length} claims selected. Single-test mode requires exactly one, deselect the others first.`
       );
       return;
     }
@@ -790,7 +790,7 @@ export default function EDIExport() {
         const summary = Object.entries(byReason).map(([r, n]) => `${n} ${r}`).join(", ");
         const detailLines = payerFailures
           .slice(0, 10)
-          .map((f) => `• ${f.patient_name} — payer_resolution: ${f.reason}${f.detail ? ` — ${f.detail}` : ""}`)
+          .map((f) => `• ${f.patient_name}, payer_resolution: ${f.reason}${f.detail ? ` — ${f.detail}` : ""}`)
           .join("\n");
         toast.error(
           `${payerFailures.length} of ${selectedClaims.length} claim(s) excluded from submission (${summary}):\n${detailLines}`,
@@ -900,7 +900,7 @@ export default function EDIExport() {
       });
       if (blocked.length > 0) {
         setValidationIssues(blocked);
-        toast.error(`${blocked.length} claim(s) blocked from submission — see details below.`);
+        toast.error(`${blocked.length} claim(s) blocked from submission, see details below.`);
         setSubmitting(false);
         return;
       }

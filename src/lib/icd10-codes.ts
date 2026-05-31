@@ -162,7 +162,7 @@ export const COMPLAINT_SUGGESTIONS: Record<string, string[]> = {
   // Primary-impression-only items (mapped here too in case the picker is
   // ever wired up to primary_impression as well as chief_complaint).
   "ventilator dependent — stable": ["Z99.11", "J96.10", "Z93.0"],
-  "dementia / cognitive impairment — baseline": ["F03.90", "G30.9", "F01.50"],
+  "dementia / cognitive impairment, baseline": ["F03.90", "G30.9", "F01.50"],
 };
 
 // O(1) code → description lookup for the narrative generator.

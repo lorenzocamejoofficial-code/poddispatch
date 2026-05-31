@@ -137,7 +137,7 @@ export function evaluateSafetyRules(
 
       case "unknown":
         // No crew assigned yet — warn that crew is needed for bariatric eval
-        reasons.push("Bariatric patient — assign crew to evaluate safety");
+        reasons.push("Bariatric patient, assign crew to evaluate safety");
         if (status === "OK") status = "WARNING";
         break;
     }
@@ -285,7 +285,7 @@ export function getPcrRequiredFields(pcrType: PcrType | null): PcrRequiredFields
       return base;
     default: {
       // eslint-disable-next-line no-console
-      console.warn(`[safety-rules] getPcrRequiredFields: unknown PCR type "${pcrType}" — returning empty list`);
+      console.warn(`[safety-rules] getPcrRequiredFields: unknown PCR type "${pcrType}", returning empty list`);
       return [];
     }
   }

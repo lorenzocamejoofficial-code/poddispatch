@@ -201,7 +201,7 @@ export default function AdminSettings() {
               <p className="text-xs text-muted-foreground mt-0.5">
                 {sessionWarningEnabled
                   ? "Auto-logout after 30 minutes of inactivity with a 5-minute warning"
-                  : "Disabled — users stay logged in until they sign out manually (not recommended)"}
+                  : "Disabled, users stay logged in until they sign out manually (not recommended)"}
               </p>
             </div>
             <div className="flex items-center gap-2">

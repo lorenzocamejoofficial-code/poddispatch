@@ -133,7 +133,7 @@ export function DispatcherCancelDialog({
               await supabase.from("notifications").insert(
                 crewUserIds.map((uid: string) => ({
                   user_id: uid,
-                  message: `Run cancelled by dispatch — ${patientName} — ${reason}`,
+                  message: `Run cancelled by dispatch, ${patientName}, ${reason}`,
                   notification_type: "cancellation",
                 }))
               );
@@ -154,7 +154,7 @@ export function DispatcherCancelDialog({
           await supabase.from("notifications").insert(
             adminUserIds.map((uid: string) => ({
               user_id: uid,
-              message: `Run cancelled by dispatch — ${patientName} on ${truckName} — ${reason}${notes ? ` — ${notes}` : ""}`,
+              message: `Run cancelled by dispatch, ${patientName} on ${truckName}, ${reason}${notes ? ` — ${notes}` : ""}`,
               notification_type: "cancellation",
             }))
           );
@@ -162,7 +162,7 @@ export function DispatcherCancelDialog({
 
         // Insert alert for dispatch board
         await supabase.from("alerts").insert({
-          message: `Run cancelled by dispatch: ${patientName} — ${reason}`,
+          message: `Run cancelled by dispatch: ${patientName}, ${reason}`,
           severity: "yellow",
           truck_id: truckId,
           run_id: existingTripId,
@@ -176,7 +176,7 @@ export function DispatcherCancelDialog({
         action: "dispatcher_cancellation",
         tableName: "trip_records",
         recordId: existingTripId ?? legId,
-        notes: `Dispatcher cancelled run for ${patientName} — Reason: ${reason}${notes ? ` — Notes: ${notes}` : ""}${crewNotified ? " — Crew notified externally" : ""}`,
+        notes: `Dispatcher cancelled run for ${patientName}. Reason: ${reason}${notes ? ` — Notes: ${notes}` : ""}${crewNotified ? ". Crew notified externally" : ""}`,
       });
 
       toast.success(`Run cancelled — ${patientName}`);

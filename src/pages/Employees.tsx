@@ -277,7 +277,7 @@ export default function Employees() {
     toast.success(
       delivered
         ? `Invite sent to ${emailForToast ?? (data as any)?.email}. Link copied to clipboard.`
-        : `Invite link copied to clipboard (email delivery failed — share the link directly).`,
+        : `Invite link copied to clipboard (email delivery failed, share the link directly).`,
     );
     fetchEmployees();
   };
@@ -402,7 +402,7 @@ export default function Employees() {
       await supabase.from("profiles").update({ active: editForm.active } as any).eq("id", editingEmployee.id);
     }
 
-    toast.success(`${editForm.full_name} updated${emailChanged ? " — login email changed" : ""}`);
+    toast.success(`${editForm.full_name} updated${emailChanged ? ", login email changed" : ""}`);
     setEditDialogOpen(false);
     await fetchEmployees();
     fetchEmployeeEmails();

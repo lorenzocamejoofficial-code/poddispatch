@@ -77,10 +77,10 @@ export default function RemittanceImport() {
       if (error) {
         toast.error("Upload failed: " + error.message);
       } else if ((data as any)?.skipped) {
-        toast.info("Already imported — duplicate filename skipped.");
+        toast.info("Already imported, duplicate filename skipped.");
       } else if ((data as any)?.ok) {
         const { matched = 0, updated = 0, unmatched = 0, file_type } = data as any;
-        toast.success(`${file_type} processed — ${updated}/${matched} claims updated, ${unmatched} unmatched`);
+        toast.success(`${file_type} processed, ${updated}/${matched} claims updated, ${unmatched} unmatched`);
       } else {
         toast.error((data as any)?.error || "Upload failed");
       }
@@ -375,7 +375,7 @@ export default function RemittanceImport() {
       await logAuditEvent({
         action: "export",
         tableName: "remittance_files",
-        notes: `Imported 835 file "${fileName}" — ${updated} claims updated, $${totalPaid.toFixed(2)} total paid${reconciled ? "" : ` (variance $${variance.toFixed(2)})`}`,
+        notes: `Imported 835 file "${fileName}", ${updated} claims updated, $${totalPaid.toFixed(2)} total paid${reconciled ? "" : ` (variance $${variance.toFixed(2)})`}`,
         newData: { fileName, matched: toUpdate.length, updated, totalPaid, variance, plbCount: envelope?.plb_adjustments.length ?? 0 },
       });
 
@@ -389,7 +389,7 @@ export default function RemittanceImport() {
         plbCount: envelope?.plb_adjustments.length ?? 0,
       });
 
-      toast.success(`Import complete — ${updated} claims updated`);
+      toast.success(`Import complete, ${updated} claims updated`);
     } catch (err: any) {
       toast.error("Import failed: " + err.message);
     } finally {

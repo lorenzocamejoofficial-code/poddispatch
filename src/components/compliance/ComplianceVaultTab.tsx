@@ -23,12 +23,12 @@ type Regime = {
 };
 
 const REGIMES: Regime[] = [
-  { id: "medicare_cms",   label: "Medicare / CMS audit",        years: 7,  blurb: "42 CFR §424.516(f) — 7-year retention." },
-  { id: "medicaid_state", label: "State Medicaid",              years: 6,  blurb: "State-specific (default 6 yrs — Georgia DCH)." },
-  { id: "hipaa",          label: "HIPAA records request",       years: 6,  blurb: "45 CFR §164.530(j) — 6-year PHI documentation." },
-  { id: "false_claims",   label: "False Claims Act / OIG",      years: 10, blurb: "31 USC §3729 — up to 10-year lookback." },
+  { id: "medicare_cms",   label: "Medicare / CMS audit",        years: 7,  blurb: "42 CFR §424.516(f), 7-year retention." },
+  { id: "medicaid_state", label: "State Medicaid",              years: 6,  blurb: "State-specific (default 6 yrs. Georgia DCH)." },
+  { id: "hipaa",          label: "HIPAA records request",       years: 6,  blurb: "45 CFR §164.530(j), 6-year PHI documentation." },
+  { id: "false_claims",   label: "False Claims Act / OIG",      years: 10, blurb: "31 USC §3729, up to 10-year lookback." },
   { id: "subpoena",       label: "Subpoena / litigation hold",  years: 0,  blurb: "Custom date range, all data included." },
-  { id: "daily_ops",      label: "Daily operations reconciliation", years: 0, blurb: "Single day — replaces the spreadsheet you send owners." },
+  { id: "daily_ops",      label: "Daily operations reconciliation", years: 0, blurb: "Single day, replaces the spreadsheet you send owners." },
   { id: "custom",         label: "Custom",                       years: 0,  blurb: "Pick your own range and filters." },
 ];
 

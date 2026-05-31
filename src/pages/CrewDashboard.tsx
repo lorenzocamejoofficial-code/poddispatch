@@ -532,7 +532,7 @@ export default function CrewDashboard() {
           try {
             const { error: notifErr } = await supabase.from("notifications").insert({
               user_id: d.user_id,
-              message: `Trip cancellation requested by crew: ${cancelTarget.patientName} — ${cancelReason.trim()}`,
+              message: `Trip cancellation requested by crew: ${cancelTarget.patientName}, ${cancelReason.trim()}`,
               acknowledged: false,
               notification_type: "cancellation",
             });
@@ -558,7 +558,7 @@ export default function CrewDashboard() {
         }).select("id").maybeSingle();
         if (alertErr) {
           console.error("Alert insert failed:", alertErr);
-          toast({ title: "Warning", description: "Failed to create dispatch alert — notify dispatch manually", variant: "destructive" });
+          toast({ title: "Warning", description: "Failed to create dispatch alert, notify dispatch manually", variant: "destructive" });
         } else {
           console.log("Alert insert success, id:", alertData?.id);
         }

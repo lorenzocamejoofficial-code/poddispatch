@@ -113,11 +113,11 @@ export function CrewDocumentationPanel({
       if (!res.ok) {
         toast.error(json.error ?? "Failed to submit documentation");
       } else {
-        toast.success("Documentation submitted — trip ready for billing!");
+        toast.success("Documentation submitted, trip ready for billing!");
         onSubmitted();
       }
     } catch {
-      toast.error("Network error. Your data is saved locally — try again.");
+      toast.error("Network error. Your data is saved locally, try again.");
     }
     setSubmitting(false);
   };

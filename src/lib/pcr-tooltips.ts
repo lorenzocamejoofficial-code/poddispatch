@@ -23,7 +23,7 @@ export const PCR_TOOLTIPS: Record<string, string> = {
   temp: "Body temperature in Fahrenheit. Normal range: 97.0–99.0°F",
   bgl: "Blood glucose level in mg/dL. Normal fasting range: 70–100 mg/dL",
   pain: "Patient-reported pain on a scale of 0 to 10. 0 = no pain, 10 = worst imaginable",
-  gcs: "Glasgow Coma Scale — measures level of consciousness via eye, verbal, and motor response. Maximum score is 15",
+  gcs: "Glasgow Coma Scale, measures level of consciousness via eye, verbal, and motor response. Maximum score is 15",
   gcs_eye: "Eye opening response. 4 = spontaneous, 1 = none",
   gcs_verbal: "Verbal response. 5 = oriented, 1 = none",
   gcs_motor: "Motor response. 6 = follows commands, 1 = none",
@@ -58,8 +58,8 @@ export const PCR_TOOLTIPS: Record<string, string> = {
   patient_refusal: "Documents that the patient was informed of risks and chose to refuse transport or treatment",
 
   // Patient Info
-  chief_complaint_patient: "Primary reason for transport today — pre-filled from transport type, edit if different for this specific run",
-  pcs_obtained: "Physician Certification Statement — required by Medicare for interfacility transfers. Must be obtained at the sending facility before transport.",
+  chief_complaint_patient: "Primary reason for transport today, pre-filled from transport type, edit if different for this specific run",
+  pcs_obtained: "Physician Certification Statement, required by Medicare for interfacility transfers. Must be obtained at the sending facility before transport.",
   discharge_instructions: "Confirmation that discharge instructions were received from the sending facility staff",
-  auth_status: "Prior authorization status — claim will be blocked if auth is expired or missing",
+  auth_status: "Prior authorization status, claim will be blocked if auth is expired or missing",
 };

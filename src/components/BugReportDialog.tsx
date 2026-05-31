@@ -121,7 +121,7 @@ export function BugReportDialog({ currentPath, userId, open: controlledOpen, onO
           body: { ticket_id: inserted.id },
         }).catch((e) => console.error("notify-support-ticket failed", e));
       }
-      toast.success("Report submitted — we will follow up within 24 hours");
+      toast.success("Report submitted, we will follow up within 24 hours");
       setOpen(false);
     } catch (e: any) {
       toast.error(e.message || "Failed to submit report");

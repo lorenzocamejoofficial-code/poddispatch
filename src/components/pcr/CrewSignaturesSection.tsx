@@ -393,7 +393,7 @@ export function CrewSignaturesSection({ trip, updateField }: Props) {
             for (const d of dispatchers ?? []) {
               await supabase.from("notifications").insert({
                 user_id: d.user_id,
-                message: `Original crew has signed for ${patientName} — new crew can now proceed with the run.`,
+                message: `Original crew has signed for ${patientName}, new crew can now proceed with the run.`,
                 notification_type: "schedule_change",
                 related_run_id: trip.id,
                 acknowledged: false,
@@ -466,7 +466,7 @@ export function CrewSignaturesSection({ trip, updateField }: Props) {
             for (const d of dispatchers ?? []) {
               await supabase.from("notifications").insert({
                 user_id: d.user_id,
-                message: `Handoff complete — ${patientName} is now with the new crew.`,
+                message: `Handoff complete, ${patientName} is now with the new crew.`,
                 notification_type: "schedule_change",
                 related_run_id: trip.id,
                 acknowledged: false,
@@ -481,7 +481,7 @@ export function CrewSignaturesSection({ trip, updateField }: Props) {
             notes: `New crew accepted handoff for ${patientName}.`,
           });
 
-          toast({ title: "Handoff accepted — you can now complete the PCR" });
+          toast({ title: "Handoff accepted, you can now complete the PCR" });
         }
       } catch (err: any) {
         transitionRef.current = false;
@@ -502,7 +502,7 @@ export function CrewSignaturesSection({ trip, updateField }: Props) {
       id: crypto.randomUUID(),
       type: "Crew Signature",
       name: member.name,
-      role: `Crew — ${member.cert}`,
+      role: `Crew, ${member.cert}`,
       crew_member_id: member.id,
       timestamp: new Date().toISOString(),
       dataUrl: "",
@@ -516,7 +516,7 @@ export function CrewSignaturesSection({ trip, updateField }: Props) {
       id: crypto.randomUUID(),
       type: "Crew Signature",
       name: member.name,
-      role: `Crew — ${member.cert}`,
+      role: `Crew, ${member.cert}`,
       crew_member_id: member.id,
       timestamp: new Date().toISOString(),
       dataUrl,

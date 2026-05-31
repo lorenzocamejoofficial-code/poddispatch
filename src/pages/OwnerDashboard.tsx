@@ -193,10 +193,10 @@ export default function OwnerDashboard() {
   // Fix 5: Status badge uses week-scoped ready-to-submit count
   const issueCount = monthDenied.length + docIssues.length + claimsReadyToSubmit;
   const statusLine = issueCount === 0
-    ? "Business is healthy — everything is on track."
+    ? "Business is healthy, everything is on track."
     : issueCount <= 3
-      ? `Business is healthy — ${issueCount} ${issueCount === 1 ? "item needs" : "items need"} attention.`
-      : `Action needed — ${issueCount} items need your attention this week.`;
+      ? `Business is healthy, ${issueCount} ${issueCount === 1 ? "item needs" : "items need"} attention.`
+      : `Action needed, ${issueCount} items need your attention this week.`;
   const statusHealthy = issueCount <= 3;
 
   // Action items table — uses allDeniedClaims for denials (Fix 2) and enriched trips for doc issues (Fix 4)
