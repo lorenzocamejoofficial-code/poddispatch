@@ -1308,19 +1308,39 @@ export default function EDIExport() {
                     <p className="text-lg font-bold font-mono">${totalCharge.toFixed(2)}</p>
                   </div>
                 </div>
-                <Button
-                  onClick={handleGenerate}
-                  disabled={generating}
-                  size="lg"
-                  className="gap-2"
-                >
-                  {generating ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                  Generate 837P
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      disabled={generating || pdfGenerating}
+                      size="lg"
+                      className="gap-2"
+                    >
+                      {generating || pdfGenerating ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                      Generate
+                      <ChevronDown className="h-4 w-4 opacity-80" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-72">
+                    <DropdownMenuItem onClick={handleGenerate} disabled={generating}>
+                      <FileText className="h-4 w-4 mr-2" />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">837P EDI file</span>
+                        <span className="text-xs text-muted-foreground">For clearinghouse submission</span>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleGeneratePdf} disabled={pdfGenerating}>
+                      <FileDown className="h-4 w-4 mr-2" />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">PDF claim packet</span>
+                        <span className="text-xs text-muted-foreground">Human-readable review (same as Simulation Lab)</span>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button
                   onClick={() => setPreviewOpen(true)}
                   disabled={generating}
