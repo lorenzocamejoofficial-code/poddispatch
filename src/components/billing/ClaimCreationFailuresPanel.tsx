@@ -42,7 +42,13 @@ export function ClaimCreationFailuresPanel() {
     const { data, error } = await supabase.rpc("retry_claim_creation" as any, { p_trip_id: row.trip_id });
     setBusyId(null);
     if (error || !(data as any)?.ok) {
-      toast.error("Retry failed: " + (error?.message || (data as any)?.error || "unknown"));
+      const code = (data as any)?.error || error?.message || "unknown";
+      const friendly: Record<string, string> = {
+        PERMISSION_DENIED: "You don't have permission to retry claim creation. Ask an admin or biller.",
+        TRIP_NOT_FOUND: "This trip no longer exists in your company.",
+        PCR_NOT_SUBMITTED: "The PCR is no longer in submitted state — open the trip to review.",
+      };
+      toast.error(friendly[code] ?? `Retry failed: ${code}`);
       return;
     }
     toast.success("Claim creation retried");
@@ -91,7 +97,7 @@ export function ClaimCreationFailuresPanel() {
                 {rows.map(r => (
                   <tr key={r.id} className="border-t">
                     <td className="px-4 py-2 font-mono text-xs">
-                      <a href={`/trips-and-clinical?trip=${r.trip_id}`}
+                      <a href={`/trips?trip=${r.trip_id}`}
                          className="inline-flex items-center gap-1 hover:underline text-primary">
                         {r.trip_id.substring(0, 8)}<ExternalLink className="h-3 w-3" />
                       </a>
