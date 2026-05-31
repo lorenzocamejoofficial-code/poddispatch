@@ -30,6 +30,9 @@ interface RunInfo {
   patient_weight?: number | null;
   billing_status?: BillingStatus;
   billing_issues?: string[];
+  /** Pre-trip readiness for scheduled / not-yet-completed runs. */
+  pre_trip_readiness?: "ready" | "needs_attention" | null;
+  pre_trip_reasons?: string[];
   hcpcs_codes?: string[];
   hcpcs_modifiers?: string[];
   loaded_miles?: number | null;
@@ -109,6 +112,33 @@ function BillingReadinessChip({ status, issues }: { status: BillingStatus; issue
         <TooltipContent side="left" className="max-w-xs">
           <ul className="text-[10px] space-y-0.5">
             {issues.map((issue, i) => <li key={i}>• {issue}</li>)}
+          </ul>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+/**
+ * Pre-trip readiness chip — shown ONLY on scheduled / not-yet-completed runs.
+ * Separate from BillingReadinessChip (which evaluates completed claims).
+ */
+function PreTripReadinessChip({ reasons }: { reasons: string[] }) {
+  const label = `Won't bill yet: ${reasons[0]}`;
+  const chip = (
+    <span className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] border-[hsl(var(--status-yellow))]/30">
+      <AlertTriangle className="h-2.5 w-2.5" />
+      {label}
+    </span>
+  );
+  if (reasons.length <= 1) return chip;
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>{chip}</TooltipTrigger>
+        <TooltipContent side="left" className="max-w-xs">
+          <ul className="text-[10px] space-y-0.5">
+            {reasons.map((r, i) => <li key={i}>• {r}</li>)}
           </ul>
         </TooltipContent>
       </Tooltip>
@@ -255,7 +285,16 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                   {(run as any).destination_name && <span className="break-words">→ {(run as any).destination_name}</span>}
                   <span className="capitalize shrink-0">{run.trip_type}</span>
                   {!isCancelled && (
-                    <BillingReadinessChip status={run.billing_status ?? null} issues={run.billing_issues} />
+                    (() => {
+                      const isPreCompletion = !run.billing_status || run.billing_status === "not_ready";
+                      if (isPreCompletion) {
+                        if (run.pre_trip_readiness === "needs_attention" && run.pre_trip_reasons && run.pre_trip_reasons.length > 0) {
+                          return <PreTripReadinessChip reasons={run.pre_trip_reasons} />;
+                        }
+                        return <BillingReadinessChip status={null} />;
+                      }
+                      return <BillingReadinessChip status={run.billing_status ?? null} issues={run.billing_issues} />;
+                    })()
                   )}
                 </div>
                 {/* Expanded details */}

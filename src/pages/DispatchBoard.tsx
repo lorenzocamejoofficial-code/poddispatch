@@ -12,6 +12,7 @@ import { CommunicationsSection } from "@/components/dispatch/CommunicationsSecti
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { computeCleanTripStatus } from "@/lib/billing-utils";
+import { derivePreTripReadiness } from "@/lib/pre-trip-readiness";
 import { computeRevenueStrength, type RevenueStrength } from "@/components/dispatch/RevenueStrengthBadge";
 import { evaluateSafetyRules, hasCompletePatientNeeds, type SafetyStatus } from "@/lib/safety-rules";
 import { ChevronLeft, ChevronRight, CalendarIcon, Expand, Shrink } from "lucide-react";
@@ -39,6 +40,8 @@ interface TruckData {
     patient_weight?: number | null;
     billing_status?: BillingStatus;
     billing_issues?: string[];
+    pre_trip_readiness?: "ready" | "needs_attention" | null;
+    pre_trip_reasons?: string[];
     hcpcs_codes?: string[];
     hcpcs_modifiers?: string[];
     loaded_miles?: number | null;
@@ -139,7 +142,7 @@ export default function DispatchBoard() {
       supabase.from("trucks").select("*").eq("active", true).order("name"),
       supabase
         .from("truck_run_slots")
-        .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, trip_type, destination_location, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, auth_required, auth_expiration, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric))")
+        .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, trip_type, destination_location, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, pcs_on_file, auth_required, auth_expiration, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric))")
         .eq("run_date", selectedDate)
         .order("slot_order"),
       supabase.from("alerts").select("*").eq("dismissed", false).order("created_at", { ascending: false }),
@@ -282,6 +285,18 @@ export default function DispatchBoard() {
         const effectivePickupTime = legException?.pickup_time ?? leg?.pickup_time ?? null;
         const effectiveDestination = legException?.destination_location ?? leg?.destination_location ?? null;
 
+        // Pre-trip readiness — only meaningful before completion. Skip for one-off
+        // (no patient record) so we don't false-flag.
+        const preTrip = derivePreTripReadiness({
+          pcs_on_file: patient?.pcs_on_file ?? null,
+          auth_required: patient?.auth_required ?? null,
+          auth_expiration: patient?.auth_expiration ?? null,
+          pickup_time: effectivePickupTime,
+          run_date: selectedDate,
+          trip_type: leg?.trip_type ?? null,
+          is_oneoff: isOneoff,
+        });
+
         return {
           id: s.id,
           patient_name: patientName,
@@ -292,6 +307,8 @@ export default function DispatchBoard() {
           patient_weight: isOneoff ? (leg?.oneoff_weight_lbs ?? null) : (patient?.weight_lbs ?? null),
           billing_status: billingData.status,
           billing_issues: billingData.issues,
+          pre_trip_readiness: preTrip.level,
+          pre_trip_reasons: preTrip.reasons,
           hcpcs_codes: tripRecord?.hcpcs_codes ?? [],
           hcpcs_modifiers: tripRecord?.hcpcs_modifiers ?? [],
           loaded_miles: tripRecord?.loaded_miles ?? null,
