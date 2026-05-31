@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Upload, CheckCircle, XCircle, AlertTriangle, Info, FileText, ArrowRight } from "lucide-react";
+import { Upload, CheckCircle, XCircle, AlertTriangle, Info, FileText, ArrowRight, ArrowLeft } from "lucide-react";
+import { Link as RouterLink } from "react-router-dom";
 import { toast } from "sonner";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { Loader2 } from "lucide-react";
@@ -403,6 +404,10 @@ export default function RemittanceImport() {
   return (
     <AdminLayout>
       <div className="max-w-6xl mx-auto space-y-6">
+        <RouterLink to="/billing" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground -mb-2">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Billing &amp; Claims
+        </RouterLink>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">835 Remittance Import</h1>

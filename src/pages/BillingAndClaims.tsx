@@ -24,6 +24,7 @@ import { RemittanceActivityPanel } from "@/components/billing/RemittanceActivity
 import { RemittanceHistoryPanel } from "@/components/billing/RemittanceHistoryPanel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 
 const DISMISSED_KEY = "charge_master_notice_dismissed_at";
 
@@ -437,7 +438,6 @@ export default function BillingAndClaims() {
       toast.info("No claims in Ready to Bill");
       return;
     }
-    if (!window.confirm(`Submit ${ready.length} claim(s) to Office Ally?`)) return;
     setOaSending(true);
     try {
       const result = await queueClaimsForSubmission(
@@ -471,19 +471,35 @@ export default function BillingAndClaims() {
       const { data, error } = await supabase.functions.invoke("retrieve-remittance-officeally", {
         body: { company_id: activeCompanyId },
       });
-      if (error) throw error;
+      if (error) {
+        // Surface the actual edge-function error body so users (and we) can
+        // see why the call failed instead of a generic "non-2xx" toast.
+        const ctx: any = (error as any).context;
+        let detail = "";
+        try {
+          const txt = await ctx?.text?.();
+          if (txt) {
+            try {
+              const j = JSON.parse(txt);
+              detail = j?.error || j?.message || txt;
+            } catch { detail = txt; }
+          }
+        } catch { /* noop */ }
+        throw new Error(detail || error.message || "Check for payments failed");
+      }
+      if (data?.error) throw new Error(data.error);
       if (data?.received > 0) {
         toast.success(`Imported ${data.received} payment files`);
       } else {
         toast.info("No new payment files found");
       }
       if (data?.errors?.length) {
-        toast.error(data.errors[0]);
+        toast.error(data.errors[0], { duration: 10000 });
       }
       fetchData();
       setRemittanceRefreshKey((k) => k + 1);
     } catch (err: any) {
-      toast.error(err.message || "Failed to check for payments");
+      toast.error(err?.message || "Failed to check for payments", { duration: 10000 });
       setRemittanceRefreshKey((k) => k + 1);
     }
     setOaReceiving(false);
@@ -1265,10 +1281,35 @@ export default function BillingAndClaims() {
                   </p>
                 </div>
                 {clearinghouseConfigured ? (
-                  <Button size="sm" onClick={handleSendViaOA} disabled={oaSending} className="gap-1.5">
-                    {oaSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    {oaSending ? "Sending…" : "Send via Office Ally"}
-                  </Button>
+                  <ConfirmActionDialog
+                    trigger={
+                      <Button size="sm" disabled={oaSending} className="gap-1.5">
+                        {oaSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                        {oaSending ? "Sending…" : "Send via Office Ally"}
+                      </Button>
+                    }
+                    title="Submit claims to Office Ally?"
+                    description="This sends your Ready-to-Bill claims to Office Ally for live processing by the payer. Once submitted, claims cannot be unsent — they move to the Submitted column and you'll wait for the payer's 835 remittance response (days to weeks)."
+                    summary={
+                      <div className="rounded-md border bg-muted/30 p-3 space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Claims to submit</span>
+                          <span className="font-medium">{readyCount}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Total billed</span>
+                          <span className="font-mono font-medium">{fmtMoney(readyTotal)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Destination</span>
+                          <span className="font-medium">Office Ally (live)</span>
+                        </div>
+                      </div>
+                    }
+                    confirmWord="SUBMIT"
+                    destructive={false}
+                    onConfirm={handleSendViaOA}
+                  />
                 ) : (
                   <a href="/edi-export">
                     <Button size="sm" className="gap-1.5">

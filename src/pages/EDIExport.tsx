@@ -10,10 +10,18 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FileText, Download, Info, FlaskConical, Eye, FileCheck2, Upload, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ArrowLeft, ChevronDown, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { Link as RouterLink, Link } from "react-router-dom";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { RecordRejectionDialog } from "@/components/billing/RecordRejectionDialog";
+import { downloadClaimReviewPdf } from "@/lib/claim-review-pdf";
 import {
   generateEDI837P,
   validateClaimForEDI,
@@ -659,6 +667,29 @@ export default function EDIExport() {
 
   const totalCharge = selectedClaims.reduce((sum, c) => sum + (c.total_charge || 0), 0);
 
+  // PDF claim packet — same renderer the Simulation Lab uses. This is a
+  // human-readable review/audit packet, NOT the 837P EDI file used for
+  // submission. Bypasses provider/submitter validation since it doesn't
+  // travel to Office Ally.
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const handleGeneratePdf = async () => {
+    if (selectedClaims.length === 0) {
+      toast.error("Select at least one claim to export");
+      return;
+    }
+    setPdfGenerating(true);
+    try {
+      await downloadClaimReviewPdf({
+        claimIds: selectedClaims.map((c) => c.id),
+      });
+      toast.success(`Claim review PDF downloaded (${selectedClaims.length} claim${selectedClaims.length === 1 ? "" : "s"})`);
+    } catch (err: any) {
+      toast.error("PDF export failed: " + (err?.message ?? String(err)));
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
+
   const handleSubmitSingleTest = async () => {
     if (!testMode) {
       toast.error("Turn on Test Mode first (Settings → Clearinghouse → Step 4) before submitting a single test claim.");
@@ -929,6 +960,10 @@ export default function EDIExport() {
   return (
     <AdminLayout>
       <div className="max-w-6xl mx-auto space-y-6">
+        <RouterLink to="/billing" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground -mb-2">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Billing &amp; Claims
+        </RouterLink>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">EDI 837P Export</h1>
@@ -953,7 +988,12 @@ export default function EDIExport() {
           </Alert>
         )}
 
-        {/* Provider & Submitter Info */}
+        {/* Provider & Submitter Info — creator-only diagnostic.
+            Regular tenants never see these cards: Billing Provider data is
+            auto-loaded from the company record, and Submitter is PodDispatch's
+            central vendor identity. Showing them to customers would expose
+            internal vendor credentials. */}
+        {isSystemCreator && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card>
             <CardHeader className="pb-3">
@@ -1098,6 +1138,7 @@ export default function EDIExport() {
             </CardContent>
           </Card>
         </div>
+        )}
 
         {/* Claims Selection */}
         <Card>
@@ -1267,19 +1308,39 @@ export default function EDIExport() {
                     <p className="text-lg font-bold font-mono">${totalCharge.toFixed(2)}</p>
                   </div>
                 </div>
-                <Button
-                  onClick={handleGenerate}
-                  disabled={generating}
-                  size="lg"
-                  className="gap-2"
-                >
-                  {generating ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                  Generate 837P
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      disabled={generating || pdfGenerating}
+                      size="lg"
+                      className="gap-2"
+                    >
+                      {generating || pdfGenerating ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                      Generate
+                      <ChevronDown className="h-4 w-4 opacity-80" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-72">
+                    <DropdownMenuItem onClick={handleGenerate} disabled={generating}>
+                      <FileText className="h-4 w-4 mr-2" />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">837P EDI file</span>
+                        <span className="text-xs text-muted-foreground">For clearinghouse submission</span>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleGeneratePdf} disabled={pdfGenerating}>
+                      <FileDown className="h-4 w-4 mr-2" />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">PDF claim packet</span>
+                        <span className="text-xs text-muted-foreground">Human-readable review (same as Simulation Lab)</span>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button
                   onClick={() => setPreviewOpen(true)}
                   disabled={generating}
