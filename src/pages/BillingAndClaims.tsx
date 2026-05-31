@@ -438,7 +438,6 @@ export default function BillingAndClaims() {
       toast.info("No claims in Ready to Bill");
       return;
     }
-    if (!window.confirm(`Submit ${ready.length} claim(s) to Office Ally?`)) return;
     setOaSending(true);
     try {
       const result = await queueClaimsForSubmission(
