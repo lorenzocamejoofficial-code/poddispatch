@@ -30,7 +30,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { ContextualHelpPanel, HelpIconButton } from "@/components/help/ContextualHelpPanel";
+import { ContextualHelpPanel } from "@/components/help/ContextualHelpPanel";
 import { useCompanyName } from "@/hooks/useCompanyName";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { CompanySwitcher } from "@/components/layout/CompanySwitcher";
@@ -43,7 +43,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User as UserIcon } from "lucide-react";
+import { User as UserIcon, HelpCircle, Bug } from "lucide-react";
 
 /**
  * Single consistent sign-out routine used by both the sidebar and the
@@ -411,11 +411,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 Account
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setHelpOpen(true)}>
-                <HelpIconButton onClick={() => {}} />
-                <span className="ml-2">Help</span>
+                <HelpCircle className="h-4 w-4 mr-2" />
+                Help
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setBugOpen(true)}>
-                <AlertTriangle className="h-4 w-4 mr-2" />
+                <Bug className="h-4 w-4 mr-2" />
                 Bug Report
               </DropdownMenuItem>
               <DropdownMenuSeparator />
