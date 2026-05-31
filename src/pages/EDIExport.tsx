@@ -667,6 +667,29 @@ export default function EDIExport() {
 
   const totalCharge = selectedClaims.reduce((sum, c) => sum + (c.total_charge || 0), 0);
 
+  // PDF claim packet — same renderer the Simulation Lab uses. This is a
+  // human-readable review/audit packet, NOT the 837P EDI file used for
+  // submission. Bypasses provider/submitter validation since it doesn't
+  // travel to Office Ally.
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const handleGeneratePdf = async () => {
+    if (selectedClaims.length === 0) {
+      toast.error("Select at least one claim to export");
+      return;
+    }
+    setPdfGenerating(true);
+    try {
+      await downloadClaimReviewPdf({
+        claimIds: selectedClaims.map((c) => c.id),
+      });
+      toast.success(`Claim review PDF downloaded (${selectedClaims.length} claim${selectedClaims.length === 1 ? "" : "s"})`);
+    } catch (err: any) {
+      toast.error("PDF export failed: " + (err?.message ?? String(err)));
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
+
   const handleSubmitSingleTest = async () => {
     if (!testMode) {
       toast.error("Turn on Test Mode first (Settings → Clearinghouse → Step 4) before submitting a single test claim.");
