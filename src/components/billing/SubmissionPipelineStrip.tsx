@@ -1,12 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Send, Clock, CheckCircle2, AlertCircle, Info, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Send, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface Props {
   companyId: string | null;
+  // kept for back-compat with parent; no longer rendered as a banner
   readyCount?: number;
   onJumpToReady?: () => void;
 }
@@ -21,13 +20,12 @@ interface Stats {
 }
 
 /**
- * One submission pipeline, one status strip. Every "Submit to Office Ally"
- * button on this page (group submit + per-claim submit in the drawer) writes
- * to the SAME claim_submission_queue table. The Railway SFTP worker polls
- * that table every ~30 seconds and uploads to Office Ally. This strip shows
- * what's currently in flight so users never wonder "did it actually go?".
+ * Compact in-flight strip. Shows only what is *currently* in the submission
+ * queue after the user clicks "Submit Claims to Payers". Intentionally NOT
+ * a tutorial — Ready-to-Bill counts live in the KPI/"Needs your action"
+ * blocks above, so there is nothing to reconcile here.
  */
-export function SubmissionPipelineStrip({ companyId, readyCount = 0, onJumpToReady }: Props) {
+export function SubmissionPipelineStrip({ companyId }: Props) {
   const [stats, setStats] = useState<Stats>({
     pending: 0, submittedToday: 0, failed: 0,
     lastSentAt: null, lastSentFilename: null, lastSentCount: 0,
@@ -65,66 +63,41 @@ export function SubmissionPipelineStrip({ companyId, readyCount = 0, onJumpToRea
 
   if (!companyId) return null;
 
+  // If nothing has ever been queued and nothing is in flight, this strip is noise.
+  const isQuiet = stats.pending === 0 && stats.submittedToday === 0 && stats.failed === 0 && !stats.lastSentAt;
+  if (isQuiet) return null;
+
   return (
-    <Card className="border-primary/30 bg-primary/5">
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <Send className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-semibold">In submission queue</p>
-              <Badge variant="outline" className="text-[10px] font-normal gap-1">
-                <Clock className="h-3 w-3" />Worker polls every ~30s
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1 flex items-start gap-1.5">
-              <Info className="h-3 w-3 mt-0.5 shrink-0" />
-              Every "Submit to Office Ally" button — whether you submit one claim from the drawer
-              or the entire Ready-to-Bill group — funnels through this single queue. Selecting one
-              claim sends a batch of one; selecting 47 sends one envelope of 47. There is no other
-              path out. The 837P Export page is for downloading copies for your records.
-            </p>
-            <div className="flex items-center gap-4 mt-3 flex-wrap text-xs">
-              <span className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 text-amber-600" />
-                <span className="font-semibold">{stats.pending}</span>
-                <span className="text-muted-foreground">in queue</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                <span className="font-semibold">{stats.submittedToday}</span>
-                <span className="text-muted-foreground">claims sent today</span>
-              </span>
-              {stats.failed > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <AlertCircle className="h-3.5 w-3.5 text-destructive" />
-                  <span className="font-semibold text-destructive">{stats.failed}</span>
-                  <span className="text-muted-foreground">failed (see panel below)</span>
-                </span>
-              )}
-              {stats.lastSentAt && (
-                <span className="text-muted-foreground ml-auto">
-                  Last batch: <span className="font-mono">{stats.lastSentFilename}</span>{" "}
-                  ({stats.lastSentCount} claim{stats.lastSentCount === 1 ? "" : "s"}) ·{" "}
-                  {new Date(stats.lastSentAt).toLocaleString()}
-                </span>
-              )}
-            </div>
-            {readyCount > stats.pending && (
-              <div className="mt-3 flex items-center gap-2 text-xs rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5">
-                <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                <span className="text-foreground">
-                  <span className="font-semibold">{readyCount - stats.pending}</span>{" "}
-                  ready claim{readyCount - stats.pending === 1 ? "" : "s"} not yet queued
-                </span>
-                {onJumpToReady && (
-                  <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto text-xs gap-1" onClick={onJumpToReady}>
-                    Review <ArrowRight className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
+    <Card className="border-muted-foreground/20 bg-muted/30">
+      <CardContent className="p-3">
+        <div className="flex items-center gap-4 flex-wrap text-xs">
+          <span className="flex items-center gap-1.5 font-medium">
+            <Send className="h-3.5 w-3.5 text-primary" />
+            In flight to Office Ally
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5 text-amber-600" />
+            <span className="font-semibold">{stats.pending}</span>
+            <span className="text-muted-foreground">queued</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            <span className="font-semibold">{stats.submittedToday}</span>
+            <span className="text-muted-foreground">sent today</span>
+          </span>
+          {stats.failed > 0 && (
+            <span className="flex items-center gap-1.5">
+              <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+              <span className="font-semibold text-destructive">{stats.failed}</span>
+              <span className="text-muted-foreground">failed</span>
+            </span>
+          )}
+          {stats.lastSentAt && (
+            <span className="text-muted-foreground ml-auto">
+              Last batch: {stats.lastSentCount} claim{stats.lastSentCount === 1 ? "" : "s"} ·{" "}
+              {new Date(stats.lastSentAt).toLocaleString()}
+            </span>
+          )}
         </div>
       </CardContent>
     </Card>
