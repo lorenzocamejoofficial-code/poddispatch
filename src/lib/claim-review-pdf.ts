@@ -515,11 +515,12 @@ async function loadClaimEnvelope(claimId: string): Promise<ResolvedClaim> {
 export async function downloadClaimReviewPdf(opts: {
   artifactId?: string | null;
   claimId?: string | null;
+  claimIds?: string[] | null;
   runFilename?: string | null;
   scenarioName?: string | null;
 }): Promise<void> {
-  const { artifactId, claimId, runFilename, scenarioName } = opts;
-  if (!artifactId && !claimId && !runFilename) throw new Error("No claim generated");
+  const { artifactId, claimId, claimIds: claimIdsInput, runFilename, scenarioName } = opts;
+  if (!artifactId && !claimId && !claimIdsInput?.length && !runFilename) throw new Error("No claim generated");
 
   // Resolve which claim IDs to render. We never re-parse EDI: artifact rows
   // carry the originating claim IDs, so the same envelope the generator
@@ -535,6 +536,7 @@ export async function downloadClaimReviewPdf(opts: {
       .select("claim_ids").eq("filename", runFilename).maybeSingle();
     if (data?.claim_ids?.length) claimIds = data.claim_ids;
   }
+  if (!claimIds.length && claimIdsInput?.length) claimIds = claimIdsInput;
   if (!claimIds.length && claimId) claimIds = [claimId];
   if (!claimIds.length) throw new Error("No claim available to render");
 
