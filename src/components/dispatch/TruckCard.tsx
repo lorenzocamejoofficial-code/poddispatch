@@ -1,10 +1,9 @@
-import { StatusBadge, StatusDot } from "./StatusBadge";
+import { StatusDot } from "./StatusBadge";
 import { Shield } from "lucide-react";
-import { Truck, Users, Zap, WrenchIcon, AlertTriangle, CheckCircle, XCircle, Eye } from "lucide-react";
+import { Truck, Users, Zap, WrenchIcon, AlertTriangle, CheckCircle, XCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
@@ -69,92 +68,51 @@ interface TruckCardProps {
   forceExpanded?: boolean;
 }
 
-function BillingStatusDot({ status, issues }: { status: BillingStatus; issues?: string[] }) {
-  if (!status || status === "not_ready") return null;
-
-  const config = {
-    clean: { icon: CheckCircle, color: "text-[hsl(var(--status-green))]", label: "Clean Claim Ready" },
-    missing_pcs: { icon: AlertTriangle, color: "text-[hsl(var(--status-yellow))]", label: "Missing PCS" },
-    blocked_auth: { icon: XCircle, color: "text-destructive", label: "Blocked – Auth Expired" },
-    blocked_other: { icon: XCircle, color: "text-destructive", label: "Blocked – Fix Required" },
-  }[status];
-
-  if (!config) return null;
+/**
+ * Dispatcher-grade billing readiness chip. Always renders for non-cancelled runs.
+ * - Completed/ready runs → "Clean — ready to bill" or short blocker reason.
+ * - In-progress / scheduled runs → neutral "Not ready to bill yet".
+ * The full HCPCS/modifier preview lives on the biller's page, not here.
+ */
+function BillingReadinessChip({ status, issues }: { status: BillingStatus; issues?: string[] }) {
+  const config = (() => {
+    switch (status) {
+      case "clean":
+        return { icon: CheckCircle, label: "Clean — ready to bill",
+          className: "bg-[hsl(var(--status-green))]/10 text-[hsl(var(--status-green))] border-[hsl(var(--status-green))]/30" };
+      case "missing_pcs":
+        return { icon: AlertTriangle, label: "Blocked — needs PCS",
+          className: "bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] border-[hsl(var(--status-yellow))]/30" };
+      case "blocked_auth":
+        return { icon: XCircle, label: "Blocked — auth expired",
+          className: "bg-destructive/10 text-destructive border-destructive/30" };
+      case "blocked_other":
+        return { icon: XCircle, label: "Blocked — fix required",
+          className: "bg-destructive/10 text-destructive border-destructive/30" };
+      default:
+        return { icon: Clock, label: "Not ready to bill yet",
+          className: "bg-muted text-muted-foreground border-border" };
+    }
+  })();
   const Icon = config.icon;
-
+  const chip = (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${config.className}`}>
+      <Icon className="h-2.5 w-2.5" />
+      {config.label}
+    </span>
+  );
+  if (!issues || issues.length === 0) return chip;
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <span className={config.color}>
-            <Icon className="h-3.5 w-3.5" />
-          </span>
-        </TooltipTrigger>
+        <TooltipTrigger asChild>{chip}</TooltipTrigger>
         <TooltipContent side="left" className="max-w-xs">
-          <p className="text-xs font-semibold mb-0.5">{config.label}</p>
-          {issues && issues.length > 0 && (
-            <ul className="text-[10px] space-y-0.5">
-              {issues.map((issue, i) => <li key={i}>• {issue}</li>)}
-            </ul>
-          )}
+          <ul className="text-[10px] space-y-0.5">
+            {issues.map((issue, i) => <li key={i}>• {issue}</li>)}
+          </ul>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  );
-}
-
-function BillingPreviewDialog({ run, open, onOpenChange }: { run: RunInfo; open: boolean; onOpenChange: (v: boolean) => void }) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Billing Preview — {run.patient_name}</DialogTitle>
-          <DialogDescription>{run.trip_type} · {run.pickup_time ?? "—"}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3 py-2">
-          {/* HCPCS */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">HCPCS Codes</p>
-            <div className="flex flex-wrap gap-1.5">
-              {(run.hcpcs_codes ?? []).length > 0 ? run.hcpcs_codes!.map(c => (
-                <span key={c} className="rounded bg-primary/10 text-primary text-xs font-mono px-2 py-0.5">{c}</span>
-              )) : <span className="text-xs text-muted-foreground">Not assigned yet</span>}
-              {(run.hcpcs_modifiers ?? []).map(m => (
-                <span key={m} className="rounded bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] text-xs font-mono px-2 py-0.5">{m}</span>
-              ))}
-            </div>
-          </div>
-
-          {/* Mileage */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Loaded Miles</p>
-              <p className="text-sm font-medium">{run.loaded_miles ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Est. Charge</p>
-              <p className="text-sm font-medium">{run.estimated_charge != null ? `$${run.estimated_charge.toFixed(2)}` : "—"}</p>
-            </div>
-          </div>
-
-          {/* Blockers */}
-          {run.billing_issues && run.billing_issues.length > 0 && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive mb-1">Missing / Blocked</p>
-              <ul className="text-xs text-destructive space-y-0.5">
-                {run.billing_issues.map((issue, i) => <li key={i}>• {issue}</li>)}
-              </ul>
-            </div>
-          )}
-
-          {run.billing_status === "clean" && (
-            <div className="rounded-md border border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5 p-3 text-center">
-              <span className="text-sm font-semibold text-[hsl(var(--status-green))]">🟢 Clean Claim Ready</span>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -162,7 +120,6 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
   const hasHeavy = runs.some((r) => (r.patient_weight ?? 0) > 200);
   const isDown = !!downStatus;
   const hasRunsWhileDown = isDown && runs.length > 0;
-  const [previewRun, setPreviewRun] = useState<RunInfo | null>(null);
   const [localExpanded, setLocalExpanded] = useState(false);
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const VISIBLE_COUNT = 3;
@@ -277,7 +234,6 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                         blue: "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400",
                         green: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400",
                       };
-                      if (rs.color === "gray") return null;
                       return (
                         <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold shrink-0 ${colorMap[rs.color] ?? colorMap.gray}`}>
                           {rs.label}
@@ -291,7 +247,6 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                         Undo
                       </Button>
                     )}
-                    <StatusBadge status={run.status} />
                   </div>
                 </div>
                 {/* Row 2: time + type */}
@@ -299,6 +254,9 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                   {run.pickup_time && <span className="shrink-0">{run.pickup_time}</span>}
                   {(run as any).destination_name && <span className="break-words">→ {(run as any).destination_name}</span>}
                   <span className="capitalize shrink-0">{run.trip_type}</span>
+                  {!isCancelled && (
+                    <BillingReadinessChip status={run.billing_status ?? null} issues={run.billing_issues} />
+                  )}
                 </div>
                 {/* Expanded details */}
                 {isRunExpanded && !isCancelled && (
@@ -387,16 +345,6 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
                         const risk = computeTimingRisk(run.pickup_time, run.status);
                         return risk ? <TimingRiskBadge risk={risk} pickupTime={run.pickup_time} /> : null;
                       })()}
-                      {!readOnly && <BillingStatusDot status={run.billing_status ?? null} issues={run.billing_issues} />}
-                      {!readOnly && run.billing_status && run.billing_status !== "not_ready" && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setPreviewRun(run); }}
-                          className="text-muted-foreground hover:text-foreground transition-colors"
-                          title="View Billing Preview"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
-                      )}
                     </div>
                   </>
                 )}
@@ -432,10 +380,6 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
         {/* Billing readiness summary */}
         <BillingReadinessSummary runs={runs} />
       </div>
-
-      {previewRun && (
-        <BillingPreviewDialog run={previewRun} open={!!previewRun} onOpenChange={v => { if (!v) setPreviewRun(null); }} />
-      )}
     </>
   );
 }
