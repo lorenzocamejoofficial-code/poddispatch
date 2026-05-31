@@ -35,6 +35,31 @@ import { useCompanyName } from "@/hooks/useCompanyName";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { CompanySwitcher } from "@/components/layout/CompanySwitcher";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { User as UserIcon } from "lucide-react";
+
+/**
+ * Single consistent sign-out routine used by both the sidebar and the
+ * top-right account menu. Clears local storage so per-user UI state
+ * (sidebar collapse, last-selected date, etc.) doesn't leak between
+ * accounts on a shared device.
+ */
+async function performSignOut(
+  signOut: () => Promise<void>,
+  navigate: (to: string) => void,
+) {
+  try { await signOut(); } finally {
+    try { localStorage.clear(); } catch {}
+    navigate("/login");
+  }
+}
 
 interface NavItem {
   path: string;
@@ -124,6 +149,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const { companyName } = useCompanyName();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [bugOpen, setBugOpen] = useState(false);
 
   // System creator gets full access to all nav items
   // Regular users need owner, dispatcher, or billing role
@@ -321,7 +347,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             </span>
           </div>
           <button
-            onClick={() => { signOut(); navigate("/login"); }}
+            onClick={() => performSignOut(signOut, navigate)}
             className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
           >
             <LogOut className="h-4 w-4" />
@@ -361,17 +387,54 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <h2 className="text-lg font-semibold text-foreground flex-1">
             {allVisibleItems.find((i) => i.path === location.pathname)?.label ?? "PodDispatch"}
           </h2>
-          <BugReportDialog currentPath={location.pathname} userId={user?.id} />
-          <HelpIconButton onClick={() => setHelpOpen(prev => !prev)} />
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-2 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => { signOut(); localStorage.clear(); navigate("/login"); }}
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Logout</span>
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <UserIcon className="h-4 w-4" />
+                <span className="hidden sm:inline max-w-[160px] truncate">
+                  {user?.email ?? "Account"}
+                </span>
+                <ChevronDown className="h-3 w-3 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground truncate">
+                {user?.email}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate("/account")}>
+                <UserIcon className="h-4 w-4 mr-2" />
+                Account
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setHelpOpen(true)}>
+                <HelpIconButton onClick={() => {}} />
+                <span className="ml-2">Help</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBugOpen(true)}>
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Bug Report
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => performSignOut(signOut, navigate)}
+                className="text-destructive focus:text-destructive"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* Bug report dialog — controlled by account menu */}
+          <BugReportDialog
+            currentPath={location.pathname}
+            userId={user?.id}
+            open={bugOpen}
+            onOpenChange={setBugOpen}
+          />
         </header>
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
         <ContextualHelpPanel

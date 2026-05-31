@@ -28,7 +28,6 @@ const DispatchBoard = lazyRoute(() => import("./pages/DispatchBoard"));
 const Patients = lazyRoute(() => import("./pages/Patients"));
 const Employees = lazyRoute(() => import("./pages/Employees"));
 const TrucksCrews = lazyRoute(() => import("./pages/TrucksCrews"));
-const Runs = lazyRoute(() => import("./pages/Runs"));
 const Scheduling = lazyRoute(() => import("./pages/Scheduling"));
 const AdminSettings = lazyRoute(() => import("./pages/AdminSettings"));
 const CrewScheduleAdmin = lazyRoute(() => import("./pages/CrewScheduleAdmin"));
@@ -68,7 +67,6 @@ const EDIExport = lazyRoute(() => import("./pages/EDIExport"));
 const LegalPage = lazyRoute(() => import("./pages/LegalPage"));
 const RemittanceImport = lazyRoute(() => import("./pages/RemittanceImport"));
 const OwnerDashboard = lazyRoute(() => import("./pages/OwnerDashboard"));
-const ARCommandCenter = lazyRoute(() => import("./pages/ARCommandCenter"));
 const SelectCompany = lazyRoute(() => import("./pages/SelectCompany"));
 const CrewInspectionChecklist = lazyRoute(() => import("./components/inspection/CrewInspectionChecklist"));
 
@@ -370,11 +368,9 @@ function AppRoutes() {
           <Route path="/scheduling" element={<Scheduling />} />
           <Route path="/crew-schedule" element={<CrewScheduleAdmin />} />
           <Route path="/crew/:token" element={<DailyRunSheet />} />
-          <Route path="/runs" element={<Runs />} />
           <Route path="/patients" element={<Patients />} />
           <Route path="/trips" element={<TripsAndClinical />} />
           <Route path="/billing" element={<BillingAndClaims />} />
-          <Route path="/ar-command-center" element={<Navigate to="/billing" replace />} />
           <Route path="/edi-export" element={<EDIExport />} />
           <Route path="/remittance-import" element={<RemittanceImport />} />
           <Route path="/owner-dashboard" element={<OwnerDashboard />} />
@@ -390,7 +386,6 @@ function AppRoutes() {
           {/* Default: creator lands on System Dashboard */}
           <Route path="/" element={<Navigate to="/system" replace />} />
           <Route path="/login" element={<Navigate to="/system" replace />} />
-          <Route path="/sandbox/*" element={<Navigate to="/system" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </SchedulingProvider>
@@ -462,7 +457,6 @@ function AppRoutes() {
             <Route path="/patients" element={<Patients />} />
             <Route path="/trips" element={<TripsAndClinical />} />
             <Route path="/billing" element={<BillingAndClaims />} />
-            <Route path="/ar-command-center" element={<Navigate to="/billing" replace />} />
             <Route path="/edi-export" element={<EDIExport />} />
             <Route path="/remittance-import" element={<RemittanceImport />} />
             <Route path="/compliance" element={<ComplianceAndQA />} />
@@ -470,7 +464,6 @@ function AppRoutes() {
             <Route path="/reports" element={<ReportsAndMetrics />} />
             <Route path="/account" element={<AccountSettings />} />
             <Route path="/legal" element={<LegalPage />} />
-            <Route path="/dashboard" element={<Navigate to="/" replace />} />
             {/* Crew routes for billers with cert + crew assignment */}
             <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
             <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
@@ -499,20 +492,16 @@ function AppRoutes() {
         <Route path="/scheduling" element={<Scheduling />} />
         <Route path="/crew-schedule" element={<CrewScheduleAdmin />} />
         <Route path="/crew/:token" element={<DailyRunSheet />} />
-        <Route path="/runs" element={<Runs />} />
         <Route path="/patients" element={<Patients />} />
         <Route path="/trips" element={<TripsAndClinical />} />
         <Route path="/billing" element={<BillingAndClaims />} />
-        <Route path="/ar-command-center" element={<Navigate to="/billing" replace />} />
         <Route path="/edi-export" element={<EDIExport />} />
         <Route path="/remittance-import" element={<RemittanceImport />} />
         <Route path="/owner-dashboard" element={<OwnerDashboard />} />
-        <Route path="/dashboard" element={<OwnerDashboard />} />
         <Route path="/compliance" element={<ComplianceAndQA />} />
         <Route path="/facilities" element={<FacilitiesPage />} />
         <Route path="/reports" element={<ReportsAndMetrics />} />
         <Route path="/migration" element={<MigrationOnboarding />} />
-        <Route path="/simulation" element={<Navigate to="/" replace />} />
         <Route path="/employees" element={<Employees />} />
         <Route path="/trucks" element={<TrucksCrews />} />
         <Route path="/settings" element={<AdminSettings />} />
