@@ -1281,10 +1281,35 @@ export default function BillingAndClaims() {
                   </p>
                 </div>
                 {clearinghouseConfigured ? (
-                  <Button size="sm" onClick={handleSendViaOA} disabled={oaSending} className="gap-1.5">
-                    {oaSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    {oaSending ? "Sending…" : "Send via Office Ally"}
-                  </Button>
+                  <ConfirmActionDialog
+                    trigger={
+                      <Button size="sm" disabled={oaSending} className="gap-1.5">
+                        {oaSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                        {oaSending ? "Sending…" : "Send via Office Ally"}
+                      </Button>
+                    }
+                    title="Submit claims to Office Ally?"
+                    description="This sends your Ready-to-Bill claims to Office Ally for live processing by the payer. Once submitted, claims cannot be unsent — they move to the Submitted column and you'll wait for the payer's 835 remittance response (days to weeks)."
+                    summary={
+                      <div className="rounded-md border bg-muted/30 p-3 space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Claims to submit</span>
+                          <span className="font-medium">{readyCount}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Total billed</span>
+                          <span className="font-mono font-medium">{fmtMoney(readyTotal)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Destination</span>
+                          <span className="font-medium">Office Ally (live)</span>
+                        </div>
+                      </div>
+                    }
+                    confirmWord="SUBMIT"
+                    destructive={false}
+                    onConfirm={handleSendViaOA}
+                  />
                 ) : (
                   <a href="/edi-export">
                     <Button size="sm" className="gap-1.5">
