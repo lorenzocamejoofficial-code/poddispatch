@@ -304,6 +304,27 @@ export default function ReportsAndMetrics() {
             <PageLoader label="Loading metrics…" />
           ) : (
             <>
+              {/* Financial metrics row — lead with money (get-paid is the goal) */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Financial</p>
+                <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+                  {[
+                    { label: "Revenue Collected", value: `$${metrics.revenue_collected.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <TrendingUp className="h-5 w-5" />, color: "text-[hsl(var(--status-green))]" },
+                    { label: "Pending A/R", value: `$${metrics.revenue_pending.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <DollarSign className="h-5 w-5" />, color: "text-foreground" },
+                    { label: "Denied Claims", value: metrics.denial_count, icon: <AlertTriangle className="h-5 w-5" />, color: "text-destructive" },
+                    { label: "Billing Complete", value: `${kpiBilling.rate}%`, sub: `${kpiBilling.num} of ${kpiBilling.den}`, icon: <CheckCircle className="h-5 w-5" />, color: kpiBilling.rate >= 80 ? "text-[hsl(var(--status-green))]" : "text-[hsl(var(--status-yellow))]" },
+                    { label: "Utilization", value: `${metrics.on_time_pct}%`, sub: "trips completed", icon: <Truck className="h-5 w-5" />, color: "text-primary" },
+                  ].map(k => (
+                    <div key={k.label} className="rounded-lg border bg-card p-4 space-y-1">
+                      <div className={`${k.color}`}>{k.icon}</div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">{k.label}</p>
+                      <p className={`text-xl font-bold ${k.color}`}>{typeof k.value === "number" ? k.value : k.value}</p>
+                      {k.sub && <p className="text-xs text-muted-foreground">{k.sub}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* Operational metrics row */}
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Operational</p>
@@ -319,27 +340,6 @@ export default function ReportsAndMetrics() {
                       <div className={`${k.color}`}>{k.icon}</div>
                       <p className="text-xs text-muted-foreground uppercase tracking-wider">{k.label}</p>
                       <p className={`text-xl font-bold ${k.color}`}>{k.value}</p>
-                      {k.sub && <p className="text-xs text-muted-foreground">{k.sub}</p>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Financial metrics row */}
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Financial</p>
-                <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
-                  {[
-                    { label: "Revenue Collected", value: `$${metrics.revenue_collected.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <TrendingUp className="h-5 w-5" />, color: "text-[hsl(var(--status-green))]" },
-                    { label: "Pending A/R", value: `$${metrics.revenue_pending.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: <DollarSign className="h-5 w-5" />, color: "text-foreground" },
-                    { label: "Denied Claims", value: metrics.denial_count, icon: <AlertTriangle className="h-5 w-5" />, color: "text-destructive" },
-                    { label: "Billing Complete", value: `${kpiBilling.rate}%`, sub: `${kpiBilling.num} of ${kpiBilling.den}`, icon: <CheckCircle className="h-5 w-5" />, color: kpiBilling.rate >= 80 ? "text-[hsl(var(--status-green))]" : "text-[hsl(var(--status-yellow))]" },
-                    { label: "Utilization", value: `${metrics.on_time_pct}%`, sub: "trips completed", icon: <Truck className="h-5 w-5" />, color: "text-primary" },
-                  ].map(k => (
-                    <div key={k.label} className="rounded-lg border bg-card p-4 space-y-1">
-                      <div className={`${k.color}`}>{k.icon}</div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">{k.label}</p>
-                      <p className={`text-xl font-bold ${k.color}`}>{typeof k.value === "number" ? k.value : k.value}</p>
                       {k.sub && <p className="text-xs text-muted-foreground">{k.sub}</p>}
                     </div>
                   ))}
