@@ -44,13 +44,25 @@ Deno.serve(async (req) => {
         const userClient = createClient(supabaseUrl, anonKey, {
           global: { headers: { Authorization: authHeader } },
         });
-        const { data: membership } = await userClient
+        const { data: userData } = await userClient.auth.getUser();
+        const uid = userData?.user?.id;
+        if (!uid) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Unauthorized" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        // Service-role lookup so we don't depend on RLS visibility of the
+        // membership row from the caller's JWT.
+        const { data: membership } = await supabase
           .from("company_memberships")
           .select("role")
           .eq("company_id", targetCompanyId)
+          .eq("user_id", uid)
           .maybeSingle();
 
-        if (!membership || !["owner", "creator", "biller"].includes(membership.role)) {
+        const allowed = ["owner", "creator", "biller", "manager", "dispatcher"];
+        if (!membership || !allowed.includes(membership.role)) {
           return new Response(
             JSON.stringify({ success: false, error: "Insufficient permissions" }),
             { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
