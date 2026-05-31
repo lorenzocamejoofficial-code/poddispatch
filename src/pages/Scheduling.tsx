@@ -1286,23 +1286,27 @@ export default function Scheduling() {
               const openAlerts = operationalAlerts.filter((a) => a.status === "open");
               return (
                 <>
-                  <section>
-                    <div className="mb-2 flex items-center gap-2">
-                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                        Patient Not Ready Alerts
-                      </h3>
-                      {openAlerts.length > 0 && (
+                  {openAlerts.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">
+                      All clear — no patient-not-ready alerts.
+                    </p>
+                  ) : (
+                    <section>
+                      <div className="mb-2 flex items-center gap-2">
+                        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                          Patient Not Ready Alerts
+                        </h3>
                         <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--status-red))]/15 px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--status-red))]">
                           <AlertCircle className="h-3 w-3" />
                           {openAlerts.length} open
                         </span>
-                      )}
-                    </div>
-                    <OperationalAlertsPanel
-                      alerts={operationalAlerts}
-                      onResolve={resolveOperationalAlert}
-                    />
-                  </section>
+                      </div>
+                      <OperationalAlertsPanel
+                        alerts={operationalAlerts}
+                        onResolve={resolveOperationalAlert}
+                      />
+                    </section>
+                  )}
                   <CommsOutbox selectedDate={selectedDate} />
                 </>
               );

@@ -581,21 +581,27 @@ export default function DispatchBoard() {
             </section>
           )}
 
-          {/* Issue 1: Operational Alerts */}
-          <section>
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[hsl(var(--status-red))]">
-              Patient Alerts · {operationalAlerts.filter(a => a.status === "open").length}
-            </h3>
-            <OperationalAlertsPanel alerts={operationalAlerts} onResolve={resolveOperationalAlert} />
-          </section>
+          {/* Patient Alerts — collapse to one quiet line when empty (rule 2) */}
+          {operationalAlerts.filter(a => a.status === "open").length === 0 ? null : (
+            <section>
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[hsl(var(--status-red))]">
+                Patient Alerts · {operationalAlerts.filter(a => a.status === "open").length}
+              </h3>
+              <OperationalAlertsPanel alerts={operationalAlerts} onResolve={resolveOperationalAlert} />
+            </section>
+          )}
 
-          {/* Alerts */}
-          <section>
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Alerts
-            </h3>
-            <AlertsPanel alerts={alerts} onDismiss={dismissAlert} />
-          </section>
+          {/* Alerts — collapse to one quiet line when empty (rule 2) */}
+          {alerts.length === 0 && operationalAlerts.filter(a => a.status === "open").length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">All clear — no active alerts.</p>
+          ) : alerts.length === 0 ? null : (
+            <section>
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Alerts
+              </h3>
+              <AlertsPanel alerts={alerts} onDismiss={dismissAlert} />
+            </section>
+          )}
 
           {/* Communications */}
           <CommunicationsSection selectedDate={selectedDate} trucks={trucks} />
