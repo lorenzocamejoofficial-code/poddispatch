@@ -21,7 +21,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { derivePreTripReadiness } from "@/lib/pre-trip-readiness";
-import { AlertTriangle } from "lucide-react";
 import { TripStatusTimeline } from "@/components/billing/TripStatusTimeline";
 import { LocationTypeSelect } from "@/components/billing/LocationTypeSelect";
 import { ICD10Picker } from "@/components/pcr/ICD10Picker";
