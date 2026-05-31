@@ -24,6 +24,7 @@ import { RemittanceActivityPanel } from "@/components/billing/RemittanceActivity
 import { RemittanceHistoryPanel } from "@/components/billing/RemittanceHistoryPanel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 
 const DISMISSED_KEY = "charge_master_notice_dismissed_at";
 
