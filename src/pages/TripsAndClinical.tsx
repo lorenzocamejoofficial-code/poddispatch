@@ -20,6 +20,8 @@ import { Search, ChevronRight, FileText, Clock, AlertTriangle, XCircle, CheckCir
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
+import { derivePreTripReadiness } from "@/lib/pre-trip-readiness";
+import { AlertTriangle } from "lucide-react";
 import { TripStatusTimeline } from "@/components/billing/TripStatusTimeline";
 import { LocationTypeSelect } from "@/components/billing/LocationTypeSelect";
 import { ICD10Picker } from "@/components/pcr/ICD10Picker";
@@ -190,7 +192,7 @@ export default function TripsAndClinical() {
 
       const [{ data: pRows }, { data: tRows }, { data: legRows }] = await Promise.all([
         patientIds.length > 0
-          ? supabase.from("patients").select("id, first_name, last_name, primary_payer, auth_expiration, auth_required, oxygen_required, bariatric").in("id", patientIds)
+          ? supabase.from("patients").select("id, first_name, last_name, primary_payer, auth_expiration, auth_required, pcs_on_file, oxygen_required, bariatric").in("id", patientIds)
           : Promise.resolve({ data: [] }),
         truckIds.length > 0
           ? supabase.from("trucks").select("id, name").in("id", truckIds)
@@ -216,6 +218,7 @@ export default function TripsAndClinical() {
           payer: p?.primary_payer ?? (isOneoff ? leg?.oneoff_primary_payer ?? "—" : "—"),
           auth_expiration: p?.auth_expiration ?? null,
           auth_required: p?.auth_required ?? false,
+          pcs_on_file: p?.pcs_on_file ?? false,
           oxygen_required: p?.oxygen_required ?? false,
           bariatric: p?.bariatric ?? false,
         };
