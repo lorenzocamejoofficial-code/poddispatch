@@ -180,8 +180,15 @@ export default function OwnerDashboard() {
 
   // Card 6 — Today's Operations
   const activeTrucks = trucks.filter(t => t.active);
-  const todayInspections = inspections.length;
-  const missingInspections = activeTrucks.length - todayInspections;
+  // Count distinct active trucks that have a pre-trip inspection today.
+  // Guards against duplicate inspection rows per truck and inspections logged
+  // against inactive trucks (which shouldn't count toward today's coverage).
+  const activeTruckIds = new Set(activeTrucks.map(t => t.id));
+  const inspectedActiveTruckIds = new Set(
+    inspections.map(i => i.truck_id).filter(id => activeTruckIds.has(id))
+  );
+  const todayInspections = inspectedActiveTruckIds.size;
+  const pendingInspections = Math.max(0, activeTrucks.length - todayInspections);
 
   // Fix 5: Status badge uses week-scoped ready-to-submit count
   const issueCount = monthDenied.length + docIssues.length + claimsReadyToSubmit;
@@ -391,7 +398,7 @@ export default function OwnerDashboard() {
           </Card>
 
           {/* Card 6 — Today's Operations */}
-          <Card className={missingInspections > 0 ? "border-[hsl(var(--status-yellow))]/40" : ""}>
+          <Card className={pendingInspections > 0 ? "border-[hsl(var(--status-yellow))]/40" : ""}>
             <CardContent className="pt-5 pb-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Truck className="h-4 w-4 text-muted-foreground" />
@@ -400,15 +407,15 @@ export default function OwnerDashboard() {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
                   <p className="text-xl font-bold text-foreground">{activeTrucks.length}</p>
-                  <p className="text-[10px] text-muted-foreground">Active Trucks</p>
+                  <p className="text-[10px] text-muted-foreground">Trucks Running</p>
                 </div>
                 <div>
                   <p className="text-xl font-bold text-[hsl(var(--status-green))]">{todayInspections}</p>
-                  <p className="text-[10px] text-muted-foreground">Inspections</p>
+                  <p className="text-[10px] text-muted-foreground">Inspected Today</p>
                 </div>
                 <div>
-                  <p className={`text-xl font-bold ${missingInspections > 0 ? "text-destructive" : "text-[hsl(var(--status-green))]"}`}>{missingInspections}</p>
-                  <p className="text-[10px] text-muted-foreground">Missing</p>
+                  <p className={`text-xl font-bold ${pendingInspections > 0 ? "text-destructive" : "text-[hsl(var(--status-green))]"}`}>{pendingInspections}</p>
+                  <p className="text-[10px] text-muted-foreground">Pre-trip Needed</p>
                 </div>
               </div>
               <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => navigate("/dispatch")}>
