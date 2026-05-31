@@ -2,9 +2,14 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Send, Clock, CheckCircle2, AlertCircle, Info } from "lucide-react";
+import { Send, Clock, CheckCircle2, AlertCircle, Info, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-interface Props { companyId: string | null; }
+interface Props {
+  companyId: string | null;
+  readyCount?: number;
+  onJumpToReady?: () => void;
+}
 
 interface Stats {
   pending: number;
@@ -22,7 +27,7 @@ interface Stats {
  * that table every ~30 seconds and uploads to Office Ally. This strip shows
  * what's currently in flight so users never wonder "did it actually go?".
  */
-export function SubmissionPipelineStrip({ companyId }: Props) {
+export function SubmissionPipelineStrip({ companyId, readyCount = 0, onJumpToReady }: Props) {
   const [stats, setStats] = useState<Stats>({
     pending: 0, submittedToday: 0, failed: 0,
     lastSentAt: null, lastSentFilename: null, lastSentCount: 0,
@@ -67,7 +72,7 @@ export function SubmissionPipelineStrip({ companyId }: Props) {
           <Send className="h-4 w-4 text-primary mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-semibold">Office Ally Submission Pipeline</p>
+              <p className="text-sm font-semibold">In submission queue</p>
               <Badge variant="outline" className="text-[10px] font-normal gap-1">
                 <Clock className="h-3 w-3" />Worker polls every ~30s
               </Badge>
@@ -105,6 +110,20 @@ export function SubmissionPipelineStrip({ companyId }: Props) {
                 </span>
               )}
             </div>
+            {readyCount > stats.pending && (
+              <div className="mt-3 flex items-center gap-2 text-xs rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5">
+                <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                <span className="text-foreground">
+                  <span className="font-semibold">{readyCount - stats.pending}</span>{" "}
+                  ready claim{readyCount - stats.pending === 1 ? "" : "s"} not yet queued
+                </span>
+                {onJumpToReady && (
+                  <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto text-xs gap-1" onClick={onJumpToReady}>
+                    Review <ArrowRight className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </CardContent>

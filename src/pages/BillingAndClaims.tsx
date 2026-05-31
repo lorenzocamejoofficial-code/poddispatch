@@ -1244,9 +1244,11 @@ export default function BillingAndClaims() {
         {/* 1. MONEY AT A GLANCE — reused metrics, no new queries */}
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border bg-card p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Ready to send</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Ready to submit</p>
             <p className="text-2xl font-bold text-foreground">{fmtMoney(readyTotal)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{readyCount} claim{readyCount === 1 ? "" : "s"}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {readyCount} claim{readyCount === 1 ? "" : "s"} · passes billing checks
+            </p>
           </div>
           <div className="rounded-lg border bg-card p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Awaiting payer</p>
@@ -1285,7 +1287,7 @@ export default function BillingAndClaims() {
                     trigger={
                       <Button size="sm" disabled={oaSending} className="gap-1.5">
                         {oaSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                        {oaSending ? "Sending…" : "Send via Office Ally"}
+                        {oaSending ? "Sending…" : "Submit Claims to Payers"}
                       </Button>
                     }
                     title="Submit claims to Office Ally?"
@@ -1357,7 +1359,13 @@ export default function BillingAndClaims() {
         )}
 
         {/* 3. SUBMISSION STATUS — quiet pipeline strip, not a full panel */}
-        {activeCompanyId && <SubmissionPipelineStrip companyId={activeCompanyId} />}
+        {activeCompanyId && (
+          <SubmissionPipelineStrip
+            companyId={activeCompanyId}
+            readyCount={readyCount}
+            onJumpToReady={() => { setActiveTab("claims"); setStatusTab("ready_to_bill"); setStatusPage(1); }}
+          />
+        )}
         {activeCompanyId && <SubmissionQueueErrorsPanel companyId={activeCompanyId} />}
 
         {/* 4. TOOLS — low-weight row of secondary actions + section tabs */}
