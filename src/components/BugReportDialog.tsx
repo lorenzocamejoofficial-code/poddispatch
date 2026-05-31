@@ -15,6 +15,9 @@ import { format } from "date-fns";
 interface BugReportDialogProps {
   currentPath: string;
   userId: string | undefined;
+  /** Optional controlled open state. When provided, the built-in trigger button is hidden. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function BugReportButton({ onClick }: { onClick: () => void }) {
@@ -38,8 +41,14 @@ type TicketHistoryRow = {
   resolved_at: string | null;
 };
 
-export function BugReportDialog({ currentPath, userId }: BugReportDialogProps) {
-  const [open, setOpen] = useState(false);
+export function BugReportDialog({ currentPath, userId, open: controlledOpen, onOpenChange }: BugReportDialogProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen! : uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
   const [pagePath, setPagePath] = useState(currentPath);
   const [subject, setSubject] = useState("");
   const [severity, setSeverity] = useState<typeof SEVERITIES[number]>("normal");
@@ -59,6 +68,11 @@ export function BugReportDialog({ currentPath, userId }: BugReportDialogProps) {
     setWhatHappened("");
     setOpen(true);
   };
+
+  // When opened via controlled prop, still reset the form fields once.
+  useEffect(() => {
+    if (open) setPagePath(currentPath);
+  }, [open, currentPath]);
 
   useEffect(() => {
     if (!open || !userId) return;
@@ -124,7 +138,7 @@ export function BugReportDialog({ currentPath, userId }: BugReportDialogProps) {
 
   return (
     <>
-      <BugReportButton onClick={handleOpen} />
+      {!isControlled && <BugReportButton onClick={handleOpen} />}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
