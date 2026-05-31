@@ -642,11 +642,39 @@ export default function TripsAndClinical() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{trip.loaded_miles ?? "—"}</td>
                     <td className="px-4 py-3">
-                      <CleanTripBadge
-                        trip={trip}
-                        payerRules={payerRulesMap.get(trip.payer ?? "") ?? null}
-                        authInfo={{ auth_required: trip.auth_required, auth_expiration: trip.auth_expiration }}
-                      />
+                      {(() => {
+                        const completedStatuses = ["completed", "ready_for_billing"];
+                        const isPreCompletion = !completedStatuses.includes(trip.status);
+                        if (isPreCompletion) {
+                          const pre = derivePreTripReadiness({
+                            pcs_on_file: (trip as any).pcs_on_file ?? null,
+                            auth_required: trip.auth_required ?? null,
+                            auth_expiration: trip.auth_expiration ?? null,
+                            pickup_time: (trip as any).pickup_time ?? null,
+                            run_date: trip.run_date,
+                            trip_type: (trip as any).trip_type ?? null,
+                            is_oneoff: (trip as any).is_oneoff ?? false,
+                          });
+                          if (pre.level === "needs_attention" && pre.reasons.length > 0) {
+                            return (
+                              <span
+                                title={pre.reasons.join(" • ")}
+                                className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] border-[hsl(var(--status-yellow))]/30"
+                              >
+                                Won't bill yet: {pre.reasons[0]}
+                              </span>
+                            );
+                          }
+                          return <span className="text-[10px] text-muted-foreground">—</span>;
+                        }
+                        return (
+                          <CleanTripBadge
+                            trip={trip}
+                            payerRules={payerRulesMap.get(trip.payer ?? "") ?? null}
+                            authInfo={{ auth_required: trip.auth_required, auth_expiration: trip.auth_expiration }}
+                          />
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
