@@ -236,7 +236,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
           .from("trip_records")
           .select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason, truck_id, crew_id, scheduled_pickup_time, pickup_location, destination_location, patient_id")
           .eq("run_date", today)
-          .in("pcr_status", ["not_started", "in_progress"]);
+          .in("pcr_status", ["not_started", "in_progress", "kicked_back"]);
 
         // Filter to trips where crew_id matches a crew the user was on
         if (directTrips && directTrips.length > 0) {
@@ -302,7 +302,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
           .from("trip_records")
           .select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason, run_date, patient_id, truck_id, crew_id, scheduled_pickup_time, pickup_location, destination_location")
           .in("crew_id", allCrewIds)
-          .in("pcr_status", ["not_started", "in_progress"])
+          .in("pcr_status", ["not_started", "in_progress", "kicked_back"])
           .eq("run_date", today);
 
         if (todayIncomplete && todayIncomplete.length > 0) {
@@ -344,7 +344,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
           .from("trip_records")
           .select("id, leg_id, status, company_id, pcr_status, trip_type, pcr_type, cancellation_reason, run_date, patient_id, truck_id, crew_id, scheduled_pickup_time, pickup_location, destination_location")
           .in("crew_id", allCrewIds)
-          .in("pcr_status", ["not_started", "in_progress"])
+          .in("pcr_status", ["not_started", "in_progress", "kicked_back"])
           .lt("run_date", today);
 
         if (pastIncomplete && pastIncomplete.length > 0) {
@@ -1661,6 +1661,58 @@ export default function PCRPage() {
               {submitting ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Send className="h-5 w-5 mr-2" />}
               {isQaFixMode ? "Save & Resubmit PCR" : "Submit PCR"}
             </Button>
+            {isQaFixMode && getMissingItems().includes("Crew Signatures") && (
+              <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 p-3">
+                <p className="text-xs font-semibold text-amber-900 dark:text-amber-200 mb-1">
+                  Crew signatures are missing
+                </p>
+                <p className="text-[11px] text-amber-800 dark:text-amber-300 mb-2">
+                  Admins can't sign on behalf of the crew. Send this PCR back to the assigned
+                  crew so the medic can sign in and finish it — it will appear in their PCR list
+                  on their next login, regardless of date.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-9 text-xs border-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                  disabled={submitting}
+                  onClick={async () => {
+                    setSubmitting(true);
+                    try {
+                      await supabase.from("trip_records").update({
+                        pcr_status: "kicked_back",
+                        kickback_reasons: ["Crew Signatures"],
+                        kickback_note: "Returned by QA — crew signatures required.",
+                        kicked_back_by: profileId,
+                        kicked_back_at: new Date().toISOString(),
+                        // Clear submission flags so it leaves the billing pipeline
+                        claim_ready: false,
+                        documentation_complete: false,
+                        updated_at: new Date().toISOString(),
+                        updated_by: profileId,
+                      } as any).eq("id", trip.id);
+
+                      if (qaReviewId) {
+                        await supabase.from("qa_reviews" as any).update({
+                          status: "kicked_back",
+                          qa_notes: "Returned to crew for missing signatures",
+                          reviewed_at: new Date().toISOString(),
+                        }).eq("id", qaReviewId);
+                      }
+
+                      toast.success("PCR sent back to crew for signature");
+                      navigate("/compliance");
+                    } catch (e: any) {
+                      toast.error("Could not send back: " + (e?.message ?? "unknown error"));
+                    } finally {
+                      setSubmitting(false);
+                    }
+                  }}
+                >
+                  Send back to crew for signature
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
