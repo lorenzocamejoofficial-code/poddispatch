@@ -64,7 +64,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
   // query param so the page can auto-open the editor for the right record.
   const patientPath = claim.patient_id ? `/patients?patientId=${claim.patient_id}` : "/patients";
   const tripPath = claim.trip_id ? `/pcr?tripId=${claim.trip_id}` : null;
-  const claimPath = claim.id ? `/billing-claims?claimId=${claim.id}` : "/billing-claims";
+  const claimPath = claim.id ? `/billing?claimId=${claim.id}` : "/billing";
 
   // Build a patient fix URL that merges the patientId param with a focus key.
   const patientFix = (focus: string) =>
