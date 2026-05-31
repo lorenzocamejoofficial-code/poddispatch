@@ -1358,14 +1358,8 @@ export default function BillingAndClaims() {
           </div>
         )}
 
-        {/* 3. SUBMISSION STATUS — quiet pipeline strip, not a full panel */}
-        {activeCompanyId && (
-          <SubmissionPipelineStrip
-            companyId={activeCompanyId}
-            readyCount={readyCount}
-            onJumpToReady={() => { setActiveTab("claims"); setStatusTab("ready_to_bill"); setStatusPage(1); }}
-          />
-        )}
+        {/* 3. SUBMISSION STATUS — only renders when something is actually in flight */}
+        {activeCompanyId && <SubmissionPipelineStrip companyId={activeCompanyId} />}
         {activeCompanyId && <SubmissionQueueErrorsPanel companyId={activeCompanyId} />}
 
         {/* 4. TOOLS — low-weight row of secondary actions + section tabs */}

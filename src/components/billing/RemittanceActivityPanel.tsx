@@ -98,14 +98,29 @@ export function RemittanceActivityPanel({ companyId, refreshKey }: Props) {
         </div>
       </div>
 
-      {snapshot.last_error && (
-        <Alert variant="destructive" className="py-2">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription className="text-xs">
-            <span className="font-medium">Last retrieval error:</span> {snapshot.last_error}
-          </AlertDescription>
-        </Alert>
-      )}
+      {snapshot.last_error && (() => {
+        const raw = snapshot.last_error;
+        const isDns = /dns error|failed to lookup address|oatest\.officeally\.com/i.test(raw);
+        if (isDns && vendorTestMode) {
+          return (
+            <Alert className="py-2 border-amber-500/40 bg-amber-500/5">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-xs">
+                <span className="font-medium">Test endpoint unreachable.</span>{" "}
+                Office Ally's sandbox URL (<span className="font-mono">oatest.officeally.com</span>) isn't reachable from this environment, so no test remittance can be pulled. This is expected in sandbox mode — switch to live mode in vendor settings to retrieve real 835 files from production.
+              </AlertDescription>
+            </Alert>
+          );
+        }
+        return (
+          <Alert variant="destructive" className="py-2">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              <span className="font-medium">Last retrieval error:</span> {raw}
+            </AlertDescription>
+          </Alert>
+        );
+      })()}
 
       {files.length === 0 ? (
         <p className="text-xs text-muted-foreground py-2">
