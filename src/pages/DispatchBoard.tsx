@@ -283,6 +283,18 @@ export default function DispatchBoard() {
         const effectivePickupTime = legException?.pickup_time ?? leg?.pickup_time ?? null;
         const effectiveDestination = legException?.destination_location ?? leg?.destination_location ?? null;
 
+        // Pre-trip readiness — only meaningful before completion. Skip for one-off
+        // (no patient record) so we don't false-flag.
+        const preTrip = derivePreTripReadiness({
+          pcs_on_file: patient?.pcs_on_file ?? null,
+          auth_required: patient?.auth_required ?? null,
+          auth_expiration: patient?.auth_expiration ?? null,
+          pickup_time: effectivePickupTime,
+          run_date: selectedDate,
+          trip_type: leg?.trip_type ?? null,
+          is_oneoff: isOneoff,
+        });
+
         return {
           id: s.id,
           patient_name: patientName,
@@ -293,6 +305,8 @@ export default function DispatchBoard() {
           patient_weight: isOneoff ? (leg?.oneoff_weight_lbs ?? null) : (patient?.weight_lbs ?? null),
           billing_status: billingData.status,
           billing_issues: billingData.issues,
+          pre_trip_readiness: preTrip.level,
+          pre_trip_reasons: preTrip.reasons,
           hcpcs_codes: tripRecord?.hcpcs_codes ?? [],
           hcpcs_modifiers: tripRecord?.hcpcs_modifiers ?? [],
           loaded_miles: tripRecord?.loaded_miles ?? null,
