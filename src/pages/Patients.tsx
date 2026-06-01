@@ -305,6 +305,9 @@ export default function Patients() {
       prior_auth_utn: "",
       prior_auth_period_start: "",
       prior_auth_period_end: "",
+      hospice_enrolled: false,
+      hospice_election_date: "",
+      terminal_illness_icd: "",
     });
     setEditing(null);
     setBLegWarnings([]);
@@ -384,6 +387,9 @@ export default function Patients() {
       prior_auth_utn: (p as any).prior_auth_utn ?? "",
       prior_auth_period_start: (p as any).prior_auth_period_start ?? "",
       prior_auth_period_end: (p as any).prior_auth_period_end ?? "",
+      hospice_enrolled: (p as any).hospice_enrolled ?? false,
+      hospice_election_date: (p as any).hospice_election_date ?? "",
+      terminal_illness_icd: (p as any).terminal_illness_icd ?? "",
     });
     setBLegWarnings([]);
     setDialogOpen(true);
