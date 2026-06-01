@@ -299,87 +299,15 @@ export function extractFacilityName(location: string | null | undefined): string
   return trimmed;
 }
 
-/** Map location type codes to CMS ambulance origin/destination codes.
- *  Priority:
- *    1. facilityMeta.facility_type === 'dialysis' → G (hospital_based) /
- *       J (freestanding) / D (unknown or null subtype). This is the only
- *       reliable way to emit G or J — type strings never carry that info.
- *    2. Fallback: substring match on the legacy `type` string for non-dialysis
- *       location types (hospital, SNF, residence, etc.).
- *
- *  CANONICAL SOURCE for ambulance origin/dest letter resolution. Three other
- *  sites currently mirror this logic byte-for-byte:
- *    - src/lib/claim-review-pdf.ts        locationTypeCode()
- *    - src/lib/billing-utils.ts           locationModifierCode()
- *    - public.derive_ambulance_modifier_letter (DB function)
- *  TODO(refactor): export locationTypeCode() from this module and have the
- *  three sites above consume it directly, instead of maintaining four
- *  parallel copies. Until then, any change here must be replicated in all
- *  three mirrors in the same change. */
-function locationTypeCode(
-  type: string | null,
-  facilityMeta?: { facility_type?: string | null; dialysis_subtype?: string | null } | null
-): string {
-  if (facilityMeta?.facility_type === "dialysis") {
-    if (facilityMeta.dialysis_subtype === "hospital_based") return "G";
-    if (facilityMeta.dialysis_subtype === "freestanding") return "J";
-    return "D"; // unknown / null — preserves no-regression behavior
-  }
-  if (!type || !type.trim()) {
-    throw new Error(
-      `generateEDI837P: unmappable origin/destination type: ${JSON.stringify(type)} ` +
-      `— upstream did not populate origin_type/destination_type on the claim envelope.`
-    );
-  }
-  const t = type.trim().toLowerCase();
-
-  // Single-letter passthroughs (already CMS codes).
-  if (/^[degghijnprsx]$/.test(t)) return t.toUpperCase();
-
-  // E — Hospital emergency room (check BEFORE generic "hospital").
-  if (t.includes("emergency room") || t.includes("hospital er") || t === "er") return "E";
-
-  // G / J — explicit dialysis subtype strings (facilityMeta path already handled above).
-  if (t.includes("hospital-based dialysis") || t.includes("hospital based dialysis")) return "G";
-  if (t.includes("freestanding dialysis")) return "J";
-
-  // D — Diagnostic/therapeutic site, incl. generic dialysis when subtype unknown.
-  if (t.includes("dialysis") || t.includes("diagnostic") || t.includes("therapeutic")) return "D";
-
-  // H — Hospital (general, inpatient, outpatient). Must come AFTER ER check.
-  if (t.includes("hospital")) return "H";
-
-  // N — Skilled nursing facility.
-  if (t.includes("nursing") || t.includes("snf") || t.includes("skilled nursing")) return "N";
-
-  // S — Scene of accident / acute event.
-  if (t.includes("scene")) return "S";
-
-  // P — Physician's office.
-  if (t.includes("physician") || t.includes("doctor") || t.includes("clinic")) return "P";
-
-  // X — Intermediate stop at a physician's office en route to hospital.
-  if (t.includes("intermediate") && t.includes("physician")) return "X";
-
-  // I — Site of transfer (intermediate stop, generic).
-  if (t.includes("site of transfer") || t.includes("ift") || t.includes("intermediate")) return "I";
-
-  // R — Residence and residence-equivalents.
-  if (
-    t.includes("residence") ||
-    t.includes("home") ||
-    t.includes("assisted living") ||
-    t.includes("rehab") ||
-    t.includes("apartment") ||
-    t.includes("private")
-  ) return "R";
-
-  // No silent fallback. Loud failure mirrors NM109/SBR09 guards.
-  throw new Error(
-    `generateEDI837P: unmappable origin/destination type: ${JSON.stringify(type)} ` +
-    `— add an explicit mapping in locationTypeCode() to one of D/E/G/H/I/J/N/P/R/S/X.`
-  );
-}
+/** Ambulance O/D modifier resolver — see src/lib/ambulance-modifier.ts.
+ *  That module is the SINGLE SOURCE OF TRUTH for the SV1 location pair.
+ *  This file (the EDI emitter), src/lib/claim-review-pdf.ts (the PDF
+ *  emitter), and src/lib/billing-utils.ts (pre-claim HCPCS computation)
+ *  all consume `locationTypeCode` from there. The DB function
+ *  `public.derive_ambulance_modifier_letter` mirrors the same rules to
+ *  pre-seed `claim_records.hcpcs_modifiers` but is ADVISORY — both TS
+ *  emitters strip the persisted O/D pair and recompute via the canonical
+ *  module before emission, so DB drift cannot reach the wire. */
 
 /** X12 005010 SBR09 claim filing indicator code set (NEMT-relevant subset).
  *  Sourced from CMS Pub 100-04 and X12N 837P 5010 TR3. Mirrors the CHECK
