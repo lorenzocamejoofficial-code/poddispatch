@@ -43,6 +43,57 @@ export interface ReadinessInputs {
    * resolve happens in the queue path that already has to await Supabase.
    */
   payerResolution?: PayerResolution;
+  /** Optional patient-record context for biller-stage pre-submission checks
+   *  (RSNAT prior auth, future hospice rules). Additive — when omitted,
+   *  patient-derived biller checks are skipped (no behavior change for
+   *  callers that haven't migrated). */
+  patient?: {
+    prior_auth_utn?: string | null;
+    prior_auth_period_end?: string | null;
+    standing_order?: boolean | null;
+    recurrence_days?: number[] | null;
+  } | null;
+  /** Optional transport / scheduling context for biller-stage checks.
+   *  destination_facility_type is the resolved facilities.facility_type
+   *  (e.g. "dialysis") for the destination of this run. */
+  transport?: {
+    destination_facility_type?: string | null;
+    standing_order?: boolean | null;
+    recurrence_days?: number[] | null;
+  } | null;
+}
+
+/** True when a Medicare transport meets the RSNAT (Repetitive Scheduled
+ *  Non-emergent) criteria that require prior authorization per CMS:
+ *  Medicare payer AND (destination is a dialysis facility OR scheduled
+ *  standing order OR recurring ≥3 times per week). The Medicare gate is
+ *  required — non-Medicare standing orders never fire RSNAT. */
+export function isRsnatTransport(
+  claim: ReadinessInputs["claim"],
+  patient?: ReadinessInputs["patient"],
+  transport?: ReadinessInputs["transport"],
+): boolean {
+  const payerType = String(claim.payer_type ?? "").toLowerCase();
+  const payerName = String(claim.payer_name ?? "").toLowerCase();
+  const isMedicare = payerType === "medicare" || payerName.includes("medicare");
+  if (!isMedicare) return false;
+
+  const destFacType =
+    String(
+      transport?.destination_facility_type ??
+        claim.destination_facility_meta?.facility_type ??
+        "",
+    ).toLowerCase();
+  const isDialysisDest = destFacType === "dialysis";
+
+  const standingOrder =
+    transport?.standing_order === true || patient?.standing_order === true;
+
+  const recurrence =
+    transport?.recurrence_days ?? patient?.recurrence_days ?? [];
+  const recurringHeavy = Array.isArray(recurrence) && recurrence.length >= 3;
+
+  return isDialysisDest || standingOrder || recurringHeavy;
 }
 
 function splitName(name: string): { last: string; first: string } {
@@ -241,6 +292,78 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
       fixPath: zipFixPath,
       fixLabel: zipFixLabel,
     });
+  }
+
+  // ---- Biller-stage pre-submission checks (additive) ----------------------
+
+  // Rule 5 — PCS certification date required when PCS is on file (or the
+  // transport type requires PCS). Emergency transports never need PCS.
+  const transportType = String(claim.payer_type ? "" : "").toLowerCase();
+  // Note: claim.payer_type is the payer class; PCS requirement is driven by
+  // claim.pcs_on_file (set by biller / patient record). We treat pcs_on_file
+  // === true as the explicit assertion that PCS is required for this claim.
+  if (claim.pcs_on_file === true) {
+    const certDate = String(claim.pcs_certification_date ?? "").trim();
+    if (!certDate) {
+      issues.push({
+        field: "pcs_certification_date",
+        severity: "block",
+        stage: "biller",
+        message: "PCS certification date missing",
+        fixPath: claim.id ? `/billing?claimId=${claim.id}&focus=pcs` : "/billing?focus=pcs",
+        fixLabel: "Open PCS panel",
+      });
+    }
+  }
+
+  // Rule 4 — Stretcher claims need a secondary diagnosis supporting
+  // bed-confinement. If stretcher_placement is set and not "ambulatory",
+  // require at least 2 ICD-10 codes.
+  const stretcher = String(claim.stretcher_placement ?? "").trim().toLowerCase();
+  if (stretcher && stretcher !== "ambulatory" && stretcher !== "none") {
+    const codes = [
+      ...(claim.icd10_codes || []),
+      ...(claim.diagnosis_codes || []),
+    ].filter((c) => String(c ?? "").trim().length > 0);
+    // De-dupe so a single code repeated across both arrays doesn't pass.
+    const unique = Array.from(new Set(codes.map((c) => String(c).trim().toUpperCase())));
+    if (unique.length < 2) {
+      issues.push({
+        field: "icd10_codes",
+        severity: "block",
+        stage: "biller",
+        message: "Stretcher claim needs a secondary diagnosis supporting bed-confinement",
+        fixPath: claim.trip_id ? `/pcr?tripId=${claim.trip_id}&focus=icd10` : undefined,
+        fixLabel: claim.trip_id ? "Fix in PCR" : undefined,
+      });
+    }
+  }
+
+  // Rule 2 — RSNAT prior authorization required for Medicare repetitive
+  // non-emergent transport (dialysis destination, standing order, or
+  // ≥3x/week recurrence). UTN must be present and not expired vs run_date.
+  if (isRsnatTransport(claim, inputs.patient, inputs.transport)) {
+    const utn = String(inputs.patient?.prior_auth_utn ?? "").trim();
+    const periodEnd = String(inputs.patient?.prior_auth_period_end ?? "").trim();
+    const runDate = String(claim.run_date ?? "").trim();
+    const expired =
+      !!periodEnd &&
+      /^\d{4}-\d{2}-\d{2}$/.test(periodEnd) &&
+      !!runDate &&
+      /^\d{4}-\d{2}-\d{2}$/.test(runDate) &&
+      periodEnd < runDate;
+    if (!utn || expired) {
+      issues.push({
+        field: "prior_auth_utn",
+        severity: "block",
+        stage: "biller",
+        message: "Prior authorization (RSNAT) required for repetitive Medicare transport",
+        fixPath: claim.patient_id
+          ? `/patients?patientId=${claim.patient_id}&focus=prior_auth`
+          : "/patients?focus=prior_auth",
+        fixLabel: "Fix in patient chart",
+      });
+    }
   }
 
   return issues;
