@@ -171,7 +171,7 @@ export default function EDIExport() {
       if (patientIds.length > 0) {
         const { data: patients } = await supabase
           .from("patients")
-          .select("id, first_name, last_name, dob, pickup_address, member_id, primary_payer, sex, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days, auth_required, weight_lbs, pcs_on_file, pcs_physician_npi, pcs_physician_name")
+          .select("id, first_name, last_name, dob, pickup_address, member_id, primary_payer, sex, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days, auth_required, weight_lbs, pcs_on_file, pcs_physician_npi, pcs_physician_name, hospice_enrolled, hospice_election_date, terminal_illness_icd")
           .in("id", patientIds);
         (patients || []).forEach((p) => {
           patientsMap[p.id] = p;
@@ -231,6 +231,11 @@ export default function EDIExport() {
           patient_prior_auth_period_end: pat.prior_auth_period_end ?? null,
           patient_standing_order: pat.standing_order ?? null,
           patient_recurrence_days: pat.recurrence_days ?? null,
+          patient_hospice_enrolled: pat.hospice_enrolled ?? false,
+          patient_hospice_election_date: pat.hospice_election_date ?? null,
+          patient_terminal_illness_icd: pat.terminal_illness_icd ?? null,
+          // Per-claim hospice confirmation comes straight off claim_records.*
+          claim_hospice_unrelated_to_terminal: (c as any).hospice_unrelated_to_terminal ?? false,
         };
       });
 
