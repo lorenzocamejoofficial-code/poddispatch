@@ -166,15 +166,6 @@ export default function Login() {
             </button>
           </div>
 
-          <div className="mt-8 text-center space-y-2">
-            <p className="text-xs text-muted-foreground">
-              New dispatch?{" "}
-              <a href="/signup" className="text-primary hover:underline font-medium">
-                Create Dispatch
-              </a>
-            </p>
-          </div>
-
           <div className="mt-6 text-center text-xs text-muted-foreground">
             <a href="/legal?tab=terms" className="hover:underline">Terms of Service</a>
             <span className="mx-1.5">·</span>
