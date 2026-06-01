@@ -11,6 +11,7 @@
  */
 import { parseAddressString, timelyFilingDays, type ClaimForEDI } from "./edi-837p-generator";
 import type { PayerResolution } from "./payer-directory-lookup";
+import { locationTypeCode } from "./ambulance-modifier";
 
 export type ReadinessStage = "scheduling" | "pcr" | "biller" | "export";
 export type ReadinessSeverity = "block" | "warn";
@@ -362,6 +363,55 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
           ? `/patients?patientId=${claim.patient_id}&focus=prior_auth`
           : "/patients?focus=prior_auth",
         fixLabel: "Fix in patient chart",
+      });
+    }
+  }
+
+  // Rule 1 (backstop) — A leg whose type or facility says "dialysis" must
+  // resolve to J (freestanding) or G (hospital-based) via the canonical
+  // ambulance-modifier resolver. If the resolver yields "D" for a side
+  // flagged as dialysis (subtype unknown / facility unmatched), block the
+  // claim before EDI generation so a wrong modifier can't reach a payer.
+  const sideIsDialysis = (
+    type?: string | null,
+    meta?: { facility_type?: string | null } | null | undefined,
+  ): boolean => {
+    if (meta?.facility_type && String(meta.facility_type).toLowerCase() === "dialysis") return true;
+    const t = String(type ?? "").trim().toLowerCase();
+    return !!t && t.includes("dialysis");
+  };
+  const resolveSide = (
+    type?: string | null,
+    meta?: { facility_type?: string | null; dialysis_subtype?: string | null } | null | undefined,
+  ): string | null => {
+    try { return locationTypeCode(type ?? null, meta ?? null); } catch { return null; }
+  };
+  const dialysisFixPath = claim.trip_id
+    ? `/pcr?tripId=${claim.trip_id}&focus=facility`
+    : (claim.id ? `/billing?claimId=${claim.id}&focus=facility` : undefined);
+  if (sideIsDialysis(claim.origin_type, claim.origin_facility_meta)) {
+    if (resolveSide(claim.origin_type, claim.origin_facility_meta) === "D") {
+      issues.push({
+        field: "origin_type",
+        severity: "block",
+        stage: "biller",
+        message:
+          "Dialysis leg didn't resolve to a dialysis modifier (J/G) — set or confirm the facility for this trip.",
+        fixPath: dialysisFixPath,
+        fixLabel: dialysisFixPath ? "Fix in trip" : undefined,
+      });
+    }
+  }
+  if (sideIsDialysis(claim.destination_type, claim.destination_facility_meta)) {
+    if (resolveSide(claim.destination_type, claim.destination_facility_meta) === "D") {
+      issues.push({
+        field: "destination_type",
+        severity: "block",
+        stage: "biller",
+        message:
+          "Dialysis leg didn't resolve to a dialysis modifier (J/G) — set or confirm the facility for this trip.",
+        fixPath: dialysisFixPath,
+        fixLabel: dialysisFixPath ? "Fix in trip" : undefined,
       });
     }
   }
