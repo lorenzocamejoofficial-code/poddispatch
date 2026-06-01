@@ -1,5 +1,7 @@
 // Shared billing constants and utilities for the NEMT OS — Closed-Loop Engine
 
+import { locationTypeCode } from "@/lib/ambulance-modifier";
+
 export const LOCATION_TYPES = [
   "Home",
   "Dialysis Center",
@@ -38,87 +40,16 @@ export const HCPCS_CODE_DESCRIPTIONS: Record<string, string> = {
   A0425: "Ground Mileage per Statute Mile",
 };
 
-// Auto-derive HCPCS codes from trip data
-/** Map location type string to single-letter CMS ambulance modifier code.
- *  Priority: facility metadata (when known) → substring fallback. The G/J
- *  letters cannot be inferred from a string — only from facility classification.
- *
- *  CANONICAL SOURCE: src/lib/edi-837p-generator.ts locationTypeCode().
- *  This is a byte-for-byte mirror. If this function changes, ALL FOUR copies
- *  must change:
- *    1. src/lib/edi-837p-generator.ts          (canonical)
- *    2. src/lib/claim-review-pdf.ts            (mirror)
- *    3. src/lib/billing-utils.ts               (this file)
- *    4. public.derive_ambulance_modifier_letter (DB function, migration) */
+// Auto-derive HCPCS codes from trip data.
+// O/D modifier letters come from src/lib/ambulance-modifier.ts — the SINGLE
+// SOURCE OF TRUTH consumed by this module, the EDI generator, and the PDF
+// emitter. The DB function public.derive_ambulance_modifier_letter mirrors
+// the same rules but is ADVISORY: emitters strip any persisted O/D pair and
+// recompute via the canonical module before emission.
+//
 // Pass 2 — Item 5: callers of computeHcpcsCodes() should pass
 // origin_facility_meta / destination_facility_meta whenever facility records
 // are loaded so dialysis subtype produces G or J instead of falling back to D.
-// The EDI generator strips any persisted location pair and asserts exactly
-// one pair on every SV1 line — see edi-837p-generator.ts §SERVICE LINES.
-function locationModifierCode(
-  type: string | null,
-  facilityMeta?: { facility_type?: string | null; dialysis_subtype?: string | null } | null
-): string {
-  if (facilityMeta?.facility_type === "dialysis") {
-    if (facilityMeta.dialysis_subtype === "hospital_based") return "G";
-    if (facilityMeta.dialysis_subtype === "freestanding") return "J";
-    return "D";
-  }
-  if (!type || !type.trim()) {
-    throw new Error(
-      `billing-utils: unmappable origin/destination type: ${JSON.stringify(type)} ` +
-      `— upstream did not populate origin_type/destination_type on the trip.`
-    );
-  }
-  const t = type.trim().toLowerCase();
-
-  // Single-letter passthroughs (already CMS codes).
-  if (/^[degghijnprsx]$/.test(t)) return t.toUpperCase();
-
-  // E — Hospital emergency room (check BEFORE generic "hospital").
-  if (t.includes("emergency room") || t.includes("hospital er") || t === "er") return "E";
-
-  // G / J — explicit dialysis subtype strings (facilityMeta path already handled above).
-  if (t.includes("hospital-based dialysis") || t.includes("hospital based dialysis")) return "G";
-  if (t.includes("freestanding dialysis")) return "J";
-
-  // D — Diagnostic/therapeutic site, incl. generic dialysis when subtype unknown.
-  if (t.includes("dialysis") || t.includes("diagnostic") || t.includes("therapeutic")) return "D";
-
-  // H — Hospital (general, inpatient, outpatient). Must come AFTER ER check.
-  if (t.includes("hospital")) return "H";
-
-  // N — Skilled nursing facility.
-  if (t.includes("nursing") || t.includes("snf") || t.includes("skilled nursing")) return "N";
-
-  // S — Scene of accident / acute event.
-  if (t.includes("scene")) return "S";
-
-  // P — Physician's office.
-  if (t.includes("physician") || t.includes("doctor") || t.includes("clinic")) return "P";
-
-  // X — Intermediate stop at a physician's office en route to hospital.
-  if (t.includes("intermediate") && t.includes("physician")) return "X";
-
-  // I — Site of transfer (intermediate stop, generic).
-  if (t.includes("site of transfer") || t.includes("ift") || t.includes("intermediate")) return "I";
-
-  // R — Residence and residence-equivalents.
-  if (
-    t.includes("residence") ||
-    t.includes("home") ||
-    t.includes("assisted living") ||
-    t.includes("rehab") ||
-    t.includes("apartment") ||
-    t.includes("private")
-  ) return "R";
-
-  // No silent fallback. Loud failure mirrors generator behavior.
-  throw new Error(
-    `billing-utils: unmappable origin/destination type: ${JSON.stringify(type)} ` +
-    `— add an explicit mapping in locationModifierCode() to one of D/E/G/H/I/J/N/P/R/S/X.`
-  );
-}
 
 export function computeHcpcsCodes(trip: {
   pcr_type?: string | null;
@@ -163,8 +94,8 @@ export function computeHcpcsCodes(trip: {
   const modifiers: string[] = [];
 
   // Origin/Destination modifier pair (e.g. RH, HD, DR) — required by Medicare
-  const originLetter = locationModifierCode(trip.origin_type, trip.origin_facility_meta ?? null);
-  const destLetter = locationModifierCode(trip.destination_type, trip.destination_facility_meta ?? null);
+  const originLetter = locationTypeCode(trip.origin_type, trip.origin_facility_meta ?? null);
+  const destLetter = locationTypeCode(trip.destination_type, trip.destination_facility_meta ?? null);
   modifiers.push(`${originLetter}${destLetter}`);
 
   // QM — oxygen: check equipment_used_json for oxygen/O2 entries
