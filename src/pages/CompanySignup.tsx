@@ -207,7 +207,7 @@ export default function CompanySignup() {
             Create Your Dispatch
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            PodDispatch Standard
+            PodDispatch Founding — $799/mo
           </p>
         </div>
 
@@ -516,7 +516,7 @@ export default function CompanySignup() {
                 {yearsInOperation && <p><span className="text-foreground font-medium">Years in Operation:</span> {yearsInOperation}</p>}
                 <p><span className="text-foreground font-medium">In-house Biller:</span> {hasInhouseBiller ? "Yes" : "No"}</p>
                 {hipaaPrivacyOfficer && <p><span className="text-foreground font-medium">HIPAA Privacy Officer:</span> {hipaaPrivacyOfficer}</p>}
-                <p><span className="text-foreground font-medium">Plan:</span> PodDispatch Standard (Build Mode — No Payment Required)</p>
+                <p><span className="text-foreground font-medium">Plan:</span> PodDispatch Founding — $799/mo (Build Mode — No Payment Required)</p>
               </div>
               <div className="border-t pt-2">
                 <p className="text-xs text-muted-foreground">
