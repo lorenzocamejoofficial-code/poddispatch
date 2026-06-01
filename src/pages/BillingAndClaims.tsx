@@ -169,6 +169,7 @@ export default function BillingAndClaims() {
   const [editForm, setEditForm] = useState({
     status: "ready_to_bill" as ClaimStatus,
     amount_paid: "", denial_reason: "", denial_code: "", notes: "",
+    hospice_unrelated_to_terminal: false,
   });
   const [savingClaim, setSavingClaim] = useState(false);
   const [recoveryClaimId, setRecoveryClaimId] = useState<ClaimRecord | null>(null);
@@ -1091,6 +1092,7 @@ export default function BillingAndClaims() {
       denial_reason: claim.denial_reason ?? "",
       denial_code: claim.denial_code ?? "",
       notes: claim.notes ?? "",
+      hospice_unrelated_to_terminal: !!(claim as any).hospice_unrelated_to_terminal,
     });
   };
 
@@ -1133,6 +1135,7 @@ export default function BillingAndClaims() {
       denial_reason: editForm.denial_reason || null,
       denial_code: editForm.denial_code || null,
       notes: editForm.notes || null,
+      hospice_unrelated_to_terminal: !!editForm.hospice_unrelated_to_terminal,
     };
     if (editForm.status === "submitted") payload.submitted_at = new Date().toISOString();
     if (editForm.status === "paid") payload.paid_at = new Date().toISOString();
