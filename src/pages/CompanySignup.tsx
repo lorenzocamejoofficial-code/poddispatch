@@ -243,9 +243,9 @@ export default function CompanySignup() {
         {/* Step 1: Account Info */}
         {step === "info" && (
           <div className="space-y-4">
-            <Link to="/login" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-3 w-3" /> Back to sign in
-            </Link>
+            <a href="https://thepoddispatch.com/pricing" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="h-3 w-3" /> Back to pricing
+            </a>
             <p className="text-sm font-medium text-foreground">Step 1 of 4 — Account Information</p>
             <div className="space-y-2">
               <Label>Dispatch Name</Label>
