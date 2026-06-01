@@ -750,6 +750,7 @@ export type Database = {
           hcpcs_codes: string[] | null
           hcpcs_manually_set: boolean
           hcpcs_modifiers: string[] | null
+          hospice_unrelated_to_terminal: boolean
           icd10_codes: string[] | null
           id: string
           is_simulated: boolean
@@ -850,6 +851,7 @@ export type Database = {
           hcpcs_codes?: string[] | null
           hcpcs_manually_set?: boolean
           hcpcs_modifiers?: string[] | null
+          hospice_unrelated_to_terminal?: boolean
           icd10_codes?: string[] | null
           id?: string
           is_simulated?: boolean
@@ -950,6 +952,7 @@ export type Database = {
           hcpcs_codes?: string[] | null
           hcpcs_manually_set?: boolean
           hcpcs_modifiers?: string[] | null
+          hospice_unrelated_to_terminal?: boolean
           icd10_codes?: string[] | null
           id?: string
           is_simulated?: boolean
@@ -3256,6 +3259,8 @@ export type Database = {
           dropoff_facility: string | null
           facility_id: string | null
           first_name: string
+          hospice_election_date: string | null
+          hospice_enrolled: boolean
           icd10_codes: string[] | null
           id: string
           is_simulated: boolean
@@ -3298,6 +3303,7 @@ export type Database = {
           stairs_required: string
           standing_order: boolean | null
           status: Database["public"]["Enums"]["patient_status"]
+          terminal_illness_icd: string | null
           transport_type: Database["public"]["Enums"]["transport_type"]
           trips_per_week_limit: number | null
           updated_at: string
@@ -3334,6 +3340,8 @@ export type Database = {
           dropoff_facility?: string | null
           facility_id?: string | null
           first_name: string
+          hospice_election_date?: string | null
+          hospice_enrolled?: boolean
           icd10_codes?: string[] | null
           id?: string
           is_simulated?: boolean
@@ -3376,6 +3384,7 @@ export type Database = {
           stairs_required?: string
           standing_order?: boolean | null
           status?: Database["public"]["Enums"]["patient_status"]
+          terminal_illness_icd?: string | null
           transport_type?: Database["public"]["Enums"]["transport_type"]
           trips_per_week_limit?: number | null
           updated_at?: string
@@ -3412,6 +3421,8 @@ export type Database = {
           dropoff_facility?: string | null
           facility_id?: string | null
           first_name?: string
+          hospice_election_date?: string | null
+          hospice_enrolled?: boolean
           icd10_codes?: string[] | null
           id?: string
           is_simulated?: boolean
@@ -3454,6 +3465,7 @@ export type Database = {
           stairs_required?: string
           standing_order?: boolean | null
           status?: Database["public"]["Enums"]["patient_status"]
+          terminal_illness_icd?: string | null
           transport_type?: Database["public"]["Enums"]["transport_type"]
           trips_per_week_limit?: number | null
           updated_at?: string
