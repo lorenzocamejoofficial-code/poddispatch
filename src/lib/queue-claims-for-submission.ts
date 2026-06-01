@@ -143,7 +143,7 @@ export async function queueClaimsForSubmission(
     patientIds.length
       ? supabase
           .from("patients")
-          .select("id, first_name, last_name, dob, sex, weight_lbs, member_id, primary_payer, pickup_address, pcs_on_file, pcs_physician_npi, pcs_physician_name, facility_id, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days")
+          .select("id, first_name, last_name, dob, sex, weight_lbs, member_id, primary_payer, pickup_address, pcs_on_file, pcs_physician_npi, pcs_physician_name, facility_id, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd")
           .in("id", patientIds)
       : Promise.resolve({ data: [] as any[] }),
   ]);
@@ -442,7 +442,13 @@ export async function queueClaimsForSubmission(
     };
 
     const issues = evaluateClaimReadiness({
-      claim: { ...ec, id: c.id, trip_id: c.trip_id, patient_id: c.patient_id },
+      claim: {
+        ...ec,
+        id: c.id,
+        trip_id: c.trip_id,
+        patient_id: c.patient_id,
+        hospice_unrelated_to_terminal: c.hospice_unrelated_to_terminal ?? false,
+      },
       billingState: providerInfo.state,
       payerResolution,
       patient: {
@@ -450,6 +456,9 @@ export async function queueClaimsForSubmission(
         prior_auth_period_end: pat.prior_auth_period_end ?? null,
         standing_order: pat.standing_order ?? null,
         recurrence_days: pat.recurrence_days ?? null,
+        hospice_enrolled: pat.hospice_enrolled ?? null,
+        hospice_election_date: pat.hospice_election_date ?? null,
+        terminal_illness_icd: pat.terminal_illness_icd ?? null,
       },
       transport: {
         destination_facility_type: destMeta?.facility_type ?? null,
