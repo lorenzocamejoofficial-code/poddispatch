@@ -1907,6 +1907,27 @@ export default function BillingAndClaims() {
               <Label>Notes</Label>
               <Textarea rows={2} value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} />
             </div>
+            {selectedClaim && (selectedClaim as any).patient_hospice_enrolled && (
+              <div
+                id="hospice"
+                className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-2"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                  Hospice-Enrolled Patient
+                </p>
+                <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80">
+                  Terminal-illness transport bills to hospice, not Medicare Part B. Confirm only when this trip is unrelated to the terminal illness.
+                </p>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!editForm.hospice_unrelated_to_terminal}
+                    onChange={(e) => setEditForm({ ...editForm, hospice_unrelated_to_terminal: e.target.checked })}
+                  />
+                  <span>This transport is unrelated to the terminal illness</span>
+                </label>
+              </div>
+            )}
             {selectedClaim && <ClaimAdjustmentHistory tripId={selectedClaim.trip_id} claimRecordId={selectedClaim.id} />}
             {selectedClaim && (
               <SecondaryClaimPanel
