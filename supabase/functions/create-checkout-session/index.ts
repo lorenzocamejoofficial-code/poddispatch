@@ -23,7 +23,9 @@ serve(async (req) => {
 
   try {
     const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY");
-    const priceId = Deno.env.get("STRIPE_PRICE_ID");
+    // Founding offer only ($799/mo). STRIPE_PRICE_STANDARD is intentionally
+    // unused until the tier system ships (customer #6+).
+    const priceId = Deno.env.get("STRIPE_PRICE_FOUNDING");
 
     if (!stripeSecret || !priceId) {
       return new Response(
