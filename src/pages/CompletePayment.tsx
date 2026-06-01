@@ -62,7 +62,7 @@ export default function CompletePayment() {
           <div className="rounded-lg border bg-muted/30 p-4 text-left space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
               <Truck className="h-4 w-4 text-primary" />
-              PodDispatch — Standard Plan
+              PodDispatch — Founding Plan · $799/mo
             </div>
             <p className="text-xs text-muted-foreground">
               Full access to dispatch, scheduling, billing, compliance, and the entire NEMT operating system.
