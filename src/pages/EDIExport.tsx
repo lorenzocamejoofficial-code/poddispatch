@@ -600,13 +600,22 @@ export default function EDIExport() {
       ediClaims.forEach((ec, i) => {
         const ci: any = eligibleClaims[i] as any;
         const issues = evaluateClaimReadiness({
-          claim: { ...ec, id: ci.id, trip_id: ci.trip_id, patient_id: ci.patient_id },
+          claim: {
+            ...ec,
+            id: ci.id,
+            trip_id: ci.trip_id,
+            patient_id: ci.patient_id,
+            hospice_unrelated_to_terminal: ci.claim_hospice_unrelated_to_terminal ?? false,
+          },
           billingState: providerInfo.state,
           patient: {
             prior_auth_utn: ci.patient_prior_auth_utn ?? null,
             prior_auth_period_end: ci.patient_prior_auth_period_end ?? null,
             standing_order: ci.patient_standing_order ?? null,
             recurrence_days: ci.patient_recurrence_days ?? null,
+            hospice_enrolled: ci.patient_hospice_enrolled ?? null,
+            hospice_election_date: ci.patient_hospice_election_date ?? null,
+            terminal_illness_icd: ci.patient_terminal_illness_icd ?? null,
           },
           transport: {
             destination_facility_type: ec.destination_facility_meta?.facility_type ?? null,
@@ -951,13 +960,22 @@ export default function EDIExport() {
       ediClaims.forEach((ec, i) => {
         const ci: any = eligibleClaims[i] as any;
         const issues = evaluateClaimReadiness({
-          claim: { ...ec, id: ci.id, trip_id: ci.trip_id, patient_id: ci.patient_id },
+          claim: {
+            ...ec,
+            id: ci.id,
+            trip_id: ci.trip_id,
+            patient_id: ci.patient_id,
+            hospice_unrelated_to_terminal: ci.claim_hospice_unrelated_to_terminal ?? false,
+          },
           billingState: providerInfo.state,
           patient: {
             prior_auth_utn: ci.patient_prior_auth_utn ?? null,
             prior_auth_period_end: ci.patient_prior_auth_period_end ?? null,
             standing_order: ci.patient_standing_order ?? null,
             recurrence_days: ci.patient_recurrence_days ?? null,
+            hospice_enrolled: ci.patient_hospice_enrolled ?? null,
+            hospice_election_date: ci.patient_hospice_election_date ?? null,
+            terminal_illness_icd: ci.patient_terminal_illness_icd ?? null,
           },
           transport: {
             destination_facility_type: ec.destination_facility_meta?.facility_type ?? null,
