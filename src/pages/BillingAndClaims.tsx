@@ -235,7 +235,7 @@ export default function BillingAndClaims() {
     const tripIds = [...new Set(((claimRows ?? []) as any[]).map((c: any) => c.trip_id).filter(Boolean))];
     const [{ data: pRows }, { data: tripRows }] = await Promise.all([
       patientIds.length > 0
-        ? supabase.from("patients").select("id, first_name, last_name, dob, sex, primary_payer, member_id, pickup_address, secondary_payer, secondary_member_id, secondary_payer_id").in("id", patientIds)
+        ? supabase.from("patients").select("id, first_name, last_name, dob, sex, primary_payer, member_id, pickup_address, secondary_payer, secondary_member_id, secondary_payer_id, pcs_on_file, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days").in("id", patientIds)
         : Promise.resolve({ data: [] }),
       tripIds.length > 0
         ? supabase.from("trip_records" as any).select("id, leg_id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type, updated_at, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name)").in("id", tripIds)
@@ -252,6 +252,11 @@ export default function BillingAndClaims() {
       secondary_payer: p.secondary_payer,
       secondary_member_id: p.secondary_member_id,
       secondary_payer_id: p.secondary_payer_id,
+      pcs_on_file: p.pcs_on_file,
+      prior_auth_utn: p.prior_auth_utn,
+      prior_auth_period_end: p.prior_auth_period_end,
+      standing_order: p.standing_order,
+      recurrence_days: p.recurrence_days,
     }]));
     const tMap = new Map((tripRows ?? []).map((t: any) => [t.id, t]));
 
@@ -281,6 +286,12 @@ export default function BillingAndClaims() {
           patient_secondary_payer: patData?.secondary_payer ?? null,
           patient_secondary_member_id: patData?.secondary_member_id ?? null,
           patient_secondary_payer_id: patData?.secondary_payer_id ?? null,
+          // Biller-stage readiness inputs (rules 2 + 5).
+          pcs_on_file: (c as any).pcs_on_file ?? !!patData?.pcs_on_file,
+          patient_prior_auth_utn: patData?.prior_auth_utn ?? null,
+          patient_prior_auth_period_end: patData?.prior_auth_period_end ?? null,
+          patient_standing_order: patData?.standing_order ?? null,
+          patient_recurrence_days: patData?.recurrence_days ?? null,
         };
       })
     );
