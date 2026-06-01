@@ -423,6 +423,55 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     }
   }
 
+  // Rule 3a — Hospice + Medicare. A hospice-enrolled patient's transport
+  // related to the terminal illness bills to hospice, not Medicare Part B.
+  // Operator can clear this block by confirming the trip is UNRELATED to
+  // the terminal illness (hospice_unrelated_to_terminal=true on the claim).
+  {
+    const hospice = inputs.patient?.hospice_enrolled === true;
+    const payerType3 = String(claim.payer_type ?? "").toLowerCase();
+    const payerName3 = String(claim.payer_name ?? "").toLowerCase();
+    const isMedicare3 = payerType3 === "medicare" || payerName3.includes("medicare");
+    const confirmedUnrelated = claim.hospice_unrelated_to_terminal === true;
+    if (hospice && isMedicare3 && !confirmedUnrelated) {
+      issues.push({
+        field: "hospice_unrelated_to_terminal",
+        severity: "block",
+        stage: "biller",
+        message:
+          "Hospice-enrolled patient — terminal-illness transport bills to hospice, not Medicare Part B. If this trip is unrelated to the terminal illness, confirm to proceed.",
+        fixPath: claim.patient_id
+          ? `/patients?patientId=${claim.patient_id}&focus=hospice`
+          : "/patients?focus=hospice",
+        fixLabel: "Open hospice section",
+      });
+    }
+  }
+
+  // Rule 3b — Z51.5 (palliative care) alone doesn't support medical
+  // necessity. Require at least one non-Z51 ICD-10.
+  {
+    const allDx = [
+      ...(claim.icd10_codes || []),
+      ...(claim.diagnosis_codes || []),
+    ]
+      .map((c) => String(c ?? "").trim().toUpperCase())
+      .filter((c) => c.length > 0);
+    const hasZ515 = allDx.some((c) => c === "Z51.5" || c === "Z515");
+    const hasNonZ51 = allDx.some((c) => !/^Z51(\.|$)/.test(c));
+    if (hasZ515 && !hasNonZ51) {
+      issues.push({
+        field: "icd10_codes",
+        severity: "block",
+        stage: "biller",
+        message:
+          "Z51.5 (palliative care) alone doesn't support medical necessity — add the terminal-illness diagnosis.",
+        fixPath: claim.trip_id ? `/pcr?tripId=${claim.trip_id}&focus=icd10` : undefined,
+        fixLabel: claim.trip_id ? "Fix in PCR" : undefined,
+      });
+    }
+  }
+
   return issues;
 }
 
