@@ -910,9 +910,19 @@ export default function EDIExport() {
       // Validate
       const blocked: { idx: number; ec: ClaimForEDI; issues: ReadinessIssue[] }[] = [];
       ediClaims.forEach((ec, i) => {
+        const ci: any = eligibleClaims[i] as any;
         const issues = evaluateClaimReadiness({
-          claim: { ...ec, id: (eligibleClaims[i] as any).id, trip_id: (eligibleClaims[i] as any).trip_id, patient_id: (eligibleClaims[i] as any).patient_id },
+          claim: { ...ec, id: ci.id, trip_id: ci.trip_id, patient_id: ci.patient_id },
           billingState: providerInfo.state,
+          patient: {
+            prior_auth_utn: ci.patient_prior_auth_utn ?? null,
+            prior_auth_period_end: ci.patient_prior_auth_period_end ?? null,
+            standing_order: ci.patient_standing_order ?? null,
+            recurrence_days: ci.patient_recurrence_days ?? null,
+          },
+          transport: {
+            destination_facility_type: ec.destination_facility_meta?.facility_type ?? null,
+          },
         }).filter((x) => x.severity === "block");
         if (issues.length) blocked.push({ idx: i, ec, issues });
       });
