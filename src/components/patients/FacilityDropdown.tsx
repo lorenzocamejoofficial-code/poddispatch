@@ -18,6 +18,7 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAddress, setNewAddress] = useState("");
+  const [newSubtype, setNewSubtype] = useState<"" | "freestanding" | "hospital_based">("");
   const [saving, setSaving] = useState(false);
 
   const fetchFacilities = useCallback(async () => {
@@ -33,11 +34,16 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
 
   const handleCreate = async () => {
     if (!newName.trim()) { toast.error("Facility name is required"); return; }
+    if (!newSubtype) {
+      toast.error("Dialysis subtype is required (hospital-based or freestanding)");
+      return;
+    }
     setSaving(true);
     const { data: companyId } = await supabase.rpc("get_my_company_id");
     const { error } = await supabase.from("facilities" as any).insert({
       name: newName.trim(),
       facility_type: "dialysis",
+      dialysis_subtype: newSubtype,
       address: newAddress || null,
       company_id: companyId,
     });
@@ -47,6 +53,7 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
     setCreateOpen(false);
     setNewName("");
     setNewAddress("");
+    setNewSubtype("");
     setSaving(false);
     fetchFacilities();
   };
@@ -95,6 +102,16 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
             <div>
               <Label>Facility Name *</Label>
               <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. DaVita North" />
+            </div>
+            <div>
+              <Label>Dialysis Subtype *</Label>
+              <Select value={newSubtype} onValueChange={(v) => setNewSubtype(v as any)}>
+                <SelectTrigger><SelectValue placeholder="Select subtype…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="freestanding">Freestanding (J)</SelectItem>
+                  <SelectItem value="hospital_based">Hospital-based (G)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Address</Label>
