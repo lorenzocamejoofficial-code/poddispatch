@@ -235,7 +235,7 @@ export default function BillingAndClaims() {
     const tripIds = [...new Set(((claimRows ?? []) as any[]).map((c: any) => c.trip_id).filter(Boolean))];
     const [{ data: pRows }, { data: tripRows }] = await Promise.all([
       patientIds.length > 0
-        ? supabase.from("patients").select("id, first_name, last_name, dob, sex, primary_payer, member_id, pickup_address, secondary_payer, secondary_member_id, secondary_payer_id, pcs_on_file, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days").in("id", patientIds)
+        ? supabase.from("patients").select("id, first_name, last_name, dob, sex, primary_payer, member_id, pickup_address, secondary_payer, secondary_member_id, secondary_payer_id, pcs_on_file, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd").in("id", patientIds)
         : Promise.resolve({ data: [] }),
       tripIds.length > 0
         ? supabase.from("trip_records" as any).select("id, leg_id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type, updated_at, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name)").in("id", tripIds)
@@ -257,6 +257,9 @@ export default function BillingAndClaims() {
       prior_auth_period_end: p.prior_auth_period_end,
       standing_order: p.standing_order,
       recurrence_days: p.recurrence_days,
+      hospice_enrolled: p.hospice_enrolled,
+      hospice_election_date: p.hospice_election_date,
+      terminal_illness_icd: p.terminal_illness_icd,
     }]));
     const tMap = new Map((tripRows ?? []).map((t: any) => [t.id, t]));
 
@@ -292,6 +295,9 @@ export default function BillingAndClaims() {
           patient_prior_auth_period_end: patData?.prior_auth_period_end ?? null,
           patient_standing_order: patData?.standing_order ?? null,
           patient_recurrence_days: patData?.recurrence_days ?? null,
+          patient_hospice_enrolled: patData?.hospice_enrolled ?? false,
+          patient_hospice_election_date: patData?.hospice_election_date ?? null,
+          patient_terminal_illness_icd: patData?.terminal_illness_icd ?? null,
         };
       })
     );
@@ -1654,12 +1660,16 @@ export default function BillingAndClaims() {
                                   (claim as any).origin_address ??
                                   null,
                                 is_oneoff: !!(claim as any).leg?.is_oneoff,
+                                hospice_unrelated_to_terminal: (claim as any).hospice_unrelated_to_terminal ?? false,
                               },
                               patient: {
                                 prior_auth_utn: (claim as any).patient_prior_auth_utn ?? null,
                                 prior_auth_period_end: (claim as any).patient_prior_auth_period_end ?? null,
                                 standing_order: (claim as any).patient_standing_order ?? null,
                                 recurrence_days: (claim as any).patient_recurrence_days ?? null,
+                                hospice_enrolled: (claim as any).patient_hospice_enrolled ?? null,
+                                hospice_election_date: (claim as any).patient_hospice_election_date ?? null,
+                                terminal_illness_icd: (claim as any).patient_terminal_illness_icd ?? null,
                               },
                             }).filter((i) => i.severity === "block");
                             if (!issues.length) return null;
