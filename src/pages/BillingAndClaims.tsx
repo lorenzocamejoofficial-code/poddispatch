@@ -169,6 +169,7 @@ export default function BillingAndClaims() {
   const [editForm, setEditForm] = useState({
     status: "ready_to_bill" as ClaimStatus,
     amount_paid: "", denial_reason: "", denial_code: "", notes: "",
+    hospice_unrelated_to_terminal: false,
   });
   const [savingClaim, setSavingClaim] = useState(false);
   const [recoveryClaimId, setRecoveryClaimId] = useState<ClaimRecord | null>(null);
@@ -235,7 +236,7 @@ export default function BillingAndClaims() {
     const tripIds = [...new Set(((claimRows ?? []) as any[]).map((c: any) => c.trip_id).filter(Boolean))];
     const [{ data: pRows }, { data: tripRows }] = await Promise.all([
       patientIds.length > 0
-        ? supabase.from("patients").select("id, first_name, last_name, dob, sex, primary_payer, member_id, pickup_address, secondary_payer, secondary_member_id, secondary_payer_id, pcs_on_file, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days").in("id", patientIds)
+        ? supabase.from("patients").select("id, first_name, last_name, dob, sex, primary_payer, member_id, pickup_address, secondary_payer, secondary_member_id, secondary_payer_id, pcs_on_file, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd").in("id", patientIds)
         : Promise.resolve({ data: [] }),
       tripIds.length > 0
         ? supabase.from("trip_records" as any).select("id, leg_id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type, updated_at, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name)").in("id", tripIds)
@@ -257,6 +258,9 @@ export default function BillingAndClaims() {
       prior_auth_period_end: p.prior_auth_period_end,
       standing_order: p.standing_order,
       recurrence_days: p.recurrence_days,
+      hospice_enrolled: p.hospice_enrolled,
+      hospice_election_date: p.hospice_election_date,
+      terminal_illness_icd: p.terminal_illness_icd,
     }]));
     const tMap = new Map((tripRows ?? []).map((t: any) => [t.id, t]));
 
@@ -292,6 +296,9 @@ export default function BillingAndClaims() {
           patient_prior_auth_period_end: patData?.prior_auth_period_end ?? null,
           patient_standing_order: patData?.standing_order ?? null,
           patient_recurrence_days: patData?.recurrence_days ?? null,
+          patient_hospice_enrolled: patData?.hospice_enrolled ?? false,
+          patient_hospice_election_date: patData?.hospice_election_date ?? null,
+          patient_terminal_illness_icd: patData?.terminal_illness_icd ?? null,
         };
       })
     );
@@ -1085,6 +1092,7 @@ export default function BillingAndClaims() {
       denial_reason: claim.denial_reason ?? "",
       denial_code: claim.denial_code ?? "",
       notes: claim.notes ?? "",
+      hospice_unrelated_to_terminal: !!(claim as any).hospice_unrelated_to_terminal,
     });
   };
 
@@ -1127,6 +1135,7 @@ export default function BillingAndClaims() {
       denial_reason: editForm.denial_reason || null,
       denial_code: editForm.denial_code || null,
       notes: editForm.notes || null,
+      hospice_unrelated_to_terminal: !!editForm.hospice_unrelated_to_terminal,
     };
     if (editForm.status === "submitted") payload.submitted_at = new Date().toISOString();
     if (editForm.status === "paid") payload.paid_at = new Date().toISOString();
@@ -1654,12 +1663,16 @@ export default function BillingAndClaims() {
                                   (claim as any).origin_address ??
                                   null,
                                 is_oneoff: !!(claim as any).leg?.is_oneoff,
+                                hospice_unrelated_to_terminal: (claim as any).hospice_unrelated_to_terminal ?? false,
                               },
                               patient: {
                                 prior_auth_utn: (claim as any).patient_prior_auth_utn ?? null,
                                 prior_auth_period_end: (claim as any).patient_prior_auth_period_end ?? null,
                                 standing_order: (claim as any).patient_standing_order ?? null,
                                 recurrence_days: (claim as any).patient_recurrence_days ?? null,
+                                hospice_enrolled: (claim as any).patient_hospice_enrolled ?? null,
+                                hospice_election_date: (claim as any).patient_hospice_election_date ?? null,
+                                terminal_illness_icd: (claim as any).patient_terminal_illness_icd ?? null,
                               },
                             }).filter((i) => i.severity === "block");
                             if (!issues.length) return null;
@@ -1894,6 +1907,27 @@ export default function BillingAndClaims() {
               <Label>Notes</Label>
               <Textarea rows={2} value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} />
             </div>
+            {selectedClaim && (selectedClaim as any).patient_hospice_enrolled && (
+              <div
+                id="hospice"
+                className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-2"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                  Hospice-Enrolled Patient
+                </p>
+                <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80">
+                  Terminal-illness transport bills to hospice, not Medicare Part B. Confirm only when this trip is unrelated to the terminal illness.
+                </p>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!editForm.hospice_unrelated_to_terminal}
+                    onChange={(e) => setEditForm({ ...editForm, hospice_unrelated_to_terminal: e.target.checked })}
+                  />
+                  <span>This transport is unrelated to the terminal illness</span>
+                </label>
+              </div>
+            )}
             {selectedClaim && <ClaimAdjustmentHistory tripId={selectedClaim.trip_id} claimRecordId={selectedClaim.id} />}
             {selectedClaim && (
               <SecondaryClaimPanel
