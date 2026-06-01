@@ -45,7 +45,7 @@ export default function TrialExpired() {
           </div>
           <h1 className="text-xl font-bold text-foreground">Trial Period Ended</h1>
           <p className="text-sm text-muted-foreground">
-            Your 45-day trial has expired. Subscribe to PodDispatch to restore full access immediately.
+            Your 30-day trial has expired. Subscribe to PodDispatch to restore full access immediately.
           </p>
           <Button onClick={handleSubscribe} disabled={loading} className="w-full">
             {loading ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Starting checkout…</>) : "Subscribe Now"}
