@@ -4,6 +4,8 @@
  * Compatible with Office Ally and standard clearinghouses
  */
 
+import { locationTypeCode } from "@/lib/ambulance-modifier";
+
 export interface ClaimForEDI {
   claim_id: string;
   /** Source company / billing-provider key. Used by generateEDI837P to group
