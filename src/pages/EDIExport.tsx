@@ -171,7 +171,7 @@ export default function EDIExport() {
       if (patientIds.length > 0) {
         const { data: patients } = await supabase
           .from("patients")
-          .select("id, first_name, last_name, dob, pickup_address, member_id, primary_payer, sex, prior_auth_utn, auth_required, weight_lbs, pcs_on_file, pcs_physician_npi, pcs_physician_name")
+          .select("id, first_name, last_name, dob, pickup_address, member_id, primary_payer, sex, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days, auth_required, weight_lbs, pcs_on_file, pcs_physician_npi, pcs_physician_name")
           .in("id", patientIds);
         (patients || []).forEach((p) => {
           patientsMap[p.id] = p;
@@ -223,6 +223,14 @@ export default function EDIExport() {
           patient_pcs_on_file: !!pat.pcs_on_file,
           patient_pcs_physician_npi: pat.pcs_physician_npi ?? null,
           patient_pcs_physician_name: pat.pcs_physician_name ?? null,
+          // Patient-level RSNAT context — used by evaluateClaimReadiness
+          // biller-stage rule 2 (prior auth required for Medicare repetitive
+          // non-emergent transport). Propagated through to the inner build
+          // step in handleGenerate / handleSubmit on the enriched claim row.
+          patient_prior_auth_utn: pat.prior_auth_utn ?? null,
+          patient_prior_auth_period_end: pat.prior_auth_period_end ?? null,
+          patient_standing_order: pat.standing_order ?? null,
+          patient_recurrence_days: pat.recurrence_days ?? null,
         };
       });
 
