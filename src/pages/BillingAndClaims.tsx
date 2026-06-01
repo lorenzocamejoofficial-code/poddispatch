@@ -1655,6 +1655,12 @@ export default function BillingAndClaims() {
                                   null,
                                 is_oneoff: !!(claim as any).leg?.is_oneoff,
                               },
+                              patient: {
+                                prior_auth_utn: (claim as any).patient_prior_auth_utn ?? null,
+                                prior_auth_period_end: (claim as any).patient_prior_auth_period_end ?? null,
+                                standing_order: (claim as any).patient_standing_order ?? null,
+                                recurrence_days: (claim as any).patient_recurrence_days ?? null,
+                              },
                             }).filter((i) => i.severity === "block");
                             if (!issues.length) return null;
                             return (
