@@ -360,7 +360,7 @@ export default function LegalPage() {
               <p>PodDispatch is sold as a recurring monthly software-as-a-service subscription on a per-company basis. Subscriptions begin on the date the operator submits valid payment information and converts from any trial to a paid plan. All subscriptions automatically renew on the same calendar day each month until cancelled.</p>
 
               <h3>3. Free Trial</h3>
-              <p>New operator accounts may be offered a free trial of up to 45 days. Trials do not require a payment method until conversion. At the end of the trial period the account will be suspended unless the operator has entered a valid payment method and authorized recurring charges. Trial data is preserved during the suspended-pending-payment grace period described below.</p>
+              <p>New operator accounts may be offered a free trial of up to 30 days. Trials do not require a payment method until conversion. At the end of the trial period the account will be suspended unless the operator has entered a valid payment method and authorized recurring charges. Trial data is preserved during the suspended-pending-payment grace period described below.</p>
 
               <h3>4. Fees and Taxes</h3>
               <p>Current subscription fees are displayed in-app at sign-up and on the account settings page. Fees are quoted in US dollars and are exclusive of applicable sales, use, VAT, GST, or other transaction taxes, which will be added to the invoice where required by law. PodDispatch may modify subscription fees on at least 30 days&#x2019; written or in-app notice; new fees take effect at the next renewal.</p>
