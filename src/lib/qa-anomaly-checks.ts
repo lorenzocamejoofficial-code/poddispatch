@@ -30,6 +30,7 @@ export interface TripForQA {
   pcr_type: string | null;
   trip_type: string | null;
   is_unscheduled: boolean | null;
+  icd10_codes?: string[] | null;
 }
 
 interface PatientForQA {
@@ -37,6 +38,7 @@ interface PatientForQA {
   primary_payer: string | null;
   pcs_on_file: boolean | null;
   pcs_expiration_date: string | null;
+  hospice_enrolled?: boolean | null;
 }
 
 interface PayerRuleForQA {
@@ -147,6 +149,29 @@ export function checkTrip(
     const otherCount = weeklyTripCounts.get(trip.patient_id) ?? 0;
     if (otherCount >= 3) {
       push(flags, trip.id, cid, `This patient has ${otherCount + 1} completed transports this week. Medicare covers dialysis transport up to 3 times weekly. Additional trips require documented justification.`, "yellow", "weekly_transport_limit");
+    }
+  }
+
+  // Z51.5 (palliative care) alone is a data-entry warning on non-hospice
+  // claims — the hard block lives in evaluateClaimReadiness for hospice
+  // patients. Surfacing it here catches drift before claim submission.
+  if (!patient?.hospice_enrolled) {
+    const dx = (trip.icd10_codes ?? [])
+      .map((c) => String(c ?? "").trim().toUpperCase())
+      .filter((c) => c.length > 0);
+    if (dx.length > 0) {
+      const hasZ515 = dx.some((c) => c === "Z51.5" || c === "Z515");
+      const hasNonZ51 = dx.some((c) => !/^Z51(\.|$)/.test(c));
+      if (hasZ515 && !hasNonZ51) {
+        push(
+          flags,
+          trip.id,
+          cid,
+          "Z51.5 (palliative care) is the only diagnosis recorded. Add the underlying terminal-illness ICD-10 — Z51.5 alone doesn't support medical necessity.",
+          "yellow",
+          "z515_only_diagnosis",
+        );
+      }
     }
   }
 
