@@ -143,7 +143,7 @@ export async function queueClaimsForSubmission(
     patientIds.length
       ? supabase
           .from("patients")
-          .select("id, first_name, last_name, dob, sex, weight_lbs, member_id, primary_payer, pickup_address, pcs_on_file, pcs_physician_npi, pcs_physician_name, facility_id")
+          .select("id, first_name, last_name, dob, sex, weight_lbs, member_id, primary_payer, pickup_address, pcs_on_file, pcs_physician_npi, pcs_physician_name, facility_id, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days")
           .in("id", patientIds)
       : Promise.resolve({ data: [] as any[] }),
   ]);
@@ -418,6 +418,15 @@ export async function queueClaimsForSubmission(
       claim: { ...ec, id: c.id, trip_id: c.trip_id, patient_id: c.patient_id },
       billingState: providerInfo.state,
       payerResolution,
+      patient: {
+        prior_auth_utn: pat.prior_auth_utn ?? null,
+        prior_auth_period_end: pat.prior_auth_period_end ?? null,
+        standing_order: pat.standing_order ?? null,
+        recurrence_days: pat.recurrence_days ?? null,
+      },
+      transport: {
+        destination_facility_type: destMeta?.facility_type ?? null,
+      },
     }).filter(x => x.severity === "block");
     if (issues.length) {
       blocked.push({ claimId: c.id, issues });
