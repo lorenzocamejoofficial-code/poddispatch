@@ -13,7 +13,7 @@ const CLAIM_IDS = [
   "44444444-4444-4444-4444-444444444442", // Rule 2 fixture
 ];
 
-const c = new Client({ connectionString: process.env.SUPABASE_DB_URL });
+const c = new Client({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
 await c.connect();
 
 // Mirror queue-claims-for-submission.ts: claims, patients (with the NEW fields),
