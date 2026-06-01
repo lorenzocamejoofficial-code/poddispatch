@@ -491,6 +491,9 @@ export default function Patients() {
       prior_auth_utn: form.prior_auth_utn || null,
       prior_auth_period_start: form.prior_auth_period_start || null,
       prior_auth_period_end: form.prior_auth_period_end || null,
+      hospice_enrolled: !!form.hospice_enrolled,
+      hospice_election_date: form.hospice_enrolled ? (form.hospice_election_date || null) : null,
+      terminal_illness_icd: form.hospice_enrolled ? (form.terminal_illness_icd?.trim() || null) : null,
     };
 
     if (!payload.first_name || !payload.last_name) { setSaving(false); return; }
