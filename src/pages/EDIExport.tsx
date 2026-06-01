@@ -400,6 +400,11 @@ export default function EDIExport() {
       const facById: Record<string, any> = {};
       const facByName: Record<string, any> = {};
       const facilityAddrMap: Record<string, string> = {};
+      // See queue-claims-for-submission.ts — address-based fallback for
+      // dialysis return legs where pickup_location is a raw address.
+      const normAddr = (s: string | null | undefined) =>
+        (s || "").toLowerCase().replace(/\s+/g, " ").replace(/[.,]+$/g, "").trim();
+      const facByAddr: Record<string, any> = {};
       if (facilityIds.length > 0 || candidateNames.size > 0) {
         const orParts: string[] = [];
         if (facilityIds.length > 0) orParts.push(`id.in.(${facilityIds.join(",")})`);
@@ -415,8 +420,19 @@ export default function EDIExport() {
           facById[f.id] = f;
           facByName[f.name] = f;
           if (f.address) facilityAddrMap[f.name] = f.address;
+          if (f.address) facByAddr[normAddr(f.address)] = f;
         });
       }
+      const { data: _dialysisFacs1 } = await supabase
+        .from("facilities" as any)
+        .select("id, name, address, facility_type, dialysis_subtype")
+        .eq("company_id", activeCompanyId || "")
+        .eq("facility_type", "dialysis");
+      (_dialysisFacs1 || []).forEach((f: any) => {
+        facById[f.id] = facById[f.id] ?? f;
+        facByName[f.name] = facByName[f.name] ?? f;
+        if (f.address) facByAddr[normAddr(f.address)] = facByAddr[normAddr(f.address)] ?? f;
+      });
 
       const metaFromFacility = (f: any) =>
         f ? { facility_type: f.facility_type, dialysis_subtype: f.dialysis_subtype ?? null } : null;
@@ -474,19 +490,21 @@ export default function EDIExport() {
         // recurring dialysis runs.
         const originFacByName  = facByName[extractFacilityName(trip.pickup_location) || ""] || null;
         const destFacByName    = facByName[extractFacilityName(trip.destination_location) || ""] || null;
+        const originFacByAddr  = originFacByName ? null : (facByAddr[normAddr(trip.pickup_location)] || null);
+        const destFacByAddr    = destFacByName   ? null : (facByAddr[normAddr(trip.destination_location)] || null);
         const patientStandingFac = pat?.facility_id ? facById[pat.facility_id] : null;
         // Standing-facility fallback: if exactly one side matched by name and
         // the patient has a different standing facility, attach the standing
         // facility to the unmatched side. Avoids tagging BOTH sides as dialysis
         // when name extraction fails on both — in that case we have no way to
         // disambiguate which side is the dialysis end, so leave both null.
-        let originMeta = metaFromFacility(originFacByName);
-        let destMeta = metaFromFacility(destFacByName);
+        let originMeta = metaFromFacility(originFacByName ?? originFacByAddr);
+        let destMeta = metaFromFacility(destFacByName ?? destFacByAddr);
         if (patientStandingFac) {
-          if (!originFacByName && destFacByName && destFacByName.id !== patientStandingFac.id) {
+          if (!originFacByName && !originFacByAddr && destFacByName && destFacByName.id !== patientStandingFac.id) {
             originMeta = metaFromFacility(patientStandingFac);
           }
-          if (!destFacByName && originFacByName && originFacByName.id !== patientStandingFac.id) {
+          if (!destFacByName && !destFacByAddr && originFacByName && originFacByName.id !== patientStandingFac.id) {
             destMeta = metaFromFacility(patientStandingFac);
           }
         }
@@ -777,6 +795,9 @@ export default function EDIExport() {
       const facById: Record<string, any> = {};
       const facByName: Record<string, any> = {};
       const facilityAddrMap: Record<string, string> = {};
+      const normAddr = (s: string | null | undefined) =>
+        (s || "").toLowerCase().replace(/\s+/g, " ").replace(/[.,]+$/g, "").trim();
+      const facByAddr: Record<string, any> = {};
       if (facilityIds.length > 0 || candidateNames.size > 0) {
         const orParts: string[] = [];
         if (facilityIds.length > 0) orParts.push(`id.in.(${facilityIds.join(",")})`);
@@ -792,8 +813,19 @@ export default function EDIExport() {
           facById[f.id] = f;
           facByName[f.name] = f;
           if (f.address) facilityAddrMap[f.name] = f.address;
+          if (f.address) facByAddr[normAddr(f.address)] = f;
         });
       }
+      const { data: _dialysisFacs2 } = await supabase
+        .from("facilities" as any)
+        .select("id, name, address, facility_type, dialysis_subtype")
+        .eq("company_id", activeCompanyId || "")
+        .eq("facility_type", "dialysis");
+      (_dialysisFacs2 || []).forEach((f: any) => {
+        facById[f.id] = facById[f.id] ?? f;
+        facByName[f.name] = facByName[f.name] ?? f;
+        if (f.address) facByAddr[normAddr(f.address)] = facByAddr[normAddr(f.address)] ?? f;
+      });
       const metaFromFacility = (f: any) =>
         f ? { facility_type: f.facility_type, dialysis_subtype: f.dialysis_subtype ?? null } : null;
 
@@ -833,14 +865,16 @@ export default function EDIExport() {
           || trip.destination_location || null;
         const originFacByName  = facByName[extractFacilityName(trip.pickup_location) || ""] || null;
         const destFacByName    = facByName[extractFacilityName(trip.destination_location) || ""] || null;
+        const originFacByAddr  = originFacByName ? null : (facByAddr[normAddr(trip.pickup_location)] || null);
+        const destFacByAddr    = destFacByName   ? null : (facByAddr[normAddr(trip.destination_location)] || null);
         const patientStandingFac = pat?.facility_id ? facById[pat.facility_id] : null;
-        let originMeta = metaFromFacility(originFacByName);
-        let destMeta = metaFromFacility(destFacByName);
+        let originMeta = metaFromFacility(originFacByName ?? originFacByAddr);
+        let destMeta = metaFromFacility(destFacByName ?? destFacByAddr);
         if (patientStandingFac) {
-          if (!originFacByName && destFacByName && destFacByName.id !== patientStandingFac.id) {
+          if (!originFacByName && !originFacByAddr && destFacByName && destFacByName.id !== patientStandingFac.id) {
             originMeta = metaFromFacility(patientStandingFac);
           }
-          if (!destFacByName && originFacByName && originFacByName.id !== patientStandingFac.id) {
+          if (!destFacByName && !destFacByAddr && originFacByName && originFacByName.id !== patientStandingFac.id) {
             destMeta = metaFromFacility(patientStandingFac);
           }
         }
