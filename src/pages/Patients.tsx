@@ -1633,7 +1633,7 @@ export default function Patients() {
                   </Collapsible>
 
                   {/* Compliance & Authorization — visible for ALL transport types */}
-                  <Collapsible defaultOpen={form.pcs_on_file || !!form.prior_auth_utn || form.auth_required}>
+                  <Collapsible defaultOpen={form.pcs_on_file || !!form.prior_auth_utn || form.auth_required || form.hospice_enrolled}>
                     <div className="border-t pt-3">
                       <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
                         <div>
@@ -1727,6 +1727,47 @@ export default function Patients() {
                             <div>
                               <Label>Authorization Expiration<PCRTooltip text={ADMIN_TOOLTIPS.auth_expiration} /></Label>
                               <Input type="date" value={form.auth_expiration} onChange={(e) => setForm({ ...form, auth_expiration: e.target.value })} />
+                            </div>
+                          )}
+                        </div>
+                        {/* Hospice (Rule 3a) — when enrolled + Medicare, terminal-illness
+                            transport bills to hospice, not Medicare Part B. Block clears
+                            on the claim with the "unrelated to terminal illness" confirm. */}
+                        <div
+                          id="hospice"
+                          className={`rounded-md border border-dashed p-3 space-y-2 ${ringIfMissing("hospice")}`}
+                        >
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Hospice Enrollment</p>
+                            <p className="text-[11px] text-muted-foreground">
+                              When enrolled, Medicare claims block unless the trip is confirmed unrelated to the terminal illness on the claim.
+                            </p>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <Label>Hospice Enrolled</Label>
+                            <Switch
+                              checked={!!form.hospice_enrolled}
+                              onCheckedChange={(v) => setForm({ ...form, hospice_enrolled: v })}
+                            />
+                          </div>
+                          {form.hospice_enrolled && (
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label>Hospice Election Date</Label>
+                                <Input
+                                  type="date"
+                                  value={form.hospice_election_date}
+                                  onChange={(e) => setForm({ ...form, hospice_election_date: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <Label>Terminal Illness ICD-10</Label>
+                                <Input
+                                  value={form.terminal_illness_icd}
+                                  onChange={(e) => setForm({ ...form, terminal_illness_icd: e.target.value })}
+                                  placeholder="e.g. C34.90"
+                                />
+                              </div>
                             </div>
                           )}
                         </div>
