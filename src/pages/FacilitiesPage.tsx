@@ -88,11 +88,11 @@ export default function FacilitiesPage() {
 
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Facility name required"); return; }
-    // New dialysis facilities MUST be classified for accurate G/J modifier
-    // emission. Existing rows are grandfathered (NULL → emits 'D') so we don't
-    // force a backfill on edit.
-    if (!editing && form.facility_type === "dialysis" && !form.dialysis_subtype) {
-      toast.error("Dialysis subtype is required for new dialysis facilities");
+    // Dialysis facilities MUST be classified for accurate G/J modifier
+    // emission. Required on create AND edit — saving without a subtype
+    // silently falls back to D and a wrong modifier reaches the payer.
+    if (form.facility_type === "dialysis" && !form.dialysis_subtype) {
+      toast.error("Dialysis subtype is required (hospital-based or freestanding)");
       return;
     }
     setSaving(true);
