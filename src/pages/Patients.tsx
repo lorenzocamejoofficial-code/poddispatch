@@ -187,6 +187,11 @@ export default function Patients() {
     prior_auth_utn: "",
     prior_auth_period_start: "",
     prior_auth_period_end: "",
+    // Hospice (Rule 3a). hospice_enrolled drives the Medicare-Part-B block;
+    // election_date and terminal_illness_icd are advisory documentation.
+    hospice_enrolled: false,
+    hospice_election_date: "",
+    terminal_illness_icd: "",
   });
 
   const fetchPatients = async () => {
