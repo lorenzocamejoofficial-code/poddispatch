@@ -277,6 +277,15 @@ export async function queueClaimsForSubmission(
   const facById: Record<string, any> = {};
   const facByName: Record<string, any> = {};
   const facAddrMap: Record<string, string> = {};
+  /** Normalize address strings for fuzzy match: lowercase, collapse spaces,
+   *  strip trailing punctuation. Used to back-stop name-based facility
+   *  lookup when trip.pickup_location / destination_location is stored as a
+   *  raw address (no "Name Address" prefix). Without this back-stop a
+   *  dialysis-origin return leg resolves to substring-only "D" instead of
+   *  the freestanding-J / hospital-based-G letter held in the facility row. */
+  const normAddr = (s: string | null | undefined) =>
+    (s || "").toLowerCase().replace(/\s+/g, " ").replace(/[.,]+$/g, "").trim();
+  const facByAddr: Record<string, any> = {};
   if (facilityIds.length || candidateNames.size) {
     const orParts: string[] = [];
     if (facilityIds.length) orParts.push(`id.in.(${facilityIds.join(",")})`);
@@ -292,8 +301,22 @@ export async function queueClaimsForSubmission(
       facById[f.id] = f;
       facByName[f.name] = f;
       if (f.address) facAddrMap[f.name] = f.address;
+      if (f.address) facByAddr[normAddr(f.address)] = f;
     });
   }
+  // Always hydrate dialysis facilities for this company so address-based
+  // lookup works for return legs where origin = dialysis (round-trip).
+  // Cheap: real fleets have ≤10 dialysis facilities.
+  const { data: dialysisFacs } = await supabase
+    .from("facilities" as any)
+    .select("id, name, address, facility_type, dialysis_subtype")
+    .eq("company_id", companyId)
+    .eq("facility_type", "dialysis");
+  (dialysisFacs ?? []).forEach((f: any) => {
+    facById[f.id] = facById[f.id] ?? f;
+    facByName[f.name] = facByName[f.name] ?? f;
+    if (f.address) facByAddr[normAddr(f.address)] = facByAddr[normAddr(f.address)] ?? f;
+  });
   const metaFromFacility = (f: any) =>
     f ? { facility_type: f.facility_type, dialysis_subtype: f.dialysis_subtype ?? null } : null;
 
@@ -328,14 +351,18 @@ export async function queueClaimsForSubmission(
 
     const originFacByName = facByName[extractFacilityName(trip.pickup_location) || ""] || null;
     const destFacByName = facByName[extractFacilityName(trip.destination_location) || ""] || null;
+    // Address-based fallback for raw-address pickup/destination strings
+    // (no facility name prefix). Critical for dialysis return legs.
+    const originFacByAddr = originFacByName ? null : (facByAddr[normAddr(trip.pickup_location)] || null);
+    const destFacByAddr = destFacByName ? null : (facByAddr[normAddr(trip.destination_location)] || null);
     const standingFac = pat?.facility_id ? facById[pat.facility_id] : null;
-    let originMeta = metaFromFacility(originFacByName);
-    let destMeta = metaFromFacility(destFacByName);
+    let originMeta = metaFromFacility(originFacByName ?? originFacByAddr);
+    let destMeta = metaFromFacility(destFacByName ?? destFacByAddr);
     if (standingFac) {
-      if (!originFacByName && destFacByName && destFacByName.id !== standingFac.id) {
+      if (!originFacByName && !originFacByAddr && destFacByName && destFacByName.id !== standingFac.id) {
         originMeta = metaFromFacility(standingFac);
       }
-      if (!destFacByName && originFacByName && originFacByName.id !== standingFac.id) {
+      if (!destFacByName && !destFacByAddr && originFacByName && originFacByName.id !== standingFac.id) {
         destMeta = metaFromFacility(standingFac);
       }
     }
