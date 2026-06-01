@@ -34,6 +34,10 @@ export interface ReadinessInputs {
     /** True when the trip's pickup address comes from the scheduling leg
      *  (one-off run) rather than a patient record. Drives ZIP fix routing. */
     is_oneoff?: boolean | null;
+    /** Biller confirmation that this hospice patient's transport is
+     *  unrelated to the terminal illness — clears the Medicare-vs-hospice
+     *  block (Rule 3a). */
+    hospice_unrelated_to_terminal?: boolean | null;
   };
   billingState?: string | null;
   /**
@@ -53,6 +57,9 @@ export interface ReadinessInputs {
     prior_auth_period_end?: string | null;
     standing_order?: boolean | null;
     recurrence_days?: number[] | null;
+    hospice_enrolled?: boolean | null;
+    hospice_election_date?: string | null;
+    terminal_illness_icd?: string | null;
   } | null;
   /** Optional transport / scheduling context for biller-stage checks.
    *  destination_facility_type is the resolved facilities.facility_type
