@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
 import { resolvePayerForClaim, type PayerResolution } from "@/lib/payer-directory-lookup";
 import { ICD10_DESCRIPTIONS } from "@/lib/icd10-codes";
+import { locationTypeCode } from "@/lib/ambulance-modifier";
 
 /**
  * Claim Review PDF — biller-facing claim summary
