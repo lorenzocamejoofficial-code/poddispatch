@@ -26,7 +26,7 @@ export default function AdminSettings() {
   const [dischargeBuffer, setDischargeBuffer] = useState("20");
   const [sessionTimeout, setSessionTimeout] = useState("30");
   const [sessionWarningEnabled, setSessionWarningEnabled] = useState(true);
-  const [retentionYears, setRetentionYears] = useState("7");
+  const [retentionYears, setRetentionYears] = useState("10");
   const [verifiedCallerId, setVerifiedCallerId] = useState("");
   const [saving, setSaving] = useState(false);
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
@@ -67,7 +67,7 @@ export default function AdminSettings() {
         setDischargeBuffer(String((data as any).discharge_buffer_minutes ?? 20));
         setSessionTimeout(String((data as any).session_timeout_minutes ?? 30));
         setSessionWarningEnabled((data as any).session_warning_enabled ?? true);
-        setRetentionYears(String((data as any).retention_policy_years ?? 7));
+        setRetentionYears(String((data as any).retention_policy_years ?? 10));
         setVerifiedCallerId(String((data as any).verified_caller_id ?? ""));
       }
     });
