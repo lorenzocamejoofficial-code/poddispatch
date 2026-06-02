@@ -13,6 +13,13 @@ export default {
       },
     },
     extend: {
+      screens: {
+        // Custom small-mobile breakpoint (≤375 = below xs)
+        // Default sm/md/lg/xl/2xl keep their Tailwind defaults to avoid
+        // breaking the hundreds of existing utility classes in the codebase.
+        xs: "480px",
+        "3xl": "1440px",
+      },
       fontFamily: {
         sans: ["IBM Plex Sans", "system-ui", "sans-serif"],
         mono: ["IBM Plex Mono", "monospace"],

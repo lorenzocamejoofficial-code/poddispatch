@@ -1,79 +1,47 @@
-# Audit Export & Legal Retention Vault
+## Responsive Pass — Entire App
 
-A single owner-grade tool that produces court-admissible exports across every retention regime NEMT operators are bound by, without crowding the existing nav.
+The app already uses Tailwind with `lg:` breakpoints in the three shells (AdminLayout, CrewLayout, CreatorLayout) and most pages. A true "rewrite every page" pass would touch 60+ files and risk regressions on dense dispatch/billing tables that intentionally require horizontal scroll. Instead I'll do a layered pass that delivers the user-visible win everywhere without rewriting every grid.
 
-## Where it lives (UX placement)
+### Breakpoints (Tailwind config)
+Add custom breakpoints so the rest of the codebase keeps working:
+- `sm: 480px` (small mobile cutoff)
+- `md: 768px` (tablet)
+- `lg: 1024px` (sidebar collapses below this — already the default in shells)
+- `xl: 1280px`
+- `2xl: 1440px` (desktop full layout)
 
-New top-level page **Compliance Vault** under the existing **Compliance & QA** section — not a new sidebar item. Reasoning: owners already go to Compliance & QA for audits, overrides, and incidents. This is the same mental model ("things I show a regulator"), so it belongs as a third tab next to Overrides Log and Incidents.
+Existing `lg:` usage already matches the "sidebar visible ≥1024" rule, so shells need no breakpoint rewrite — just verification.
 
-```text
-Compliance & QA
- ├─ QA Queue
- ├─ Incidents
- ├─ Overrides Log
- └─ Compliance Vault   ← new
-      ├─ Export Builder
-      ├─ Export History
-      └─ Retention Calendar
-```
+### 1. Global baselines (`src/index.css`, `tailwind.config.ts`)
+- Body text: ensure `body` is `text-base` (16px) — currently inherits. Add explicit `font-size: 16px` on `html` to guarantee mobile readability and prevent iOS input zoom.
+- Add `.tap-44` utility (min 44×44) for icon buttons used on mobile.
+- Add `overflow-x: hidden` on `body` as last-resort horizontal-scroll guard, scoped so tables can still scroll inside their own containers (`overflow-x-auto` on wrappers).
 
-Owner/Creator only. Billers and Dispatchers do not see the tab. Manager sees read-only Export History (for daily reconciliation) but cannot generate a sealed export.
+### 2. Layout shells — verify + tighten
+- `AdminLayout`, `CrewLayout`, `CreatorLayout`: already have hamburger + off-canvas sidebar < `lg`. Audit each:
+  - Confirm `<SidebarTrigger>`/menu button is ≥44px tap target.
+  - Confirm header doesn't overflow on 320px (truncate title, hide secondary badges below `sm`).
+- `src/pages/Login.tsx`, `CompanySignup.tsx`, `CompletePayment.tsx`, `TrialExpired.tsx`, `AcceptInvite.tsx`, `Legal`, `ForgotPassword/Email`, `ResetPassword`: stack to single column, full-width buttons below `sm`.
 
-## Export Builder (the main view)
+### 3. High-traffic pages (responsive-pass each)
+- `DispatchBoard.tsx` — truck cards already grid; verify single column < `md`, wrap header actions.
+- `Scheduling.tsx` — stack panels < `md`.
+- `BillingAndClaims.tsx`, `TripsAndClinical.tsx`, `RemittanceImport.tsx`, `EDIExport.tsx` — wrap dense tables in `overflow-x-auto`, stack filter rows < `md`.
+- `OwnerDashboard.tsx`, `SystemCreatorDashboard.tsx`, `ReportsAndMetrics.tsx` — KPI grids to 1 col < `sm`, 2 col < `lg`.
+- `PCRPage.tsx` and `src/components/pcr/*` — already form-heavy; stack two-column rows < `md`, full-width buttons < `sm`.
+- `CrewDashboard.tsx`, `crew/CrewPatients.tsx`, `crew/CrewSchedule.tsx`, `DailyRunSheet.tsx` — these are field-use; verify tap targets and stacking.
+- `AdminSettings.tsx`, `Employees.tsx`, `TrucksCrews.tsx`, `FacilitiesPage.tsx`, `Patients.tsx` — table/grid wrappers + stacked filter bars.
 
-One screen, three decisions:
+### 4. Out of scope (intentional)
+- Dense data tables (claims grid, dispatch matrix) keep horizontal scroll inside their card — this is correct UX, not a bug. They get a scroll wrapper, not a vertical-stack rewrite.
+- No visual redesign, no token changes, no dark-mode work, no logic changes.
+- Lower-traffic creator/admin sub-pages (CreatorSettings, OverrideMonitor, SimulationLab, MigrationOnboarding, SysRecovery, EmailActivity) get a quick pass for overflow only.
 
-1. **What regime are you exporting for?** Preset buttons that pre-fill date range + included data:
-   - Medicare / CMS audit (7 yrs, claims + PCRs + remits + audit trail)
-   - Medicaid (state-configurable, default 6 yrs GA)
-   - HIPAA records request (6 yrs, PHI access logs + disclosures)
-   - False Claims Act / OIG (10 yrs, full lineage)
-   - Subpoena / litigation hold (custom range, everything)
-   - Daily ops reconciliation (the old Excel-sheet-for-owners use case — single day, runs + claims status)
-   - Custom
+### 5. Verification
+- Browser screenshots at 1440 / 1024 / 768 / 375 on: Login, DispatchBoard, BillingAndClaims, PCRPage, CrewDashboard, AdminSettings.
+- Check no horizontal scroll on `<body>` at 375px.
 
-2. **Date range + optional filters** (payer, transport type, patient, crew)
+### Risk / size
+~25–35 files touched. Mostly className additions (`grid-cols-1 md:grid-cols-2`, `flex-col sm:flex-row`, `w-full sm:w-auto`, `overflow-x-auto` wrappers). No business logic. ~400–600 LOC across the codebase.
 
-3. **Generate sealed export** button — produces a ZIP containing:
-   - `cover_sheet.pdf` — company, NPI, EIN, date range, generated by, generated at, SHA-256 of payload, regime cited, row counts
-   - `trips.xlsx` — one row per trip (DOS, patient, origin/destination, transport type, crew, miles, payer, billed, paid, write-off, patient resp, denial codes, final status, ICN, submission/paid dates)
-   - `claim_lineage.xlsx` — full claim_records + claim_payments + claim_acknowledgments + claim_adjustments joined
-   - `audit_trail.csv` — audit_logs entries for every record in the export
-   - `pcr_index.csv` — pointers to PCRs in scope (full PCR PDFs available on demand to avoid 2GB zips)
-   - `overrides.csv` — billing_overrides + safety overrides touching included trips
-   - `manifest.json` — machine-readable inventory + hashes per file
-
-## Tamper-evidence (court-stand)
-
-- SHA-256 hash of the payload zip is computed server-side in an edge function, **not** the browser
-- Hash + manifest + generated_by + generated_at written to new `audit_exports` table (immutable, no delete RLS)
-- `logAuditEvent({ action: "export", ... })` records the export
-- Cover sheet displays the hash and a verification instruction ("re-hash this file with `shasum -a 256` — must match")
-- Exports are versioned (`export_v1.zip`, `export_v2.zip`); regenerating does not overwrite — it creates a new sealed record
-
-## Retention Calendar
-
-Small visual showing, per regime, the earliest date currently in the system and when each bucket becomes legally purgeable. Purely informational — no auto-delete. Just so the owner sees "your CMS-required records go back to 2019-03-14, you are compliant."
-
-## Export History
-
-Table of every export ever generated: date, regime, range, row count, generated by, hash, download link. Owners can re-download (links are time-limited signed URLs). Hash never changes, so a 2-year-old export remains verifiable.
-
-## Technical details
-
-- New table `audit_exports`: company_id, regime, date_from, date_to, generated_by, generated_at, row_counts (jsonb), file_path, sha256, manifest (jsonb), is_sealed (default true). RLS: owners read own company, no update/delete.
-- New storage bucket `audit-exports` (private, signed URLs only)
-- New edge function `generate-audit-export`: server-side query → build files → zip → hash → upload → insert audit_exports row → return signed URL. Runs with service role for cross-table reads.
-- New page `src/pages/ComplianceVault.tsx` mounted as a tab inside ComplianceAndQA
-- Reuse `csv-export.ts` for CSV, add `xlsx` lib (already used? — will check) for workbooks
-- Owner gate via `useUserRole` / existing role check pattern
-- Test claims (`is_test_submission = true`) excluded by default with an explicit "include test data" toggle that stamps the cover sheet with "INCLUDES TEST DATA — NOT FOR REGULATORY USE"
-
-## Out of scope (call out, do not build)
-- Auto-purge after retention window — too dangerous, owner decision
-- PDF rendering of every PCR into the zip — on-demand instead
-- E-signature on the export itself — hash is sufficient for chain of custody
-
-## Risks
-- Large date ranges could time out — edge function will paginate and stream into the zip; 10-year exports may take 60-90s with a progress indicator
-- Storage cost grows; mitigated by signed-URL access and the fact that sealed exports are typically small (MBs not GBs without PCR PDFs)
+Approve and I'll execute in this order: config → global CSS → shells → auth/public pages → dispatch/billing → crew → settings, screenshotting checkpoints along the way.

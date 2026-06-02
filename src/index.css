@@ -112,6 +112,39 @@
   }
 }
 
+@layer base {
+  /* Mobile-first baselines:
+     - 16px root prevents iOS Safari from zooming on input focus.
+     - overflow-x clipping is a last-resort guard so a single rogue wide
+       element can't make the whole page scroll horizontally on phones.
+       Tables that legitimately need horizontal scroll wrap themselves in
+       `overflow-x-auto`, which still works inside this clip. */
+  html {
+    font-size: 16px;
+  }
+  body {
+    overflow-x: hidden;
+  }
+  /* Force inputs/selects/textareas to at least 16px on small screens so
+     iOS Safari does not auto-zoom the viewport on focus. */
+  @media (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+}
+
+@layer utilities {
+  /* Min 44x44 tap target — WCAG 2.5.5 recommended size. Use on
+     icon-only buttons that are primary mobile affordances. */
+  .tap-44 {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 @layer utilities {
   .status-green {
     @apply text-[hsl(var(--status-green))] bg-[hsl(var(--status-green-bg))];
