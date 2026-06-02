@@ -1,0 +1,2 @@
+ALTER TABLE public.company_settings ALTER COLUMN retention_policy_years SET DEFAULT 10;
+UPDATE public.company_settings SET retention_policy_years = 10 WHERE retention_policy_years IS NULL OR retention_policy_years = 7;
