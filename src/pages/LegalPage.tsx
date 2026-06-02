@@ -125,7 +125,7 @@ export default function LegalPage() {
               <p>We use industry-standard security measures including encryption in transit (TLS 1.2 or higher) and encryption at rest (AES-256), role-based access controls, audit logging of every PHI access event, and regular security reviews. Patient data is stored in HIPAA-compliant infrastructure. Access to PHI is limited to authorized PodDispatch personnel with a documented operational need.</p>
 
               <h3>Data Retention</h3>
-              <p>PHI is retained for seven years following account termination in accordance with HIPAA requirements unless the operator requests earlier deletion consistent with applicable law. Full retention details are in the Data Retention and Deletion Policy.</p>
+              <p>PHI is retained for 10 years following account termination, meeting or exceeding applicable Medicare, HIPAA, and state retention requirements, unless the operator requests earlier deletion consistent with applicable law. Full retention details are in the Data Retention and Deletion Policy.</p>
 
               <h3>Operator Data Deletion Requests</h3>
               <p>Operators may request deletion of their company data by contacting PodDispatch LLC directly at <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a>. Deletion is processed within 60 days as described in the Data Retention and Deletion Policy and is subject to applicable legal-hold requirements.</p>
@@ -277,7 +277,7 @@ export default function LegalPage() {
               <p className="text-muted-foreground text-sm">Version 1.0 — Effective April 2026</p>
 
               <h3>Retention Period</h3>
-              <p>PodDispatch LLC retains protected health information (PHI) and operator data for seven years following the date of service or account termination, whichever is later, in compliance with HIPAA and applicable state regulations.</p>
+              <p>PodDispatch LLC retains protected health information (PHI) and operator data for 10 years following the date of service or account termination, whichever is later. This retention period meets or exceeds applicable Medicare, HIPAA, and state retention requirements.</p>
 
               <h3>Encryption at Rest</h3>
               <p>Electronic PHI is stored encrypted at rest using AES-256 encryption. All database storage, file storage, and backup storage are encrypted.</p>

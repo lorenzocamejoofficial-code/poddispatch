@@ -227,7 +227,7 @@ export default function AdminSettings() {
         <section className="space-y-3">
           <div>
             <h3 className="text-lg font-semibold text-foreground">Data Retention Policy</h3>
-            <p className="text-sm text-muted-foreground">Medicare requires 7-year minimum retention for transport records.</p>
+            <p className="text-sm text-muted-foreground">PodDispatch retains records for 10 years, meeting or exceeding applicable Medicare and state retention requirements.</p>
           </div>
           <div className="rounded-lg border bg-card p-4">
             <div className="flex items-center justify-between">
