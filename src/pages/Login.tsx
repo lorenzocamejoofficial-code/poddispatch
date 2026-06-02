@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { Truck, ShieldCheck, Users, ArrowLeft, Loader2, Eye, EyeOff } from "lucide-react";
 
+const MARKETING_SITE_URL = "https://www.thepoddispatch.com";
+
 function getRoleLanding(role: string | null, isSystemCreator: boolean): string {
   if (isSystemCreator) return "/system";
   switch (role) {
@@ -167,6 +169,8 @@ export default function Login() {
           </div>
 
           <div className="mt-6 text-center text-xs text-muted-foreground">
+            <a href={MARKETING_SITE_URL} className="hover:underline">Back to website</a>
+            <span className="mx-1.5">·</span>
             <a href="/legal?tab=terms" className="hover:underline">Terms of Service</a>
             <span className="mx-1.5">·</span>
             <a href="/legal?tab=privacy" className="hover:underline">Privacy Policy</a>
@@ -269,6 +273,8 @@ export default function Login() {
         </form>
 
         <div className="mt-6 text-center text-xs text-muted-foreground">
+          <a href={MARKETING_SITE_URL} className="hover:underline">Back to website</a>
+          <span className="mx-1.5">·</span>
           <a href="/legal?tab=terms" className="hover:underline">Terms of Service</a>
           <span className="mx-1.5">·</span>
           <a href="/legal?tab=privacy" className="hover:underline">Privacy Policy</a>
