@@ -132,6 +132,7 @@ export default function Patients() {
 
   const [form, setForm] = useState({
     first_name: "", last_name: "", dob: "", phone: "", sex: "",
+    race: "", ethnicity: "",
     pickup_address: "", dropoff_facility: "", chair_time: "",
     run_duration_minutes: "", schedule_days: "" as "" | "MWF" | "TTS",
     weight_lbs: "", notes: "", status: "active" as PatientStatus,
@@ -260,6 +261,7 @@ export default function Patients() {
   const resetForm = () => {
     setForm({
       first_name: "", last_name: "", dob: "", phone: "", sex: "",
+      race: "", ethnicity: "",
       pickup_address: "", dropoff_facility: "", chair_time: "",
       run_duration_minutes: "", schedule_days: "", weight_lbs: "",
       notes: "", status: "active",
@@ -327,6 +329,7 @@ export default function Patients() {
     setForm({
       first_name: p.first_name, last_name: p.last_name,
       dob: p.dob ?? "", phone: p.phone ?? "", sex: (p as any).sex ?? "",
+      race: (p as any).race ?? "", ethnicity: (p as any).ethnicity ?? "",
       pickup_address: p.pickup_address ?? "", dropoff_facility: p.dropoff_facility ?? "",
       chair_time: p.chair_time ?? "", run_duration_minutes: p.run_duration_minutes?.toString() ?? "",
       schedule_days: p.schedule_days ?? "", weight_lbs: p.weight_lbs?.toString() ?? "",
@@ -421,6 +424,8 @@ export default function Patients() {
       dob: form.dob || null,
       phone: form.phone || null,
       sex: form.sex || null,
+      race: form.race || null,
+      ethnicity: form.ethnicity || null,
       pickup_address: form.pickup_address || null,
       dropoff_facility: form.dropoff_facility || null,
       chair_time: form.chair_time || null,
