@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { TruckCard } from "@/components/dispatch/TruckCard";
 import { AlertsPanel } from "@/components/dispatch/AlertsPanel";
 import { OperationalAlertsPanel, type OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
+import { FailedCallsBanner } from "@/components/dispatch/FailedCallsBanner";
 import { PendingCancellationPanel, type PendingCancellation } from "@/components/dispatch/PendingCancellationPanel";
 import { CommunicationsSection } from "@/components/dispatch/CommunicationsSection";
 import { AdminLayout } from "@/components/layout/AdminLayout";
@@ -621,6 +622,7 @@ export default function DispatchBoard() {
           )}
 
           {/* Communications */}
+          <FailedCallsBanner selectedDate={selectedDate} />
           <CommunicationsSection selectedDate={selectedDate} trucks={trucks} />
 
           {/* Trucks */}
