@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Phone, Copy, Check, UserPlus } from "lucide-react";
+import { Phone, Copy, Check, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 interface ActiveEmployee {
