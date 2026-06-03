@@ -161,6 +161,18 @@ Deno.serve(async (req) => {
         update.status = "sent";
       }
 
+      // Capture recording metadata if Twilio sent it (separate Recording* status callback
+      // or the same completion callback that includes recording fields).
+      const recordingUrl = bodyParams.get("RecordingUrl");
+      const recordingSid = bodyParams.get("RecordingSid");
+      const recordingDuration = bodyParams.get("RecordingDuration");
+      if (recordingUrl) update.recording_url = recordingUrl;
+      if (recordingSid) update.recording_sid = recordingSid;
+      if (recordingDuration) {
+        const n = parseInt(recordingDuration, 10);
+        if (!Number.isNaN(n)) update.recording_duration_seconds = n;
+      }
+
       await admin
         .from("comms_events")
         .update(update)
