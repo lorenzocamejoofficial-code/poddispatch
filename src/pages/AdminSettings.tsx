@@ -14,7 +14,7 @@ import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist
 import { TrialBanner } from "@/components/onboarding/TrialBanner";
 
 export default function AdminSettings() {
-  const { role } = useAuth();
+  const { role, isSystemCreator } = useAuth();
   const isOwner = role === "owner" || role === "creator";
   const isAdmin = isOwner || role === "manager";
   const [settingsId, setSettingsId] = useState("");
@@ -237,14 +237,12 @@ export default function AdminSettings() {
                   Trip records, PCR data, and billing documents are retained for {retentionYears} year{retentionYears !== "1" ? "s" : ""}.
                 </p>
               </div>
-              <Select value={retentionYears} onValueChange={setRetentionYears}>
-                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7">7 years</SelectItem>
-                  <SelectItem value="10">10 years</SelectItem>
-                  <SelectItem value="15">15 years</SelectItem>
-                </SelectContent>
-              </Select>
+              <div
+                className="inline-flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm font-medium text-foreground"
+                title="Retention is fixed at 10 years to meet HIPAA and Medicare audit requirements."
+              >
+                10 years
+              </div>
             </div>
             <p className="text-[10px] text-muted-foreground mt-2 border-t pt-2">
               ℹ️ No records are automatically deleted. This setting documents your company's retention commitment for audit compliance.
@@ -253,7 +251,9 @@ export default function AdminSettings() {
         </section>
         )}
 
-        {/* Limits info */}
+        {/* Limits info — operational caps are platform-level config, hidden
+            from customer admins and shown only to the system creator. */}
+        {isSystemCreator && (
         <section className="space-y-3">
           <div>
             <h3 className="text-lg font-semibold text-foreground">System Limits</h3>
@@ -283,6 +283,7 @@ export default function AdminSettings() {
             </div>
           </div>
         </section>
+        )}
 
         {/* Communications */}
         <section className="space-y-3">
