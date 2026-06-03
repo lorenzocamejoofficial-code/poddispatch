@@ -35,8 +35,9 @@ function escapeXml(unsafe: string): string {
   });
 }
 
-function buildTwiml(script: string): string {
+function buildTwiml(script: string, recordingCallbackUrl: string): string {
   const safeScript = escapeXml(script);
+  const safeCb = escapeXml(recordingCallbackUrl);
   // Say message, then if no human picks up live we still left the message via TTS.
   // Record verb captures any response/voicemail-style reply for later review.
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -44,7 +45,7 @@ function buildTwiml(script: string): string {
   <Say voice="alice">${safeScript}</Say>
   <Pause length="1"/>
   <Say voice="alice">If you have any questions, please call us back. Goodbye.</Say>
-  <Record maxLength="60" playBeep="true" timeout="5"/>
+  <Record maxLength="60" playBeep="true" timeout="5" recordingStatusCallback="${safeCb}" recordingStatusCallbackMethod="POST"/>
 </Response>`;
 }
 
@@ -199,8 +200,8 @@ Deno.serve(async (req) => {
     }
   }
 
-  const twiml = buildTwiml(script);
   const statusCallback = `${supabaseUrl}/functions/v1/twilio-call-status-webhook`;
+  const twiml = buildTwiml(script, statusCallback);
 
   const formData = new URLSearchParams();
   formData.append("To", to_number);
@@ -212,6 +213,11 @@ Deno.serve(async (req) => {
   formData.append("StatusCallbackEvent", "ringing");
   formData.append("StatusCallbackEvent", "answered");
   formData.append("StatusCallbackEvent", "completed");
+  // Also store the dialed number on the comms_event for the call history view.
+  await admin
+    .from("comms_events")
+    .update({ to_number: to_number })
+    .eq("id", comms_event_id);
 
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${ACCOUNT_SID}/Calls.json`;
   const basicAuth = btoa(`${ACCOUNT_SID}:${AUTH_TOKEN}`);

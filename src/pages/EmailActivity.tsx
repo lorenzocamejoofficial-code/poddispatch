@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ResponsiveTable } from "@/components/ui/responsive-table";
-import { Mail, Filter, RefreshCw } from "lucide-react";
+import { Mail, Filter, RefreshCw, Phone } from "lucide-react";
 import { format } from "date-fns";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CallsActivityTab } from "@/components/communications/CallsActivityTab";
 
 type Status = "all" | "pending" | "sent" | "failed" | "bounced" | "suppressed";
 
@@ -138,19 +140,28 @@ export default function EmailActivity() {
           <div className="flex items-center gap-3">
             <Mail className="h-6 w-6 text-primary" />
             <div>
-              <h1 className="text-2xl font-semibold">Email Activity</h1>
+              <h1 className="text-2xl font-semibold">Communications Activity</h1>
               <p className="text-sm text-muted-foreground">
                 {isCreator
-                  ? "All transactional emails across every company."
-                  : "Transactional emails sent on behalf of your company."}
+                  ? "All transactional emails and Twilio calls across every company."
+                  : "Transactional emails and Twilio calls for your company."}
               </p>
             </div>
           </div>
+        </div>
+
+        <Tabs defaultValue="emails" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="emails" className="gap-2"><Mail className="h-4 w-4" /> Emails</TabsTrigger>
+            <TabsTrigger value="calls" className="gap-2"><Phone className="h-4 w-4" /> Calls</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="emails" className="space-y-6">
+        <div className="flex justify-end">
           <Button variant="outline" size="sm" onClick={load}>
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
           </Button>
         </div>
-
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatCard label="Total" value={stats.total} />
           <StatCard label="Sent" value={stats.sent} tone="success" />
@@ -276,6 +287,12 @@ export default function EmailActivity() {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="calls">
+            <CallsActivityTab isCreator={isCreator} companies={companies} />
+          </TabsContent>
+        </Tabs>
       </div>
     </AdminLayout>
   );
