@@ -1525,6 +1525,12 @@ export default function BillingAndClaims() {
               const pageClaims = colClaims.slice(start, start + STATUS_PAGE_SIZE);
               return (
                 <div className="space-y-3">
+                  {/* 6-stage visual pipeline — shows where every claim sits */}
+                  <BillingPipelineHeader
+                    claims={filteredAll}
+                    activeStatus={statusTab}
+                    onSelect={(s) => { setStatusTab(s); setStatusPage(1); }}
+                  />
                   {/* Status pills */}
                   <div className="flex flex-wrap gap-2 border-b pb-3">
                     {CLAIM_COLUMNS.map(col => {
