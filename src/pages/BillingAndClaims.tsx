@@ -6,6 +6,7 @@ import { SubmissionQueueErrorsPanel } from "@/components/billing/SubmissionQueue
 import { SubmissionPipelineStrip } from "@/components/billing/SubmissionPipelineStrip";
 import { BillingPipelineHeader } from "@/components/billing/BillingPipelineHeader";
 import { JustArrivedRibbon } from "@/components/billing/JustArrivedRibbon";
+import { TimelyFilingStrip } from "@/components/billing/TimelyFilingStrip";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -1533,6 +1534,14 @@ export default function BillingAndClaims() {
                     claims={filteredAll}
                     activeStatus={statusTab}
                     onSelect={(s) => { setStatusTab(s); setStatusPage(1); }}
+                  />
+                  {/* Timely filing watch — surfaces buried at-risk claims */}
+                  <TimelyFilingStrip
+                    claims={filteredAll as any}
+                    onClickClaim={(claimId) => {
+                      const c = filteredAll.find((x) => x.id === claimId);
+                      if (c) { setStatusTab(c.status); setStatusPage(1); openClaim(c); }
+                    }}
                   />
                   {/* Status pills */}
                   <div className="flex flex-wrap gap-2 border-b pb-3">
