@@ -1,0 +1,1 @@
+ALTER TABLE public.trip_records ADD COLUMN IF NOT EXISTS unidentified_patient_json JSONB DEFAULT '{}'::jsonb;

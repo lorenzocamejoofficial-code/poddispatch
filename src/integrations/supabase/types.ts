@@ -5029,6 +5029,7 @@ export type Database = {
           transport_condition: string | null
           trip_type: Database["public"]["Enums"]["trip_type"] | null
           truck_id: string | null
+          unidentified_patient_json: Json | null
           updated_at: string
           updated_by: string | null
           vehicle_id: string | null
@@ -5206,6 +5207,7 @@ export type Database = {
           transport_condition?: string | null
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
+          unidentified_patient_json?: Json | null
           updated_at?: string
           updated_by?: string | null
           vehicle_id?: string | null
@@ -5383,6 +5385,7 @@ export type Database = {
           transport_condition?: string | null
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
+          unidentified_patient_json?: Json | null
           updated_at?: string
           updated_by?: string | null
           vehicle_id?: string | null
