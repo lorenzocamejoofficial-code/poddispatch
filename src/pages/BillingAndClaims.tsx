@@ -4,6 +4,8 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { SubmissionQueueErrorsPanel } from "@/components/billing/SubmissionQueueErrorsPanel";
 import { SubmissionPipelineStrip } from "@/components/billing/SubmissionPipelineStrip";
+import { BillingPipelineHeader } from "@/components/billing/BillingPipelineHeader";
+import { JustArrivedRibbon } from "@/components/billing/JustArrivedRibbon";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -1523,6 +1525,12 @@ export default function BillingAndClaims() {
               const pageClaims = colClaims.slice(start, start + STATUS_PAGE_SIZE);
               return (
                 <div className="space-y-3">
+                  {/* 6-stage visual pipeline — shows where every claim sits */}
+                  <BillingPipelineHeader
+                    claims={filteredAll}
+                    activeStatus={statusTab}
+                    onSelect={(s) => { setStatusTab(s); setStatusPage(1); }}
+                  />
                   {/* Status pills */}
                   <div className="flex flex-wrap gap-2 border-b pb-3">
                     {CLAIM_COLUMNS.map(col => {
@@ -1549,6 +1557,11 @@ export default function BillingAndClaims() {
 
                   {/* List */}
                   <div className={`rounded-lg border p-3 ${activeCol.color}`}>
+                    {statusTab === "ready_to_bill" && (
+                      <div className="mb-3">
+                        <JustArrivedRibbon claims={filteredAll as any} />
+                      </div>
+                    )}
                     {colClaims.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-8">No claims in {activeCol.label}</p>
                     ) : (
