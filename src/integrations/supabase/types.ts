@@ -3257,6 +3257,7 @@ export type Database = {
           dialysis_window_minutes: number
           dob: string | null
           dropoff_facility: string | null
+          ethnicity: string | null
           facility_id: string | null
           first_name: string
           hospice_election_date: string | null
@@ -3285,6 +3286,7 @@ export type Database = {
           prior_auth_period_end: string | null
           prior_auth_period_start: string | null
           prior_auth_utn: string | null
+          race: string | null
           recurrence_days: number[] | null
           recurrence_end_date: string | null
           recurrence_start_date: string | null
@@ -3338,6 +3340,7 @@ export type Database = {
           dialysis_window_minutes?: number
           dob?: string | null
           dropoff_facility?: string | null
+          ethnicity?: string | null
           facility_id?: string | null
           first_name: string
           hospice_election_date?: string | null
@@ -3366,6 +3369,7 @@ export type Database = {
           prior_auth_period_end?: string | null
           prior_auth_period_start?: string | null
           prior_auth_utn?: string | null
+          race?: string | null
           recurrence_days?: number[] | null
           recurrence_end_date?: string | null
           recurrence_start_date?: string | null
@@ -3419,6 +3423,7 @@ export type Database = {
           dialysis_window_minutes?: number
           dob?: string | null
           dropoff_facility?: string | null
+          ethnicity?: string | null
           facility_id?: string | null
           first_name?: string
           hospice_election_date?: string | null
@@ -3447,6 +3452,7 @@ export type Database = {
           prior_auth_period_end?: string | null
           prior_auth_period_start?: string | null
           prior_auth_utn?: string | null
+          race?: string | null
           recurrence_days?: number[] | null
           recurrence_end_date?: string | null
           recurrence_start_date?: string | null

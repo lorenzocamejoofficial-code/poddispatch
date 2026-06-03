@@ -132,6 +132,7 @@ export default function Patients() {
 
   const [form, setForm] = useState({
     first_name: "", last_name: "", dob: "", phone: "", sex: "",
+    race: "", ethnicity: "",
     pickup_address: "", dropoff_facility: "", chair_time: "",
     run_duration_minutes: "", schedule_days: "" as "" | "MWF" | "TTS",
     weight_lbs: "", notes: "", status: "active" as PatientStatus,
@@ -260,6 +261,7 @@ export default function Patients() {
   const resetForm = () => {
     setForm({
       first_name: "", last_name: "", dob: "", phone: "", sex: "",
+      race: "", ethnicity: "",
       pickup_address: "", dropoff_facility: "", chair_time: "",
       run_duration_minutes: "", schedule_days: "", weight_lbs: "",
       notes: "", status: "active",
@@ -327,6 +329,7 @@ export default function Patients() {
     setForm({
       first_name: p.first_name, last_name: p.last_name,
       dob: p.dob ?? "", phone: p.phone ?? "", sex: (p as any).sex ?? "",
+      race: (p as any).race ?? "", ethnicity: (p as any).ethnicity ?? "",
       pickup_address: p.pickup_address ?? "", dropoff_facility: p.dropoff_facility ?? "",
       chair_time: p.chair_time ?? "", run_duration_minutes: p.run_duration_minutes?.toString() ?? "",
       schedule_days: p.schedule_days ?? "", weight_lbs: p.weight_lbs?.toString() ?? "",
@@ -421,6 +424,8 @@ export default function Patients() {
       dob: form.dob || null,
       phone: form.phone || null,
       sex: form.sex || null,
+      race: form.race || null,
+      ethnicity: form.ethnicity || null,
       pickup_address: form.pickup_address || null,
       dropoff_facility: form.dropoff_facility || null,
       chair_time: form.chair_time || null,
@@ -1045,6 +1050,36 @@ export default function Patients() {
                           {opt.label}
                         </label>
                       ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Race<PCRTooltip text="Patient race (NEMSIS ePatient.14). Optional — used for demographics reporting." /></Label>
+                      <Select value={form.race || "unspecified"} onValueChange={(v) => setForm({ ...form, race: v === "unspecified" ? "" : v })}>
+                        <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unspecified">— Not specified —</SelectItem>
+                          <SelectItem value="American Indian or Alaska Native">American Indian or Alaska Native</SelectItem>
+                          <SelectItem value="Asian">Asian</SelectItem>
+                          <SelectItem value="Black or African American">Black or African American</SelectItem>
+                          <SelectItem value="Native Hawaiian or Other Pacific Islander">Native Hawaiian or Other Pacific Islander</SelectItem>
+                          <SelectItem value="White">White</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                          <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Ethnicity<PCRTooltip text="Patient ethnicity (NEMSIS ePatient.15). Optional — used for demographics reporting." /></Label>
+                      <Select value={form.ethnicity || "unspecified"} onValueChange={(v) => setForm({ ...form, ethnicity: v === "unspecified" ? "" : v })}>
+                        <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unspecified">— Not specified —</SelectItem>
+                          <SelectItem value="Hispanic or Latino">Hispanic or Latino</SelectItem>
+                          <SelectItem value="Not Hispanic or Latino">Not Hispanic or Latino</SelectItem>
+                          <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                    <div data-focus="address"><Label>Pickup Address<PCRTooltip text={ADMIN_TOOLTIPS.pickup_address} /></Label><Input className={ringIfMissing("pickup_address")} value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} placeholder="Street, City, ST ZIP" /></div>

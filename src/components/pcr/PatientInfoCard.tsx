@@ -120,6 +120,14 @@ export function PatientInfoCard({ trip, updateField: _updateField }: PatientInfo
             onChange={(e) => _updateField("weight_lbs", e.target.value ? Number(e.target.value) : null)}
           />
         </div>
+        <div>
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Race</p>
+          <p className="text-sm font-medium text-foreground">{prefill("race") || "—"}</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Ethnicity</p>
+          <p className="text-sm font-medium text-foreground">{prefill("ethnicity") || "—"}</p>
+        </div>
         <div className="col-span-2" data-focus="origin_zip">
           <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
             {patient ? "Home Address" : "Pickup Address (One-off)"}
