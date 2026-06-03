@@ -90,6 +90,7 @@ import { SecondaryClaimPanel } from "@/components/billing/SecondaryClaimPanel";
 import { RevenueCycleTab } from "@/components/billing/RevenueCycleTab";
 import { EmergencyEventPanel } from "@/components/billing/EmergencyEventPanel";
 import { queueClaimsForSubmission } from "@/lib/queue-claims-for-submission";
+import { PreSubmitChecklist } from "@/components/billing/PreSubmitChecklist";
 
 type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction" | "needs_review";
 
@@ -209,6 +210,8 @@ export default function BillingAndClaims() {
   const [oaReceiving, setOaReceiving] = useState(false);
   const [remittanceRefreshKey, setRemittanceRefreshKey] = useState(0);
   const [reversalClaimIds, setReversalClaimIds] = useState<Set<string>>(new Set());
+  // PCS quick-fix dialog — opened from a claim card's "Open PCS panel" link.
+  const [pcsCheckTarget, setPcsCheckTarget] = useState<{ tripId: string; patientId: string | null } | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -1695,7 +1698,21 @@ export default function BillingAndClaims() {
                                   <li key={idx} className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400">
                                     <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
                                     <span className="truncate flex-1">{iss.message}</span>
-                                    {iss.fixPath && (
+                                    {iss.fixLabel === "Open PCS panel" && (claim as any).trip_id ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setPcsCheckTarget({
+                                            tripId: (claim as any).trip_id,
+                                            patientId: (claim as any).patient_id ?? null,
+                                          });
+                                        }}
+                                        className="underline shrink-0 hover:text-amber-900"
+                                      >
+                                        Open PCS panel →
+                                      </button>
+                                    ) : iss.fixPath && (
                                       <Link
                                         to={iss.fixPath}
                                         onClick={(e) => e.stopPropagation()}
@@ -2101,6 +2118,15 @@ export default function BillingAndClaims() {
         />
       )}
       <ClaimTimelineDrawer />
+      {pcsCheckTarget && (
+        <PreSubmitChecklist
+          tripId={pcsCheckTarget.tripId}
+          patientId={pcsCheckTarget.patientId}
+          open={!!pcsCheckTarget}
+          onOpenChange={(open) => { if (!open) setPcsCheckTarget(null); }}
+          onSubmit={() => { setPcsCheckTarget(null); fetchData(); }}
+        />
+      )}
     </AdminLayout>
   );
 }

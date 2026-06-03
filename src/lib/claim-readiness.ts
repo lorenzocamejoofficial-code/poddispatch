@@ -122,7 +122,9 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
   // Patients page lives at /patients (no :id segment). We pass the id as a
   // query param so the page can auto-open the editor for the right record.
   const patientPath = claim.patient_id ? `/patients?patientId=${claim.patient_id}` : "/patients";
-  const tripPath = claim.trip_id ? `/pcr?tripId=${claim.trip_id}` : null;
+  // PCR fix links open in admin "QA / biller-fix" mode so the biller stays
+  // inside the admin layout instead of being dropped into the Crew UI.
+  const tripPath = claim.trip_id ? `/pcr?tripId=${claim.trip_id}&mode=qa-fix` : null;
   const claimPath = claim.id ? `/billing?claimId=${claim.id}` : "/billing";
 
   // Build a patient fix URL that merges the patientId param with a focus key.
@@ -341,7 +343,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
         severity: "block",
         stage: "biller",
         message: "Stretcher claim needs a secondary diagnosis supporting bed-confinement",
-        fixPath: claim.trip_id ? `/pcr?tripId=${claim.trip_id}&focus=icd10` : undefined,
+        fixPath: claim.trip_id ? `/pcr?tripId=${claim.trip_id}&mode=qa-fix&focus=icd10` : undefined,
         fixLabel: claim.trip_id ? "Fix in PCR" : undefined,
       });
     }
@@ -394,7 +396,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     try { return locationTypeCode(type ?? null, meta ?? null); } catch { return null; }
   };
   const dialysisFixPath = claim.trip_id
-    ? `/pcr?tripId=${claim.trip_id}&focus=facility`
+    ? `/pcr?tripId=${claim.trip_id}&mode=qa-fix&focus=facility`
     : (claim.id ? `/billing?claimId=${claim.id}&focus=facility` : undefined);
   if (sideIsDialysis(claim.origin_type, claim.origin_facility_meta)) {
     if (resolveSide(claim.origin_type, claim.origin_facility_meta) === "D") {
@@ -466,7 +468,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
         stage: "biller",
         message:
           "Z51.5 (palliative care) alone doesn't support medical necessity — add the terminal-illness diagnosis.",
-        fixPath: claim.trip_id ? `/pcr?tripId=${claim.trip_id}&focus=icd10` : undefined,
+        fixPath: claim.trip_id ? `/pcr?tripId=${claim.trip_id}&mode=qa-fix&focus=icd10` : undefined,
         fixLabel: claim.trip_id ? "Fix in PCR" : undefined,
       });
     }
