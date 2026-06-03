@@ -1052,6 +1052,36 @@ export default function Patients() {
                       ))}
                     </div>
                   </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Race<PCRTooltip text="Patient race (NEMSIS ePatient.14). Optional — used for demographics reporting." /></Label>
+                      <Select value={form.race || "unspecified"} onValueChange={(v) => setForm({ ...form, race: v === "unspecified" ? "" : v })}>
+                        <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unspecified">— Not specified —</SelectItem>
+                          <SelectItem value="American Indian or Alaska Native">American Indian or Alaska Native</SelectItem>
+                          <SelectItem value="Asian">Asian</SelectItem>
+                          <SelectItem value="Black or African American">Black or African American</SelectItem>
+                          <SelectItem value="Native Hawaiian or Other Pacific Islander">Native Hawaiian or Other Pacific Islander</SelectItem>
+                          <SelectItem value="White">White</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                          <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Ethnicity<PCRTooltip text="Patient ethnicity (NEMSIS ePatient.15). Optional — used for demographics reporting." /></Label>
+                      <Select value={form.ethnicity || "unspecified"} onValueChange={(v) => setForm({ ...form, ethnicity: v === "unspecified" ? "" : v })}>
+                        <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unspecified">— Not specified —</SelectItem>
+                          <SelectItem value="Hispanic or Latino">Hispanic or Latino</SelectItem>
+                          <SelectItem value="Not Hispanic or Latino">Not Hispanic or Latino</SelectItem>
+                          <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                    <div data-focus="address"><Label>Pickup Address<PCRTooltip text={ADMIN_TOOLTIPS.pickup_address} /></Label><Input className={ringIfMissing("pickup_address")} value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} placeholder="Street, City, ST ZIP" /></div>
 
                   {/* Home Location Type */}
