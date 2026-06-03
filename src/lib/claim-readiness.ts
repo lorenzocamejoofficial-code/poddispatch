@@ -396,7 +396,7 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     try { return locationTypeCode(type ?? null, meta ?? null); } catch { return null; }
   };
   const dialysisFixPath = claim.trip_id
-    ? `/pcr?tripId=${claim.trip_id}&focus=facility`
+    ? `/pcr?tripId=${claim.trip_id}&mode=qa-fix&focus=facility`
     : (claim.id ? `/billing?claimId=${claim.id}&focus=facility` : undefined);
   if (sideIsDialysis(claim.origin_type, claim.origin_facility_meta)) {
     if (resolveSide(claim.origin_type, claim.origin_facility_meta) === "D") {
