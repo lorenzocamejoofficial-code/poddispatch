@@ -25,9 +25,10 @@ const SEX_OPTIONS = [
 interface PatientInfoCardProps {
   trip: any;
   updateField: (field: string, value: any) => Promise<void>;
+  refetch?: () => Promise<void> | void;
 }
 
-export function PatientInfoCard({ trip, updateField: _updateField }: PatientInfoCardProps) {
+export function PatientInfoCard({ trip, updateField: _updateField, refetch }: PatientInfoCardProps) {
   const patient = trip.patient;
   const transportType = trip.trip_type || trip.pcr_type || "dialysis";
   const transportLabel = TRANSPORT_LABELS[transportType] || transportType;
@@ -35,7 +36,7 @@ export function PatientInfoCard({ trip, updateField: _updateField }: PatientInfo
 
   // Emergency + no patient on file → full NEMSIS-aligned capture form
   if (!patient && transportType === "emergency") {
-    return <UnidentifiedPatientEmergencyCard trip={trip} updateField={_updateField} />;
+    return <UnidentifiedPatientEmergencyCard trip={trip} updateField={_updateField} refetch={refetch} />;
   }
 
   // Auth status logic
