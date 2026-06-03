@@ -1,11 +1,17 @@
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Search, UserPlus, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface Props {
   trip: any;
   updateField: (field: string, value: any) => Promise<void>;
+  refetch?: () => Promise<void> | void;
 }
 
 const RACE_OPTIONS = [
@@ -53,19 +59,139 @@ const BARRIERS = [
   "Cultural / religious",
 ];
 
-export function UnidentifiedPatientEmergencyCard({ trip, updateField }: Props) {
+export function UnidentifiedPatientEmergencyCard({ trip, updateField, refetch }: Props) {
   const data = trip.unidentified_patient_json || {};
+  const [confirmedUnidentified, setConfirmedUnidentified] = useState<boolean>(!!data.confirmed_unidentified);
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<any[]>([]);
+  const [linking, setLinking] = useState(false);
 
   const save = (patch: Record<string, any>) =>
     updateField("unidentified_patient_json", { ...data, ...patch });
 
   const val = (k: string) => data[k] ?? "";
 
+  const runSearch = async () => {
+    const q = query.trim();
+    if (q.length < 2) {
+      toast.info("Type at least 2 characters to search");
+      return;
+    }
+    setSearching(true);
+    const { data: rows, error } = await supabase
+      .from("patients")
+      .select("id, first_name, last_name, dob, sex, primary_payer, member_id")
+      .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,member_id.ilike.%${q}%`)
+      .order("last_name", { ascending: true })
+      .limit(25);
+    setSearching(false);
+    if (error) {
+      toast.error("Search failed");
+      return;
+    }
+    setResults(rows || []);
+    if ((rows || []).length === 0) toast.info("No matching patients on file");
+  };
+
+  const linkPatient = async (patientId: string) => {
+    setLinking(true);
+    const { error } = await supabase
+      .from("trip_records")
+      .update({ patient_id: patientId, updated_at: new Date().toISOString() })
+      .eq("id", trip.id);
+    setLinking(false);
+    if (error) {
+      toast.error("Failed to link patient");
+      return;
+    }
+    toast.success("Patient linked — PCR will prefill");
+    await refetch?.();
+  };
+
+  // Gate: ask first before showing the full unidentified form
+  if (!confirmedUnidentified) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center gap-2">
+          <Badge variant="destructive" className="text-xs">Emergency</Badge>
+          <Badge variant="outline" className="text-xs">No patient linked</Badge>
+        </div>
+
+        <div className="rounded-md border border-border bg-card p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold">Is this patient already in your system?</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Search by name or member ID. If found, link them and the PCR will prefill.
+              Otherwise mark unidentified and capture the demographics manually.
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); runSearch(); } }}
+              placeholder="Last name, first name, or member ID"
+              className="h-10 text-sm"
+            />
+            <Button type="button" onClick={runSearch} disabled={searching} className="h-10">
+              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              <span className="ml-1">Search</span>
+            </Button>
+          </div>
+
+          {results.length > 0 && (
+            <div className="border border-border rounded-md divide-y divide-border max-h-64 overflow-y-auto">
+              {results.map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-3 p-2.5 hover:bg-muted/40">
+                  <div className="text-sm">
+                    <div className="font-medium">{p.last_name}, {p.first_name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      DOB {p.dob || "—"} · {p.sex || "—"} · {p.primary_payer || "No payer"} {p.member_id ? `· ${p.member_id}` : ""}
+                    </div>
+                  </div>
+                  <Button type="button" size="sm" onClick={() => linkPatient(p.id)} disabled={linking}>
+                    Link
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 pt-2 border-t border-border">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setConfirmedUnidentified(true);
+                save({ confirmed_unidentified: true });
+              }}
+              className="h-10"
+            >
+              <UserPlus className="h-4 w-4 mr-1" />
+              Not in system — document as unidentified
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-2">
         <Badge variant="destructive" className="text-xs">Emergency</Badge>
         <Badge variant="outline" className="text-xs">Unidentified / Not on File</Badge>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="ml-auto text-xs h-7"
+          onClick={() => { setConfirmedUnidentified(false); save({ confirmed_unidentified: false }); }}
+        >
+          Search system again
+        </Button>
       </div>
       <p className="text-xs text-muted-foreground -mt-2">
         Patient is not in the system. Capture what you can — NEMSIS / state EMS aligned.
