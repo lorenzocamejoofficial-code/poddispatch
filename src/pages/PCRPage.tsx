@@ -1214,7 +1214,7 @@ export default function PCRPage() {
     const required = getRequiredFieldsForCard(tripTypeForReq, type, payer, trip);
     switch (type) {
       case "times": return <TimesCard trip={trip} recordTime={recordTime} updateField={updateField} updateMultipleFields={updateMultipleFields} />;
-      case "patient_info": return <PatientInfoCard trip={trip} updateField={updateField} />;
+      case "patient_info": return <PatientInfoCard trip={trip} updateField={updateField} refetch={refetch} />;
       case "vitals": return <VitalsCard trip={trip} updateField={updateField} />;
       case "condition_on_arrival": return <ConditionOnArrivalCard trip={trip} updateField={updateField} />;
       case "medical_necessity": return <MedicalNecessityCard trip={trip} updateField={updateField} updateMultipleFields={updateMultipleFields} requiredFields={required} />;
