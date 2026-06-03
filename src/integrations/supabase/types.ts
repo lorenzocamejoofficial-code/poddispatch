@@ -1425,6 +1425,7 @@ export type Database = {
           company_id: string
           completed_at: string | null
           created_at: string
+          direction: string
           error_message: string | null
           eta_used: string | null
           event_type: string
@@ -1437,10 +1438,15 @@ export type Database = {
           payload: Json | null
           queued_at: string | null
           queued_by: string | null
+          recording_duration_seconds: number | null
+          recording_sid: string | null
+          recording_url: string | null
+          retry_of_event_id: string | null
           simulation_run_id: string | null
           status: string
-          trip_id: string
-          truck_id: string
+          to_number: string | null
+          trip_id: string | null
+          truck_id: string | null
           twilio_call_sid: string | null
         }
         Insert: {
@@ -1450,6 +1456,7 @@ export type Database = {
           company_id: string
           completed_at?: string | null
           created_at?: string
+          direction?: string
           error_message?: string | null
           eta_used?: string | null
           event_type: string
@@ -1462,10 +1469,15 @@ export type Database = {
           payload?: Json | null
           queued_at?: string | null
           queued_by?: string | null
+          recording_duration_seconds?: number | null
+          recording_sid?: string | null
+          recording_url?: string | null
+          retry_of_event_id?: string | null
           simulation_run_id?: string | null
           status?: string
-          trip_id: string
-          truck_id: string
+          to_number?: string | null
+          trip_id?: string | null
+          truck_id?: string | null
           twilio_call_sid?: string | null
         }
         Update: {
@@ -1475,6 +1487,7 @@ export type Database = {
           company_id?: string
           completed_at?: string | null
           created_at?: string
+          direction?: string
           error_message?: string | null
           eta_used?: string | null
           event_type?: string
@@ -1487,10 +1500,15 @@ export type Database = {
           payload?: Json | null
           queued_at?: string | null
           queued_by?: string | null
+          recording_duration_seconds?: number | null
+          recording_sid?: string | null
+          recording_url?: string | null
+          retry_of_event_id?: string | null
           simulation_run_id?: string | null
           status?: string
-          trip_id?: string
-          truck_id?: string
+          to_number?: string | null
+          trip_id?: string | null
+          truck_id?: string | null
           twilio_call_sid?: string | null
         }
         Relationships: [
@@ -1506,6 +1524,13 @@ export type Database = {
             columns: ["facility_id"]
             isOneToOne: false
             referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comms_events_retry_of_event_id_fkey"
+            columns: ["retry_of_event_id"]
+            isOneToOne: false
+            referencedRelation: "comms_events"
             referencedColumns: ["id"]
           },
           {
