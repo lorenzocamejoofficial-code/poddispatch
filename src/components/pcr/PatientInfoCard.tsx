@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { PCR_TOOLTIPS } from "@/lib/pcr-tooltips";
 import { PayerFieldIndicator } from "@/components/pcr/PayerFieldIndicator";
+import { UnidentifiedPatientEmergencyCard } from "@/components/pcr/UnidentifiedPatientEmergencyCard";
 
 const TRANSPORT_LABELS: Record<string, string> = {
   dialysis: "Dialysis",
@@ -31,6 +32,11 @@ export function PatientInfoCard({ trip, updateField: _updateField }: PatientInfo
   const transportType = trip.trip_type || trip.pcr_type || "dialysis";
   const transportLabel = TRANSPORT_LABELS[transportType] || transportType;
   const primaryPayer = patient?.primary_payer || null;
+
+  // Emergency + no patient on file → full NEMSIS-aligned capture form
+  if (!patient && transportType === "emergency") {
+    return <UnidentifiedPatientEmergencyCard trip={trip} updateField={_updateField} />;
+  }
 
   // Auth status logic
   const authExpired = patient?.auth_expiration

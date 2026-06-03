@@ -75,6 +75,8 @@ export interface PCRTripData {
   // ICD-10 and weight
   icd10_codes: string[];
   weight_lbs: number | null;
+  // Unidentified emergency patient capture (NEMSIS-aligned, used when no patient on file)
+  unidentified_patient_json: any;
   // Pertinent medical history (NEMSIS eHistory.08) — snapshot at time of transport
   pertinent_history: any;
   // Leg info (joined from scheduling_legs)
@@ -235,6 +237,7 @@ export function usePCRData(
         kicked_back_at: (data as any).kicked_back_at ?? null,
         icd10_codes: Array.isArray((data as any).icd10_codes) ? (data as any).icd10_codes : [],
         weight_lbs: (data as any).weight_lbs ?? null,
+        unidentified_patient_json: (data as any).unidentified_patient_json || {},
         leg_type,
         chair_time,
         patient,
