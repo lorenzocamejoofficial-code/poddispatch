@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Phone, Copy, Check, UserPlus } from "lucide-react";
+import { Phone, Copy, Check, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 interface ActiveEmployee {
@@ -22,7 +22,6 @@ interface CrewInviteSectionProps {
 
 export function CrewInviteSection({ scheduleDate, employees }: CrewInviteSectionProps) {
   const [selectedCrewId, setSelectedCrewId] = useState("");
-  const [sendVia, setSendVia] = useState<"email" | "phone">("phone");
   const [copied, setCopied] = useState(false);
 
   // Filter to only crew members assigned to trucks for this date
@@ -54,10 +53,10 @@ export function CrewInviteSection({ scheduleDate, employees }: CrewInviteSection
         </h3>
       </div>
       <p className="text-xs text-muted-foreground">
-        Send a crew member their login link. They'll sign in with their company credentials to view their assigned runs.
+        Copy a crew member's login link, then paste it into your own text or email. Automated send is not enabled yet.
       </p>
 
-      <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
+      <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
         <div>
           <Label className="text-xs">Crew Member</Label>
           <Select value={selectedCrewId} onValueChange={setSelectedCrewId}>
@@ -75,21 +74,6 @@ export function CrewInviteSection({ scheduleDate, employees }: CrewInviteSection
           </Select>
         </div>
 
-        <div>
-          <Label className="text-xs">Send Via</Label>
-          <Select value={sendVia} onValueChange={v => setSendVia(v as "email" | "phone")}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="phone">
-                <span className="flex items-center gap-1.5"><Phone className="h-3 w-3" /> SMS / Text</span>
-              </SelectItem>
-              <SelectItem value="email">
-                <span className="flex items-center gap-1.5"><Mail className="h-3 w-3" /> Email</span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
         <Button
           onClick={handleCopyInvite}
           disabled={!selectedCrewId}
@@ -103,14 +87,14 @@ export function CrewInviteSection({ scheduleDate, employees }: CrewInviteSection
 
       {selectedCrew && (
         <div className="rounded-md bg-muted p-3 space-y-2">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {sendVia === "phone" && selectedCrew.phone_number ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            {selectedCrew.phone_number ? (
               <Badge variant="secondary" className="text-[10px]">
                 <Phone className="h-2.5 w-2.5 mr-1" /> {selectedCrew.phone_number}
               </Badge>
-            ) : sendVia === "phone" && !selectedCrew.phone_number ? (
-              <Badge variant="destructive" className="text-[10px]">No phone on file</Badge>
-            ) : null}
+            ) : (
+              <Badge variant="outline" className="text-[10px]">No phone on file</Badge>
+            )}
           </div>
           <pre className="text-xs text-foreground whitespace-pre-wrap font-sans leading-relaxed">
             {buildInviteMessage(selectedCrew)}
