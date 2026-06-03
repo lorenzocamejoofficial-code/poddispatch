@@ -101,7 +101,7 @@ const navSections: NavSection[] = [
     id: "billing",
     label: "Billing",
     items: [
-      { path: "/billing", label: "Money", icon: DollarSign, roles: ["owner", "manager", "billing"] },
+      { path: "/billing", label: "Billing & Claims", icon: DollarSign, roles: ["owner", "manager", "billing"] },
       { path: "/reports", label: "Reports & Metrics", icon: BarChart3, roles: ["owner", "manager", "billing"] },
     ],
   },
