@@ -1,0 +1,3 @@
+ALTER TABLE public.patients
+  ADD COLUMN IF NOT EXISTS race TEXT,
+  ADD COLUMN IF NOT EXISTS ethnicity TEXT;
