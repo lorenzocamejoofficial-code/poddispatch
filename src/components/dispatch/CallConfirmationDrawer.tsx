@@ -66,6 +66,23 @@ export function CallConfirmationDrawer({
   const [eta, setEta] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [holdMinutes, setHoldMinutes] = useState<number | null>(null);
+  const [callbackNumber, setCallbackNumber] = useState<string | null>(null);
+
+  // Pull the tenant's verified caller ID so the spoken message tells callers
+  // to dial the company's real number instead of the shared Twilio line.
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      const { data: companyData } = await supabase.rpc("get_my_company_id");
+      if (!companyData) return;
+      const { data: settings } = await supabase
+        .from("company_settings")
+        .select("verified_caller_id")
+        .eq("company_id", companyData as string)
+        .maybeSingle();
+      setCallbackNumber(((settings as any)?.verified_caller_id as string | null) ?? null);
+    })();
+  }, [open]);
 
   // Fetch hold timer duration if active on this trip
   useEffect(() => {
@@ -97,14 +114,17 @@ export function CallConfirmationDrawer({
   }, [open, pickupTime, holdMinutes]);
 
   const firstName = patientName.split(" ")[0];
-  const companyPhone = "our office"; // Placeholder — would come from company_settings in production
+  const companyPhone = callbackNumber ?? "our office";
+  const callbackSentence = callbackNumber
+    ? `If you have any questions please call us back at ${companyPhone}.`
+    : "If you have any questions please call our office.";
 
   const message = useMemo(() => {
     if (callType === "patient") {
-      return `Hello, this is a message for ${firstName}. This is ${companyName} calling. We are running a little behind on your scheduled pickup today at ${pickupTime ?? "your scheduled time"}. We expect to arrive at approximately ${eta}. We apologize for the inconvenience. If you have any questions please call us at ${companyPhone}.`;
+      return `Hello, this is a message for ${firstName}. This is ${companyName} calling. We are running a little behind on your scheduled pickup today at ${pickupTime ?? "your scheduled time"}. We expect to arrive at approximately ${eta}. We apologize for the inconvenience. ${callbackSentence}`;
     }
-    return `Hello, this is a message for ${facilityName ?? "your facility"}. This is ${companyName} calling regarding your patient ${patientName}. We are running a little behind on their scheduled pickup today at ${pickupTime ?? "the scheduled time"}. We expect to arrive at approximately ${eta}. We apologize for any inconvenience. Please call us at ${companyPhone} if you have any questions.`;
-  }, [callType, firstName, patientName, facilityName, companyName, pickupTime, eta, companyPhone]);
+    return `Hello, this is a message for ${facilityName ?? "your facility"}. This is ${companyName} calling regarding your patient ${patientName}. We are running a little behind on their scheduled pickup today at ${pickupTime ?? "the scheduled time"}. We expect to arrive at approximately ${eta}. We apologize for any inconvenience. ${callbackSentence}`;
+  }, [callType, firstName, patientName, facilityName, companyName, pickupTime, eta, callbackSentence]);
 
   const targetName = callType === "patient" ? patientName : (facilityName ?? "Unknown Facility");
   const targetPhone = callType === "patient" ? patientPhone : facilityPhone;
