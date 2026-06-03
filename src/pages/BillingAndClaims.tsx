@@ -1557,6 +1557,11 @@ export default function BillingAndClaims() {
 
                   {/* List */}
                   <div className={`rounded-lg border p-3 ${activeCol.color}`}>
+                    {statusTab === "ready_to_bill" && (
+                      <div className="mb-3">
+                        <JustArrivedRibbon claims={filteredAll as any} />
+                      </div>
+                    )}
                     {colClaims.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-8">No claims in {activeCol.label}</p>
                     ) : (
