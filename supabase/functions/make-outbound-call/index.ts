@@ -212,6 +212,9 @@ Deno.serve(async (req) => {
   formData.append("StatusCallbackEvent", "ringing");
   formData.append("StatusCallbackEvent", "answered");
   formData.append("StatusCallbackEvent", "completed");
+  // Twilio sends a separate POST to this same callback URL when a recording finishes.
+  formData.append("RecordingStatusCallback", statusCallback);
+  formData.append("RecordingStatusCallbackMethod", "POST");
 
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${ACCOUNT_SID}/Calls.json`;
   const basicAuth = btoa(`${ACCOUNT_SID}:${AUTH_TOKEN}`);
