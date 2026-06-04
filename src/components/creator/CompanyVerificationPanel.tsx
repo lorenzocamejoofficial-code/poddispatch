@@ -312,9 +312,7 @@ function getOverallStatus(r: VerificationResult): "pass" | "review" | "fail" | "
 async function checkNPI(npi: string | null, companyName: string, companyId: string): Promise<VerificationResult["npi"]> {
   if (!npi) return { status: "not_found", error: "No NPI number provided" };
   try {
-    const { data, error } = await supabase.functions.invoke("verify-npi", {
-      body: { npi, company_name: companyName, company_id: companyId },
-    });
+      const { data, error } = await invokeFunctionWithTimeout("verify-npi", { npi, company_name: companyName, company_id: companyId }, "NPI lookup");
     if (error) throw new Error(error.message);
     return data;
   } catch (err: any) {
@@ -325,9 +323,7 @@ async function checkNPI(npi: string | null, companyName: string, companyId: stri
 async function checkMedicare(npi: string | null, companyId: string): Promise<VerificationResult["medicare"]> {
   if (!npi) return { status: "not_enrolled", error: "No NPI number provided" };
   try {
-    const { data, error } = await supabase.functions.invoke("verify-medicare", {
-      body: { npi, company_id: companyId },
-    });
+      const { data, error } = await invokeFunctionWithTimeout("verify-medicare", { npi, company_id: companyId }, "Medicare lookup");
     if (error) throw new Error(error.message);
     return data;
   } catch (err: any) {
@@ -337,9 +333,7 @@ async function checkMedicare(npi: string | null, companyId: string): Promise<Ver
 
 async function checkOIG(name: string, state: string | null, companyId: string): Promise<VerificationResult["oig"]> {
   try {
-    const { data, error } = await supabase.functions.invoke("verify-oig", {
-      body: { name, state, company_id: companyId },
-    });
+    const { data, error } = await invokeFunctionWithTimeout("verify-oig", { name, state, company_id: companyId }, "OIG lookup");
     if (error) throw new Error(error.message);
     // Never show "not_excluded" on error — keep as pending/unknown
     return data;
