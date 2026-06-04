@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SchedulingProvider } from "@/hooks/useSchedulingStore";
 import { SimulationSessionProvider } from "@/hooks/useSimulationSession";
 import { HipaaAcknowledgmentGate } from "@/components/compliance/HipaaAcknowledgmentGate";
+import { MfaEnrollmentGate } from "@/components/compliance/MfaEnrollmentGate";
 // Eagerly load only what's needed for first paint on the public/auth path.
 import Login from "./pages/Login";
 import Index from "./pages/Index";
@@ -422,6 +423,7 @@ function AppRoutes() {
   if (role === "dispatcher") {
     return (
       <HipaaAcknowledgmentGate>
+        <MfaEnrollmentGate>
         <SchedulingProvider>
           <Routes>
             <Route path="/" element={<DispatchBoard />} />
@@ -446,6 +448,7 @@ function AppRoutes() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </SchedulingProvider>
+        </MfaEnrollmentGate>
       </HipaaAcknowledgmentGate>
     );
   }
@@ -454,6 +457,7 @@ function AppRoutes() {
   if (role === "biller") {
     return (
       <HipaaAcknowledgmentGate>
+        <MfaEnrollmentGate>
         <SchedulingProvider>
           <Routes>
             <Route path="/" element={<Navigate to="/trips" replace />} />
@@ -477,12 +481,14 @@ function AppRoutes() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </SchedulingProvider>
+        </MfaEnrollmentGate>
       </HipaaAcknowledgmentGate>
     );
   }
 
   // Admin role — full access
   return (
+    <MfaEnrollmentGate>
     <SchedulingProvider>
       <Routes>
         <Route path="/pending-approval" element={<PendingApproval />} />
@@ -522,6 +528,7 @@ function AppRoutes() {
         <Route path="*" element={<NotFound />} />
       </Routes>
     </SchedulingProvider>
+    </MfaEnrollmentGate>
   );
 }
 
