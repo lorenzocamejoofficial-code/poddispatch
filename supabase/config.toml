@@ -90,6 +90,9 @@ verify_jwt = false
 [functions.send-employee-invite]
 verify_jwt = false
 
+[functions.resend-signup-ack]
+verify_jwt = false
+
 [functions.ingest-acks-officeally]
 verify_jwt = false
 
