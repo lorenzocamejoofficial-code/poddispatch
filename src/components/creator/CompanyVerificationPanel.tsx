@@ -89,17 +89,14 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
     onVerificationComplete?.(newResults);
 
     // Store verified_by via service-role edge function (RLS prevents direct client update).
+    // Silent on failure — the verification results themselves are already displayed and persisted.
     try {
       const { error } = await supabase.functions.invoke("mark-company-verified", {
         body: { company_id: company.id },
       });
-      if (error) {
-        console.error("Failed to store verified_by:", error);
-        toast.error(`Failed to record verification: ${error.message ?? "unknown error"}`);
-      }
+      if (error) console.error("Failed to store verified_by:", error);
     } catch (err: any) {
       console.error("Failed to store verified_by:", err);
-      toast.error(`Failed to record verification: ${err?.message ?? "unknown error"}`);
     }
 
     setLoading(false);
@@ -183,10 +180,56 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
         {/* 4. Manual checks */}
         <div className="border-t pt-3 space-y-3">
           <p className="text-xs font-medium text-foreground">Manual Verification Links</p>
+          <p className="text-[11px] text-muted-foreground -mt-1">
+            Use these for any check that comes back Unknown, Pending, or Not Found. Automated lookups require a valid NPI and a name that matches federal registries.
+          </p>
 
           <div className="flex items-start gap-3">
             <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" asChild>
-              <a href="https://dph.georgia.gov/EMS/ems-licensure/ems-agency-licensure" target="_blank" rel="noopener noreferrer">
+              <a
+                href={`https://exclusions.oig.hhs.gov/Default.aspx`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                OIG LEIE Search <ExternalLink className="h-3 w-3" />
+              </a>
+            </Button>
+            <p className="text-xs text-muted-foreground">Search by entity name: <span className="font-medium text-foreground">{company.name}</span></p>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" asChild>
+              <a
+                href={`https://npiregistry.cms.hhs.gov/search?number=${encodeURIComponent(company.npi_number || "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                NPI Registry Lookup <ExternalLink className="h-3 w-3" />
+              </a>
+            </Button>
+            <p className="text-xs text-muted-foreground">NPI: <span className="font-medium text-foreground">{company.npi_number || "—"}</span></p>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" asChild>
+              <a
+                href={`https://www.medicare.gov/care-compare/results?searchType=Provider&npi=${encodeURIComponent(company.npi_number || "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Medicare Enrollment Lookup <ExternalLink className="h-3 w-3" />
+              </a>
+            </Button>
+            <p className="text-xs text-muted-foreground">Confirm ambulance enrollment for NPI <span className="font-medium text-foreground">{company.npi_number || "—"}</span></p>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" asChild>
+              <a
+                href="https://dph.georgia.gov/EMS/ems-licensure/ems-agency-licensure"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Check Georgia DPH License <ExternalLink className="h-3 w-3" />
               </a>
             </Button>
@@ -195,11 +238,15 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
 
           <div className="flex items-start gap-3">
             <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" asChild>
-              <a href="https://ecorp.sos.ga.us/BusinessSearch" target="_blank" rel="noopener noreferrer">
+              <a
+                href={`https://ecorp.sos.ga.us/BusinessSearch/BusinessSearchResults?businessName=${encodeURIComponent(company.name)}&searchType=Contains`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Check GA Business Registration <ExternalLink className="h-3 w-3" />
               </a>
             </Button>
-            <p className="text-xs text-muted-foreground">Search for: <span className="font-medium text-foreground">{company.name}</span></p>
+            <p className="text-xs text-muted-foreground">Pre-filled search for: <span className="font-medium text-foreground">{company.name}</span></p>
           </div>
         </div>
       </CardContent>
