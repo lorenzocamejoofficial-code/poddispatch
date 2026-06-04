@@ -338,7 +338,7 @@ Deno.serve(async (req) => {
 
     // ── Patient not ready ──
     if (body.action === "not_ready") {
-      const { leg_id, note, company_id } = body;
+      const { leg_id, note } = body;
       if (!leg_id) {
         return jsonResponse({ error: "Missing leg_id" }, 400);
       }
@@ -358,7 +358,7 @@ Deno.serve(async (req) => {
       const { data: inserted, error: insertErr } = await supabaseAdmin
         .from("operational_alerts")
         .insert({
-          company_id: company_id ?? null,
+          company_id: (tokenRow as any).company_id ?? null,
           run_date: scheduleDate,
           truck_id: tokenRow.truck_id,
           leg_id,
