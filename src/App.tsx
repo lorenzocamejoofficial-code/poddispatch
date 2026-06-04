@@ -359,6 +359,7 @@ function AppRoutes() {
           <Route path="/system" element={<SystemCreatorDashboard />} />
           <Route path="/creator-console" element={<CreatorConsole />} />
           <Route path="/creator-settings" element={<CreatorSettings />} />
+          <Route path="/creator-playbook" element={<CreatorPlaybook />} />
           <Route path="/simulation-lab" element={<SimulationLab />} />
           <Route path="/crew-preview" element={<CrewUIPreview />} />
           <Route path="/override-monitor" element={<OverrideMonitor />} />
