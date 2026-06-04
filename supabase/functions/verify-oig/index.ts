@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
     const resp = await fetch(`https://ofisapi.oig.hhs.gov/api/exclusions/search?${params.toString()}`);
 
     if (!resp.ok) {
-      return new Response(JSON.stringify({ status: "pending", error: "OIG API unavailable — manual check recommended" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ status: "pending", error: "OIG API unavailable. Use the OIG LEIE Search link below to confirm manually." }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const data = await resp.json();
@@ -53,7 +53,13 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify(result), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  } catch (err: any) {
-    return new Response(JSON.stringify({ status: "pending", error: err.message || "OIG lookup failed" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  } catch (_err) {
+    return new Response(
+      JSON.stringify({
+        status: "pending",
+        error: "OIG LEIE has no public API reachable from our servers. Use the OIG LEIE Search link below to verify manually.",
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
 });
