@@ -33,6 +33,12 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [companyName, setCompanyName] = useState("PodDispatch");
+  // MFA challenge (TOTP) — set after signIn when the user has 2FA enrolled
+  // and the session AAL needs to be upgraded from aal1 to aal2.
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [mfaChallengeId, setMfaChallengeId] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaSubmitting, setMfaSubmitting] = useState(false);
   const { user, role, isSystemCreator, activeCompanyId, loading: authLoading, membershipLoaded, signIn, signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -45,6 +51,8 @@ export default function Login() {
   // which previously caused a brief 404 flash.
   useEffect(() => {
     if (authLoading || !user || !membershipLoaded) return;
+    // Don't auto-route while a TOTP challenge is pending.
+    if (mfaFactorId) return;
 
     if (!isSystemCreator && !activeCompanyId) {
       navigate("/create-company", { replace: true });
@@ -90,7 +98,7 @@ export default function Login() {
     }
 
     navigate(getRoleLanding(role, isSystemCreator), { replace: true });
-  }, [user, role, isSystemCreator, activeCompanyId, authLoading, membershipLoaded, navigate, tokenRedirect, signOut]);
+  }, [user, role, isSystemCreator, activeCompanyId, authLoading, membershipLoaded, navigate, tokenRedirect, signOut, mfaFactorId]);
 
   useEffect(() => {
     supabase
@@ -119,9 +127,96 @@ export default function Login() {
       setError(signInError === "Invalid login credentials"
         ? "Invalid email or password. Contact your dispatcher if you need help."
         : signInError);
+      setLoading(false);
+      return;
+    }
+    // Check whether MFA is required for this session.
+    try {
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (aal?.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
+        const { data: factors } = await supabase.auth.mfa.listFactors();
+        const verified = (factors?.totp ?? []).find((f: any) => f.status === "verified");
+        if (verified) {
+          const { data: ch, error: chErr } = await supabase.auth.mfa.challenge({ factorId: verified.id });
+          if (!chErr && ch) {
+            setMfaFactorId(verified.id);
+            setMfaChallengeId(ch.id);
+          }
+        }
+      }
+    } catch (e) {
+      // Non-fatal: if MFA check fails, fall through to normal redirect.
+      console.warn("MFA check failed", e);
     }
     setLoading(false);
   };
+
+  const handleMfaVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaFactorId || !mfaChallengeId) return;
+    setMfaSubmitting(true);
+    setError("");
+    const { error: vErr } = await supabase.auth.mfa.verify({
+      factorId: mfaFactorId,
+      challengeId: mfaChallengeId,
+      code: mfaCode.trim(),
+    });
+    setMfaSubmitting(false);
+    if (vErr) {
+      setError(vErr.message || "Incorrect code. Try again.");
+      return;
+    }
+    setMfaFactorId(null);
+    setMfaChallengeId(null);
+    setMfaCode("");
+  };
+
+  const cancelMfa = async () => {
+    setMfaFactorId(null);
+    setMfaChallengeId(null);
+    setMfaCode("");
+    await signOut();
+  };
+
+  // Render the TOTP challenge instead of the landing/login form when pending.
+  if (mfaFactorId) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <div className="w-full max-w-sm">
+          <div className="mb-6 text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-primary shadow-md">
+              <ShieldCheck className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-foreground">Two-Factor Verification</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Enter the 6-digit code from your authenticator app.</p>
+          </div>
+          <form onSubmit={handleMfaVerify} className="space-y-4">
+            {error && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="mfa-code">Authentication code</Label>
+              <Input
+                id="mfa-code"
+                inputMode="numeric"
+                maxLength={6}
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="123456"
+                autoFocus
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={mfaSubmitting || mfaCode.length < 6}>
+              {mfaSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying…</> : "Verify"}
+            </Button>
+            <button type="button" onClick={cancelMfa} className="w-full text-xs text-muted-foreground hover:text-foreground">
+              Cancel and sign out
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   // Landing page — two clear entry points
   if (mode === "landing") {

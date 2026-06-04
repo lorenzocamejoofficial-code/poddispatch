@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { TwoFactorSection } from "@/components/account/TwoFactorSection";
 
 export default function AccountSettings() {
   const { user } = useAuth();
@@ -121,6 +122,9 @@ export default function AccountSettings() {
             </form>
           </CardContent>
         </Card>
+
+        {/* Two-Factor Authentication */}
+        <TwoFactorSection />
 
         {/* Legal & Compliance */}
         <Card>
