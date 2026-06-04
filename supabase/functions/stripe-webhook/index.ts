@@ -69,6 +69,8 @@ serve(async (req) => {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const companyId = session.metadata?.company_id;
+        const planId = session.metadata?.plan_id ?? null;
+        const isFounding = session.metadata?.is_founding === "true";
         const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
         const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
 
@@ -87,6 +89,8 @@ serve(async (req) => {
             .from("subscription_records")
             .update({
               subscription_status: "active",
+              plan_id: planId,
+              is_founding: isFounding,
               stripe_customer_id: customerId ?? null,
               stripe_subscription_id: subscriptionId ?? null,
               current_period_end: currentPeriodEnd,
@@ -120,11 +124,15 @@ serve(async (req) => {
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
         const companyId = sub.metadata?.company_id;
+        const planId = sub.metadata?.plan_id ?? undefined;
+        const isFounding = sub.metadata?.is_founding === "true";
         const update: Record<string, unknown> = {
           subscription_status: sub.status,
           current_period_end: new Date((sub.current_period_end ?? 0) * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         };
+        if (planId) update.plan_id = planId;
+        if (sub.metadata?.is_founding !== undefined) update.is_founding = isFounding;
         const query = supabase.from("subscription_records").update(update);
         const { error } = companyId
           ? await query.eq("company_id", companyId)
@@ -148,6 +156,22 @@ serve(async (req) => {
           ? await query.eq("company_id", companyId)
           : await query.eq("stripe_subscription_id", sub.id);
         if (error) console.error("subscription_records cancel failed:", error);
+        return new Response(JSON.stringify({ received: true }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "invoice.payment_failed": {
+        const inv = event.data.object as Stripe.Invoice;
+        const subscriptionId = typeof inv.subscription === "string" ? inv.subscription : inv.subscription?.id;
+        if (subscriptionId) {
+          const { error } = await supabase
+            .from("subscription_records")
+            .update({ subscription_status: "past_due", updated_at: new Date().toISOString() })
+            .eq("stripe_subscription_id", subscriptionId);
+          if (error) console.error("invoice.payment_failed update failed:", error);
+        }
         return new Response(JSON.stringify({ received: true }), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

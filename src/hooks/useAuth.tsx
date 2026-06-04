@@ -186,11 +186,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setNeedsCompanySelection(false);
       const [{ data: companyData }, { data: subData }, { data: migData }] = await Promise.all([
         supabase.from("companies").select("onboarding_status").eq("id", resolvedCompanyId).maybeSingle(),
-        supabase.from("subscription_records").select("subscription_status").eq("company_id", resolvedCompanyId).maybeSingle(),
+        supabase.from("subscription_records").select("subscription_status, trial_ends_at").eq("company_id", resolvedCompanyId).maybeSingle(),
         supabase.from("migration_settings").select("wizard_completed").eq("company_id", resolvedCompanyId).maybeSingle(),
       ]);
       if (companyData) setOnboardingStatus(companyData.onboarding_status as OnboardingStatus);
-      setSubscriptionStatus(subData?.subscription_status ?? null);
+      // Compute effective status: flip 'trial' to 'trial_expired' once the
+      // trial_ends_at timestamp has passed. The webhook / nightly cron can
+      // persist the flip later; this guarantees the UI gate is correct
+      // immediately on day 31.
+      let effectiveStatus = subData?.subscription_status ?? null;
+      const trialEndsAt = (subData as any)?.trial_ends_at;
+      if (effectiveStatus === "trial" && trialEndsAt && new Date(trialEndsAt).getTime() <= Date.now()) {
+        effectiveStatus = "trial_expired";
+      }
+      setSubscriptionStatus(effectiveStatus);
       setWizardCompleted(migData ? (migData as any).wizard_completed : null);
     } else {
       setRole(null);
