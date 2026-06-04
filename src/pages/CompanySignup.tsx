@@ -203,6 +203,7 @@ export default function CompanySignup() {
       });
 
       if (signInError) throw new Error(signInError.message);
+      try { sessionStorage.removeItem("signup_draft"); } catch { /* ignore */ }
       navigate("/pending-approval");
     } catch (err: any) {
       const msg = (err.message || "").toLowerCase();
