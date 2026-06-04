@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { seedChargeMasterForNewCompany } from "../_shared/seed-charge-master.ts";
+import { sendViaResend } from "../_shared/send-via-resend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
