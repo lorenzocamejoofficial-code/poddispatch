@@ -134,6 +134,9 @@ export async function sendViaResend(input: SendEmailInput): Promise<SendEmailRes
         html: input.html,
         ...(input.text ? { text: input.text } : {}),
         ...(input.reply_to ? { reply_to: input.reply_to } : {}),
+        ...(input.attachments && input.attachments.length > 0
+          ? { attachments: input.attachments }
+          : {}),
       }),
     });
 
