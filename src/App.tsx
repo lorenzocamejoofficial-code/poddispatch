@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SchedulingProvider } from "@/hooks/useSchedulingStore";
 import { SimulationSessionProvider } from "@/hooks/useSimulationSession";
 import { HipaaAcknowledgmentGate } from "@/components/compliance/HipaaAcknowledgmentGate";
+import { MfaEnrollmentGate } from "@/components/compliance/MfaEnrollmentGate";
 // Eagerly load only what's needed for first paint on the public/auth path.
 import Login from "./pages/Login";
 import Index from "./pages/Index";
