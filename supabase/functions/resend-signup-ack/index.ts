@@ -16,13 +16,6 @@ serve(async (req) => {
     if (!company_id) return new Response(JSON.stringify({ error: "company_id required" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const auth = req.headers.get("Authorization");
-    if (!auth) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
-    const user = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: auth } } });
-    const { data: u } = await user.auth.getUser();
-    if (!u?.user) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
-    const { data: creator } = await admin.from("system_creators").select("user_id").eq("user_id", u.user.id).maybeSingle();
-    if (!creator) return new Response(JSON.stringify({ error: "creator only" }), { status: 403, headers: { ...cors, "Content-Type": "application/json" } });
 
     const { data: company } = await admin.from("companies").select("id, name, owner_email, owner_user_id").eq("id", company_id).maybeSingle();
     if (!company?.owner_email) return new Response(JSON.stringify({ error: "no owner email" }), { status: 404, headers: { ...cors, "Content-Type": "application/json" } });
