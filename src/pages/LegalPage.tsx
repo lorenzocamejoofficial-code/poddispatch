@@ -19,16 +19,17 @@ function LegalFooter() {
 export default function LegalPage() {
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "terms";
+  const fromSignup = searchParams.get("from") === "signup";
 
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-3xl px-4 py-8">
         <div className="mb-6">
           <Link
-            to="/login"
+            to={fromSignup ? "/signup" : "/login"}
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
-            <ArrowLeft className="h-4 w-4" /> Back to Login
+            <ArrowLeft className="h-4 w-4" /> {fromSignup ? "Back to Sign Up" : "Back to Login"}
           </Link>
         </div>
 
