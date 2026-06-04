@@ -63,6 +63,7 @@ const CrewSchedulePage = lazyRoute(() => import("./pages/crew/CrewSchedule"));
 const OnboardingWizard = lazyRoute(() => import("./pages/OnboardingWizard"));
 const TrialExpired = lazyRoute(() => import("./pages/TrialExpired"));
 const CompletePayment = lazyRoute(() => import("./pages/CompletePayment"));
+const ChoosePlan = lazyRoute(() => import("./pages/ChoosePlan"));
 const EDIExport = lazyRoute(() => import("./pages/EDIExport"));
 const LegalPage = lazyRoute(() => import("./pages/LegalPage"));
 const RemittanceImport = lazyRoute(() => import("./pages/RemittanceImport"));
@@ -288,6 +289,7 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/complete-payment" element={<CompletePayment />} />
+        <Route path="/choose-plan" element={<ChoosePlan />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/complete-payment" replace />} />
       </Routes>
@@ -310,6 +312,7 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/trial-expired" element={<TrialExpired />} />
+        <Route path="/choose-plan" element={<ChoosePlan />} />
         <Route path="*" element={<Navigate to="/trial-expired" replace />} />
       </Routes>
     );
@@ -485,6 +488,7 @@ function AppRoutes() {
         <Route path="/pending-approval" element={<PendingApproval />} />
         <Route path="/onboarding" element={<OnboardingWizard />} />
         <Route path="/trial-expired" element={<TrialExpired />} />
+        <Route path="/choose-plan" element={<ChoosePlan />} />
         {/* Owners land on a role-aware redirector; per the audit, the
          * Lovable placeholder Index is replaced with role-based routing. */}
         <Route path="/" element={<Index />} />
