@@ -1869,6 +1869,116 @@ export type Database = {
           },
         ]
       }
+      creator_playbook_chats: {
+        Row: {
+          author_id: string
+          created_at: string
+          id: string
+          messages: Json
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          created_at?: string
+          id?: string
+          messages?: Json
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          id?: string
+          messages?: Json
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      creator_playbook_notes: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          playbook_id: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          playbook_id: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          playbook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_playbook_notes_playbook_id_fkey"
+            columns: ["playbook_id"]
+            isOneToOne: false
+            referencedRelation: "creator_playbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creator_playbooks: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          is_seeded: boolean
+          legal_clock: string | null
+          refs: Json
+          scripts: Json
+          severity: string
+          slug: string
+          steps: Json
+          summary: string
+          title: string
+          updated_at: string
+          when_it_applies: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          is_seeded?: boolean
+          legal_clock?: string | null
+          refs?: Json
+          scripts?: Json
+          severity: string
+          slug: string
+          steps?: Json
+          summary: string
+          title: string
+          updated_at?: string
+          when_it_applies: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_seeded?: boolean
+          legal_clock?: string | null
+          refs?: Json
+          scripts?: Json
+          severity?: string
+          slug?: string
+          steps?: Json
+          summary?: string
+          title?: string
+          updated_at?: string
+          when_it_applies?: string
+        }
+        Relationships: []
+      }
       creator_recovery_attempts: {
         Row: {
           created_at: string
