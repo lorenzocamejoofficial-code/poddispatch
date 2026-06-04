@@ -139,53 +139,72 @@ Deno.serve(async (req) => {
     // singleton (PodDispatch is the registered Office Ally vendor for all tenants).
     const { data: vendor } = await supabase
       .from("vendor_clearinghouse_settings")
-      .select("submitter_id, test_mode")
+      .select("submitter_id, test_mode, eligibility_rest_url_test, eligibility_rest_url_prod")
       .limit(1)
       .maybeSingle();
     const isTestMode = (vendor as any)?.test_mode === true;
-    const eligibilityUrl = isTestMode ? OA_ELIGIBILITY_URL_TEST : OA_ELIGIBILITY_URL_PROD;
+    const eligibilityUrl = (
+      isTestMode
+        ? (vendor as any)?.eligibility_rest_url_test
+        : (vendor as any)?.eligibility_rest_url_prod
+    ) as string | null;
     const submitterId = (((vendor as any)?.submitter_id) ?? oaUsername).toString();
+
+    if (!eligibilityUrl) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Office Ally REST eligibility endpoint is not set${isTestMode ? " (test mode)" : ""}. The system creator must paste the OA REST URL into Vendor Clearinghouse Settings once your Office Ally eligibility product is active.`,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const serviceDate = run_date ?? new Date().toISOString().split("T")[0];
 
-    // Build 270 eligibility inquiry
-    const controlNum = String(Math.floor(Math.random() * 999999999)).padStart(9, "0");
-    const dateStr = serviceDate.replace(/-/g, "");
-    const ES = "*";
-    const ST = "~";
+    // Build the REST JSON 270 inquiry. This shape follows the standard 270
+    // payload Office Ally documents for its real-time JSON eligibility API
+    // (information source / receiver / subscriber / service-type code 30 =
+    // health benefit plan coverage). If OA's published schema differs in
+    // field names, this is the single place to adjust.
+    const inquiryPayload = {
+      submitter: {
+        id: submitterId,
+        name: "PODDISPATCH",
+      },
+      receiver: {
+        id: "OFFICEALLY",
+        name: "OFFICE ALLY",
+      },
+      payer: {
+        id: patient.primary_payer ?? "MEDICARE",
+        name: patient.primary_payer ?? "MEDICARE",
+      },
+      provider: {
+        npi: "0000000000",
+        name: "PROVIDER",
+      },
+      subscriber: {
+        firstName: patient.first_name ?? "",
+        lastName: patient.last_name ?? "",
+        memberId: patient.member_id ?? "",
+        dob: patient.dob ?? null,
+      },
+      serviceDate,
+      serviceTypeCodes: ["30"],
+      testMode: isTestMode,
+    };
 
-    // ISA15: 'P' = production, 'T' = test/sandbox.
-    const usageIndicator = isTestMode ? "T" : "P";
-    const segments = [
-      `ISA${ES}00${ES}          ${ES}00${ES}          ${ES}ZZ${ES}${submitterId.padEnd(15)}${ES}ZZ${ES}${"OFFICEALLY".padEnd(15)}${ES}${dateStr.slice(2, 6)}${dateStr.slice(6, 8)}${ES}${new Date().getHours().toString().padStart(2, "0")}${new Date().getMinutes().toString().padStart(2, "0")}${ES}^${ES}00501${ES}${controlNum}${ES}0${ES}${usageIndicator}${ES}:${ST}`,
-      `GS${ES}HS${ES}${submitterId}${ES}OFFICEALLY${ES}${dateStr}${ES}${new Date().getHours().toString().padStart(2, "0")}${new Date().getMinutes().toString().padStart(2, "0")}${ES}${controlNum}${ES}X${ES}005010X279A1${ST}`,
-      `ST${ES}270${ES}0001${ES}005010X279A1${ST}`,
-      `BHT${ES}0022${ES}13${ES}${controlNum}${ES}${dateStr}${ST}`,
-      `HL${ES}1${ES}${ES}20${ES}1${ST}`,
-      `NM1${ES}PR${ES}2${ES}${patient.primary_payer ?? "MEDICARE"}${ES}${ES}${ES}${ES}${ES}PI${ES}${patient.primary_payer ?? "MEDICARE"}${ST}`,
-      `HL${ES}2${ES}1${ES}21${ES}1${ST}`,
-      `NM1${ES}1P${ES}2${ES}PROVIDER${ES}${ES}${ES}${ES}${ES}XX${ES}0000000000${ST}`,
-      `HL${ES}3${ES}2${ES}22${ES}0${ST}`,
-      `NM1${ES}IL${ES}1${ES}${patient.last_name ?? ""}${ES}${patient.first_name ?? ""}${ES}${ES}${ES}${ES}MI${ES}${patient.member_id ?? ""}${ST}`,
-      `DMG${ES}D8${ES}${(patient.dob ?? "19000101").replace(/-/g, "")}${ST}`,
-      `DTP${ES}291${ES}D8${ES}${dateStr}${ST}`,
-      `EQ${ES}30${ST}`,
-      `SE${ES}13${ES}0001${ST}`,
-      `GE${ES}1${ES}${controlNum}${ST}`,
-      `IEA${ES}1${ES}${controlNum}${ST}`,
-    ];
-
-    const edi270 = segments.join("\n");
-
-    // Submit to Office Ally eligibility endpoint
+    // Submit to the Office Ally REST eligibility endpoint
     try {
       const response = await fetch(eligibilityUrl, {
         method: "POST",
         headers: {
-          "Content-Type": "application/EDI-X12",
+          "Content-Type": "application/json",
+          "Accept": "application/json",
           "Authorization": "Basic " + btoa(`${oaUsername}:${oaPassword}`),
         },
-        body: edi270,
+        body: JSON.stringify(inquiryPayload),
       });
 
       const responseText = await response.text();
@@ -196,64 +215,46 @@ Deno.serve(async (req) => {
       let responseSummary = "";
 
       if (response.ok) {
-        // Try to parse the 271 response
+        // Parse the JSON 271 response. We accept several common field
+        // shapes so minor differences in OA's payload don't break us.
         let responseData: any = {};
         try {
           responseData = JSON.parse(responseText);
         } catch {
-          // Try parsing as EDI 271
-          if (responseText.includes("271")) {
-            // Look for EB segments (eligibility/benefit information)
-            const ebMatches = responseText.match(/EB\*[^~]+/g) ?? [];
-            for (const eb of ebMatches) {
-              const parts = eb.split("*");
-              const infoCode = parts[1] ?? "";
-              // EB*1 = Active Coverage, EB*6 = Inactive
-              if (infoCode === "1") {
-                isEligible = true;
-                responseSummary = "Active coverage confirmed";
-              } else if (infoCode === "6") {
-                isEligible = false;
-                responseSummary = "Coverage is inactive";
-              }
-            }
-
-            // Look for DTP segments with coverage dates
-            const dtpMatches = responseText.match(/DTP\*[^~]+/g) ?? [];
-            for (const dtp of dtpMatches) {
-              const parts = dtp.split("*");
-              const qualifier = parts[1] ?? "";
-              const dateValue = parts[3] ?? "";
-              if (qualifier === "346" && dateValue.length >= 8) {
-                // Plan begin date
-                coverageStart = `${dateValue.slice(0, 4)}-${dateValue.slice(4, 6)}-${dateValue.slice(6, 8)}`;
-              } else if (qualifier === "347" && dateValue.length >= 8) {
-                // Plan end date
-                coverageEnd = `${dateValue.slice(0, 4)}-${dateValue.slice(4, 6)}-${dateValue.slice(6, 8)}`;
-              } else if (qualifier === "291" && dateValue.includes("-")) {
-                // Date range format
-                const [start, end] = dateValue.split("-");
-                if (start?.length >= 8) coverageStart = `${start.slice(0, 4)}-${start.slice(4, 6)}-${start.slice(6, 8)}`;
-                if (end?.length >= 8) coverageEnd = `${end.slice(0, 4)}-${end.slice(4, 6)}-${end.slice(6, 8)}`;
-              }
-            }
-
-            if (isEligible === null) {
-              isEligible = responseText.includes("EB*1");
-              responseSummary = isEligible ? "Active coverage" : "Unable to determine eligibility from response";
-            }
-          } else {
-            responseSummary = "Received non-standard response from payer";
-          }
+          responseSummary = "Office Ally returned a non-JSON response.";
         }
 
-        // Handle JSON response
-        if (responseData.eligible !== undefined) {
-          isEligible = responseData.eligible;
-          coverageStart = responseData.coverage_start ?? null;
-          coverageEnd = responseData.coverage_end ?? null;
-          responseSummary = responseData.message ?? (isEligible ? "Active coverage" : "Inactive coverage");
+        // Accept several common shapes:
+        //   { eligible, coverage_start, coverage_end, message }
+        //   { isEligible, coverageStartDate, coverageEndDate, summary }
+        //   { status: "active"|"inactive", planBegin, planEnd }
+        const eligibleRaw =
+          responseData.eligible ??
+          responseData.isEligible ??
+          (typeof responseData.status === "string"
+            ? responseData.status.toLowerCase() === "active"
+            : undefined);
+        if (typeof eligibleRaw === "boolean") {
+          isEligible = eligibleRaw;
         }
+        coverageStart =
+          responseData.coverage_start ??
+          responseData.coverageStartDate ??
+          responseData.planBegin ??
+          null;
+        coverageEnd =
+          responseData.coverage_end ??
+          responseData.coverageEndDate ??
+          responseData.planEnd ??
+          null;
+        responseSummary =
+          responseData.message ??
+          responseData.summary ??
+          (isEligible === true
+            ? "Active coverage confirmed"
+            : isEligible === false
+              ? "Coverage is inactive"
+              : responseSummary || "Eligibility response received but status was unclear.");
       } else {
         isEligible = null;
         responseSummary = `Office Ally returned HTTP ${response.status}: ${responseText.slice(0, 200)}`;
