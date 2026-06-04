@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -44,42 +44,62 @@ const AGREEMENTS = [
 
 export default function CompanySignup() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<"info" | "profile" | "agreements" | "confirm">("info");
+  // Restore from sessionStorage so the form survives a side trip to /legal
+  const saved = (() => {
+    try { return JSON.parse(sessionStorage.getItem("signup_draft") || "{}"); } catch { return {}; }
+  })();
+  const [step, setStep] = useState<"info" | "profile" | "agreements" | "confirm">(saved.step || "info");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [emailExists, setEmailExists] = useState(false);
 
   // Step 1: Account fields
-  const [companyName, setCompanyName] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [companyName, setCompanyName] = useState(saved.companyName || "");
+  const [fullName, setFullName] = useState(saved.fullName || "");
+  const [email, setEmail] = useState(saved.email || "");
+  const [phone, setPhone] = useState(saved.phone || "");
+  const [password, setPassword] = useState(saved.password || "");
+  const [confirmPassword, setConfirmPassword] = useState(saved.confirmPassword || "");
 
   // Step 2: Company profile fields
-  const [npiNumber, setNpiNumber] = useState("");
-  const [einNumber, setEinNumber] = useState("");
-  const [stateOfOperation, setStateOfOperation] = useState("");
-  const [serviceAreaType, setServiceAreaType] = useState("");
-  const [addressStreet, setAddressStreet] = useState("");
-  const [addressCity, setAddressCity] = useState("");
-  const [addressZip, setAddressZip] = useState("");
-  const [truckCount, setTruckCount] = useState("");
-  const [payerMix, setPayerMix] = useState({ medicare: 40, medicaid: 30, facility: 20, private: 10 });
+  const [npiNumber, setNpiNumber] = useState(saved.npiNumber || "");
+  const [einNumber, setEinNumber] = useState(saved.einNumber || "");
+  const [stateOfOperation, setStateOfOperation] = useState(saved.stateOfOperation || "");
+  const [serviceAreaType, setServiceAreaType] = useState(saved.serviceAreaType || "");
+  const [addressStreet, setAddressStreet] = useState(saved.addressStreet || "");
+  const [addressCity, setAddressCity] = useState(saved.addressCity || "");
+  const [addressZip, setAddressZip] = useState(saved.addressZip || "");
+  const [truckCount, setTruckCount] = useState(saved.truckCount || "");
+  const [payerMix, setPayerMix] = useState(saved.payerMix || { medicare: 40, medicaid: 30, facility: 20, private: 10 });
 
   // Optional context fields
-  const [currentSoftware, setCurrentSoftware] = useState("");
-  const [yearsInOperation, setYearsInOperation] = useState("");
-  const [hasInhouseBiller, setHasInhouseBiller] = useState(false);
-  const [hipaaPrivacyOfficer, setHipaaPrivacyOfficer] = useState("");
+  const [currentSoftware, setCurrentSoftware] = useState(saved.currentSoftware || "");
+  const [yearsInOperation, setYearsInOperation] = useState(saved.yearsInOperation || "");
+  const [hasInhouseBiller, setHasInhouseBiller] = useState(!!saved.hasInhouseBiller);
+  const [hipaaPrivacyOfficer, setHipaaPrivacyOfficer] = useState(saved.hipaaPrivacyOfficer || "");
 
   // Agreements
-  const [accepted, setAccepted] = useState<Record<string, boolean>>({
+  const [accepted, setAccepted] = useState<Record<string, boolean>>(saved.accepted || {
     terms_of_service: false,
     privacy_policy: false,
     hipaa_responsibilities: false,
   });
+
+  // Persist draft so users can step out to read a legal doc and return
+  useEffect(() => {
+    const draft = {
+      step, companyName, fullName, email, phone, password, confirmPassword,
+      npiNumber, einNumber, stateOfOperation, serviceAreaType,
+      addressStreet, addressCity, addressZip, truckCount, payerMix,
+      currentSoftware, yearsInOperation, hasInhouseBiller, hipaaPrivacyOfficer,
+      accepted,
+    };
+    try { sessionStorage.setItem("signup_draft", JSON.stringify(draft)); } catch { /* ignore */ }
+  }, [step, companyName, fullName, email, phone, password, confirmPassword,
+      npiNumber, einNumber, stateOfOperation, serviceAreaType,
+      addressStreet, addressCity, addressZip, truckCount, payerMix,
+      currentSoftware, yearsInOperation, hasInhouseBiller, hipaaPrivacyOfficer,
+      accepted]);
 
   const allAccepted = AGREEMENTS.every((a) => accepted[a.key]);
   const payerTotal = payerMix.medicare + payerMix.medicaid + payerMix.facility + payerMix.private;
@@ -470,9 +490,7 @@ export default function CompanySignup() {
                       <Label htmlFor={agreement.key} className="text-sm font-medium cursor-pointer">
                         {agreement.label}{" "}
                         <a
-                          href={`/legal?tab=${agreement.linkTab}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          href={`/legal?tab=${agreement.linkTab}&from=signup`}
                           className="text-primary hover:underline"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -484,7 +502,15 @@ export default function CompanySignup() {
                         <CollapsibleContent className="mt-2 text-xs text-muted-foreground">{agreement.summary}</CollapsibleContent>
                       </Collapsible>
                     </div>
-                    <agreement.icon className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    <a
+                      href={`/legal?tab=${agreement.linkTab}&from=signup`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-muted-foreground hover:text-primary shrink-0 mt-0.5"
+                      aria-label={`Open ${agreement.linkText}`}
+                      title={`Open ${agreement.linkText}`}
+                    >
+                      <agreement.icon className="h-4 w-4" />
+                    </a>
                   </div>
                 </div>
               ))}
