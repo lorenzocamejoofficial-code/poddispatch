@@ -55,6 +55,15 @@ const manualVerificationUrls = {
   georgiaBusiness: (name: string) => `https://ecorp.sos.ga.gov/BusinessSearch/BusinessSearchResults?businessName=${encodeURIComponent(name)}&searchType=Contains`,
 };
 
+async function invokeFunctionWithTimeout(functionName: string, body: Record<string, unknown>, label: string) {
+  return Promise.race([
+    supabase.functions.invoke(functionName, { body }),
+    new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error(`${label} timed out. Try Refresh again or use the manual link.`)), CHECK_TIMEOUT_MS);
+    }),
+  ]);
+}
+
 export function CompanyVerificationPanel({ company, onVerificationComplete }: Props) {
   const [results, setResults] = useState<VerificationResult>({
     npi: { status: "pending" },
