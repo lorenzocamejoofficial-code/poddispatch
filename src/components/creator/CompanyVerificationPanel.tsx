@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { MouseEvent, useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +45,15 @@ interface Props {
 }
 
 const CACHE_KEY_PREFIX = "verification_cache_";
+const CHECK_TIMEOUT_MS = 15000;
+
+const manualVerificationUrls = {
+  oig: "https://exclusions.oig.hhs.gov/",
+  npi: (npi: string | null) => `https://npiregistry.cms.hhs.gov/search?number=${encodeURIComponent(npi || "")}`,
+  medicare: (npi: string | null) => `https://www.medicare.gov/care-compare/results?searchType=Provider&npi=${encodeURIComponent(npi || "")}`,
+  georgiaDph: "https://dph.georgia.gov/EMS/ems-licensure/ems-agency-licensure",
+  georgiaBusiness: (name: string) => `https://ecorp.sos.ga.gov/BusinessSearch/BusinessSearchResults?businessName=${encodeURIComponent(name)}&searchType=Contains`,
+};
 
 export function CompanyVerificationPanel({ company, onVerificationComplete }: Props) {
   const [results, setResults] = useState<VerificationResult>({
@@ -70,6 +79,21 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
     sessionStorage.setItem(getCacheKey(), JSON.stringify({ data, ts: Date.now() }));
   };
 
+  const openManualLink = async (url: string, label: string, event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (opened) return;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.warning(`${label} was blocked by the browser. I copied the link so you can paste it in a new tab.`);
+    } catch {
+      toast.error(`${label} was blocked. Copy this URL manually: ${url}`);
+    }
+  };
+
   const runAllChecks = useCallback(async () => {
     setLoading(true);
     const newResults: VerificationResult = {
@@ -77,29 +101,30 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
       medicare: { status: "pending" },
       oig: { status: "pending" },
     };
-
-    await Promise.all([
-      checkNPI(company.npi_number, company.name, company.id).then(r => { newResults.npi = r; }),
-      checkMedicare(company.npi_number, company.id).then(r => { newResults.medicare = r; }),
-      checkOIG(company.name, company.state_of_operation, company.id).then(r => { newResults.oig = r; }),
-    ]);
-
     setResults(newResults);
-    saveCache(newResults);
-    onVerificationComplete?.(newResults);
 
-    // Store verified_by via service-role edge function (RLS prevents direct client update).
-    // Silent on failure — the verification results themselves are already displayed and persisted.
     try {
-      const { error } = await supabase.functions.invoke("mark-company-verified", {
-        body: { company_id: company.id },
-      });
-      if (error) console.error("Failed to store verified_by:", error);
-    } catch (err: any) {
-      console.error("Failed to store verified_by:", err);
-    }
+      await Promise.all([
+        checkNPI(company.npi_number, company.name, company.id).then(r => { newResults.npi = r; }),
+        checkMedicare(company.npi_number, company.id).then(r => { newResults.medicare = r; }),
+        checkOIG(company.name, company.state_of_operation, company.id).then(r => { newResults.oig = r; }),
+      ]);
 
-    setLoading(false);
+      setResults({ ...newResults });
+      saveCache(newResults);
+      onVerificationComplete?.(newResults);
+
+      // Store verified_by via service-role edge function (RLS prevents direct client update).
+      // Silent on failure — the verification results themselves are already displayed and persisted.
+      try {
+        const { error } = await invokeFunctionWithTimeout("mark-company-verified", { company_id: company.id }, "Mark verified");
+        if (error) console.error("Failed to store verified_by:", error);
+      } catch (err: any) {
+        console.error("Failed to store verified_by:", err);
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [company]);
 
   useEffect(() => {
@@ -185,66 +210,36 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
           </p>
 
           <div className="flex items-start gap-3">
-            <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" asChild>
-              <a
-                href={`https://exclusions.oig.hhs.gov/Default.aspx`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                OIG LEIE Search <ExternalLink className="h-3 w-3" />
-              </a>
+            <Button type="button" size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" onClick={(e) => openManualLink(manualVerificationUrls.oig, "OIG LEIE Search", e)}>
+              OIG LEIE Search <ExternalLink className="h-3 w-3" />
             </Button>
             <p className="text-xs text-muted-foreground">Search by entity name: <span className="font-medium text-foreground">{company.name}</span></p>
           </div>
 
           <div className="flex items-start gap-3">
-            <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" asChild>
-              <a
-                href={`https://npiregistry.cms.hhs.gov/search?number=${encodeURIComponent(company.npi_number || "")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                NPI Registry Lookup <ExternalLink className="h-3 w-3" />
-              </a>
+            <Button type="button" size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" onClick={(e) => openManualLink(manualVerificationUrls.npi(company.npi_number), "NPI Registry Lookup", e)}>
+              NPI Registry Lookup <ExternalLink className="h-3 w-3" />
             </Button>
             <p className="text-xs text-muted-foreground">NPI: <span className="font-medium text-foreground">{company.npi_number || "—"}</span></p>
           </div>
 
           <div className="flex items-start gap-3">
-            <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" asChild>
-              <a
-                href={`https://www.medicare.gov/care-compare/results?searchType=Provider&npi=${encodeURIComponent(company.npi_number || "")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Medicare Enrollment Lookup <ExternalLink className="h-3 w-3" />
-              </a>
+            <Button type="button" size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" onClick={(e) => openManualLink(manualVerificationUrls.medicare(company.npi_number), "Medicare Enrollment Lookup", e)}>
+              Medicare Enrollment Lookup <ExternalLink className="h-3 w-3" />
             </Button>
             <p className="text-xs text-muted-foreground">Confirm ambulance enrollment for NPI <span className="font-medium text-foreground">{company.npi_number || "—"}</span></p>
           </div>
 
           <div className="flex items-start gap-3">
-            <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" asChild>
-              <a
-                href="https://dph.georgia.gov/EMS/ems-licensure/ems-agency-licensure"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Check Georgia DPH License <ExternalLink className="h-3 w-3" />
-              </a>
+            <Button type="button" size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" onClick={(e) => openManualLink(manualVerificationUrls.georgiaDph, "Georgia DPH License", e)}>
+              Check Georgia DPH License <ExternalLink className="h-3 w-3" />
             </Button>
             <p className="text-xs text-muted-foreground">Search for: <span className="font-medium text-foreground">{company.name}</span> ({company.state_of_operation || "—"})</p>
           </div>
 
           <div className="flex items-start gap-3">
-            <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" asChild>
-              <a
-                href={`https://ecorp.sos.ga.us/BusinessSearch/BusinessSearchResults?businessName=${encodeURIComponent(company.name)}&searchType=Contains`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Check GA Business Registration <ExternalLink className="h-3 w-3" />
-              </a>
+            <Button type="button" size="sm" variant="outline" className="gap-1.5 h-7 text-xs shrink-0" onClick={(e) => openManualLink(manualVerificationUrls.georgiaBusiness(company.name), "GA Business Registration", e)}>
+              Check GA Business Registration <ExternalLink className="h-3 w-3" />
             </Button>
             <p className="text-xs text-muted-foreground">Pre-filled search for: <span className="font-medium text-foreground">{company.name}</span></p>
           </div>
