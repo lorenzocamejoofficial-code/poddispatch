@@ -26,6 +26,8 @@ serve(async (req) => {
     const foundingPrice = Deno.env.get("STRIPE_PRICE_FOUNDING");
     const starterPrice = Deno.env.get("STRIPE_PRICE_STANDARD"); // 1–5 trucks · $799/mo
     const proPrice = Deno.env.get("STRIPE_PRICE_PRO");           // 6+ trucks · $1,499/mo
+    const starterAnnual = Deno.env.get("STRIPE_PRICE_STARTER_ANNUAL"); // $7,990/yr
+    const proAnnual = Deno.env.get("STRIPE_PRICE_PRO_ANNUAL");         // $14,990/yr
 
     if (!stripeSecret || !starterPrice || !proPrice || !foundingPrice) {
       return new Response(
@@ -58,8 +60,9 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { company_id, user_id, plan } = body ?? {};
+    const { company_id, user_id, plan, billing_cycle } = body ?? {};
     const requestedPlan: "starter" | "pro" = plan === "pro" ? "pro" : "starter";
+    const cycle: "monthly" | "yearly" = billing_cycle === "yearly" ? "yearly" : "monthly";
 
     if (!company_id || !user_id) {
       return new Response(
@@ -95,10 +98,14 @@ serve(async (req) => {
     // Founding auto-swap: only on the Starter tier and only for the first
     // 5 paid conversions. Atomic via try_claim_founding_slot().
     let chosenPlan: "starter" | "pro" | "founding" = requestedPlan;
-    let priceId = requestedPlan === "pro" ? proPrice : starterPrice;
+    let priceId: string | undefined =
+      requestedPlan === "pro"
+        ? (cycle === "yearly" ? proAnnual : proPrice)
+        : (cycle === "yearly" ? starterAnnual : starterPrice);
     let isFounding = false;
 
-    if (requestedPlan === "starter") {
+    // Founding lifetime lock is monthly-only — never swap on yearly checkouts.
+    if (requestedPlan === "starter" && cycle === "monthly") {
       const { data: claimed, error: claimErr } = await admin.rpc("try_claim_founding_slot");
       if (claimErr) console.error("founding claim err", claimErr);
       if (claimed === true) {
@@ -106,6 +113,13 @@ serve(async (req) => {
         priceId = foundingPrice;
         isFounding = true;
       }
+    }
+
+    if (!priceId) {
+      return new Response(
+        JSON.stringify({ error: `Missing Stripe price for ${requestedPlan} ${cycle}` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const stripe = new Stripe(stripeSecret, {
@@ -123,6 +137,7 @@ serve(async (req) => {
         user_id: String(user_id),
         plan_id: chosenPlan,
         is_founding: String(isFounding),
+        billing_cycle: cycle,
       },
       subscription_data: {
         metadata: {
@@ -130,12 +145,13 @@ serve(async (req) => {
           user_id: String(user_id),
           plan_id: chosenPlan,
           is_founding: String(isFounding),
+          billing_cycle: cycle,
         },
       },
     });
 
     return new Response(
-      JSON.stringify({ url: session.url, id: session.id, plan: chosenPlan, is_founding: isFounding }),
+      JSON.stringify({ url: session.url, id: session.id, plan: chosenPlan, is_founding: isFounding, billing_cycle: cycle }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
