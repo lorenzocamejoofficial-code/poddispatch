@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutDashboard, Settings2, Play,
   ShieldCheck, LogOut, Menu, X, Settings, FlaskConical,
-  Users,
+  Users, BookOpen,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ interface NavItem {
 const creatorNavItems: NavItem[] = [
   { path: "/system", label: "System Dashboard", icon: LayoutDashboard },
   { path: "/creator-console", label: "Company Console", icon: Settings2 },
+  { path: "/creator-playbook", label: "Ops Playbook", icon: BookOpen },
   { path: "/crew-preview", label: "Crew UI Preview", icon: Users },
   { path: "/creator-settings", label: "Settings", icon: Settings },
 ];
