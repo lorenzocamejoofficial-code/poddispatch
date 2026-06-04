@@ -35,6 +35,14 @@ export interface SendEmailInput {
   email_type?: "password_reset" | "signup_verification" | "crew_invite" | "crew_schedule" | "other";
   company_id?: string | null;
   recipient_user_id?: string | null;
+  // Optional inline/file attachments. For inline images, set content_id and
+  // reference in HTML via src="cid:<content_id>".
+  attachments?: Array<{
+    filename: string;
+    content: string; // base64
+    content_id?: string;
+    content_type?: string;
+  }>;
 }
 
 export interface SendEmailResult {
