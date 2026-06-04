@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { seedChargeMasterForNewCompany } from "../_shared/seed-charge-master.ts";
 import { sendViaResend } from "../_shared/send-via-resend.ts";
+import { EMAIL_LOGO_ATTACHMENT, EMAIL_LOGO_CID } from "../_shared/email-logo.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -228,7 +229,7 @@ serve(async (req) => {
     try {
       const safeCompany = String(companyName).trim().replace(/[<>]/g, "");
       const safeName = String(fullName).trim().replace(/[<>]/g, "");
-      const logoUrl = "https://app.thepoddispatch.com/email-logo.png";
+      const logoUrl = `cid:${EMAIL_LOGO_CID}`;
       const supportEmail = "support@thepoddispatch.com";
       const html = `<!doctype html>
 <html lang="en">
@@ -282,6 +283,7 @@ serve(async (req) => {
         email_type: "other",
         company_id: companyId,
         recipient_user_id: userId,
+        attachments: [EMAIL_LOGO_ATTACHMENT],
       });
       if (!sendResult.ok) console.error("Applicant acknowledgment email failed:", sendResult.error);
     } catch (emailErr) {
