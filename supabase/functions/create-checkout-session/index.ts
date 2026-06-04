@@ -23,11 +23,11 @@ serve(async (req) => {
 
   try {
     const stripeSecret = Deno.env.get("STRIPE_SECRET_KEY");
-    // Founding offer only ($799/mo). STRIPE_PRICE_STANDARD is intentionally
-    // unused until the tier system ships (customer #6+).
-    const priceId = Deno.env.get("STRIPE_PRICE_FOUNDING");
+    const foundingPrice = Deno.env.get("STRIPE_PRICE_FOUNDING");
+    const starterPrice = Deno.env.get("STRIPE_PRICE_STANDARD"); // 1–5 trucks · $799/mo
+    const proPrice = Deno.env.get("STRIPE_PRICE_PRO");           // 6+ trucks · $1,499/mo
 
-    if (!stripeSecret || !priceId) {
+    if (!stripeSecret || !starterPrice || !proPrice || !foundingPrice) {
       return new Response(
         JSON.stringify({ error: "Stripe is not configured on the server." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -58,7 +58,8 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { company_id, user_id } = body ?? {};
+    const { company_id, user_id, plan } = body ?? {};
+    const requestedPlan: "starter" | "pro" = plan === "pro" ? "pro" : "starter";
 
     if (!company_id || !user_id) {
       return new Response(
@@ -87,6 +88,26 @@ serve(async (req) => {
       );
     }
 
+    // Service-role client for founding-slot reservation (bypasses RLS).
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const admin = createClient(supabaseUrl, serviceKey);
+
+    // Founding auto-swap: only on the Starter tier and only for the first
+    // 5 paid conversions. Atomic via try_claim_founding_slot().
+    let chosenPlan: "starter" | "pro" | "founding" = requestedPlan;
+    let priceId = requestedPlan === "pro" ? proPrice : starterPrice;
+    let isFounding = false;
+
+    if (requestedPlan === "starter") {
+      const { data: claimed, error: claimErr } = await admin.rpc("try_claim_founding_slot");
+      if (claimErr) console.error("founding claim err", claimErr);
+      if (claimed === true) {
+        chosenPlan = "founding";
+        priceId = foundingPrice;
+        isFounding = true;
+      }
+    }
+
     const stripe = new Stripe(stripeSecret, {
       apiVersion: "2024-06-20",
       httpClient: Stripe.createFetchHttpClient(),
@@ -100,17 +121,21 @@ serve(async (req) => {
       metadata: {
         company_id: String(company_id),
         user_id: String(user_id),
+        plan_id: chosenPlan,
+        is_founding: String(isFounding),
       },
       subscription_data: {
         metadata: {
           company_id: String(company_id),
           user_id: String(user_id),
+          plan_id: chosenPlan,
+          is_founding: String(isFounding),
         },
       },
     });
 
     return new Response(
-      JSON.stringify({ url: session.url, id: session.id }),
+      JSON.stringify({ url: session.url, id: session.id, plan: chosenPlan, is_founding: isFounding }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {

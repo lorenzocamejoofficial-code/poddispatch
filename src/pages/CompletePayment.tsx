@@ -1,44 +1,12 @@
-import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Truck, CheckCircle2, Loader2, LogOut, Mail } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { Truck, CheckCircle2, LogOut, Mail } from "lucide-react";
 
 export default function CompletePayment() {
-  const { signOut, user, activeCompanyId } = useAuth();
+  const { signOut } = useAuth();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-
-  const handleSubscribe = async () => {
-    if (!user?.id || !activeCompanyId) {
-      toast({
-        title: "Unable to start checkout",
-        description: "Missing account context. Please sign out and back in.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("create-checkout-session", {
-        body: { company_id: activeCompanyId, user_id: user.id },
-      });
-      if (error) throw error;
-      if (!data?.url) throw new Error("No checkout URL returned");
-      window.location.href = data.url as string;
-    } catch (err) {
-      console.error("Checkout error:", err);
-      toast({
-        title: "Could not start checkout",
-        description: (err as Error).message ?? "Please try again or contact support.",
-        variant: "destructive",
-      });
-      setLoading(false);
-    }
-  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -62,26 +30,16 @@ export default function CompletePayment() {
           <div className="rounded-lg border bg-muted/30 p-4 text-left space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
               <Truck className="h-4 w-4 text-primary" />
-              PodDispatch — Founding Plan · $799/mo
+              Pick the tier that matches your fleet
             </div>
             <p className="text-xs text-muted-foreground">
-              Full access to dispatch, scheduling, billing, compliance, and the entire NEMT operating system.
+              Starter ($799/mo, 1–5 trucks) or Pro ($1,499/mo, 6+ trucks).
+              Founding pricing automatically applies to the first 5 paying customers.
             </p>
           </div>
 
-          <Button
-            onClick={handleSubscribe}
-            disabled={loading}
-            className="w-full"
-            size="lg"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Starting checkout…
-              </>
-            ) : (
-              "Complete Subscription"
-            )}
+          <Button onClick={() => navigate("/choose-plan")} className="w-full" size="lg">
+            Choose a Plan
           </Button>
 
           <div className="flex items-center gap-2 justify-center text-xs text-muted-foreground">
