@@ -10,6 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { Truck, ArrowLeft, Shield, FileText, Lock } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { US_STATES } from "@/lib/us-states";
+import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 
 const AGREEMENTS = [
   {
@@ -288,13 +289,13 @@ export default function CompanySignup() {
             <p className="text-sm font-medium text-foreground">Step 2 of 4 — Dispatch Profile</p>
 
             <div className="space-y-2">
-              <Label>NPI Number *</Label>
+              <Label>NPI Number *<PCRTooltip text="Your 10-digit National Provider Identifier issued by CMS. Required on every Medicare/Medicaid claim. Find it on your NPPES record or your last remittance." /></Label>
               <Input value={npiNumber} onChange={(e) => setNpiNumber(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="1234567890" maxLength={10} />
               <p className="text-xs text-muted-foreground">Your 10-digit National Provider Identifier</p>
             </div>
 
             <div className="space-y-2">
-              <Label>EIN (Tax ID) *</Label>
+              <Label>EIN (Tax ID) *<PCRTooltip text="Your 9-digit IRS Employer Identification Number. Used on 1099s and on every billing claim so payers know who to remit payment to." /></Label>
               <Input
                 value={einNumber}
                 onChange={(e) => {
@@ -309,7 +310,7 @@ export default function CompanySignup() {
             </div>
 
             <div className="space-y-2">
-              <Label>State of Operation *</Label>
+              <Label>State of Operation *<PCRTooltip text="The state your company is licensed and primarily operates in. Sets the default Medicaid plan and state-specific compliance rules." /></Label>
               <Select value={stateOfOperation} onValueChange={setStateOfOperation}>
                 <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                 <SelectContent>
@@ -321,7 +322,7 @@ export default function CompanySignup() {
             </div>
 
             <div className="space-y-2">
-              <Label>Business Street Address *</Label>
+              <Label>Business Street Address *<PCRTooltip text="Your physical business address on file with CMS. Appears on claims, invoices, and legal agreements (TOS, BAA)." /></Label>
               <Input
                 value={addressStreet}
                 onChange={(e) => setAddressStreet(e.target.value)}
@@ -331,7 +332,7 @@ export default function CompanySignup() {
 
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-2">
-                <Label>City *</Label>
+                <Label>City *<PCRTooltip text="City of your physical business address. Must match what is on file with CMS / NPPES." /></Label>
                 <Input
                   value={addressCity}
                   onChange={(e) => setAddressCity(e.target.value)}
@@ -339,7 +340,7 @@ export default function CompanySignup() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>ZIP Code *</Label>
+                <Label>ZIP Code *<PCRTooltip text="Your 5-digit business ZIP. CMS uses this to set your Medicare ambulance fee schedule tier (urban, rural, or super-rural), which directly affects your reimbursement rates." /></Label>
                 <Input
                   value={addressZip}
                   onChange={(e) => setAddressZip(e.target.value.replace(/\D/g, "").slice(0, 5))}
@@ -354,7 +355,7 @@ export default function CompanySignup() {
             </p>
 
             <div className="space-y-2">
-              <Label>Service Area Type *</Label>
+              <Label>Service Area Type *<PCRTooltip text="Urban, suburban, or rural. Determines which Medicare ambulance rate tier applies. Rural and super-rural areas receive higher mileage reimbursement." /></Label>
               <Select value={serviceAreaType} onValueChange={setServiceAreaType}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>
@@ -367,12 +368,12 @@ export default function CompanySignup() {
             </div>
 
             <div className="space-y-2">
-              <Label>Number of Active Trucks *</Label>
+              <Label>Number of Active Trucks *<PCRTooltip text="How many ambulances you currently run in service. Used to size your account and recommend the right subscription tier. You can add or remove trucks anytime after signup." /></Label>
               <Input type="number" min="1" max="200" value={truckCount} onChange={(e) => setTruckCount(e.target.value)} placeholder="e.g. 5" />
             </div>
 
             <div className="space-y-3">
-              <Label>Primary Payer Mix *</Label>
+              <Label>Primary Payer Mix *<PCRTooltip text="Roughly what percentage of your trips are billed to each payer type. Medicare/Medicaid are government payers; Facility Contract means you bill a hospital or SNF directly; Private Pay means the patient pays out of pocket. Estimates are fine — this does not affect billing." /></Label>
               <p className="text-xs text-muted-foreground">
                 Estimate the percentage of your patients covered by each payer type. This helps us understand your business and does not affect billing calculations. If you are unsure, enter your best estimate — you can update this later.
                 {payerTotal !== 100 && (
@@ -404,7 +405,7 @@ export default function CompanySignup() {
               <p className="text-xs text-muted-foreground font-medium">Optional — helps us review your application faster</p>
 
               <div className="space-y-2">
-                <Label>Current Software</Label>
+                <Label>Current Software<PCRTooltip text="What you use today to dispatch, chart, or bill. Helps us prepare the right migration path so we can import your existing patients, trips, and claims." /></Label>
                 <Select value={currentSoftware} onValueChange={setCurrentSoftware}>
                   <SelectTrigger><SelectValue placeholder="Select current software" /></SelectTrigger>
                   <SelectContent>
@@ -427,17 +428,18 @@ export default function CompanySignup() {
               </div>
 
               <div className="space-y-2">
-                <Label>Years in Operation</Label>
+                <Label>Years in Operation<PCRTooltip text="How long your company has been transporting patients. Used only to understand your business — does not affect approval." /></Label>
                 <Input type="number" min="0" max="100" value={yearsInOperation} onChange={(e) => setYearsInOperation(e.target.value)} placeholder="e.g. 5" />
               </div>
 
               <div className="flex items-center gap-3">
                 <Checkbox checked={hasInhouseBiller} onCheckedChange={(v) => setHasInhouseBiller(v === true)} id="inhouse-biller" />
                 <Label htmlFor="inhouse-biller" className="cursor-pointer text-sm">We have an in-house biller</Label>
+                <PCRTooltip text="Check this if someone on your team handles claim submission and AR follow-up. If unchecked, we assume you use an outside billing company and will tailor onboarding accordingly." />
               </div>
 
               <div className="space-y-2">
-                <Label>HIPAA Privacy Officer Name</Label>
+                <Label>HIPAA Privacy Officer Name<PCRTooltip text="The person at your company designated as the HIPAA Privacy Officer — responsible for handling PHI complaints, breach response, and workforce training. Required by 45 CFR § 164.530(a). If you don't have one named yet, the owner is typically listed." /></Label>
                 <Input value={hipaaPrivacyOfficer} onChange={(e) => setHipaaPrivacyOfficer(e.target.value)} placeholder="Full name" />
               </div>
             </div>
