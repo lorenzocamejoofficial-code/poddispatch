@@ -58,12 +58,12 @@ async function checkTwilio(): Promise<Check> {
 async function checkResend(): Promise<Check> {
   const key = Deno.env.get("RESEND_API_KEY");
   if (!key) return { name: "resend", status: "unknown", latency_ms: 0, detail: "RESEND_API_KEY not set" };
-  const { latency_ms, error, value } = await timed(async () => {
-    const r = await fetch("https://api.resend.com/domains", { headers: { Authorization: `Bearer ${key}` } });
-    return r.status;
-  });
-  if (error) return { name: "resend", status: "down", latency_ms, detail: error };
-  return { name: "resend", status: value === 200 ? "ok" : "degraded", latency_ms, detail: `http ${value}` };
+  // Sending-access keys (recommended for production) can't list /domains or
+  // /api-keys — those return 401 even on a perfectly valid key. The only way
+  // to *truly* validate is to send an email, which we don't want to do on a
+  // health poll. So we accept presence as "ok" and rely on email_send_log
+  // (and Resend's own dashboard) for delivery truth.
+  return { name: "resend", status: "ok", latency_ms: 0, detail: "key present; delivery truth in email_send_log" };
 }
 
 function checkOfficeAlly(): Check {
