@@ -2433,6 +2433,24 @@ export type Database = {
           },
         ]
       }
+      founding_counter: {
+        Row: {
+          id: number
+          paid_count: number
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          paid_count?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          paid_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       hold_timers: {
         Row: {
           company_id: string
@@ -4549,6 +4567,7 @@ export type Database = {
           created_at: string
           current_period_end: string | null
           id: string
+          is_founding: boolean
           last_payment_at: string | null
           last_payment_status: string | null
           monthly_amount_cents: number
@@ -4567,6 +4586,7 @@ export type Database = {
           created_at?: string
           current_period_end?: string | null
           id?: string
+          is_founding?: boolean
           last_payment_at?: string | null
           last_payment_status?: string | null
           monthly_amount_cents?: number
@@ -4585,6 +4605,7 @@ export type Database = {
           created_at?: string
           current_period_end?: string | null
           id?: string
+          is_founding?: boolean
           last_payment_at?: string | null
           last_payment_status?: string | null
           monthly_amount_cents?: number
@@ -6143,6 +6164,7 @@ export type Database = {
         }
         Returns: Json
       }
+      try_claim_founding_slot: { Args: never; Returns: boolean }
       write_audit_log: {
         Args: {
           _action: string
