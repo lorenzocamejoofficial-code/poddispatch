@@ -34,6 +34,7 @@ import { ReconciliationReportPanel } from "@/components/creator/ReconciliationRe
 import { AcknowledgmentsPanel } from "@/components/creator/AcknowledgmentsPanel";
 import { SupportTicketsPanel } from "@/components/creator/SupportTicketsPanel";
 import { LoadTestHarnessPanel } from "@/components/creator/LoadTestHarnessPanel";
+import { SystemHealthPanel } from "@/components/creator/SystemHealthPanel";
 import { TablePagination } from "@/components/ui/table-pagination";
 
 interface CompanyRecord {
@@ -798,6 +799,7 @@ export default function CreatorConsole() {
             <TabsTrigger value="acknowledgments">Acknowledgments</TabsTrigger>
             <TabsTrigger value="support">Support</TabsTrigger>
             <TabsTrigger value="loadtest">Load Test</TabsTrigger>
+            <TabsTrigger value="health">System Health</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending">
@@ -832,6 +834,9 @@ export default function CreatorConsole() {
           </TabsContent>
           <TabsContent value="loadtest">
             <LoadTestHarnessPanel />
+          </TabsContent>
+          <TabsContent value="health">
+            <SystemHealthPanel />
           </TabsContent>
         </Tabs>
       )}
