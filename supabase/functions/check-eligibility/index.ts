@@ -5,11 +5,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Office Ally endpoints. Production = real payers / real money.
-// OATEST = sandbox; responses are simulated. Routed by the global
-// vendor_clearinghouse_settings.test_mode (PodDispatch vendor singleton).
-const OA_ELIGIBILITY_URL_PROD = "https://www.officeally.com/OA_API/Eligibility/SubmitInquiry";
-const OA_ELIGIBILITY_URL_TEST = "https://oatest.officeally.com/OA_API/Eligibility/SubmitInquiry";
+// Office Ally REST API (JSON 270/271).
+// The actual endpoint URLs are provided by Office Ally after the eligibility
+// product is purchased. They are stored on vendor_clearinghouse_settings so
+// the system creator can paste them in once available, without a code change.
+// Until then this function fails fast with a clear "endpoint not configured"
+// message instead of hitting a placeholder URL.
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
