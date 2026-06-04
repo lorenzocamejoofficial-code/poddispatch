@@ -40,7 +40,11 @@ export function SystemHealthPanel() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <div>
-          <CardTitle className="text-sm">System Health</CardTitle>
+          <CardTitle className="text-sm">Manual Health Check</CardTitle>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Pings each service when this panel is open. Not a monitoring/alerting system —
+            hook /health to an external uptime service (Better Stack, Pingdom) for paging.
+          </p>
           {data && (
             <p className="text-xs text-muted-foreground mt-0.5">
               Overall: <Badge variant={variantFor(data.status)} className="ml-1 capitalize">{data.status}</Badge>
