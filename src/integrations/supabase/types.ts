@@ -6139,6 +6139,8 @@ export type Database = {
           contact_name: string | null
           contact_phone: string | null
           created_at: string
+          eligibility_rest_url_prod: string | null
+          eligibility_rest_url_test: string | null
           id: string
           notes: string | null
           receiver_id: string
@@ -6153,6 +6155,8 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          eligibility_rest_url_prod?: string | null
+          eligibility_rest_url_test?: string | null
           id?: string
           notes?: string | null
           receiver_id?: string
@@ -6167,6 +6171,8 @@ export type Database = {
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          eligibility_rest_url_prod?: string | null
+          eligibility_rest_url_test?: string | null
           id?: string
           notes?: string | null
           receiver_id?: string
