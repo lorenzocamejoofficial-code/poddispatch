@@ -1,47 +1,86 @@
-## Responsive Pass — Entire App
+## Pricing model
 
-The app already uses Tailwind with `lg:` breakpoints in the three shells (AdminLayout, CrewLayout, CreatorLayout) and most pages. A true "rewrite every page" pass would touch 60+ files and risk regressions on dense dispatch/billing tables that intentionally require horizontal scroll. Instead I'll do a layered pass that delivers the user-visible win everywhere without rewriting every grid.
+Three Stripe prices:
+1. **Founding** — $799/mo, lifetime (auto-applied to paid customers #1–5)
+2. **Starter** — $799/mo (1–5 trucks)
+3. **Pro** — $1,500/mo (6+ trucks)
 
-### Breakpoints (Tailwind config)
-Add custom breakpoints so the rest of the codebase keeps working:
-- `sm: 480px` (small mobile cutoff)
-- `md: 768px` (tablet)
-- `lg: 1024px` (sidebar collapses below this — already the default in shells)
-- `xl: 1280px`
-- `2xl: 1440px` (desktop full layout)
+Trial: 30 days, no card collected. App hard-locks on day 31 until checkout completes.
 
-Existing `lg:` usage already matches the "sidebar visible ≥1024" rule, so shells need no breakpoint rewrite — just verification.
+## What gets built
 
-### 1. Global baselines (`src/index.css`, `tailwind.config.ts`)
-- Body text: ensure `body` is `text-base` (16px) — currently inherits. Add explicit `font-size: 16px` on `html` to guarantee mobile readability and prevent iOS input zoom.
-- Add `.tap-44` utility (min 44×44) for icon buttons used on mobile.
-- Add `overflow-x: hidden` on `body` as last-resort horizontal-scroll guard, scoped so tables can still scroll inside their own containers (`overflow-x-auto` on wrappers).
+### 1. Stripe product setup (you do this once in Stripe dashboard)
+- Create three recurring prices, add their IDs as secrets:
+  - `STRIPE_PRICE_FOUNDING` (already exists)
+  - `STRIPE_PRICE_STARTER`
+  - `STRIPE_PRICE_PRO`
 
-### 2. Layout shells — verify + tighten
-- `AdminLayout`, `CrewLayout`, `CreatorLayout`: already have hamburger + off-canvas sidebar < `lg`. Audit each:
-  - Confirm `<SidebarTrigger>`/menu button is ≥44px tap target.
-  - Confirm header doesn't overflow on 320px (truncate title, hide secondary badges below `sm`).
-- `src/pages/Login.tsx`, `CompanySignup.tsx`, `CompletePayment.tsx`, `TrialExpired.tsx`, `AcceptInvite.tsx`, `Legal`, `ForgotPassword/Email`, `ResetPassword`: stack to single column, full-width buttons below `sm`.
+### 2. Signup stays the same
+No card at signup. `subscription_records.subscription_status = 'trial'`, `trial_ends_at = now + 30d`, `plan_id = null` (tier picked at checkout).
 
-### 3. High-traffic pages (responsive-pass each)
-- `DispatchBoard.tsx` — truck cards already grid; verify single column < `md`, wrap header actions.
-- `Scheduling.tsx` — stack panels < `md`.
-- `BillingAndClaims.tsx`, `TripsAndClinical.tsx`, `RemittanceImport.tsx`, `EDIExport.tsx` — wrap dense tables in `overflow-x-auto`, stack filter rows < `md`.
-- `OwnerDashboard.tsx`, `SystemCreatorDashboard.tsx`, `ReportsAndMetrics.tsx` — KPI grids to 1 col < `sm`, 2 col < `lg`.
-- `PCRPage.tsx` and `src/components/pcr/*` — already form-heavy; stack two-column rows < `md`, full-width buttons < `sm`.
-- `CrewDashboard.tsx`, `crew/CrewPatients.tsx`, `crew/CrewSchedule.tsx`, `DailyRunSheet.tsx` — these are field-use; verify tap targets and stacking.
-- `AdminSettings.tsx`, `Employees.tsx`, `TrucksCrews.tsx`, `FacilitiesPage.tsx`, `Patients.tsx` — table/grid wrappers + stacked filter bars.
+### 3. Trial countdown + lock
+- `TrialBanner` shows "X days left in trial" on every admin page.
+- New edge function `check-trial-status` (or DB check in existing auth flow): if `trial_ends_at < now()` and status still `trial`, flip to `trial_expired`.
+- Existing `TrialExpired.tsx` page already locks the app — wire it to redirect when status = `trial_expired`.
 
-### 4. Out of scope (intentional)
-- Dense data tables (claims grid, dispatch matrix) keep horizontal scroll inside their card — this is correct UX, not a bug. They get a scroll wrapper, not a vertical-stack rewrite.
-- No visual redesign, no token changes, no dark-mode work, no logic changes.
-- Lower-traffic creator/admin sub-pages (CreatorSettings, OverrideMonitor, SimulationLab, MigrationOnboarding, SysRecovery, EmailActivity) get a quick pass for overflow only.
+### 4. Pick-your-tier checkout page
+New `/choose-plan` page shown when:
+- User clicks "Upgrade" in trial banner, OR
+- Trial expired and they hit the lock page
 
-### 5. Verification
-- Browser screenshots at 1440 / 1024 / 768 / 375 on: Login, DispatchBoard, BillingAndClaims, PCRPage, CrewDashboard, AdminSettings.
-- Check no horizontal scroll on `<body>` at 375px.
+Shows two cards: Starter $799 (1–5 trucks) and Pro $1,500 (6+ trucks). Clicking either calls `create-checkout-session` with the chosen tier.
 
-### Risk / size
-~25–35 files touched. Mostly className additions (`grid-cols-1 md:grid-cols-2`, `flex-col sm:flex-row`, `w-full sm:w-auto`, `overflow-x-auto` wrappers). No business logic. ~400–600 LOC across the codebase.
+### 5. Founding auto-assignment (server-side)
+`create-checkout-session` updated:
+- Count distinct `companies` where `subscription_records.subscription_status = 'active'` (paying).
+- If count < 5 → swap the line item to `STRIPE_PRICE_FOUNDING` regardless of tier chosen, and stamp `subscription_records.is_founding = true`.
+- Else use Starter/Pro price the user picked.
+- Race-safe via a `SELECT ... FOR UPDATE` on a singleton `founding_counter` row.
 
-Approve and I'll execute in this order: config → global CSS → shells → auth/public pages → dispatch/billing → crew → settings, screenshotting checkpoints along the way.
+### 6. Stripe webhook (`stripe-webhook`) updates
+On `checkout.session.completed` / `customer.subscription.updated`:
+- Set `subscription_status = 'active'`, store `plan_id` (`founding` | `starter` | `pro`), `stripe_subscription_id`, `current_period_end`.
+- On `customer.subscription.deleted` / `invoice.payment_failed` → `past_due` or `cancelled`.
+
+### 7. Truck cap enforcement (Starter → Pro upgrade gate)
+- New DB trigger on `trucks` insert: if active truck count would exceed plan cap (Starter = 5, Founding = unlimited grandfathered, Pro = unlimited), raise exception.
+- UI: when blocked, show modal "Starter includes 5 trucks. Upgrade to Pro to add more." → button opens Stripe customer portal subscription change.
+
+### 8. Creator dashboard visibility
+Update `CompanyHealthTable`:
+- New **Plan** column: `Trial Day 12/30` · `Founding` · `Starter` · `Pro` · `Expired` · `Past due` (color-coded badges)
+- New **MRR** column ($799 / $1,500)
+- New **Next renewal / Trial ends** column
+- Filter dropdown: All / Trial / Trial ending ≤7d / Paying / Expired / Past due
+- Footer totals: total MRR, # trials, # paying, founding seats remaining (5 − count)
+
+### 9. Clean slate for existing accounts
+Single SQL migration deletes all non-creator companies (you confirmed only your creator account exists). Your creator tenant is untouched.
+
+## Schema changes
+```text
+subscription_records:
+  + is_founding boolean default false
+  + stripe_subscription_id text
+  + stripe_customer_id text
+  + current_period_end timestamptz
+  + plan_id changed to text ('trial'|'founding'|'starter'|'pro')
+
+new table: founding_counter (single row, paid_count int)
+```
+
+## Out of scope for this pass
+- Annual pricing (skipped — you didn't ask)
+- Dunning emails beyond Stripe defaults
+- Proration on mid-cycle upgrades (Stripe handles automatically)
+
+## Order of operations
+1. Migration (schema + clean slate + founding counter)
+2. Update `create-checkout-session` (auto-founding logic + tier param)
+3. Update `stripe-webhook` (write new fields)
+4. Build `/choose-plan` page
+5. Wire `TrialBanner` + `TrialExpired` redirect
+6. Truck cap trigger + upgrade modal
+7. Creator dashboard columns
+
+After approval I'll need you to: (a) create the two new Stripe prices and paste their IDs into secrets, (b) confirm you're OK deleting all non-creator company rows.
