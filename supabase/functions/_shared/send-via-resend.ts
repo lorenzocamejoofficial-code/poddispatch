@@ -35,6 +35,14 @@ export interface SendEmailInput {
   email_type?: "password_reset" | "signup_verification" | "crew_invite" | "crew_schedule" | "other";
   company_id?: string | null;
   recipient_user_id?: string | null;
+  // Optional inline/file attachments. For inline images, set content_id and
+  // reference in HTML via src="cid:<content_id>".
+  attachments?: Array<{
+    filename: string;
+    content: string; // base64
+    content_id?: string;
+    content_type?: string;
+  }>;
 }
 
 export interface SendEmailResult {
@@ -126,6 +134,9 @@ export async function sendViaResend(input: SendEmailInput): Promise<SendEmailRes
         html: input.html,
         ...(input.text ? { text: input.text } : {}),
         ...(input.reply_to ? { reply_to: input.reply_to } : {}),
+        ...(input.attachments && input.attachments.length > 0
+          ? { attachments: input.attachments }
+          : {}),
       }),
     });
 
