@@ -71,6 +71,7 @@ const RemittanceImport = lazyRoute(() => import("./pages/RemittanceImport"));
 const OwnerDashboard = lazyRoute(() => import("./pages/OwnerDashboard"));
 const SelectCompany = lazyRoute(() => import("./pages/SelectCompany"));
 const CrewInspectionChecklist = lazyRoute(() => import("./components/inspection/CrewInspectionChecklist"));
+const CreatorPlaybook = lazyRoute(() => import("./pages/CreatorPlaybook"));
 
 /**
  * Warm route chunks gently after the app is fully idle. We only download
