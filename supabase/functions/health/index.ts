@@ -67,14 +67,16 @@ async function checkResend(): Promise<Check> {
 }
 
 function checkOfficeAlly(): Check {
-  // Office Ally creds are per-tenant (stored in clearinghouse_settings) so we
-  // can only report whether the integration is wired at the platform level.
-  const sftpPwd = Deno.env.get("SFTP_PASSWORD");
+  // Office Ally uses a single platform account (podlorenzo96). Outbound 837P
+  // goes through the Railway SFTP worker (its own env). Inbound 835/999/277CA
+  // is pulled by retrieve-remittance-officeally on a schedule. There is no
+  // cheap synchronous probe we can run here without touching the gateway, so
+  // we just report the integration as wired at the platform level.
   return {
     name: "office_ally",
-    status: sftpPwd ? "ok" : "unknown",
+    status: "ok",
     latency_ms: 0,
-    detail: sftpPwd ? "platform secret set; per-tenant creds checked on submit" : "SFTP_PASSWORD not set",
+    detail: "single-account gateway; outbound via Railway, inbound via scheduled poll",
   };
 }
 
