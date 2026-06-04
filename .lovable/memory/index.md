@@ -12,8 +12,10 @@ ePCR timestamps are strictly chronological. 0 is a valid odometer reading.
 Stripe for subscriptions, Office Ally HTTP API for claims/eligibility.
 Run record (scheduling_legs) is single source of truth for transport context cascading.
 Single Office Ally account gateway — all tenant 837Ps submit through PodDispatch's SFTP, 835s routed back by NPI.
+Before claiming "done" on anything with buttons or edge functions: click-test in preview, check function logs, verify failure-mode UX. See verify-before-done.
 
 ## Memories
+- [Verify Before Done](mem://preferences/verify-before-done) — Click-test buttons & check edge function logs before claiming completion
 - [Scope and Identity](mem://project/scope-and-identity) — Comprehensive NEMT OS from dispatch to billing
 - [System Limits](mem://constraints/system-limits) — Strict operational caps for system creation
 - [Notification System](mem://features/notification-system) — PWA notifications for real-time crew alerts
