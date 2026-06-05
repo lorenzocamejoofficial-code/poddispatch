@@ -71,7 +71,7 @@ export function MissionControlPanel() {
           .eq("creator_test_tenant", false)
           .eq("is_sandbox", false)
           .is("deleted_at", null)
-          .in("onboarding_status", ["pending", "pending_review", "submitted"]),
+          .in("onboarding_status", ["pending_approval", "signup_started", "agreements_accepted"]),
         // Urgent open support tickets
         realIds.length === 0
           ? Promise.resolve({ count: 0, error: null })
