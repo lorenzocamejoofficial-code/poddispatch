@@ -808,6 +808,8 @@ export type Database = {
           status: Database["public"]["Enums"]["claim_status"]
           stretcher_placement: string | null
           submitted_at: string | null
+          tertiary_claim_generated: boolean | null
+          tertiary_claim_id: string | null
           total_charge: number | null
           trip_id: string | null
           updated_at: string
@@ -909,6 +911,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["claim_status"]
           stretcher_placement?: string | null
           submitted_at?: string | null
+          tertiary_claim_generated?: boolean | null
+          tertiary_claim_id?: string | null
           total_charge?: number | null
           trip_id?: string | null
           updated_at?: string
@@ -1010,6 +1014,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["claim_status"]
           stretcher_placement?: string | null
           submitted_at?: string | null
+          tertiary_claim_generated?: boolean | null
+          tertiary_claim_id?: string | null
           total_charge?: number | null
           trip_id?: string | null
           updated_at?: string
@@ -1048,6 +1054,13 @@ export type Database = {
           {
             foreignKeyName: "claim_records_secondary_claim_id_fkey"
             columns: ["secondary_claim_id"]
+            isOneToOne: false
+            referencedRelation: "claim_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_records_tertiary_claim_id_fkey"
+            columns: ["tertiary_claim_id"]
             isOneToOne: false
             referencedRelation: "claim_records"
             referencedColumns: ["id"]
@@ -1869,6 +1882,93 @@ export type Database = {
           },
         ]
       }
+      coverage_discoveries: {
+        Row: {
+          company_id: string
+          confidence: number | null
+          coverage_end: string | null
+          coverage_start: string | null
+          created_at: string
+          discovered_at: string
+          discovered_by: string | null
+          group_number: string | null
+          id: string
+          is_active: boolean | null
+          is_simulated: boolean | null
+          member_id: string | null
+          patient_id: string | null
+          payer_id: string | null
+          payer_name: string | null
+          promoted_to: string | null
+          rank: string | null
+          raw_response: Json | null
+          search_dob: string | null
+          search_first_name: string | null
+          search_last_name: string | null
+        }
+        Insert: {
+          company_id: string
+          confidence?: number | null
+          coverage_end?: string | null
+          coverage_start?: string | null
+          created_at?: string
+          discovered_at?: string
+          discovered_by?: string | null
+          group_number?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_simulated?: boolean | null
+          member_id?: string | null
+          patient_id?: string | null
+          payer_id?: string | null
+          payer_name?: string | null
+          promoted_to?: string | null
+          rank?: string | null
+          raw_response?: Json | null
+          search_dob?: string | null
+          search_first_name?: string | null
+          search_last_name?: string | null
+        }
+        Update: {
+          company_id?: string
+          confidence?: number | null
+          coverage_end?: string | null
+          coverage_start?: string | null
+          created_at?: string
+          discovered_at?: string
+          discovered_by?: string | null
+          group_number?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_simulated?: boolean | null
+          member_id?: string | null
+          patient_id?: string | null
+          payer_id?: string | null
+          payer_name?: string | null
+          promoted_to?: string | null
+          rank?: string | null
+          raw_response?: Json | null
+          search_dob?: string | null
+          search_first_name?: string | null
+          search_last_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_discoveries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_discoveries_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       creator_playbook_chats: {
         Row: {
           author_id: string
@@ -2367,6 +2467,7 @@ export type Database = {
           coverage_end: string | null
           coverage_start: string | null
           id: string
+          inquiry_mode: string
           is_eligible: boolean | null
           patient_id: string
           payer_type: string | null
@@ -2380,6 +2481,7 @@ export type Database = {
           coverage_end?: string | null
           coverage_start?: string | null
           id?: string
+          inquiry_mode?: string
           is_eligible?: boolean | null
           patient_id: string
           payer_type?: string | null
@@ -2393,6 +2495,7 @@ export type Database = {
           coverage_end?: string | null
           coverage_start?: string | null
           id?: string
+          inquiry_mode?: string
           is_eligible?: boolean | null
           patient_id?: string
           payer_type?: string | null
@@ -3459,6 +3562,11 @@ export type Database = {
           standing_order: boolean | null
           status: Database["public"]["Enums"]["patient_status"]
           terminal_illness_icd: string | null
+          tertiary_group_number: string | null
+          tertiary_member_id: string | null
+          tertiary_payer: string | null
+          tertiary_payer_id: string | null
+          tertiary_payer_phone: string | null
           transport_type: Database["public"]["Enums"]["transport_type"]
           trips_per_week_limit: number | null
           updated_at: string
@@ -3542,6 +3650,11 @@ export type Database = {
           standing_order?: boolean | null
           status?: Database["public"]["Enums"]["patient_status"]
           terminal_illness_icd?: string | null
+          tertiary_group_number?: string | null
+          tertiary_member_id?: string | null
+          tertiary_payer?: string | null
+          tertiary_payer_id?: string | null
+          tertiary_payer_phone?: string | null
           transport_type?: Database["public"]["Enums"]["transport_type"]
           trips_per_week_limit?: number | null
           updated_at?: string
@@ -3625,6 +3738,11 @@ export type Database = {
           standing_order?: boolean | null
           status?: Database["public"]["Enums"]["patient_status"]
           terminal_illness_icd?: string | null
+          tertiary_group_number?: string | null
+          tertiary_member_id?: string | null
+          tertiary_payer?: string | null
+          tertiary_payer_id?: string | null
+          tertiary_payer_phone?: string | null
           transport_type?: Database["public"]["Enums"]["transport_type"]
           trips_per_week_limit?: number | null
           updated_at?: string

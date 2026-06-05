@@ -30,6 +30,7 @@ interface MatchedItem {
   matchedClaimId: string | null;
   matchedPatientId: string | null;
   hasSecondaryPayer: boolean;
+  hasTertiaryPayer?: boolean;
   primaryPayer: string | null;
   secondaryPayer: string | null;
   errors: string[];
@@ -122,12 +123,12 @@ export default function RemittanceImport() {
       // Match against claim_records in DB
       const { data: claims } = await supabase
         .from("claim_records" as any)
-        .select("id, member_id, run_date, patient_id, status, hcpcs_codes, payer_type, payer_name")
+        .select("id, member_id, run_date, patient_id, status, hcpcs_codes, payer_type, payer_name, original_claim_id")
         .in("status", ["submitted", "ready_to_bill", "needs_correction", "needs_review"]);
 
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, member_id, secondary_payer, first_name, last_name");
+        .select("id, member_id, secondary_payer, tertiary_payer, first_name, last_name");
 
       const claimsList = (claims || []) as any[];
       const patientsList = (patients || []) as any[];
@@ -142,6 +143,7 @@ export default function RemittanceImport() {
         let matchedClaimId: string | null = null;
         let matchedPatientId: string | null = null;
         let hasSecondaryPayer = false;
+        let hasTertiaryPayer = false;
         let primaryPayer: string | null = null;
         let secondaryPayer: string | null = null;
 
@@ -207,6 +209,9 @@ export default function RemittanceImport() {
             hasSecondaryPayer = true;
             secondaryPayer = pat.secondary_payer;
           }
+          if (pat?.tertiary_payer) {
+            hasTertiaryPayer = true;
+          }
         } else {
           const fallbackMemberId = rem.patient_member_id?.trim().toUpperCase();
           if (fallbackMemberId) {
@@ -215,10 +220,13 @@ export default function RemittanceImport() {
               hasSecondaryPayer = true;
               secondaryPayer = pat.secondary_payer;
             }
+            if (pat?.tertiary_payer) {
+              hasTertiaryPayer = true;
+            }
           }
         }
 
-        return { remittance: rem, matchedClaimId, matchedPatientId, hasSecondaryPayer, primaryPayer, secondaryPayer, errors };
+        return { remittance: rem, matchedClaimId, matchedPatientId, hasSecondaryPayer, hasTertiaryPayer, primaryPayer, secondaryPayer, errors };
       });
 
       setMatchedItems(matched);
@@ -337,13 +345,32 @@ export default function RemittanceImport() {
           totalPaid += rem.paid_amount;
         }
 
-        // Flag secondary opportunity (still a non-derived column)
-        if (rem.paid_amount > 0 && item.hasSecondaryPayer && prAmount > 0) {
-          await supabase
+        // Flag downstream-claim opportunity (still a non-derived column).
+        // If the matched claim is a PRIMARY (original_claim_id null) and the
+        // patient has a secondary payer → secondary opportunity. If the
+        // matched claim is itself a SECONDARY (original_claim_id non-null)
+        // and the patient has a tertiary payer → tertiary opportunity.
+        if (rem.paid_amount > 0 && prAmount > 0) {
+          // Look up whether the matched claim is itself a secondary (chained off a primary).
+          const { data: matchedClaim } = await supabase
             .from("claim_records" as any)
-            .update({ secondary_claim_generated: false } as any)
-            .eq("id", item.matchedClaimId);
-          secondaryOpps++;
+            .select("original_claim_id")
+            .eq("id", item.matchedClaimId)
+            .maybeSingle();
+          const isSecondaryClaim = !!(matchedClaim as any)?.original_claim_id;
+          if (!isSecondaryClaim && item.hasSecondaryPayer) {
+            await supabase
+              .from("claim_records" as any)
+              .update({ secondary_claim_generated: false } as any)
+              .eq("id", item.matchedClaimId);
+            secondaryOpps++;
+          } else if (isSecondaryClaim && item.hasTertiaryPayer) {
+            await supabase
+              .from("claim_records" as any)
+              .update({ tertiary_claim_generated: false } as any)
+              .eq("id", item.matchedClaimId);
+            secondaryOpps++; // counted in the same opportunity bucket for now
+          }
         }
       }
 

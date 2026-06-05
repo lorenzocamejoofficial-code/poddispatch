@@ -233,6 +233,8 @@ function ProfileTab({ patient }: { patient: Patient }) {
         <Row label="Member ID" value={patient.member_id} />
         <Row label="Secondary payer" value={patient.secondary_payer} />
         <Row label="Secondary member ID" value={p.secondary_member_id} />
+        <Row label="Tertiary payer" value={p.tertiary_payer} />
+        <Row label="Tertiary member ID" value={p.tertiary_member_id} />
         <Row
           label="Prior auth UTN"
           value={p.prior_auth_utn || (patient.auth_required ? "Required (no UTN on file)" : null)}

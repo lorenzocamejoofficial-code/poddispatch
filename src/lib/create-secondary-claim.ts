@@ -1,94 +1,114 @@
 /**
- * createSecondaryClaim
- * --------------------
- * Spawns a secondary claim_records row from an existing PAID primary claim,
- * populating it with the patient's secondary insurance info and linking it
- * back via original_claim_id. The 837P generator picks up that link and
- * emits Loop 2320/2330 (COB) using the primary's claim_payments adjudication.
+ * createDownstreamClaim
+ * ---------------------
+ * Spawns a downstream (secondary or tertiary) claim_records row from an
+ * existing PAID upstream claim, populating it with the patient's next-level
+ * insurance info and linking it back via original_claim_id. The 837P
+ * generator picks up that link and emits Loop 2320/2330 (COB) using the
+ * upstream claim_payments adjudication.
  *
- * The DB unique index (claim_records_primary_trip_uidx) allows multiple rows
- * per trip as long as only one has original_claim_id IS NULL, so secondaries
- * legitimately share the trip_id with the primary.
+ * Symmetry:
+ *   primary  --paid--> secondary  (uses patient.secondary_*)
+ *   secondary --paid--> tertiary  (uses patient.tertiary_*)
+ *
+ * The DB unique index (claim_records_primary_trip_uidx) only restricts rows
+ * where original_claim_id IS NULL, so multiple downstreams legitimately
+ * share the trip_id with the primary.
  */
 import { supabase } from "@/integrations/supabase/client";
 
-export interface CreateSecondaryClaimResult {
+export interface CreateDownstreamClaimResult {
   ok: boolean;
-  secondaryClaimId?: string;
+  newClaimId?: string;
   error?: string;
 }
 
-export async function createSecondaryClaim(
-  primaryClaimId: string,
-): Promise<CreateSecondaryClaimResult> {
-  if (!primaryClaimId) return { ok: false, error: "primary claim id missing" };
+/** @deprecated kept for back-compat with existing call sites — use newClaimId */
+export interface CreateSecondaryClaimResult extends CreateDownstreamClaimResult {
+  secondaryClaimId?: string;
+}
 
-  const { data: prim, error: primErr } = await supabase
+type TargetLevel = "secondary" | "tertiary";
+
+export async function createDownstreamClaim(
+  upstreamClaimId: string,
+  targetLevel: TargetLevel = "secondary",
+): Promise<CreateDownstreamClaimResult> {
+  if (!upstreamClaimId) return { ok: false, error: "upstream claim id missing" };
+
+  const { data: up, error: upErr } = await supabase
     .from("claim_records" as any)
     .select("*")
-    .eq("id", primaryClaimId)
+    .eq("id", upstreamClaimId)
     .maybeSingle();
-  if (primErr || !prim) return { ok: false, error: primErr?.message || "primary claim not found" };
-  const p = prim as any;
+  if (upErr || !up) return { ok: false, error: upErr?.message || "upstream claim not found" };
+  const p = up as any;
 
   if (p.status !== "paid" && p.status !== "denied") {
-    return { ok: false, error: `primary must be paid or denied (currently ${p.status})` };
+    return { ok: false, error: `upstream must be paid or denied (currently ${p.status})` };
   }
-  if (p.secondary_claim_generated && p.secondary_claim_id) {
-    return { ok: true, secondaryClaimId: p.secondary_claim_id };
+
+  // Idempotency: pick the chain pointer for the target level
+  const generatedFlag = targetLevel === "secondary" ? "secondary_claim_generated" : "tertiary_claim_generated";
+  const idPointer    = targetLevel === "secondary" ? "secondary_claim_id"        : "tertiary_claim_id";
+  if (p[generatedFlag] && p[idPointer]) {
+    return { ok: true, newClaimId: p[idPointer] };
   }
   if (!p.patient_id) {
-    return { ok: false, error: "primary claim is missing patient_id (one-off, no secondary lookup possible)" };
+    return { ok: false, error: `upstream claim is missing patient_id (one-off, no ${targetLevel} lookup possible)` };
   }
 
-  // Secondary claim charges = unpaid balance left for the secondary payer to
-  // adjudicate (i.e. the primary's patient_responsibility_amount). We scale
-  // base/mileage/extras proportionally so SV1 line charges still sum to CLM02
-  // (the 837P generator emits CLM02 from total_charge and SV1 from base+mileage).
-  const primaryTotal = Number(p.total_charge) || 0;
+  // Downstream claim charges = unpaid balance left on the upstream. We scale
+  // base/mileage/extras proportionally so SV1 line charges still sum to CLM02.
+  const upTotal = Number(p.total_charge) || 0;
   const patResp = Number(p.patient_responsibility_amount) || 0;
   if (patResp <= 0) {
-    return { ok: false, error: "primary has no patient_responsibility_amount, nothing left for secondary to bill" };
+    return { ok: false, error: `upstream has no patient_responsibility_amount, nothing left for ${targetLevel} to bill` };
   }
-  const ratio = primaryTotal > 0 ? patResp / primaryTotal : 0;
+  const ratio = upTotal > 0 ? patResp / upTotal : 0;
   const round2 = (n: number) => Math.round(n * 100) / 100;
-  let secBase = round2((Number(p.base_charge) || 0) * ratio);
-  let secMileage = round2((Number(p.mileage_charge) || 0) * ratio);
-  let secExtras = round2((Number(p.extras_charge) || 0) * ratio);
-  // Fix rounding drift so components sum exactly to patResp
-  const drift = round2(patResp - (secBase + secMileage + secExtras));
-  if (drift !== 0) secBase = round2(secBase + drift);
+  let nBase = round2((Number(p.base_charge) || 0) * ratio);
+  let nMileage = round2((Number(p.mileage_charge) || 0) * ratio);
+  let nExtras = round2((Number(p.extras_charge) || 0) * ratio);
+  const drift = round2(patResp - (nBase + nMileage + nExtras));
+  if (drift !== 0) nBase = round2(nBase + drift);
 
+  // Pick the right patient payer slot for the target level
+  const patientCols =
+    targetLevel === "secondary"
+      ? "id, secondary_payer, secondary_payer_id, secondary_member_id"
+      : "id, tertiary_payer, tertiary_payer_id, tertiary_member_id";
   const { data: pat } = await supabase
     .from("patients")
-    .select("id, secondary_payer, secondary_payer_id, secondary_member_id")
+    .select(patientCols)
     .eq("id", p.patient_id)
     .maybeSingle();
   const patient = pat as any;
-  if (!patient?.secondary_payer || !patient?.secondary_member_id) {
-    return { ok: false, error: "patient has no secondary payer / member id on file" };
+  const payerField   = `${targetLevel}_payer`;
+  const memberField  = `${targetLevel}_member_id`;
+  if (!patient?.[payerField] || !patient?.[memberField]) {
+    return { ok: false, error: `patient has no ${targetLevel} payer / member id on file` };
   }
 
-  const secPayerType = String(patient.secondary_payer || "").toLowerCase();
-  const secPayerName =
-    secPayerType === "medicare" ? "MEDICARE" :
-    secPayerType === "medicaid" ? "MEDICAID" :
-    String(patient.secondary_payer);
+  const newPayerType = String(patient[payerField] || "").toLowerCase();
+  const newPayerName =
+    newPayerType === "medicare" ? "MEDICARE" :
+    newPayerType === "medicaid" ? "MEDICAID" :
+    String(patient[payerField]);
 
-  // Clone clinical / transport fields; reset adjudication + control fields.
   const insertRow = {
     company_id: p.company_id,
     trip_id: p.trip_id,
     patient_id: p.patient_id,
     original_claim_id: p.id,
     run_date: p.run_date,
-    payer_type: secPayerType,
-    payer_name: secPayerName,
-    member_id: patient.secondary_member_id,
+    payer_type: newPayerType,
+    payer_name: newPayerName,
+    member_id: patient[memberField],
     total_charge: patResp,
-    base_charge: secBase,
-    mileage_charge: secMileage,
-    extras_charge: secExtras,
+    base_charge: nBase,
+    mileage_charge: nMileage,
+    extras_charge: nExtras,
     hcpcs_codes: p.hcpcs_codes,
     hcpcs_modifiers: p.hcpcs_modifiers,
     hcpcs_manually_set: p.hcpcs_manually_set,
@@ -126,8 +146,23 @@ export async function createSecondaryClaim(
 
   await supabase
     .from("claim_records" as any)
-    .update({ secondary_claim_generated: true, secondary_claim_id: newId } as any)
-    .eq("id", primaryClaimId);
+    .update({ [generatedFlag]: true, [idPointer]: newId } as any)
+    .eq("id", upstreamClaimId);
 
-  return { ok: true, secondaryClaimId: newId };
+  return { ok: true, newClaimId: newId };
+}
+
+/** Spawn a secondary claim from a paid primary. Back-compat wrapper. */
+export async function createSecondaryClaim(
+  primaryClaimId: string,
+): Promise<CreateSecondaryClaimResult> {
+  const r = await createDownstreamClaim(primaryClaimId, "secondary");
+  return { ...r, secondaryClaimId: r.newClaimId };
+}
+
+/** Spawn a tertiary claim from a paid secondary. */
+export async function createTertiaryClaim(
+  secondaryClaimId: string,
+): Promise<CreateDownstreamClaimResult> {
+  return createDownstreamClaim(secondaryClaimId, "tertiary");
 }
