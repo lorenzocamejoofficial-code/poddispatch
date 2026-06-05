@@ -801,22 +801,22 @@ export default function CreatorConsole() {
           </TabsList>
 
           <TabsContent value="pending">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("pending_approval")} allowVerificationPanel tabKey="pending" /></CardContent></Card>
+            <Card><CardContent className="pt-4">{renderCompanyTable(filtered("pending_approval"), true, "pending")}</CardContent></Card>
           </TabsContent>
           <TabsContent value="active">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("active")} allowVerificationPanel={false} tabKey="active" /></CardContent></Card>
+            <Card><CardContent className="pt-4">{renderCompanyTable(filtered("active"), false, "active")}</CardContent></Card>
           </TabsContent>
           <TabsContent value="awaiting_payment">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("approved_pending_payment")} allowVerificationPanel={false} tabKey="awaiting_payment" /></CardContent></Card>
+            <Card><CardContent className="pt-4">{renderCompanyTable(filtered("approved_pending_payment"), false, "awaiting_payment")}</CardContent></Card>
           </TabsContent>
           <TabsContent value="suspended">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("suspended")} allowVerificationPanel={false} tabKey="suspended" /></CardContent></Card>
+            <Card><CardContent className="pt-4">{renderCompanyTable(filtered("suspended"), false, "suspended")}</CardContent></Card>
           </TabsContent>
           <TabsContent value="rejected">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("rejected")} allowVerificationPanel={false} tabKey="rejected" /></CardContent></Card>
+            <Card><CardContent className="pt-4">{renderCompanyTable(filtered("rejected"), false, "rejected")}</CardContent></Card>
           </TabsContent>
           <TabsContent value="archived">
-            <Card><CardContent className="pt-4"><ArchivedTable items={filteredArchived()} /></CardContent></Card>
+            <Card><CardContent className="pt-4">{renderArchivedTable(filteredArchived())}</CardContent></Card>
           </TabsContent>
           <TabsContent value="remittance_quarantine">
             <RemittanceQuarantinePanel />
