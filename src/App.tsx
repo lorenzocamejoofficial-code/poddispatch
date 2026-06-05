@@ -43,6 +43,7 @@ const SystemCreatorDashboard = lazyRoute(() => import("./pages/SystemCreatorDash
 const CompanySignup = lazyRoute(() => import("./pages/CompanySignup"));
 const PendingApproval = lazyRoute(() => import("./pages/PendingApproval"));
 const CreatorConsole = lazyRoute(() => import("./pages/CreatorConsole"));
+const CreatorCompanyDetail = lazyRoute(() => import("./pages/CreatorCompanyDetail"));
 const CreatorSettings = lazyRoute(() => import("./pages/CreatorSettings"));
 const SimulationLab = lazyRoute(() => import("./pages/SimulationLab"));
 const CrewUIPreview = lazyRoute(() => import("./pages/CrewUIPreview"));
@@ -358,6 +359,7 @@ function AppRoutes() {
           {/* Creator-specific pages (use CreatorLayout internally) */}
           <Route path="/system" element={<SystemCreatorDashboard />} />
           <Route path="/creator-console" element={<CreatorConsole />} />
+          <Route path="/creator-console/:companyId" element={<CreatorCompanyDetail />} />
           <Route path="/creator-settings" element={<CreatorSettings />} />
           <Route path="/creator-playbook" element={<CreatorPlaybook />} />
           <Route path="/simulation-lab" element={<SimulationLab />} />

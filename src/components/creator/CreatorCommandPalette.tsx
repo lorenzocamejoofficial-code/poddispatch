@@ -81,7 +81,7 @@ export function CreatorCommandPalette({ open, onOpenChange }: { open: boolean; o
                 <CommandItem
                   key={c.id}
                   value={`company ${c.name} ${c.id}`}
-                  onSelect={() => go(`/creator-console?company=${c.id}`)}
+                  onSelect={() => go(`/creator-console/${c.id}`)}
                 >
                   <Building2 className="h-4 w-4" />
                   <span className="flex-1 truncate">{c.name}</span>
