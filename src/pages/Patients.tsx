@@ -988,6 +988,12 @@ export default function Patients() {
                 Delete {selected.size} selected
               </Button>
             )}
+            <InsuranceToolsHeader
+              configured={clearinghouseConfigured}
+              canUse={canCheckEligibility}
+              onPrefillNewPatient={openPrefilledAdd}
+              onPatientUpdated={fetchPatients}
+            />
             <Button
               size="sm"
               variant="outline"
