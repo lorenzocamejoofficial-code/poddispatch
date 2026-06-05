@@ -61,14 +61,13 @@ export default function CreatorCompanyDetail() {
     if (!companyId) return;
     (async () => {
       setLoading(true);
-      const [companyR, subR, ticketsR, profilesR, tripsR, claimsR, empR] = await Promise.all([
+      const [companyR, subR, ticketsR, profilesR, tripsR, claimsR] = await Promise.all([
         supabase.from("companies").select("*").eq("id", companyId).maybeSingle(),
         supabase.from("subscription_records").select("*").eq("company_id", companyId).maybeSingle(),
         supabase.from("support_tickets").select("id,ticket_number,subject,severity,status,created_at").eq("company_id", companyId).order("created_at", { ascending: false }).limit(10),
         supabase.from("profiles").select("id,full_name,email,role,created_at").eq("company_id", companyId).order("created_at", { ascending: true }).limit(50),
-        supabase.from("trips").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-        supabase.from("claims").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-        supabase.from("employees").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+        supabase.from("trip_records").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+        supabase.from("claim_records").select("id", { count: "exact", head: true }).eq("company_id", companyId),
       ]);
       setCompany((companyR.data as any) ?? null);
       setSubscription((subR.data as any) ?? null);
@@ -77,7 +76,7 @@ export default function CreatorCompanyDetail() {
       setCounts({
         trips: tripsR.count ?? 0,
         claims: claimsR.count ?? 0,
-        employees: empR.count ?? 0,
+        employees: (profilesR.data as any[] | null)?.length ?? 0,
       });
       setLoading(false);
     })();
