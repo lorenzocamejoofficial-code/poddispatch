@@ -409,6 +409,30 @@ export default function Patients() {
     setDialogOpen(true);
   };
 
+  /** Called from Discover Coverage when no matching patient was found —
+   *  opens the Add Patient form pre-filled with name/DOB and the chosen
+   *  payer slot so the user just has to add address + facility + schedule. */
+  const openPrefilledAdd = (payload: PrefillPayload) => {
+    resetForm();
+    setForm((prev) => ({
+      ...prev,
+      first_name: payload.first_name ?? prev.first_name,
+      last_name: payload.last_name ?? prev.last_name,
+      dob: payload.dob ?? prev.dob,
+      primary_payer: payload.primary_payer ?? prev.primary_payer,
+      member_id: payload.member_id ?? prev.member_id,
+      secondary_payer: payload.secondary_payer ?? prev.secondary_payer,
+      secondary_member_id: payload.secondary_member_id ?? prev.secondary_member_id,
+      secondary_group_number: payload.secondary_group_number ?? prev.secondary_group_number,
+      secondary_payer_id: payload.secondary_payer_id ?? prev.secondary_payer_id,
+      tertiary_payer: payload.tertiary_payer ?? prev.tertiary_payer,
+      tertiary_member_id: payload.tertiary_member_id ?? prev.tertiary_member_id,
+      tertiary_group_number: payload.tertiary_group_number ?? prev.tertiary_group_number,
+      tertiary_payer_id: payload.tertiary_payer_id ?? prev.tertiary_payer_id,
+    }));
+    setDialogOpen(true);
+  };
+
   // Auto-open the editor when the page is reached with ?patientId=<id>
   // (e.g. from a "Fix in patient chart" link on the Money/Claims page).
   useEffect(() => {
