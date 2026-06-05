@@ -15,6 +15,7 @@ import { DevModePanel } from "@/components/creator/DevModePanel";
 import { CreatorLayout } from "@/components/layout/CreatorLayout";
 import { CompanyHealthTable } from "@/components/creator/CompanyHealthTable";
 import { SaaSMetricsTab } from "@/components/creator/SaaSMetricsTab";
+import { MissionControlPanel } from "@/components/creator/MissionControlPanel";
 import { fetchRealCompanyIds } from "@/lib/real-companies";
 
 interface SystemMetrics {
@@ -156,6 +157,9 @@ export default function SystemCreatorDashboard() {
             <p className="text-muted-foreground">Loading system metrics...</p>
           ) : (
             <div className="space-y-6">
+              {/* Mission Control — alert inbox */}
+              <MissionControlPanel />
+
               {/* Platform Overview */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <MetricCard icon={Building2} label="Companies" value={metrics.totalCompanies} />
