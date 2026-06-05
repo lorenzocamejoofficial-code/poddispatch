@@ -585,7 +585,18 @@ export default function CreatorConsole() {
           </Badge>
         </TableCell>
         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-          <div className="flex justify-end">{renderActionsDropdown(c)}</div>
+          <div className="flex justify-end items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={(e) => { e.stopPropagation(); navigate(`/creator-console/${c.id}`); }}
+              title="Open detail page"
+            >
+              View
+            </Button>
+            {renderActionsDropdown(c)}
+          </div>
         </TableCell>
       </TableRow>,
       expandedCompany === c.id ? (
