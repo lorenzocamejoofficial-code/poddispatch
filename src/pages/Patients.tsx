@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { toast } from "sonner";
@@ -143,6 +144,8 @@ export default function Patients() {
     standing_order: false, special_handling: "",
     primary_payer: "", secondary_payer: "", member_id: "", secondary_member_id: "",
     secondary_group_number: "", secondary_payer_id: "", secondary_payer_phone: "",
+    tertiary_payer: "", tertiary_member_id: "",
+    tertiary_group_number: "", tertiary_payer_id: "", tertiary_payer_phone: "",
     auth_required: false, auth_expiration: "", trips_per_week_limit: "",
     // New operational needs
     stairs_required: "unknown", stair_chair_required: false,
@@ -272,6 +275,8 @@ export default function Patients() {
       standing_order: false, special_handling: "",
       primary_payer: "", secondary_payer: "", member_id: "", secondary_member_id: "",
       secondary_group_number: "", secondary_payer_id: "", secondary_payer_phone: "",
+      tertiary_payer: "", tertiary_member_id: "",
+      tertiary_group_number: "", tertiary_payer_id: "", tertiary_payer_phone: "",
       auth_required: false, auth_expiration: "", trips_per_week_limit: "",
       stairs_required: "unknown", stair_chair_required: false,
       oxygen_lpm: "", special_equipment_required: "none",
@@ -350,6 +355,11 @@ export default function Patients() {
       secondary_group_number: (p as any).secondary_group_number ?? "",
       secondary_payer_id: (p as any).secondary_payer_id ?? "",
       secondary_payer_phone: (p as any).secondary_payer_phone ?? "",
+      tertiary_payer: (p as any).tertiary_payer ?? "",
+      tertiary_member_id: (p as any).tertiary_member_id ?? "",
+      tertiary_group_number: (p as any).tertiary_group_number ?? "",
+      tertiary_payer_id: (p as any).tertiary_payer_id ?? "",
+      tertiary_payer_phone: (p as any).tertiary_payer_phone ?? "",
       auth_required: (p as any).auth_required ?? false,
       auth_expiration: (p as any).auth_expiration ?? "",
       trips_per_week_limit: (p as any).trips_per_week_limit?.toString() ?? "",
@@ -453,6 +463,11 @@ export default function Patients() {
       secondary_group_number: form.secondary_group_number || null,
       secondary_payer_id: form.secondary_payer_id || null,
       secondary_payer_phone: form.secondary_payer_phone || null,
+      tertiary_payer: form.tertiary_payer ? form.tertiary_payer.toLowerCase().trim() : null,
+      tertiary_member_id: form.tertiary_member_id || null,
+      tertiary_group_number: form.tertiary_group_number || null,
+      tertiary_payer_id: form.tertiary_payer_id || null,
+      tertiary_payer_phone: form.tertiary_payer_phone || null,
       auth_required: form.auth_required,
       auth_expiration: form.auth_expiration || null,
       trips_per_week_limit: form.trips_per_week_limit ? parseInt(form.trips_per_week_limit) : null,
