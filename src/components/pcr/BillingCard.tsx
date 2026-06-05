@@ -118,6 +118,12 @@ export function BillingCard({ trip, updateField, readOnly = false }: Props) {
           <p className="text-[10px] font-medium text-muted-foreground uppercase">Secondary Payer</p>
           <p className="text-sm font-medium text-foreground">{patient?.secondary_payer || "None"}</p>
         </div>
+        {patient?.tertiary_payer && (
+          <div>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase">Tertiary Payer</p>
+            <p className="text-sm font-medium text-foreground capitalize">{patient.tertiary_payer}</p>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-1.5 pt-1">
