@@ -66,7 +66,7 @@ const STEPS = [
     icon: Users,
     title: "Add Your First Patient",
     description: "Create a patient record so you can schedule a run.",
-    blurb: "Patients are managed on the Patients page, where you can capture demographics, payer info, PCS docs, ICD-10 codes, and standing orders.",
+    blurb: "On the Patients page, start with Discover Coverage (find every active policy) and Verify Insurance (confirm eligibility) — both live as buttons next to Add Patient. Once coverage is confirmed, add the patient with demographics, PCS docs, ICD-10 codes, and standing orders.",
     cta: "Go to Patients",
     route: "/patients",
     progressKey: "step_patients_added" as const,
@@ -235,6 +235,12 @@ export default function OnboardingWizard() {
                     <span>{s.title}</span>
                   </div>
                 ))}
+              </div>
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-foreground">
+                <div className="font-medium mb-1">A guided tour will pop up on each page.</div>
+                <div className="text-muted-foreground">
+                  The first time you visit Dispatch, Patients, Billing, and the rest, a short outcome-focused tour shows what to do — and how that page contributes to getting your claims paid. You can replay any tour anytime from Account Settings → Product Tours.
+                </div>
               </div>
               <div className="flex flex-col gap-2 pt-4 border-t">
                 <Button onClick={async () => {
