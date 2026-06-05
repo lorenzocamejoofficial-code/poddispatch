@@ -522,8 +522,8 @@ export default function CreatorConsole() {
     });
   };
 
-  // ---------- Bulk action toolbar ----------
-  const BulkToolbar = ({ tabKey, selectableIds }: { tabKey: string; selectableIds: string[] }) => {
+  // ---------- Bulk action toolbar (render fn, NOT a component — avoids remount-on-parent-render) ----------
+  const renderBulkToolbar = (tabKey: string, selectableIds: string[]) => {
     const count = selectedIds.size;
     if (count === 0) return null;
     const showSuspend = tabKey === "active";
@@ -557,10 +557,9 @@ export default function CreatorConsole() {
     );
   };
 
-  // ---------- Expandable row (with checkbox) ----------
-  const ExpandableRow = ({ c, allowVerificationPanel, selectable }: { c: CompanyRecord; allowVerificationPanel: boolean; selectable: boolean }) => (
-    <>
-      <TableRow className="cursor-pointer" onClick={() => toggleExpand(c)}>
+  // ---------- Expandable row (render fn returning an array of <TableRow>s with stable keys) ----------
+  const renderExpandableRow = (c: CompanyRecord, allowVerificationPanel: boolean, selectable: boolean) => [
+      <TableRow key={`${c.id}-row`} className="cursor-pointer" onClick={() => toggleExpand(c)}>
         <TableCell className="w-8" onClick={(e) => e.stopPropagation()}>
           {selectable && !c.is_protected ? (
             <Checkbox
@@ -588,9 +587,9 @@ export default function CreatorConsole() {
         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-end">{renderActionsDropdown(c)}</div>
         </TableCell>
-      </TableRow>
-      {expandedCompany === c.id && (
-        <TableRow>
+      </TableRow>,
+      expandedCompany === c.id ? (
+        <TableRow key={`${c.id}-expanded`}>
           <TableCell colSpan={8} className="p-4 bg-muted/20">
             {c.onboarding_status === "pending_approval" && allowVerificationPanel ? (
               <CompanyVerificationPanel
@@ -616,12 +615,11 @@ export default function CreatorConsole() {
             )}
           </TableCell>
         </TableRow>
-      )}
-    </>
-  );
+      ) : null,
+  ];
 
-  // ---------- Generic status table ----------
-  const CompanyTableExpandable = ({ items, allowVerificationPanel, tabKey }: { items: CompanyRecord[]; allowVerificationPanel: boolean; tabKey: string }) => {
+  // ---------- Generic status table (render fn) ----------
+  const renderCompanyTable = (items: CompanyRecord[], allowVerificationPanel: boolean, tabKey: string) => {
     const page = pageByTab[tabKey] ?? 1;
     const pageItems = paginate(items, tabKey);
     const deletableOnPage = pageItems.filter(c => !c.is_protected);
@@ -633,7 +631,7 @@ export default function CreatorConsole() {
 
     return (
       <>
-        <BulkToolbar tabKey={tabKey} selectableIds={selectableIds} />
+        {renderBulkToolbar(tabKey, selectableIds)}
         <Table>
           <TableHeader>
             <TableRow>
@@ -656,7 +654,7 @@ export default function CreatorConsole() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pageItems.map(c => <ExpandableRow key={c.id} c={c} allowVerificationPanel={allowVerificationPanel} selectable />)}
+            {pageItems.flatMap(c => renderExpandableRow(c, allowVerificationPanel, true))}
           </TableBody>
         </Table>
         <TablePagination
@@ -670,8 +668,8 @@ export default function CreatorConsole() {
     );
   };
 
-  // ---------- Archived table (with checkbox + pagination) ----------
-  const ArchivedTable = ({ items }: { items: CompanyRecord[] }) => {
+  // ---------- Archived table (render fn) ----------
+  const renderArchivedTable = (items: CompanyRecord[]) => {
     const tabKey = "archived";
     const page = pageByTab[tabKey] ?? 1;
     const pageItems = paginate(items, tabKey);
@@ -684,7 +682,7 @@ export default function CreatorConsole() {
 
     return (
       <>
-        <BulkToolbar tabKey={tabKey} selectableIds={selectableIds} />
+        {renderBulkToolbar(tabKey, selectableIds)}
         <Table>
           <TableHeader>
             <TableRow>
@@ -803,22 +801,22 @@ export default function CreatorConsole() {
           </TabsList>
 
           <TabsContent value="pending">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("pending_approval")} allowVerificationPanel tabKey="pending" /></CardContent></Card>
+            <Card><CardContent className="pt-4">{renderCompanyTable(filtered("pending_approval"), true, "pending")}</CardContent></Card>
           </TabsContent>
           <TabsContent value="active">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("active")} allowVerificationPanel={false} tabKey="active" /></CardContent></Card>
+            <Card><CardContent className="pt-4">{renderCompanyTable(filtered("active"), false, "active")}</CardContent></Card>
           </TabsContent>
           <TabsContent value="awaiting_payment">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("approved_pending_payment")} allowVerificationPanel={false} tabKey="awaiting_payment" /></CardContent></Card>
+            <Card><CardContent className="pt-4">{renderCompanyTable(filtered("approved_pending_payment"), false, "awaiting_payment")}</CardContent></Card>
           </TabsContent>
           <TabsContent value="suspended">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("suspended")} allowVerificationPanel={false} tabKey="suspended" /></CardContent></Card>
+            <Card><CardContent className="pt-4">{renderCompanyTable(filtered("suspended"), false, "suspended")}</CardContent></Card>
           </TabsContent>
           <TabsContent value="rejected">
-            <Card><CardContent className="pt-4"><CompanyTableExpandable items={filtered("rejected")} allowVerificationPanel={false} tabKey="rejected" /></CardContent></Card>
+            <Card><CardContent className="pt-4">{renderCompanyTable(filtered("rejected"), false, "rejected")}</CardContent></Card>
           </TabsContent>
           <TabsContent value="archived">
-            <Card><CardContent className="pt-4"><ArchivedTable items={filteredArchived()} /></CardContent></Card>
+            <Card><CardContent className="pt-4">{renderArchivedTable(filteredArchived())}</CardContent></Card>
           </TabsContent>
           <TabsContent value="remittance_quarantine">
             <RemittanceQuarantinePanel />
