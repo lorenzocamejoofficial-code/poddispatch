@@ -28,6 +28,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageTour } from "@/components/tour/PageTour";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ContextualHelpPanel } from "@/components/help/ContextualHelpPanel";
@@ -449,6 +450,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           open={helpOpen}
           onOpenChange={setHelpOpen}
         />
+        <PageTour />
       </div>
     </div>
   );
