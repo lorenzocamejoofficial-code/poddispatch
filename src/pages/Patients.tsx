@@ -36,6 +36,7 @@ import { downloadCSV } from "@/lib/csv-export";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { useCompanyName } from "@/hooks/useCompanyName";
 import { PatientViewDialog } from "@/components/patients/PatientViewDialog";
+import { InsuranceToolsHeader, type PrefillPayload } from "@/components/patients/InsuranceToolsHeader";
 import { ClaimTimelineDrawer } from "@/components/billing/ClaimTimelineDrawer";
 import { Download } from "lucide-react";
 import {
