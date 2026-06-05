@@ -351,8 +351,13 @@ export default function RemittanceImport() {
         // matched claim is itself a SECONDARY (original_claim_id non-null)
         // and the patient has a tertiary payer → tertiary opportunity.
         if (rem.paid_amount > 0 && prAmount > 0) {
-          const matchedClaim = (claimsList as any[]).find((c) => c.id === item.matchedClaimId);
-          const isSecondaryClaim = !!matchedClaim?.original_claim_id;
+          // Look up whether the matched claim is itself a secondary (chained off a primary).
+          const { data: matchedClaim } = await supabase
+            .from("claim_records" as any)
+            .select("original_claim_id")
+            .eq("id", item.matchedClaimId)
+            .maybeSingle();
+          const isSecondaryClaim = !!(matchedClaim as any)?.original_claim_id;
           if (!isSecondaryClaim && item.hasSecondaryPayer) {
             await supabase
               .from("claim_records" as any)
