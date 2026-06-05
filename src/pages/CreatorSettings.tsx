@@ -303,7 +303,17 @@ export default function CreatorSettings() {
           </CardContent>
         </Card>
 
-        <Card>
+        <div className="pt-4 mt-2 border-t border-destructive/30">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
+            <h3 className="text-sm font-bold text-destructive uppercase tracking-wider">Danger Zone</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            Destructive actions that cannot be undone. Double-check the company name before confirming.
+          </p>
+        </div>
+
+        <Card className="border-destructive/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Trash2 className="h-4 w-4 text-destructive" />
