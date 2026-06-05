@@ -100,3 +100,4 @@ Before claiming "done" on anything with buttons or edge functions: click-test in
 - [Payer Compliance Cap](mem://billing/payer-compliance-cap) — Medicaid + dual-eligible patient_responsibility auto-cap to $0 on 835 posting; Medicare coinsurance write-off attestation gate
 - [Eligibility REST JSON](mem://billing/eligibility-rest-json) — Real-time eligibility uses OA REST JSON 270/271; endpoint URLs live on vendor_clearinghouse_settings and fail fast if unset
 - [Tertiary Coverage Pipeline](mem://billing/tertiary-coverage) — Primary/secondary/tertiary symmetry across patient, claim chain, 835 import, and Verify/Discover eligibility modes
+- [Per-Page Product Tour](mem://features/per-page-product-tour) — Role-scoped first-visit guided tour per (user_id, page_key), replayable from Account Settings

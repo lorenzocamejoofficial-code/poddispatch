@@ -17,7 +17,6 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { toast } from "sonner";
@@ -36,6 +35,7 @@ import { downloadCSV } from "@/lib/csv-export";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { useCompanyName } from "@/hooks/useCompanyName";
 import { PatientViewDialog } from "@/components/patients/PatientViewDialog";
+import { InsuranceToolsHeader, type PrefillPayload } from "@/components/patients/InsuranceToolsHeader";
 import { ClaimTimelineDrawer } from "@/components/billing/ClaimTimelineDrawer";
 import { Download } from "lucide-react";
 import {
@@ -405,6 +405,30 @@ export default function Patients() {
       terminal_illness_icd: (p as any).terminal_illness_icd ?? "",
     });
     setBLegWarnings([]);
+    setDialogOpen(true);
+  };
+
+  /** Called from Discover Coverage when no matching patient was found —
+   *  opens the Add Patient form pre-filled with name/DOB and the chosen
+   *  payer slot so the user just has to add address + facility + schedule. */
+  const openPrefilledAdd = (payload: PrefillPayload) => {
+    resetForm();
+    setForm((prev) => ({
+      ...prev,
+      first_name: payload.first_name ?? prev.first_name,
+      last_name: payload.last_name ?? prev.last_name,
+      dob: payload.dob ?? prev.dob,
+      primary_payer: payload.primary_payer ?? prev.primary_payer,
+      member_id: payload.member_id ?? prev.member_id,
+      secondary_payer: payload.secondary_payer ?? prev.secondary_payer,
+      secondary_member_id: payload.secondary_member_id ?? prev.secondary_member_id,
+      secondary_group_number: payload.secondary_group_number ?? prev.secondary_group_number,
+      secondary_payer_id: payload.secondary_payer_id ?? prev.secondary_payer_id,
+      tertiary_payer: payload.tertiary_payer ?? prev.tertiary_payer,
+      tertiary_member_id: payload.tertiary_member_id ?? prev.tertiary_member_id,
+      tertiary_group_number: payload.tertiary_group_number ?? prev.tertiary_group_number,
+      tertiary_payer_id: payload.tertiary_payer_id ?? prev.tertiary_payer_id,
+    }));
     setDialogOpen(true);
   };
 
@@ -963,6 +987,12 @@ export default function Patients() {
                 Delete {selected.size} selected
               </Button>
             )}
+            <InsuranceToolsHeader
+              configured={clearinghouseConfigured}
+              canUse={canCheckEligibility}
+              onPrefillNewPatient={openPrefilledAdd}
+              onPatientUpdated={fetchPatients}
+            />
             <Button
               size="sm"
               variant="outline"
@@ -1029,68 +1059,6 @@ export default function Patients() {
                   <DialogDescription>Enter patient details including contact info, addresses, and recurring transport schedule.</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-2">
-
-                  {/*
-                    Eligibility mode tabs (Verify vs Discover).
-                    Both modes save into the same patient record; only the
-                    UX-side payer lookup differs. The buttons are disabled
-                    until Office Ally activates the REST 270/271 product
-                    and the creator pastes the endpoint URLs into
-                    vendor_clearinghouse_settings.
-                  */}
-                  <Tabs defaultValue="verify" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="verify">Verify</TabsTrigger>
-                      <TabsTrigger value="discover">Discover</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="verify" className="mt-3">
-                      <div className="rounded-md border bg-muted/30 p-3 flex items-start justify-between gap-3">
-                        <div className="text-xs text-muted-foreground leading-snug">
-                          <p className="font-medium text-foreground mb-0.5">Verify coverage</p>
-                          Confirms the payer + member ID below are active for the patient using a real-time 270/271 eligibility check.
-                        </div>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span tabIndex={0}>
-                                <Button size="sm" variant="outline" disabled className="gap-1.5">
-                                  <ShieldCheck className="h-3.5 w-3.5" />
-                                  Check Eligibility
-                                </Button>
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>Activate with Office Ally to enable</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </TabsContent>
-                    <TabsContent value="discover" className="mt-3">
-                      <div className="rounded-md border bg-muted/30 p-3 space-y-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="text-xs text-muted-foreground leading-snug">
-                            <p className="font-medium text-foreground mb-0.5">Discover coverage</p>
-                            Searches Office Ally for any active coverage on this patient using name + DOB. Returns primary, secondary, and tertiary policies if found — you can then promote each into a payer slot below.
-                          </div>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span tabIndex={0}>
-                                  <Button size="sm" variant="outline" disabled className="gap-1.5">
-                                    <Search className="h-3.5 w-3.5" />
-                                    Discover Coverage
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>Activate with Office Ally to enable</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                        <div className="rounded border border-dashed p-3 text-[11px] text-muted-foreground text-center">
-                          Discovered policies will appear here (Payer / Member ID / Rank / Confidence) with an action to promote into the patient's Primary, Secondary, or Tertiary slot.
-                        </div>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
 
                   {/* Upstream claim-readiness preview — surfaces obvious
                       blockers (missing DOB, member ID, address, payer, PCS)

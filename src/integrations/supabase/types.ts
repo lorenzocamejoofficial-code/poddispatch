@@ -6076,6 +6076,33 @@ export type Database = {
         }
         Relationships: []
       }
+      user_tour_progress: {
+        Row: {
+          completed_at: string
+          created_at: string
+          id: string
+          page_key: string
+          skipped: boolean
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          created_at?: string
+          id?: string
+          page_key: string
+          skipped?: boolean
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          created_at?: string
+          id?: string
+          page_key?: string
+          skipped?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       vehicle_inspection_alerts: {
         Row: {
           acknowledged_at: string | null

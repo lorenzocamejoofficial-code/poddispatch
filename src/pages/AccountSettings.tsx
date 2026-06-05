@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { TwoFactorSection } from "@/components/account/TwoFactorSection";
+import { ReplayToursCard } from "@/components/tour/ReplayToursCard";
 
 export default function AccountSettings() {
   const { user } = useAuth();
@@ -125,6 +126,9 @@ export default function AccountSettings() {
 
         {/* Two-Factor Authentication */}
         <TwoFactorSection />
+
+        {/* Product Tours */}
+        <ReplayToursCard />
 
         {/* Legal & Compliance */}
         <Card>

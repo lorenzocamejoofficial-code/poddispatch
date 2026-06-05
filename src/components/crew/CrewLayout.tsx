@@ -8,6 +8,7 @@ import { useCompanyName } from "@/hooks/useCompanyName";
 import { useCrewBadges } from "@/hooks/useCrewBadges";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { ContextualHelpPanel, HelpIconButton } from "@/components/help/ContextualHelpPanel";
+import { PageTour } from "@/components/tour/PageTour";
 
 const crewNav = [
   { path: "/crew-dashboard", label: "Crew Dashboard", icon: LayoutDashboard, badgeKey: "dashboard" as const },
@@ -94,6 +95,7 @@ export function CrewLayout({ children }: { children: ReactNode }) {
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>
         <ContextualHelpPanel routeKey={location.pathname} open={helpOpen} onOpenChange={setHelpOpen} />
+        <PageTour />
       </div>
     </div>
   );
