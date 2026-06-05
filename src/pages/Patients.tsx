@@ -1061,68 +1061,6 @@ export default function Patients() {
                 </DialogHeader>
                 <div className="grid gap-4 py-2">
 
-                  {/*
-                    Eligibility mode tabs (Verify vs Discover).
-                    Both modes save into the same patient record; only the
-                    UX-side payer lookup differs. The buttons are disabled
-                    until Office Ally activates the REST 270/271 product
-                    and the creator pastes the endpoint URLs into
-                    vendor_clearinghouse_settings.
-                  */}
-                  <Tabs defaultValue="verify" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="verify">Verify</TabsTrigger>
-                      <TabsTrigger value="discover">Discover</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="verify" className="mt-3">
-                      <div className="rounded-md border bg-muted/30 p-3 flex items-start justify-between gap-3">
-                        <div className="text-xs text-muted-foreground leading-snug">
-                          <p className="font-medium text-foreground mb-0.5">Verify coverage</p>
-                          Confirms the payer + member ID below are active for the patient using a real-time 270/271 eligibility check.
-                        </div>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span tabIndex={0}>
-                                <Button size="sm" variant="outline" disabled className="gap-1.5">
-                                  <ShieldCheck className="h-3.5 w-3.5" />
-                                  Check Eligibility
-                                </Button>
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>Activate with Office Ally to enable</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </TabsContent>
-                    <TabsContent value="discover" className="mt-3">
-                      <div className="rounded-md border bg-muted/30 p-3 space-y-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="text-xs text-muted-foreground leading-snug">
-                            <p className="font-medium text-foreground mb-0.5">Discover coverage</p>
-                            Searches Office Ally for any active coverage on this patient using name + DOB. Returns primary, secondary, and tertiary policies if found — you can then promote each into a payer slot below.
-                          </div>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span tabIndex={0}>
-                                  <Button size="sm" variant="outline" disabled className="gap-1.5">
-                                    <Search className="h-3.5 w-3.5" />
-                                    Discover Coverage
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>Activate with Office Ally to enable</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                        <div className="rounded border border-dashed p-3 text-[11px] text-muted-foreground text-center">
-                          Discovered policies will appear here (Payer / Member ID / Rank / Confidence) with an action to promote into the patient's Primary, Secondary, or Tertiary slot.
-                        </div>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-
                   {/* Upstream claim-readiness preview — surfaces obvious
                       blockers (missing DOB, member ID, address, payer, PCS)
                       before any trip is created from this patient. */}
