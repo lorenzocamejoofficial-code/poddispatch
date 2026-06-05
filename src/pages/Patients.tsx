@@ -1030,6 +1030,68 @@ export default function Patients() {
                 </DialogHeader>
                 <div className="grid gap-4 py-2">
 
+                  {/*
+                    Eligibility mode tabs (Verify vs Discover).
+                    Both modes save into the same patient record; only the
+                    UX-side payer lookup differs. The buttons are disabled
+                    until Office Ally activates the REST 270/271 product
+                    and the creator pastes the endpoint URLs into
+                    vendor_clearinghouse_settings.
+                  */}
+                  <Tabs defaultValue="verify" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="verify">Verify</TabsTrigger>
+                      <TabsTrigger value="discover">Discover</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="verify" className="mt-3">
+                      <div className="rounded-md border bg-muted/30 p-3 flex items-start justify-between gap-3">
+                        <div className="text-xs text-muted-foreground leading-snug">
+                          <p className="font-medium text-foreground mb-0.5">Verify coverage</p>
+                          Confirms the payer + member ID below are active for the patient using a real-time 270/271 eligibility check.
+                        </div>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span tabIndex={0}>
+                                <Button size="sm" variant="outline" disabled className="gap-1.5">
+                                  <ShieldCheck className="h-3.5 w-3.5" />
+                                  Check Eligibility
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>Activate with Office Ally to enable</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="discover" className="mt-3">
+                      <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="text-xs text-muted-foreground leading-snug">
+                            <p className="font-medium text-foreground mb-0.5">Discover coverage</p>
+                            Searches Office Ally for any active coverage on this patient using name + DOB. Returns primary, secondary, and tertiary policies if found — you can then promote each into a payer slot below.
+                          </div>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span tabIndex={0}>
+                                  <Button size="sm" variant="outline" disabled className="gap-1.5">
+                                    <Search className="h-3.5 w-3.5" />
+                                    Discover Coverage
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>Activate with Office Ally to enable</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                        <div className="rounded border border-dashed p-3 text-[11px] text-muted-foreground text-center">
+                          Discovered policies will appear here (Payer / Member ID / Rank / Confidence) with an action to promote into the patient's Primary, Secondary, or Tertiary slot.
+                        </div>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+
                   {/* Upstream claim-readiness preview — surfaces obvious
                       blockers (missing DOB, member ID, address, payer, PCS)
                       before any trip is created from this patient. */}
@@ -1384,6 +1446,50 @@ export default function Patients() {
                             <Input value={form.secondary_payer_phone} onChange={e => setForm({ ...form, secondary_payer_phone: e.target.value })} placeholder="Phone number" />
                           </div>
                         </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-1">
+                        <span>Tertiary Insurance</span>
+                        {form.tertiary_payer && <Badge variant="outline" className="text-[10px] capitalize">{form.tertiary_payer}</Badge>}
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-3 pt-2">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label>Tertiary Payer</Label>
+                            <Select value={form.tertiary_payer || "none"} onValueChange={v => setForm({ ...form, tertiary_payer: v === "none" ? "" : v })}>
+                              <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— None —</SelectItem>
+                                <SelectItem value="medicare">Medicare</SelectItem>
+                                <SelectItem value="medicaid">Medicaid</SelectItem>
+                                <SelectItem value="facility">Facility</SelectItem>
+                                <SelectItem value="cash">Cash / Private</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Tertiary Member ID</Label>
+                            <Input value={form.tertiary_member_id} onChange={e => setForm({ ...form, tertiary_member_id: e.target.value })} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <Label className="text-xs">Group Number</Label>
+                            <Input value={form.tertiary_group_number} onChange={e => setForm({ ...form, tertiary_group_number: e.target.value })} placeholder="Group #" />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Payer ID (EDI)</Label>
+                            <Input value={form.tertiary_payer_id} onChange={e => setForm({ ...form, tertiary_payer_id: e.target.value })} placeholder="Electronic payer ID" />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Payer Phone</Label>
+                            <Input value={form.tertiary_payer_phone} onChange={e => setForm({ ...form, tertiary_payer_phone: e.target.value })} placeholder="Phone number" />
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          Tertiary claims are auto-spawned after the secondary pays, same as secondary is spawned after the primary pays.
+                        </p>
                       </CollapsibleContent>
                     </Collapsible>
                     <div className="grid grid-cols-2 gap-3">
