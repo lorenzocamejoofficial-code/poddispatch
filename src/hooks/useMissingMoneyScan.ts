@@ -61,7 +61,7 @@ export function useMissingMoneyScan() {
     const applyScope = (query: any) => {
       let scoped = query.eq("company_id", activeCompanyId);
       if (!isSimulationCompany) {
-        scoped = scoped.eq("is_simulated", false);
+        scoped = scoped.not("is_simulated", "is", true);
       }
       if (simulationRunId && !isSimulationCompany) {
         scoped = scoped.eq("simulation_run_id", simulationRunId);
@@ -119,7 +119,7 @@ export function useMissingMoneyScan() {
         .select("id, patient_id, payer_name, payer_type, total_charge, submitted_at, run_date, status")
         .eq("status", "submitted")
         .lt("submitted_at", fortyFiveDaysAgo)
-        .or("is_test_submission.eq.false,is_test_submission.is.null")
+        .not("is_test_submission", "is", true)
         .limit(500));
       const { data: agingClaims, error: agingError } = await agingQuery;
       if (agingError) throw agingError;
@@ -131,7 +131,7 @@ export function useMissingMoneyScan() {
         .eq("status", "paid")
         .eq("secondary_claim_generated", false)
         .gt("patient_responsibility_amount", 0)
-        .or("is_test_submission.eq.false,is_test_submission.is.null")
+        .not("is_test_submission", "is", true)
         .limit(500));
       const { data: secondaryClaims, error: secondaryError } = await secondaryQuery;
       if (secondaryError) throw secondaryError;
@@ -141,7 +141,7 @@ export function useMissingMoneyScan() {
         .from("claim_records" as any)
         .select("id, patient_id, payer_name, total_charge, denial_code, run_date, status")
         .eq("status", "denied")
-        .or("is_test_submission.eq.false,is_test_submission.is.null")
+        .not("is_test_submission", "is", true)
         .limit(500));
       const { data: deniedClaims, error: deniedError } = await deniedQuery;
       if (deniedError) throw deniedError;
