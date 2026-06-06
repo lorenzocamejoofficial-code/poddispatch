@@ -1668,10 +1668,75 @@ const RECOVERABLE_CARCS = [
   { code: "CO-167", reason: "This (these) diagnosis(es) is (are) not covered" },
 ];
 
-async function injectDenialsRemits(admin: any, companyId: string) {
+async function createDenialsRemitsClaimPool(admin: any, companyId: string, needed: number) {
+  let { data: patients, error: patientErr } = await admin
+    .from("patients")
+    .select("id")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(Math.max(needed, 4));
+
+  if (patientErr) return { ok: false, error: `Patient lookup failed: ${patientErr.message}` };
+
+  if (!patients || patients.length === 0) {
+    const demoPatients = Array.from({ length: 4 }, (_, i) => ({
+      company_id: companyId,
+      first_name: ["Denise", "Robert", "Marsha", "Charles"][i],
+      last_name: ["Coleman", "Harris", "Reed", "Bennett"][i],
+      primary_payer: i % 2 === 0 ? "medicare" : "medicaid",
+      member_id: `SIM${Date.now()}${i}`,
+      is_simulated: true,
+    }));
+    const inserted = await admin.from("patients").insert(demoPatients).select("id");
+    if (inserted.error) return { ok: false, error: `Demo patient creation failed: ${inserted.error.message}` };
+    patients = inserted.data ?? [];
+  }
+
+  const now = Date.now();
+  const dayMs = 86_400_000;
+  const dateMinus = (days: number) => new Date(now - days * dayMs).toISOString().slice(0, 10);
+  const source = patients ?? [];
+
+  const claimRows = Array.from({ length: needed }, (_, i) => {
+    const patient = source[i % source.length];
+    const total = 340 + (i % 6) * 42;
+    return {
+      company_id: companyId,
+      patient_id: patient?.id ?? null,
+      run_date: dateMinus(10 + i),
+      payer_type: i % 3 === 0 ? "medicare" : i % 3 === 1 ? "medicaid" : "commercial",
+      payer_name: i % 3 === 0 ? "MEDICARE" : i % 3 === 1 ? "GA MEDICAID" : "AETNA BETTER HEALTH",
+      member_id: `SIM-DEMO-${Date.now()}-${i}`,
+      base_charge: 250,
+      mileage_charge: total - 250,
+      extras_charge: 0,
+      total_charge: total,
+      expected_revenue: total,
+      status: "submitted",
+      submitted_at: new Date(now - (8 + i) * dayMs).toISOString(),
+      hcpcs_codes: ["A0428"],
+      hcpcs_modifiers: ["RH"],
+      cpt_codes: ["A0428"],
+      claim_build_date: dateMinus(8 + i),
+      is_simulated: true,
+      is_test_submission: false,
+      notes: "Simulation Lab Tier 1 demo seed",
+    };
+  });
+
+  const { data, error } = await admin
+    .from("claim_records")
+    .insert(claimRows)
+    .select("id, patient_id, total_charge, payer_type, payer_name, run_date, status");
+
+  if (error) return { ok: false, error: `Demo claim pool creation failed: ${error.message}` };
+  return { ok: true, pool: data ?? [] };
+}
+
+async function injectDenialsRemits(admin: any, companyId: string, userId: string) {
   // Need a pool of fresh simulated claims to transform. Skip any we've
   // already touched in a previous inject (simulation_run_id IS NOT NULL).
-  const { data: pool, error: poolErr } = await admin
+  let { data: pool, error: poolErr } = await admin
     .from("claim_records")
     .select("id, patient_id, total_charge, payer_type, payer_name, run_date, status")
     .eq("company_id", companyId)
@@ -1684,12 +1749,20 @@ async function injectDenialsRemits(admin: any, companyId: string) {
   if (poolErr) {
     return { ok: false, error: `Pool query failed: ${poolErr.message}` };
   }
-  if (!pool || pool.length < 10) {
-    return {
-      ok: false,
-      error: `Need ≥10 fresh simulated claims. Found ${pool?.length ?? 0}. Seed a scenario (billing_risk recommended) first, then click this again.`,
-      poolSize: pool?.length ?? 0,
-    };
+
+  const requiredPoolSize = 18;
+  let generatedPoolCount = 0;
+  if (!pool || pool.length < requiredPoolSize) {
+    const generated = await createDenialsRemitsClaimPool(admin, companyId, requiredPoolSize - (pool?.length ?? 0));
+    if (!generated.ok) {
+      return {
+        ok: false,
+        error: generated.error,
+        poolSize: pool?.length ?? 0,
+      };
+    }
+    generatedPoolCount = generated.pool.length;
+    pool = [...(pool ?? []), ...generated.pool];
   }
 
   // Record the inject as its own simulation_run for traceability + reset.
@@ -1697,6 +1770,7 @@ async function injectDenialsRemits(admin: any, companyId: string) {
   await admin.from("simulation_runs").insert({
     id: runId,
     scenario_name: "Denials & Remits Injection",
+    created_by: userId,
     status: "active",
   });
 
@@ -1812,6 +1886,7 @@ async function injectDenialsRemits(admin: any, companyId: string) {
     ok: counts.errors === 0,
     runId,
     poolSize: pool.length,
+    generatedPoolCount,
     transformed,
     counts,
     errors: errorLog.length ? errorLog : undefined,
@@ -1890,7 +1965,7 @@ Deno.serve(async (req) => {
         result = await injectEvent(admin, companyId, body.eventType);
         break;
       case "inject_denials_remits":
-        result = await injectDenialsRemits(admin, companyId);
+        result = await injectDenialsRemits(admin, companyId, callerUser.user.id);
         break;
       case "check":
         result = await runChecks(admin, companyId);
