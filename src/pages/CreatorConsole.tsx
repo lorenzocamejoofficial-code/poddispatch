@@ -247,6 +247,15 @@ export default function CreatorConsole() {
       return;
     }
 
+    // HARD BLOCK — OIG-confirmed exclusion cannot be approved by any path,
+    // not even with an acknowledgment note. Rejection is still allowed.
+    if (vr.oig.status === "excluded") {
+      toast.error(
+        "Cannot approve: OIG exclusion confirmed for this provider. Approval is hard-blocked. Reject the application instead.",
+      );
+      return;
+    }
+
     // Identify any non-clean statuses (failed, mismatch, excluded, unverifiable). These do not
     // block approval, but they require an explicit acknowledgment note that the creator
     // confirmed the check by other means (e.g. manual OIG LEIE search).
