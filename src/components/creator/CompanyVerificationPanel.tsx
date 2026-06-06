@@ -336,21 +336,23 @@ function NPIBadge({ status }: { status: string }) {
   if (status === "verified") return <Badge className="bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))] text-xs">Verified</Badge>;
   if (status === "mismatch") return <Badge className="bg-[hsl(var(--status-yellow))]/15 text-[hsl(var(--status-yellow))] text-xs">Mismatch</Badge>;
   if (status === "not_found") return <Badge className="bg-destructive/15 text-destructive text-xs">Not Found</Badge>;
-  return <Badge variant="outline" className="text-xs">Pending</Badge>;
+  if (status === "unverifiable") return <Badge className="bg-[hsl(var(--status-yellow))]/15 text-[hsl(var(--status-yellow))] text-xs">Couldn't Verify</Badge>;
+  return <Badge variant="outline" className="text-xs">Checking…</Badge>;
 }
 
 function MedicareBadge({ status }: { status: string }) {
   if (status === "enrolled") return <Badge className="bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))] text-xs">Enrolled</Badge>;
   if (status === "different_specialty") return <Badge className="bg-[hsl(var(--status-yellow))]/15 text-[hsl(var(--status-yellow))] text-xs">Enrolled — Different Specialty</Badge>;
   if (status === "not_enrolled") return <Badge className="bg-destructive/15 text-destructive text-xs">Not Enrolled</Badge>;
-  return <Badge variant="outline" className="text-xs">Pending</Badge>;
+  if (status === "unverifiable") return <Badge className="bg-[hsl(var(--status-yellow))]/15 text-[hsl(var(--status-yellow))] text-xs">Couldn't Verify</Badge>;
+  return <Badge variant="outline" className="text-xs">Checking…</Badge>;
 }
 
 function OIGBadge({ status }: { status: string }) {
   if (status === "not_excluded") return <Badge className="bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))] text-xs">Not Excluded</Badge>;
   if (status === "excluded") return <Badge className="bg-destructive/15 text-destructive text-xs">OIG Excluded</Badge>;
-  // pending = unknown — never show "Not Excluded" on failure
-  return <Badge variant="outline" className="text-xs">Unknown</Badge>;
+  if (status === "unverifiable") return <Badge className="bg-[hsl(var(--status-yellow))]/15 text-[hsl(var(--status-yellow))] text-xs">Couldn't Verify</Badge>;
+  return <Badge variant="outline" className="text-xs">Checking…</Badge>;
 }
 
 // --- API check functions via edge functions ---
@@ -358,7 +360,14 @@ function OIGBadge({ status }: { status: string }) {
 function getOverallStatus(r: VerificationResult): "pass" | "review" | "fail" | "pending" {
   if (r.npi.status === "pending" || r.medicare.status === "pending" || r.oig.status === "pending") return "pending";
   if (r.oig.status === "excluded" || r.npi.status === "not_found") return "fail";
-  if (r.npi.status === "mismatch" || r.medicare.status === "different_specialty" || r.medicare.status === "not_enrolled") return "review";
+  if (
+    r.npi.status === "mismatch" ||
+    r.medicare.status === "different_specialty" ||
+    r.medicare.status === "not_enrolled" ||
+    r.npi.status === "unverifiable" ||
+    r.medicare.status === "unverifiable" ||
+    r.oig.status === "unverifiable"
+  ) return "review";
   return "pass";
 }
 
@@ -367,9 +376,10 @@ async function checkNPI(npi: string | null, companyName: string, companyId: stri
   try {
       const { data, error } = await invokeFunctionWithTimeout("verify-npi", { npi, company_name: companyName, company_id: companyId }, "NPI lookup");
     if (error) throw new Error(error.message);
+    if (!data || data.status === "pending") return { status: "unverifiable", error: data?.error || "NPI lookup returned no result" };
     return data;
   } catch (err: any) {
-    return { status: "not_found", error: err.message || "NPI lookup failed" };
+    return { status: "unverifiable", error: err.message || "NPI lookup failed" };
   }
 }
 
@@ -378,9 +388,10 @@ async function checkMedicare(npi: string | null, companyId: string): Promise<Ver
   try {
       const { data, error } = await invokeFunctionWithTimeout("verify-medicare", { npi, company_id: companyId }, "Medicare lookup");
     if (error) throw new Error(error.message);
+    if (!data || data.status === "pending") return { status: "unverifiable", error: data?.error || "Medicare lookup returned no result" };
     return data;
   } catch (err: any) {
-    return { status: "not_enrolled", error: err.message || "Medicare lookup failed" };
+    return { status: "unverifiable", error: err.message || "Medicare lookup failed" };
   }
 }
 
@@ -388,10 +399,11 @@ async function checkOIG(name: string, state: string | null, companyId: string): 
   try {
     const { data, error } = await invokeFunctionWithTimeout("verify-oig", { name, state, company_id: companyId }, "OIG lookup");
     if (error) throw new Error(error.message);
-    // Never show "not_excluded" on error — keep as pending/unknown
+    // OIG edge fn returns status "pending" when its upstream API fails. Treat that as a terminal "couldn't verify".
+    if (!data || data.status === "pending") return { status: "unverifiable", error: data?.error || "OIG check unreachable" };
     return data;
   } catch (err: any) {
-    return { status: "pending", error: err.message || "OIG lookup failed" };
+    return { status: "unverifiable", error: err.message || "OIG lookup failed" };
   }
 }
 
