@@ -61,7 +61,7 @@ export function useMissingMoneyScan() {
     const applyScope = (query: any) => {
       let scoped = query.eq("company_id", activeCompanyId);
       if (!isSimulationCompany) {
-        scoped = scoped.or("is_simulated.eq.false,is_simulated.is.null");
+        scoped = scoped.eq("is_simulated", false);
       }
       if (simulationRunId && !isSimulationCompany) {
         scoped = scoped.eq("simulation_run_id", simulationRunId);
