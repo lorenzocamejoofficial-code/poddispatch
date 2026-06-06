@@ -198,7 +198,32 @@ export default function SimulationLab() {
   const injectDenialsRemits = async () => {
     setLoading("inject_denials_remits");
     try {
-      const data = await callLab({ action: "inject_denials_remits" });
+      let data = await callLab({ action: "inject_denials_remits" });
+
+      // Auto-seed billing_risk if the pool is too thin, then retry once.
+      const tooThin =
+        !data?.ok &&
+        typeof data?.error === "string" &&
+        /Need .*fresh simulated claims/i.test(data.error);
+
+      if (tooThin) {
+        toast({
+          title: "Seeding billing_risk first…",
+          description: "Sandbox had <10 fresh claims. Auto-seeding, then injecting.",
+        });
+        const seed = await callLab({ action: "seed", scenario: "billing_risk", seedSize: "small" });
+        if (!seed?.ok) {
+          toast({
+            title: "Auto-seed Failed",
+            description: seed?.error ?? "Could not seed billing_risk. Seed manually then retry.",
+            variant: "destructive",
+          });
+          setLoading(null);
+          return;
+        }
+        data = await callLab({ action: "inject_denials_remits" });
+      }
+
       if (data?.ok) {
         toast({
           title: "Demo Data Injected",
