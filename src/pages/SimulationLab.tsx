@@ -11,7 +11,7 @@ import {
   FlaskConical, Zap, ShieldCheck, Camera, RotateCcw, Loader2,
   CheckCircle2, XCircle, AlertTriangle, Truck, Users, Activity,
   Clock, Ban, UserX, Plus, Wrench, Play, ExternalLink,
-  BarChart3, Bug,
+  BarChart3, Bug, DollarSign,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -189,6 +189,29 @@ export default function SimulationLab() {
       toast({ title: "Event Injected", description: result.description });
       setSummary(null);
       invalidateAll();
+    } catch (e: any) {
+      toast({ title: "Inject Failed", description: e.message, variant: "destructive" });
+    }
+    setLoading(null);
+  };
+
+  const injectDenialsRemits = async () => {
+    setLoading("inject_denials_remits");
+    try {
+      const data = await callLab({ action: "inject_denials_remits" });
+      if (data?.ok) {
+        toast({
+          title: "Demo Data Injected",
+          description: data.description ?? `Transformed ${data.transformed} claims.`,
+        });
+        invalidateAll();
+      } else {
+        toast({
+          title: "Inject Failed",
+          description: data?.error ?? "Unknown error",
+          variant: "destructive",
+        });
+      }
     } catch (e: any) {
       toast({ title: "Inject Failed", description: e.message, variant: "destructive" });
     }
@@ -539,6 +562,41 @@ export default function SimulationLab() {
                 </Button>
               ))}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Tier 1 Demo Data — Denials & Remits */}
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-primary" />
+              Tier 1 Demo Data — Denials & Remits
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Transforms ~18 freshly seeded claims into demo-ready billing states so the
+              <strong> Missing Money scanner</strong>, <strong>Denial Recovery Engine</strong>,
+              and <strong>Timely Filing Strip</strong> all light up on first click. Run this
+              AFTER seeding a scenario (recommended: <code>billing_risk</code>).
+            </p>
+            <ul className="text-[11px] text-muted-foreground space-y-1 list-disc pl-5">
+              <li><strong>6 denials</strong> with recoverable CARCs (CO-16, CO-50, CO-197, CO-29, CO-11, CO-167)</li>
+              <li><strong>4 paid claims</strong> w/ patient responsibility + secondary payer set → Missing Money "secondary not billed"</li>
+              <li><strong>5 aging-submitted</strong> claims (60d old, no follow-up) → AR aging + Missing Money "no follow-up"</li>
+              <li><strong>3 timely-filing</strong> claims (2 near deadline, 1 past due)</li>
+            </ul>
+            <Button
+              size="sm"
+              onClick={injectDenialsRemits}
+              disabled={loading !== null}
+              className="gap-1.5 text-xs"
+            >
+              {loading === "inject_denials_remits"
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <DollarSign className="h-3.5 w-3.5" />}
+              Inject Denials & Remits
+            </Button>
           </CardContent>
         </Card>
 
