@@ -28,6 +28,7 @@ export default function AdminSettings() {
   const [sessionWarningEnabled, setSessionWarningEnabled] = useState(true);
   const [retentionYears, setRetentionYears] = useState("10");
   const [verifiedCallerId, setVerifiedCallerId] = useState("");
+  const [enforceRunGap, setEnforceRunGap] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
 
@@ -69,6 +70,7 @@ export default function AdminSettings() {
         setSessionWarningEnabled((data as any).session_warning_enabled ?? true);
         setRetentionYears(String((data as any).retention_policy_years ?? 10));
         setVerifiedCallerId(String((data as any).verified_caller_id ?? ""));
+        setEnforceRunGap(Boolean((data as any).enforce_run_gap_minutes ?? false));
       }
     });
 
@@ -86,6 +88,7 @@ export default function AdminSettings() {
       session_timeout_minutes: parseInt(sessionTimeout),
       session_warning_enabled: sessionWarningEnabled,
       verified_caller_id: verifiedCallerId.trim() || null,
+      enforce_run_gap_minutes: enforceRunGap,
     };
     // Retention policy is owner-narrow (legal/compliance commitment).
     if (isOwner) payload.retention_policy_years = parseInt(retentionYears);
