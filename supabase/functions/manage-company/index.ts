@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Verify caller is system creator
+    // Verify caller is authenticated (creator check happens per-action below).
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Unauthorized" }, 401);
 
@@ -86,15 +86,100 @@ Deno.serve(async (req) => {
     } = await supabaseAdmin.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) return json({ error: "Unauthorized" }, 401);
 
+    const { companyId, action, reason, patch, verification, manualNotes } = await req.json();
+    if (!companyId || !action) return json({ error: "companyId and action required" }, 400);
+
+    // ── RESUBMIT (rejected owner only — does NOT require system_creator) ──
+    if (action === "resubmit") {
+      const { data: company, error: cErr } = await supabaseAdmin
+        .from("companies")
+        .select("id, owner_user_id, onboarding_status, rejected_reason, name, npi_number, ein_number, address_street, address_city, address_state, address_zip, state_of_operation, service_area_type, truck_count, hipaa_privacy_officer")
+        .eq("id", companyId)
+        .maybeSingle();
+      if (cErr || !company) return json({ error: "Company not found" }, 404);
+      if (company.owner_user_id !== user.id) {
+        return json({ error: "Forbidden: only the company owner may resubmit." }, 403);
+      }
+      if (company.onboarding_status !== "rejected") {
+        return json({ error: "Resubmit is only allowed when the application is rejected." }, 400);
+      }
+      if (!patch || typeof patch !== "object") {
+        return json({ error: "patch object required" }, 400);
+      }
+
+      const ALLOWED = [
+        "name", "npi_number", "ein_number",
+        "address_street", "address_city", "address_state", "address_zip",
+        "state_of_operation", "service_area_type", "truck_count",
+        "hipaa_privacy_officer",
+      ] as const;
+      const safePatch: Record<string, unknown> = {};
+      for (const k of ALLOWED) {
+        if (k in patch) safePatch[k] = (patch as any)[k];
+      }
+
+      // Build merged record to validate required fields end-state.
+      const merged: Record<string, any> = { ...company, ...safePatch };
+      const errs: string[] = [];
+      if (!merged.name || !String(merged.name).trim()) errs.push("Dispatch name is required.");
+      const npi = String(merged.npi_number ?? "").replace(/\D/g, "");
+      if (npi.length !== 10) errs.push("NPI must be exactly 10 digits.");
+      const ein = String(merged.ein_number ?? "").replace(/\D/g, "");
+      if (ein.length !== 9) errs.push("EIN must be exactly 9 digits.");
+      if (!merged.state_of_operation) errs.push("State of operation is required.");
+      if (!merged.address_street || !String(merged.address_street).trim()) errs.push("Street address is required.");
+      if (!merged.address_city || !String(merged.address_city).trim()) errs.push("City is required.");
+      if (!/^\d{5}$/.test(String(merged.address_zip ?? "").trim())) errs.push("ZIP must be exactly 5 digits.");
+      if (!merged.service_area_type) errs.push("Service area type is required.");
+      if (!merged.truck_count || Number(merged.truck_count) < 1) errs.push("Number of active trucks is required.");
+      if (errs.length) return json({ error: errs.join(" "), code: "VALIDATION_FAILED" }, 400);
+
+      // Normalize numeric/text storage.
+      safePatch.npi_number = npi;
+      safePatch.ein_number = ein;
+      (safePatch as any).onboarding_status = "pending_approval";
+      (safePatch as any).rejected_reason = null;
+      (safePatch as any).rejected_at = null;
+
+      const { error: upErr } = await supabaseAdmin
+        .from("companies")
+        .update(safePatch)
+        .eq("id", companyId);
+      if (upErr) return json({ error: upErr.message }, 500);
+
+      await supabaseAdmin.from("onboarding_events").insert({
+        company_id: companyId,
+        event_type: "company_resubmitted",
+        actor_user_id: user.id,
+        actor_email: user.email,
+        details: {
+          previous_rejected_reason: company.rejected_reason,
+          fields_changed: Object.keys(safePatch).filter((k) =>
+            !["onboarding_status", "rejected_reason", "rejected_at"].includes(k),
+          ),
+        },
+      });
+      await supabaseAdmin.from("audit_logs").insert({
+        action: "company_resubmitted",
+        actor_user_id: user.id,
+        actor_email: user.email,
+        company_id: companyId,
+        table_name: "companies",
+        record_id: companyId,
+        notes: `Application resubmitted by owner after rejection (reason was: ${company.rejected_reason ?? "n/a"}).`,
+        new_data: safePatch,
+      });
+
+      return json({ success: true, status: "pending_approval" });
+    }
+
+    // All remaining actions require a system creator.
     const { data: sc } = await supabaseAdmin
       .from("system_creators")
       .select("id")
       .eq("user_id", user.id)
       .maybeSingle();
     if (!sc) return json({ error: "Forbidden: System creator only" }, 403);
-
-    const { companyId, action, reason, patch, verification, manualNotes } = await req.json();
-    if (!companyId || !action) return json({ error: "companyId and action required" }, 400);
 
     // ── APPROVE ──────────────────────────────────────────────
     if (action === "approve") {
