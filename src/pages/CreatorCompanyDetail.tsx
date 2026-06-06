@@ -114,7 +114,17 @@ export default function CreatorCompanyDetail() {
     ? Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
   const openTickets = tickets.filter(t => t.status !== "resolved" && t.status !== "closed").length;
-  const hasSubscription = !!subscription;
+  // Pre-approval statuses have no real billing relationship yet, even if a
+  // trial subscription_records row was seeded at signup. Treat those as "no
+  // billing" so the financial tiles don't show misleading MRR/trial figures.
+  const PRE_BILLING_STATUSES = new Set([
+    "pending",
+    "pending_approval",
+    "rejected",
+    "approved_pending_payment",
+  ]);
+  const isPreBilling = PRE_BILLING_STATUSES.has(company.onboarding_status);
+  const hasSubscription = !!subscription && !isPreBilling;
   const statusLabel = company.onboarding_status.replace(/_/g, " ");
 
   return (
