@@ -43,6 +43,7 @@ const STATUS_LABELS: Record<string, { label: string; variant: "destructive" | "s
   resolved_posted: { label: "Posted", variant: "default" },
   resolved_ignored: { label: "Ignored", variant: "secondary" },
   resolved_reassigned: { label: "Reassigned", variant: "outline" },
+  resolved_routed: { label: "Routed to Owner", variant: "default" },
 };
 
 const FILE_TYPE_LABELS: Record<string, { label: string; variant: "destructive" | "secondary" | "default" | "outline" }> = {
@@ -62,6 +63,8 @@ export function RemittanceQuarantinePanel() {
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+  const [routeTargetId, setRouteTargetId] = useState<string>("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -102,6 +105,19 @@ export function RemittanceQuarantinePanel() {
   }, [statusFilter, fileTypeFilter]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // Load real customer companies for the routing dropdown
+    (async () => {
+      const { data } = await supabase
+        .from("companies")
+        .select("id, name")
+        .eq("creator_test_tenant", false)
+        .eq("is_sandbox", false)
+        .is("deleted_at", null)
+        .order("name");
+      setCompanies(data ?? []);
+    })();
+  }, []);
   useEffect(() => { setPage(1); }, [statusFilter, fileTypeFilter]);
   const pagedRows = rows.slice((page - 1) * pageSize, page * pageSize);
 
@@ -110,6 +126,33 @@ export function RemittanceQuarantinePanel() {
   const submitResolution = async () => {
     if (!reviewing) return;
     setSaving(true);
+    // Special path: hand the remittance off to the target company's books
+    if (resolutionStatus === "resolved_routed") {
+      if (!routeTargetId) {
+        toast.error("Pick a company to route this remittance to.");
+        setSaving(false);
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke("route-quarantined-remittance", {
+        body: {
+          quarantine_id: reviewing.id,
+          target_company_id: routeTargetId,
+          notes: resolutionNotes.trim() || null,
+        },
+      });
+      setSaving(false);
+      if (error || (data as any)?.error) {
+        toast.error("Routing failed: " + (error?.message ?? (data as any)?.error));
+        return;
+      }
+      toast.success(`Routed to ${(data as any)?.routed_to ?? "company"}. They'll see it in Remittance History.`);
+      setReviewing(null);
+      setResolutionNotes("");
+      setRouteTargetId("");
+      setResolutionStatus("resolved_ignored");
+      load();
+      return;
+    }
     const { data: auth } = await supabase.auth.getUser();
     const { error } = await supabase
       .from("remittance_quarantine" as any)
@@ -277,12 +320,34 @@ export function RemittanceQuarantinePanel() {
                 <Select value={resolutionStatus} onValueChange={setResolutionStatus}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="resolved_routed">Route to owning company (recommended)</SelectItem>
                     <SelectItem value="resolved_ignored">Ignore — not actionable</SelectItem>
                     <SelectItem value="resolved_reassigned">Reassigned manually outside the system</SelectItem>
                     <SelectItem value="resolved_posted">Posted manually to correct claim</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              {resolutionStatus === "resolved_routed" && (
+                <div>
+                  <label className="text-xs text-muted-foreground">Route to company</label>
+                  <Select
+                    value={routeTargetId || reviewing.matched_company_id || ""}
+                    onValueChange={setRouteTargetId}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Pick the company that owns this payment…" /></SelectTrigger>
+                    <SelectContent>
+                      {companies.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}{reviewing.matched_company_id === c.id ? " — likely owner" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Drops a copy of the original 835 into that company's Remittance History so their biller can import and post it.
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="text-xs text-muted-foreground">Notes (required)</label>
                 <Textarea value={resolutionNotes} onChange={(e) => setResolutionNotes(e.target.value)} placeholder="Describe what you did and why…" rows={3} />
