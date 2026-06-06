@@ -114,6 +114,8 @@ export default function CreatorCompanyDetail() {
     ? Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
   const openTickets = tickets.filter(t => t.status !== "resolved" && t.status !== "closed").length;
+  const hasSubscription = !!subscription;
+  const statusLabel = company.onboarding_status.replace(/_/g, " ");
 
   return (
     <CreatorLayout title={company.name}>
@@ -162,24 +164,39 @@ export default function CreatorCompanyDetail() {
 
         {/* KPI tiles */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide"><CreditCard className="h-3 w-3" /> MRR</div>
-              <p className="text-2xl font-bold mt-1">${mrr}</p>
-              <p className="text-xs text-muted-foreground mt-1">{subscription?.subscription_status ?? "no subscription"}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide"><Calendar className="h-3 w-3" /> Trial</div>
-              <p className="text-2xl font-bold mt-1">
-                {trialDaysLeft === null ? "—" : trialDaysLeft <= 0 ? "Ended" : `${trialDaysLeft}d`}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {subscription?.trial_ends_at ? format(new Date(subscription.trial_ends_at), "MMM d") : "No trial"}
-              </p>
-            </CardContent>
-          </Card>
+          {hasSubscription ? (
+            <>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide"><CreditCard className="h-3 w-3" /> MRR</div>
+                  <p className="text-2xl font-bold mt-1">${mrr}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{subscription?.subscription_status}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide"><Calendar className="h-3 w-3" /> Trial</div>
+                  <p className="text-2xl font-bold mt-1">
+                    {trialDaysLeft === null ? "—" : trialDaysLeft <= 0 ? "Ended" : `${trialDaysLeft}d`}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {subscription?.trial_ends_at ? format(new Date(subscription.trial_ends_at), "MMM d") : "No trial"}
+                  </p>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card className="col-span-2 border-dashed bg-muted/30">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide"><CreditCard className="h-3 w-3" /> Billing</div>
+                <p className="text-base font-semibold mt-1">No billing yet — pending approval</p>
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Onboarding status:</span>
+                  <Badge variant={statusVariant(company.onboarding_status)}>{statusLabel}</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide"><Activity className="h-3 w-3" /> Volume</div>
@@ -211,7 +228,18 @@ export default function CreatorCompanyDetail() {
                   <Row label="Last payment" value={subscription.last_payment_at ? `${format(new Date(subscription.last_payment_at), "PPP")} (${subscription.last_payment_status})` : "Never"} />
                   {subscription.is_founding && <Badge variant="outline">Founding Member</Badge>}
                 </>
-              ) : <p className="text-muted-foreground">No subscription record.</p>}
+              ) : (
+                <div className="rounded-md border border-dashed bg-muted/30 p-4">
+                  <p className="font-medium text-foreground">No billing yet — pending approval</p>
+                  <p className="text-muted-foreground mt-1">
+                    This company has not been approved or selected a plan, so no subscription, MRR, or trial exists yet.
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Onboarding status:</span>
+                    <Badge variant={statusVariant(company.onboarding_status)}>{statusLabel}</Badge>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
