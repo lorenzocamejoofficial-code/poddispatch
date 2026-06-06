@@ -251,35 +251,55 @@ export default function RemittanceImport() {
       const variance = +(bpr - (sumClp - sumPlb)).toFixed(2);
       const reconciled = Math.abs(variance) < 0.01;
 
-      // 1) Insert the remittance file FIRST so we have an id to link payments + PLBs
+      // 1) Acquire the remittance_files row we'll link payments + PLBs to.
+      // Routed flow: UPDATE the existing row (created by support routing).
+      // Upload flow: INSERT a new row.
       const { data: companyId } = await supabase.rpc("get_my_company_id");
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      const { data: fileRow, error: fileErr } = await supabase
-        .from("remittance_files" as any)
-        .insert({
-          file_name: fileName,
-          file_content: rawContent,
-          claims_matched: toUpdate.length,
-          claims_updated: 0, // will update after the loop
-          total_paid: 0,
-          status: "processing",
-          company_id: companyId,
-          imported_by: currentUser?.id ?? null,
-          bpr_total_paid: bpr,
-          payment_date: envelope?.payment_date || null,
-          payer_name: envelope?.payer_name || null,
-          eft_trace_number: envelope?.eft_trace_number || null,
-          reconciled,
-          reconciliation_variance: variance,
-          is_simulated: isSimTenant,
-        } as any)
-        .select("id")
-        .single();
-
-      if (fileErr || !fileRow) {
-        throw new Error(fileErr?.message ?? "Failed to create remittance file row");
+      let remittanceFileId: string;
+      if (routedFileId) {
+        const { error: updErr } = await supabase
+          .from("remittance_files" as any)
+          .update({
+            claims_matched: toUpdate.length,
+            claims_updated: 0,
+            total_paid: 0,
+            status: "processing",
+            bpr_total_paid: bpr,
+            payment_date: envelope?.payment_date || null,
+            payer_name: envelope?.payer_name || null,
+            eft_trace_number: envelope?.eft_trace_number || null,
+            reconciled,
+            reconciliation_variance: variance,
+          } as any)
+          .eq("id", routedFileId);
+        if (updErr) throw new Error(updErr.message);
+        remittanceFileId = routedFileId;
+      } else {
+        const { data: fileRow, error: fileErr } = await supabase
+          .from("remittance_files" as any)
+          .insert({
+            file_name: fileName,
+            file_content: rawContent,
+            claims_matched: toUpdate.length,
+            claims_updated: 0,
+            total_paid: 0,
+            status: "processing",
+            company_id: companyId,
+            imported_by: currentUser?.id ?? null,
+            bpr_total_paid: bpr,
+            payment_date: envelope?.payment_date || null,
+            payer_name: envelope?.payer_name || null,
+            eft_trace_number: envelope?.eft_trace_number || null,
+            reconciled,
+            reconciliation_variance: variance,
+            is_simulated: isSimTenant,
+          } as any)
+          .select("id")
+          .single();
+        if (fileErr || !fileRow) throw new Error(fileErr?.message ?? "Failed to create remittance file row");
+        remittanceFileId = (fileRow as any).id as string;
       }
-      const remittanceFileId = (fileRow as any).id as string;
 
       // 2) Insert payment events — the recompute trigger derives claim_records fields.
       for (const item of toUpdate) {
