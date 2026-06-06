@@ -1733,7 +1733,7 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
   return { ok: true, pool: data ?? [] };
 }
 
-async function injectDenialsRemits(admin: any, companyId: string) {
+async function injectDenialsRemits(admin: any, companyId: string, userId: string) {
   // Need a pool of fresh simulated claims to transform. Skip any we've
   // already touched in a previous inject (simulation_run_id IS NOT NULL).
   let { data: pool, error: poolErr } = await admin
@@ -1770,6 +1770,7 @@ async function injectDenialsRemits(admin: any, companyId: string) {
   await admin.from("simulation_runs").insert({
     id: runId,
     scenario_name: "Denials & Remits Injection",
+    created_by: userId,
     status: "active",
   });
 
@@ -1964,7 +1965,7 @@ Deno.serve(async (req) => {
         result = await injectEvent(admin, companyId, body.eventType);
         break;
       case "inject_denials_remits":
-        result = await injectDenialsRemits(admin, companyId);
+        result = await injectDenialsRemits(admin, companyId, callerUser.user.id);
         break;
       case "check":
         result = await runChecks(admin, companyId);
