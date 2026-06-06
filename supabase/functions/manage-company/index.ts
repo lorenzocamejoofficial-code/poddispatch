@@ -299,7 +299,41 @@ Deno.serve(async (req) => {
         },
       });
 
-      return json({ success: true, status: "approved_pending_payment" });
+      // ── Notify the owner that they're approved and need to pick a plan.
+      // Best-effort: failures are logged but never roll back the approval.
+      const approveContact = await loadOwnerContact(supabaseAdmin, companyId);
+      let approveEmailDelivered = false;
+      let approveEmailError: string | undefined;
+      if (approveContact.email) {
+        const planUrl = `${appOrigin()}/choose-plan`;
+        const { html, text } = renderActionEmail({
+          heading: "You're approved 🎉",
+          intro: `Good news — ${approveContact.companyName ?? "your company"} has been approved on PodDispatch. The last step is choosing a plan and completing payment to unlock the app. Your 45-day trial starts the moment checkout finishes.`,
+          actionLabel: "Choose your plan",
+          actionUrl: planUrl,
+          footer: "PodDispatch · Secure dispatch & billing for NEMT operators.",
+        });
+        const result = await sendViaResend({
+          to: approveContact.email,
+          subject: "Your PodDispatch application is approved",
+          html,
+          text,
+          email_type: "other",
+          company_id: companyId,
+          recipient_user_id: approveContact.ownerUserId,
+        });
+        approveEmailDelivered = result.ok;
+        if (!result.ok) approveEmailError = result.error;
+      } else {
+        approveEmailError = "owner email not found";
+      }
+
+      return json({
+        success: true,
+        status: "approved_pending_payment",
+        email_delivered: approveEmailDelivered,
+        email_error: approveEmailDelivered ? undefined : approveEmailError,
+      });
     }
 
     // ── REJECT ───────────────────────────────────────────────
@@ -323,7 +357,45 @@ Deno.serve(async (req) => {
         details: { reason },
       });
 
-      return json({ success: true, status: "rejected" });
+      // ── Notify the owner with the rejection reason and a path to resubmit.
+      // Best-effort: failures are logged but never roll back the rejection.
+      const rejectContact = await loadOwnerContact(supabaseAdmin, companyId);
+      let rejectEmailDelivered = false;
+      let rejectEmailError: string | undefined;
+      if (rejectContact.email) {
+        const loginUrl = `${appOrigin()}/login`;
+        const safeReason = String(reason || "No reason provided")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        const { html, text } = renderActionEmail({
+          heading: "Your PodDispatch application needs changes",
+          intro: `Thanks for applying to PodDispatch. After review, ${rejectContact.companyName ?? "your application"} was not approved at this time.<br/><br/><strong>Reason from our team:</strong><br/>${safeReason}<br/><br/>You can sign in to review the details and resubmit your application with corrections.`,
+          actionLabel: "Sign in to resubmit",
+          actionUrl: loginUrl,
+          footer: "Questions? Reply to this email or contact support@thepoddispatch.com.",
+        });
+        const result = await sendViaResend({
+          to: rejectContact.email,
+          subject: "Action needed on your PodDispatch application",
+          html,
+          text,
+          email_type: "other",
+          company_id: companyId,
+          recipient_user_id: rejectContact.ownerUserId,
+        });
+        rejectEmailDelivered = result.ok;
+        if (!result.ok) rejectEmailError = result.error;
+      } else {
+        rejectEmailError = "owner email not found";
+      }
+
+      return json({
+        success: true,
+        status: "rejected",
+        email_delivered: rejectEmailDelivered,
+        email_error: rejectEmailDelivered ? undefined : rejectEmailError,
+      });
     }
 
     // ── SUSPEND ──────────────────────────────────────────────
