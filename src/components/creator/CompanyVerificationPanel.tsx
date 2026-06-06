@@ -9,7 +9,7 @@ import { Loader2, CheckCircle2, AlertTriangle, XCircle, ExternalLink, RefreshCw,
 
 interface VerificationResult {
   npi: {
-    status: "verified" | "mismatch" | "not_found" | "pending";
+    status: "verified" | "mismatch" | "not_found" | "unverifiable" | "pending";
     registeredName?: string;
     address?: string;
     state?: string;
@@ -17,12 +17,12 @@ interface VerificationResult {
     error?: string;
   };
   medicare: {
-    status: "enrolled" | "different_specialty" | "not_enrolled" | "pending";
+    status: "enrolled" | "different_specialty" | "not_enrolled" | "unverifiable" | "pending";
     specialty?: string;
     error?: string;
   };
   oig: {
-    status: "not_excluded" | "excluded" | "pending";
+    status: "not_excluded" | "excluded" | "unverifiable" | "pending";
     details?: string;
     error?: string;
   };
