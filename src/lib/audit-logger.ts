@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-type AuditAction = "view" | "edit" | "delete" | "export" | "duplicate_override" | "incident_report" | "vehicle_inspection" | "edi_837p_export" | "edi_837p_queued_for_sftp" | "emergency_billing_accept" | "emergency_billing_override" | "emergency_billing_escalate" | "emergency_upgrade" | "emergency_void" | "emergency_resolve" | "dispatcher_cancellation" | "cancellation_documented" | "qa_pcr_fix" | "crew_handoff_initiated" | "crew_handoff_original_signed" | "crew_handoff_accepted";
+type AuditAction = "view" | "edit" | "delete" | "export" | "duplicate_override" | "incident_report" | "vehicle_inspection" | "edi_837p_export" | "edi_837p_queued_for_sftp" | "emergency_billing_accept" | "emergency_billing_override" | "emergency_billing_escalate" | "emergency_upgrade" | "emergency_void" | "emergency_resolve" | "dispatcher_cancellation" | "cancellation_documented" | "qa_pcr_fix" | "crew_handoff_initiated" | "crew_handoff_original_signed" | "crew_handoff_accepted" | "remittance_routed" | "remittance_routed_imported";
 
 export async function logAuditEvent({
   action,
