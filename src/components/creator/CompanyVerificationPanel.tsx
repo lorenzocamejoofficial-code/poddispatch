@@ -9,7 +9,7 @@ import { Loader2, CheckCircle2, AlertTriangle, XCircle, ExternalLink, RefreshCw,
 
 interface VerificationResult {
   npi: {
-    status: "verified" | "mismatch" | "not_found" | "pending";
+    status: "verified" | "mismatch" | "not_found" | "unverifiable" | "pending";
     registeredName?: string;
     address?: string;
     state?: string;
@@ -17,12 +17,12 @@ interface VerificationResult {
     error?: string;
   };
   medicare: {
-    status: "enrolled" | "different_specialty" | "not_enrolled" | "pending";
+    status: "enrolled" | "different_specialty" | "not_enrolled" | "unverifiable" | "pending";
     specialty?: string;
     error?: string;
   };
   oig: {
-    status: "not_excluded" | "excluded" | "pending";
+    status: "not_excluded" | "excluded" | "unverifiable" | "pending";
     details?: string;
     error?: string;
   };
@@ -106,21 +106,33 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
 
   const runAllChecks = useCallback(async () => {
     setLoading(true);
+    setResults({
+      npi: { status: "pending" },
+      medicare: { status: "pending" },
+      oig: { status: "pending" },
+    });
     const newResults: VerificationResult = {
       npi: { status: "pending" },
       medicare: { status: "pending" },
       oig: { status: "pending" },
     };
-    setResults(newResults);
 
     try {
       await Promise.all([
-        checkNPI(company.npi_number, company.name, company.id).then(r => { newResults.npi = r; }),
-        checkMedicare(company.npi_number, company.id).then(r => { newResults.medicare = r; }),
-        checkOIG(company.name, company.state_of_operation, company.id).then(r => { newResults.oig = r; }),
+        checkNPI(company.npi_number, company.name, company.id).then(r => {
+          newResults.npi = r;
+          setResults(prev => ({ ...prev, npi: r }));
+        }),
+        checkMedicare(company.npi_number, company.id).then(r => {
+          newResults.medicare = r;
+          setResults(prev => ({ ...prev, medicare: r }));
+        }),
+        checkOIG(company.name, company.state_of_operation, company.id).then(r => {
+          newResults.oig = r;
+          setResults(prev => ({ ...prev, oig: r }));
+        }),
       ]);
 
-      setResults({ ...newResults });
       saveCache(newResults);
       onVerificationComplete?.(newResults);
 
@@ -136,6 +148,20 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
       setLoading(false);
     }
   }, [company]);
+
+  const retryCheck = async (which: "npi" | "medicare" | "oig") => {
+    setResults(prev => ({ ...prev, [which]: { status: "pending" } }));
+    let r: any;
+    if (which === "npi") r = await checkNPI(company.npi_number, company.name, company.id);
+    else if (which === "medicare") r = await checkMedicare(company.npi_number, company.id);
+    else r = await checkOIG(company.name, company.state_of_operation, company.id);
+    setResults(prev => {
+      const next = { ...prev, [which]: r };
+      saveCache(next);
+      onVerificationComplete?.(next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     const cached = loadCached();
@@ -179,7 +205,12 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
         )}
 
         {/* 1. NPI Verification */}
-        <CheckRow title="NPI Verification" loading={loading && results.npi.status === "pending"} badge={<NPIBadge status={results.npi.status} />}>
+        <CheckRow
+          title="NPI Verification"
+          loading={results.npi.status === "pending"}
+          badge={<NPIBadge status={results.npi.status} />}
+          onRetry={isTerminalNonPass(results.npi.status) ? () => retryCheck("npi") : undefined}
+        >
           {results.npi.status !== "pending" && (
             <div className="text-xs space-y-0.5 text-muted-foreground">
               {results.npi.registeredName && <p><span className="font-medium text-foreground">Registered Name:</span> {results.npi.registeredName}</p>}
@@ -193,7 +224,12 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
         </CheckRow>
 
         {/* 2. Medicare Enrollment */}
-        <CheckRow title="Medicare Enrollment" loading={loading && results.medicare.status === "pending"} badge={<MedicareBadge status={results.medicare.status} />}>
+        <CheckRow
+          title="Medicare Enrollment"
+          loading={results.medicare.status === "pending"}
+          badge={<MedicareBadge status={results.medicare.status} />}
+          onRetry={isTerminalNonPass(results.medicare.status) ? () => retryCheck("medicare") : undefined}
+        >
           {results.medicare.status !== "pending" && (
             <div className="text-xs text-muted-foreground">
               {results.medicare.specialty && <p><span className="font-medium text-foreground">Specialty:</span> {results.medicare.specialty}</p>}
@@ -203,7 +239,12 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
         </CheckRow>
 
         {/* 3. OIG Exclusion */}
-        <CheckRow title="OIG Exclusion Check" loading={loading && results.oig.status === "pending"} badge={<OIGBadge status={results.oig.status} />}>
+        <CheckRow
+          title="OIG Exclusion Check"
+          loading={results.oig.status === "pending"}
+          badge={<OIGBadge status={results.oig.status} />}
+          onRetry={isTerminalNonPass(results.oig.status) ? () => retryCheck("oig") : undefined}
+        >
           {results.oig.status !== "pending" && (
             <div className="text-xs text-muted-foreground">
               {results.oig.details && <p className="text-destructive font-medium">{results.oig.details}</p>}
@@ -261,16 +302,27 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
 
 // --- Sub-components ---
 
-function CheckRow({ title, loading, badge, children }: { title: string; loading: boolean; badge: React.ReactNode; children: React.ReactNode }) {
+function CheckRow({ title, loading, badge, onRetry, children }: { title: string; loading: boolean; badge: React.ReactNode; onRetry?: () => void; children: React.ReactNode }) {
   return (
     <div className="rounded-lg border p-3 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-foreground">{title}</span>
-        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : badge}
+        <div className="flex items-center gap-2">
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : badge}
+          {!loading && onRetry && (
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px] gap-1" onClick={onRetry}>
+              <RefreshCw className="h-3 w-3" /> Retry
+            </Button>
+          )}
+        </div>
       </div>
       {children}
     </div>
   );
+}
+
+function isTerminalNonPass(status: string): boolean {
+  return status !== "pending" && status !== "verified" && status !== "enrolled" && status !== "not_excluded";
 }
 
 function OverallBadge({ status }: { status: "pass" | "review" | "fail" | "pending" }) {
@@ -284,21 +336,23 @@ function NPIBadge({ status }: { status: string }) {
   if (status === "verified") return <Badge className="bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))] text-xs">Verified</Badge>;
   if (status === "mismatch") return <Badge className="bg-[hsl(var(--status-yellow))]/15 text-[hsl(var(--status-yellow))] text-xs">Mismatch</Badge>;
   if (status === "not_found") return <Badge className="bg-destructive/15 text-destructive text-xs">Not Found</Badge>;
-  return <Badge variant="outline" className="text-xs">Pending</Badge>;
+  if (status === "unverifiable") return <Badge className="bg-[hsl(var(--status-yellow))]/15 text-[hsl(var(--status-yellow))] text-xs">Couldn't Verify</Badge>;
+  return <Badge variant="outline" className="text-xs">Checking…</Badge>;
 }
 
 function MedicareBadge({ status }: { status: string }) {
   if (status === "enrolled") return <Badge className="bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))] text-xs">Enrolled</Badge>;
   if (status === "different_specialty") return <Badge className="bg-[hsl(var(--status-yellow))]/15 text-[hsl(var(--status-yellow))] text-xs">Enrolled — Different Specialty</Badge>;
   if (status === "not_enrolled") return <Badge className="bg-destructive/15 text-destructive text-xs">Not Enrolled</Badge>;
-  return <Badge variant="outline" className="text-xs">Pending</Badge>;
+  if (status === "unverifiable") return <Badge className="bg-[hsl(var(--status-yellow))]/15 text-[hsl(var(--status-yellow))] text-xs">Couldn't Verify</Badge>;
+  return <Badge variant="outline" className="text-xs">Checking…</Badge>;
 }
 
 function OIGBadge({ status }: { status: string }) {
   if (status === "not_excluded") return <Badge className="bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))] text-xs">Not Excluded</Badge>;
   if (status === "excluded") return <Badge className="bg-destructive/15 text-destructive text-xs">OIG Excluded</Badge>;
-  // pending = unknown — never show "Not Excluded" on failure
-  return <Badge variant="outline" className="text-xs">Unknown</Badge>;
+  if (status === "unverifiable") return <Badge className="bg-[hsl(var(--status-yellow))]/15 text-[hsl(var(--status-yellow))] text-xs">Couldn't Verify</Badge>;
+  return <Badge variant="outline" className="text-xs">Checking…</Badge>;
 }
 
 // --- API check functions via edge functions ---
@@ -306,7 +360,14 @@ function OIGBadge({ status }: { status: string }) {
 function getOverallStatus(r: VerificationResult): "pass" | "review" | "fail" | "pending" {
   if (r.npi.status === "pending" || r.medicare.status === "pending" || r.oig.status === "pending") return "pending";
   if (r.oig.status === "excluded" || r.npi.status === "not_found") return "fail";
-  if (r.npi.status === "mismatch" || r.medicare.status === "different_specialty" || r.medicare.status === "not_enrolled") return "review";
+  if (
+    r.npi.status === "mismatch" ||
+    r.medicare.status === "different_specialty" ||
+    r.medicare.status === "not_enrolled" ||
+    r.npi.status === "unverifiable" ||
+    r.medicare.status === "unverifiable" ||
+    r.oig.status === "unverifiable"
+  ) return "review";
   return "pass";
 }
 
@@ -315,9 +376,10 @@ async function checkNPI(npi: string | null, companyName: string, companyId: stri
   try {
       const { data, error } = await invokeFunctionWithTimeout("verify-npi", { npi, company_name: companyName, company_id: companyId }, "NPI lookup");
     if (error) throw new Error(error.message);
+    if (!data || data.status === "pending") return { status: "unverifiable", error: data?.error || "NPI lookup returned no result" };
     return data;
   } catch (err: any) {
-    return { status: "not_found", error: err.message || "NPI lookup failed" };
+    return { status: "unverifiable", error: err.message || "NPI lookup failed" };
   }
 }
 
@@ -326,9 +388,10 @@ async function checkMedicare(npi: string | null, companyId: string): Promise<Ver
   try {
       const { data, error } = await invokeFunctionWithTimeout("verify-medicare", { npi, company_id: companyId }, "Medicare lookup");
     if (error) throw new Error(error.message);
+    if (!data || data.status === "pending") return { status: "unverifiable", error: data?.error || "Medicare lookup returned no result" };
     return data;
   } catch (err: any) {
-    return { status: "not_enrolled", error: err.message || "Medicare lookup failed" };
+    return { status: "unverifiable", error: err.message || "Medicare lookup failed" };
   }
 }
 
@@ -336,10 +399,11 @@ async function checkOIG(name: string, state: string | null, companyId: string): 
   try {
     const { data, error } = await invokeFunctionWithTimeout("verify-oig", { name, state, company_id: companyId }, "OIG lookup");
     if (error) throw new Error(error.message);
-    // Never show "not_excluded" on error — keep as pending/unknown
+    // OIG edge fn returns status "pending" when its upstream API fails. Treat that as a terminal "couldn't verify".
+    if (!data || data.status === "pending") return { status: "unverifiable", error: data?.error || "OIG check unreachable" };
     return data;
   } catch (err: any) {
-    return { status: "pending", error: err.message || "OIG lookup failed" };
+    return { status: "unverifiable", error: err.message || "OIG lookup failed" };
   }
 }
 
