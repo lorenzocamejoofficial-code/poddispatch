@@ -45,9 +45,11 @@ export function useMissingMoneyScan() {
   const [categories, setCategories] = useState<MissingMoneyCategorySummary[]>([]);
   const [totalAmount, setTotalAmount] = useState(0);
   const [lastScanAt, setLastScanAt] = useState<Date | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   const runScan = useCallback(async () => {
     setLoading(true);
+    setScanError(null);
     if (!activeCompanyId) {
       setCategories([]);
       setTotalAmount(0);
@@ -96,8 +98,7 @@ export function useMissingMoneyScan() {
         .select("id, status, run_date, pcr_status, patient_id, truck_id, loaded_miles, company_id")
         .gte("run_date", ninetyDaysAgo)
         .in("status", ["completed", "ready_for_billing"])
-        .neq("pcr_status", "submitted")
-        .neq("pcr_status", "complete")
+        .or("pcr_status.is.null,and(pcr_status.neq.submitted,pcr_status.neq.complete)")
         .limit(500));
       const { data: noPcrTrips, error: noPcrError } = await noPcrQuery;
       if (noPcrError) throw noPcrError;
@@ -107,7 +108,7 @@ export function useMissingMoneyScan() {
         .from("trip_records" as any)
         .select("id, run_date, patient_id, truck_id, loaded_miles, company_id, pcr_status, status")
         .eq("pcr_status", "submitted")
-        .eq("status", "ready_for_billing")
+        .in("status", ["ready_for_billing", "completed"])
         .limit(500));
       const { data: pcrSubmittedTrips, error: pcrSubmittedError } = await pcrSubmittedQuery;
       if (pcrSubmittedError) throw pcrSubmittedError;
@@ -118,7 +119,7 @@ export function useMissingMoneyScan() {
         .select("id, patient_id, payer_name, payer_type, total_charge, submitted_at, run_date, status")
         .eq("status", "submitted")
         .lt("submitted_at", fortyFiveDaysAgo)
-        .eq("is_test_submission", false)
+        .or("is_test_submission.eq.false,is_test_submission.is.null")
         .limit(500));
       const { data: agingClaims, error: agingError } = await agingQuery;
       if (agingError) throw agingError;
@@ -130,7 +131,7 @@ export function useMissingMoneyScan() {
         .eq("status", "paid")
         .eq("secondary_claim_generated", false)
         .gt("patient_responsibility_amount", 0)
-        .eq("is_test_submission", false)
+        .or("is_test_submission.eq.false,is_test_submission.is.null")
         .limit(500));
       const { data: secondaryClaims, error: secondaryError } = await secondaryQuery;
       if (secondaryError) throw secondaryError;
@@ -140,7 +141,7 @@ export function useMissingMoneyScan() {
         .from("claim_records" as any)
         .select("id, patient_id, payer_name, total_charge, denial_code, run_date, status")
         .eq("status", "denied")
-        .eq("is_test_submission", false)
+        .or("is_test_submission.eq.false,is_test_submission.is.null")
         .limit(500));
       const { data: deniedClaims, error: deniedError } = await deniedQuery;
       if (deniedError) throw deniedError;
@@ -348,8 +349,11 @@ export function useMissingMoneyScan() {
       setCategories(results);
       setTotalAmount(total);
       setLastScanAt(new Date());
-    } catch (err) {
+    } catch (err: any) {
       console.error("Missing money scan failed:", err);
+      setCategories([]);
+      setTotalAmount(0);
+      setScanError(err?.message ?? "Missing money scan failed");
     }
     setLoading(false);
   }, [activeCompanyId, isSimulationCompany, simulationRunId]);
@@ -371,5 +375,5 @@ export function useMissingMoneyScan() {
 
   const hasIssues = categories.some((c) => c.count > 0);
 
-  return { loading, categories, totalAmount, lastScanAt, hasIssues, runScan };
+  return { loading, categories, totalAmount, lastScanAt, hasIssues, scanError, runScan };
 }
