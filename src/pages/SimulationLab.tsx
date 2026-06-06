@@ -198,7 +198,9 @@ export default function SimulationLab() {
   const injectDenialsRemits = async () => {
     setLoading("inject_denials_remits");
     try {
+      toast({ title: "Step 1/2 — Checking pool…", description: "Looking for fresh simulated claims." });
       let data = await callLab({ action: "inject_denials_remits" });
+      console.log("[inject_denials_remits] first call:", data);
 
       // Auto-seed billing_risk if the pool is too thin, then retry once.
       const tooThin =
@@ -208,26 +210,34 @@ export default function SimulationLab() {
 
       if (tooThin) {
         toast({
-          title: "Seeding billing_risk first…",
-          description: "Sandbox had <10 fresh claims. Auto-seeding, then injecting.",
+          title: "Step 2/2 — Seeding billing_risk…",
+          description: `Pool had ${data?.poolSize ?? 0} fresh claims. Auto-seeding 25+ trips, then re-injecting.`,
         });
         const seed = await callLab({ action: "seed", scenario: "billing_risk", seedSize: "small" });
+        console.log("[inject_denials_remits] seed:", seed);
         if (!seed?.ok) {
+          const precondFail = seed?.preconditions?.filter?.((p: any) => !p.ok) ?? [];
+          const detail = precondFail.length
+            ? `Setup missing: ${precondFail.map((p: any) => p.name).join(", ")}. Run Onboarding first.`
+            : (seed?.error ?? "Could not seed billing_risk. Seed manually then retry.");
           toast({
             title: "Auto-seed Failed",
-            description: seed?.error ?? "Could not seed billing_risk. Seed manually then retry.",
+            description: detail,
             variant: "destructive",
           });
           setLoading(null);
           return;
         }
         data = await callLab({ action: "inject_denials_remits" });
+        console.log("[inject_denials_remits] retry:", data);
       }
 
       if (data?.ok) {
         toast({
           title: "Demo Data Injected",
-          description: data.description ?? `Transformed ${data.transformed} claims.`,
+          description:
+            data.description ??
+            `Transformed ${data.transformed} claims. Open Billing & Claims / Missing Money to see them.`,
         });
         invalidateAll();
       } else {
@@ -238,6 +248,7 @@ export default function SimulationLab() {
         });
       }
     } catch (e: any) {
+      console.error("[inject_denials_remits] threw:", e);
       toast({ title: "Inject Failed", description: e.message, variant: "destructive" });
     }
     setLoading(null);
