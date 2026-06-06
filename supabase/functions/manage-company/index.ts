@@ -14,6 +14,32 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
+// Look up the owner email + company display name for a company id. Returns
+// nulls on any failure — callers must treat email delivery as best-effort.
+async function loadOwnerContact(
+  supabaseAdmin: any,
+  companyId: string,
+): Promise<{ email: string | null; companyName: string | null; ownerUserId: string | null }> {
+  try {
+    const { data: company } = await supabaseAdmin
+      .from("companies")
+      .select("name, owner_user_id")
+      .eq("id", companyId)
+      .maybeSingle();
+    const ownerUserId = company?.owner_user_id ?? null;
+    const companyName = company?.name ?? null;
+    if (!ownerUserId) return { email: null, companyName, ownerUserId: null };
+    const { data: u } = await supabaseAdmin.auth.admin.getUserById(ownerUserId);
+    return { email: u?.user?.email ?? null, companyName, ownerUserId };
+  } catch (_e) {
+    return { email: null, companyName: null, ownerUserId: null };
+  }
+}
+
+function appOrigin(): string {
+  return (Deno.env.get("APP_URL") || "https://thepoddispatch.com").replace(/\/$/, "");
+}
+
 // Best-effort cancel of a Stripe subscription. Returns a status string suitable
 // for admin_actions.stripe_cancel_status. Never throws — we always want the
 // archive to proceed even if Stripe is unreachable, and we want a loud audit
