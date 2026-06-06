@@ -4794,6 +4794,10 @@ export type Database = {
       }
       subscription_records: {
         Row: {
+          cancel_at_period_end: boolean
+          cancel_feedback: string | null
+          cancel_reason: string | null
+          canceled_at: string | null
           company_id: string
           created_at: string
           current_period_end: string | null
@@ -4806,6 +4810,7 @@ export type Database = {
           provider: string
           provider_customer_id: string | null
           provider_subscription_id: string | null
+          reactivation_deadline: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           subscription_status: string
@@ -4813,6 +4818,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cancel_at_period_end?: boolean
+          cancel_feedback?: string | null
+          cancel_reason?: string | null
+          canceled_at?: string | null
           company_id: string
           created_at?: string
           current_period_end?: string | null
@@ -4825,6 +4834,7 @@ export type Database = {
           provider?: string
           provider_customer_id?: string | null
           provider_subscription_id?: string | null
+          reactivation_deadline?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string
@@ -4832,6 +4842,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cancel_at_period_end?: boolean
+          cancel_feedback?: string | null
+          cancel_reason?: string | null
+          canceled_at?: string | null
           company_id?: string
           created_at?: string
           current_period_end?: string | null
@@ -4844,6 +4858,7 @@ export type Database = {
           provider?: string
           provider_customer_id?: string | null
           provider_subscription_id?: string | null
+          reactivation_deadline?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string
