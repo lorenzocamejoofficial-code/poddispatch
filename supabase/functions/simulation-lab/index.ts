@@ -1556,6 +1556,34 @@ async function resetSandbox(admin: any, companyId: string, userId: string) {
     counts[table] = data?.length ?? 0;
   }
 
+  // Demo-injected claim rows are stored with is_simulated=false (so the
+  // Missing Money scanner picks them up) but tagged with simulation_run_id.
+  // Sweep those too — and the claim_payments / remittance_files they may
+  // have produced, which the standard wipe loop above does not include.
+  const { data: injectedClaims } = await admin.from("claim_records")
+    .delete()
+    .eq("company_id", companyId)
+    .not("simulation_run_id", "is", null)
+    .select("id");
+  counts["claim_records_injected"] = injectedClaims?.length ?? 0;
+
+  for (const t of ["claim_payments", "remittance_files", "plb_adjustments"]) {
+    const { data } = await admin.from(t)
+      .delete()
+      .eq("company_id", companyId)
+      .eq("is_simulated", true)
+      .select("id");
+    counts[t] = data?.length ?? 0;
+  }
+
+  // Reset secondary payer fields we set on real (template) patients during
+  // the denials/remits inject. Templates are preserved across resets, so we
+  // must clear the fields we wrote, not the rows.
+  await admin.from("patients")
+    .update({ secondary_payer: null, secondary_payer_id: null, secondary_member_id: null })
+    .eq("company_id", companyId)
+    .eq("secondary_payer_id", "SIM_INJECT");
+
   // Cloned (non-template) seeded patients only — templates are preserved.
   const { data: clonedPatients } = await admin.from("patients")
     .delete()
