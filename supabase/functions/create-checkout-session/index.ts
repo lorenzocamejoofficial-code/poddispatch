@@ -127,11 +127,35 @@ serve(async (req) => {
       httpClient: Stripe.createFetchHttpClient(),
     });
 
+    // Honor the app-gated trial in Stripe so the card on file is not charged
+    // until the trial truly ends. We read the company's existing
+    // trial_ends_at and convert remaining whole days into trial_period_days.
+    // Stripe accepts 1–730. If the app trial has already expired (or there
+    // is no record), we skip the Stripe trial and charge immediately.
+    let trialPeriodDays: number | undefined;
+    try {
+      const { data: subRec } = await admin
+        .from("subscription_records")
+        .select("trial_ends_at")
+        .eq("company_id", String(company_id))
+        .maybeSingle();
+      const endsAt = (subRec as any)?.trial_ends_at
+        ? new Date((subRec as any).trial_ends_at).getTime()
+        : 0;
+      if (endsAt > Date.now()) {
+        const daysLeft = Math.ceil((endsAt - Date.now()) / 86_400_000);
+        trialPeriodDays = Math.min(730, Math.max(1, daysLeft));
+      }
+    } catch (e) {
+      console.warn("trial_ends_at lookup failed; proceeding without Stripe trial", e);
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: "https://thepoddispatch.com/onboarding?payment=success",
       cancel_url: "https://thepoddispatch.com/complete-payment?payment=cancelled",
+      payment_method_collection: "always",
       metadata: {
         company_id: String(company_id),
         user_id: String(user_id),
@@ -140,6 +164,7 @@ serve(async (req) => {
         billing_cycle: cycle,
       },
       subscription_data: {
+        ...(trialPeriodDays ? { trial_period_days: trialPeriodDays } : {}),
         metadata: {
           company_id: String(company_id),
           user_id: String(user_id),
