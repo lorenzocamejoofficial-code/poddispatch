@@ -106,21 +106,33 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
 
   const runAllChecks = useCallback(async () => {
     setLoading(true);
+    setResults({
+      npi: { status: "pending" },
+      medicare: { status: "pending" },
+      oig: { status: "pending" },
+    });
     const newResults: VerificationResult = {
       npi: { status: "pending" },
       medicare: { status: "pending" },
       oig: { status: "pending" },
     };
-    setResults(newResults);
 
     try {
       await Promise.all([
-        checkNPI(company.npi_number, company.name, company.id).then(r => { newResults.npi = r; }),
-        checkMedicare(company.npi_number, company.id).then(r => { newResults.medicare = r; }),
-        checkOIG(company.name, company.state_of_operation, company.id).then(r => { newResults.oig = r; }),
+        checkNPI(company.npi_number, company.name, company.id).then(r => {
+          newResults.npi = r;
+          setResults(prev => ({ ...prev, npi: r }));
+        }),
+        checkMedicare(company.npi_number, company.id).then(r => {
+          newResults.medicare = r;
+          setResults(prev => ({ ...prev, medicare: r }));
+        }),
+        checkOIG(company.name, company.state_of_operation, company.id).then(r => {
+          newResults.oig = r;
+          setResults(prev => ({ ...prev, oig: r }));
+        }),
       ]);
 
-      setResults({ ...newResults });
       saveCache(newResults);
       onVerificationComplete?.(newResults);
 
@@ -136,6 +148,20 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
       setLoading(false);
     }
   }, [company]);
+
+  const retryCheck = async (which: "npi" | "medicare" | "oig") => {
+    setResults(prev => ({ ...prev, [which]: { status: "pending" } }));
+    let r: any;
+    if (which === "npi") r = await checkNPI(company.npi_number, company.name, company.id);
+    else if (which === "medicare") r = await checkMedicare(company.npi_number, company.id);
+    else r = await checkOIG(company.name, company.state_of_operation, company.id);
+    setResults(prev => {
+      const next = { ...prev, [which]: r };
+      saveCache(next);
+      onVerificationComplete?.(next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     const cached = loadCached();
