@@ -297,6 +297,34 @@ Deno.serve(async (req) => {
       })
       .eq("id", quarantineId);
 
+    // Audit trail — mirrors the client-side logAuditEvent shape so the routing
+    // event shows up alongside the owner-side import in the same audit log.
+    // actor_email is best-effort (creator's auth email).
+    const actorEmail = userRes?.user?.email ?? null;
+    await admin.from("audit_logs").insert({
+      action: "remittance_routed",
+      actor_user_id: userId,
+      actor_email: actorEmail,
+      company_id: targetCompanyId,
+      table_name: "remittance_files",
+      record_id: newFile.id,
+      new_data: {
+        quarantine_id: quarantineId,
+        target_company_id: targetCompanyId,
+        target_company_name: tgt.name,
+        source_remittance_file_id: q.remittance_file_id ?? null,
+        source_file_name: q.file_name ?? null,
+        patient_control_number: q.patient_control_number ?? null,
+        paid_amount: paidAmount,
+        routed_status: routedStatus,
+        new_remittance_file_id: newFile.id,
+      },
+      notes:
+        `Creator routed quarantined remittance ${quarantineId} to ${tgt.name} ` +
+        `(${routedStatus}). New remittance_files id: ${newFile.id}.` +
+        (notes ? ` Notes: ${notes}` : ""),
+    });
+
     return new Response(
       JSON.stringify({ ok: true, routed_to: tgt.name, remittance_file_id: newFile.id, routed_status: routedStatus }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
