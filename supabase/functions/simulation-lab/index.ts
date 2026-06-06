@@ -1709,6 +1709,9 @@ Deno.serve(async (req) => {
       case "inject":
         result = await injectEvent(admin, companyId, body.eventType);
         break;
+      case "inject_denials_remits":
+        result = await injectDenialsRemits(admin, companyId);
+        break;
       case "check":
         result = await runChecks(admin, companyId);
         break;
