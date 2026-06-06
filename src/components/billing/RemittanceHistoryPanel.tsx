@@ -60,14 +60,6 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   quarantined: "destructive",
   no_claims: "outline",
   processing: "secondary",
-  routed_pending: "secondary",
-  completed: "default",
-  completed_with_variance: "secondary",
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  routed_pending: "Sent by Support",
-  completed_with_variance: "Completed (variance)",
 };
 
 const PLB_REASONS: Record<string, string> = {
@@ -258,18 +250,9 @@ export function RemittanceHistoryPanel() {
               {files.map(f => (
                 <TableRow key={f.id}>
                   <TableCell className="text-xs">{format(new Date(f.imported_at), "MMM d, HH:mm")}</TableCell>
-                  <TableCell className="text-xs font-mono">
-                    {f.file_name}
-                    {f.status === "routed_pending" && (
-                      <div className="mt-1 text-[10px] font-sans text-muted-foreground italic">
-                        PodDispatch support routed this 835 to you — open it and import like a normal remittance.
-                      </div>
-                    )}
-                  </TableCell>
+                  <TableCell className="text-xs font-mono">{f.file_name}</TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_VARIANT[f.status] ?? "secondary"}>
-                      {STATUS_LABEL[f.status] ?? f.status}
-                    </Badge>
+                    <Badge variant={STATUS_VARIANT[f.status] ?? "secondary"}>{f.status}</Badge>
                   </TableCell>
                   <TableCell>
                     <ReconciliationBadge reconciled={f.reconciled} variance={f.reconciliation_variance} />
