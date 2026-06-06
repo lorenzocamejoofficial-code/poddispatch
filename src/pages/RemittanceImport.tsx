@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Upload, CheckCircle, XCircle, AlertTriangle, Info, FileText, ArrowRight, ArrowLeft } from "lucide-react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { Loader2 } from "lucide-react";
@@ -43,8 +43,14 @@ export default function RemittanceImport() {
   // (guard_simulated_payment) refuses is_simulated=true on real tenants, so this is the
   // only path that produces simulated payment data.
   const isSimTenant = useIsSimulationCompany();
+  const [searchParams] = useSearchParams();
+  const routedFileIdParam = searchParams.get("routed");
   const [fileName, setFileName] = useState("");
   const [rawContent, setRawContent] = useState("");
+  // When set, we're importing an existing remittance_files row (routed by
+  // PodDispatch support) rather than uploading a new file. The import flow
+  // UPDATES that row in place instead of inserting a new one.
+  const [routedFileId, setRoutedFileId] = useState<string | null>(null);
   const [matchedItems, setMatchedItems] = useState<MatchedItem[]>([]);
   const [envelope, setEnvelope] = useState<ParsedRemittance | null>(null);
   const [acceptedVariance, setAcceptedVariance] = useState(false);
@@ -62,6 +68,123 @@ export default function RemittanceImport() {
   const fileRef = useRef<HTMLInputElement>(null);
   const ackFileRef = useRef<HTMLInputElement>(null);
   const [ackUploading, setAckUploading] = useState(false);
+
+  // Shared parser+matcher used by both the upload flow and the routed-import
+  // flow. Sets matchedItems / envelope state.
+  const parseAndMatch = useCallback(async (text: string) => {
+    setRawContent(text);
+    setParsing(true);
+    setAcceptedVariance(false);
+    try {
+      const parsedEnv = parseEDI835Envelope(text);
+      const parsed = parsedEnv.claims;
+      setEnvelope(parsedEnv);
+      if (parsed.length === 0 && parsedEnv.plb_adjustments.length === 0) {
+        toast.error("No claims found in the 835 file.");
+        setMatchedItems([]);
+        return;
+      }
+      const { data: claims } = await supabase
+        .from("claim_records" as any)
+        .select("id, member_id, run_date, patient_id, status, hcpcs_codes, payer_type, payer_name, original_claim_id, total_charge")
+        .in("status", ["submitted", "ready_to_bill", "needs_correction", "needs_review"]);
+      const { data: patients } = await supabase
+        .from("patients")
+        .select("id, member_id, secondary_payer, tertiary_payer, first_name, last_name");
+      const claimsList = (claims || []) as any[];
+      const patientsList = (patients || []) as any[];
+      const patientMap = new Map(patientsList.map((p) => [p.id, p]));
+      const memberToPatient = new Map<string, any>();
+      patientsList.forEach((p) => { if (p.member_id) memberToPatient.set(p.member_id.trim().toUpperCase(), p); });
+
+      const matched: MatchedItem[] = parsed.map((rem) => {
+        const errors: string[] = [];
+        let matchedClaimId: string | null = null;
+        let matchedPatientId: string | null = null;
+        let hasSecondaryPayer = false;
+        let hasTertiaryPayer = false;
+        let primaryPayer: string | null = null;
+        let secondaryPayer: string | null = null;
+        const pcn = parsePatientControlNumber(rem.patient_control_number);
+        if (pcn) {
+          const candidate = claimsList.find((c: any) => {
+            const cId = (c.id || "").replace(/-/g, "").slice(0, 8).toLowerCase();
+            return cId === pcn.idPrefix;
+          });
+          if (candidate) { matchedClaimId = candidate.id; matchedPatientId = candidate.patient_id; }
+        }
+        if (!matchedClaimId) {
+          const remMemberId = rem.patient_member_id?.trim().toUpperCase();
+          const remDate = rem.date_of_service;
+          if (remMemberId && remDate) {
+            const cand = claimsList.filter((c: any) => (c.member_id || "").trim().toUpperCase() === remMemberId && c.run_date === remDate);
+            if (cand.length === 1) { matchedClaimId = cand[0].id; matchedPatientId = cand[0].patient_id; }
+            else if (cand.length > 1) {
+              const exact = cand.find((c: any) => Math.abs((c.total_charge || 0) - rem.charged_amount) < 0.01);
+              if (exact) { matchedClaimId = exact.id; matchedPatientId = exact.patient_id; }
+              else { matchedClaimId = cand[0].id; matchedPatientId = cand[0].patient_id; errors.push("Multiple claims matched — used first"); }
+            }
+          }
+        }
+        if (!matchedClaimId) errors.push("No matching claim found");
+        if (matchedClaimId) {
+          const cm = claimsList.find((c: any) => c.id === matchedClaimId);
+          if (cm) primaryPayer = (cm.payer_type ?? cm.payer_name ?? null) as string | null;
+        }
+        if (matchedPatientId) {
+          const pat = patientMap.get(matchedPatientId);
+          if (pat?.secondary_payer) { hasSecondaryPayer = true; secondaryPayer = pat.secondary_payer; }
+          if (pat?.tertiary_payer) hasTertiaryPayer = true;
+        } else {
+          const fallback = rem.patient_member_id?.trim().toUpperCase();
+          if (fallback) {
+            const pat = memberToPatient.get(fallback);
+            if (pat?.secondary_payer) { hasSecondaryPayer = true; secondaryPayer = pat.secondary_payer; }
+            if (pat?.tertiary_payer) hasTertiaryPayer = true;
+          }
+        }
+        return { remittance: rem, matchedClaimId, matchedPatientId, hasSecondaryPayer, hasTertiaryPayer, primaryPayer, secondaryPayer, errors };
+      });
+      setMatchedItems(matched);
+      toast.success(`Parsed ${parsed.length} claim${parsed.length !== 1 ? "s" : ""} from 835 file`);
+    } catch (err: any) {
+      toast.error("Failed to parse 835: " + err.message);
+    } finally {
+      setParsing(false);
+    }
+  }, []);
+
+  // Load a routed remittance_files row (created by the creator-side routing
+  // edge function) and run it through the same parse + match pipeline as an
+  // upload. The row must be status=routed_pending and contain a valid 835.
+  useEffect(() => {
+    if (!routedFileIdParam) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("remittance_files" as any)
+        .select("id, file_name, file_content, status")
+        .eq("id", routedFileIdParam)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !data) { toast.error("Routed remittance not found"); return; }
+      const row = data as any;
+      if (row.status !== "routed_pending") {
+        toast.error("This routed remittance is view-only and can't be imported. Contact PodDispatch support.");
+        return;
+      }
+      if (!isValid835(row.file_content)) {
+        toast.error("Routed file is not a valid 835. Contact PodDispatch support.");
+        return;
+      }
+      setRoutedFileId(row.id);
+      setFileName(row.file_name);
+      setImported(false);
+      setImportSummary(null);
+      await parseAndMatch(row.file_content);
+    })();
+    return () => { cancelled = true; };
+  }, [routedFileIdParam, parseAndMatch]);
 
   const handleAckUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -99,144 +222,14 @@ export default function RemittanceImport() {
     setFileName(file.name);
     setImported(false);
     setImportSummary(null);
-
+    setRoutedFileId(null);
     const text = await file.text();
     if (!isValid835(text)) {
       toast.error("This does not appear to be a valid 835 remittance file.");
       return;
     }
-
-    setRawContent(text);
-    setParsing(true);
-    setAcceptedVariance(false);
-
-    try {
-      const parsedEnv = parseEDI835Envelope(text);
-      const parsed = parsedEnv.claims;
-      setEnvelope(parsedEnv);
-      if (parsed.length === 0 && parsedEnv.plb_adjustments.length === 0) {
-        toast.error("No claims found in the 835 file.");
-        setMatchedItems([]);
-        return;
-      }
-
-      // Match against claim_records in DB
-      const { data: claims } = await supabase
-        .from("claim_records" as any)
-        .select("id, member_id, run_date, patient_id, status, hcpcs_codes, payer_type, payer_name, original_claim_id")
-        .in("status", ["submitted", "ready_to_bill", "needs_correction", "needs_review"]);
-
-      const { data: patients } = await supabase
-        .from("patients")
-        .select("id, member_id, secondary_payer, tertiary_payer, first_name, last_name");
-
-      const claimsList = (claims || []) as any[];
-      const patientsList = (patients || []) as any[];
-      const patientMap = new Map(patientsList.map((p) => [p.id, p]));
-      const memberToPatient = new Map<string, any>();
-      patientsList.forEach((p) => {
-        if (p.member_id) memberToPatient.set(p.member_id.trim().toUpperCase(), p);
-      });
-
-      const matched: MatchedItem[] = parsed.map((rem) => {
-        const errors: string[] = [];
-        let matchedClaimId: string | null = null;
-        let matchedPatientId: string | null = null;
-        let hasSecondaryPayer = false;
-        let hasTertiaryPayer = false;
-        let primaryPayer: string | null = null;
-        let secondaryPayer: string | null = null;
-
-        // Primary match: CLP01 patient control number (YYMMDD-XXXXXXXX)
-        const pcn = parsePatientControlNumber(rem.patient_control_number);
-        if (pcn) {
-          // The id prefix is the first 8 hex chars of the claim UUID (no dashes)
-          const candidate = claimsList.find((c: any) => {
-            const cId = (c.id || "").replace(/-/g, "").slice(0, 8).toLowerCase();
-            return cId === pcn.idPrefix;
-          });
-          if (candidate) {
-            matchedClaimId = candidate.id;
-            matchedPatientId = candidate.patient_id;
-          }
-        }
-
-        // Fallback: member_id + date_of_service
-        if (!matchedClaimId) {
-          const remMemberId = rem.patient_member_id?.trim().toUpperCase();
-          const remDate = rem.date_of_service;
-
-          if (remMemberId && remDate) {
-            const candidateClaims = claimsList.filter((c: any) => {
-              const cMember = (c.member_id || "").trim().toUpperCase();
-              return cMember === remMemberId && c.run_date === remDate;
-            });
-
-            if (candidateClaims.length === 1) {
-              matchedClaimId = candidateClaims[0].id;
-              matchedPatientId = candidateClaims[0].patient_id;
-            } else if (candidateClaims.length > 1) {
-              // Multiple matches — try to narrow by charge amount
-              const exact = candidateClaims.find(
-                (c: any) => Math.abs((c.total_charge || 0) - rem.charged_amount) < 0.01
-              );
-              if (exact) {
-                matchedClaimId = exact.id;
-                matchedPatientId = exact.patient_id;
-              } else {
-                matchedClaimId = candidateClaims[0].id;
-                matchedPatientId = candidateClaims[0].patient_id;
-                errors.push("Multiple claims matched — used first");
-              }
-            }
-          }
-        }
-
-        if (!matchedClaimId) {
-          errors.push("No matching claim found");
-        }
-
-        // Capture primary payer from matched claim record (for PR capping)
-        if (matchedClaimId) {
-          const cm = claimsList.find((c: any) => c.id === matchedClaimId);
-          if (cm) primaryPayer = (cm.payer_type ?? cm.payer_name ?? null) as string | null;
-        }
-
-        // Check secondary payer
-        if (matchedPatientId) {
-          const pat = patientMap.get(matchedPatientId);
-          if (pat?.secondary_payer) {
-            hasSecondaryPayer = true;
-            secondaryPayer = pat.secondary_payer;
-          }
-          if (pat?.tertiary_payer) {
-            hasTertiaryPayer = true;
-          }
-        } else {
-          const fallbackMemberId = rem.patient_member_id?.trim().toUpperCase();
-          if (fallbackMemberId) {
-            const pat = memberToPatient.get(fallbackMemberId);
-            if (pat?.secondary_payer) {
-              hasSecondaryPayer = true;
-              secondaryPayer = pat.secondary_payer;
-            }
-            if (pat?.tertiary_payer) {
-              hasTertiaryPayer = true;
-            }
-          }
-        }
-
-        return { remittance: rem, matchedClaimId, matchedPatientId, hasSecondaryPayer, hasTertiaryPayer, primaryPayer, secondaryPayer, errors };
-      });
-
-      setMatchedItems(matched);
-      toast.success(`Parsed ${parsed.length} claims from 835 file`);
-    } catch (err: any) {
-      toast.error("Failed to parse 835: " + err.message);
-    } finally {
-      setParsing(false);
-    }
-  }, []);
+    await parseAndMatch(text);
+  }, [parseAndMatch]);
 
   const handleImport = async () => {
     const toUpdate = matchedItems.filter((m) => m.matchedClaimId);
@@ -258,35 +251,55 @@ export default function RemittanceImport() {
       const variance = +(bpr - (sumClp - sumPlb)).toFixed(2);
       const reconciled = Math.abs(variance) < 0.01;
 
-      // 1) Insert the remittance file FIRST so we have an id to link payments + PLBs
+      // 1) Acquire the remittance_files row we'll link payments + PLBs to.
+      // Routed flow: UPDATE the existing row (created by support routing).
+      // Upload flow: INSERT a new row.
       const { data: companyId } = await supabase.rpc("get_my_company_id");
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      const { data: fileRow, error: fileErr } = await supabase
-        .from("remittance_files" as any)
-        .insert({
-          file_name: fileName,
-          file_content: rawContent,
-          claims_matched: toUpdate.length,
-          claims_updated: 0, // will update after the loop
-          total_paid: 0,
-          status: "processing",
-          company_id: companyId,
-          imported_by: currentUser?.id ?? null,
-          bpr_total_paid: bpr,
-          payment_date: envelope?.payment_date || null,
-          payer_name: envelope?.payer_name || null,
-          eft_trace_number: envelope?.eft_trace_number || null,
-          reconciled,
-          reconciliation_variance: variance,
-          is_simulated: isSimTenant,
-        } as any)
-        .select("id")
-        .single();
-
-      if (fileErr || !fileRow) {
-        throw new Error(fileErr?.message ?? "Failed to create remittance file row");
+      let remittanceFileId: string;
+      if (routedFileId) {
+        const { error: updErr } = await supabase
+          .from("remittance_files" as any)
+          .update({
+            claims_matched: toUpdate.length,
+            claims_updated: 0,
+            total_paid: 0,
+            status: "processing",
+            bpr_total_paid: bpr,
+            payment_date: envelope?.payment_date || null,
+            payer_name: envelope?.payer_name || null,
+            eft_trace_number: envelope?.eft_trace_number || null,
+            reconciled,
+            reconciliation_variance: variance,
+          } as any)
+          .eq("id", routedFileId);
+        if (updErr) throw new Error(updErr.message);
+        remittanceFileId = routedFileId;
+      } else {
+        const { data: fileRow, error: fileErr } = await supabase
+          .from("remittance_files" as any)
+          .insert({
+            file_name: fileName,
+            file_content: rawContent,
+            claims_matched: toUpdate.length,
+            claims_updated: 0,
+            total_paid: 0,
+            status: "processing",
+            company_id: companyId,
+            imported_by: currentUser?.id ?? null,
+            bpr_total_paid: bpr,
+            payment_date: envelope?.payment_date || null,
+            payer_name: envelope?.payer_name || null,
+            eft_trace_number: envelope?.eft_trace_number || null,
+            reconciled,
+            reconciliation_variance: variance,
+            is_simulated: isSimTenant,
+          } as any)
+          .select("id")
+          .single();
+        if (fileErr || !fileRow) throw new Error(fileErr?.message ?? "Failed to create remittance file row");
+        remittanceFileId = (fileRow as any).id as string;
       }
-      const remittanceFileId = (fileRow as any).id as string;
 
       // 2) Insert payment events — the recompute trigger derives claim_records fields.
       for (const item of toUpdate) {

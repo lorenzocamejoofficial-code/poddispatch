@@ -6,10 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { Loader2, RefreshCw, FileText, Eye, CheckCircle2, AlertTriangle, ChevronDown, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, RefreshCw, FileText, Eye, CheckCircle2, AlertTriangle, ChevronDown, Info, Send, Download, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { parseEDI835, type ParsedRemittanceItem } from "@/lib/edi-835-parser";
+import { useNavigate } from "react-router-dom";
 
 type FileRow = {
   id: string;
@@ -60,6 +62,16 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   quarantined: "destructive",
   no_claims: "outline",
   processing: "secondary",
+  routed_pending: "secondary",
+  routed_view_only: "outline",
+  completed: "default",
+  completed_with_variance: "secondary",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  routed_pending: "sent by support",
+  routed_view_only: "sent by support (view only)",
+  completed_with_variance: "completed (variance)",
 };
 
 const PLB_REASONS: Record<string, string> = {
@@ -97,6 +109,7 @@ function ReconciliationBadge({ reconciled, variance }: { reconciled: boolean; va
 }
 
 export function RemittanceHistoryPanel() {
+  const navigate = useNavigate();
   const [files, setFiles] = useState<FileRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewingFile, setViewingFile] = useState<FileRow | null>(null);
@@ -123,6 +136,16 @@ export function RemittanceHistoryPanel() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Routed-by-support rows go to the top so the biller sees them first.
+  // Within each bucket, newest first.
+  const sortedFiles = [...files].sort((a, b) => {
+    const aRouted = a.status === "routed_pending" || a.status === "routed_view_only" ? 0 : 1;
+    const bRouted = b.status === "routed_pending" || b.status === "routed_view_only" ? 0 : 1;
+    if (aRouted !== bRouted) return aRouted - bRouted;
+    return new Date(b.imported_at).getTime() - new Date(a.imported_at).getTime();
+  });
+  const routedCount = files.filter(f => f.status === "routed_pending" || f.status === "routed_view_only").length;
 
   const open = useCallback(async (f: FileRow) => {
     setViewingFile(f);
@@ -213,6 +236,15 @@ export function RemittanceHistoryPanel() {
         </Button>
       </CardHeader>
       <CardContent>
+        {routedCount > 0 && (
+          <Alert className="mb-4 border-primary/30 bg-primary/5">
+            <Send className="h-4 w-4 text-primary" />
+            <AlertDescription className="text-sm">
+              <strong>{routedCount} remittance{routedCount !== 1 ? "s" : ""} sent by PodDispatch support.</strong>{" "}
+              These were filed under another company by mistake and re-routed to you. Open each one and import normally.
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="grid grid-cols-3 gap-2 mb-4 text-center">
           <div className="p-3 bg-muted rounded">
             <div className="text-2xl font-bold">{totals.received}</div>
@@ -247,26 +279,57 @@ export function RemittanceHistoryPanel() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {files.map(f => (
-                <TableRow key={f.id}>
-                  <TableCell className="text-xs">{format(new Date(f.imported_at), "MMM d, HH:mm")}</TableCell>
-                  <TableCell className="text-xs font-mono">{f.file_name}</TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANT[f.status] ?? "secondary"}>{f.status}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <ReconciliationBadge reconciled={f.reconciled} variance={f.reconciliation_variance} />
-                  </TableCell>
-                  <TableCell className="text-right text-xs">{f.claims_matched}</TableCell>
-                  <TableCell className="text-right text-xs">{f.claims_updated}</TableCell>
-                  <TableCell className="text-right text-xs">${Number(f.total_paid ?? 0).toFixed(2)}</TableCell>
-                  <TableCell>
-                    <Button size="sm" variant="ghost" onClick={() => open(f)}>
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {sortedFiles.map(f => {
+                const isRoutedPending = f.status === "routed_pending";
+                const isRoutedViewOnly = f.status === "routed_view_only";
+                const isRouted = isRoutedPending || isRoutedViewOnly;
+                return (
+                  <TableRow key={f.id} className={isRouted ? "bg-primary/5" : undefined}>
+                    <TableCell className="text-xs">{format(new Date(f.imported_at), "MMM d, HH:mm")}</TableCell>
+                    <TableCell className="text-xs font-mono">
+                      <div className="flex items-center gap-2">
+                        {f.file_name}
+                        {isRouted && (
+                          <Badge variant="outline" className="gap-1 text-[10px] border-primary/40 text-primary">
+                            <Send className="h-3 w-3" /> Sent by support
+                          </Badge>
+                        )}
+                      </div>
+                      {isRoutedViewOnly && (
+                        <div className="text-[10px] text-muted-foreground mt-1">View only — contact PodDispatch support to receive a postable copy.</div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_VARIANT[f.status] ?? "secondary"}>{STATUS_LABEL[f.status] ?? f.status}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {isRouted ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <ReconciliationBadge reconciled={f.reconciled} variance={f.reconciliation_variance} />
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right text-xs">{f.claims_matched}</TableCell>
+                    <TableCell className="text-right text-xs">{f.claims_updated}</TableCell>
+                    <TableCell className="text-right text-xs">${Number(f.total_paid ?? 0).toFixed(2)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 justify-end">
+                        {isRoutedPending && (
+                          <Button size="sm" variant="default" className="gap-1.5 h-7" onClick={() => navigate(`/remittance-import?routed=${f.id}`)}>
+                            <Download className="h-3.5 w-3.5" /> Import
+                          </Button>
+                        )}
+                        {isRoutedViewOnly && (
+                          <Badge variant="outline" className="gap-1 text-[10px]"><Lock className="h-3 w-3" /> View only</Badge>
+                        )}
+                        <Button size="sm" variant="ghost" onClick={() => open(f)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}
