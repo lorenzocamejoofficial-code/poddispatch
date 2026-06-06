@@ -1773,6 +1773,7 @@ export type Database = {
           company_name: string
           dialysis_b_leg_buffer_minutes: number
           discharge_buffer_minutes: number
+          enforce_run_gap_minutes: boolean
           facility_delay_minutes: number
           grace_window_minutes: number
           id: string
@@ -1789,6 +1790,7 @@ export type Database = {
           company_name?: string
           dialysis_b_leg_buffer_minutes?: number
           discharge_buffer_minutes?: number
+          enforce_run_gap_minutes?: boolean
           facility_delay_minutes?: number
           grace_window_minutes?: number
           id?: string
@@ -1805,6 +1807,7 @@ export type Database = {
           company_name?: string
           dialysis_b_leg_buffer_minutes?: number
           discharge_buffer_minutes?: number
+          enforce_run_gap_minutes?: boolean
           facility_delay_minutes?: number
           grace_window_minutes?: number
           id?: string

@@ -1,0 +1,1 @@
+ALTER TABLE public.company_settings ADD COLUMN IF NOT EXISTS enforce_run_gap_minutes boolean NOT NULL DEFAULT false;
