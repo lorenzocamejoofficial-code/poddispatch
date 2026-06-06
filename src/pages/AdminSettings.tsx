@@ -160,6 +160,22 @@ export default function AdminSettings() {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex items-center justify-between rounded-lg border bg-card p-4">
+            <div className="pr-4">
+              <p className="text-sm font-medium text-foreground">Enforce 45-min gap between runs</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                When on, the scheduler flags runs assigned to the same truck less than 45 minutes apart. When off, the On-Time tracker is your only signal for tight scheduling. Off by default.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{enforceRunGap ? "ON" : "OFF"}</span>
+              <Checkbox
+                id="enforceRunGap"
+                checked={enforceRunGap}
+                onCheckedChange={(v) => setEnforceRunGap(v === true)}
+              />
+            </div>
+          </div>
         </section>
 
         {/* Service Time Defaults */}
