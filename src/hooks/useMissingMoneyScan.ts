@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
+import { useAuth } from "@/hooks/useAuth";
+import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
+import { useSimulationSession } from "@/hooks/useSimulationSession";
 
 export interface MissingMoneyItem {
   id: string;
@@ -35,13 +38,37 @@ export interface MissingMoneyCategorySummary {
 }
 
 export function useMissingMoneyScan() {
+  const { activeCompanyId } = useAuth();
+  const isSimulationCompany = useIsSimulationCompany();
+  const { simulationRunId, refreshToken } = useSimulationSession();
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<MissingMoneyCategorySummary[]>([]);
   const [totalAmount, setTotalAmount] = useState(0);
   const [lastScanAt, setLastScanAt] = useState<Date | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   const runScan = useCallback(async () => {
     setLoading(true);
+    setScanError(null);
+    if (!activeCompanyId) {
+      setCategories([]);
+      setTotalAmount(0);
+      setLastScanAt(new Date());
+      setLoading(false);
+      return;
+    }
+
+    const applyScope = (query: any) => {
+      let scoped = query.eq("company_id", activeCompanyId);
+      if (!isSimulationCompany) {
+        scoped = scoped.not("is_simulated", "is", true);
+      }
+      if (simulationRunId && !isSimulationCompany) {
+        scoped = scoped.eq("simulation_run_id", simulationRunId);
+      }
+      return scoped;
+    };
+
     const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
     const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000).toISOString();
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
@@ -49,7 +76,11 @@ export function useMissingMoneyScan() {
 
     try {
       // Fetch charge_master for revenue estimation
-      const { data: rates } = await supabase.from("charge_master" as any).select("*");
+      const { data: rates, error: ratesError } = await supabase
+        .from("charge_master" as any)
+        .select("*")
+        .eq("company_id", activeCompanyId);
+      if (ratesError) throw ratesError;
       const rateMap = new Map<string, any>();
       ((rates ?? []) as any[]).forEach((r: any) => rateMap.set(r.payer_type, r));
       const defaultRate = rateMap.get("default");
@@ -62,54 +93,58 @@ export function useMissingMoneyScan() {
       };
 
       // ---- CHECK 1: Completed trips with no PCR submitted ----
-      const { data: noPcrTrips } = await supabase
+      const noPcrQuery = applyScope(supabase
         .from("trip_records" as any)
         .select("id, status, run_date, pcr_status, patient_id, truck_id, loaded_miles, company_id")
         .gte("run_date", ninetyDaysAgo)
         .in("status", ["completed", "ready_for_billing"])
-        .or("is_simulated.eq.false,is_simulated.is.null")
-        .neq("pcr_status", "submitted")
-        .neq("pcr_status", "complete")
-        .limit(500);
+        .or("pcr_status.is.null,and(pcr_status.neq.submitted,pcr_status.neq.complete)")
+        .limit(500));
+      const { data: noPcrTrips, error: noPcrError } = await noPcrQuery;
+      if (noPcrError) throw noPcrError;
 
       // ---- CHECK 2: PCR submitted but no claim ----
-      const { data: pcrSubmittedTrips } = await supabase
+      const pcrSubmittedQuery = applyScope(supabase
         .from("trip_records" as any)
         .select("id, run_date, patient_id, truck_id, loaded_miles, company_id, pcr_status, status")
         .eq("pcr_status", "submitted")
-        .eq("status", "ready_for_billing")
-        .or("is_simulated.eq.false,is_simulated.is.null")
-        .limit(500);
+        .in("status", ["ready_for_billing", "completed"])
+        .limit(500));
+      const { data: pcrSubmittedTrips, error: pcrSubmittedError } = await pcrSubmittedQuery;
+      if (pcrSubmittedError) throw pcrSubmittedError;
 
       // ---- CHECK 3: Claims past 45 days no follow-up ----
-      const { data: agingClaims } = await supabase
+      const agingQuery = applyScope(supabase
         .from("claim_records" as any)
         .select("id, patient_id, payer_name, payer_type, total_charge, submitted_at, run_date, status")
         .eq("status", "submitted")
         .lt("submitted_at", fortyFiveDaysAgo)
-        .or("is_simulated.eq.false,is_simulated.is.null")
-        .eq("is_test_submission", false)
-        .limit(500);
+        .not("is_test_submission", "is", true)
+        .limit(500));
+      const { data: agingClaims, error: agingError } = await agingQuery;
+      if (agingError) throw agingError;
 
       // ---- CHECK 4: Secondary not billed ----
-      const { data: secondaryClaims } = await supabase
+      const secondaryQuery = applyScope(supabase
         .from("claim_records" as any)
         .select("id, patient_id, payer_name, patient_responsibility_amount, run_date, status, secondary_claim_generated")
         .eq("status", "paid")
         .eq("secondary_claim_generated", false)
         .gt("patient_responsibility_amount", 0)
-        .or("is_simulated.eq.false,is_simulated.is.null")
-        .eq("is_test_submission", false)
-        .limit(500);
+        .not("is_test_submission", "is", true)
+        .limit(500));
+      const { data: secondaryClaims, error: secondaryError } = await secondaryQuery;
+      if (secondaryError) throw secondaryError;
 
       // ---- CHECK 5: Denied recoverable no action ----
-      const { data: deniedClaims } = await supabase
+      const deniedQuery = applyScope(supabase
         .from("claim_records" as any)
         .select("id, patient_id, payer_name, total_charge, denial_code, run_date, status")
         .eq("status", "denied")
-        .or("is_simulated.eq.false,is_simulated.is.null")
-        .eq("is_test_submission", false)
-        .limit(500);
+        .not("is_test_submission", "is", true)
+        .limit(500));
+      const { data: deniedClaims, error: deniedError } = await deniedQuery;
+      if (deniedError) throw deniedError;
 
       // Gather all patient and truck IDs for enrichment
       const allTrips = [...(noPcrTrips ?? []) as any[], ...(pcrSubmittedTrips ?? []) as any[]];
@@ -314,11 +349,14 @@ export function useMissingMoneyScan() {
       setCategories(results);
       setTotalAmount(total);
       setLastScanAt(new Date());
-    } catch (err) {
+    } catch (err: any) {
       console.error("Missing money scan failed:", err);
+      setCategories([]);
+      setTotalAmount(0);
+      setScanError(err?.message ?? "Missing money scan failed");
     }
     setLoading(false);
-  }, []);
+  }, [activeCompanyId, isSimulationCompany, simulationRunId]);
 
   useEffect(() => {
     runScan();
@@ -333,9 +371,9 @@ export function useMissingMoneyScan() {
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("focus", runScan);
     };
-  }, [runScan]);
+  }, [runScan, refreshToken]);
 
   const hasIssues = categories.some((c) => c.count > 0);
 
-  return { loading, categories, totalAmount, lastScanAt, hasIssues, runScan };
+  return { loading, categories, totalAmount, lastScanAt, hasIssues, scanError, runScan };
 }

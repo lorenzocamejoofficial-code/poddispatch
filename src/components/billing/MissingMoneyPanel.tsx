@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useNavigate } from "react-router-dom";
@@ -28,7 +29,7 @@ const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2,
 
 /** Compact version for Owner Command Center */
 export function MissingMoneySummary() {
-  const { loading, categories, totalAmount, lastScanAt, hasIssues } = useMissingMoneyScan();
+  const { loading, categories, totalAmount, lastScanAt, hasIssues, scanError } = useMissingMoneyScan();
   const navigate = useNavigate();
 
   if (loading) {
@@ -41,6 +42,15 @@ export function MissingMoneySummary() {
           </div>
         </CardContent>
       </Card>
+    );
+  }
+
+  if (scanError) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>Missing Money scan failed: {scanError}</AlertDescription>
+      </Alert>
     );
   }
 
@@ -115,7 +125,7 @@ export function MissingMoneySummary() {
 
 /** Full detail version for Billing & Claims Missing Money tab */
 export function MissingMoneyDetail() {
-  const { loading, categories, totalAmount, lastScanAt, hasIssues } = useMissingMoneyScan();
+  const { loading, categories, totalAmount, lastScanAt, hasIssues, scanError } = useMissingMoneyScan();
   const navigate = useNavigate();
 
   if (loading) {
@@ -123,6 +133,15 @@ export function MissingMoneyDetail() {
       <div className="space-y-4">
         {[1, 2, 3].map((i) => <Skeleton key={i} className="h-32" />)}
       </div>
+    );
+  }
+
+  if (scanError) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>Missing Money scan failed: {scanError}</AlertDescription>
+      </Alert>
     );
   }
 
