@@ -23,7 +23,7 @@ export default function CompletePayment() {
           <div className="space-y-2">
             <h1 className="text-xl font-bold text-foreground">Account Approved</h1>
             <p className="text-sm text-muted-foreground">
-              Your account has been approved. Complete your subscription to access PodDispatch.
+              Your account has been approved. Choose a plan and add a card to unlock PodDispatch — your card stays on file but is <span className="font-medium text-foreground">not charged for 30 days</span>.
             </p>
           </div>
 
@@ -34,7 +34,7 @@ export default function CompletePayment() {
             </div>
             <p className="text-xs text-muted-foreground">
               Starter ($799/mo, 1–5 trucks) or Pro ($1,499/mo, 6+ trucks).
-              Founding pricing automatically applies to the first 5 paying customers.
+              Founding pricing automatically applies to the first 5 paying customers. Cancel anytime before day 30 and you pay nothing.
             </p>
           </div>
 
