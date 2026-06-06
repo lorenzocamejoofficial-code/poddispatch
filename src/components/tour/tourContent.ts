@@ -362,6 +362,145 @@ export const PAGE_TOURS: PageTour[] = [
       },
     ],
   },
+  {
+    pageKey: "settings",
+    route: "/settings",
+    roles: ["owner", "creator", "manager"],
+    pageName: "Company Settings",
+    goal: "Company-wide defaults that change how the rest of the system behaves: scheduling guardrails, on-time targets, clearinghouse credentials, and billing toggles.",
+    steps: [
+      {
+        title: "Step 1 — On-Time Settings",
+        body: "Set your on-time target and turn the optional 45-minute back-to-back gap warning on or off. The warning is off by default; switch it on if you want a heads-up before tight runs get scheduled.",
+        lookFor: "the On-Time Settings card",
+      },
+      {
+        title: "Step 2 — Clearinghouse & billing",
+        body: "Confirm your NPI, taxonomy, and clearinghouse credentials. These flow into every 837P claim you generate, so getting them right once prevents payer rejections later.",
+      },
+      {
+        title: "Step 3 — Hold timer and PCR rules",
+        body: "Tune hold-timer thresholds, PCR completion deadlines, and notification preferences. Defaults are safe; adjust only if your operation runs differently.",
+      },
+      {
+        title: "Why this matters",
+        body: "Settings here cascade everywhere. One bad NPI or one wrong toggle can break a whole day of claims, so review this page once at setup and again any time you change clearinghouses.",
+      },
+    ],
+  },
+  {
+    pageKey: "override-monitor",
+    route: "/override-monitor",
+    roles: ["owner", "creator", "manager"],
+    pageName: "Override Monitor",
+    goal: "Every safety override, billing override, and high-risk action is logged here. This is your audit trail when a payer, surveyor, or attorney asks who approved what.",
+    steps: [
+      {
+        title: "Step 1 — Read the override log",
+        body: "Each row shows the action, the user, the timestamp, and the reason text they typed at the OVERRIDE gate. Filter by type to focus on safety vs billing overrides.",
+      },
+      {
+        title: "Step 2 — Investigate patterns",
+        body: "If one user or one truck shows up repeatedly, that is a coaching opportunity. Repeated bariatric-equipment overrides usually mean the fleet is mis-configured, not that the rule is wrong.",
+      },
+      {
+        title: "Why this matters",
+        body: "Overrides exist so the system never blocks a real emergency, but every override is a documented decision. Reviewing them weekly keeps audits routine instead of stressful.",
+      },
+    ],
+  },
+  {
+    pageKey: "crew-schedule-admin",
+    route: "/crew-schedule",
+    roles: ["owner", "creator", "manager", "dispatcher"],
+    pageName: "Crew Schedule",
+    goal: "Build the weekly crew roster. This is what crews see in their workspace and what feeds truck assignments on the Dispatch Board.",
+    steps: [
+      {
+        title: "Step 1 — Build the week",
+        body: "Drop employees onto shifts. The system checks certifications and blocks the same employee from being scheduled to two trucks on the same day.",
+      },
+      {
+        title: "Step 2 — Copy a week forward",
+        body: "Most schedules repeat. Use the copy-forward tool to roll a known-good week into next week, then edit exceptions.",
+      },
+      {
+        title: "Why this matters",
+        body: "A clean crew schedule means dispatch can assign runs without chasing certifications or last-minute swaps. Crews see their shifts in real time on their workspace.",
+      },
+    ],
+  },
+  {
+    pageKey: "migration",
+    route: "/migration",
+    roles: ["owner", "creator", "manager"],
+    pageName: "Data Migration",
+    goal: "Bring your existing patients, facilities, and trip history into the platform without retyping everything.",
+    steps: [
+      {
+        title: "Step 1 — Pick an import",
+        body: "Choose what you are importing: patients, facilities, trips, or employees. Each one has its own column template you can download.",
+      },
+      {
+        title: "Step 2 — Map your columns",
+        body: "Upload your CSV and match its columns to ours. The mapper remembers your choices so the next file goes faster.",
+      },
+      {
+        title: "Step 3 — Run in parallel mode first",
+        body: "Parallel mode imports into a sandbox so you can spot-check the results before committing. Once you are happy, run it for real.",
+      },
+      {
+        title: "Why this matters",
+        body: "Migration is a one-time job, but errors here echo through every claim later. Slow down on the first file, get the mapping right, and the rest takes minutes.",
+      },
+    ],
+  },
+  {
+    pageKey: "onboarding",
+    route: "/onboarding",
+    roles: ["owner", "creator", "manager"],
+    pageName: "Onboarding Wizard",
+    goal: "The fastest path from a brand-new account to scheduling your first run. Six short steps; your progress saves automatically.",
+    steps: [
+      {
+        title: "Step 1 — Company basics",
+        body: "NPI, taxonomy, address, and contact info. This is what shows up on every claim and every patient confirmation.",
+      },
+      {
+        title: "Step 2 — Fleet and crews",
+        body: "Add at least one truck and one crew so you have somewhere to assign runs. You can add the rest later.",
+      },
+      {
+        title: "Step 3 — Facilities and a first patient",
+        body: "Add the facilities you transport to and at least one patient. Use Discover Coverage to pull their insurance in one click.",
+      },
+      {
+        title: "Why this matters",
+        body: "You do not have to finish onboarding in one sitting. The wizard saves progress, but the sooner the basics are in, the sooner you can schedule, dispatch, and bill.",
+      },
+    ],
+  },
+  {
+    pageKey: "email-activity",
+    route: "/admin/email-activity",
+    roles: ["owner", "creator", "manager"],
+    pageName: "Email & Call Activity",
+    goal: "Every transactional email and automated call the system sends on your behalf is logged here. Use it to confirm a notification actually went out.",
+    steps: [
+      {
+        title: "Step 1 — Find a message",
+        body: "Filter by recipient, type (signup, password reset, facility confirmation, etc.), or date range to locate a specific send.",
+      },
+      {
+        title: "Step 2 — Check delivery status",
+        body: "Each row shows whether the provider accepted, delivered, bounced, or failed the message. Failed sends usually point to a bad email address on the patient or employee record.",
+      },
+      {
+        title: "Why this matters",
+        body: "When a facility says they never got the confirmation call or a crew member says the invite never arrived, this is the source of truth. Fix the address at the source and re-send.",
+      },
+    ],
+  },
 ];
 
 export function getTourForRoute(route: string, role: TourRole | null | undefined): PageTour | null {
