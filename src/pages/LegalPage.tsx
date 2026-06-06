@@ -50,6 +50,7 @@ export default function LegalPage() {
             <TabsTrigger value="pilot" className="flex-none">Pilot Addendum</TabsTrigger>
             <TabsTrigger value="clearinghouse" className="flex-none">Clearinghouse</TabsTrigger>
             <TabsTrigger value="retention" className="flex-none">Retention</TabsTrigger>
+            <TabsTrigger value="cancellation" className="flex-none">Cancellation</TabsTrigger>
             <TabsTrigger value="incident" className="flex-none">Incident Response</TabsTrigger>
           </TabsList>
 
