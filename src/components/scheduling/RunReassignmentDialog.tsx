@@ -47,6 +47,19 @@ export function RunReassignmentDialog({
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [pickupTime, setPickupTime] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [enforceGap, setEnforceGap] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      const { data } = await supabase
+        .from("company_settings")
+        .select("enforce_run_gap_minutes")
+        .limit(1)
+        .maybeSingle();
+      setEnforceGap(Boolean((data as any)?.enforce_run_gap_minutes ?? false));
+    })();
+  }, [open]);
 
   // Reset on open
   useEffect(() => {
@@ -57,7 +70,7 @@ export function RunReassignmentDialog({
   }, [open, leg]);
 
   const conflicts = useMemo(() => {
-    if (!leg) return [];
+    if (!leg || !enforceGap) return [];
     const movingMins = timeToMinutes(step >= 2 ? pickupTime : leg.pickup_time);
     if (movingMins === null) return [];
     return targetTruckLegs
@@ -67,7 +80,7 @@ export function RunReassignmentDialog({
         if (tlMins === null) return false;
         return Math.abs(tlMins - movingMins) < MIN_GAP_MINUTES;
       });
-  }, [leg, targetTruckLegs, pickupTime, step]);
+  }, [leg, targetTruckLegs, pickupTime, step, enforceGap]);
 
   // Fix 13: Capture slot updated_at when dialog opens for optimistic concurrency
   const [slotUpdatedAt, setSlotUpdatedAt] = useState<string | null>(null);

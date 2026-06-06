@@ -92,11 +92,11 @@ export const PAGE_TOURS: PageTour[] = [
     route: "/scheduling",
     roles: ["owner", "creator", "manager", "dispatcher"],
     pageName: "Scheduling",
-    goal: "This is where runs get assigned to trucks. Bad assignments (safety conflicts, < 45-min gaps, inactive trucks) cascade into safety overrides and denied claims.",
+    goal: "This is where runs get assigned to trucks. Safety conflicts and inactive trucks are blocked automatically. Tight scheduling shows up on the On-Time tracker.",
     steps: [
       {
         title: "Step 1 — Drag a run onto a truck",
-        body: "The system enforces a 45-minute minimum gap between runs per truck and blocks assignment to OOS or inactive trucks automatically.",
+        body: "Assignment to OOS or inactive trucks is blocked automatically. A 45-minute gap warning between back-to-back runs is available as an optional toggle in Admin → On-Time Settings (off by default).",
       },
       {
         title: "Step 2 — Resolve safety badges",
@@ -108,7 +108,7 @@ export const PAGE_TOURS: PageTour[] = [
       },
       {
         title: "Why this matters",
-        body: "Clean assignments → complete PCRs → clean claims. A 45-min conflict can mean a late arrival and a wait-time write-off, so the system blocks it up front.",
+        body: "Clean assignments → complete PCRs → clean claims. Tight back-to-back runs tend to surface on the On-Time tracker; turn on the 45-min gap warning in settings if you want a heads-up before they're scheduled.",
       },
     ],
   },

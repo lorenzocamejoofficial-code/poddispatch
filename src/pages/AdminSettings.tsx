@@ -28,6 +28,7 @@ export default function AdminSettings() {
   const [sessionWarningEnabled, setSessionWarningEnabled] = useState(true);
   const [retentionYears, setRetentionYears] = useState("10");
   const [verifiedCallerId, setVerifiedCallerId] = useState("");
+  const [enforceRunGap, setEnforceRunGap] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
 
@@ -69,6 +70,7 @@ export default function AdminSettings() {
         setSessionWarningEnabled((data as any).session_warning_enabled ?? true);
         setRetentionYears(String((data as any).retention_policy_years ?? 10));
         setVerifiedCallerId(String((data as any).verified_caller_id ?? ""));
+        setEnforceRunGap(Boolean((data as any).enforce_run_gap_minutes ?? false));
       }
     });
 
@@ -86,6 +88,7 @@ export default function AdminSettings() {
       session_timeout_minutes: parseInt(sessionTimeout),
       session_warning_enabled: sessionWarningEnabled,
       verified_caller_id: verifiedCallerId.trim() || null,
+      enforce_run_gap_minutes: enforceRunGap,
     };
     // Retention policy is owner-narrow (legal/compliance commitment).
     if (isOwner) payload.retention_policy_years = parseInt(retentionYears);
@@ -156,6 +159,22 @@ export default function AdminSettings() {
                 <SelectItem value="45">45 minutes</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border bg-card p-4">
+            <div className="pr-4">
+              <p className="text-sm font-medium text-foreground">Enforce 45-min gap between runs</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                When on, the scheduler flags runs assigned to the same truck less than 45 minutes apart. When off, the On-Time tracker is your only signal for tight scheduling. Off by default.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{enforceRunGap ? "ON" : "OFF"}</span>
+              <Checkbox
+                id="enforceRunGap"
+                checked={enforceRunGap}
+                onCheckedChange={(v) => setEnforceRunGap(v === true)}
+              />
+            </div>
           </div>
         </section>
 

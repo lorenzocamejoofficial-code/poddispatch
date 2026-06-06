@@ -8,7 +8,7 @@ Multi-tenant isolation: strict RLS & company_id filters on all realtime subscrip
 HIPAA compliant: 30-min auto-logout, 7-year trip data retention default.
 Safety matrix: Bariatric runs without power stretcher and MF/FF crews are BLOCKED.
 ePCR timestamps are strictly chronological. 0 is a valid odometer reading.
-45-min minimum scheduling gap enforced on truck assignments.
+45-min run-gap warning is an opt-in toggle (company_settings.enforce_run_gap_minutes), off by default for all companies. On-Time tracker is the primary signal.
 Stripe for subscriptions, Office Ally HTTP API for claims/eligibility.
 Run record (scheduling_legs) is single source of truth for transport context cascading.
 Single Office Ally account gateway — all tenant 837Ps submit through PodDispatch's SFTP, 835s routed back by NPI.
