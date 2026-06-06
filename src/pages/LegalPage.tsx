@@ -50,6 +50,7 @@ export default function LegalPage() {
             <TabsTrigger value="pilot" className="flex-none">Pilot Addendum</TabsTrigger>
             <TabsTrigger value="clearinghouse" className="flex-none">Clearinghouse</TabsTrigger>
             <TabsTrigger value="retention" className="flex-none">Retention</TabsTrigger>
+            <TabsTrigger value="cancellation" className="flex-none">Cancellation</TabsTrigger>
             <TabsTrigger value="incident" className="flex-none">Incident Response</TabsTrigger>
           </TabsList>
 
@@ -303,6 +304,55 @@ export default function LegalPage() {
 
               <h3>Contact</h3>
               <p>Questions about data retention or deletion can be sent to <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a>.</p>
+            </article>
+          </TabsContent>
+
+          <TabsContent value="cancellation">
+            <article className="prose prose-sm dark:prose-invert max-w-none mt-6">
+              <h2>PodDispatch Cancellation Policy</h2>
+              <p className="text-muted-foreground text-sm">Version 1.0. Effective June 2026.</p>
+
+              <h3>Self-Serve Cancellation</h3>
+              <p>Owner-role users can cancel at any time from <strong>Admin Settings → Subscription</strong>. No phone call, no email required, no retention agent. Cancellation takes effect according to the rules below.</p>
+
+              <h3>Cancelling During the 30-Day Trial</h3>
+              <p>If you cancel before your trial ends, your account moves to read-only export mode immediately and <strong>your card on file is not charged</strong>. We do not bill for the unused portion of the trial. You may export your data through the 90-day read-only window described below.</p>
+
+              <h3>Cancelling a Paid Subscription</h3>
+              <p>Cancellation schedules the subscription to end at the close of the current billing period. You keep full access — dispatch, ePCR, billing, exports — through that date. <strong>No prorated, partial-month, or retroactive refunds are issued</strong> for the current billing period, consistent with Section 6 of the Terms of Service. You will not be charged for any subsequent period.</p>
+
+              <h3>Post-Cancellation Lifecycle</h3>
+              <ul>
+                <li><strong>Active (paid through period end).</strong> Full access until the renewal date passes.</li>
+                <li><strong>Read-only export mode (90 days).</strong> The account becomes read-only the moment the paid period ends (or immediately if cancelled during trial). The owner may sign in to view records, export data, and reactivate with one click. No new trips, PCRs, or claims can be created.</li>
+                <li><strong>Archived (through year 10).</strong> After the 90-day window, the account is archived. Records remain retained per the Retention Policy. Reactivation or export requires written request to support; reasonable effort fees may apply.</li>
+                <li><strong>Purged.</strong> At the end of the 10-year retention period (or earlier if you request deletion under HIPAA), records are securely destroyed and cannot be recovered.</li>
+              </ul>
+
+              <h3>One-Click Reactivation (90-Day Window)</h3>
+              <p>If you reactivate within 90 days of cancellation, your company, users, trucks, employees, patients, trip history, PCRs, claims, and remittance records are all restored exactly as you left them. No re-onboarding, no data re-entry. After 90 days, reactivation is still possible but requires a manual restore by support.</p>
+
+              <h3>Your Right to a Full Data Export</h3>
+              <p>At any time during the read-only or archived window, you may request a full export of your operator data: trips, ePCRs, claims, 835 remittances, employee roster, truck roster, patient roster, and audit log. Exports are delivered within 30 days under the HIPAA Right of Access standard at 45 CFR 164.524. Email <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a> to initiate.</p>
+
+              <h3>PHI Retention Continues After Cancellation</h3>
+              <p>Cancellation does not terminate the Business Associate Agreement. Protected Health Information remains retained, encrypted, and access-logged for 10 years to satisfy HIPAA, Medicare, and state audit requirements — regardless of whether the account is active, read-only, or archived. See the Retention tab for full detail.</p>
+
+              <h3>Failed Payment and Involuntary Cancellation</h3>
+              <p>If a renewal payment fails, the account is marked past-due. We retry per Stripe's standard schedule. If the balance is not cured within 14 days, the account is moved to read-only export mode and treated identically to a self-serve cancellation from that point forward.</p>
+
+              <h3>PodDispatch-Initiated Termination</h3>
+              <p>PodDispatch may terminate an account for material breach of the Terms of Service, the Acceptable Use Policy, the Business Associate Agreement, or for non-payment, as described in Section 13 of the Terms. Where feasible, we give 14 days written notice and the same 90-day read-only export window.</p>
+
+              <h3>What Cancellation Does Not Do</h3>
+              <ul>
+                <li>It does not erase your PHI — see Retention.</li>
+                <li>It does not refund the current billing period — see Section 6 of the Terms.</li>
+                <li>It does not cancel any third-party agreements you've entered into through the platform (clearinghouse, payer enrollments, Twilio numbers); you remain responsible for closing those directly with the vendor.</li>
+              </ul>
+
+              <h3>Contact</h3>
+              <p>Cancellation questions or extension requests can be sent to <a href="mailto:support@thepoddispatch.com" className="text-primary hover:underline">support@thepoddispatch.com</a>.</p>
             </article>
           </TabsContent>
 

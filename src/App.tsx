@@ -64,6 +64,7 @@ const CrewPatients = lazyRoute(() => import("./pages/crew/CrewPatients"));
 const CrewSchedulePage = lazyRoute(() => import("./pages/crew/CrewSchedule"));
 const OnboardingWizard = lazyRoute(() => import("./pages/OnboardingWizard"));
 const TrialExpired = lazyRoute(() => import("./pages/TrialExpired"));
+const SubscriptionCanceled = lazyRoute(() => import("./pages/SubscriptionCanceled"));
 const CompletePayment = lazyRoute(() => import("./pages/CompletePayment"));
 const ChoosePlan = lazyRoute(() => import("./pages/ChoosePlan"));
 const EDIExport = lazyRoute(() => import("./pages/EDIExport"));
@@ -317,6 +318,18 @@ function AppRoutes() {
         <Route path="/trial-expired" element={<TrialExpired />} />
         <Route path="/choose-plan" element={<ChoosePlan />} />
         <Route path="*" element={<Navigate to="/trial-expired" replace />} />
+      </Routes>
+    );
+  }
+
+  // Fully cancelled — read-only landing with reactivate + data export contact
+  if (!isSystemCreator && subscriptionStatus === "cancelled") {
+    return (
+      <Routes>
+        <Route path="/subscription-cancelled" element={<SubscriptionCanceled />} />
+        <Route path="/choose-plan" element={<ChoosePlan />} />
+        <Route path="/legal" element={<LegalPage />} />
+        <Route path="*" element={<Navigate to="/subscription-cancelled" replace />} />
       </Routes>
     );
   }

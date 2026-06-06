@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Settings2, Phone, Mail } from "lucide-react";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { TrialBanner } from "@/components/onboarding/TrialBanner";
+import { SubscriptionPanel } from "@/components/billing/SubscriptionPanel";
 
 export default function AdminSettings() {
   const { role, isSystemCreator } = useAuth();
@@ -108,6 +109,11 @@ export default function AdminSettings() {
             <TabsTrigger value="company" className="gap-1.5">
               <Settings2 className="h-3.5 w-3.5" /> Company
             </TabsTrigger>
+            {isOwner && (
+              <TabsTrigger value="subscription" className="gap-1.5">
+                Subscription
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="company">
@@ -333,6 +339,14 @@ export default function AdminSettings() {
         </Button>
             </div>
           </TabsContent>
+
+          {isOwner && (
+            <TabsContent value="subscription">
+              <div className="max-w-lg">
+                <SubscriptionPanel />
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </AdminLayout>
