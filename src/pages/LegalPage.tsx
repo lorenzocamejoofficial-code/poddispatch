@@ -38,19 +38,19 @@ export default function LegalPage() {
         </h1>
 
         <Tabs defaultValue={initialTab}>
-          <TabsList className="w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 h-auto">
-            <TabsTrigger value="terms">Terms</TabsTrigger>
-            <TabsTrigger value="privacy">Privacy</TabsTrigger>
-            <TabsTrigger value="baa">BAA</TabsTrigger>
-            <TabsTrigger value="aup">Acceptable Use</TabsTrigger>
-            <TabsTrigger value="subscription">Subscription & Billing</TabsTrigger>
-            <TabsTrigger value="sla">Service Level</TabsTrigger>
-            <TabsTrigger value="subprocessors">Subprocessors</TabsTrigger>
-            <TabsTrigger value="cookies">Cookies & Tracking</TabsTrigger>
-            <TabsTrigger value="pilot">Pilot Addendum</TabsTrigger>
-            <TabsTrigger value="clearinghouse">Clearinghouse</TabsTrigger>
-            <TabsTrigger value="retention">Retention</TabsTrigger>
-            <TabsTrigger value="incident">Incident Response</TabsTrigger>
+          <TabsList className="w-full flex flex-wrap justify-start gap-1 h-auto p-1">
+            <TabsTrigger value="terms" className="flex-none">Terms</TabsTrigger>
+            <TabsTrigger value="privacy" className="flex-none">Privacy</TabsTrigger>
+            <TabsTrigger value="baa" className="flex-none">BAA</TabsTrigger>
+            <TabsTrigger value="aup" className="flex-none">Acceptable Use</TabsTrigger>
+            <TabsTrigger value="subscription" className="flex-none">Subscription &amp; Billing</TabsTrigger>
+            <TabsTrigger value="sla" className="flex-none">Service Level</TabsTrigger>
+            <TabsTrigger value="subprocessors" className="flex-none">Subprocessors</TabsTrigger>
+            <TabsTrigger value="cookies" className="flex-none">Cookies &amp; Tracking</TabsTrigger>
+            <TabsTrigger value="pilot" className="flex-none">Pilot Addendum</TabsTrigger>
+            <TabsTrigger value="clearinghouse" className="flex-none">Clearinghouse</TabsTrigger>
+            <TabsTrigger value="retention" className="flex-none">Retention</TabsTrigger>
+            <TabsTrigger value="incident" className="flex-none">Incident Response</TabsTrigger>
           </TabsList>
 
           <TabsContent value="terms">
