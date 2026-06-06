@@ -198,7 +198,32 @@ export default function SimulationLab() {
   const injectDenialsRemits = async () => {
     setLoading("inject_denials_remits");
     try {
-      const data = await callLab({ action: "inject_denials_remits" });
+      let data = await callLab({ action: "inject_denials_remits" });
+
+      // Auto-seed billing_risk if the pool is too thin, then retry once.
+      const tooThin =
+        !data?.ok &&
+        typeof data?.error === "string" &&
+        /Need .*fresh simulated claims/i.test(data.error);
+
+      if (tooThin) {
+        toast({
+          title: "Seeding billing_risk first…",
+          description: "Sandbox had <10 fresh claims. Auto-seeding, then injecting.",
+        });
+        const seed = await callLab({ action: "seed", scenario: "billing_risk", seedSize: "small" });
+        if (!seed?.ok) {
+          toast({
+            title: "Auto-seed Failed",
+            description: seed?.error ?? "Could not seed billing_risk. Seed manually then retry.",
+            variant: "destructive",
+          });
+          setLoading(null);
+          return;
+        }
+        data = await callLab({ action: "inject_denials_remits" });
+      }
+
       if (data?.ok) {
         toast({
           title: "Demo Data Injected",
@@ -577,8 +602,9 @@ export default function SimulationLab() {
             <p className="text-[11px] text-muted-foreground leading-relaxed">
               Transforms ~18 freshly seeded claims into demo-ready billing states so the
               <strong> Missing Money scanner</strong>, <strong>Denial Recovery Engine</strong>,
-              and <strong>Timely Filing Strip</strong> all light up on first click. Run this
-              AFTER seeding a scenario (recommended: <code>billing_risk</code>).
+              and <strong>Timely Filing Strip</strong> all light up on first click. If the
+              sandbox is empty, this auto-seeds <code>billing_risk</code> first, then injects —
+              one click does the whole demo prep.
             </p>
             <ul className="text-[11px] text-muted-foreground space-y-1 list-disc pl-5">
               <li><strong>6 denials</strong> with recoverable CARCs (CO-16, CO-50, CO-197, CO-29, CO-11, CO-167)</li>
