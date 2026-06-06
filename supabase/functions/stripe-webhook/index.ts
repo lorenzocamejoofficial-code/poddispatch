@@ -131,6 +131,15 @@ serve(async (req) => {
           current_period_end: new Date((sub.current_period_end ?? 0) * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         };
+        // Mirror cancel_at_period_end into our row so the UI shows
+        // "pending_cancellation" even if Stripe still reports the sub as
+        // "active" through the end of the paid period.
+        if (sub.cancel_at_period_end) {
+          update.subscription_status = "pending_cancellation";
+          update.cancel_at_period_end = true;
+        } else {
+          update.cancel_at_period_end = false;
+        }
         if (planId) update.plan_id = planId;
         if (sub.metadata?.is_founding !== undefined) update.is_founding = isFounding;
         const query = supabase.from("subscription_records").update(update);
@@ -149,6 +158,9 @@ serve(async (req) => {
         const companyId = sub.metadata?.company_id;
         const update = {
           subscription_status: "cancelled",
+          cancel_at_period_end: false,
+          canceled_at: new Date().toISOString(),
+          reactivation_deadline: new Date(Date.now() + 90 * 86_400_000).toISOString(),
           updated_at: new Date().toISOString(),
         };
         const query = supabase.from("subscription_records").update(update);
