@@ -92,6 +92,7 @@ Before claiming "done" on anything with buttons or edge functions: click-test in
 - [System Audit Document](mem://billing/system-audit-document) — Reference to PodDispatch_Billing_System_Audit.md documentation
 - [Hold Timer Wait Time Integration](mem://billing/hold-timer-wait-time-integration) — Accumulating resolved hold timers into billable wait minutes
 - [Identified System Gaps](mem://billing/identified-system-gaps) — Outstanding batch operations and API gating limitations
+- [Cancellation Policy](mem://billing/cancellation-policy) — Self-serve cancel/reactivate with 90-day read-only window
 - [Crew Schedule Delivery](mem://logic/crew-schedule-delivery) — Leg exceptions applied dynamically to daily run sheets
 - [Board Health Logic](mem://dispatch/board-health-logic) — Evaluating fleet pre-progress vs active operational statuses
 - [Transport Context Cascading](mem://features/transport-context-cascading) — Run record drives service level, HCPCS, PCS, PCR sections, QA rules downstream
