@@ -412,11 +412,46 @@ export default function RemittanceImport() {
         } as any)
         .eq("id", remittanceFileId);
 
+      // If this was a routed remittance (sent by PodDispatch support), tag the
+      // audit entry so it's distinguishable from a normal upload and link back
+      // to the originating quarantine record. The route audit entry references
+      // the same remittance_files.record_id, so the two can be traced end-to-end.
+      let quarantineLink: { quarantine_id: string | null; resolution_notes: string | null } = {
+        quarantine_id: null,
+        resolution_notes: null,
+      };
+      if (routedFileId) {
+        const { data: qrow } = await supabase
+          .from("remittance_quarantine" as any)
+          .select("id, resolution_notes")
+          .eq("matched_company_id", companyId)
+          .ilike("resolution_notes", `%${routedFileId}%`)
+          .maybeSingle();
+        if (qrow) {
+          quarantineLink = {
+            quarantine_id: (qrow as any).id ?? null,
+            resolution_notes: (qrow as any).resolution_notes ?? null,
+          };
+        }
+      }
       await logAuditEvent({
-        action: "export",
+        action: routedFileId ? "remittance_routed_imported" : "export",
         tableName: "remittance_files",
-        notes: `Imported 835 file "${fileName}", ${updated} claims updated, $${totalPaid.toFixed(2)} total paid${reconciled ? "" : ` (variance $${variance.toFixed(2)})`}`,
-        newData: { fileName, matched: toUpdate.length, updated, totalPaid, variance, plbCount: envelope?.plb_adjustments.length ?? 0 },
+        recordId: remittanceFileId,
+        notes: routedFileId
+          ? `Imported routed 835 "${fileName}" (sent by PodDispatch support), ${updated} claims updated, $${totalPaid.toFixed(2)} total paid${reconciled ? "" : ` (variance $${variance.toFixed(2)})`}${quarantineLink.quarantine_id ? `. Source quarantine: ${quarantineLink.quarantine_id}` : ""}.`
+          : `Imported 835 file "${fileName}", ${updated} claims updated, $${totalPaid.toFixed(2)} total paid${reconciled ? "" : ` (variance $${variance.toFixed(2)})`}`,
+        newData: {
+          fileName,
+          matched: toUpdate.length,
+          updated,
+          totalPaid,
+          variance,
+          plbCount: envelope?.plb_adjustments.length ?? 0,
+          routed: !!routedFileId,
+          routed_remittance_file_id: routedFileId ?? null,
+          source_quarantine_id: quarantineLink.quarantine_id,
+        },
       });
 
       setImported(true);
