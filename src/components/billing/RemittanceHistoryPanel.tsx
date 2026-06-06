@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, RefreshCw, FileText, Eye, CheckCircle2, AlertTriangle, ChevronDown, Info, Send, Download, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
