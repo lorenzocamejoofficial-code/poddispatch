@@ -1642,6 +1642,186 @@ async function saveSnapshot(admin: any, companyId: string, userId: string, name:
   return data;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// INJECT DENIALS & REMITS — Tier 1 demo data prep
+//
+// Transforms ~18 of the most recently seeded simulated claims into four
+// realistic billing-cycle states so the demo can show:
+//   • Denial Recovery Engine            (6 denied claims, recoverable CARCs)
+//   • Missing Money — secondary not billed (4 paid claims w/ PR + secondary payer)
+//   • Missing Money — submitted no follow-up & AR aging (5 stale submitted)
+//   • Timely Filing Strip               (3 ready-to-bill near deadline + past due)
+//
+// IMPORTANT: The Missing Money scanner explicitly excludes is_simulated=true
+// rows (src/hooks/useMissingMoneyScan.ts), so injected claims are flipped to
+// is_simulated=false. They are tagged with a fresh simulation_run_id so the
+// extended reset() above can sweep them. Patient secondary payer fields are
+// also flagged with secondary_payer_id="SIM_INJECT" for reset cleanup.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const RECOVERABLE_CARCS = [
+  { code: "CO-16",  reason: "Claim/service lacks information or has submission/billing error(s)" },
+  { code: "CO-50",  reason: "Non-covered services because this is not deemed a 'medical necessity'" },
+  { code: "CO-197", reason: "Precertification/authorization absent" },
+  { code: "CO-29",  reason: "The time limit for filing has expired" },
+  { code: "CO-11",  reason: "The diagnosis is inconsistent with the procedure" },
+  { code: "CO-167", reason: "This (these) diagnosis(es) is (are) not covered" },
+];
+
+async function injectDenialsRemits(admin: any, companyId: string) {
+  // Need a pool of fresh simulated claims to transform. Skip any we've
+  // already touched in a previous inject (simulation_run_id IS NOT NULL).
+  const { data: pool, error: poolErr } = await admin
+    .from("claim_records")
+    .select("id, patient_id, total_charge, payer_type, payer_name, run_date, status")
+    .eq("company_id", companyId)
+    .eq("is_simulated", true)
+    .is("simulation_run_id", null)
+    .in("status", ["submitted", "ready_to_bill", "paid", "needs_review", "needs_correction"])
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  if (poolErr) {
+    return { ok: false, error: `Pool query failed: ${poolErr.message}` };
+  }
+  if (!pool || pool.length < 10) {
+    return {
+      ok: false,
+      error: `Need ≥10 fresh simulated claims. Found ${pool?.length ?? 0}. Seed a scenario (billing_risk recommended) first, then click this again.`,
+      poolSize: pool?.length ?? 0,
+    };
+  }
+
+  // Record the inject as its own simulation_run for traceability + reset.
+  const runId = crypto.randomUUID();
+  await admin.from("simulation_runs").insert({
+    id: runId,
+    scenario_name: "Denials & Remits Injection",
+    status: "active",
+  });
+
+  const now = Date.now();
+  const dayMs = 86_400_000;
+  const isoMinus = (days: number) => new Date(now - days * dayMs).toISOString();
+  const dateMinus = (days: number) => new Date(now - days * dayMs).toISOString().slice(0, 10);
+
+  const counts = { denied: 0, paid_with_secondary: 0, aging: 0, timely_filing: 0, errors: 0 };
+  const errorLog: string[] = [];
+
+  // ── Bucket 1: 6 denied claims with recoverable CARCs ─────────────────────
+  const deniedSlice = pool.slice(0, 6);
+  for (let i = 0; i < deniedSlice.length; i++) {
+    const c = deniedSlice[i];
+    const carc = RECOVERABLE_CARCS[i % RECOVERABLE_CARCS.length];
+    const { error } = await admin.from("claim_records").update({
+      status: "denied",
+      denial_code: carc.code,
+      denial_reason: carc.reason,
+      denial_category: "payer",
+      adjustment_codes: [carc.code],
+      submitted_at: isoMinus(12),
+      is_simulated: false,
+      is_test_submission: false,
+      simulation_run_id: runId,
+    }).eq("id", c.id);
+    if (error) { counts.errors++; errorLog.push(`denied[${i}]: ${error.message}`); }
+    else counts.denied++;
+  }
+
+  // ── Bucket 2: 4 paid claims w/ secondary opportunity ─────────────────────
+  const paidSlice = pool.slice(6, 10);
+  for (let i = 0; i < paidSlice.length; i++) {
+    const c = paidSlice[i];
+    const total = Number(c.total_charge) || 349.48;
+    const paid = Math.round(total * 0.70 * 100) / 100;
+    const pr = Math.round(total * 0.20 * 100) / 100;
+
+    const { error: cerr } = await admin.from("claim_records").update({
+      status: "paid",
+      amount_paid: paid,
+      patient_responsibility_amount: pr,
+      allowed_amount: paid + pr,
+      paid_at: isoMinus(5),
+      remittance_date: dateMinus(5),
+      secondary_claim_generated: false,
+      submitted_at: isoMinus(20),
+      is_simulated: false,
+      is_test_submission: false,
+      simulation_run_id: runId,
+    }).eq("id", c.id);
+    if (cerr) { counts.errors++; errorLog.push(`paid[${i}]: ${cerr.message}`); continue; }
+
+    if (c.patient_id) {
+      // Flag secondary_payer_id with "SIM_INJECT" so reset() can find & clear.
+      const memberId = `GA${100_000_000 + Math.floor(Math.random() * 899_999_999)}`;
+      const { error: perr } = await admin.from("patients").update({
+        secondary_payer: "GA MEDICAID",
+        secondary_payer_id: "SIM_INJECT",
+        secondary_member_id: memberId,
+      }).eq("id", c.patient_id);
+      if (perr) errorLog.push(`paid[${i}] patient update: ${perr.message}`);
+    }
+    counts.paid_with_secondary++;
+  }
+
+  // ── Bucket 3: 5 aging-submitted (>45d, no follow-up) ─────────────────────
+  const agingSlice = pool.slice(10, 15);
+  for (let i = 0; i < agingSlice.length; i++) {
+    const c = agingSlice[i];
+    const { error } = await admin.from("claim_records").update({
+      status: "submitted",
+      submitted_at: isoMinus(60),
+      is_simulated: false,
+      is_test_submission: false,
+      simulation_run_id: runId,
+    }).eq("id", c.id);
+    if (error) { counts.errors++; errorLog.push(`aging[${i}]: ${error.message}`); }
+    else counts.aging++;
+  }
+
+  // ── Bucket 4: 3 timely-filing claims (2 near deadline + 1 past due) ──────
+  // Default rule = 365 days. 357d back → 8 days left (in 14d warn window).
+  // 380d back → 15d past due. Use medicare so payer rule is unambiguous.
+  const tfSlice = pool.slice(15, 18);
+  const tfConfigs = [
+    { runDate: dateMinus(357), label: "near deadline" },
+    { runDate: dateMinus(360), label: "near deadline" },
+    { runDate: dateMinus(380), label: "past due" },
+  ];
+  for (let i = 0; i < tfSlice.length && i < tfConfigs.length; i++) {
+    const c = tfSlice[i];
+    const cfg = tfConfigs[i];
+    const { error } = await admin.from("claim_records").update({
+      status: "ready_to_bill",
+      run_date: cfg.runDate,
+      payer_type: "medicare",
+      payer_name: "MEDICARE",
+      submitted_at: null,
+      is_simulated: false,
+      is_test_submission: false,
+      simulation_run_id: runId,
+    }).eq("id", c.id);
+    if (error) { counts.errors++; errorLog.push(`tf[${i}]: ${error.message}`); }
+    else counts.timely_filing++;
+  }
+
+  const transformed =
+    counts.denied + counts.paid_with_secondary + counts.aging + counts.timely_filing;
+
+  return {
+    ok: counts.errors === 0,
+    runId,
+    poolSize: pool.length,
+    transformed,
+    counts,
+    errors: errorLog.length ? errorLog : undefined,
+    description:
+      `Transformed ${transformed} claims: ${counts.denied} denials, ` +
+      `${counts.paid_with_secondary} paid w/ secondary opportunity, ` +
+      `${counts.aging} aging-submitted, ${counts.timely_filing} timely-filing.`,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
