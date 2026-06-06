@@ -205,7 +205,12 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
         )}
 
         {/* 1. NPI Verification */}
-        <CheckRow title="NPI Verification" loading={loading && results.npi.status === "pending"} badge={<NPIBadge status={results.npi.status} />}>
+        <CheckRow
+          title="NPI Verification"
+          loading={results.npi.status === "pending"}
+          badge={<NPIBadge status={results.npi.status} />}
+          onRetry={isTerminalNonPass(results.npi.status) ? () => retryCheck("npi") : undefined}
+        >
           {results.npi.status !== "pending" && (
             <div className="text-xs space-y-0.5 text-muted-foreground">
               {results.npi.registeredName && <p><span className="font-medium text-foreground">Registered Name:</span> {results.npi.registeredName}</p>}
@@ -219,7 +224,12 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
         </CheckRow>
 
         {/* 2. Medicare Enrollment */}
-        <CheckRow title="Medicare Enrollment" loading={loading && results.medicare.status === "pending"} badge={<MedicareBadge status={results.medicare.status} />}>
+        <CheckRow
+          title="Medicare Enrollment"
+          loading={results.medicare.status === "pending"}
+          badge={<MedicareBadge status={results.medicare.status} />}
+          onRetry={isTerminalNonPass(results.medicare.status) ? () => retryCheck("medicare") : undefined}
+        >
           {results.medicare.status !== "pending" && (
             <div className="text-xs text-muted-foreground">
               {results.medicare.specialty && <p><span className="font-medium text-foreground">Specialty:</span> {results.medicare.specialty}</p>}
@@ -229,7 +239,12 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
         </CheckRow>
 
         {/* 3. OIG Exclusion */}
-        <CheckRow title="OIG Exclusion Check" loading={loading && results.oig.status === "pending"} badge={<OIGBadge status={results.oig.status} />}>
+        <CheckRow
+          title="OIG Exclusion Check"
+          loading={results.oig.status === "pending"}
+          badge={<OIGBadge status={results.oig.status} />}
+          onRetry={isTerminalNonPass(results.oig.status) ? () => retryCheck("oig") : undefined}
+        >
           {results.oig.status !== "pending" && (
             <div className="text-xs text-muted-foreground">
               {results.oig.details && <p className="text-destructive font-medium">{results.oig.details}</p>}
