@@ -302,16 +302,27 @@ export function CompanyVerificationPanel({ company, onVerificationComplete }: Pr
 
 // --- Sub-components ---
 
-function CheckRow({ title, loading, badge, children }: { title: string; loading: boolean; badge: React.ReactNode; children: React.ReactNode }) {
+function CheckRow({ title, loading, badge, onRetry, children }: { title: string; loading: boolean; badge: React.ReactNode; onRetry?: () => void; children: React.ReactNode }) {
   return (
     <div className="rounded-lg border p-3 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-foreground">{title}</span>
-        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : badge}
+        <div className="flex items-center gap-2">
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : badge}
+          {!loading && onRetry && (
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px] gap-1" onClick={onRetry}>
+              <RefreshCw className="h-3 w-3" /> Retry
+            </Button>
+          )}
+        </div>
       </div>
       {children}
     </div>
   );
+}
+
+function isTerminalNonPass(status: string): boolean {
+  return status !== "pending" && status !== "verified" && status !== "enrolled" && status !== "not_excluded";
 }
 
 function OverallBadge({ status }: { status: "pass" | "review" | "fail" | "pending" }) {
