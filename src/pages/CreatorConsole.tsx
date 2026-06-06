@@ -243,13 +243,37 @@ export default function CreatorConsole() {
       return;
     }
     if (vr.npi.status === "pending" || vr.medicare.status === "pending" || vr.oig.status === "pending") {
-      toast.error("Verification still loading. Wait for all checks to complete.");
+      toast.error("A verification check is still running. Wait for it to finish or retry it.");
       return;
     }
+
+    // Identify any non-clean statuses (failed, mismatch, excluded, unverifiable). These do not
+    // block approval, but they require an explicit acknowledgment note that the creator
+    // confirmed the check by other means (e.g. manual OIG LEIE search).
+    const issues: string[] = [];
+    if (vr.npi.status !== "verified") issues.push(`NPI=${vr.npi.status}`);
+    if (vr.medicare.status !== "enrolled") issues.push(`Medicare=${vr.medicare.status}`);
+    if (vr.oig.status !== "not_excluded") issues.push(`OIG=${vr.oig.status}`);
+
+    let manualNotes: string | undefined;
+    if (issues.length > 0) {
+      const note = window.prompt(
+        `One or more verification checks did not return a clean pass:\n\n  • ${issues.join("\n  • ")}\n\n` +
+          `To approve anyway, type a brief acknowledgment describing how you verified these by other means (e.g. "Manually confirmed OIG LEIE — no match for ${c.name}"). Cancel to abort.`,
+        "",
+      );
+      if (note === null) return; // cancelled
+      if (!note.trim()) {
+        toast.error("Acknowledgment note required to approve past an unverified check.");
+        return;
+      }
+      manualNotes = note.trim();
+    }
+
     setActionLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("manage-company", {
-        body: { companyId: c.id, action: "approve", verification: vr },
+        body: { companyId: c.id, action: "approve", verification: vr, manualNotes },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -260,8 +284,11 @@ export default function CreatorConsole() {
         newData: {
           verification_results: { npi: vr.npi, medicare: vr.medicare, oig: vr.oig },
           decision: "approve",
+          acknowledgment: manualNotes ?? null,
         },
-        notes: `Company approved with verification: NPI=${vr.npi.status}, Medicare=${vr.medicare.status}, OIG=${vr.oig.status}`,
+        notes:
+          `Company approved with verification: NPI=${vr.npi.status}, Medicare=${vr.medicare.status}, OIG=${vr.oig.status}` +
+          (manualNotes ? ` | Acknowledgment: ${manualNotes}` : ""),
       });
       toast.success("Company approved!");
       await loadCompanies();
