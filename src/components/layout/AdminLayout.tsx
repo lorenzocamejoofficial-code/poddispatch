@@ -381,6 +381,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <h2 className="text-lg font-semibold text-foreground flex-1">
             {allVisibleItems.find((i) => i.path === location.pathname)?.label ?? "PodDispatch"}
           </h2>
+          <NotificationBell mode="admin" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
