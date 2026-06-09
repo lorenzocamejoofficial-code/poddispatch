@@ -1,74 +1,105 @@
-## Goal
+# Notification Center
 
-Mirror how primary/secondary insurance flows through PodDispatch today, and extend it so:
+A single bell icon in every layout (Admin, Crew, Creator) that unifies every operational/billing/clinical/system event into one role-scoped, click-to-jump feed. Replaces the sidebar number badges.
 
-1. The Patient form shows a **Verify / Discover** tab strip up top (disabled, "Activate with Office Ally" tooltip) so the UX is built and visible.
-2. **Tertiary insurance** becomes a real, end-to-end field — captured on the patient, carried into the trip/PCR, and able to spawn a tertiary claim after the secondary pays.
-3. Nothing actually pings Office Ally yet — Verify/Discover buttons stay disabled, same pattern as the existing eligibility button.
+## What goes in the bell (by source)
 
----
+| Source table | Feeds | Who sees it |
+|---|---|---|
+| `system_announcements` (new) | Creator → all tenants ("v2.4 released — what's new") | Everyone |
+| `notifications` | PCR kickbacks, schedule changes already in DB | Crew (assigned), Dispatcher, Owner |
+| `operational_alerts` + `alerts` | Hold timers, failed calls, dispatch ops | Dispatcher, Owner |
+| `claim_creation_failures` + denied `claim_records` | Claim failures, denials, 835 posted | Biller, Owner |
+| `biller_tasks` | AR tasks, follow-ups | Biller, Owner |
+| `qa_reviews` (pending) | QA queue | Biller, Owner |
+| `incident_reports` (new) | Clinical/safety incidents | Dispatcher, Owner |
+| `safety_overrides` + `billing_overrides` | Audit-worthy overrides logged | Owner only |
+| `support_tickets` (replies) | Ticket creator notified | Ticket creator |
+| `subscription_status_history` | Trial ending, payment issue | Owner only |
+| `comms_events` (outbound emails) | "Email sent to X — confirmation" | Creator (system-wide), Owner (own tenant) |
+| `company_verifications` | NPI/OIG queue | Creator |
 
-## What gets built
+## Three tiers (drive sort order + auto-expire)
 
-### 1. Database (one migration)
+1. **Action Required** — PCR kickback, denial, override needs review, emergency upgrade. Red dot. Stays until clicked.
+2. **FYI** — Crew submitted PCRs, 835 posted, schedule changed. Grey dot. Auto-marks read after 7 days.
+3. **System** — Creator announcements, email-sent logs. Pinned top section.
 
-Add tertiary columns mirroring the existing secondary shape:
+## Anti-flood (Owner-specific)
 
-- `patients`: `tertiary_payer_id`, `tertiary_member_id`, `tertiary_group_number`, `tertiary_relationship`, `tertiary_payer_name`
-- `trip_records` (or whichever table snapshots payer info onto the trip — same place `secondary_*` lives): matching `tertiary_*` columns so the claim generator has them at submission time
-- `claims`: `claim_level` already supports `primary`/`secondary`; extend the enum/check to also accept `tertiary`
-- `eligibility_checks`: add an `inquiry_mode` column (`verify` | `discover`) so when OA goes live we can route both flows through the same table
+- **Grouping** — `"12 PCRs submitted today"` collapses; expand for the list. Keyed by `(type, day)`.
+- **Digest mode toggle** — Owner setting in Account Settings. When ON, FYI items are suppressed from the bell live and bundled into a daily 8am summary notification. Default = OFF (see everything, grouped).
+- **Snooze** — right-click any row → 4h / tomorrow / next week.
+- **Smart routing** — billing FYIs go to Biller's bell directly; on the Owner bell they appear under a collapsible "Team Activity" subsection.
 
-Plus a tiny `coverage_discoveries` table to hold the multi-coverage results Discover returns (one patient → many discovered policies, each with payer, member id, rank, confidence). Empty until OA is live, but the schema + RLS are ready.
+## Sidebar badges
 
-### 2. Patient form UI
+Remove the existing `useSidebarBadges` red number dots from sidebar nav items. Bell is the single source of truth.
 
-At the top of the Add/Edit Patient dialog, add a `Tabs` strip:
+## Click-to-jump
 
-- **Verify** (default) — current form, with primary/secondary/**tertiary** insurance sections. Tertiary section looks identical to secondary. A disabled "Check Eligibility" button sits next to each payer row with the "Activate with Office Ally" tooltip.
-- **Discover** — a placeholder panel: name + DOB inputs, a disabled "Discover Coverage" button, and an empty results table styled to show how discovered policies would appear (Payer / Member ID / Rank / Confidence / "Use as Primary/Secondary/Tertiary").
+Every row carries a `link`. Clicking marks read + navigates:
+- PCR kickback → `/pcr/{trip_id}`
+- Claim denial → `/billing-and-claims?claim={id}&tab=denials`
+- Schedule change → `/scheduling?date={date}&truck={id}`
+- Override → `/override-monitor?row={id}`
+- Incident → `/compliance-and-qa?tab=incidents&id={id}`
 
-Both tabs save into the same patient record. Discover results, when wired up later, will pre-fill the Verify tab's payer fields.
+## Creator-side bell
 
-### 3. PCR / Billing card
+Dedicated feed in CreatorLayout:
+- New signups, suspensions, NPI/OIG queue
+- Support tickets opened
+- Failed payments across tenants
+- Email-sent log (every outbound system email — auth confirm, password reset, invite, billing receipt) so you know to chase one if it didn't land
+- Edge function errors (from existing `audit_logs` where `severity = 'error'`)
+- Tenant `provisioning_failed` / `payment_issue`
 
-`src/components/pcr/BillingCard.tsx` already shows primary + secondary. Add a tertiary block beneath secondary with the same fields and the same conditional show/hide (only render if a tertiary payer is set on the patient). No new logic — just mirror the secondary block.
+Plus an **Announcement Composer** on `/creator-console`:
+- Title, body (markdown), tier (Action / FYI / System), audience (all tenants / specific roles / specific company)
+- "Publish" inserts into `system_announcements` → fans out to every targeted user's bell
 
-### 4. Claim pipeline
+## Tech sketch
 
-- `src/lib/create-secondary-claim.ts` currently spawns a secondary claim after the primary pays. Add a sibling `create-tertiary-claim.ts` (or extend the existing file with a `targetLevel` param) that spawns a tertiary claim after the secondary pays, using the patient's tertiary payer.
-- 835 remittance import: when a secondary CLP posts and a tertiary payer exists on the trip, queue a tertiary claim — same trigger point that today queues secondary.
-- Claim readiness / pre-submit checklist: extend the existing payer-aware gates so tertiary claims run through the same validation.
+**New tables (migration):**
+- `system_announcements` (id, title, body, tier, audience_role[], audience_company_id, created_by, published_at, expires_at)
+- `notification_reads` (id, user_id, source_table, source_id, read_at, snoozed_until)
+- `notification_preferences` (user_id PK, digest_mode bool, muted_categories text[])
+- `incident_reports` already exists ✓ (verified earlier)
 
-Office Ally itself routes whichever payer is on the 837P loop 2010BB — so yes, OA will submit the tertiary claim for us. No separate integration needed; we just generate a third 837P with the tertiary payer in the right loop.
+**Hooks:**
+- `useNotificationFeed()` — runs in parallel: 11 queries scoped by role + activeCompanyId, dedupes against `notification_reads`, returns `{ actionRequired[], fyi[], system[], unreadCount }` with grouping applied client-side. 60s polling + realtime subscription on `notifications`/`operational_alerts`/`claim_creation_failures`.
+- `useNotificationPreferences()` — read/write digest toggle.
 
-### 5. Memory
+**Components:**
+- `<NotificationBell />` — header icon + unread dot
+- `<NotificationPanel />` — slide-over (Sheet), 3 sections, grouped rows, mark-all-read, snooze menu
+- `<NotificationPreferencesCard />` — in AccountSettings
+- `<AnnouncementComposer />` — in CreatorConsole
 
-Add `mem://billing/tertiary-coverage` documenting:
-- Patient → Trip → Claim carries primary/secondary/tertiary symmetrically
-- Tertiary claim is spawned by the same engine that spawns secondary, after secondary pays
-- Verify vs Discover modes share `eligibility_checks` via `inquiry_mode`
-- Discover results land in `coverage_discoveries`; user promotes them into the patient's payer slots
+**Wiring:**
+- AdminLayout header → `<NotificationBell />`
+- CrewLayout header → `<NotificationBell mode="crew" />`
+- CreatorLayout header → `<NotificationBell mode="creator" />`
+- Delete `useSidebarBadges` consumers in admin sidebar
 
----
+**Digest cron (deferred):** daily 8am job to bundle FYI for digest-mode users. Skipped in this first cut — toggle just suppresses FYI from the live bell for now; we wire the cron later. Owner notes this in the preference card.
 
-## What stays disabled
+## Out of scope (this PR)
 
-- Verify "Check Eligibility" button per payer row
-- Discover "Discover Coverage" button
-- Both show the same "Activate with Office Ally" tooltip used by the existing eligibility button
+- Email/SMS push of notifications (in-app only for now)
+- Mobile push (separate PWA push pipeline already exists for crew schedule changes — we don't duplicate)
+- The 8am digest cron itself (toggle works; cron lands in follow-up)
 
-When you sign with Brett and paste the REST URLs into `vendor_clearinghouse_settings`, those buttons light up automatically — no further UI work needed.
+## Acceptance
 
----
-
-## Technical notes (skip if not interested)
-
-- Tertiary claim trigger lives in the 835 import path, same place secondary is triggered today. Single new branch: `if (level === 'secondary' && trip.tertiary_payer_id) queueTertiary()`.
-- `claim_level` is currently a check constraint, not a Postgres enum, so extending it is a one-line `ALTER TABLE ... DROP CONSTRAINT / ADD CONSTRAINT`.
-- `coverage_discoveries` gets standard tenant RLS (`company_id = current_company()`), `service_role` full access for the edge function, `authenticated` read/write scoped to company.
-- Discover edge function will be a sibling of `check-eligibility` (`discover-coverage`) using OA's REST JSON discovery endpoint — stub it now with the same "endpoint not configured" fail-fast so the UI has something to call when activated.
-
----
-
-Want me to build this as described, or adjust scope first (e.g. skip Discover entirely for now, or skip the tertiary claim generator and just do the patient-side fields)?
+- Bell appears in all 3 layouts with live unread count
+- Owner bell shows everything grouped, with "Team Activity" collapsible section
+- Biller bell shows only billing/QA + creator announcements
+- Crew bell shows only their truck's schedule changes, PCR kickbacks, emergencies on their run
+- Dispatcher bell shows dispatch + schedule + emergency
+- Creator bell shows system-wide ops + email log + announcement composer link
+- Sidebar number badges removed
+- Per-user read state — Owner reading doesn't clear for Biller
+- Digest toggle exists in Account Settings (cron noted as coming soon)
+- Click any row → marks read + jumps to the right page
