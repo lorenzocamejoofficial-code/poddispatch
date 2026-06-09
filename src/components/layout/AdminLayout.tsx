@@ -1,7 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useSidebarBadges, getBadgeForPath } from "@/hooks/useSidebarBadges";
 import {
   LayoutDashboard,
   Users,
@@ -35,6 +34,7 @@ import { ContextualHelpPanel } from "@/components/help/ContextualHelpPanel";
 import { useCompanyName } from "@/hooks/useCompanyName";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { CompanySwitcher } from "@/components/layout/CompanySwitcher";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   DropdownMenu,
@@ -144,7 +144,6 @@ function homePathForRole(role: string | null | undefined): string {
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { user, signOut, role, isSystemCreator } = useAuth();
-  const badgeCounts = useSidebarBadges(role);
   const location = useLocation();
   const navigate = useNavigate();
   const { companyName } = useCompanyName();
@@ -193,7 +192,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
   const renderItem = (item: NavItem) => {
     const active = location.pathname === item.path;
-    const badgeCount = getBadgeForPath(item.path, badgeCounts);
     return (
       <Link
         key={item.path}
@@ -208,11 +206,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       >
         <item.icon className="h-4 w-4" />
         <span className="flex-1">{item.label}</span>
-        {badgeCount > 0 && (
-          <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
-            {badgeCount > 99 ? "99+" : badgeCount}
-          </span>
-        )}
       </Link>
     );
   };
