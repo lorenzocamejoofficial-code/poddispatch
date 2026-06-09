@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -16,14 +17,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
   CheckCheck,
+  ChevronDown,
   Inbox,
   MoreHorizontal,
   Megaphone,
   CircleDot,
+  Sparkles,
 } from "lucide-react";
 import type {
   NotificationItem,
@@ -34,6 +42,7 @@ interface Feed {
   items: NotificationItem[];
   actionRequired: NotificationItem[];
   fyi: NotificationItem[];
+  productUpdates: NotificationItem[];
   system: NotificationItem[];
   unreadCount: number;
   loading: boolean;
@@ -79,7 +88,9 @@ function Row({
       onClick={() => onClick(item)}
     >
       <div className="mt-0.5">
-        {item.tier === "action" ? (
+        {item.category === "product_update" ? (
+          <Sparkles className="h-4 w-4 text-primary" />
+        ) : item.tier === "action" ? (
           <AlertTriangle className="h-4 w-4 text-destructive" />
         ) : item.tier === "system" ? (
           <Megaphone className="h-4 w-4 text-primary" />
@@ -123,34 +134,72 @@ function Row({
   );
 }
 
+const PAGE_SIZE = 5;
+
 function Section({
   title,
   items,
-  emptyHint,
+  defaultOpen = true,
+  accent,
   onClickItem,
   onSnooze,
   onMarkRead,
 }: {
   title: string;
   items: NotificationItem[];
-  emptyHint?: string;
+  defaultOpen?: boolean;
+  accent?: "default" | "destructive" | "primary";
   onClickItem: (item: NotificationItem) => void;
   onSnooze: (item: NotificationItem, hours: number) => void;
   onMarkRead: (item: NotificationItem) => void;
 }) {
-  if (items.length === 0 && !emptyHint) return null;
+  const [open, setOpen] = useState(defaultOpen);
+  const [expanded, setExpanded] = useState(false);
+  if (items.length === 0) return null;
+  const unread = items.filter((i) => !i.read).length;
+  const visible = expanded ? items : items.slice(0, PAGE_SIZE);
+  const hidden = items.length - visible.length;
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between px-1">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {title}
-        </h3>
-        <span className="text-[10px] text-muted-foreground">{items.length}</span>
-      </div>
-      {items.length === 0 ? (
-        <p className="px-2 py-3 text-xs text-muted-foreground italic">{emptyHint}</p>
-      ) : (
-        items.map((it) => (
+    <Collapsible open={open} onOpenChange={setOpen} className="space-y-2">
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="flex w-full items-center justify-between px-1 py-1 rounded hover:bg-muted/40"
+        >
+          <div className="flex items-center gap-2">
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 text-muted-foreground transition-transform",
+                !open && "-rotate-90"
+              )}
+            />
+            <h3
+              className={cn(
+                "text-[11px] font-semibold uppercase tracking-wider",
+                accent === "destructive"
+                  ? "text-destructive"
+                  : accent === "primary"
+                  ? "text-primary"
+                  : "text-muted-foreground"
+              )}
+            >
+              {title}
+            </h3>
+            {unread > 0 && (
+              <Badge
+                variant={accent === "destructive" ? "destructive" : "secondary"}
+                className="h-4 px-1.5 text-[9px]"
+              >
+                {unread}
+              </Badge>
+            )}
+          </div>
+          <span className="text-[10px] text-muted-foreground">{items.length}</span>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-2">
+        {visible.map((it) => (
           <Row
             key={it.id}
             item={it}
@@ -158,9 +207,29 @@ function Section({
             onSnooze={onSnooze}
             onMarkRead={onMarkRead}
           />
-        ))
-      )}
-    </div>
+        ))}
+        {hidden > 0 && !expanded && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full h-7 text-xs"
+            onClick={() => setExpanded(true)}
+          >
+            Show {hidden} more
+          </Button>
+        )}
+        {expanded && items.length > PAGE_SIZE && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full h-7 text-xs"
+            onClick={() => setExpanded(false)}
+          >
+            Show less
+          </Button>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -226,6 +295,15 @@ export function NotificationPanel({ open, onOpenChange, feed, mode }: Props) {
               <Section
                 title="Action Required"
                 items={feed.actionRequired}
+                accent="destructive"
+                onClickItem={handleClick}
+                onSnooze={feed.snooze}
+                onMarkRead={feed.markRead}
+              />
+              <Section
+                title="Product Updates"
+                items={feed.productUpdates}
+                accent="primary"
                 onClickItem={handleClick}
                 onSnooze={feed.snooze}
                 onMarkRead={feed.markRead}
@@ -233,6 +311,7 @@ export function NotificationPanel({ open, onOpenChange, feed, mode }: Props) {
               <Section
                 title="FYI"
                 items={feed.fyi}
+                defaultOpen={false}
                 onClickItem={handleClick}
                 onSnooze={feed.snooze}
                 onMarkRead={feed.markRead}
@@ -240,6 +319,7 @@ export function NotificationPanel({ open, onOpenChange, feed, mode }: Props) {
               <Section
                 title="System"
                 items={feed.system}
+                defaultOpen={false}
                 onClickItem={handleClick}
                 onSnooze={feed.snooze}
                 onMarkRead={feed.markRead}

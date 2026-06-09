@@ -5053,6 +5053,7 @@ export type Database = {
           audience_company_id: string | null
           audience_roles: string[]
           body: string
+          category: string | null
           created_at: string
           created_by: string | null
           expires_at: string | null
@@ -5067,6 +5068,7 @@ export type Database = {
           audience_company_id?: string | null
           audience_roles?: string[]
           body: string
+          category?: string | null
           created_at?: string
           created_by?: string | null
           expires_at?: string | null
@@ -5081,6 +5083,7 @@ export type Database = {
           audience_company_id?: string | null
           audience_roles?: string[]
           body?: string
+          category?: string | null
           created_at?: string
           created_by?: string | null
           expires_at?: string | null
