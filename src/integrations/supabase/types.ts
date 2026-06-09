@@ -3142,6 +3142,63 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          created_at: string
+          digest_mode: boolean
+          muted_categories: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          digest_mode?: boolean
+          muted_categories?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          digest_mode?: boolean
+          muted_categories?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_reads: {
+        Row: {
+          created_at: string
+          id: string
+          read_at: string | null
+          snoozed_until: string | null
+          source_id: string
+          source_table: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          snoozed_until?: string | null
+          source_id: string
+          source_table: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          snoozed_until?: string | null
+          source_id?: string
+          source_table?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           acknowledged: boolean
@@ -4975,6 +5032,59 @@ export type Database = {
           {
             foreignKeyName: "support_tickets_company_id_fkey"
             columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_announcements: {
+        Row: {
+          audience_company_id: string | null
+          audience_roles: string[]
+          body: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          link: string | null
+          published_at: string
+          tier: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          audience_company_id?: string | null
+          audience_roles?: string[]
+          body: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          link?: string | null
+          published_at?: string
+          tier?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          audience_company_id?: string | null
+          audience_roles?: string[]
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          link?: string | null
+          published_at?: string
+          tier?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_announcements_audience_company_id_fkey"
+            columns: ["audience_company_id"]
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]

@@ -10,6 +10,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { TwoFactorSection } from "@/components/account/TwoFactorSection";
 import { ReplayToursCard } from "@/components/tour/ReplayToursCard";
+import { NotificationPreferencesCard } from "@/components/notifications/NotificationPreferencesCard";
 
 export default function AccountSettings() {
   const { user } = useAuth();
@@ -129,6 +130,9 @@ export default function AccountSettings() {
 
         {/* Product Tours */}
         <ReplayToursCard />
+
+        {/* Notification preferences */}
+        <NotificationPreferencesCard />
 
         {/* Legal & Compliance */}
         <Card>
