@@ -90,11 +90,12 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
     jobs.push((async () => {
       const { data } = await supabase
         .from("system_announcements" as any)
-        .select("id, title, body, tier, link, published_at")
+        .select("id, title, body, tier, link, published_at, category")
         .gte("published_at", since)
         .order("published_at", { ascending: false })
         .limit(LIMIT_PER_SOURCE);
       (data ?? []).forEach((r: any) => {
+        const isUpdate = r.category === "product_update";
         next.push({
           id: `system_announcements:${r.id}`,
           source_table: "system_announcements",
@@ -103,8 +104,8 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
           title: r.title,
           body: r.body,
           link: r.link ?? undefined,
-          category: "announcement",
-          icon: "Megaphone",
+          category: isUpdate ? "product_update" : "announcement",
+          icon: isUpdate ? "Sparkles" : "Megaphone",
           created_at: r.published_at,
           read: false,
         });
@@ -458,7 +459,14 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
 
   const actionRequired = useMemo(() => merged.filter((m) => m.tier === "action"), [merged]);
   const fyi = useMemo(() => merged.filter((m) => m.tier === "fyi"), [merged]);
-  const system = useMemo(() => merged.filter((m) => m.tier === "system"), [merged]);
+  const productUpdates = useMemo(
+    () => merged.filter((m) => m.category === "product_update"),
+    [merged]
+  );
+  const system = useMemo(
+    () => merged.filter((m) => m.tier === "system" && m.category !== "product_update"),
+    [merged]
+  );
   const unreadCount = useMemo(() => merged.filter((m) => !m.read).length, [merged]);
 
   // Initial + realtime
@@ -556,6 +564,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
     items: merged,
     actionRequired,
     fyi,
+    productUpdates,
     system,
     unreadCount,
     loading,
