@@ -365,6 +365,7 @@ export type Database = {
       }
       billing_overrides: {
         Row: {
+          company_id: string
           created_at: string
           id: string
           is_active: boolean
@@ -379,6 +380,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          company_id: string
           created_at?: string
           id?: string
           is_active?: boolean
@@ -393,6 +395,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          company_id?: string
           created_at?: string
           id?: string
           is_active?: boolean
@@ -407,6 +410,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "billing_overrides_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "billing_overrides_trip_id_fkey"
             columns: ["trip_id"]
