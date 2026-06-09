@@ -281,6 +281,7 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: 
       // Log to billing_overrides like BillerPCROverridePanel
       await supabase.from("billing_overrides").insert({
         trip_id: claim.trip_id,
+        company_id: claim.company_id,
         override_reason: `Denial recovery correction: ${correctionNotes || "Field update for resubmission"}`,
         overridden_by: user?.id,
         user_id: user?.id,
