@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { CreatorCommandPalette } from "@/components/creator/CreatorCommandPalette";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 const LORENZO_TEST_COMPANY_ID = "f53311c3-a40e-4b2b-b4c2-5aec852f7789";
 
@@ -200,6 +201,7 @@ export function CreatorLayout({ children, title }: { children: ReactNode; title?
             <Menu className="h-5 w-5" />
           </Button>
           <h2 className="text-base font-semibold text-foreground truncate flex-1">{resolvedTitle}</h2>
+          <NotificationBell mode="creator" />
           <Button
             variant="outline"
             size="sm"

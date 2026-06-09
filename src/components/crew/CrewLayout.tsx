@@ -8,6 +8,7 @@ import { useCompanyName } from "@/hooks/useCompanyName";
 import { useCrewBadges } from "@/hooks/useCrewBadges";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { ContextualHelpPanel, HelpIconButton } from "@/components/help/ContextualHelpPanel";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { PageTour } from "@/components/tour/PageTour";
 
 const crewNav = [
@@ -90,6 +91,7 @@ export function CrewLayout({ children }: { children: ReactNode }) {
           <h2 className="text-lg font-semibold text-foreground flex-1">
             {crewNav.find(i => i.path === location.pathname)?.label ?? "Crew"}
           </h2>
+          <NotificationBell mode="crew" />
           <BugReportDialog currentPath={location.pathname} userId={user?.id} />
           <HelpIconButton onClick={() => setHelpOpen((p) => !p)} />
         </header>
