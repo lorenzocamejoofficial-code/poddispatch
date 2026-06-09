@@ -72,6 +72,7 @@ export function PendingCancellationPanel({ cancellations, onResolved }: PendingC
       // Insert billing_overrides record
       await supabase.from("billing_overrides").insert({
         trip_id: c.tripId,
+        company_id: c.companyId as string,
         override_reason: `Dispatcher confirmed crew cancellation: ${note}`,
         overridden_by: profileId,
         overridden_at: new Date().toISOString(),
@@ -129,6 +130,7 @@ export function PendingCancellationPanel({ cancellations, onResolved }: PendingC
       // Insert billing_overrides record
       await supabase.from("billing_overrides").insert({
         trip_id: c.tripId,
+        company_id: c.companyId as string,
         override_reason: `Dispatcher disputed crew cancellation: ${note}`,
         overridden_by: profileId,
         overridden_at: new Date().toISOString(),
