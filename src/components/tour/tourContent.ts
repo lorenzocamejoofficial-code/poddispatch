@@ -413,20 +413,24 @@ export const PAGE_TOURS: PageTour[] = [
     pageKey: "crew-schedule-admin",
     route: "/crew-schedule",
     roles: ["owner", "creator", "manager", "dispatcher"],
-    pageName: "Crew Schedule",
-    goal: "Build the weekly crew roster. This is what crews see in their workspace and what feeds truck assignments on the Dispatch Board.",
+    pageName: "Crew Schedule Delivery",
+    goal: "Push today's run list to your crews. This page does not build the schedule — it packages and delivers a schedule that's already built in Scheduling.",
     steps: [
       {
-        title: "Step 1 — Build the week",
-        body: "Drop employees onto shifts. The system checks certifications and blocks the same employee from being scheduled to two trucks on the same day.",
+        title: "Step 1 — Pick the date",
+        body: "The Schedule Date card sets the day you're delivering. Back to Today resets it. You can deliver tomorrow's schedule today — the date picker covers the full scheduling window.",
       },
       {
-        title: "Step 2 — Copy a week forward",
-        body: "Most schedules repeat. Use the copy-forward tool to roll a known-good week into next week, then edit exceptions.",
+        title: "Step 2 — Copy or email the run list",
+        body: "In Daily Schedule Text, choose a truck. Copy Daily Schedule formats the runs (pickup times, patients, addresses, A/B legs, flags) so you can paste into SMS or any messenger. Send Email pushes it to every active crew member assigned to that truck and logs the send in Email Activity. SMS direct-send is coming soon.",
+      },
+      {
+        title: "Step 3 — Backup share link",
+        body: "Mint a one-day, one-truck URL crews can open without logging in. Use it when a crew member is on a personal device, isn't onboarded yet, or has lost access. Links auto-expire at end of day; revoke immediately if shared by mistake.",
       },
       {
         title: "Why this matters",
-        body: "A clean crew schedule means dispatch can assign runs without chasing certifications or last-minute swaps. Crews see their shifts in real time on their workspace.",
+        body: "Crews can't act on a schedule they haven't seen. This page is how the schedule gets from the board into their hands — even crews without an account can open the share link and work the day.",
       },
     ],
   },
