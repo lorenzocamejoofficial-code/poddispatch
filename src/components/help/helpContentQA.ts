@@ -34,6 +34,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
       { q: "What do the alert colors mean?", a: "Green is informational. Yellow needs attention. Red requires acknowledgement before it clears (missing inspection, flagged safety issue, unconfirmed cancellation, etc.)." },
       { q: "How do I handle a cancellation?", a: "Resolve each entry in the Pending Cancellation panel by confirming or reassigning. Unresolved cancellations stay on the board." },
       { q: "What is the Report Incident button?", a: "Opens the incident form so dispatch can log a field event directly when the crew cannot." },
+      { q: "What is the bell icon in the top bar?", a: "The Notification Center. It collects everything that used to live as red number badges on the sidebar — Patient Not Ready alerts, failed calls, denial-recovery items, override events, PCR kickbacks, schedule changes, system announcements. Red dot = Action Required (stays until clicked). Grey dot = FYI (auto-clears after 7 days). Blue dot = system message. Clicking a row jumps you to the page where you can act on it." },
     ],
   },
 
@@ -82,6 +83,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
       { q: "What does the 835 Import button do?", a: "Opens the Remittance Import page. Drop in the 835 file from your clearinghouse and the parser matches each line to an existing claim, posts payments, translates denial codes, and quarantines anything it cannot match." },
       { q: "What does a denial code mean?", a: "Each denial code is translated to plain English in the claim detail. CO-45 means the payer reduced the charge to their allowed amount (no action). CO-16 means missing information — fix the documentation and resubmit through the Denial Recovery flow." },
       { q: "How do secondary insurance opportunities work?", a: "After Medicare pays (typically 80%), if the patient has secondary coverage on file the claim flags a secondary opportunity. Generate Secondary Claim builds the crossover automatically." },
+      { q: "What is the bell icon in the top bar?", a: "The Notification Center. Billing-side items land here automatically — new completed trips ready to claim, denials and rejections from Office Ally, payment-posted notices, secondary-coverage opportunities, claim-creation failures, plus any system announcements. Clicking a row takes you straight to the claim or trip that needs you." },
     ],
   },
 
@@ -202,6 +204,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
       { q: "What is Report Incident?", a: "Log anything that happened in the field that should be on the record — patient refusal, equipment failure, near-miss, safety concern, exposure. Dispatch sees these live and they are kept in the compliance record." },
       { q: "What does the Emergency Event button do?", a: "If a non-emergency transport turns into an emergency, tap it and confirm. You have 120 seconds to cancel an accidental trigger; after that it escalates to dispatcher and is logged as an emergency incident." },
       { q: "Why is the PCR button locked on a run?", a: "The PCR opens once you tap At Patient. If your truck requires a pre-trip inspection, you also have to submit it on the Checklist tab before any PCR will open." },
+      { q: "What is the bell icon in the top bar?", a: "Your Notification Center. Anything dispatch sends you shows up here — schedule changes for today, a run added or reassigned to your truck, a PCR kicked back for correction, emergency acknowledgements, and any system announcements from PodDispatch. Red dot needs your attention; tap a row to jump to the run or PCR." },
     ],
   },
 
@@ -226,6 +229,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
       { q: "How do I resume a PCR I started earlier?", a: "On any run with a saved-in-progress PCR you see Continue. Click it and the PCR opens exactly where you left off. Run cards also show Start (not started) and View (completed) depending on state." },
       { q: "Why is a run greyed out?", a: "You are no longer assigned to that truck on that day, or the run has been cancelled. The card stays visible so you can see what was on the schedule." },
       { q: "Why does a run show a different time than I remember?", a: "Dispatch applied a one-time exception for that date (different pickup time, address, or note) without changing the patient's recurring schedule. The card always shows the time dispatch wants you to use." },
+      { q: "How do I find out if dispatch changed my schedule?", a: "Open the bell icon in the top bar — that's the Notification Center. Schedule changes, added runs, and cancellations land there with a link straight to the affected day. Red dot means something needs your acknowledgement." },
     ],
   },
 
@@ -335,6 +339,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
       { q: "What is the Two-Factor Authentication section?", a: "Set up an authenticator app (Google Authenticator, 1Password, Authy, etc.) to require a 6-digit code at login. Strongly recommended for any account with PHI access." },
       { q: "What is Replay Tours?", a: "List of every guided tour for your role. Click Replay on any one to walk through the page again. Useful when you onboard a new dispatcher or biller and want to give them a quick refresher." },
       { q: "Where do I change company settings (not personal)?", a: "Company Settings is a separate page at /settings (Admin → Settings in the sidebar). This page only changes things about you." },
+      { q: "What is Notification Preferences?", a: "Controls how the bell icon in the top bar behaves for you. Digest Mode hides FYI items from the live bell and bundles them into a daily summary instead — useful for Owners who would otherwise see everything every team member does. Action Required items always show in real time regardless of digest mode." },
     ],
   },
 
