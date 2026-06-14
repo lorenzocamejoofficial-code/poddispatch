@@ -1310,7 +1310,6 @@ export type Database = {
           last_send_at: string | null
           outbound_folder: string
           sftp_host: string
-          sftp_password_encrypted: string | null
           sftp_port: number
           sftp_username: string | null
           updated_at: string
@@ -1330,7 +1329,6 @@ export type Database = {
           last_send_at?: string | null
           outbound_folder?: string
           sftp_host?: string
-          sftp_password_encrypted?: string | null
           sftp_port?: number
           sftp_username?: string | null
           updated_at?: string
@@ -1350,7 +1348,6 @@ export type Database = {
           last_send_at?: string | null
           outbound_folder?: string
           sftp_host?: string
-          sftp_password_encrypted?: string | null
           sftp_port?: number
           sftp_username?: string | null
           updated_at?: string
