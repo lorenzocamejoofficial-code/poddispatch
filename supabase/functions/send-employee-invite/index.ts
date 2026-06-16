@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
       .from("companies").select("name").eq("id", profile.company_id).maybeSingle();
     const tenantName = (companyRow?.name as string | undefined) ?? undefined;
 
-    const appOrigin = Deno.env.get("APP_URL") || "https://thepoddispatch.com";
+    const appOrigin = Deno.env.get("APP_URL") || "https://app.thepoddispatch.com";
     const actionUrl = `${appOrigin.replace(/\/$/, "")}/invite?token=${token}`;
 
     const { html, text } = renderActionEmail({
