@@ -237,13 +237,20 @@ Deno.serve(async (req) => {
       const medicareEnrolled = medicareStatus === "enrolled";
       const oigClear = oigStatus === "not_excluded";
 
+      // Read optional `skip_trial` flag from request body. Default is false
+      // (standard 30-day app-side trial). When true, the owner is gated to
+      // /choose-plan immediately and gets no free trial.
+      const skipTrial = !!(body as any)?.skip_trial;
+
       const { error: updateError } = await supabaseAdmin
         .from("companies")
         .update({
-          // Gate full app access behind Stripe checkout. The company is
-          // approved by the admin but cannot use the app until payment
-          // is completed (handled by stripe-webhook → checkout.session.completed).
-          onboarding_status: "approved_pending_payment",
+          // Two approval paths:
+          //   skipTrial=true  → owner gated to /choose-plan on next login.
+          //   skipTrial=false → owner gets full app access; trial timer
+          //                     starts on first login OR approval + 12h
+          //                     (whichever is first).
+          onboarding_status: skipTrial ? "approved_pending_payment" : "active",
           approved_at: new Date().toISOString(),
           approved_by: user.id,
         })
@@ -276,15 +283,29 @@ Deno.serve(async (req) => {
         return json({ error: `Failed to record verification snapshot: ${vErr.message}` }, 500);
       }
 
-      // Mark subscription as awaiting payment. Trial period (and `active`
-      // subscription_status) are now started only when Stripe confirms
-      // checkout.session.completed.
-      await supabaseAdmin
-        .from("subscription_records")
-        .update({
-          subscription_status: "approved_pending_payment",
-        })
-        .eq("company_id", companyId);
+      // Subscription bookkeeping for the chosen path.
+      if (skipTrial) {
+        await supabaseAdmin
+          .from("subscription_records")
+          .update({
+            subscription_status: "approved_pending_payment",
+            trial_skipped: true,
+            trial_started_at: null,
+            approval_grace_deadline: null,
+          })
+          .eq("company_id", companyId);
+      } else {
+        // Trial begins on first login (or via sweep after grace deadline).
+        await supabaseAdmin
+          .from("subscription_records")
+          .update({
+            subscription_status: "trial_pending_start",
+            trial_skipped: false,
+            trial_started_at: null,
+            approval_grace_deadline: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+          })
+          .eq("company_id", companyId);
+      }
 
       await supabaseAdmin.from("onboarding_events").insert({
         company_id: companyId,

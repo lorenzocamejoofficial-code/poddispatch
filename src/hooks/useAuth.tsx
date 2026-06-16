@@ -186,17 +186,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setNeedsCompanySelection(false);
       const [{ data: companyData }, { data: subData }, { data: migData }] = await Promise.all([
         supabase.from("companies").select("onboarding_status").eq("id", resolvedCompanyId).maybeSingle(),
-        supabase.from("subscription_records").select("subscription_status, trial_ends_at").eq("company_id", resolvedCompanyId).maybeSingle(),
+        supabase.from("subscription_records").select("subscription_status, trial_ends_at, trial_started_at, trial_skipped").eq("company_id", resolvedCompanyId).maybeSingle(),
         supabase.from("migration_settings").select("wizard_completed").eq("company_id", resolvedCompanyId).maybeSingle(),
       ]);
       if (companyData) setOnboardingStatus(companyData.onboarding_status as OnboardingStatus);
-      // Compute effective status: flip 'trial' to 'trial_expired' once the
-      // trial_ends_at timestamp has passed. The webhook / nightly cron can
-      // persist the flip later; this guarantees the UI gate is correct
-      // immediately on day 31.
-      let effectiveStatus = subData?.subscription_status ?? null;
-      const trialEndsAt = (subData as any)?.trial_ends_at;
-      if (effectiveStatus === "trial" && trialEndsAt && new Date(trialEndsAt).getTime() <= Date.now()) {
+
+      // App-side trial timer model:
+      //   trial_skipped       → straight to payment (no trial granted).
+      //   trial_pending_start → not yet visited; start the timer now via edge fn.
+      //   trial_started_at + 30d in the past → expired.
+      const sub: any = subData ?? {};
+      let effectiveStatus: string | null = sub.subscription_status ?? null;
+
+      // Kick off the "start trial on first login" edge function. Fire & forget.
+      if (effectiveStatus === "trial_pending_start" && !sub.trial_started_at) {
+        supabase.functions.invoke("start-trial-timer-if-needed", {
+          body: { company_id: resolvedCompanyId },
+        }).catch(() => { /* non-fatal */ });
+        // Optimistically treat as active trial in this session.
+        effectiveStatus = "trial_active";
+      }
+
+      // Compute expiry from trial_started_at + 30 days (new model), with
+      // backward-compat fallback to trial_ends_at for legacy rows.
+      const startedAt = sub.trial_started_at ? new Date(sub.trial_started_at).getTime() : null;
+      const legacyEnd = sub.trial_ends_at ? new Date(sub.trial_ends_at).getTime() : null;
+      const effectiveEnd =
+        startedAt != null ? startedAt + 30 * 24 * 60 * 60 * 1000 : legacyEnd;
+      if (
+        (effectiveStatus === "trial" || effectiveStatus === "trial_active" || effectiveStatus === "TEST_ACTIVE") &&
+        effectiveEnd != null && effectiveEnd <= Date.now()
+      ) {
         effectiveStatus = "trial_expired";
       }
       setSubscriptionStatus(effectiveStatus);

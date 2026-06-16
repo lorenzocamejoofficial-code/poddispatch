@@ -163,13 +163,12 @@ serve(async (req) => {
       });
     }
 
-    // 7. Create subscription record (TEST_ACTIVE — payments disabled in build mode).
-    // App-gated 30-day trial seeded here; Stripe sees no trial.
-    const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    // 7. Create subscription record. Trial does NOT start at signup anymore —
+    // it begins only after the system creator approves the company (and then
+    // either on first login OR approval + 12h, whichever is first).
     await supabaseAdmin.from("subscription_records").insert({
       company_id: companyId, provider: "none",
-      subscription_status: "TEST_ACTIVE", plan_id: "poddispatch_standard",
-      trial_ends_at: trialEndsAt,
+      subscription_status: "pending_approval", plan_id: "poddispatch_standard",
     });
 
     // 8. Create migration_settings for onboarding tracking

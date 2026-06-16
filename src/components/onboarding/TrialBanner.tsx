@@ -4,6 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { differenceInDays } from "date-fns";
 
+const TRIAL_STATUSES = new Set(["trial", "trial_active", "trial_pending_start", "TEST_ACTIVE"]);
+
 export function TrialBanner() {
   const { activeCompanyId, isOwnerOrCreator } = useAuth();
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
@@ -11,20 +13,25 @@ export function TrialBanner() {
 
   useEffect(() => {
     if (!activeCompanyId || !isOwnerOrCreator) return;
-    supabase.from("subscription_records").select("subscription_status, trial_ends_at")
+    supabase.from("subscription_records")
+      .select("subscription_status, trial_ends_at, trial_started_at")
       .eq("company_id", activeCompanyId).maybeSingle()
       .then(({ data }) => {
         if (!data) return;
         setStatus(data.subscription_status);
-        if ((data as any).trial_ends_at) {
-          const days = differenceInDays(new Date((data as any).trial_ends_at), new Date());
-          setDaysLeft(Math.max(0, days));
+        const startedAt = (data as any).trial_started_at;
+        const legacyEnd = (data as any).trial_ends_at;
+        const endDate = startedAt
+          ? new Date(new Date(startedAt).getTime() + 30 * 24 * 60 * 60 * 1000)
+          : legacyEnd ? new Date(legacyEnd) : null;
+        if (endDate) {
+          setDaysLeft(Math.max(0, differenceInDays(endDate, new Date())));
         }
       });
   }, [activeCompanyId, isOwnerOrCreator]);
 
   if (!isOwnerOrCreator || !status) return null;
-  if (status !== "trial" || daysLeft === null) return null;
+  if (!TRIAL_STATUSES.has(status) || daysLeft === null) return null;
 
   const urgent = daysLeft <= 7;
 

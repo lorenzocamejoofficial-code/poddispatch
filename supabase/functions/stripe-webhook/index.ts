@@ -94,6 +94,12 @@ serve(async (req) => {
               stripe_customer_id: customerId ?? null,
               stripe_subscription_id: subscriptionId ?? null,
               current_period_end: currentPeriodEnd,
+              // Payment resolves the trial — clear timer + skip flag so
+              // useAuth's effective-status logic stops gating the user.
+              trial_skipped: false,
+              trial_started_at: null,
+              trial_ends_at: null,
+              approval_grace_deadline: null,
               updated_at: new Date().toISOString(),
             })
             .eq("company_id", companyId);
