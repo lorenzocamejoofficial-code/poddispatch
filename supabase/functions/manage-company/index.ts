@@ -329,9 +329,11 @@ Deno.serve(async (req) => {
         const planUrl = `${appOrigin()}/choose-plan`;
         const { html, text } = renderActionEmail({
           heading: "You're approved 🎉",
-          intro: `Good news — ${approveContact.companyName ?? "your company"} has been approved on PodDispatch. The last step is choosing a plan and adding a card to unlock the app. Your card stays on file but is not charged for 30 days — cancel anytime before then and you pay nothing.`,
-          actionLabel: "Choose your plan",
-          actionUrl: planUrl,
+          intro: skipTrial
+            ? `Good news — ${approveContact.companyName ?? "your company"} has been approved on PodDispatch. The last step is choosing a plan and adding a card to unlock the app.`
+            : `Good news — ${approveContact.companyName ?? "your company"} has been approved on PodDispatch. Sign in to start your <strong>30-day free trial</strong> — no card required. Your trial timer starts the first time you log in (or automatically 12 hours after approval).`,
+          actionLabel: skipTrial ? "Choose your plan" : "Sign in & start trial",
+          actionUrl: skipTrial ? planUrl : `${appOrigin()}/login`,
           footer: "PodDispatch · Secure dispatch & billing for NEMT operators.",
         });
         const result = await sendViaResend({
