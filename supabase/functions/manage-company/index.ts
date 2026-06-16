@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     } = await supabaseAdmin.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) return json({ error: "Unauthorized" }, 401);
 
-    const { companyId, action, reason, patch, verification, manualNotes } = await req.json();
+    const { companyId, action, reason, patch, verification, manualNotes, skip_trial } = await req.json();
     if (!companyId || !action) return json({ error: "companyId and action required" }, 400);
 
     // ── RESUBMIT (rejected owner only — does NOT require system_creator) ──
@@ -237,13 +237,20 @@ Deno.serve(async (req) => {
       const medicareEnrolled = medicareStatus === "enrolled";
       const oigClear = oigStatus === "not_excluded";
 
+      // Read optional `skip_trial` flag from request body. Default is false
+      // (standard 30-day app-side trial). When true, the owner is gated to
+      // /choose-plan immediately and gets no free trial.
+      const skipTrial = !!skip_trial;
+
       const { error: updateError } = await supabaseAdmin
         .from("companies")
         .update({
-          // Gate full app access behind Stripe checkout. The company is
-          // approved by the admin but cannot use the app until payment
-          // is completed (handled by stripe-webhook → checkout.session.completed).
-          onboarding_status: "approved_pending_payment",
+          // Two approval paths:
+          //   skipTrial=true  → owner gated to /choose-plan on next login.
+          //   skipTrial=false → owner gets full app access; trial timer
+          //                     starts on first login OR approval + 12h
+          //                     (whichever is first).
+          onboarding_status: skipTrial ? "approved_pending_payment" : "active",
           approved_at: new Date().toISOString(),
           approved_by: user.id,
         })
@@ -276,15 +283,29 @@ Deno.serve(async (req) => {
         return json({ error: `Failed to record verification snapshot: ${vErr.message}` }, 500);
       }
 
-      // Mark subscription as awaiting payment. Trial period (and `active`
-      // subscription_status) are now started only when Stripe confirms
-      // checkout.session.completed.
-      await supabaseAdmin
-        .from("subscription_records")
-        .update({
-          subscription_status: "approved_pending_payment",
-        })
-        .eq("company_id", companyId);
+      // Subscription bookkeeping for the chosen path.
+      if (skipTrial) {
+        await supabaseAdmin
+          .from("subscription_records")
+          .update({
+            subscription_status: "approved_pending_payment",
+            trial_skipped: true,
+            trial_started_at: null,
+            approval_grace_deadline: null,
+          })
+          .eq("company_id", companyId);
+      } else {
+        // Trial begins on first login (or via sweep after grace deadline).
+        await supabaseAdmin
+          .from("subscription_records")
+          .update({
+            subscription_status: "trial_pending_start",
+            trial_skipped: false,
+            trial_started_at: null,
+            approval_grace_deadline: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+          })
+          .eq("company_id", companyId);
+      }
 
       await supabaseAdmin.from("onboarding_events").insert({
         company_id: companyId,
@@ -308,9 +329,11 @@ Deno.serve(async (req) => {
         const planUrl = `${appOrigin()}/choose-plan`;
         const { html, text } = renderActionEmail({
           heading: "You're approved 🎉",
-          intro: `Good news — ${approveContact.companyName ?? "your company"} has been approved on PodDispatch. The last step is choosing a plan and adding a card to unlock the app. Your card stays on file but is not charged for 30 days — cancel anytime before then and you pay nothing.`,
-          actionLabel: "Choose your plan",
-          actionUrl: planUrl,
+          intro: skipTrial
+            ? `Good news — ${approveContact.companyName ?? "your company"} has been approved on PodDispatch. The last step is choosing a plan and adding a card to unlock the app.`
+            : `Good news — ${approveContact.companyName ?? "your company"} has been approved on PodDispatch. Sign in to start your <strong>30-day free trial</strong> — no card required. Your trial timer starts the first time you log in (or automatically 12 hours after approval).`,
+          actionLabel: skipTrial ? "Choose your plan" : "Sign in & start trial",
+          actionUrl: skipTrial ? planUrl : `${appOrigin()}/login`,
           footer: "PodDispatch · Secure dispatch & billing for NEMT operators.",
         });
         const result = await sendViaResend({

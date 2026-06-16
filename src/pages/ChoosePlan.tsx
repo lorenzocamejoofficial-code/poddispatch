@@ -90,7 +90,7 @@ export default function ChoosePlan() {
             Pick the tier that matches your fleet today — you can upgrade anytime.
           </p>
           <p className="text-xs text-muted-foreground">
-            Card on file required. <span className="font-medium text-foreground">Not charged for 30 days</span> — cancel anytime before then and you pay nothing.
+            Pick a plan and add a payment method to unlock access. You can cancel anytime.
           </p>
         </div>
 

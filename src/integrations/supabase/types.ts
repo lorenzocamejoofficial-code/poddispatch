@@ -4858,6 +4858,7 @@ export type Database = {
       }
       subscription_records: {
         Row: {
+          approval_grace_deadline: string | null
           cancel_at_period_end: boolean
           cancel_feedback: string | null
           cancel_reason: string | null
@@ -4879,9 +4880,12 @@ export type Database = {
           stripe_subscription_id: string | null
           subscription_status: string
           trial_ends_at: string | null
+          trial_skipped: boolean
+          trial_started_at: string | null
           updated_at: string
         }
         Insert: {
+          approval_grace_deadline?: string | null
           cancel_at_period_end?: boolean
           cancel_feedback?: string | null
           cancel_reason?: string | null
@@ -4903,9 +4907,12 @@ export type Database = {
           stripe_subscription_id?: string | null
           subscription_status?: string
           trial_ends_at?: string | null
+          trial_skipped?: boolean
+          trial_started_at?: string | null
           updated_at?: string
         }
         Update: {
+          approval_grace_deadline?: string | null
           cancel_at_period_end?: boolean
           cancel_feedback?: string | null
           cancel_reason?: string | null
@@ -4927,6 +4934,8 @@ export type Database = {
           stripe_subscription_id?: string | null
           subscription_status?: string
           trial_ends_at?: string | null
+          trial_skipped?: boolean
+          trial_started_at?: string | null
           updated_at?: string
         }
         Relationships: [

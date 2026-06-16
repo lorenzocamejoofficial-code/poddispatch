@@ -237,7 +237,7 @@ export default function CreatorConsole() {
     setActionLoading(false);
   };
 
-  const handleApprove = async (c: CompanyRecord) => {
+  const handleApprove = async (c: CompanyRecord, skipTrial: boolean = false) => {
     const vr = verificationResults[c.id];
     if (!vr) {
       toast.error("Run the verification panel first, expand the company row.");
@@ -283,7 +283,7 @@ export default function CreatorConsole() {
     setActionLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("manage-company", {
-        body: { companyId: c.id, action: "approve", verification: vr, manualNotes },
+        body: { companyId: c.id, action: "approve", verification: vr, manualNotes, skip_trial: skipTrial },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -300,7 +300,7 @@ export default function CreatorConsole() {
           `Company approved with verification: NPI=${vr.npi.status}, Medicare=${vr.medicare.status}, OIG=${vr.oig.status}` +
           (manualNotes ? ` | Acknowledgment: ${manualNotes}` : ""),
       });
-      toast.success("Company approved!");
+      toast.success(skipTrial ? "Approved — owner will be sent straight to payment." : "Approved — 30-day trial will start on their next login.");
       await loadCompanies();
     } catch (err: any) { toast.error(err.message || "Failed to approve"); }
     setActionLoading(false);
@@ -485,7 +485,10 @@ export default function CreatorConsole() {
           {isPending && (
             <>
               <DropdownMenuItem onClick={() => handleApprove(c)}>
-                <CheckCircle2 className="h-3.5 w-3.5 mr-2 text-[hsl(var(--status-green))]" /> Approve
+                <CheckCircle2 className="h-3.5 w-3.5 mr-2 text-[hsl(var(--status-green))]" /> Approve (with 30-day trial)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleApprove(c, true)}>
+                <CheckCircle2 className="h-3.5 w-3.5 mr-2 text-primary" /> Approve — skip trial (require payment)
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"

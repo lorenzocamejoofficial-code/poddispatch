@@ -1,105 +1,128 @@
-# Notification Center
 
-A single bell icon in every layout (Admin, Crew, Creator) that unifies every operational/billing/clinical/system event into one role-scoped, click-to-jump feed. Replaces the sidebar number badges.
+## Goal
 
-## What goes in the bell (by source)
+Reorder the signup → approval → trial → payment flow so:
 
-| Source table | Feeds | Who sees it |
-|---|---|---|
-| `system_announcements` (new) | Creator → all tenants ("v2.4 released — what's new") | Everyone |
-| `notifications` | PCR kickbacks, schedule changes already in DB | Crew (assigned), Dispatcher, Owner |
-| `operational_alerts` + `alerts` | Hold timers, failed calls, dispatch ops | Dispatcher, Owner |
-| `claim_creation_failures` + denied `claim_records` | Claim failures, denials, 835 posted | Biller, Owner |
-| `biller_tasks` | AR tasks, follow-ups | Biller, Owner |
-| `qa_reviews` (pending) | QA queue | Biller, Owner |
-| `incident_reports` (new) | Clinical/safety incidents | Dispatcher, Owner |
-| `safety_overrides` + `billing_overrides` | Audit-worthy overrides logged | Owner only |
-| `support_tickets` (replies) | Ticket creator notified | Ticket creator |
-| `subscription_status_history` | Trial ending, payment issue | Owner only |
-| `comms_events` (outbound emails) | "Email sent to X — confirmation" | Creator (system-wide), Owner (own tenant) |
-| `company_verifications` | NPI/OIG queue | Creator |
+1. Sign up → wizard → introduction with **Product Tour tip cards** (existing per-page tours, no change)
+2. **Pending approval** → creator reviews in their console
+3. At approval, the creator picks **one of two paths** for that company:
+   - **Standard (default): 30-day free trial, no card required.** Owner gets full app access; trial timer starts.
+   - **Skip trial:** owner is sent straight to the payment options page on next login. No app access until they pay.
+4. **Trial timer rules** (standard path only):
+   - Starts at the **earlier of** (a) owner's first login after approval, or (b) approval time + 12 hours.
+   - Counts down 30 days from that start.
+   - At 0, login redirects to **payment options** (locked-at-login behavior).
+5. Creator dashboard shows the trial countdown for every company that's currently in trial, plus "skipped trial / awaiting payment" and "paid" statuses.
+6. After payment, the owner regains access at whatever plan they bought.
 
-## Three tiers (drive sort order + auto-expire)
+## Current vs. desired flow
 
-1. **Action Required** — PCR kickback, denial, override needs review, emergency upgrade. Red dot. Stays until clicked.
-2. **FYI** — Crew submitted PCRs, 835 posted, schedule changed. Grey dot. Auto-marks read after 7 days.
-3. **System** — Creator announcements, email-sent logs. Pinned top section.
+```text
+CURRENT
+  signup → pending_approval → [creator approves]
+    → approved_pending_payment → ChoosePlan (card required upfront)
+    → Stripe checkout → app access (with a 30-day "not charged" window)
 
-## Anti-flood (Owner-specific)
+DESIRED
+  signup → pending_approval → [creator approves, picks Standard or Skip Trial]
+    Standard:
+      → onboarding wizard + app access (trial active, no card)
+      → trial_started_at set on first login OR approval+12h, whichever first
+      → 30 days later: trial_expired → locked at login → ChoosePlan → Stripe → active
+    Skip Trial:
+      → next login redirects to ChoosePlan → Stripe → active (no trial, no wizard gate)
+```
 
-- **Grouping** — `"12 PCRs submitted today"` collapses; expand for the list. Keyed by `(type, day)`.
-- **Digest mode toggle** — Owner setting in Account Settings. When ON, FYI items are suppressed from the bell live and bundled into a daily 8am summary notification. Default = OFF (see everything, grouped).
-- **Snooze** — right-click any row → 4h / tomorrow / next week.
-- **Smart routing** — billing FYIs go to Biller's bell directly; on the Owner bell they appear under a collapsible "Team Activity" subsection.
+## Database changes (one migration)
 
-## Sidebar badges
+Add to `subscription_records`:
+- `trial_skipped` boolean default false — set by creator at approval.
+- `trial_started_at` timestamptz nullable — set on first login OR by a server-side "approval + 12h" sweep.
+- `approval_grace_deadline` timestamptz nullable — = approved_at + 12h. Used by the sweep to auto-start the timer.
 
-Remove the existing `useSidebarBadges` red number dots from sidebar nav items. Bell is the single source of truth.
+Computed in code (not stored):
+- Effective trial end = `trial_started_at + 30 days` (replaces the current "trial_ends_at = signup + 30d" seeding).
 
-## Click-to-jump
+Migration also:
+- Backfills existing rows: `trial_started_at = created_at`, `approval_grace_deadline = created_at + interval '12 hours'` so existing companies keep working.
+- Adds index on `(subscription_status, trial_started_at)` for the creator countdown query.
 
-Every row carries a `link`. Clicking marks read + navigates:
-- PCR kickback → `/pcr/{trip_id}`
-- Claim denial → `/billing-and-claims?claim={id}&tab=denials`
-- Schedule change → `/scheduling?date={date}&truck={id}`
-- Override → `/override-monitor?row={id}`
-- Incident → `/compliance-and-qa?tab=incidents&id={id}`
+## Edge function changes
 
-## Creator-side bell
+**`company-signup`**
+- Stop pre-seeding `trial_ends_at`. Insert subscription as `pending` with no trial dates. The trial only begins after approval.
 
-Dedicated feed in CreatorLayout:
-- New signups, suspensions, NPI/OIG queue
-- Support tickets opened
-- Failed payments across tenants
-- Email-sent log (every outbound system email — auth confirm, password reset, invite, billing receipt) so you know to chase one if it didn't land
-- Edge function errors (from existing `audit_logs` where `severity = 'error'`)
-- Tenant `provisioning_failed` / `payment_issue`
+**`manage-company` (action = "approve")**
+- Accept new optional body field `skip_trial: boolean`.
+- If `skip_trial = true`:
+  - `companies.onboarding_status = 'approved_pending_payment'` (existing status, reused).
+  - `subscription_records.trial_skipped = true`, no trial dates.
+- If `skip_trial = false` (default):
+  - `companies.onboarding_status = 'active'` (gives app access immediately).
+  - `subscription_records.subscription_status = 'TRIAL_PENDING_START'`, `approval_grace_deadline = now() + 12h`, `trial_started_at = null`.
 
-Plus an **Announcement Composer** on `/creator-console`:
-- Title, body (markdown), tier (Action / FYI / System), audience (all tenants / specific roles / specific company)
-- "Publish" inserts into `system_announcements` → fans out to every targeted user's bell
+**New small edge function `start-trial-timer-if-needed`** (called by `useAuth` on login)
+- For the active company: if status is `TRIAL_PENDING_START` and `trial_started_at` is null, set `trial_started_at = now()`, `subscription_status = 'TRIAL_ACTIVE'`.
+- Idempotent — safe to call on every login.
 
-## Tech sketch
+**New scheduled function `sweep-approval-grace`** (cron, hourly)
+- For any subscription with `trial_started_at IS NULL` and `approval_grace_deadline < now()`, set `trial_started_at = approval_grace_deadline` and `subscription_status = 'TRIAL_ACTIVE'`. Handles owners who never log in.
 
-**New tables (migration):**
-- `system_announcements` (id, title, body, tier, audience_role[], audience_company_id, created_by, published_at, expires_at)
-- `notification_reads` (id, user_id, source_table, source_id, read_at, snoozed_until)
-- `notification_preferences` (user_id PK, digest_mode bool, muted_categories text[])
-- `incident_reports` already exists ✓ (verified earlier)
+**`create-checkout-session` / `stripe-webhook`** (no Stripe API contract change needed)
+- Already takes plan + cycle and returns a Stripe Checkout URL. Keep as-is.
+- Webhook on `checkout.session.completed`: set `subscription_status = 'ACTIVE'`, clear trial fields, set `onboarding_status = 'active'` (covers the skip-trial users who were `approved_pending_payment`).
 
-**Hooks:**
-- `useNotificationFeed()` — runs in parallel: 11 queries scoped by role + activeCompanyId, dedupes against `notification_reads`, returns `{ actionRequired[], fyi[], system[], unreadCount }` with grouping applied client-side. 60s polling + realtime subscription on `notifications`/`operational_alerts`/`claim_creation_failures`.
-- `useNotificationPreferences()` — read/write digest toggle.
+## Front-end changes
 
-**Components:**
-- `<NotificationBell />` — header icon + unread dot
-- `<NotificationPanel />` — slide-over (Sheet), 3 sections, grouped rows, mark-all-read, snooze menu
-- `<NotificationPreferencesCard />` — in AccountSettings
-- `<AnnouncementComposer />` — in CreatorConsole
+**`useAuth.tsx`**
+- Update the "effective status" computation:
+  - Pull `trial_started_at`, `trial_skipped` in addition to `trial_ends_at`.
+  - If `trial_skipped` → effective status is `approved_pending_payment` (sends user to `/choose-plan` on login).
+  - If `trial_started_at` is set and `trial_started_at + 30d` is past → `trial_expired`.
+  - On every authenticated session resolve, fire-and-forget call `start-trial-timer-if-needed`.
 
-**Wiring:**
-- AdminLayout header → `<NotificationBell />`
-- CrewLayout header → `<NotificationBell mode="crew" />`
-- CreatorLayout header → `<NotificationBell mode="creator" />`
-- Delete `useSidebarBadges` consumers in admin sidebar
+**`App.tsx` routing**
+- `approved_pending_payment` → force redirect to `/choose-plan` (skip-trial users).
+- `trial_expired` → keep current redirect to `/trial-expired` which already routes to `/choose-plan`.
+- `active` with `TRIAL_ACTIVE` → full app, show `TrialBanner` countdown (already exists).
 
-**Digest cron (deferred):** daily 8am job to bundle FYI for digest-mode users. Skipped in this first cut — toggle just suppresses FYI from the live bell for now; we wire the cron later. Owner notes this in the preference card.
+**`TrialBanner.tsx`**
+- Switch the countdown source from `trial_ends_at` to `trial_started_at + 30d`. Hide if `trial_started_at` is null.
 
-## Out of scope (this PR)
+**Creator approval UI** (`CompanyVerificationPanel.tsx` and/or `CreatorCompanyDetail.tsx`)
+- Add a toggle in the approve confirmation dialog: **"Skip 30-day trial — require payment before access"** (default OFF).
+- Pass `skip_trial` in the `manage-company` invoke body.
 
-- Email/SMS push of notifications (in-app only for now)
-- Mobile push (separate PWA push pipeline already exists for crew schedule changes — we don't duplicate)
-- The 8am digest cron itself (toggle works; cron lands in follow-up)
+**New creator panel: Trial Countdown table** (added to `SystemCreatorDashboard.tsx`)
+- Columns: Company, Approved at, Trial status (Pending start / Active / Expired / Skipped / Paid), Days left, Owner email.
+- Color-coded days left (green > 7, yellow 1–7, red ≤ 0).
+- Auto-refreshes every 60s.
 
-## Acceptance
+**`ChoosePlan.tsx`**
+- Remove "Card on file required, not charged for 30 days" copy — the trial is now app-side, not Stripe-side. The page now exists strictly to take payment.
+- No Stripe API change; just wording.
 
-- Bell appears in all 3 layouts with live unread count
-- Owner bell shows everything grouped, with "Team Activity" collapsible section
-- Biller bell shows only billing/QA + creator announcements
-- Crew bell shows only their truck's schedule changes, PCR kickbacks, emergencies on their run
-- Dispatcher bell shows dispatch + schedule + emergency
-- Creator bell shows system-wide ops + email log + announcement composer link
-- Sidebar number badges removed
-- Per-user read state — Owner reading doesn't clear for Biller
-- Digest toggle exists in Account Settings (cron noted as coming soon)
-- Click any row → marks read + jumps to the right page
+## Stripe reconciliation
+
+Current Stripe usage has no built-in trial — `create-checkout-session` and the webhook already treat the 30-day window as an app-side concept. No Stripe object changes are needed. The only Stripe-relevant wording change is on `ChoosePlan.tsx` (no longer says "not charged for 30 days").
+
+## Files touched
+
+- New migration under `supabase/migrations/`
+- `supabase/functions/company-signup/index.ts` (stop seeding trial dates)
+- `supabase/functions/manage-company/index.ts` (skip_trial branch in approve)
+- `supabase/functions/start-trial-timer-if-needed/index.ts` (new)
+- `supabase/functions/sweep-approval-grace/index.ts` (new, cron)
+- `supabase/functions/stripe-webhook/index.ts` (clear trial fields on payment)
+- `src/hooks/useAuth.tsx`
+- `src/App.tsx` (routing for `approved_pending_payment`)
+- `src/components/onboarding/TrialBanner.tsx`
+- `src/components/creator/CompanyVerificationPanel.tsx` (skip-trial toggle)
+- `src/pages/SystemCreatorDashboard.tsx` (countdown table) — or a new `src/components/creator/TrialCountdownPanel.tsx`
+- `src/pages/ChoosePlan.tsx` (copy tweak)
+
+## Out of scope for this plan
+
+- Promo / founding pricing logic (already exists, untouched).
+- Per-page Product Tour content (already the "tip cards", no change).
+- Email template wording beyond the approval email's existing "you're approved" copy — can be polished in a follow-up.
