@@ -16,6 +16,7 @@ import { CreatorLayout } from "@/components/layout/CreatorLayout";
 import { CompanyHealthTable } from "@/components/creator/CompanyHealthTable";
 import { SaaSMetricsTab } from "@/components/creator/SaaSMetricsTab";
 import { MissionControlPanel } from "@/components/creator/MissionControlPanel";
+import { TrialCountdownPanel } from "@/components/creator/TrialCountdownPanel";
 import { fetchRealCompanyIds } from "@/lib/real-companies";
 
 interface SystemMetrics {
@@ -159,6 +160,9 @@ export default function SystemCreatorDashboard() {
             <div className="space-y-6">
               {/* Mission Control — alert inbox */}
               <MissionControlPanel />
+
+              {/* Trial & Payment countdown for every approved company */}
+              <TrialCountdownPanel />
 
               {/* Platform Overview */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
