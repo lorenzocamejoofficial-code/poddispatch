@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { LayoutDashboard, FileText, LogOut, Menu, X, Truck, Users, CalendarDays, ClipboardCheck } from "lucide-react";
@@ -10,6 +10,7 @@ import { BugReportDialog } from "@/components/BugReportDialog";
 import { ContextualHelpPanel, HelpIconButton } from "@/components/help/ContextualHelpPanel";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { PageTour } from "@/components/tour/PageTour";
+import { supabase } from "@/integrations/supabase/client";
 
 const crewNav = [
   { path: "/crew-dashboard", label: "Crew Dashboard", icon: LayoutDashboard, badgeKey: "dashboard" as const },
@@ -27,6 +28,25 @@ export function CrewLayout({ children }: { children: ReactNode }) {
   const { companyName } = useCompanyName();
   const badges = useCrewBadges(profileId);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [displayName, setDisplayName] = useState<string>("");
+
+  useEffect(() => {
+    if (!profileId) { setDisplayName(""); return; }
+    let cancelled = false;
+    supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", profileId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const raw = (data?.full_name ?? "").trim();
+        // Never display anything that looks like an email at the top of the sidebar.
+        const looksLikeEmail = raw.includes("@");
+        setDisplayName(looksLikeEmail ? raw.split("@")[0] : raw);
+      });
+    return () => { cancelled = true; };
+  }, [profileId]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -67,7 +87,9 @@ export function CrewLayout({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="border-t border-sidebar-border p-3">
-          <p className="px-3 mb-2 text-xs text-sidebar-foreground/50 truncate">{user?.email}</p>
+          <p className="px-3 mb-2 text-sm font-medium text-sidebar-foreground truncate">
+            {displayName || "Crew Member"}
+          </p>
           <button onClick={() => { signOut(); navigate("/login"); }}
             className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
             <LogOut className="h-4 w-4" /> Sign Out
