@@ -117,6 +117,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // trigger a second reload. Other tabs (where lastSwitchAtRef stays 0)
   // reload normally to stay in sync.
   const lastSwitchAtRef = useRef<number>(0);
+  // Before reading membership/profile routing state, claim any employee invite
+  // whose email matches the signed-in account. This prevents already-existing
+  // users from landing in their old/pending company instead of the crew role
+  // assigned from Employees.
+  const inviteClaimAttemptedForRef = useRef<Set<string>>(new Set());
 
   const setPasswordRecoveryMode = useCallback((active: boolean) => {
     setPasswordRecoveryModeState(active);
@@ -129,6 +134,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadUserData = async (userId: string) => {
+    if (!inviteClaimAttemptedForRef.current.has(userId)) {
+      inviteClaimAttemptedForRef.current.add(userId);
+      await supabase.functions.invoke("claim-employee-invites").catch(() => {
+        // Non-fatal: normal membership loading below still decides routing.
+      });
+    }
+
     // Single query: memberships JOIN companies (for switcher labels).
     // Filter out memberships whose company has been soft-deleted.
     const [
