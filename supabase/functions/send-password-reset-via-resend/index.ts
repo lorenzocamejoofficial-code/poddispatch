@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (membership?.company_id) companyId = membership.company_id;
 
-    const appOrigin = Deno.env.get("APP_URL") || "https://thepoddispatch.com";
+    const appOrigin = Deno.env.get("APP_URL") || "https://app.thepoddispatch.com";
     const redirectTo = `${appOrigin.replace(/\/$/, "")}/reset-password`;
     const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
       type: "recovery",

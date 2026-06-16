@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     // the new session into the dashboard instead of showing the password form.
     const appOrigin =
       Deno.env.get("APP_URL") ||
-      "https://thepoddispatch.com";
+      "https://app.thepoddispatch.com";
     const redirectTo =
       body?.redirect_to || `${appOrigin.replace(/\/$/, "")}/reset-password`;
     const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({

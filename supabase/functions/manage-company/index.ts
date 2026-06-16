@@ -37,7 +37,7 @@ async function loadOwnerContact(
 }
 
 function appOrigin(): string {
-  return (Deno.env.get("APP_URL") || "https://thepoddispatch.com").replace(/\/$/, "");
+  return (Deno.env.get("APP_URL") || "https://app.thepoddispatch.com").replace(/\/$/, "");
 }
 
 // Best-effort cancel of a Stripe subscription. Returns a status string suitable
@@ -494,7 +494,7 @@ Deno.serve(async (req) => {
       // routes them straight into the dashboard instead of the reset form.
       const appOrigin =
         Deno.env.get("APP_URL") ||
-        "https://thepoddispatch.com";
+        "https://app.thepoddispatch.com";
       const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
         type: "recovery",
         email: ownerEmail,

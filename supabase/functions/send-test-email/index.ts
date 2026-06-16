@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
         "If you can read this, your crew invites, schedule emails, and password resets are working. " +
         "Check the sender name above the subject line — that is exactly what your crew members will see.",
       actionLabel: "Open PodDispatch",
-      actionUrl: "https://thepoddispatch.com",
+      actionUrl: "https://app.thepoddispatch.com",
       footer:
         "Test email · No action required. Sent only to the admin who clicked Send Test Email.",
     });
