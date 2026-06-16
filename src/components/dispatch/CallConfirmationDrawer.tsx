@@ -45,6 +45,19 @@ function computeDefaultEta(pickupTime: string | null, holdTimerMinutes: number |
   return fallback.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
+// Format an "HH:MM" or "HH:MM:SS" 24h string as a 12h time like "5:15 PM".
+function formatPickupTime12h(pickupTime: string | null): string | null {
+  if (!pickupTime) return null;
+  const parts = pickupTime.split(":");
+  if (parts.length < 2) return pickupTime;
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return pickupTime;
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
 export function CallConfirmationDrawer({
   open,
   onOpenChange,
@@ -120,10 +133,11 @@ export function CallConfirmationDrawer({
     : "If you have any questions please call our office.";
 
   const message = useMemo(() => {
+    const pickupDisplay = formatPickupTime12h(pickupTime);
     if (callType === "patient") {
-      return `Hello, this is a message for ${firstName}. This is ${companyName} calling. We are running a little behind on your scheduled pickup today at ${pickupTime ?? "your scheduled time"}. We expect to arrive at approximately ${eta}. We apologize for the inconvenience. ${callbackSentence}`;
+      return `Hello, this is a message for ${firstName}. This is ${companyName} calling. We are running a little behind on your scheduled pickup today at ${pickupDisplay ?? "your scheduled time"}. We expect to arrive at approximately ${eta}. We apologize for the inconvenience. ${callbackSentence}`;
     }
-    return `Hello, this is a message for ${facilityName ?? "your facility"}. This is ${companyName} calling regarding your patient ${patientName}. We are running a little behind on their scheduled pickup today at ${pickupTime ?? "the scheduled time"}. We expect to arrive at approximately ${eta}. We apologize for any inconvenience. ${callbackSentence}`;
+    return `Hello, this is a message for ${facilityName ?? "your facility"}. This is ${companyName} calling regarding your patient ${patientName}. We are running a little behind on their scheduled pickup today at ${pickupDisplay ?? "the scheduled time"}. We expect to arrive at approximately ${eta}. We apologize for any inconvenience. ${callbackSentence}`;
   }, [callType, firstName, patientName, facilityName, companyName, pickupTime, eta, callbackSentence]);
 
   const targetName = callType === "patient" ? patientName : (facilityName ?? "Unknown Facility");
@@ -131,7 +145,7 @@ export function CallConfirmationDrawer({
   const hasPhone = !!targetPhone;
 
   const handleConfirm = async () => {
-    if (!hasPhone || !tripId) return;
+    if (!hasPhone) return;
     setSubmitting(true);
 
     try {
@@ -149,7 +163,7 @@ export function CallConfirmationDrawer({
         .from("comms_events" as any)
         .insert({
           company_id: companyId,
-          trip_id: tripId,
+          trip_id: tripId, // may be null when the run hasn't started yet (no trip_records row)
           truck_id: truckId,
           event_type: `call_${callType}`,
           call_type: callType,
@@ -267,7 +281,7 @@ export function CallConfirmationDrawer({
           </p>
           <Button
             onClick={handleConfirm}
-            disabled={!hasPhone || !tripId || submitting}
+            disabled={!hasPhone || submitting}
             className="w-full"
           >
             {submitting ? "Queuing…" : "Confirm and Queue Call"}
