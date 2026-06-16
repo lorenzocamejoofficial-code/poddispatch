@@ -120,7 +120,12 @@ Deno.serve(async (req) => {
       // User already has a profile (rare): keep theirs, drop the placeholder.
       await supabaseAdmin
         .from("profiles")
-        .update({ company_id: companyId, invitation_status: "active", active: true })
+        .update({
+          company_id: companyId,
+          active_company_id: companyId,
+          invitation_status: "active",
+          active: true,
+        })
         .eq("user_id", userId);
       await supabaseAdmin.from("profiles").delete().eq("id", invProfile.id);
     } else {
@@ -128,6 +133,7 @@ Deno.serve(async (req) => {
         .from("profiles")
         .update({
           user_id: userId,
+          active_company_id: companyId,
           full_name: fullName || invProfile.full_name || (inviteEmail ? inviteEmail.split("@")[0] : "User"),
           invitation_status: "active",
           pending_role: null,
