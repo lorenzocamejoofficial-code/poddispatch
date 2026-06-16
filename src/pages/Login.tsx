@@ -100,16 +100,9 @@ export default function Login() {
     navigate(getRoleLanding(role, isSystemCreator), { replace: true });
   }, [user, role, isSystemCreator, activeCompanyId, authLoading, membershipLoaded, navigate, tokenRedirect, signOut, mfaFactorId]);
 
-  useEffect(() => {
-    supabase
-      .from("company_settings")
-      .select("company_name")
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.company_name) setCompanyName(data.company_name);
-      });
-  }, []);
+  // The public /login page is not scoped to a tenant, so we always show
+  // the platform brand. A previous unfiltered `company_settings` lookup
+  // could surface an arbitrary tenant's name here depending on RLS.
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
