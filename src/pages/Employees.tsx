@@ -242,6 +242,14 @@ export default function Employees() {
         invitation_status: "invited",
         pending_role: form.role as any,
         active: true,
+        phone_number: form.phone_number.trim() || null,
+        sex: form.sex,
+        cert_level: form.cert_level,
+        employment_type: form.employment_type,
+        stair_chair_trained: form.stair_chair_trained,
+        bariatric_trained: form.bariatric_trained,
+        oxygen_handling_trained: form.oxygen_handling_trained,
+        lift_assist_ok: form.lift_assist_ok,
       } as any)
       .select("id")
       .single();
