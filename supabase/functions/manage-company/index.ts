@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     } = await supabaseAdmin.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) return json({ error: "Unauthorized" }, 401);
 
-    const { companyId, action, reason, patch, verification, manualNotes } = await req.json();
+    const { companyId, action, reason, patch, verification, manualNotes, skip_trial } = await req.json();
     if (!companyId || !action) return json({ error: "companyId and action required" }, 400);
 
     // ── RESUBMIT (rejected owner only — does NOT require system_creator) ──
@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
       // Read optional `skip_trial` flag from request body. Default is false
       // (standard 30-day app-side trial). When true, the owner is gated to
       // /choose-plan immediately and gets no free trial.
-      const skipTrial = !!(body as any)?.skip_trial;
+      const skipTrial = !!skip_trial;
 
       const { error: updateError } = await supabaseAdmin
         .from("companies")
