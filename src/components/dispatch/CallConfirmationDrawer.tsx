@@ -281,7 +281,7 @@ export function CallConfirmationDrawer({
           </p>
           <Button
             onClick={handleConfirm}
-            disabled={!hasPhone || !tripId || submitting}
+            disabled={!hasPhone || submitting}
             className="w-full"
           >
             {submitting ? "Queuing…" : "Confirm and Queue Call"}
