@@ -712,6 +712,30 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from("profiles").delete().eq("company_id", cid);
       await supabaseAdmin.from("company_memberships").delete().eq("company_id", cid);
 
+      // Additional tables that reference companies via FK (ON DELETE RESTRICT/CASCADE).
+      // Must be purged before the company row itself or the FK blocks the delete.
+      await supabaseAdmin.from("subscription_status_history").delete().eq("company_id", cid);
+      await supabaseAdmin.from("support_tickets").delete().eq("company_id", cid);
+      await supabaseAdmin.from("system_announcements").delete().eq("company_id", cid);
+      await supabaseAdmin.from("claim_creation_failures").delete().eq("company_id", cid);
+      await supabaseAdmin.from("claim_payments").delete().eq("company_id", cid);
+      await supabaseAdmin.from("claim_submission_artifacts").delete().eq("company_id", cid);
+      await supabaseAdmin.from("claim_submission_queue").delete().eq("company_id", cid);
+      await supabaseAdmin.from("clearinghouse_credentials").delete().eq("company_id", cid);
+      await supabaseAdmin.from("clearinghouse_settings").delete().eq("company_id", cid);
+      await supabaseAdmin.from("coverage_discoveries").delete().eq("company_id", cid);
+      await supabaseAdmin.from("customer_payer_enrollments").delete().eq("company_id", cid);
+      await supabaseAdmin.from("payer_directory").delete().eq("company_id", cid);
+      await supabaseAdmin.from("plb_adjustments").delete().eq("company_id", cid);
+      await supabaseAdmin.from("remittance_quarantine").delete().eq("company_id", cid);
+      await supabaseAdmin.from("trip_projection_state").delete().eq("company_id", cid);
+      await supabaseAdmin.from("trip_status_history").delete().eq("company_id", cid);
+      await supabaseAdmin.from("vehicle_inspection_templates").delete().eq("company_id", cid);
+      await supabaseAdmin.from("vehicle_inspection_alerts").delete().eq("company_id", cid);
+      await supabaseAdmin.from("schedule_previews").delete().eq("company_id", cid);
+      await supabaseAdmin.from("truck_builder_templates").delete().eq("company_id", cid);
+      await supabaseAdmin.from("company_invites").delete().eq("company_id", cid);
+
       const { error: delErr } = await supabaseAdmin.from("companies").delete().eq("id", cid);
       if (delErr) {
         console.error("Hard delete failed:", delErr);
