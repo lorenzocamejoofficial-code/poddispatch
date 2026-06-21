@@ -58,6 +58,35 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Guard: if a pending crew invite exists for this email (placeholder profile
+    // assigned to a live company but not yet linked to an auth user), refuse to
+    // create a new company. The user should sign in instead so claim-employee-invites
+    // can attach them to their assigned crew role.
+    if (userEmail) {
+      const { data: pendingInvites } = await supabaseAdmin
+        .from("profiles")
+        .select("company_id, companies:company_id(deleted_at)")
+        .eq("email", userEmail.toLowerCase())
+        .is("user_id", null);
+
+      const hasLiveInvite = (pendingInvites ?? []).some(
+        (p: any) => p.company_id && !p.companies?.deleted_at
+      );
+
+      if (hasLiveInvite) {
+        return new Response(
+          JSON.stringify({
+            error:
+              "You have a pending crew invite. Please sign in instead — your account will be attached to the company that invited you.",
+          }),
+          {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }
+
     const { companyName, fullName } = await req.json();
 
     if (!companyName?.trim()) {
