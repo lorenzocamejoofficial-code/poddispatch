@@ -68,7 +68,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Map incoming role to membership_role
+    // Map incoming role to membership_role. Reject unknown roles instead of
+    // silently downgrading to "crew" — that masked privilege bugs.
     const roleMap: Record<string, string> = {
       admin: "owner",
       owner: "owner",
@@ -78,15 +79,78 @@ Deno.serve(async (req) => {
       biller: "biller",
       crew: "crew",
     };
-    const membershipRole = roleMap[role] || "crew";
-
-    // Validate
+    const membershipRole = roleMap[role];
     const allowedRoles = ["owner", "manager", "dispatcher", "biller", "crew"];
-    if (!allowedRoles.includes(membershipRole)) {
+    if (!membershipRole || !allowedRoles.includes(membershipRole)) {
       return new Response(JSON.stringify({ error: "Invalid role" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Guard 1: pending-invite check — block if this email is already a
+    // placeholder profile attached to a live company (mirrors company-signup).
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const { data: pendingProfiles } = await supabaseAdmin
+      .from("profiles")
+      .select("company_id, user_id")
+      .eq("email", normalizedEmail)
+      .is("user_id", null);
+
+    if (pendingProfiles && pendingProfiles.length > 0) {
+      const companyIds = pendingProfiles
+        .map((p: { company_id: string | null }) => p.company_id)
+        .filter((id): id is string => !!id);
+      if (companyIds.length > 0) {
+        const { data: liveCompanies } = await supabaseAdmin
+          .from("companies")
+          .select("id")
+          .in("id", companyIds);
+        if (liveCompanies && liveCompanies.length > 0) {
+          return new Response(JSON.stringify({
+            error: "This email already has a pending invite. Resend or accept that invite instead of creating a new user.",
+          }), {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    }
+
+    // Guard 2: seat caps. Platform limits = 4 admin-class (owner/manager/
+    // dispatcher/biller combined) + 30 crew per company.
+    const ADMIN_ROLES = ["owner", "manager", "dispatcher", "biller"];
+    const CREW_CAP = 30;
+    const ADMIN_CAP = 4;
+    const { data: currentMemberships } = await supabaseAdmin
+      .from("company_memberships")
+      .select("role")
+      .eq("company_id", company_id);
+
+    if (currentMemberships) {
+      const adminCount = currentMemberships.filter(
+        (m: { role: string }) => ADMIN_ROLES.includes(m.role),
+      ).length;
+      const crewCount = currentMemberships.filter(
+        (m: { role: string }) => m.role === "crew",
+      ).length;
+
+      if (ADMIN_ROLES.includes(membershipRole) && adminCount >= ADMIN_CAP) {
+        return new Response(JSON.stringify({
+          error: `Admin seat cap reached (${ADMIN_CAP}). Remove or downgrade an existing Owner/Manager/Dispatcher/Biller before adding another.`,
+        }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (membershipRole === "crew" && crewCount >= CREW_CAP) {
+        return new Response(JSON.stringify({
+          error: `Crew seat cap reached (${CREW_CAP}).`,
+        }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     console.log(`Admin ${callerUser.user.email} creating user: ${email} with role: ${membershipRole}, company: ${company_id}`);
