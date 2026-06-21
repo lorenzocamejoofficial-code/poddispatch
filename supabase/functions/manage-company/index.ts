@@ -734,7 +734,6 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from("vehicle_inspection_alerts").delete().eq("company_id", cid);
       await supabaseAdmin.from("schedule_previews").delete().eq("company_id", cid);
       await supabaseAdmin.from("truck_builder_templates").delete().eq("company_id", cid);
-      await supabaseAdmin.from("company_invites").delete().eq("company_id", cid);
 
       const { error: delErr } = await supabaseAdmin.from("companies").delete().eq("id", cid);
       if (delErr) {
