@@ -75,6 +75,39 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Guard: if this email already has a pending crew invite at another live
+    // company, force them through the invite-acceptance flow instead of
+    // spawning an orphan company.
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const { data: pendingInvites } = await supabaseAdmin
+      .from("profiles")
+      .select("company_id, invitation_status")
+      .eq("email", normalizedEmail)
+      .is("user_id", null);
+
+    if (pendingInvites && pendingInvites.length > 0) {
+      const companyIds = pendingInvites
+        .map((p: any) => p.company_id)
+        .filter(Boolean);
+      if (companyIds.length > 0) {
+        const { data: liveCompanies } = await supabaseAdmin
+          .from("companies")
+          .select("id")
+          .in("id", companyIds)
+          .is("deleted_at", null);
+        if (liveCompanies && liveCompanies.length > 0) {
+          return new Response(
+            JSON.stringify({
+              error:
+                "You have a pending crew invite. Please check your email for the invite link and accept it instead — your account will be attached to the company that invited you.",
+              code: "pending_invite_exists",
+            }),
+            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+    }
+
     // 1. Create auth user
     const { data: authData, error: authError } =
       await supabaseAdmin.auth.admin.createUser({
