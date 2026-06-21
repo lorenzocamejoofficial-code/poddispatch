@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
 
       const { data: trip } = await supabaseAdmin
         .from("trip_records")
-        .select("id, truck_id, run_date, status")
+        .select("id, truck_id, run_date, status, pickup_at, arrived_at")
         .eq("id", trip_id)
         .eq("truck_id", tokenRow.truck_id)
         .eq("run_date", scheduleDate)
@@ -254,6 +254,44 @@ Deno.serve(async (req) => {
 
       if (!trip) {
         return jsonResponse({ error: "Trip not found or access denied" }, 403);
+      }
+
+      // Parity with PCRPage: vitals + chronological timestamps are required
+      // before a trip can be marked completed. Without this guard, mobile
+      // submissions bypass the rules that desktop enforces.
+      const requiredVitals = {
+        blood_pressure: body.blood_pressure,
+        heart_rate: body.heart_rate,
+        oxygen_saturation: body.oxygen_saturation,
+        respiration_rate: body.respiration_rate,
+      };
+      const missingVitals = Object.entries(requiredVitals)
+        .filter(([, v]) => v === undefined || v === null || v === "")
+        .map(([k]) => k);
+      if (missingVitals.length > 0) {
+        return jsonResponse({
+          error: `Missing required vitals before completion: ${missingVitals.join(", ")}`,
+        }, 400);
+      }
+
+      const loadedAt = body.loaded_at ? new Date(body.loaded_at) : null;
+      const droppedAt = body.dropped_at ? new Date(body.dropped_at) : null;
+      if (!loadedAt || isNaN(loadedAt.getTime())) {
+        return jsonResponse({ error: "loaded_at is required to complete the run." }, 400);
+      }
+      if (!droppedAt || isNaN(droppedAt.getTime())) {
+        return jsonResponse({ error: "dropped_at is required to complete the run." }, 400);
+      }
+      if (droppedAt.getTime() <= loadedAt.getTime()) {
+        return jsonResponse({
+          error: "dropped_at must be after loaded_at. Timestamps must be in chronological order.",
+        }, 400);
+      }
+      const pickupAt = (trip as any).pickup_at ? new Date((trip as any).pickup_at) : null;
+      if (pickupAt && !isNaN(pickupAt.getTime()) && loadedAt.getTime() < pickupAt.getTime()) {
+        return jsonResponse({
+          error: "loaded_at cannot be earlier than the scheduled pickup time.",
+        }, 400);
       }
 
       const updates: any = {
