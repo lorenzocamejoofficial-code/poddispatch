@@ -255,10 +255,12 @@ export default function TrucksCrews() {
   const [truckDialog, setTruckDialog] = useState(false);
   const [truckName, setTruckName] = useState("");
   const [truckVehicleId, setTruckVehicleId] = useState("");
+  const [truckServiceLevel, setTruckServiceLevel] = useState<"BLS" | "ALS">("BLS");
   const [savingTruck, setSavingTruck] = useState(false);
   const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
   const [editingTruckName, setEditingTruckName] = useState("");
   const [editingTruckVehicleId, setEditingTruckVehicleId] = useState("");
+  const [editingTruckServiceLevel, setEditingTruckServiceLevel] = useState<"BLS" | "ALS">("BLS");
 
   // Mark Down dialog
   const [downDialog, setDownDialog] = useState(false);
@@ -330,7 +332,7 @@ export default function TrucksCrews() {
     setSavingTruck(true);
     try {
       const { data: companyData } = await supabase.rpc("get_my_company_id");
-      const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData, vehicle_id: truckVehicleId.trim() || null } as any);
+      const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData, vehicle_id: truckVehicleId.trim() || null, service_level: truckServiceLevel } as any);
       if (error) {
         if ((error.message ?? "").includes("TRUCK_CAP_EXCEEDED")) {
           toast.error("Starter plan is capped at 5 trucks. Upgrade to Pro to add more.", {
@@ -341,7 +343,7 @@ export default function TrucksCrews() {
         }
         return;
       }
-      setTruckName(""); setTruckVehicleId(""); setTruckDialog(false);
+      setTruckName(""); setTruckVehicleId(""); setTruckServiceLevel("BLS"); setTruckDialog(false);
       toast.success("Truck added"); fetchAll(); refreshTrucks();
     } finally {
       setSavingTruck(false);
@@ -351,7 +353,7 @@ export default function TrucksCrews() {
   const saveTruckEdit = async (id: string) => {
     const trimmed = editingTruckName.trim();
     if (!trimmed) { toast.error("Name cannot be empty"); return; }
-    const { error } = await supabase.from("trucks").update({ name: trimmed, vehicle_id: editingTruckVehicleId.trim() || null } as any).eq("id", id);
+    const { error } = await supabase.from("trucks").update({ name: trimmed, vehicle_id: editingTruckVehicleId.trim() || null, service_level: editingTruckServiceLevel } as any).eq("id", id);
     if (error) { toast.error("Failed to update truck"); return; }
     setEditingTruckId(null);
     toast.success("Truck updated"); fetchAll(); refreshTrucks();
@@ -723,6 +725,23 @@ export default function TrucksCrews() {
                   <div><Label>Vehicle ID / Unit #<PCRTooltip text={ADMIN_TOOLTIPS.vehicle_id} /></Label>
                     <Input value={truckVehicleId} onChange={(e) => setTruckVehicleId(e.target.value)} placeholder="e.g. G7T-101" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
                   </div>
+                  <div>
+                    <Label>Service Level</Label>
+                    <RadioGroup
+                      value={truckServiceLevel}
+                      onValueChange={(v) => setTruckServiceLevel(v as "BLS" | "ALS")}
+                      className="flex gap-4 pt-1"
+                    >
+                      <label className="flex items-center gap-1.5 cursor-pointer text-sm">
+                        <RadioGroupItem value="BLS" id="add-bls" />
+                        <span>BLS <span className="text-xs text-muted-foreground">(EMT-B and up)</span></span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-sm">
+                        <RadioGroupItem value="ALS" id="add-als" />
+                        <span>ALS <span className="text-xs text-muted-foreground">(EMT-A / Medic)</span></span>
+                      </label>
+                    </RadioGroup>
+                  </div>
                   <Button onClick={addTruck} className="w-full" disabled={savingTruck}>
                     {savingTruck ? "Adding..." : "Add Truck"}
                   </Button>
@@ -746,15 +765,28 @@ export default function TrucksCrews() {
                         onChange={(e) => setEditingTruckVehicleId(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") saveTruckEdit(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
                         placeholder="Unit #" />
+                      <Select value={editingTruckServiceLevel} onValueChange={(v) => setEditingTruckServiceLevel(v as "BLS" | "ALS")}>
+                        <SelectTrigger className="h-7 w-[72px] text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="BLS">BLS</SelectItem>
+                          <SelectItem value="ALS">ALS</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveTruckEdit(t.id)}><Check className="h-3 w-3 text-[hsl(var(--status-green))]" /></Button>
                       <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingTruckId(null)}><X className="h-3 w-3" /></Button>
                     </div>
                   ) : (
                     <>
                       <span className="font-medium text-card-foreground flex-1 truncate">{t.name}</span>
+                      <Badge
+                        variant="outline"
+                        className={`text-[9px] px-1.5 py-0 ${((t as any).service_level ?? "BLS") === "ALS" ? "border-[hsl(var(--status-blue,210_90%_50%))] text-[hsl(var(--status-blue,210_90%_50%))]" : "border-muted-foreground/30 text-muted-foreground"}`}
+                      >
+                        {(t as any).service_level ?? "BLS"}
+                      </Badge>
                       {!t.active && <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground">Inactive</Badge>}
                       {(t as any).vehicle_id && <span className="text-[10px] text-muted-foreground shrink-0">#{(t as any).vehicle_id}</span>}
-                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); }}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); setEditingTruckServiceLevel(((t as any).service_level ?? "BLS") as "BLS" | "ALS"); }}>
                         <Pencil className="h-3 w-3" />
                       </Button>
                       {t.active ? (
