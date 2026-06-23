@@ -765,15 +765,28 @@ export default function TrucksCrews() {
                         onChange={(e) => setEditingTruckVehicleId(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") saveTruckEdit(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
                         placeholder="Unit #" />
+                      <Select value={editingTruckServiceLevel} onValueChange={(v) => setEditingTruckServiceLevel(v as "BLS" | "ALS")}>
+                        <SelectTrigger className="h-7 w-[72px] text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="BLS">BLS</SelectItem>
+                          <SelectItem value="ALS">ALS</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveTruckEdit(t.id)}><Check className="h-3 w-3 text-[hsl(var(--status-green))]" /></Button>
                       <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingTruckId(null)}><X className="h-3 w-3" /></Button>
                     </div>
                   ) : (
                     <>
                       <span className="font-medium text-card-foreground flex-1 truncate">{t.name}</span>
+                      <Badge
+                        variant="outline"
+                        className={`text-[9px] px-1.5 py-0 ${((t as any).service_level ?? "BLS") === "ALS" ? "border-[hsl(var(--status-blue,210_90%_50%))] text-[hsl(var(--status-blue,210_90%_50%))]" : "border-muted-foreground/30 text-muted-foreground"}`}
+                      >
+                        {(t as any).service_level ?? "BLS"}
+                      </Badge>
                       {!t.active && <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground">Inactive</Badge>}
                       {(t as any).vehicle_id && <span className="text-[10px] text-muted-foreground shrink-0">#{(t as any).vehicle_id}</span>}
-                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); }}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); setEditingTruckServiceLevel(((t as any).service_level ?? "BLS") as "BLS" | "ALS"); }}>
                         <Pencil className="h-3 w-3" />
                       </Button>
                       {t.active ? (
