@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Pencil, Trash2, Copy, KeyRound, MoreHorizontal, Send } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Copy, KeyRound, MoreHorizontal, Send, ShieldCheck } from "lucide-react";
+import { CrewCertificationsDialog } from "@/components/crew/CrewCertificationsDialog";
 import { toast } from "sonner";
 import { TablePagination } from "@/components/ui/table-pagination";
 import {
@@ -51,6 +52,7 @@ export default function Employees() {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [certsTarget, setCertsTarget] = useState<Employee | null>(null);
   // Combined Add flow: 'invite' (recommended) or 'credentials' (legacy direct create).
   const [addMode, setAddMode] = useState<"invite" | "credentials">("invite");
   const [sendingInviteFor, setSendingInviteFor] = useState<string | null>(null);
