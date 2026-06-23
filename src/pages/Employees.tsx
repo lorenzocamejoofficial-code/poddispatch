@@ -735,6 +735,11 @@ export default function Employees() {
                             <DropdownMenuItem onClick={() => openEdit(e)}>
                               <Pencil className="mr-2 h-3.5 w-3.5" />Edit
                             </DropdownMenuItem>
+                            {e.user_id && (
+                              <DropdownMenuItem onClick={() => setCertsTarget(e)}>
+                                <ShieldCheck className="mr-2 h-3.5 w-3.5" />Certifications
+                              </DropdownMenuItem>
+                            )}
                             {e.role !== "Owner" && (
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
