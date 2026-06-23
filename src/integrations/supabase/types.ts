@@ -2143,6 +2143,75 @@ export type Database = {
         }
         Relationships: []
       }
+      crew_certifications: {
+        Row: {
+          cert_level: Database["public"]["Enums"]["crew_cert_level"] | null
+          cert_number: string | null
+          cert_type: Database["public"]["Enums"]["crew_cert_type"]
+          company_id: string
+          created_at: string
+          expiration_date: string | null
+          id: string
+          issue_date: string | null
+          manual_verification_expires_at: string | null
+          manual_verification_reason: string | null
+          manually_verified: boolean
+          notes: string | null
+          photo_path: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["crew_cert_status"]
+          updated_at: string
+          uploaded_by: string | null
+          user_id: string
+        }
+        Insert: {
+          cert_level?: Database["public"]["Enums"]["crew_cert_level"] | null
+          cert_number?: string | null
+          cert_type: Database["public"]["Enums"]["crew_cert_type"]
+          company_id: string
+          created_at?: string
+          expiration_date?: string | null
+          id?: string
+          issue_date?: string | null
+          manual_verification_expires_at?: string | null
+          manual_verification_reason?: string | null
+          manually_verified?: boolean
+          notes?: string | null
+          photo_path?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["crew_cert_status"]
+          updated_at?: string
+          uploaded_by?: string | null
+          user_id: string
+        }
+        Update: {
+          cert_level?: Database["public"]["Enums"]["crew_cert_level"] | null
+          cert_number?: string | null
+          cert_type?: Database["public"]["Enums"]["crew_cert_type"]
+          company_id?: string
+          created_at?: string
+          expiration_date?: string | null
+          id?: string
+          issue_date?: string | null
+          manual_verification_expires_at?: string | null
+          manual_verification_reason?: string | null
+          manually_verified?: boolean
+          notes?: string | null
+          photo_path?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["crew_cert_status"]
+          updated_at?: string
+          uploaded_by?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       crew_share_tokens: {
         Row: {
           active: boolean
@@ -6162,6 +6231,7 @@ export type Database = {
           id: string
           is_simulated: boolean
           name: string
+          service_level: Database["public"]["Enums"]["truck_service_level"]
           simulation_run_id: string | null
           vehicle_id: string | null
         }
@@ -6177,6 +6247,7 @@ export type Database = {
           id?: string
           is_simulated?: boolean
           name: string
+          service_level?: Database["public"]["Enums"]["truck_service_level"]
           simulation_run_id?: string | null
           vehicle_id?: string | null
         }
@@ -6192,6 +6263,7 @@ export type Database = {
           id?: string
           is_simulated?: boolean
           name?: string
+          service_level?: Database["public"]["Enums"]["truck_service_level"]
           simulation_run_id?: string | null
           vehicle_id?: string | null
         }
@@ -6487,6 +6559,7 @@ export type Database = {
       }
       cancel_submission_queue: { Args: { p_queue_id: string }; Returns: Json }
       categorize_denial_code: { Args: { _code: string }; Returns: string }
+      crew_assignable: { Args: { _user_id: string }; Returns: boolean }
       derive_ambulance_hcpcs: {
         Args: { _is_emergency: boolean; _service_level: string }
         Returns: string
@@ -6601,6 +6674,9 @@ export type Database = {
         | "reversal"
         | "forwarded"
         | "blocked_payer_mapping"
+      crew_cert_level: "EMR" | "EMT_B" | "EMT_A" | "PARAMEDIC"
+      crew_cert_status: "pending_review" | "approved" | "rejected" | "expired"
+      crew_cert_type: "medic_number" | "cpr" | "drivers_license"
       email_send_status:
         | "pending"
         | "sent"
@@ -6682,6 +6758,7 @@ export type Database = {
         | "woundcare"
         | "psych_transport"
         | "wound_care"
+      truck_service_level: "BLS" | "ALS"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -6823,6 +6900,9 @@ export const Constants = {
         "forwarded",
         "blocked_payer_mapping",
       ],
+      crew_cert_level: ["EMR", "EMT_B", "EMT_A", "PARAMEDIC"],
+      crew_cert_status: ["pending_review", "approved", "rejected", "expired"],
+      crew_cert_type: ["medic_number", "cpr", "drivers_license"],
       email_send_status: ["pending", "sent", "failed", "bounced", "suppressed"],
       email_type: [
         "password_reset",
@@ -6907,6 +6987,7 @@ export const Constants = {
         "psych_transport",
         "wound_care",
       ],
+      truck_service_level: ["BLS", "ALS"],
     },
   },
 } as const
