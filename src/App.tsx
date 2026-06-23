@@ -384,6 +384,7 @@ function AppRoutes() {
           <Route path="/crew-patients" element={<CrewPatients />} />
            <Route path="/pcr" element={<PCRPage />} />
            <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
+           <Route path="/crew-certifications" element={<CrewCertifications />} />
           {/* App Simulation — all operational pages */}
           <Route path="/simulation" element={<DispatchBoard />} />
           <Route path="/dispatch" element={<DispatchBoard />} />
