@@ -429,6 +429,7 @@ function AppRoutes() {
           <Route path="/crew-schedule" element={<CrewSchedulePage />} />
           <Route path="/pcr" element={<PCRPage />} />
           <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
+          <Route path="/crew-certifications" element={<CrewCertifications />} />
           <Route path="/crew/:token" element={<DailyRunSheet />} />
           <Route path="/account" element={<AccountSettings />} />
           <Route path="/legal" element={<LegalPage />} />
