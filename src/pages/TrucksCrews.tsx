@@ -725,6 +725,23 @@ export default function TrucksCrews() {
                   <div><Label>Vehicle ID / Unit #<PCRTooltip text={ADMIN_TOOLTIPS.vehicle_id} /></Label>
                     <Input value={truckVehicleId} onChange={(e) => setTruckVehicleId(e.target.value)} placeholder="e.g. G7T-101" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
                   </div>
+                  <div>
+                    <Label>Service Level</Label>
+                    <RadioGroup
+                      value={truckServiceLevel}
+                      onValueChange={(v) => setTruckServiceLevel(v as "BLS" | "ALS")}
+                      className="flex gap-4 pt-1"
+                    >
+                      <label className="flex items-center gap-1.5 cursor-pointer text-sm">
+                        <RadioGroupItem value="BLS" id="add-bls" />
+                        <span>BLS <span className="text-xs text-muted-foreground">(EMT-B and up)</span></span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-sm">
+                        <RadioGroupItem value="ALS" id="add-als" />
+                        <span>ALS <span className="text-xs text-muted-foreground">(EMT-A / Medic)</span></span>
+                      </label>
+                    </RadioGroup>
+                  </div>
                   <Button onClick={addTruck} className="w-full" disabled={savingTruck}>
                     {savingTruck ? "Adding..." : "Add Truck"}
                   </Button>
