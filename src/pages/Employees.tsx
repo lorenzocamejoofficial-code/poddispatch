@@ -915,6 +915,16 @@ export default function Employees() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {certsTarget?.user_id && (
+        <CrewCertificationsDialog
+          open={!!certsTarget}
+          onOpenChange={(o) => { if (!o) setCertsTarget(null); }}
+          userId={certsTarget.user_id}
+          displayName={certsTarget.full_name}
+          adminMode
+        />
+      )}
     </AdminLayout>
   );
 }
