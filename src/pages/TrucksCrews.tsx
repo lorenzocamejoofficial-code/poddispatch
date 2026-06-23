@@ -255,10 +255,12 @@ export default function TrucksCrews() {
   const [truckDialog, setTruckDialog] = useState(false);
   const [truckName, setTruckName] = useState("");
   const [truckVehicleId, setTruckVehicleId] = useState("");
+  const [truckServiceLevel, setTruckServiceLevel] = useState<"BLS" | "ALS">("BLS");
   const [savingTruck, setSavingTruck] = useState(false);
   const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
   const [editingTruckName, setEditingTruckName] = useState("");
   const [editingTruckVehicleId, setEditingTruckVehicleId] = useState("");
+  const [editingTruckServiceLevel, setEditingTruckServiceLevel] = useState<"BLS" | "ALS">("BLS");
 
   // Mark Down dialog
   const [downDialog, setDownDialog] = useState(false);
