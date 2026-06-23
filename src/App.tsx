@@ -62,6 +62,7 @@ const CrewDashboard = lazyRoute(() => import("./pages/CrewDashboard"));
 const PCRPage = lazyRoute(() => import("./pages/PCRPage"));
 const CrewPatients = lazyRoute(() => import("./pages/crew/CrewPatients"));
 const CrewSchedulePage = lazyRoute(() => import("./pages/crew/CrewSchedule"));
+const CrewCertifications = lazyRoute(() => import("./pages/crew/CrewCertifications"));
 const OnboardingWizard = lazyRoute(() => import("./pages/OnboardingWizard"));
 const TrialExpired = lazyRoute(() => import("./pages/TrialExpired"));
 const SubscriptionCanceled = lazyRoute(() => import("./pages/SubscriptionCanceled"));
@@ -383,6 +384,7 @@ function AppRoutes() {
           <Route path="/crew-patients" element={<CrewPatients />} />
            <Route path="/pcr" element={<PCRPage />} />
            <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
+           <Route path="/crew-certifications" element={<CrewCertifications />} />
           {/* App Simulation — all operational pages */}
           <Route path="/simulation" element={<DispatchBoard />} />
           <Route path="/dispatch" element={<DispatchBoard />} />
@@ -427,6 +429,7 @@ function AppRoutes() {
           <Route path="/crew-schedule" element={<CrewSchedulePage />} />
           <Route path="/pcr" element={<PCRPage />} />
           <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
+          <Route path="/crew-certifications" element={<CrewCertifications />} />
           <Route path="/crew/:token" element={<DailyRunSheet />} />
           <Route path="/account" element={<AccountSettings />} />
           <Route path="/legal" element={<LegalPage />} />
@@ -461,6 +464,7 @@ function AppRoutes() {
             <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
             <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
             <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
+            <Route path="/crew-certifications" element={<CrewCertifications />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -494,6 +498,7 @@ function AppRoutes() {
             <Route path="/crew-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
             <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
             <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
+            <Route path="/crew-certifications" element={<CrewCertifications />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -541,6 +546,7 @@ function AppRoutes() {
         <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
         <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
         <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
+        <Route path="/crew-certifications" element={<CrewCertifications />} />
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

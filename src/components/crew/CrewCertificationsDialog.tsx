@@ -67,7 +67,7 @@ function statusBadge(c: CertRow) {
   return <Badge variant="outline">Not submitted</Badge>;
 }
 
-export function CrewCertificationsDialog({ open, onOpenChange, userId, displayName, adminMode }: Props) {
+export function CrewCertificationsPanel({ userId, adminMode }: { userId: string; adminMode?: boolean }) {
   const { user } = useAuth();
   const isSelf = user?.id === userId;
   const [rows, setRows] = useState<CertRow[]>([]);
@@ -83,7 +83,6 @@ export function CrewCertificationsDialog({ open, onOpenChange, userId, displayNa
       .order("created_at", { ascending: false });
     setLoading(false);
     if (error) { toast.error("Failed to load certifications"); return; }
-    // Keep only the latest row per cert_type
     const seen = new Set<string>();
     const latest = (data as any as CertRow[]).filter((r) => {
       if (seen.has(r.cert_type)) return false;
@@ -91,7 +90,6 @@ export function CrewCertificationsDialog({ open, onOpenChange, userId, displayNa
       return true;
     });
     setRows(latest);
-    // Sign URLs for photos
     const urls: Record<string, string> = {};
     for (const r of latest) {
       if (r.photo_path) {
@@ -104,10 +102,33 @@ export function CrewCertificationsDialog({ open, onOpenChange, userId, displayNa
     setPhotoUrls(urls);
   }, [userId]);
 
-  useEffect(() => { if (open) load(); }, [open, load]);
+  useEffect(() => { load(); }, [load]);
 
   const types: CertType[] = ["medic_number", "cpr", "drivers_license"];
 
+  if (loading) return <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>;
+  return (
+    <div className="space-y-4">
+      {types.map((t) => {
+        const row = rows.find((r) => r.cert_type === t);
+        return (
+          <CertCard
+            key={t}
+            type={t}
+            row={row}
+            photoUrl={row ? photoUrls[row.id] : undefined}
+            userId={userId}
+            isSelf={isSelf}
+            adminMode={!!adminMode}
+            onChanged={load}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+export function CrewCertificationsDialog({ open, onOpenChange, userId, displayName, adminMode }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -120,28 +141,7 @@ export function CrewCertificationsDialog({ open, onOpenChange, userId, displayNa
             Crew members must keep these three certifications current to be assignable to a truck.
           </DialogDescription>
         </DialogHeader>
-
-        {loading ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>
-        ) : (
-          <div className="space-y-4">
-            {types.map((t) => {
-              const row = rows.find((r) => r.cert_type === t);
-              return (
-                <CertCard
-                  key={t}
-                  type={t}
-                  row={row}
-                  photoUrl={row ? photoUrls[row.id] : undefined}
-                  userId={userId}
-                  isSelf={isSelf}
-                  adminMode={!!adminMode}
-                  onChanged={load}
-                />
-              );
-            })}
-          </div>
-        )}
+        {open && <CrewCertificationsPanel userId={userId} adminMode={adminMode} />}
       </DialogContent>
     </Dialog>
   );
