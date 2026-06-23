@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Pencil, Trash2, Copy, KeyRound, MoreHorizontal, Send } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Copy, KeyRound, MoreHorizontal, Send, ShieldCheck } from "lucide-react";
+import { CrewCertificationsDialog } from "@/components/crew/CrewCertificationsDialog";
 import { toast } from "sonner";
 import { TablePagination } from "@/components/ui/table-pagination";
 import {
@@ -51,6 +52,7 @@ export default function Employees() {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [certsTarget, setCertsTarget] = useState<Employee | null>(null);
   // Combined Add flow: 'invite' (recommended) or 'credentials' (legacy direct create).
   const [addMode, setAddMode] = useState<"invite" | "credentials">("invite");
   const [sendingInviteFor, setSendingInviteFor] = useState<string | null>(null);
@@ -733,6 +735,11 @@ export default function Employees() {
                             <DropdownMenuItem onClick={() => openEdit(e)}>
                               <Pencil className="mr-2 h-3.5 w-3.5" />Edit
                             </DropdownMenuItem>
+                            {e.user_id && (
+                              <DropdownMenuItem onClick={() => setCertsTarget(e)}>
+                                <ShieldCheck className="mr-2 h-3.5 w-3.5" />Certifications
+                              </DropdownMenuItem>
+                            )}
                             {e.role !== "Owner" && (
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
@@ -908,6 +915,16 @@ export default function Employees() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {certsTarget?.user_id && (
+        <CrewCertificationsDialog
+          open={!!certsTarget}
+          onOpenChange={(o) => { if (!o) setCertsTarget(null); }}
+          userId={certsTarget.user_id}
+          displayName={certsTarget.full_name}
+          adminMode
+        />
+      )}
     </AdminLayout>
   );
 }
