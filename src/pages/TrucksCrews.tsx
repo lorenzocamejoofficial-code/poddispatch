@@ -332,7 +332,7 @@ export default function TrucksCrews() {
     setSavingTruck(true);
     try {
       const { data: companyData } = await supabase.rpc("get_my_company_id");
-      const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData, vehicle_id: truckVehicleId.trim() || null } as any);
+      const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData, vehicle_id: truckVehicleId.trim() || null, service_level: truckServiceLevel } as any);
       if (error) {
         if ((error.message ?? "").includes("TRUCK_CAP_EXCEEDED")) {
           toast.error("Starter plan is capped at 5 trucks. Upgrade to Pro to add more.", {
@@ -343,7 +343,7 @@ export default function TrucksCrews() {
         }
         return;
       }
-      setTruckName(""); setTruckVehicleId(""); setTruckDialog(false);
+      setTruckName(""); setTruckVehicleId(""); setTruckServiceLevel("BLS"); setTruckDialog(false);
       toast.success("Truck added"); fetchAll(); refreshTrucks();
     } finally {
       setSavingTruck(false);
@@ -353,7 +353,7 @@ export default function TrucksCrews() {
   const saveTruckEdit = async (id: string) => {
     const trimmed = editingTruckName.trim();
     if (!trimmed) { toast.error("Name cannot be empty"); return; }
-    const { error } = await supabase.from("trucks").update({ name: trimmed, vehicle_id: editingTruckVehicleId.trim() || null } as any).eq("id", id);
+    const { error } = await supabase.from("trucks").update({ name: trimmed, vehicle_id: editingTruckVehicleId.trim() || null, service_level: editingTruckServiceLevel } as any).eq("id", id);
     if (error) { toast.error("Failed to update truck"); return; }
     setEditingTruckId(null);
     toast.success("Truck updated"); fetchAll(); refreshTrucks();
