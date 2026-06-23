@@ -67,6 +67,67 @@ function statusBadge(c: CertRow) {
   return <Badge variant="outline">Not submitted</Badge>;
 }
 
+export function CrewCertificationsPanel({ userId, adminMode }: { userId: string; adminMode?: boolean }) {
+  const { user } = useAuth();
+  const isSelf = user?.id === userId;
+  const [rows, setRows] = useState<CertRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("crew_certifications" as any)
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+    setLoading(false);
+    if (error) { toast.error("Failed to load certifications"); return; }
+    const seen = new Set<string>();
+    const latest = (data as any as CertRow[]).filter((r) => {
+      if (seen.has(r.cert_type)) return false;
+      seen.add(r.cert_type);
+      return true;
+    });
+    setRows(latest);
+    const urls: Record<string, string> = {};
+    for (const r of latest) {
+      if (r.photo_path) {
+        const { data: signed } = await supabase.storage
+          .from("crew-certifications")
+          .createSignedUrl(r.photo_path, 60 * 10);
+        if (signed?.signedUrl) urls[r.id] = signed.signedUrl;
+      }
+    }
+    setPhotoUrls(urls);
+  }, [userId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const types: CertType[] = ["medic_number", "cpr", "drivers_license"];
+
+  if (loading) return <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>;
+  return (
+    <div className="space-y-4">
+      {types.map((t) => {
+        const row = rows.find((r) => r.cert_type === t);
+        return (
+          <CertCard
+            key={t}
+            type={t}
+            row={row}
+            photoUrl={row ? photoUrls[row.id] : undefined}
+            userId={userId}
+            isSelf={isSelf}
+            adminMode={!!adminMode}
+            onChanged={load}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 export function CrewCertificationsDialog({ open, onOpenChange, userId, displayName, adminMode }: Props) {
   const { user } = useAuth();
   const isSelf = user?.id === userId;
