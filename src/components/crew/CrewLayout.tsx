@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, LogOut, Menu, X, Truck, Users, CalendarDays, ClipboardCheck } from "lucide-react";
+import { LayoutDashboard, FileText, LogOut, Menu, X, Truck, Users, CalendarDays, ClipboardCheck, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCompanyName } from "@/hooks/useCompanyName";
@@ -18,6 +18,7 @@ const crewNav = [
   { path: "/crew-schedule", label: "Schedule", icon: CalendarDays, badgeKey: "schedule" as const },
   { path: "/crew-checklist", label: "Checklist", icon: ClipboardCheck, badgeKey: "checklist" as const },
   { path: "/pcr", label: "PCR", icon: FileText, badgeKey: "pcr" as const },
+  { path: "/crew-certifications", label: "My Certifications", icon: ShieldCheck, badgeKey: null },
 ];
 
 export function CrewLayout({ children }: { children: ReactNode }) {
