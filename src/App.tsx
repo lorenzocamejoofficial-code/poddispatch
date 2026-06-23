@@ -546,6 +546,7 @@ function AppRoutes() {
         <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
         <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
         <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
+        <Route path="/crew-certifications" element={<CrewCertifications />} />
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
