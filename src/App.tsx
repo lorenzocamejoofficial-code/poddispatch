@@ -63,6 +63,7 @@ const PCRPage = lazyRoute(() => import("./pages/PCRPage"));
 const CrewPatients = lazyRoute(() => import("./pages/crew/CrewPatients"));
 const CrewSchedulePage = lazyRoute(() => import("./pages/crew/CrewSchedule"));
 const CrewCertifications = lazyRoute(() => import("./pages/crew/CrewCertifications"));
+const CertificationReviewQueue = lazyRoute(() => import("./pages/CertificationReviewQueue"));
 const OnboardingWizard = lazyRoute(() => import("./pages/OnboardingWizard"));
 const TrialExpired = lazyRoute(() => import("./pages/TrialExpired"));
 const SubscriptionCanceled = lazyRoute(() => import("./pages/SubscriptionCanceled"));
@@ -404,6 +405,7 @@ function AppRoutes() {
           <Route path="/employees" element={<Employees />} />
           <Route path="/trucks" element={<TrucksCrews />} />
           <Route path="/settings" element={<AdminSettings />} />
+          <Route path="/certification-queue" element={<CertificationReviewQueue />} />
           <Route path="/account" element={<AccountSettings />} />
           <Route path="/legal" element={<LegalPage />} />
           {/* Default: creator lands on System Dashboard */}
@@ -459,6 +461,7 @@ function AppRoutes() {
             <Route path="/settings" element={<AdminSettings />} />
             <Route path="/account" element={<AccountSettings />} />
             <Route path="/legal" element={<LegalPage />} />
+            <Route path="/certification-queue" element={<CertificationReviewQueue />} />
             {/* Crew routes for dispatchers with cert + crew assignment */}
             <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
             <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
@@ -538,6 +541,7 @@ function AppRoutes() {
         <Route path="/trucks" element={<TrucksCrews />} />
         <Route path="/settings" element={<AdminSettings />} />
         <Route path="/override-monitor" element={<OverrideMonitor />} />
+        <Route path="/certification-queue" element={<CertificationReviewQueue />} />
         <Route path="/account" element={<AccountSettings />} />
         <Route path="/admin/email-activity" element={<EmailActivity />} />
         <Route path="/legal" element={<LegalPage />} />

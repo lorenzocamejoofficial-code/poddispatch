@@ -3,6 +3,8 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -56,6 +58,7 @@ export default function Employees() {
   // Combined Add flow: 'invite' (recommended) or 'credentials' (legacy direct create).
   const [addMode, setAddMode] = useState<"invite" | "credentials">("invite");
   const [sendingInviteFor, setSendingInviteFor] = useState<string | null>(null);
+  const [pendingCertCount, setPendingCertCount] = useState<number>(0);
 
   // Selection state
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -169,6 +172,15 @@ export default function Employees() {
     ensureOwnerProfile().then(() => {
       fetchEmployees().then(() => fetchEmployeeEmails());
     });
+    // Pending cert count for the queue badge.
+    (async () => {
+      const { count } = await supabase
+        .from("crew_certifications" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", activeCompanyId)
+        .eq("status", "pending_review");
+      setPendingCertCount(count ?? 0);
+    })();
   }, [activeCompanyId]);
 
   const handleCreate = async () => {
@@ -513,6 +525,17 @@ export default function Employees() {
               <Switch checked={showInactive} onCheckedChange={setShowInactive} />
               Show inactive
             </label>
+            <Link to="/certification-queue">
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Cert Review Queue
+                {pendingCertCount > 0 && (
+                  <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-[10px]">
+                    {pendingCertCount}
+                  </Badge>
+                )}
+              </Button>
+            </Link>
             {someSelected && (
               <Button
                 variant="destructive"
