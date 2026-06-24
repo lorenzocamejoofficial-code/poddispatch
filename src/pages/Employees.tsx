@@ -153,6 +153,7 @@ export default function Employees() {
     });
 
     setEmployees(empList);
+    return empList;
   };
 
   // Backfill emails from auth (profiles table doesn't store email)
