@@ -172,6 +172,15 @@ export default function Employees() {
     ensureOwnerProfile().then(() => {
       fetchEmployees().then(() => fetchEmployeeEmails());
     });
+    // Pending cert count for the queue badge.
+    (async () => {
+      const { count } = await supabase
+        .from("crew_certifications" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", activeCompanyId)
+        .eq("status", "pending_review");
+      setPendingCertCount(count ?? 0);
+    })();
   }, [activeCompanyId]);
 
   const handleCreate = async () => {
