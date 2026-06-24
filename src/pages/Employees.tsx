@@ -637,6 +637,9 @@ export default function Employees() {
                       </Select>
                     </div>
                   </div>
+                  <div className="rounded-md border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    <strong className="text-foreground">Detailed certifications</strong> (license #, NREMT, state license, expiry dates, CPR, etc.) {addMode === "credentials" ? "will open in a follow-up dialog right after you create the account." : "can be added from the employee row once they accept the invite."}
+                  </div>
                   <div>
                     <Label>Employment Type</Label>
                     <Select value={form.employment_type} onValueChange={(v) => setForm({ ...form, employment_type: v as any })}>
