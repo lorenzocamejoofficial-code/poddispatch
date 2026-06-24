@@ -405,6 +405,7 @@ function AppRoutes() {
           <Route path="/employees" element={<Employees />} />
           <Route path="/trucks" element={<TrucksCrews />} />
           <Route path="/settings" element={<AdminSettings />} />
+          <Route path="/certification-queue" element={<CertificationReviewQueue />} />
           <Route path="/account" element={<AccountSettings />} />
           <Route path="/legal" element={<LegalPage />} />
           {/* Default: creator lands on System Dashboard */}
