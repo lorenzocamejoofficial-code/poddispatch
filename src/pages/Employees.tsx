@@ -58,6 +58,7 @@ export default function Employees() {
   // Combined Add flow: 'invite' (recommended) or 'credentials' (legacy direct create).
   const [addMode, setAddMode] = useState<"invite" | "credentials">("invite");
   const [sendingInviteFor, setSendingInviteFor] = useState<string | null>(null);
+  const [pendingCertCount, setPendingCertCount] = useState<number>(0);
 
   // Selection state
   const [selected, setSelected] = useState<Set<string>>(new Set());
