@@ -63,6 +63,7 @@ const PCRPage = lazyRoute(() => import("./pages/PCRPage"));
 const CrewPatients = lazyRoute(() => import("./pages/crew/CrewPatients"));
 const CrewSchedulePage = lazyRoute(() => import("./pages/crew/CrewSchedule"));
 const CrewCertifications = lazyRoute(() => import("./pages/crew/CrewCertifications"));
+const CertificationReviewQueue = lazyRoute(() => import("./pages/CertificationReviewQueue"));
 const OnboardingWizard = lazyRoute(() => import("./pages/OnboardingWizard"));
 const TrialExpired = lazyRoute(() => import("./pages/TrialExpired"));
 const SubscriptionCanceled = lazyRoute(() => import("./pages/SubscriptionCanceled"));
