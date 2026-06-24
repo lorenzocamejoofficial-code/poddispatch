@@ -28,6 +28,8 @@ type TruckRow = Tables<"trucks">;
 interface ProfileOption {
   id: string;
   full_name: string;
+  assignable: boolean;
+  blockedReason?: string;
 }
 
 interface CrewRecord {
@@ -155,23 +157,38 @@ function TruckDayCell({
           <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="Member 1" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">— None —</SelectItem>
-            {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+            {profiles.map((p) => (
+              <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
+                {p.full_name}{!p.assignable ? " 🚫" : ""}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select value={m2} onValueChange={setM2}>
           <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="Member 2" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">— None —</SelectItem>
-            {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+            {profiles.map((p) => (
+              <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
+                {p.full_name}{!p.assignable ? " 🚫" : ""}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select value={m3} onValueChange={setM3}>
           <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="Member 3 (Optional)" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">— None —</SelectItem>
-            {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+            {profiles.map((p) => (
+              <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
+                {p.full_name}{!p.assignable ? " 🚫" : ""}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
+        <p className="text-[9px] text-muted-foreground leading-tight">
+          🚫 = missing/expired certification — approve on Employees → Certifications.
+        </p>
         <div className="flex gap-1 pt-0.5">
           <Button size="sm" className="h-6 text-[10px] flex-1" onClick={handleSave} disabled={saving}>
             <Check className="h-3 w-3 mr-0.5" /> Save
@@ -288,7 +305,7 @@ export default function TrucksCrews() {
 
     const [{ data: t }, { data: p }, { data: c }, { data: av }] = await Promise.all([
       supabase.from("trucks").select("*").eq("company_id", companyId).order("name"),
-      supabase.from("profiles").select("id, full_name").eq("active", true).eq("company_id", companyId).order("full_name"),
+      supabase.from("profiles").select("id, full_name, user_id").eq("active", true).eq("company_id", companyId).order("full_name"),
       supabase.from("crews")
         .select("*, member1:profiles!crews_member1_id_fkey(full_name, id), member2:profiles!crews_member2_id_fkey(full_name, id), member3:profiles!crews_member3_id_fkey(full_name, id)")
         .eq("company_id", companyId)
@@ -300,8 +317,43 @@ export default function TrucksCrews() {
         .or(`start_date.lte.${endDate},end_date.gte.${startDate}`),
     ]);
 
+    // Compute crew certification eligibility for each profile
+    const profileRows = (p ?? []) as Array<{ id: string; full_name: string; user_id: string | null }>;
+    const userIds = profileRows.map((r) => r.user_id).filter((x): x is string => !!x);
+    const today = new Date().toISOString().split("T")[0];
+    const certsByUser = new Map<string, Set<string>>();
+    if (userIds.length > 0) {
+      const { data: certs } = await supabase
+        .from("crew_certifications")
+        .select("user_id, cert_type, status, expiration_date, manually_verified, manual_verification_expires_at")
+        .in("user_id", userIds);
+      for (const cert of (certs ?? []) as any[]) {
+        if (cert.status !== "approved") continue;
+        const expOk = cert.expiration_date && cert.expiration_date >= today;
+        const manualOk =
+          cert.manually_verified === true &&
+          (!cert.manual_verification_expires_at || cert.manual_verification_expires_at >= today);
+        if (!expOk && !manualOk) continue;
+        if (!certsByUser.has(cert.user_id)) certsByUser.set(cert.user_id, new Set());
+        certsByUser.get(cert.user_id)!.add(cert.cert_type);
+      }
+    }
+    const REQUIRED = ["medic_number", "cpr", "drivers_license"];
+    const profileOptions: ProfileOption[] = profileRows.map((r) => {
+      const have = r.user_id ? certsByUser.get(r.user_id) ?? new Set<string>() : new Set<string>();
+      const missing = REQUIRED.filter((c) => !have.has(c));
+      return {
+        id: r.id,
+        full_name: r.full_name,
+        assignable: missing.length === 0,
+        blockedReason: missing.length === 0
+          ? undefined
+          : `Missing/expired: ${missing.map((m) => m === "medic_number" ? "Medic #" : m === "cpr" ? "CPR" : "Driver's License").join(", ")}`,
+      };
+    });
+
     setTrucks(t ?? []);
-    setProfiles(p ?? []);
+    setProfiles(profileOptions);
     setCrews((c ?? []).map((cr: any) => ({
       id: cr.id,
       truck_id: cr.truck_id,
