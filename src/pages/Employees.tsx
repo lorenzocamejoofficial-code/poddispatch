@@ -230,9 +230,19 @@ export default function Employees() {
     } else {
       toast.success(`${form.full_name} created successfully`);
       setDialogOpen(false);
+      const createdEmail = form.email.trim().toLowerCase();
+      const createdName = form.full_name.trim();
       setForm({ full_name: "", email: "", password: "", role: "crew" as "manager" | "dispatcher" | "crew" | "biller", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time" as "full_time" | "part_time" | "prn", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
-      await fetchEmployees();
+      const refreshed = await fetchEmployees();
       fetchEmployeeEmails();
+      // Auto-open the certifications dialog for the new employee so admins can
+      // add license numbers, expiries, NREMT, etc. right away.
+      const list = Array.isArray(refreshed) ? refreshed : employees;
+      const created = list.find((e: any) => (e.email || "").toLowerCase() === createdEmail)
+        || { user_id: (data as any)?.user_id, full_name: createdName } as any;
+      if (created?.user_id) {
+        setCertsTarget(created as Employee);
+      }
     }
     setCreating(false);
   };
