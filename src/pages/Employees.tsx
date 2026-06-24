@@ -525,6 +525,17 @@ export default function Employees() {
               <Switch checked={showInactive} onCheckedChange={setShowInactive} />
               Show inactive
             </label>
+            <Link to="/certification-queue">
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Cert Review Queue
+                {pendingCertCount > 0 && (
+                  <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-[10px]">
+                    {pendingCertCount}
+                  </Badge>
+                )}
+              </Button>
+            </Link>
             {someSelected && (
               <Button
                 variant="destructive"
