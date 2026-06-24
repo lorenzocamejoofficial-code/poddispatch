@@ -28,6 +28,8 @@ type TruckRow = Tables<"trucks">;
 interface ProfileOption {
   id: string;
   full_name: string;
+  assignable: boolean;
+  blockedReason?: string;
 }
 
 interface CrewRecord {
@@ -155,23 +157,38 @@ function TruckDayCell({
           <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="Member 1" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">— None —</SelectItem>
-            {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+            {profiles.map((p) => (
+              <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
+                {p.full_name}{!p.assignable ? " 🚫" : ""}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select value={m2} onValueChange={setM2}>
           <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="Member 2" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">— None —</SelectItem>
-            {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+            {profiles.map((p) => (
+              <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
+                {p.full_name}{!p.assignable ? " 🚫" : ""}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select value={m3} onValueChange={setM3}>
           <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="Member 3 (Optional)" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">— None —</SelectItem>
-            {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+            {profiles.map((p) => (
+              <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
+                {p.full_name}{!p.assignable ? " 🚫" : ""}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
+        <p className="text-[9px] text-muted-foreground leading-tight">
+          🚫 = missing/expired certification — approve on Employees → Certifications.
+        </p>
         <div className="flex gap-1 pt-0.5">
           <Button size="sm" className="h-6 text-[10px] flex-1" onClick={handleSave} disabled={saving}>
             <Check className="h-3 w-3 mr-0.5" /> Save
