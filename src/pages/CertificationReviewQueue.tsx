@@ -51,7 +51,7 @@ export default function CertificationReviewQueue() {
   const [busy, setBusy] = useState(false);
 
   const isAdmin =
-    role === "admin" || role === "owner" || role === "manager" || role === "dispatcher";
+    role === "owner" || role === "manager" || role === "dispatcher" || role === "creator";
 
   const load = useCallback(async () => {
     if (!activeCompanyId) return;
