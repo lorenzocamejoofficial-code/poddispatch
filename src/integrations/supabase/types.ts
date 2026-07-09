@@ -4722,6 +4722,7 @@ export type Database = {
           run_date: string
           service_level: string | null
           simulation_run_id: string | null
+          transport_category: Database["public"]["Enums"]["transport_category"]
           trip_type: Database["public"]["Enums"]["trip_type"]
           updated_at: string
         }
@@ -4769,6 +4770,7 @@ export type Database = {
           run_date?: string
           service_level?: string | null
           simulation_run_id?: string | null
+          transport_category?: Database["public"]["Enums"]["transport_category"]
           trip_type?: Database["public"]["Enums"]["trip_type"]
           updated_at?: string
         }
@@ -4816,6 +4818,7 @@ export type Database = {
           run_date?: string
           service_level?: string | null
           simulation_run_id?: string | null
+          transport_category?: Database["public"]["Enums"]["transport_category"]
           trip_type?: Database["public"]["Enums"]["trip_type"]
           updated_at?: string
         }
@@ -5516,6 +5519,7 @@ export type Database = {
           status: Database["public"]["Enums"]["trip_status"]
           stretcher_placement: string | null
           stretcher_required: boolean | null
+          transport_category: Database["public"]["Enums"]["transport_category"]
           transport_condition: string | null
           trip_type: Database["public"]["Enums"]["trip_type"] | null
           truck_id: string | null
@@ -5694,6 +5698,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["trip_status"]
           stretcher_placement?: string | null
           stretcher_required?: boolean | null
+          transport_category?: Database["public"]["Enums"]["transport_category"]
           transport_condition?: string | null
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
@@ -5872,6 +5877,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["trip_status"]
           stretcher_placement?: string | null
           stretcher_required?: boolean | null
+          transport_category?: Database["public"]["Enums"]["transport_category"]
           transport_condition?: string | null
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
@@ -6725,6 +6731,14 @@ export type Database = {
         | "cancelled"
       schedule_days: "MWF" | "TTS"
       sex_type: "M" | "F"
+      transport_category:
+        | "911_scene"
+        | "interfacility_emergency"
+        | "interfacility_non_emergency"
+        | "routine_transport"
+        | "dialysis"
+        | "hospice"
+        | "unknown"
       transport_type:
         | "dialysis"
         | "outpatient"
@@ -6951,6 +6965,15 @@ export const Constants = {
       ],
       schedule_days: ["MWF", "TTS"],
       sex_type: ["M", "F"],
+      transport_category: [
+        "911_scene",
+        "interfacility_emergency",
+        "interfacility_non_emergency",
+        "routine_transport",
+        "dialysis",
+        "hospice",
+        "unknown",
+      ],
       transport_type: [
         "dialysis",
         "outpatient",
