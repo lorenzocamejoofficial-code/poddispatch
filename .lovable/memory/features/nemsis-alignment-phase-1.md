@@ -33,6 +33,16 @@ Georgia pilot targets GEMSIS (NEMSIS v3.5.1). Both EMS and non-emergency PCRs mu
 - Code set library created with airway_status, airway_interventions, suction_type, airway_confirmation, oxygen_delivery.
 - `src/components/pcr/AirwayCard.tsx` is the pilot — refactored to read/write NEMSIS codes.
 
+**Phase 1b foundation (shipped, no card touched yet)**
+- `src/lib/nemsis-translate.ts` — `toDisplay/toCode/toPair/isNemsisMapped` helpers so downstream readers (billing/837P/QA/narrative) get identical strings whether a field stores a NEMSIS code or a legacy display.
+- `src/lib/nemsis-translate.test.ts` — locks the invariant `toDisplay(code) === toDisplay(display)` across every code-set entry. Any future card migration MUST keep this test green.
+
+**Billing-safety contract for Phase 1b card migrations (LOCKED)**
+- Office Ally 837P pipeline reads display strings (chief_complaint, primary_impression, service_level, etc.). Do NOT change what those columns store.
+- Dual-write pattern: keep `<field>` as the display (what billing reads); add `<field>_code` for the NEMSIS code (what future XSD export reads). Never rename or repurpose the display column.
+- Any reader that must accept a code-only value calls `toDisplay(codeSet, value)` BEFORE string comparison, so old rows and new rows behave identically.
+- Before migrating a card, add a test that runs the same downstream reader against (a) a legacy-display row and (b) a NEMSIS-code row and asserts identical output.
+
 **Phase 1b remaining PCR cards to swap** (next session)
 - VitalsCard, AssessmentCards, MedicationsCard, ProceduresCard, IVAccessCard, ConditionCard, EquipmentCard, StretcherMobilityCard, IsolationPrecautionsCard, BehavioralHealthCard, PatientInfoCard (race/ethnicity/sex/gender), SignaturesCard (signature type), NarrativeCard (disposition).
 - `src/lib/pcr-dropdowns.ts` legacy exports (OXYGEN_DELIVERY, LEVEL_OF_CONSCIOUSNESS, SKIN_CONDITIONS, WOUND_TYPES, PRESSURE_ULCER_STAGES, MEDICAL_NECESSITY_REASONS) stay in place until their consuming cards migrate.
