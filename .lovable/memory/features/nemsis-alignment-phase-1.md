@@ -41,12 +41,19 @@ Georgia pilot targets GEMSIS (NEMSIS v3.5.1). Both EMS and non-emergency PCRs mu
 **VitalsCard — analyzed, no migration needed.**
 Vitals subfields (bp, pulse, spo2, rr, etco2, pain_scale, gcs_*) are numeric. Pick-list fields (`pulse_quality`, `respiratory_quality`, `pain_scale_type`, `etco2_method`) are stored as internal slugs and are NOT read by edi-837p-generator, claim-readiness, pcr-narrative, qa-anomaly-checks, or ambulance-modifier (verified with rg). No dual-write required. Skip VitalsCard; start Phase 1b card work with MedicationsCard or ProceduresCard whose display strings feed the narrative and QA layers.
 
+**MedicationsCard, ProceduresCard, ConditionOnArrivalCard (LOC + skin) — analyzed, no migration needed.**
+Verified with rg against edi-837p-generator, claim-readiness, qa-anomaly-checks, ambulance-modifier: none of these read `medications_json`, `procedures_json`, `level_of_consciousness`, or `skin_condition`. The only touchpoints are (a) `pcr-field-requirements.ts` presence checks (`entries.length > 0` / `none_administered === true`) which do not inspect any string content, and (b) `pcr-narrative.ts` slug→prose maps (`LEVEL_OF_CONSCIOUSNESS.find(...).narrative`) that already round-trip on the stored slug. Card writes stay unchanged; NEMSIS code sets `E_LEVEL_OF_CONSCIOUSNESS`, `E_SKIN_ASSESSMENT`, `E_MEDICATION_ROUTE`, `E_MEDICATION_RESPONSE` were registered in `nemsis-code-sets.ts` so the future Phase 5 exporter can translate the slugs/labels to NEMSIS codes without touching any card. Slug convention: LOC/skin store the slug as both `code` and lookup key so `toDisplay()` works against the stored value today.
+
+**Working rule discovered from this round of analysis:**
+A PCR card only needs the dual-write (`<field>` + `<field>_code`) migration when a downstream **billing** reader (edi-837p-generator, claim-readiness, qa-anomaly-checks, ambulance-modifier, payer-compliance) does a string comparison on its stored value. Cards whose data is only consumed by (a) presence checks in pcr-field-requirements or (b) narrative slug maps do NOT need field mutations — registering the code set in `nemsis-code-sets.ts` is sufficient for future export. Always confirm with `rg <field-name> src/lib/edi-* src/lib/claim-* src/lib/qa-* src/lib/ambulance-* src/lib/payer-*` before deciding.
+
 **Billing-safety contract for Phase 1b card migrations (LOCKED)**
 - Office Ally 837P pipeline reads display strings (chief_complaint, primary_impression, service_level, etc.). Do NOT change what those columns store.
 - Dual-write pattern: keep `<field>` as the display (what billing reads); add `<field>_code` for the NEMSIS code (what future XSD export reads). Never rename or repurpose the display column.
 - Any reader that must accept a code-only value calls `toDisplay(codeSet, value)` BEFORE string comparison, so old rows and new rows behave identically.
 - Before migrating a card, add a test that runs the same downstream reader against (a) a legacy-display row and (b) a NEMSIS-code row and asserts identical output.
 
-**Phase 1b remaining PCR cards to swap** (next session)
-- VitalsCard, AssessmentCards, MedicationsCard, ProceduresCard, IVAccessCard, ConditionCard, EquipmentCard, StretcherMobilityCard, IsolationPrecautionsCard, BehavioralHealthCard, PatientInfoCard (race/ethnicity/sex/gender), SignaturesCard (signature type), NarrativeCard (disposition).
+**Phase 1b remaining PCR cards to audit** (next session)
+- Analyzed & no migration needed: VitalsCard, MedicationsCard, ProceduresCard, ConditionOnArrivalCard (LOC/skin).
+- Still to audit against billing readers: AssessmentCards (chief_complaint / primary_impression — billing likely reads these for narrative injection), IVAccessCard, EquipmentCard (oxygen_delivery_method — feeds narrative equipment phrase), StretcherMobilityCard, IsolationPrecautionsCard, BehavioralHealthCard, PatientInfoCard (race/ethnicity/sex/gender — sex IS on the 837P), SignaturesCard, NarrativeCard (disposition). For each, run the rg check above first; migrate only if a billing reader hits.
 - `src/lib/pcr-dropdowns.ts` legacy exports (OXYGEN_DELIVERY, LEVEL_OF_CONSCIOUSNESS, SKIN_CONDITIONS, WOUND_TYPES, PRESSURE_ULCER_STAGES, MEDICAL_NECESSITY_REASONS) stay in place until their consuming cards migrate.
