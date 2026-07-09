@@ -100,6 +100,93 @@ export const E_OXYGEN_DELIVERY: readonly NemsisCode[] = [
   { code: "3406017", display: "Ventilator (patient's own)",    system: "NEMSIS" },
 ] as const;
 
+// ─────────────────────────────────────────────────────────────────────
+// eExam — Level of Consciousness & Skin
+// ─────────────────────────────────────────────────────────────────────
+//
+// PCR cards write internal slugs (e.g. `alert_ox3`, `pale`) to the
+// `level_of_consciousness` and `skin_condition` columns. Billing does NOT
+// read these columns; only pcr-narrative reads them via slug→prose maps.
+//
+// These code sets map the slug (used as `code` here so lookups by the
+// stored slug work with `findByCode`) → NEMSIS/SNOMED coded value that
+// the future NEMSIS/GEMSIS export layer will emit. No card write change
+// is required because slugs already round-trip; the exporter looks up the
+// SNOMED code from `system` + a slug→SNOMED table it maintains separately
+// (kept out of this file to avoid coupling the UI slug to a specific code).
+
+/** eExam.11 — Level of Consciousness. `code` is the internal slug so
+ *  `toDisplay(E_LEVEL_OF_CONSCIOUSNESS, trip.level_of_consciousness)` works
+ *  today; a future export layer replaces `code` with the SNOMED value. */
+export const E_LEVEL_OF_CONSCIOUSNESS: readonly NemsisCode[] = [
+  { code: "alert_ox4",                display: "Alert and Oriented x4",              system: "NEMSIS" },
+  { code: "alert_ox3",                display: "Alert and Oriented x3",              system: "NEMSIS" },
+  { code: "alert_ox2",                display: "Alert and Oriented x2",              system: "NEMSIS" },
+  { code: "alert_ox1",                display: "Alert and Oriented x1",              system: "NEMSIS" },
+  { code: "baseline_self_only",       display: "Baseline cognitive impairment",      system: "NEMSIS" },
+  { code: "non_verbal_baseline",      display: "Non-verbal at baseline",             system: "NEMSIS" },
+  { code: "sedated",                  display: "Sedated",                            system: "NEMSIS" },
+  { code: "sleeping_arousable",       display: "Sleeping but arousable",             system: "NEMSIS" },
+  { code: "combative",                display: "Combative",                          system: "NEMSIS" },
+  { code: "confused",                 display: "Confused",                           system: "NEMSIS" },
+  { code: "verbal_only",              display: "Verbal Response Only",               system: "NEMSIS" },
+  { code: "unresponsive_verbal_only", display: "Unresponsive to verbal stimuli only",system: "NEMSIS" },
+  { code: "pain_only",                display: "Pain Response Only",                 system: "NEMSIS" },
+  { code: "unresponsive",             display: "Unresponsive",                       system: "NEMSIS" },
+] as const;
+
+/** eExam.13 — Skin Assessment. Same slug-as-code convention as LOC above. */
+export const E_SKIN_ASSESSMENT: readonly NemsisCode[] = [
+  { code: "normal",                   display: "Normal (warm, dry, pink)",           system: "NEMSIS" },
+  { code: "dry_intact",               display: "Dry, intact",                        system: "NEMSIS" },
+  { code: "pale",                     display: "Pale",                               system: "NEMSIS" },
+  { code: "cyanotic",                 display: "Cyanotic",                           system: "NEMSIS" },
+  { code: "diaphoretic",              display: "Diaphoretic",                        system: "NEMSIS" },
+  { code: "flushed",                  display: "Flushed",                            system: "NEMSIS" },
+  { code: "mottled",                  display: "Mottled",                            system: "NEMSIS" },
+  { code: "jaundiced",                display: "Jaundiced",                          system: "NEMSIS" },
+  { code: "cool_dry",                 display: "Cool and Dry",                       system: "NEMSIS" },
+  { code: "hot_dry",                  display: "Hot and Dry",                        system: "NEMSIS" },
+  { code: "fragile_tears",            display: "Fragile, tears noted",               system: "NEMSIS" },
+  { code: "bruising",                 display: "Bruising present",                   system: "NEMSIS" },
+  { code: "rash",                     display: "Rash",                               system: "NEMSIS" },
+  { code: "edematous",                display: "Edematous",                          system: "NEMSIS" },
+  { code: "surgical_dressing_intact", display: "Surgical site visible",              system: "NEMSIS" },
+  { code: "tenting",                  display: "Tenting / poor turgor",              system: "NEMSIS" },
+  { code: "petechiae",                display: "Petechiae",                          system: "NEMSIS" },
+] as const;
+
+// ─────────────────────────────────────────────────────────────────────
+// eMedications — Route and Response
+// ─────────────────────────────────────────────────────────────────────
+// MedicationsCard stores route/effect as human labels; nothing in the
+// billing pipeline reads medications_json. Registering these mappings lets
+// the future NEMSIS export encode eMedications.06 (Route) and
+// eMedications.10 (Response) without changing card writes.
+
+/** eMedications.06 — Medication Route */
+export const E_MEDICATION_ROUTE: readonly NemsisCode[] = [
+  { code: "3006001", display: "IV",              system: "NEMSIS" },
+  { code: "3006003", display: "IO",              system: "NEMSIS" },
+  { code: "3006005", display: "IM",              system: "NEMSIS" },
+  { code: "3006007", display: "SubQ",            system: "NEMSIS" },
+  { code: "3006009", display: "PO (oral)",       system: "NEMSIS" },
+  { code: "3006011", display: "SL (sublingual)", system: "NEMSIS" },
+  { code: "3006013", display: "Intranasal",      system: "NEMSIS" },
+  { code: "3006015", display: "Inhaled",         system: "NEMSIS" },
+  { code: "3006017", display: "Topical",         system: "NEMSIS" },
+  { code: "3006019", display: "ET tube",         system: "NEMSIS" },
+  { code: "3006021", display: "Rectal",          system: "NEMSIS" },
+] as const;
+
+/** eMedications.10 — Medication Response */
+export const E_MEDICATION_RESPONSE: readonly NemsisCode[] = [
+  { code: "3010001", display: "Improved",  system: "NEMSIS" },
+  { code: "3010003", display: "No change", system: "NEMSIS" },
+  { code: "3010005", display: "Worsened",  system: "NEMSIS" },
+  { code: "3010007", display: "Unknown",   system: "NEMSIS" },
+] as const;
+
 /**
  * Registry of all Phase 1a code sets — used by future backfill and export code.
  * Each key mirrors the NEMSIS element identifier where applicable.
@@ -110,6 +197,10 @@ export const NEMSIS_CODE_SETS = {
   suction_type:          E_SUCTION_TYPE,
   airway_confirmation:   E_AIRWAY_CONFIRMATION,
   oxygen_delivery:       E_OXYGEN_DELIVERY,
+  level_of_consciousness: E_LEVEL_OF_CONSCIOUSNESS,
+  skin_assessment:        E_SKIN_ASSESSMENT,
+  medication_route:       E_MEDICATION_ROUTE,
+  medication_response:    E_MEDICATION_RESPONSE,
 } as const;
 
 export type NemsisCodeSetKey = keyof typeof NEMSIS_CODE_SETS;
