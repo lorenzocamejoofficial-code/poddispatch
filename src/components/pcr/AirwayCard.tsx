@@ -3,7 +3,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { OXYGEN_DELIVERY } from "@/lib/pcr-dropdowns";
+import {
+  E_AIRWAY_STATUS,
+  E_AIRWAY_INTERVENTIONS,
+  E_SUCTION_TYPE,
+  E_AIRWAY_CONFIRMATION,
+  E_OXYGEN_DELIVERY,
+  findByCode,
+  findByDisplay,
+  type NemsisCode,
+} from "@/lib/nemsis-code-sets";
 
 interface Props {
   trip: any;
@@ -11,42 +20,31 @@ interface Props {
   requiredFields?: string[];
 }
 
-const AIRWAY_STATUS = [
-  "Patent and self-maintained",
-  "Snoring respirations",
-  "Gurgling respirations",
-  "Stridor present",
-  "Apneic",
-  "Obstructed",
-];
-
-const INTERVENTIONS = [
-  "None required",
-  "Repositioning and airway opening maneuver",
-  "Oral airway adjunct (OPA)",
-  "Nasal airway adjunct (NPA)",
-  "Bag valve mask ventilation",
-  "Suction performed",
-  "CPAP applied",
-  "King airway inserted",
-  "Endotracheal intubation",
-];
-
-const SUCTION_TYPES = ["Bulb", "Yankauer", "In-line"];
-
-const CONFIRMATION_METHODS = [
-  "Bilateral breath sounds",
-  "Waveform capnography",
-  "Colorimetric CO2 detector",
-  "Chest rise visualization",
-];
-
 const RedDot = () => <span className="text-destructive ml-1">●</span>;
+
+/**
+ * Backward-compat: legacy PCRs stored the display string in these fields.
+ * When we read the field, accept EITHER the NEMSIS code OR the legacy display.
+ * When we write, we now store the NEMSIS code.
+ */
+const resolveEntry = (
+  codes: readonly NemsisCode[],
+  storedValue: string | null | undefined,
+): NemsisCode | null =>
+  findByCode(codes, storedValue) ?? findByDisplay(codes, storedValue);
 
 export function AirwayCard({ trip, updateField, requiredFields = [] }: Props) {
   const data = trip.airway_json || {};
-  const interventions: string[] = Array.isArray(data.interventions) ? data.interventions : [];
-  const confirmations: string[] = Array.isArray(data.intubation_confirmation) ? data.intubation_confirmation : [];
+  const rawInterventions: string[] = Array.isArray(data.interventions) ? data.interventions : [];
+  const rawConfirmations: string[] = Array.isArray(data.intubation_confirmation) ? data.intubation_confirmation : [];
+
+  // Normalize legacy stored displays to their NEMSIS codes for selection state.
+  const interventionCodes = rawInterventions
+    .map((v) => resolveEntry(E_AIRWAY_INTERVENTIONS, v)?.code ?? v)
+    .filter(Boolean);
+  const confirmationCodes = rawConfirmations
+    .map((v) => resolveEntry(E_AIRWAY_CONFIRMATION, v)?.code ?? v)
+    .filter(Boolean);
 
   const reqStatus = requiredFields.includes("airway_status");
   const reqIntervention = requiredFields.includes("airway_intervention");
@@ -55,21 +53,34 @@ export function AirwayCard({ trip, updateField, requiredFields = [] }: Props) {
     updateField("airway_json", { ...data, [key]: value });
   };
 
-  const toggleIntervention = (label: string, checked: boolean) => {
+  const toggleIntervention = (code: string, checked: boolean) => {
     const next = checked
-      ? Array.from(new Set([...interventions, label]))
-      : interventions.filter((i) => i !== label);
+      ? Array.from(new Set([...interventionCodes, code]))
+      : interventionCodes.filter((i) => i !== code);
     update("interventions", next);
   };
 
-  const toggleConfirmation = (label: string, checked: boolean) => {
+  const toggleConfirmation = (code: string, checked: boolean) => {
     const next = checked
-      ? Array.from(new Set([...confirmations, label]))
-      : confirmations.filter((i) => i !== label);
+      ? Array.from(new Set([...confirmationCodes, code]))
+      : confirmationCodes.filter((i) => i !== code);
     update("intubation_confirmation", next);
   };
 
-  const has = (label: string) => interventions.includes(label);
+  /** Check whether a given intervention (by display label) is currently selected. */
+  const hasIntervention = (display: string): boolean => {
+    const entry = E_AIRWAY_INTERVENTIONS.find((c) => c.display === display);
+    if (!entry) return false;
+    return interventionCodes.includes(entry.code);
+  };
+
+  // Resolve current airway_status to a NEMSIS code for the Select value.
+  const currentAirwayStatusCode =
+    resolveEntry(E_AIRWAY_STATUS, data.airway_status)?.code ?? "";
+  const currentSuctionCode =
+    resolveEntry(E_SUCTION_TYPE, data.suction_type)?.code ?? "";
+  const currentOxygenDeliveryCode =
+    resolveEntry(E_OXYGEN_DELIVERY, data.oxygen_delivery)?.code ?? "";
 
   return (
     <div className="space-y-5 p-4">
@@ -77,10 +88,10 @@ export function AirwayCard({ trip, updateField, requiredFields = [] }: Props) {
         <label className="text-sm font-medium block mb-1">
           Airway status at patient contact{reqStatus && <RedDot />}
         </label>
-        <Select value={data.airway_status || ""} onValueChange={(v) => update("airway_status", v)}>
+        <Select value={currentAirwayStatusCode} onValueChange={(v) => update("airway_status", v)}>
           <SelectTrigger className="h-11"><SelectValue placeholder="Select airway status..." /></SelectTrigger>
           <SelectContent>
-            {AIRWAY_STATUS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            {E_AIRWAY_STATUS.map((s) => <SelectItem key={s.code} value={s.code}>{s.display}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -90,31 +101,31 @@ export function AirwayCard({ trip, updateField, requiredFields = [] }: Props) {
           Airway intervention performed{reqIntervention && <RedDot />}
         </label>
         <div className="space-y-2">
-          {INTERVENTIONS.map((label) => (
-            <label key={label} className="flex items-start gap-3 text-sm cursor-pointer">
+          {E_AIRWAY_INTERVENTIONS.map((entry) => (
+            <label key={entry.code} className="flex items-start gap-3 text-sm cursor-pointer">
               <Checkbox
-                checked={interventions.includes(label)}
-                onCheckedChange={(c) => toggleIntervention(label, !!c)}
+                checked={interventionCodes.includes(entry.code)}
+                onCheckedChange={(c) => toggleIntervention(entry.code, !!c)}
               />
-              <span>{label}</span>
+              <span>{entry.display}</span>
             </label>
           ))}
         </div>
       </div>
 
-      {has("Suction performed") && (
+      {hasIntervention("Suction performed") && (
         <div className="ml-7 border-l-2 border-muted pl-4">
           <label className="text-sm font-medium block mb-1">Suction type</label>
-          <Select value={data.suction_type || ""} onValueChange={(v) => update("suction_type", v)}>
+          <Select value={currentSuctionCode} onValueChange={(v) => update("suction_type", v)}>
             <SelectTrigger className="h-11"><SelectValue placeholder="Select..." /></SelectTrigger>
             <SelectContent>
-              {SUCTION_TYPES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              {E_SUCTION_TYPE.map((s) => <SelectItem key={s.code} value={s.code}>{s.display}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
       )}
 
-      {has("Bag valve mask ventilation") && (
+      {hasIntervention("Bag valve mask ventilation") && (
         <div className="ml-7 border-l-2 border-muted pl-4 space-y-3">
           <div>
             <label className="text-sm font-medium block mb-1">BVM rate (breaths/min)</label>
@@ -136,7 +147,7 @@ export function AirwayCard({ trip, updateField, requiredFields = [] }: Props) {
         </div>
       )}
 
-      {has("CPAP applied") && (
+      {hasIntervention("CPAP applied") && (
         <div className="ml-7 border-l-2 border-muted pl-4 space-y-3">
           <div>
             <label className="text-sm font-medium block mb-1">CPAP pressure setting (cmH2O)</label>
@@ -158,17 +169,17 @@ export function AirwayCard({ trip, updateField, requiredFields = [] }: Props) {
         </div>
       )}
 
-      {(has("King airway inserted") || has("Endotracheal intubation")) && (
+      {(hasIntervention("King airway inserted") || hasIntervention("Endotracheal intubation")) && (
         <div className="ml-7 border-l-2 border-muted pl-4">
           <label className="text-sm font-medium block mb-2">Confirmation method (select all used)</label>
           <div className="space-y-2">
-            {CONFIRMATION_METHODS.map((m) => (
-              <label key={m} className="flex items-start gap-3 text-sm cursor-pointer">
+            {E_AIRWAY_CONFIRMATION.map((m) => (
+              <label key={m.code} className="flex items-start gap-3 text-sm cursor-pointer">
                 <Checkbox
-                  checked={confirmations.includes(m)}
-                  onCheckedChange={(c) => toggleConfirmation(m, !!c)}
+                  checked={confirmationCodes.includes(m.code)}
+                  onCheckedChange={(c) => toggleConfirmation(m.code, !!c)}
                 />
-                <span>{m}</span>
+                <span>{m.display}</span>
               </label>
             ))}
           </div>
@@ -178,10 +189,10 @@ export function AirwayCard({ trip, updateField, requiredFields = [] }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="text-sm font-medium block mb-1">Oxygen delivery</label>
-          <Select value={data.oxygen_delivery || ""} onValueChange={(v) => update("oxygen_delivery", v)}>
+          <Select value={currentOxygenDeliveryCode} onValueChange={(v) => update("oxygen_delivery", v)}>
             <SelectTrigger className="h-11"><SelectValue placeholder="Select..." /></SelectTrigger>
             <SelectContent>
-              {OXYGEN_DELIVERY.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              {E_OXYGEN_DELIVERY.map((o) => <SelectItem key={o.code} value={o.code}>{o.display}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
