@@ -36,6 +36,10 @@ Georgia pilot targets GEMSIS (NEMSIS v3.5.1). Both EMS and non-emergency PCRs mu
 **Phase 1b foundation (shipped, no card touched yet)**
 - `src/lib/nemsis-translate.ts` — `toDisplay/toCode/toPair/isNemsisMapped` helpers so downstream readers (billing/837P/QA/narrative) get identical strings whether a field stores a NEMSIS code or a legacy display.
 - `src/lib/nemsis-translate.test.ts` — locks the invariant `toDisplay(code) === toDisplay(display)` across every code-set entry. Any future card migration MUST keep this test green.
+- `src/lib/claim-parity.test.ts` — CI gate for card migrations. Exports `assertClaimEdiParity(a, b, providerMap, submitter)` and a `fixtureClaim()` builder. Every Phase 1b card migration MUST add a test that constructs a legacy-shape claim and a coded-shape claim and calls this helper; if the 837P bytes diverge (after normalizing ISA/GS/GE/IEA envelope volatility) the migration is wrong.
+
+**VitalsCard — analyzed, no migration needed.**
+Vitals subfields (bp, pulse, spo2, rr, etco2, pain_scale, gcs_*) are numeric. Pick-list fields (`pulse_quality`, `respiratory_quality`, `pain_scale_type`, `etco2_method`) are stored as internal slugs and are NOT read by edi-837p-generator, claim-readiness, pcr-narrative, qa-anomaly-checks, or ambulance-modifier (verified with rg). No dual-write required. Skip VitalsCard; start Phase 1b card work with MedicationsCard or ProceduresCard whose display strings feed the narrative and QA layers.
 
 **Billing-safety contract for Phase 1b card migrations (LOCKED)**
 - Office Ally 837P pipeline reads display strings (chief_complaint, primary_impression, service_level, etc.). Do NOT change what those columns store.
