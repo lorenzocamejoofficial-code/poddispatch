@@ -382,13 +382,34 @@ function renderNarrative(trip: Record<string, unknown>): string {
 }
 
 function renderDemographicGroup(agency: NemsisAgency): string {
-  // Header/DemographicGroup — minimum agency identifiers required alongside
-  // every EMSDataSet submission.
+  // Header/DemographicGroup uses a subset of dAgency elements with narrower
+  // typing than the full dAgency block:
+  //   dAgency.01 — state agency number (numeric)
+  //   dAgency.02 — state-issued license identifier
+  //   dAgency.04 — ANSI state code, 2-digit numeric (e.g. GA=13)
   const parts: string[] = [];
-  parts.push(el("dAgency.01", null, agency.state_ems_license_state));
+  parts.push(el("dAgency.01", null, agency.state_ems_agency_number));
   parts.push(el("dAgency.02", null, agency.state_ems_agency_number));
-  parts.push(el("dAgency.04", null, agency.npi));
+  parts.push(el("dAgency.04", null, stateAnsiCode(agency.state_ems_license_state)));
   return wrap("DemographicGroup", null, parts.join(""));
+}
+
+/** Convert a USPS state abbreviation to its 2-digit ANSI FIPS code, which is
+ *  what NEMSIS Header/DemographicGroup/dAgency.04 expects (pattern `[0-9]{2}`).
+ *  Only US states + DC + territories that Pod Dispatch touches are wired. */
+function stateAnsiCode(usps: string | null | undefined): string | null {
+  if (!usps) return null;
+  const map: Record<string, string> = {
+    AL: "01", AK: "02", AZ: "04", AR: "05", CA: "06", CO: "08", CT: "09",
+    DE: "10", DC: "11", FL: "12", GA: "13", HI: "15", ID: "16", IL: "17",
+    IN: "18", IA: "19", KS: "20", KY: "21", LA: "22", ME: "23", MD: "24",
+    MA: "25", MI: "26", MN: "27", MS: "28", MO: "29", MT: "30", NE: "31",
+    NV: "32", NH: "33", NJ: "34", NM: "35", NY: "36", NC: "37", ND: "38",
+    OH: "39", OK: "40", OR: "41", PA: "42", RI: "44", SC: "45", SD: "46",
+    TN: "47", TX: "48", UT: "49", VT: "50", VA: "51", WA: "53", WV: "54",
+    WI: "55", WY: "56", PR: "72", VI: "78",
+  };
+  return map[usps.toUpperCase()] ?? null;
 }
 
 function renderAgency(agency: NemsisAgency): string {
@@ -507,13 +528,14 @@ export function buildDemDataSet(ctx: ExportContext): string {
  *  for both file-upload and Web Service POST submissions. */
 export function buildEmsDataSet(input: PcrExportInput, ctx: ExportContext): string {
   const eRecord = buildERecord(input, ctx);
-  const header = wrap("Header", null, renderDemographicGroup(ctx.agency));
   const pcrUuid = uuidv4();
   const pcr = `<PatientCareReport UUID="${pcrUuid}">${eRecord}</PatientCareReport>`;
+  // NEMSIS 3.5.1: PatientCareReport lives INSIDE Header, after DemographicGroup.
+  const header = wrap("Header", null, renderDemographicGroup(ctx.agency) + pcr);
   return `<?xml version="1.0" encoding="UTF-8"?>` +
     `<EMSDataSet ${NEMSIS_NS}` +
     ` xsi:schemaLocation="http://www.nemsis.org https://nemsis.org/media/nemsis_v3/3.5.1.251001CP2/XSDs/NEMSIS_XSDs/EMSDataSet_v3.xsd">` +
-    `${header}${pcr}` +
+    `${header}` +
     `</EMSDataSet>`;
 }
 
