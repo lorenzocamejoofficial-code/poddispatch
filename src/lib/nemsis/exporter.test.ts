@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildERecord, buildStateDataSet, xmlEscape } from "./exporter";
+import { buildERecord, buildEmsDataSet, xmlEscape } from "./exporter";
 import type { ExportContext, PcrExportInput } from "./exporter";
 
 const ctx: ExportContext = {
@@ -52,7 +52,7 @@ describe("NEMSIS eRecord exporter", () => {
   it("renders an eRecord with expected top-level sections", () => {
     const xml = buildERecord(input, ctx);
     for (const tag of [
-      "eRecord.RecordHeader", "eResponse", "eTimes", "ePatient", "eExam",
+      "eRecord.SoftwareApplicationGroup", "eResponse", "eTimes", "ePatient", "eExam",
       "eVitals", "eAirway", "eMedications", "eProcedures", "eDisposition",
       "eNarrative", "eCustom",
     ]) {
@@ -70,11 +70,13 @@ describe("NEMSIS eRecord exporter", () => {
     expect(xml).toContain("9906003");
   });
 
-  it("marks test-mode StateDataSet envelope correctly", () => {
-    const xml = buildStateDataSet(input, ctx);
-    expect(xml).toContain('testMode="true"');
-    expect(xml).toContain("<StateDataSet");
-    expect(xml).toContain("<PatientCareReport>");
+  it("wraps a PCR in the EMSDataSet/Header/PatientCareReport envelope", () => {
+    const xml = buildEmsDataSet(input, ctx);
+    expect(xml).toContain("<EMSDataSet");
+    expect(xml).toContain("<Header>");
+    expect(xml).toContain("<DemographicGroup>");
+    // PatientCareReport MUST carry a UUID attribute per NEMSIS 3.5.1
+    expect(xml).toMatch(/<PatientCareReport UUID="[0-9a-f-]{36}">/);
   });
 
   it("includes GA-specific eCustom elements when state is GA", () => {
