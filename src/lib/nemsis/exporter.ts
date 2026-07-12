@@ -359,23 +359,12 @@ function renderCrew(personnel: NemsisPersonnel[]): string {
 
 function renderScene(trip: Record<string, unknown>): string {
   const parts: string[] = [];
-  // eScene.01 — first EMS unit on scene (enum {9923001, 9923003}); nil="NA"
-  // for IFT where scene isn't relevant.
   parts.push(`<eScene.01 xsi:nil="true" NV="7701001"/>`);
-  // .06 patient count code enum {2707001..2707005}. 2707001 = "1 patient".
   parts.push(el("eScene.06", null, trip.patient_count_code as string ?? "2707001"));
-  // eScene.07 — mass casualty incident (nil=NA for routine IFT)
   parts.push(`<eScene.07 xsi:nil="true" NV="7701001"/>`);
-  // eScene.08 — MCI level (nil=NA when no MCI).
   parts.push(`<eScene.08 xsi:nil="true" NV="7701001"/>`);
-  // eScene.09 — incident address street
-  parts.push(el("eScene.09", null, trip.scene_address as string ?? trip.pickup_address as string ?? null));
-  // eScene.13 — incident city, .15 state, .17 zip, .19 county
-  parts.push(el("eScene.13", null, trip.scene_city as string ?? trip.pickup_city as string ?? null));
-  parts.push(el("eScene.15", null, trip.scene_state as string ?? trip.pickup_state as string ?? null));
-  parts.push(el("eScene.17", null, trip.scene_zip as string ?? trip.pickup_zip as string ?? null));
-  parts.push(el("eScene.19", null, trip.scene_county as string ?? null));
-  parts.push(el("eScene.21", null, trip.scene_country as string ?? "US"));
+  // .09 place-of-occurrence Y92 ICD code — nil for IFT.
+  parts.push(`<eScene.09 xsi:nil="true" NV="7701001"/>`);
   return wrap("eScene", null, parts.join(""));
 }
 
@@ -383,22 +372,19 @@ function renderSituation(trip: Record<string, unknown>): string {
   const parts: string[] = [];
   parts.push(`<eSituation.01 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eSituation.02 xsi:nil="true" NV="7701001"/>`);
-  // .07 possible injury enum {2807001..2807017}; 2807003 = "No" for routine IFT.
-  parts.push(el("eSituation.07", null, trip.possible_injury as string ?? "2807003"));
-  // .08 primary complaint statement text — required, nillable.
-  parts.push(el("eSituation.08", null, trip.chief_complaint as string ?? null));
-  // .09 complaint reported by dispatch (repeatable).
-  parts.push(el("eSituation.09", null, trip.dispatch_complaint as string ?? null));
-  // eSituation.10 — chief complaint anatomic location (nil if unknown)
+  // .07 possible injury enum {2807001..2807021}; 2807019 = "No" default.
+  parts.push(el("eSituation.07", null, trip.possible_injury as string ?? "2807019"));
+  // .08 primary complaint statement category enum {2808001..2808021}; 2808019 = "Medical".
+  parts.push(el("eSituation.08", null, trip.complaint_type as string ?? "2808019"));
+  // .09 primary symptom ICD-10 code — nil when unknown at documentation time.
+  parts.push(`<eSituation.09 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eSituation.10 xsi:nil="true" NV="7701003"/>`);
-  // eSituation.11 — primary complaint statement (free text)
-  parts.push(el("eSituation.11", null, trip.chief_complaint as string ?? null));
-  // eSituation.12 — duration of complaint
+  parts.push(`<eSituation.11 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eSituation.12 xsi:nil="true" NV="7701003"/>`);
-  // eSituation.13 — time units for duration
   parts.push(`<eSituation.13 xsi:nil="true" NV="7701003"/>`);
-  // eSituation.18 — initial patient acuity
-  parts.push(el("eSituation.18", null, trip.patient_acuity as string ?? "2318003" /* Lower Acuity */));
+  parts.push(`<eSituation.18 xsi:nil="true" NV="7701003"/>`);
+  // .19 chief complaint anatomic location — required, nillable, free text.
+  parts.push(el("eSituation.19", null, trip.chief_complaint as string ?? null));
   return wrap("eSituation", null, parts.join(""));
 }
 
@@ -418,25 +404,25 @@ function renderInjury(): string {
 }
 
 function renderArrest(): string {
-  // eArrest is required in the XSD sequence between eInjury and eHistory.
   return wrap("eArrest", null,
-    `<eArrest.01 xsi:nil="true" NV="7701001"/>`,
+    `<eArrest.01 xsi:nil="true" NV="7701001"/>` +
+    `<eArrest.02 xsi:nil="true" NV="7701001"/>`,
   );
 }
 
 function renderHistoryInner(trip: Record<string, unknown>): string {
-  // eHistory carries advance directives, medical/surgical history, allergies.
-  // For a minimal IFT record we emit "not recorded" placeholders for the
-  // required elements plus any real data we happen to have on trip.
   const parts: string[] = [];
-  // eHistory.06 — barriers to care (nil=none for routine)
-  parts.push(el("eHistory.06", null, "3505001" /* None */));
-  // eHistory.08 — medical/surgical history (repeatable, use "None reported")
-  parts.push(el("eHistory.08", null, trip.medical_history as string ?? "3108001" /* None reported */));
-  // eHistory.12 — medication allergies (repeatable)
-  parts.push(el("eHistory.12", null, trip.allergies as string ?? "3112001" /* NKA */));
-  // eHistory.13 — environmental/food allergies
-  parts.push(el("eHistory.13", null, "3113001" /* NKA */));
+  // .01 barriers to care — required, nillable.
+  parts.push(`<eHistory.01 xsi:nil="true" NV="7701003"/>`);
+  // .06 medical/surgical history — required (min 1), nillable.
+  parts.push(`<eHistory.06 xsi:nil="true" NV="7701003"/>`);
+  // .08 medication allergies — required, nillable.
+  parts.push(`<eHistory.08 xsi:nil="true" NV="7701003"/>`);
+  // .12 environmental/food allergies — nillable.
+  parts.push(`<eHistory.12 xsi:nil="true" NV="7701003"/>`);
+  // .13 current medications — nillable.
+  parts.push(`<eHistory.13 xsi:nil="true" NV="7701003"/>`);
+  const _ = trip; void _;
   return wrap("eHistory", null, parts.join(""));
 }
 
