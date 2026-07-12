@@ -570,7 +570,8 @@ function renderDisposition(trip: Record<string, unknown>): string {
     wrap("eDisposition.HospitalTeamActivationGroup", null,
       `<eDisposition.24 xsi:nil="true" NV="7701003"/>` +
       `<eDisposition.25 xsi:nil="true" NV="7701003"/>`,
-    ),
+    ) +
+    el("eDisposition.32", null, trip.protocol_level_of_care as string ?? "4232001"),
   );
 }
 
