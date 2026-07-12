@@ -188,6 +188,24 @@ export const E_MEDICATION_RESPONSE: readonly NemsisCode[] = [
 ] as const;
 
 /**
+ * ePatient.13 — Patient Gender.
+ * The 837P generator normalizes patient_sex to M/F/U via dmgSexCode(), so those
+ * three letters are the canonical stored values today. We register both the
+ * NEMSIS codes and the M/F/U aliases so findByCode() and findByDisplay() both
+ * resolve the value already sitting in claim_records.patient_sex.
+ */
+export const E_PATIENT_SEX: readonly NemsisCode[] = [
+  { code: "9906001", display: "Female",  system: "NEMSIS" },
+  { code: "9906003", display: "Male",    system: "NEMSIS" },
+  { code: "9906005", display: "Newborn", system: "NEMSIS" },
+  { code: "9906007", display: "Unknown", system: "NEMSIS" },
+  // Aliases matching the M/F/U letters the 837P pipeline uses today.
+  { code: "F", display: "Female",  system: "NEMSIS" },
+  { code: "M", display: "Male",    system: "NEMSIS" },
+  { code: "U", display: "Unknown", system: "NEMSIS" },
+] as const;
+
+/**
  * Registry of all Phase 1a code sets — used by future backfill and export code.
  * Each key mirrors the NEMSIS element identifier where applicable.
  */
@@ -201,6 +219,7 @@ export const NEMSIS_CODE_SETS = {
   skin_assessment:        E_SKIN_ASSESSMENT,
   medication_route:       E_MEDICATION_ROUTE,
   medication_response:    E_MEDICATION_RESPONSE,
+  patient_sex:            E_PATIENT_SEX,
 } as const;
 
 export type NemsisCodeSetKey = keyof typeof NEMSIS_CODE_SETS;
