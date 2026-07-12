@@ -500,7 +500,8 @@ function renderArrest(): string {
     el("eArrest.14", null, nowIso) +
     el("eArrest.16", null, "3016001") +
     el("eArrest.17", null, "9901001") +
-    el("eArrest.18", null, nowIso),
+    el("eArrest.18", null, "3018001") +
+    el("eArrest.20", null, "3020001"),
   );
 }
 
