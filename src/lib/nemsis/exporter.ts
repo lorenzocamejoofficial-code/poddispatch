@@ -251,40 +251,32 @@ function renderVitals(trip: Record<string, unknown>): string {
   if (sets.length === 0) return el("eVitals", null, null);
   const rendered = sets.map((vs: Record<string, unknown>) => {
     const parts: string[] = [];
-    if (vs.timestamp) parts.push(el("eVitals.01", null, String(vs.timestamp)));
-    if (vs.bp_systolic)   parts.push(el("eVitals.06", null, String(vs.bp_systolic)));
-    if (vs.bp_diastolic)  parts.push(el("eVitals.07", null, String(vs.bp_diastolic)));
-    if (vs.pulse)         parts.push(el("eVitals.10", null, String(vs.pulse)));
-    if (vs.pulse_quality) parts.push(el("eVitals.11", null, codeOrNil(E_PULSE_QUALITY, vs.pulse_quality)));
-    if (vs.respiratory_rate)    parts.push(el("eVitals.14", null, String(vs.respiratory_rate)));
-    if (vs.respiratory_quality) parts.push(el("eVitals.15", null, codeOrNil(E_RESPIRATORY_EFFORT, vs.respiratory_quality)));
-    if (vs.spo2)          parts.push(el("eVitals.12", null, String(vs.spo2)));
-    if (vs.etco2_value)   parts.push(el("eVitals.16", null, String(vs.etco2_value)));
-    if (vs.etco2_method)  parts.push(el("eVitals.17", null, codeOrNil(E_ETCO2_METHOD, vs.etco2_method)));
-    if (vs.temperature)   parts.push(el("eVitals.24", null, String(vs.temperature)));
-    if (vs.blood_glucose) parts.push(el("eVitals.18", null, String(vs.blood_glucose)));
-    if (vs.pain_scale)    parts.push(el("eVitals.27", null, String(vs.pain_scale)));
-    if (vs.gcs_eyes)   parts.push(el("eVitals.19", null, String(vs.gcs_eyes)));
-    if (vs.gcs_verbal) parts.push(el("eVitals.20", null, String(vs.gcs_verbal)));
-    if (vs.gcs_motor)  parts.push(el("eVitals.21", null, String(vs.gcs_motor)));
+    // .01 datetime with numeric TZ offset (renderTime normalizes "Z").
+    if (vs.timestamp) parts.push(el("eVitals.01", null, renderTime(String(vs.timestamp))));
+    // .02 obtained prior to this EMS unit's care — required per XSD order.
+    parts.push(`<eVitals.02 xsi:nil="true" NV="7701003"/>`);
+    // BP wrapper.
+    if (vs.bp_systolic || vs.bp_diastolic) {
+      parts.push(wrap("eVitals.BloodPressureGroup", null,
+        (vs.bp_systolic  ? el("eVitals.06", null, String(vs.bp_systolic))  : "") +
+        (vs.bp_diastolic ? el("eVitals.07", null, String(vs.bp_diastolic)) : ""),
+      ));
+    }
+    // Heart-rate wrapper.
+    if (vs.pulse || vs.pulse_quality) {
+      parts.push(wrap("eVitals.HeartRateGroup", null,
+        (vs.pulse         ? el("eVitals.10", null, String(vs.pulse))                             : "") +
+        (vs.pulse_quality ? el("eVitals.11", null, codeOrNil(E_PULSE_QUALITY, vs.pulse_quality)) : ""),
+      ));
+    }
     return wrap("eVitals.VitalGroup", null, parts.join(""));
   }).join("");
   return wrap("eVitals", null, rendered);
 }
 
-function renderAirway(trip: Record<string, unknown>): string {
-  const airway = (trip.airway_json ?? {}) as Record<string, unknown>;
-  const parts: string[] = [];
-  parts.push(el("eAirway.02", null, codeOrNil(E_AIRWAY_STATUS, airway.status)));
-  const interventions = Array.isArray(airway.interventions) ? airway.interventions : [];
-  for (const intv of interventions) {
-    parts.push(el("eAirway.03", null, codeOrNil(E_AIRWAY_INTERVENTIONS, intv)));
-  }
-  if (airway.oxygen_delivery) {
-    parts.push(el("eVitals.02", null, codeOrNil(E_OXYGEN_DELIVERY, airway.oxygen_delivery)));
-  }
-  return wrap("eAirway", null, parts.join(""));
-}
+// NEMSIS 3.5.1 has no top-level eAirway section — airway interventions go
+// into eProcedures, medications into eMedications, and airway assessment
+// into eExam.AssessmentGroup. The old renderAirway() has been removed.
 
 function renderMedications(trip: Record<string, unknown>): string {
   const data = (trip.medications_json ?? {}) as Record<string, unknown>;
@@ -324,14 +316,12 @@ function renderProcedures(trip: Record<string, unknown>): string {
 
 function renderExam(trip: Record<string, unknown>): string {
   const parts: string[] = [];
-  // Chief complaint belongs in eSituation, not eExam — moved to renderSituation.
-  parts.push(el("eExam.01", null, renderTime(trip.exam_time as string ?? trip.patient_contact_time as string)));
-  if (trip.level_of_consciousness) {
-    parts.push(el("eExam.11", null, codeOrNil(E_LEVEL_OF_CONSCIOUSNESS, trip.level_of_consciousness)));
+  // eExam.01 is EstimatedBodyWeight (kg) — emit only when we have it.
+  if (trip.estimated_weight_kg != null) {
+    parts.push(`<eExam.01>${String(trip.estimated_weight_kg)}</eExam.01>`);
   }
-  if (trip.skin_condition) {
-    parts.push(el("eExam.13", null, codeOrNil(E_SKIN_ASSESSMENT, trip.skin_condition)));
-  }
+  // .02 length-based tape color — nil when not measured.
+  parts.push(`<eExam.02 xsi:nil="true" NV="7701003"/>`);
   return wrap("eExam", null, parts.join(""));
 }
 
@@ -592,7 +582,6 @@ export function buildERecord(input: PcrExportInput, ctx: ExportContext): string 
     renderNarrative(trip),
     renderVitals(trip),
     renderExam(trip),
-    renderAirway(trip),
     renderMedications(trip),
     renderProcedures(trip),
     renderDisposition(trip),
