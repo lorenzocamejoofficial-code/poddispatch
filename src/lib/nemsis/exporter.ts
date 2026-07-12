@@ -241,6 +241,8 @@ function renderPayment(trip: Record<string, unknown>): string {
   parts.push(wrap("ePayment.CertificateGroup", null,
     el("ePayment.02", null, trip.pcs_on_file as string ?? "9922003" /* No */),
   ));
+  // .08 patient residency status — satisfies the "one of downstream" gate.
+  parts.push(el("ePayment.08", null, trip.patient_residency as string ?? "2508003"));
   return wrap("ePayment", null, parts.join(""));
 }
 
