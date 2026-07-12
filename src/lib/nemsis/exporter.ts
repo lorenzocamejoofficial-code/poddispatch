@@ -108,16 +108,17 @@ function renderTime(iso: string | null | undefined): string | null {
 // ─────────────────────────────────────────────────────────────────────
 
 function renderHeader(ctx: ExportContext, tripId: string): string {
-  const parts: string[] = [];
-  parts.push(el("eRecord.01", null, tripId));
-  // NEMSIS 3.5.1 wraps software identity in eRecord.SoftwareApplicationGroup
-  // with numbered children (eRecord.02 vendor, .03 product, .04 version).
-  parts.push(wrap("eRecord.SoftwareApplicationGroup", null,
-    el("eRecord.02", null, ctx.software.name) +
-    el("eRecord.03", null, ctx.software.name) +
-    el("eRecord.04", null, ctx.software.version),
-  ));
-  return parts.join("");
+  // <eRecord> is a single section (record ID + software identity) — it is
+  // a SIBLING of eResponse/eDispatch/eTimes/... inside PatientCareReport,
+  // not a wrapper around them.
+  return wrap("eRecord", null,
+    el("eRecord.01", null, tripId) +
+    wrap("eRecord.SoftwareApplicationGroup", null,
+      el("eRecord.02", null, ctx.software.name) +
+      el("eRecord.03", null, ctx.software.name) +
+      el("eRecord.04", null, ctx.software.version),
+    ),
+  );
 }
 
 function renderResponse(trip: Record<string, unknown>): string {
@@ -491,7 +492,9 @@ export function buildERecord(input: PcrExportInput, ctx: ExportContext): string 
   // State-specific eCustom block, isolated per-state.
   const custom = ctx.state === "GA" ? renderGeorgiaCustom(trip, ctx) : "";
 
-  return wrap("eRecord", null, body + custom);
+  // Returns the ordered sibling sections that go inside <PatientCareReport>.
+  // (The name buildERecord is historical — kept for API stability.)
+  return body + custom;
 }
 
 /** Generate a v4 UUID suitable for PatientCareReport/@UUID. */
