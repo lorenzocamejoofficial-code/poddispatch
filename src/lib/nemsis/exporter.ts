@@ -501,7 +501,9 @@ function renderArrest(): string {
     el("eArrest.16", null, "3016001") +
     el("eArrest.17", null, "9901001") +
     el("eArrest.18", null, "3018001") +
-    el("eArrest.20", null, "3020001"),
+    el("eArrest.20", null, "3020001") +
+    el("eArrest.21", null, "3021001") +
+    el("eArrest.22", null, "3022001"),
   );
 }
 
@@ -564,7 +566,11 @@ function renderDisposition(trip: Record<string, unknown>): string {
     // .22 Hospital In-Patient Destination — required, nillable.
     `<eDisposition.22 xsi:nil="true" NV="7701003"/>` +
     // .23 Hospital Capability — required, nillable.
-    el("eDisposition.23", null, "9908001"),
+    el("eDisposition.23", null, "9908001") +
+    wrap("eDisposition.HospitalTeamActivationGroup", null,
+      `<eDisposition.24 xsi:nil="true" NV="7701003"/>` +
+      `<eDisposition.25 xsi:nil="true" NV="7701003"/>`,
+    ),
   );
 }
 
