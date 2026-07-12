@@ -232,17 +232,19 @@ function patientSexCode(v: unknown): string | null {
 }
 
 function renderPayment(trip: Record<string, unknown>): string {
-  // ePayment requires .01 plus at least one of a set of downstream groups.
-  // Simplest satisfying content is .01 + CertificateGroup wrapping .02 (PCS
-  // on file yes/no).
   const parts: string[] = [];
-  // .01 primary method of payment — enum {2601001..2601023}. 2601005 = Insurance.
   parts.push(el("ePayment.01", null, trip.primary_payment_method as string ?? "2601005"));
   parts.push(wrap("ePayment.CertificateGroup", null,
-    el("ePayment.02", null, trip.pcs_on_file as string ?? "9922003" /* No */),
+    el("ePayment.02", null, trip.pcs_on_file as string ?? "9922003"),
   ));
-  // .08 patient residency status — satisfies the "one of downstream" gate.
-  parts.push(el("ePayment.08", null, trip.patient_residency as string ?? "2508003"));
+  // .08 patient residency status — enum {2608001, 2608003}. 2608003 = US Resident.
+  parts.push(el("ePayment.08", null, trip.patient_residency as string ?? "2608003"));
+  // InsuranceGroup satisfies the "one of downstream" gate. Empty group with
+  // nil primary insurer identifiers when no insurance data captured.
+  parts.push(wrap("ePayment.InsuranceGroup", null,
+    `<ePayment.11 xsi:nil="true" NV="7701003"/>` +
+    `<ePayment.18 xsi:nil="true" NV="7701003"/>`,
+  ));
   return wrap("ePayment", null, parts.join(""));
 }
 
@@ -251,18 +253,18 @@ function renderVitals(trip: Record<string, unknown>): string {
   if (sets.length === 0) return el("eVitals", null, null);
   const rendered = sets.map((vs: Record<string, unknown>) => {
     const parts: string[] = [];
-    // .01 datetime with numeric TZ offset (renderTime normalizes "Z").
     if (vs.timestamp) parts.push(el("eVitals.01", null, renderTime(String(vs.timestamp))));
-    // .02 obtained prior to this EMS unit's care — required per XSD order.
     parts.push(`<eVitals.02 xsi:nil="true" NV="7701003"/>`);
-    // BP wrapper.
+    // CardiacRhythmGroup must precede BloodPressureGroup per XSD sequence.
+    parts.push(wrap("eVitals.CardiacRhythmGroup", null,
+      `<eVitals.03 xsi:nil="true" NV="7701003"/>`,
+    ));
     if (vs.bp_systolic || vs.bp_diastolic) {
       parts.push(wrap("eVitals.BloodPressureGroup", null,
         (vs.bp_systolic  ? el("eVitals.06", null, String(vs.bp_systolic))  : "") +
         (vs.bp_diastolic ? el("eVitals.07", null, String(vs.bp_diastolic)) : ""),
       ));
     }
-    // Heart-rate wrapper.
     if (vs.pulse || vs.pulse_quality) {
       parts.push(wrap("eVitals.HeartRateGroup", null,
         (vs.pulse         ? el("eVitals.10", null, String(vs.pulse))                             : "") +
@@ -277,6 +279,14 @@ function renderVitals(trip: Record<string, unknown>): string {
 // NEMSIS 3.5.1 has no top-level eAirway section — airway interventions go
 // into eProcedures, medications into eMedications, and airway assessment
 // into eExam.AssessmentGroup. The old renderAirway() has been removed.
+
+function renderProtocols(): string {
+  return wrap("eProtocols", null,
+    wrap("eProtocols.ProtocolGroup", null,
+      `<eProtocols.01 xsi:nil="true" NV="7701003"/>`,
+    ),
+  );
+}
 
 function renderMedications(trip: Record<string, unknown>): string {
   const data = (trip.medications_json ?? {}) as Record<string, unknown>;
@@ -363,8 +373,9 @@ function renderScene(trip: Record<string, unknown>): string {
   parts.push(el("eScene.06", null, trip.patient_count_code as string ?? "2707001"));
   parts.push(`<eScene.07 xsi:nil="true" NV="7701001"/>`);
   parts.push(`<eScene.08 xsi:nil="true" NV="7701001"/>`);
-  // .09 place-of-occurrence Y92 ICD code — nil for IFT.
   parts.push(`<eScene.09 xsi:nil="true" NV="7701001"/>`);
+  // .18 census tract of incident — required (min 1 from .10..18 group), nillable.
+  parts.push(`<eScene.18 xsi:nil="true" NV="7701003"/>`);
   return wrap("eScene", null, parts.join(""));
 }
 
@@ -372,19 +383,18 @@ function renderSituation(trip: Record<string, unknown>): string {
   const parts: string[] = [];
   parts.push(`<eSituation.01 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eSituation.02 xsi:nil="true" NV="7701001"/>`);
-  // .07 possible injury enum {2807001..2807021}; 2807019 = "No" default.
-  parts.push(el("eSituation.07", null, trip.possible_injury as string ?? "2807019"));
-  // .08 primary complaint statement category enum {2808001..2808021}; 2808019 = "Medical".
+  // .07 possible injury enum {2807001..2807017}. 2807003 = "No".
+  parts.push(el("eSituation.07", null, trip.possible_injury as string ?? "2807003"));
   parts.push(el("eSituation.08", null, trip.complaint_type as string ?? "2808019"));
-  // .09 primary symptom ICD-10 code — nil when unknown at documentation time.
   parts.push(`<eSituation.09 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eSituation.10 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eSituation.11 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eSituation.12 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eSituation.13 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eSituation.18 xsi:nil="true" NV="7701003"/>`);
-  // .19 chief complaint anatomic location — required, nillable, free text.
   parts.push(el("eSituation.19", null, trip.chief_complaint as string ?? null));
+  // .20 initial patient acuity — required, nillable.
+  parts.push(`<eSituation.20 xsi:nil="true" NV="7701003"/>`);
   return wrap("eSituation", null, parts.join(""));
 }
 
@@ -406,22 +416,16 @@ function renderInjury(): string {
 function renderArrest(): string {
   return wrap("eArrest", null,
     `<eArrest.01 xsi:nil="true" NV="7701001"/>` +
-    `<eArrest.02 xsi:nil="true" NV="7701001"/>`,
+    `<eArrest.02 xsi:nil="true" NV="7701001"/>` +
+    `<eArrest.03 xsi:nil="true" NV="7701001"/>`,
   );
 }
 
 function renderHistoryInner(trip: Record<string, unknown>): string {
   const parts: string[] = [];
-  // .01 barriers to care — required, nillable.
   parts.push(`<eHistory.01 xsi:nil="true" NV="7701003"/>`);
-  // .06 medical/surgical history — required (min 1), nillable.
   parts.push(`<eHistory.06 xsi:nil="true" NV="7701003"/>`);
-  // .08 medication allergies — required, nillable.
   parts.push(`<eHistory.08 xsi:nil="true" NV="7701003"/>`);
-  // .12 environmental/food allergies — nillable.
-  parts.push(`<eHistory.12 xsi:nil="true" NV="7701003"/>`);
-  // .13 current medications — nillable.
-  parts.push(`<eHistory.13 xsi:nil="true" NV="7701003"/>`);
   const _ = trip; void _;
   return wrap("eHistory", null, parts.join(""));
 }
@@ -568,6 +572,7 @@ export function buildERecord(input: PcrExportInput, ctx: ExportContext): string 
     renderNarrative(trip),
     renderVitals(trip),
     renderExam(trip),
+    renderProtocols(),
     renderMedications(trip),
     renderProcedures(trip),
     renderDisposition(trip),
