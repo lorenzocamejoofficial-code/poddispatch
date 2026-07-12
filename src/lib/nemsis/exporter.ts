@@ -134,16 +134,21 @@ function renderResponse(trip: Record<string, unknown>): string {
   parts.push(wrap("eResponse.ServiceGroup", null,
     el("eResponse.05", null, trip.service_level ? String(trip.service_level) : null),
   ));
-  // eResponse.07 (transport capability), .08-.12 (delays) are all required
-  // (minOccurs=1). Emit xsi:nil / NV "not applicable" when we have no data.
-  parts.push(`<eResponse.07 xsi:nil="true" NV="7701003"/>`);
+  // eResponse.07 (unit transport equipment capability) — required, NOT nillable,
+  // enum {2207011..2207027}. 2207019 = "Basic Life Support-Ground" as a
+  // sensible IFT default; callers override via trip.unit_capability.
+  parts.push(el("eResponse.07", null, trip.unit_capability as string ?? "2207019"));
   parts.push(`<eResponse.08 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eResponse.09 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eResponse.10 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eResponse.11 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eResponse.12 xsi:nil="true" NV="7701003"/>`);
-  parts.push(el("eResponse.13", null, trip.unit_number as string ?? null));
-  parts.push(el("eResponse.14", null, trip.shift as string ?? null));
+  // .13 (vehicle unit number) and .14 (call sign) are required, not nillable.
+  parts.push(el("eResponse.13", null, (trip.unit_number as string) ?? "UNIT-UNKNOWN"));
+  parts.push(el("eResponse.14", null, (trip.shift as string) ?? (trip.unit_number as string) ?? "UNIT-UNKNOWN"));
+  // .23 response mode to scene — required enum EMSResponseMode.
+  // 2323003 = "Non-Emergency" default for IFT.
+  parts.push(el("eResponse.23", null, trip.response_mode as string ?? "2323003"));
   return wrap("eResponse", null, parts.join(""));
 }
 
@@ -166,14 +171,21 @@ function renderTimes(trip: Record<string, unknown>): string {
   push("eTimes.09", trip.left_scene_time);
   push("eTimes.10", trip.arrived_at_destination_time);
   push("eTimes.11", trip.in_service_time);
-  // eTimes.12 (destination patient transfer time) is required — emit nil
-  // when the caller hasn't given us a real value.
-  if (trip.back_in_service_time) {
-    push("eTimes.12", trip.back_in_service_time);
+  // .12 destination patient-care transfer time (nillable).
+  if (trip.destination_transfer_time) {
+    push("eTimes.12", trip.destination_transfer_time);
   } else {
-    parts.push(`<eTimes.12 xsi:nil="true" NV="7701003"/>`);
+    parts.push(`<eTimes.12 xsi:nil="true"/>`);
   }
-  push("eTimes.13", trip.canceled_time);
+  // .13 unit back-in-service — required, DateTimeType, NOT nillable. Fall
+  // back to in_service_time when a dedicated column isn't available.
+  const backInSvc = renderTime(
+    (trip.back_in_service_time as string | null | undefined) ??
+    (trip.in_service_time as string | null | undefined),
+  );
+  if (backInSvc) parts.push(`<eTimes.13>${backInSvc}</eTimes.13>`);
+  // .14 unit canceled — optional.
+  push("eTimes.14", trip.canceled_time);
   return wrap("eTimes", null, parts.join(""));
 }
 
@@ -185,25 +197,33 @@ function renderPatient(trip: Record<string, unknown>, patient: Record<string, un
     el("ePatient.02", null, String(patient.last_name ?? "")) +
     el("ePatient.03", null, String(patient.first_name ?? "")),
   ));
-  // ePatient.05-.12 (SSN, home addr, phone) are all required or come before
-  // .13; emit xsi:nil placeholders when unknown.
-  parts.push(`<ePatient.05 xsi:nil="true" NV="7701003"/>`);
-  parts.push(`<ePatient.06 xsi:nil="true" NV="7701003"/>`);
+  // Address elements: nillable but the schema does NOT allow the NV attribute
+  // — emit plain xsi:nil when the data isn't recorded.
+  parts.push(`<ePatient.05 xsi:nil="true"/>`);
+  parts.push(`<ePatient.06 xsi:nil="true"/>`);
   parts.push(`<ePatient.07 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<ePatient.08 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<ePatient.09 xsi:nil="true" NV="7701003"/>`);
-  parts.push(el("ePatient.13", null, codeOrNil(E_PATIENT_SEX, patient.gender ?? patient.patient_sex)));
-  parts.push(el("ePatient.14", null, patient.date_of_birth ? String(patient.date_of_birth) : null));
+  // ePatient.14 is Race (repeating), not DOB. Emit "Not Recorded" placeholder.
+  parts.push(`<ePatient.14 xsi:nil="true" NV="7701003"/>`);
+  // .17 is DateOfBirth.
+  if (patient.date_of_birth) {
+    parts.push(`<ePatient.17>${String(patient.date_of_birth)}</ePatient.17>`);
+  } else {
+    parts.push(`<ePatient.17 xsi:nil="true" NV="7701003"/>`);
+  }
+  // .25 Sex is required (minOccurs=1).
+  parts.push(el("ePatient.25", null, codeOrNil(E_PATIENT_SEX, patient.gender ?? patient.patient_sex)));
   return wrap("ePatient", null, parts.join(""));
 }
 
 function renderPayment(trip: Record<string, unknown>): string {
-  // ePayment is required in the XSD sequence (minOccurs=1) even when the
-  // agency doesn't track billing at documentation time. Emit nil placeholders
-  // for the required insurance-category fields.
-  return wrap("ePayment", null,
-    el("ePayment.01", null, trip.primary_payment_method as string ?? null),
-  );
+  // ePayment requires ePayment.01 plus at least one of a set of downstream
+  // groups; simplest satisfying content is .01 + .02 (PCS on file yes/no).
+  const parts: string[] = [];
+  parts.push(el("ePayment.01", null, trip.primary_payment_method as string ?? "2501001" /* Insurance */));
+  parts.push(el("ePayment.02", null, trip.pcs_on_file as string ?? "9922003" /* No */));
+  return wrap("ePayment", null, parts.join(""));
 }
 
 function renderVitals(trip: Record<string, unknown>): string {
@@ -329,6 +349,8 @@ function renderCrew(personnel: NemsisPersonnel[]): string {
 
 function renderScene(trip: Record<string, unknown>): string {
   const parts: string[] = [];
+  // eScene.01 — first EMS unit on scene indicator (required, nillable).
+  parts.push(el("eScene.01", null, trip.first_ems_unit_on_scene as string ?? "9922005" /* Yes */));
   // eScene.06 — number of patients at scene
   parts.push(el("eScene.06", null, trip.patients_at_scene ? String(trip.patients_at_scene) : "1"));
   // eScene.07 — mass casualty incident (nil=NA for routine IFT)
@@ -346,6 +368,8 @@ function renderScene(trip: Record<string, unknown>): string {
 
 function renderSituation(trip: Record<string, unknown>): string {
   const parts: string[] = [];
+  // eSituation.01 — date/time last known well (required, nillable).
+  parts.push(`<eSituation.01 xsi:nil="true" NV="7701003"/>`);
   // eSituation.02 — date/time symptom onset (nil=not applicable for IFT)
   parts.push(`<eSituation.02 xsi:nil="true" NV="7701001"/>`);
   // eSituation.07 — possible injury indicator
@@ -366,6 +390,18 @@ function renderSituation(trip: Record<string, unknown>): string {
 }
 
 function renderHistory(trip: Record<string, unknown>): string {
+  return renderHistoryInner(trip);
+}
+
+function renderInjury(): string {
+  // eInjury is required in the XSD sequence and must precede eHistory.
+  // For non-injury IFT transports we emit a minimal nil placeholder.
+  return wrap("eInjury", null,
+    `<eInjury.01 xsi:nil="true" NV="7701001"/>`,
+  );
+}
+
+function renderHistoryInner(trip: Record<string, unknown>): string {
   // eHistory carries advance directives, medical/surgical history, allergies.
   // For a minimal IFT record we emit "not recorded" placeholders for the
   // required elements plus any real data we happen to have on trip.
@@ -517,6 +553,7 @@ export function buildERecord(input: PcrExportInput, ctx: ExportContext): string 
     renderPayment(trip),
     renderScene(trip),
     renderSituation(trip),
+    renderInjury(),
     renderHistory(trip),
     renderNarrative(trip),
     renderVitals(trip),
