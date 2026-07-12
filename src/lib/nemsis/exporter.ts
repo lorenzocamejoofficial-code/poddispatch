@@ -217,9 +217,18 @@ function renderPatient(trip: Record<string, unknown>, patient: Record<string, un
   if (patient.date_of_birth) {
     parts.push(`<ePatient.17>${String(patient.date_of_birth)}</ePatient.17>`);
   }
-  // .25 Sex is required (minOccurs=1).
-  parts.push(el("ePatient.25", null, codeOrNil(E_PATIENT_SEX, patient.gender ?? patient.patient_sex)));
+  // .25 Sex is required (minOccurs=1); enum {9919001=Male, 9919003=Female, 9919005=Unknown}.
+  parts.push(el("ePatient.25", null, patientSexCode(patient.gender ?? patient.patient_sex)));
   return wrap("ePatient", null, parts.join(""));
+}
+
+/** ePatient.25 uses the 9919xxx code set — separate from legacy E_PATIENT_SEX. */
+function patientSexCode(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  const s = String(v).trim().toLowerCase();
+  if (["m", "male", "9919001", "9906003"].includes(s)) return "9919001";
+  if (["f", "female", "9919003", "9906001"].includes(s)) return "9919003";
+  return "9919005";
 }
 
 function renderPayment(trip: Record<string, unknown>): string {
