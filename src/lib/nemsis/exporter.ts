@@ -99,8 +99,9 @@ function codeOrNil(codeSet: readonly NemsisCode[], stored: unknown): string | nu
 
 function renderTime(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  // NEMSIS uses ISO-8601 with timezone; Postgres timestamptz already qualifies.
-  return iso;
+  // NEMSIS DateTimeType pattern demands an explicit numeric offset
+  // (`+HH:MM` / `-HH:MM`) — the "Z" shortcut is NOT accepted. Convert.
+  return iso.endsWith("Z") ? iso.slice(0, -1) + "+00:00" : iso;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -123,45 +124,49 @@ function renderHeader(ctx: ExportContext, tripId: string): string {
 
 function renderResponse(trip: Record<string, unknown>): string {
   const parts: string[] = [];
-  // Agency identity — NEMSIS requires the AgencyGroup wrapper (eResponse.01/.02)
   parts.push(wrap("eResponse.AgencyGroup", null,
     el("eResponse.01", null, String(trip.company_id ?? "")) +
     el("eResponse.02", null, String(trip.company_name ?? "")),
   ));
-  // Service level lives in ServiceGroup wrapper (eResponse.05)
+  // eResponse.03/.04 must come between AgencyGroup and ServiceGroup per XSD sequence.
+  parts.push(el("eResponse.03", null, trip.incident_number as string ?? null));
+  parts.push(el("eResponse.04", null, trip.run_number as string ?? null));
   parts.push(wrap("eResponse.ServiceGroup", null,
     el("eResponse.05", null, trip.service_level ? String(trip.service_level) : null),
   ));
-  // Response IDs / times / unit
-  parts.push(el("eResponse.03", null, trip.incident_number as string ?? null));
-  parts.push(el("eResponse.04", null, trip.run_number as string ?? null));
   parts.push(el("eResponse.13", null, trip.unit_number as string ?? null));
   parts.push(el("eResponse.14", null, trip.shift as string ?? null));
   return wrap("eResponse", null, parts.join(""));
 }
 
 function renderTimes(trip: Record<string, unknown>): string {
+  // eTimes elements are DateTime with strict pattern and NOT nillable — we
+  // must omit rather than xsi:nil when a timestamp is missing.
   const parts: string[] = [];
-  parts.push(el("eTimes.01", null, renderTime(trip.psap_call_time as string)));
-  parts.push(el("eTimes.02", null, renderTime(trip.dispatch_notified_time as string)));
-  parts.push(el("eTimes.03", null, renderTime(trip.dispatch_time as string)));
-  parts.push(el("eTimes.04", null, renderTime(trip.unit_enroute_time as string)));
-  parts.push(el("eTimes.05", null, renderTime(trip.unit_arrived_on_scene_time as string) ?? renderTime(trip.at_scene_time as string)));
-  parts.push(el("eTimes.06", null, renderTime(trip.at_scene_time as string)));
-  parts.push(el("eTimes.07", null, renderTime(trip.patient_contact_time as string)));
-  parts.push(el("eTimes.08", null, renderTime(trip.arrived_at_patient_time as string)));
-  parts.push(el("eTimes.09", null, renderTime(trip.left_scene_time as string)));
-  parts.push(el("eTimes.10", null, renderTime(trip.arrived_at_destination_time as string)));
-  parts.push(el("eTimes.11", null, renderTime(trip.in_service_time as string)));
-  parts.push(el("eTimes.12", null, renderTime(trip.back_in_service_time as string)));
-  parts.push(el("eTimes.13", null, renderTime(trip.canceled_time as string)));
+  const push = (tag: string, iso: unknown) => {
+    const v = renderTime(iso as string | null | undefined);
+    if (v) parts.push(`<${tag}>${v}</${tag}>`);
+  };
+  push("eTimes.01", trip.psap_call_time);
+  push("eTimes.02", trip.dispatch_notified_time);
+  push("eTimes.03", trip.dispatch_time);
+  push("eTimes.04", trip.unit_enroute_time);
+  push("eTimes.05", trip.unit_arrived_on_scene_time ?? trip.at_scene_time);
+  push("eTimes.06", trip.at_scene_time);
+  push("eTimes.07", trip.patient_contact_time);
+  push("eTimes.08", trip.arrived_at_patient_time);
+  push("eTimes.09", trip.left_scene_time);
+  push("eTimes.10", trip.arrived_at_destination_time);
+  push("eTimes.11", trip.in_service_time);
+  push("eTimes.12", trip.back_in_service_time);
+  push("eTimes.13", trip.canceled_time);
   return wrap("eTimes", null, parts.join(""));
 }
 
 function renderPatient(trip: Record<string, unknown>, patient: Record<string, unknown> | null): string {
   if (!patient) return el("ePatient", null, null);
   const parts: string[] = [];
-  parts.push(el("ePatient.NameGroup",
+  parts.push(wrap("ePatient.PatientNameGroup",
     null,
     el("ePatient.02", null, String(patient.last_name ?? "")) +
     el("ePatient.03", null, String(patient.first_name ?? "")),
@@ -169,6 +174,16 @@ function renderPatient(trip: Record<string, unknown>, patient: Record<string, un
   parts.push(el("ePatient.13", null, codeOrNil(E_PATIENT_SEX, patient.gender ?? patient.patient_sex)));
   parts.push(el("ePatient.14", null, patient.date_of_birth ? String(patient.date_of_birth) : null));
   return wrap("ePatient", null, parts.join(""));
+}
+
+function renderPayment(trip: Record<string, unknown>): string {
+  // Minimal ePayment placeholder. Payment section is optional in XSD but must
+  // be positioned before eScene when emitted. We emit only if the caller has
+  // supplied a primary payment method; otherwise the whole section is skipped.
+  if (!trip.primary_payment_method) return "";
+  return wrap("ePayment", null,
+    el("ePayment.01", null, String(trip.primary_payment_method)),
+  );
 }
 
 function renderVitals(trip: Record<string, unknown>): string {
@@ -280,11 +295,13 @@ function renderCrew(personnel: NemsisPersonnel[]): string {
     );
   }
   const groups = personnel.map((p, i) => {
-    const primary = i === 0 ? "9925001" /* Primary Patient Caregiver */ : "9925003" /* Other */;
+    const role = i === 0 ? "9925001" /* Primary Patient Caregiver */ : "9925003" /* Other */;
     return wrap("eCrew.CrewGroup", null,
       el("eCrew.01", null, p.crew_member_id) +
-      el("eCrew.02", null, p.certification_level) +
-      el("eCrew.03", null, primary),
+      // eCrew.02 = crew member role (9925xxx code set)
+      el("eCrew.02", null, role) +
+      // eCrew.03 = level of certification (2403xxx code set)
+      el("eCrew.03", null, p.certification_level),
     );
   }).join("");
   return wrap("eCrew", null, groups);
@@ -477,6 +494,7 @@ export function buildERecord(input: PcrExportInput, ctx: ExportContext): string 
     renderCrew(ctx.personnel),
     renderTimes(trip),
     renderPatient(trip, patient),
+    renderPayment(trip),
     renderScene(trip),
     renderSituation(trip),
     renderHistory(trip),
