@@ -16,6 +16,8 @@ Before claiming "done" on anything with buttons or edge functions: click-test in
 
 ## Memories
 - [Verify Before Done](mem://preferences/verify-before-done) — Click-test buttons & check edge function logs before claiming completion
+- [NEMSIS Alignment Phase 1](mem://features/nemsis-alignment-phase-1) — Dual-write PCR dropdowns to NEMSIS codes without touching billing
+- [NEMSIS Submission Pipeline](mem://features/nemsis-submission-pipeline) — Queue/submit/retry PCR submissions to state EMS repositories
 - [Scope and Identity](mem://project/scope-and-identity) — Comprehensive NEMT OS from dispatch to billing
 - [System Limits](mem://constraints/system-limits) — Strict operational caps for system creation
 - [Notification System](mem://features/notification-system) — PWA notifications for real-time crew alerts

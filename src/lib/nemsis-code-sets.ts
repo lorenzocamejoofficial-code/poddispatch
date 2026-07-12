@@ -272,6 +272,112 @@ export const E_PAIN_SCALE_TYPE: readonly NemsisCode[] = [
   { code: "flacc",   display: "FLACC (non-verbal)",     system: "NEMSIS" },
 ] as const;
 
+// ─────────────────────────────────────────────────────────────────────
+// eProcedures — Procedures performed on the patient
+// ─────────────────────────────────────────────────────────────────────
+// ProceduresCard stores display labels inside `procedures_json.performed[]`
+// and the sub-fields (`smr_device`, `ecg_findings`, `cpr_started_by`,
+// `patient_response`). Nothing in the billing pipeline reads procedures_json
+// — only pcr-narrative iterates the labels for prose. Display-as-code so
+// values round-trip today; exporter will map to SNOMED at emit time via a
+// separate slug→SNOMED table it maintains outside this UI file.
+
+/** eProcedures.03 — Procedure performed (SNOMED). Display-as-code. */
+export const E_PROCEDURES_PERFORMED: readonly NemsisCode[] = [
+  { code: "None performed",                            display: "None performed",                            system: "NEMSIS" },
+  { code: "Spinal motion restriction",                 display: "Spinal motion restriction",                 system: "NEMSIS" },
+  { code: "Cervical collar applied",                   display: "Cervical collar applied",                   system: "NEMSIS" },
+  { code: "Extremity splinting",                       display: "Extremity splinting",                       system: "NEMSIS" },
+  { code: "Wound care and hemorrhage control",         display: "Wound care and hemorrhage control",         system: "NEMSIS" },
+  { code: "Tourniquet applied",                        display: "Tourniquet applied",                        system: "NEMSIS" },
+  { code: "Chest seal applied",                        display: "Chest seal applied",                        system: "NEMSIS" },
+  { code: "Needle decompression",                      display: "Needle decompression",                      system: "NEMSIS" },
+  { code: "CPR in progress",                           display: "CPR in progress",                           system: "NEMSIS" },
+  { code: "AED applied",                               display: "AED applied",                               system: "NEMSIS" },
+  { code: "Patient restraints applied",                display: "Patient restraints applied",                system: "NEMSIS" },
+  { code: "Glucose check performed",                   display: "Glucose check performed",                   system: "NEMSIS" },
+  { code: "12-lead ECG performed",                     display: "12-lead ECG performed",                     system: "NEMSIS" },
+  { code: "Pulse oximetry continuous monitoring",      display: "Pulse oximetry continuous monitoring",      system: "NEMSIS" },
+  { code: "Capnography monitoring",                    display: "Capnography monitoring",                    system: "NEMSIS" },
+] as const;
+
+/** eProcedures.06 — Procedure response */
+export const E_PROCEDURE_RESPONSE: readonly NemsisCode[] = [
+  { code: "Improved",           display: "Improved",           system: "NEMSIS" },
+  { code: "Unchanged",          display: "Unchanged",          system: "NEMSIS" },
+  { code: "Deteriorated",       display: "Deteriorated",       system: "NEMSIS" },
+  { code: "Unable to assess",   display: "Unable to assess",   system: "NEMSIS" },
+] as const;
+
+/** Spinal motion restriction device (agency pick list) */
+export const E_SMR_DEVICE: readonly NemsisCode[] = [
+  { code: "Long spine board",  display: "Long spine board",  system: "NEMSIS" },
+  { code: "Scoop stretcher",   display: "Scoop stretcher",   system: "NEMSIS" },
+  { code: "Vacuum mattress",   display: "Vacuum mattress",   system: "NEMSIS" },
+] as const;
+
+/** eArrest.09 — Who initiated CPR */
+export const E_CPR_STARTED_BY: readonly NemsisCode[] = [
+  { code: "Bystander",        display: "Bystander",        system: "NEMSIS" },
+  { code: "First responder",  display: "First responder",  system: "NEMSIS" },
+  { code: "EMS crew",         display: "EMS crew",         system: "NEMSIS" },
+] as const;
+
+/** eArrest.12 — Rhythm on ECG */
+export const E_ECG_FINDINGS: readonly NemsisCode[] = [
+  { code: "Normal sinus rhythm",       display: "Normal sinus rhythm",       system: "NEMSIS" },
+  { code: "ST elevation",              display: "ST elevation",              system: "NEMSIS" },
+  { code: "ST depression",             display: "ST depression",             system: "NEMSIS" },
+  { code: "Left bundle branch block",  display: "Left bundle branch block",  system: "NEMSIS" },
+  { code: "Atrial fibrillation",       display: "Atrial fibrillation",       system: "NEMSIS" },
+  { code: "Other",                     display: "Other",                     system: "NEMSIS" },
+] as const;
+
+// ─────────────────────────────────────────────────────────────────────
+// eDisposition — Incident/patient disposition
+// ─────────────────────────────────────────────────────────────────────
+// Dispositions are the free-text label stored on the trip/PCR. Billing
+// does not branch on the display string (it uses trip status + payer),
+// so display-as-code is safe.
+
+/** eDisposition.12 — Incident/Patient Disposition */
+export const E_DISPOSITION: readonly NemsisCode[] = [
+  { code: "Transported to Destination Without Incident",  display: "Transported to Destination Without Incident",  system: "NEMSIS" },
+  { code: "Patient Refused Transport",                    display: "Patient Refused Transport",                    system: "NEMSIS" },
+  { code: "Patient Transferred to Higher Level of Care",  display: "Patient Transferred to Higher Level of Care",  system: "NEMSIS" },
+  { code: "Patient Deceased on Scene",                    display: "Patient Deceased on Scene",                    system: "NEMSIS" },
+  { code: "Cancelled Prior to Arrival",                   display: "Cancelled Prior to Arrival",                   system: "NEMSIS" },
+  { code: "AMA — Against Medical Advice",                 display: "AMA — Against Medical Advice",                 system: "NEMSIS" },
+  { code: "Diverted to Different Destination",            display: "Diverted to Different Destination",            system: "NEMSIS" },
+  { code: "Patient Eloped",                               display: "Patient Eloped",                               system: "NEMSIS" },
+  { code: "Released at Scene to Family",                  display: "Released at Scene to Family",                  system: "NEMSIS" },
+  { code: "Transferred to Law Enforcement",               display: "Transferred to Law Enforcement",               system: "NEMSIS" },
+  { code: "Cancelled at Scene — No Patient Contact",      display: "Cancelled at Scene — No Patient Contact",      system: "NEMSIS" },
+  { code: "Cancelled by Sending Facility",                display: "Cancelled by Sending Facility",                system: "NEMSIS" },
+] as const;
+
+/** eDisposition.23 — Destination/Transferred to type of location */
+export const E_DESTINATION_TYPE: readonly NemsisCode[] = [
+  { code: "Home",                 display: "Home",                 system: "NEMSIS" },
+  { code: "SNF / Nursing Facility", display: "SNF / Nursing Facility", system: "NEMSIS" },
+  { code: "Assisted Living",      display: "Assisted Living",      system: "NEMSIS" },
+  { code: "Another Hospital",     display: "Another Hospital",     system: "NEMSIS" },
+  { code: "Hospice",              display: "Hospice",              system: "NEMSIS" },
+  { code: "Group Home",           display: "Group Home",           system: "NEMSIS" },
+  { code: "Acute Rehab (IRF)",    display: "Acute Rehab (IRF)",    system: "NEMSIS" },
+  { code: "Dialysis Facility",    display: "Dialysis Facility",    system: "NEMSIS" },
+  { code: "LTACH",                display: "LTACH",                system: "NEMSIS" },
+  { code: "Outpatient Specialty", display: "Outpatient Specialty", system: "NEMSIS" },
+  { code: "Mental Health Facility", display: "Mental Health Facility", system: "NEMSIS" },
+  { code: "Wound Care Center",    display: "Wound Care Center",    system: "NEMSIS" },
+  { code: "Cancer Center / Infusion", display: "Cancer Center / Infusion", system: "NEMSIS" },
+  { code: "Independent Living",   display: "Independent Living",   system: "NEMSIS" },
+  { code: "Correctional Facility", display: "Correctional Facility", system: "NEMSIS" },
+  { code: "Scene of Injury",      display: "Scene of Injury",      system: "NEMSIS" },
+  { code: "Residence",            display: "Residence",            system: "NEMSIS" },
+  { code: "Other",                display: "Other",                system: "NEMSIS" },
+] as const;
+
 /**
  * ePatient.13 — Patient Gender.
  * The 837P generator normalizes patient_sex to M/F/U via dmgSexCode(), so those
@@ -312,6 +418,13 @@ export const NEMSIS_CODE_SETS = {
   gcs_verbal:             E_GCS_VERBAL,
   gcs_motor:              E_GCS_MOTOR,
   pain_scale_type:        E_PAIN_SCALE_TYPE,
+  procedures_performed:   E_PROCEDURES_PERFORMED,
+  procedure_response:     E_PROCEDURE_RESPONSE,
+  smr_device:             E_SMR_DEVICE,
+  cpr_started_by:         E_CPR_STARTED_BY,
+  ecg_findings:           E_ECG_FINDINGS,
+  disposition:            E_DISPOSITION,
+  destination_type:       E_DESTINATION_TYPE,
 } as const;
 
 export type NemsisCodeSetKey = keyof typeof NEMSIS_CODE_SETS;

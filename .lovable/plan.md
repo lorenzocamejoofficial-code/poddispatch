@@ -31,36 +31,45 @@ Swap every PCR dropdown to NEMSIS v3.5.0 code sets via dual-write (`field` = dis
   - [x] Translation helper (`src/lib/nemsis-translate.ts`)
   - [x] Airway, Oxygen, LOC, Skin, Medication route/response, Patient sex
   - [x] Vitals categorical pick lists (pulse quality, respiratory effort, ETCO2 method, GCS E/V/M, pain scale type). Numeric vitals (BP/pulse/resp/SpO2/temp/BG) emit as LOINC observations at export time — no card change needed.
-  - [ ] Procedures (eProcedures) — full SNOMED procedure list
-  - [ ] Assessment/injury (eInjury, eSituation) — mechanism-of-injury, cause, chief complaint
-  - [ ] Disposition (eDisposition) — destination, transport method, reason
-  - [ ] Times (eTimes) — already mostly aligned, verify format
-  - [ ] Backfill script for historical rows
+  - [x] Procedures (eProcedures), procedure response, SMR device, CPR started-by, ECG rhythm
+  - [x] Disposition (eDisposition.12) and Destination type (eDisposition.23)
+  - [x] Times (eTimes) — already ISO-8601 timestamptz; matches NEMSIS format, no change
+  - [ ] Assessment/injury (eInjury, eSituation) — deferred to Phase 2 (needs new columns for mechanism-of-injury / cause)
+  - [x] Backfill script — NOT NEEDED. Phase 1 uses display-as-code (labels round-trip through `findByDisplay`), so historical rows already resolve to a NEMSIS code with no data migration.
+
+**Phase 1 status: DONE for all display-only dropdowns.** Remaining assessment/injury work moves to Phase 2 because it requires new schema columns, not just code-set mapping.
 
 ### Phase 2 — Missing NEMSIS mandatory elements
-Add fields NEMSIS requires that Pod Dispatch does not yet capture. Each addition is additive (new column or JSONB key), never a mutation of billing columns.
-  - dAgency (agency info) — mostly present, populate from `companies`
-  - dPersonnel (crew credentials) — populate from `crew_certifications`
-  - dVehicle (vehicle info) — populate from `trucks`
-  - eRecord/eResponse/eScene/eArrest — audit each for missing mandatory fields
+Additive only; no billing-column changes.
+  - [x] dAgency populated from `companies` (npi, state_ems_agency_number, state_ems_license_state)
+  - [x] dPersonnel populated from `crew_certifications` (state license, cert level)
+  - [x] dVehicle populated from `trucks` (unit #, VIN, plate)
+  - [ ] eScene / eArrest / eInjury deep audit — deferred until TAC test packet arrives; test packet will surface any missing mandatory fields with concrete failure messages, faster than a speculative audit
 
 ### Phase 3 — GEMSIS state-specific elements (`eCustom`)
-GA DPH adds ~15 state-required fields on top of NEMSIS core. Isolated to a per-state module (`src/lib/nemsis/states/ga.ts`) so adding AL/FL/SC/TN/NC is a new file, not a rewrite.
+  - [x] `src/lib/nemsis/states/ga.ts` renders GA eCustom block (loaded miles, wait time, vendor software identity). Real CustomElementIDs slot in when GA DPH sends the current schema with vendor creds.
+  - [ ] AL / FL / SC / TN / NC sibling modules — add on demand.
 
 ### Phase 4 — XSD schema validation
-Validate every generated payload against the NEMSIS 3.5.0 XSD before it leaves the app. Runs on PCR finalize; failures block submission (but never block claim generation).
+Blocked on: NEMSIS 3.5.0 XSD download (public but versioned; pull once vendor cert docs list the exact filename). Wire libxmljs2 into the edge function; fail submission on validation error, never block claims.
 
 ### Phase 5 — Schematron business rules
-Apply NEMSIS's ~200 business-rule assertions. Same failure model as Phase 4.
+Blocked on: NEMSIS Schematron file (bundled with the XSD). Same failure model as Phase 4.
 
 ### Phase 6 — NEMSIS XML exporter
-Pure function: `PCR → NEMSIS 3.5.0 XML`. No side effects. Unit-tested against sample PCRs from NEMSIS TAC. Emits both file-download and Web-Service payload formats.
+  - [x] `src/lib/nemsis/exporter.ts` — `buildERecord` (Web Service) + `buildStateDataSet` (file download) + `buildDemDataSet`
+  - [x] 7 unit tests covering escaping, code resolution, test-mode flag, per-state eCustom, xsi:nil for missing values
+  - [ ] Swap placeholder XML in edge function to real exporter once module federation for Deno-safe imports is set up (small task)
 
 ### Phase 7 — GEMSIS Web Service submission
-Edge function `submit-gemsis-pcr` that POSTs to GA DPH endpoint, parses ack/nack, stores result in `nemsis_submissions` table, retries on transient failure. Nightly cron for retries. Test-mode flag routes to NEMSIS TAC sandbox endpoint.
+  - [x] `nemsis_submissions` table (audit trail, RLS-scoped to company, service-role writes only)
+  - [x] `submit-gemsis-pcr` edge function (queues + POSTs + records ack/nack)
+  - [x] `STATE_ENDPOINTS` map ready to accept endpoints from vendor onboarding
+  - [ ] Nightly retry cron — will be scheduled after first real endpoint lands
+  - [ ] Hook PCR finalize → `supabase.functions.invoke("submit-gemsis-pcr", ...)` — will wire in when endpoints exist so nothing silently fails today
 
 ### Phase 8 — NEMSIS TAC compliance testing
-When user receives TAC test packet: run the 10–20 synthetic PCRs through the exporter, submit via test mode, iterate on any failures. This is the last step before the vendor listing appears.
+USER ACTION. When TAC test packet arrives: run synthetic PCRs through exporter, submit in test mode, iterate on any validation errors. Last step before vendor listing.
 
 ---
 

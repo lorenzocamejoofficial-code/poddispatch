@@ -3224,6 +3224,78 @@ export type Database = {
           },
         ]
       }
+      nemsis_submissions: {
+        Row: {
+          ack_xml: string | null
+          acknowledged_at: string | null
+          company_id: string
+          created_at: string
+          destination_state: string
+          endpoint_url: string | null
+          error_message: string | null
+          id: string
+          payload_xml: string | null
+          queued_at: string
+          retry_count: number
+          status: string
+          submitted_at: string | null
+          test_mode: boolean
+          trip_id: string
+          updated_at: string
+        }
+        Insert: {
+          ack_xml?: string | null
+          acknowledged_at?: string | null
+          company_id: string
+          created_at?: string
+          destination_state: string
+          endpoint_url?: string | null
+          error_message?: string | null
+          id?: string
+          payload_xml?: string | null
+          queued_at?: string
+          retry_count?: number
+          status?: string
+          submitted_at?: string | null
+          test_mode?: boolean
+          trip_id: string
+          updated_at?: string
+        }
+        Update: {
+          ack_xml?: string | null
+          acknowledged_at?: string | null
+          company_id?: string
+          created_at?: string
+          destination_state?: string
+          endpoint_url?: string | null
+          error_message?: string | null
+          id?: string
+          payload_xml?: string | null
+          queued_at?: string
+          retry_count?: number
+          status?: string
+          submitted_at?: string | null
+          test_mode?: boolean
+          trip_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nemsis_submissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nemsis_submissions_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trip_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_preferences: {
         Row: {
           created_at: string
