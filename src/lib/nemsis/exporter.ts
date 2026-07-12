@@ -452,7 +452,12 @@ function renderArrest(): string {
     el("eArrest.02", null, "3002001") /* Presumed Cardiac (sentinel; unused when .01=No) */ +
     el("eArrest.03", null, "3003001") /* Attempted Defibrillation (sentinel) */ +
     el("eArrest.04", null, "3004001") /* Not Witnessed */ +
-    el("eArrest.07", null, "3007001") /* Yes AED (sentinel; unused when .01=No) */,
+    el("eArrest.07", null, "3007001") /* AED sentinel */ +
+    el("eArrest.09", null, "3009001") /* Type of CPR Provided sentinel */ +
+    el("eArrest.11", null, "3011001") /* First Monitored Rhythm sentinel */ +
+    el("eArrest.12", null, "3012001") /* ROSC sentinel */ +
+    el("eArrest.14", null, `<eArrest.14 xsi:nil="true"/>`.match(/./) ? new Date().toISOString().replace(/\.\d+Z$/, "+00:00") : "") +
+    `<eArrest.18 xsi:nil="true" NV="7701001"/>`,
   );
 }
 
