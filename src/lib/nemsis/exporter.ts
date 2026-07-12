@@ -616,6 +616,7 @@ export function buildERecord(input: PcrExportInput, ctx: ExportContext): string 
     renderMedications(trip),
     renderProcedures(trip),
     renderDisposition(trip),
+    renderOutcome(),
   ].join("");
 
   // State-specific eCustom block, isolated per-state.
