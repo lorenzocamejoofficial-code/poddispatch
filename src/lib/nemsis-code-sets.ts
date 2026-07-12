@@ -187,6 +187,91 @@ export const E_MEDICATION_RESPONSE: readonly NemsisCode[] = [
   { code: "3010007", display: "Unknown",   system: "NEMSIS" },
 ] as const;
 
+// ─────────────────────────────────────────────────────────────────────
+// eVitals — Pulse rhythm/quality, respiratory effort, ETCO2 method
+// ─────────────────────────────────────────────────────────────────────
+//
+// VitalsCard stores these as slugs (`strong_regular`, `shallow`, etc.) inside
+// `vitals_json`. Nothing in the billing pipeline reads vitals_json — the 837P
+// generator only pulls numeric vitals when a payer requires them, and it
+// never inspects the quality slugs. Registering these mappings lets the
+// future NEMSIS exporter emit eVitals.10 (Pulse rhythm/quality),
+// eVitals.14 (Respiratory effort), and eVitals.17 (ETCO2 method) without
+// changing the card write path. Slug-as-code matches the LOC/Skin pattern.
+
+/** eVitals.10 — Pulse Rhythm / Quality */
+export const E_PULSE_QUALITY: readonly NemsisCode[] = [
+  { code: "strong_regular",   display: "Strong and Regular",        system: "NEMSIS" },
+  { code: "weak_regular",     display: "Weak and Regular",          system: "NEMSIS" },
+  { code: "strong_irregular", display: "Strong and Irregular",      system: "NEMSIS" },
+  { code: "weak_irregular",   display: "Weak and Irregular",        system: "NEMSIS" },
+  { code: "bounding",         display: "Bounding",                  system: "NEMSIS" },
+  { code: "thready",          display: "Thready",                   system: "NEMSIS" },
+  { code: "palpated_radial",  display: "Palpated only — radial",    system: "NEMSIS" },
+  { code: "per_monitor",      display: "Per monitor only",          system: "NEMSIS" },
+  { code: "absent",           display: "Absent",                    system: "NEMSIS" },
+] as const;
+
+/** eVitals.14 — Respiratory Effort */
+export const E_RESPIRATORY_EFFORT: readonly NemsisCode[] = [
+  { code: "normal",           display: "Normal and Unlabored",              system: "NEMSIS" },
+  { code: "shallow",          display: "Shallow",                           system: "NEMSIS" },
+  { code: "labored",          display: "Labored",                           system: "NEMSIS" },
+  { code: "rapid",            display: "Rapid",                             system: "NEMSIS" },
+  { code: "slow",             display: "Slow",                              system: "NEMSIS" },
+  { code: "absent",           display: "Absent",                            system: "NEMSIS" },
+  { code: "irregular",        display: "Irregular",                         system: "NEMSIS" },
+  { code: "assisted",         display: "Assisted (BVM/oxygen)",             system: "NEMSIS" },
+  { code: "trach_patent",     display: "Tracheostomy patent",               system: "NEMSIS" },
+  { code: "trach_secretions", display: "Tracheostomy with secretions",      system: "NEMSIS" },
+  { code: "vent_dependent",   display: "Ventilator dependent",              system: "NEMSIS" },
+  { code: "accessory_muscle", display: "Accessory muscle use",              system: "NEMSIS" },
+  { code: "retractions",      display: "Retractions",                       system: "NEMSIS" },
+  { code: "nasal_flaring",    display: "Nasal flaring",                     system: "NEMSIS" },
+  { code: "pursed_lip",       display: "Pursed lip breathing",              system: "NEMSIS" },
+  { code: "apneic",           display: "Apneic episodes",                   system: "NEMSIS" },
+] as const;
+
+/** eVitals.17 — End-Tidal CO2 method of measurement */
+export const E_ETCO2_METHOD: readonly NemsisCode[] = [
+  { code: "Nasal cannula sampling", display: "Nasal cannula sampling", system: "NEMSIS" },
+  { code: "Oral airway sampling",   display: "Oral airway sampling",   system: "NEMSIS" },
+  { code: "Endotracheal tube",      display: "Endotracheal tube",      system: "NEMSIS" },
+  { code: "Not measured",           display: "Not measured",           system: "NEMSIS" },
+] as const;
+
+/** eVitals.19 — Glasgow Coma Score components (values are the point score) */
+export const E_GCS_EYE: readonly NemsisCode[] = [
+  { code: "4", display: "4 — Spontaneous", system: "NEMSIS" },
+  { code: "3", display: "3 — To Voice",    system: "NEMSIS" },
+  { code: "2", display: "2 — To Pain",     system: "NEMSIS" },
+  { code: "1", display: "1 — None",        system: "NEMSIS" },
+] as const;
+
+export const E_GCS_VERBAL: readonly NemsisCode[] = [
+  { code: "5", display: "5 — Oriented",                system: "NEMSIS" },
+  { code: "4", display: "4 — Confused",                system: "NEMSIS" },
+  { code: "3", display: "3 — Inappropriate Words",     system: "NEMSIS" },
+  { code: "2", display: "2 — Incomprehensible Sounds", system: "NEMSIS" },
+  { code: "1", display: "1 — None",                    system: "NEMSIS" },
+] as const;
+
+export const E_GCS_MOTOR: readonly NemsisCode[] = [
+  { code: "6", display: "6 — Follows Commands",        system: "NEMSIS" },
+  { code: "5", display: "5 — Localizes Pain",          system: "NEMSIS" },
+  { code: "4", display: "4 — Withdrawal",              system: "NEMSIS" },
+  { code: "3", display: "3 — Flexion (Decorticate)",   system: "NEMSIS" },
+  { code: "2", display: "2 — Extension (Decerebrate)", system: "NEMSIS" },
+  { code: "1", display: "1 — None",                    system: "NEMSIS" },
+] as const;
+
+/** eVitals.27 — Pain Scale Type */
+export const E_PAIN_SCALE_TYPE: readonly NemsisCode[] = [
+  { code: "numeric", display: "Numeric (0–10)",         system: "NEMSIS" },
+  { code: "faces",   display: "Wong-Baker FACES",       system: "NEMSIS" },
+  { code: "flacc",   display: "FLACC (non-verbal)",     system: "NEMSIS" },
+] as const;
+
 /**
  * ePatient.13 — Patient Gender.
  * The 837P generator normalizes patient_sex to M/F/U via dmgSexCode(), so those
@@ -220,6 +305,13 @@ export const NEMSIS_CODE_SETS = {
   medication_route:       E_MEDICATION_ROUTE,
   medication_response:    E_MEDICATION_RESPONSE,
   patient_sex:            E_PATIENT_SEX,
+  pulse_quality:          E_PULSE_QUALITY,
+  respiratory_effort:     E_RESPIRATORY_EFFORT,
+  etco2_method:           E_ETCO2_METHOD,
+  gcs_eye:                E_GCS_EYE,
+  gcs_verbal:             E_GCS_VERBAL,
+  gcs_motor:              E_GCS_MOTOR,
+  pain_scale_type:        E_PAIN_SCALE_TYPE,
 } as const;
 
 export type NemsisCodeSetKey = keyof typeof NEMSIS_CODE_SETS;
