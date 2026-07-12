@@ -293,6 +293,7 @@ function renderVitals(trip: Record<string, unknown>): string {
       `<eVitals.29 xsi:nil="true" NV="7701003"/>` +
       `<eVitals.30 xsi:nil="true" NV="7701003"/>`,
     ));
+    parts.push(`<eVitals.31 xsi:nil="true" NV="7701003"/>`);
     return wrap("eVitals.VitalGroup", null, parts.join(""));
   }).join("");
   return wrap("eVitals", null, rendered);
