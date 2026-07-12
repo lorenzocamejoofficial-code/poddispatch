@@ -141,11 +141,19 @@ function renderResponse(trip: Record<string, unknown>): string {
 
 function renderTimes(trip: Record<string, unknown>): string {
   const parts: string[] = [];
+  parts.push(el("eTimes.01", null, renderTime(trip.psap_call_time as string)));
+  parts.push(el("eTimes.02", null, renderTime(trip.dispatch_notified_time as string)));
   parts.push(el("eTimes.03", null, renderTime(trip.dispatch_time as string)));
+  parts.push(el("eTimes.04", null, renderTime(trip.unit_enroute_time as string)));
+  parts.push(el("eTimes.05", null, renderTime(trip.unit_arrived_on_scene_time as string) ?? renderTime(trip.at_scene_time as string)));
   parts.push(el("eTimes.06", null, renderTime(trip.at_scene_time as string)));
   parts.push(el("eTimes.07", null, renderTime(trip.patient_contact_time as string)));
+  parts.push(el("eTimes.08", null, renderTime(trip.arrived_at_patient_time as string)));
   parts.push(el("eTimes.09", null, renderTime(trip.left_scene_time as string)));
+  parts.push(el("eTimes.10", null, renderTime(trip.arrived_at_destination_time as string)));
   parts.push(el("eTimes.11", null, renderTime(trip.in_service_time as string)));
+  parts.push(el("eTimes.12", null, renderTime(trip.back_in_service_time as string)));
+  parts.push(el("eTimes.13", null, renderTime(trip.canceled_time as string)));
   return wrap("eTimes", null, parts.join(""));
 }
 
@@ -240,7 +248,8 @@ function renderProcedures(trip: Record<string, unknown>): string {
 
 function renderExam(trip: Record<string, unknown>): string {
   const parts: string[] = [];
-  if (trip.chief_complaint) parts.push(el("eSituation.11", null, String(trip.chief_complaint)));
+  // Chief complaint belongs in eSituation, not eExam — moved to renderSituation.
+  parts.push(el("eExam.01", null, renderTime(trip.exam_time as string ?? trip.patient_contact_time as string)));
   if (trip.level_of_consciousness) {
     parts.push(el("eExam.11", null, codeOrNil(E_LEVEL_OF_CONSCIOUSNESS, trip.level_of_consciousness)));
   }
@@ -250,9 +259,119 @@ function renderExam(trip: Record<string, unknown>): string {
   return wrap("eExam", null, parts.join(""));
 }
 
+function renderDispatch(trip: Record<string, unknown>): string {
+  // eDispatch.01 — complaint reported by dispatch (code)
+  // eDispatch.02 — EMD performed (nil="not applicable" for non-emergency IFT)
+  const parts: string[] = [];
+  parts.push(el("eDispatch.01", null, trip.dispatch_complaint as string ?? null));
+  parts.push(`<eDispatch.02 xsi:nil="true" NV="7701001"/>`);
+  return wrap("eDispatch", null, parts.join(""));
+}
+
+function renderCrew(personnel: NemsisPersonnel[]): string {
+  if (personnel.length === 0) {
+    return wrap("eCrew", null,
+      wrap("eCrew.CrewGroup", null,
+        el("eCrew.01", null, null) +
+        el("eCrew.02", null, null) +
+        el("eCrew.03", null, null),
+      ),
+    );
+  }
+  const groups = personnel.map((p, i) => {
+    const primary = i === 0 ? "9925001" /* Primary Patient Caregiver */ : "9925003" /* Other */;
+    return wrap("eCrew.CrewGroup", null,
+      el("eCrew.01", null, p.crew_member_id) +
+      el("eCrew.02", null, p.certification_level) +
+      el("eCrew.03", null, primary),
+    );
+  }).join("");
+  return wrap("eCrew", null, groups);
+}
+
+function renderScene(trip: Record<string, unknown>): string {
+  const parts: string[] = [];
+  // eScene.06 — number of patients at scene
+  parts.push(el("eScene.06", null, trip.patients_at_scene ? String(trip.patients_at_scene) : "1"));
+  // eScene.07 — mass casualty incident (nil=NA for routine IFT)
+  parts.push(`<eScene.07 xsi:nil="true" NV="7701001"/>`);
+  // eScene.09 — incident address street
+  parts.push(el("eScene.09", null, trip.scene_address as string ?? trip.pickup_address as string ?? null));
+  // eScene.13 — incident city, .15 state, .17 zip, .19 county
+  parts.push(el("eScene.13", null, trip.scene_city as string ?? trip.pickup_city as string ?? null));
+  parts.push(el("eScene.15", null, trip.scene_state as string ?? trip.pickup_state as string ?? null));
+  parts.push(el("eScene.17", null, trip.scene_zip as string ?? trip.pickup_zip as string ?? null));
+  parts.push(el("eScene.19", null, trip.scene_county as string ?? null));
+  parts.push(el("eScene.21", null, trip.scene_country as string ?? "US"));
+  return wrap("eScene", null, parts.join(""));
+}
+
+function renderSituation(trip: Record<string, unknown>): string {
+  const parts: string[] = [];
+  // eSituation.02 — date/time symptom onset (nil=not applicable for IFT)
+  parts.push(`<eSituation.02 xsi:nil="true" NV="7701001"/>`);
+  // eSituation.07 — possible injury indicator
+  parts.push(el("eSituation.07", null, trip.possible_injury as string ?? "9922003" /* No */));
+  // eSituation.09 — complaint reported by dispatch (patient-side)
+  parts.push(el("eSituation.09", null, trip.dispatch_complaint as string ?? null));
+  // eSituation.10 — chief complaint anatomic location (nil if unknown)
+  parts.push(`<eSituation.10 xsi:nil="true" NV="7701003"/>`);
+  // eSituation.11 — primary complaint statement (free text)
+  parts.push(el("eSituation.11", null, trip.chief_complaint as string ?? null));
+  // eSituation.12 — duration of complaint
+  parts.push(`<eSituation.12 xsi:nil="true" NV="7701003"/>`);
+  // eSituation.13 — time units for duration
+  parts.push(`<eSituation.13 xsi:nil="true" NV="7701003"/>`);
+  // eSituation.18 — initial patient acuity
+  parts.push(el("eSituation.18", null, trip.patient_acuity as string ?? "2318003" /* Lower Acuity */));
+  return wrap("eSituation", null, parts.join(""));
+}
+
+function renderHistory(trip: Record<string, unknown>): string {
+  // eHistory carries advance directives, medical/surgical history, allergies.
+  // For a minimal IFT record we emit "not recorded" placeholders for the
+  // required elements plus any real data we happen to have on trip.
+  const parts: string[] = [];
+  // eHistory.06 — barriers to care (nil=none for routine)
+  parts.push(el("eHistory.06", null, "3505001" /* None */));
+  // eHistory.08 — medical/surgical history (repeatable, use "None reported")
+  parts.push(el("eHistory.08", null, trip.medical_history as string ?? "3108001" /* None reported */));
+  // eHistory.12 — medication allergies (repeatable)
+  parts.push(el("eHistory.12", null, trip.allergies as string ?? "3112001" /* NKA */));
+  // eHistory.13 — environmental/food allergies
+  parts.push(el("eHistory.13", null, "3113001" /* NKA */));
+  return wrap("eHistory", null, parts.join(""));
+}
+
 function renderDisposition(trip: Record<string, unknown>): string {
   const parts: string[] = [];
+  // eDisposition.01 — destination/transferred to name
+  parts.push(el("eDisposition.01", null, trip.destination_name as string ?? null));
+  // eDisposition.02 — destination street address
+  parts.push(el("eDisposition.02", null, trip.destination_address as string ?? null));
+  // eDisposition.05 — destination city, .07 state, .09 zip, .11 country
+  parts.push(el("eDisposition.05", null, trip.destination_city as string ?? null));
+  parts.push(el("eDisposition.07", null, trip.destination_state as string ?? null));
+  parts.push(el("eDisposition.09", null, trip.destination_zip as string ?? null));
+  parts.push(el("eDisposition.11", null, trip.destination_country as string ?? "US"));
+  // eDisposition.12 — incident/patient disposition (existing behavior)
   parts.push(el("eDisposition.12", null, codeOrNil(E_DISPOSITION, trip.disposition)));
+  // eDisposition.16 — level of care of this unit
+  parts.push(el("eDisposition.16", null, trip.level_of_care as string ?? null));
+  // eDisposition.17 — patient evaluation/care category
+  parts.push(el("eDisposition.17", null, trip.evaluation_care as string ?? null));
+  // eDisposition.19 — transport disposition
+  parts.push(el("eDisposition.19", null, codeOrNil(E_DISPOSITION, trip.disposition)));
+  // eDisposition.20 — reason for choosing destination (nil=NA if unknown)
+  parts.push(`<eDisposition.20 xsi:nil="true" NV="7701003"/>`);
+  // eDisposition.21 — type of destination
+  parts.push(el("eDisposition.21", null, codeOrNil(E_DESTINATION_TYPE, trip.destination_type)));
+  // eDisposition.23 — transport mode from scene
+  parts.push(el("eDisposition.23", null, trip.transport_mode as string ?? "4523003" /* Ground */));
+  // eDisposition.27 — condition of patient at destination
+  parts.push(el("eDisposition.27", null, trip.patient_condition_at_destination as string ?? null));
+  // eDisposition.28 — transferred patient care to
+  parts.push(el("eDisposition.28", null, trip.transferred_care_to as string ?? null));
   return wrap("eDisposition", null, parts.join(""));
 }
 
@@ -332,15 +451,20 @@ export function buildERecord(input: PcrExportInput, ctx: ExportContext): string 
   const body = [
     renderHeader(ctx, tripId),
     renderResponse(trip),
+    renderDispatch(trip),
+    renderCrew(ctx.personnel),
     renderTimes(trip),
     renderPatient(trip, patient),
-    renderExam(trip),
+    renderScene(trip),
+    renderSituation(trip),
+    renderHistory(trip),
+    renderNarrative(trip),
     renderVitals(trip),
+    renderExam(trip),
     renderAirway(trip),
     renderMedications(trip),
     renderProcedures(trip),
     renderDisposition(trip),
-    renderNarrative(trip),
   ].join("");
 
   // State-specific eCustom block, isolated per-state.
