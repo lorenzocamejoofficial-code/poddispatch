@@ -564,7 +564,7 @@ function renderDisposition(trip: Record<string, unknown>): string {
     // .22 Hospital In-Patient Destination — required, nillable.
     `<eDisposition.22 xsi:nil="true" NV="7701003"/>` +
     // .23 Hospital Capability — required, nillable.
-    el("eDisposition.23", null, "4223001"),
+    el("eDisposition.23", null, "9908001"),
   );
 }
 
