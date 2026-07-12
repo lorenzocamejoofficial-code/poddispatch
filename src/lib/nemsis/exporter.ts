@@ -497,6 +497,8 @@ function renderArrest(): string {
     el("eArrest.11", null, "3011001") /* sentinel */ +
     el("eArrest.12", null, "3012001") /* sentinel */ +
     el("eArrest.14", null, nowIso) +
+    el("eArrest.16", null, "3016001") +
+    el("eArrest.17", null, "9901001") +
     el("eArrest.18", null, nowIso),
   );
 }
@@ -560,7 +562,7 @@ function renderDisposition(trip: Record<string, unknown>): string {
     // .22 Hospital In-Patient Destination — required, nillable.
     `<eDisposition.22 xsi:nil="true" NV="7701003"/>` +
     // .23 Hospital Capability — required, nillable.
-    `<eDisposition.23 xsi:nil="true" NV="7701003"/>`,
+    el("eDisposition.23", null, "4223001"),
   );
 }
 
