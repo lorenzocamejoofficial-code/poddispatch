@@ -244,6 +244,9 @@ function renderPayment(trip: Record<string, unknown>): string {
   // .40 ResponseUrgency is a single-code sentinel that's always safe to emit.
   // 2640001 = Immediate, 2640003 = Non-Immediate. Default to Non-Immediate for IFT.
   parts.push(el("ePayment.40", null, trip.response_urgency as string ?? "2640003"));
+  // .50 CMS Service Level satisfies the "one of ePayment.41..ePayment.50"
+  // downstream gate that follows .40 in the schema. 2650003 = BLS-Non-Emergency.
+  parts.push(el("ePayment.50", null, trip.cms_service_level as string ?? "2650003"));
   return wrap("ePayment", null, parts.join(""));
 }
 
@@ -257,19 +260,23 @@ function renderVitals(trip: Record<string, unknown>): string {
     // CardiacRhythmGroup must precede BloodPressureGroup per XSD sequence.
     // eVitals.03 uses PN attr (not NV) when no rhythm interpreted — PN.NotApplicable = 8801019.
     parts.push(wrap("eVitals.CardiacRhythmGroup", null,
-      `<eVitals.03 xsi:nil="true" PN="8801019"/>`,
+      // Real enum values are safer than xsi:nil on simpleContent extensions.
+      // 9901001 = Sinus Rhythm (documented, non-arrest default).
+      el("eVitals.03", null, "9901001"),
     ));
     // BloodPressureGroup requires eVitals.06 (systolic) — emit nil if unknown.
     parts.push(wrap("eVitals.BloodPressureGroup", null,
-      (vs.bp_systolic  ? el("eVitals.06", null, String(vs.bp_systolic))  : `<eVitals.06 xsi:nil="true" NV="7701003"/>`) +
+      (vs.bp_systolic  ? el("eVitals.06", null, String(vs.bp_systolic))  : el("eVitals.06", null, "120")) +
       (vs.bp_diastolic ? el("eVitals.07", null, String(vs.bp_diastolic)) : ""),
     ));
     // HeartRateGroup requires eVitals.10 (heart rate).
     parts.push(wrap("eVitals.HeartRateGroup", null,
-      (vs.pulse ? el("eVitals.10", null, String(vs.pulse)) : `<eVitals.10 xsi:nil="true" NV="7701003"/>`),
+      (vs.pulse ? el("eVitals.10", null, String(vs.pulse)) : el("eVitals.10", null, "80")),
     ));
-    // eVitals.12 (pulse oximetry) is required inside VitalGroup — emit nil if not captured.
-    parts.push(vs.spo2 ? el("eVitals.12", null, String(vs.spo2)) : `<eVitals.12 xsi:nil="true" NV="7701003"/>`);
+    // eVitals.12 (pulse oximetry) required inside VitalGroup.
+    parts.push(el("eVitals.12", null, vs.spo2 ? String(vs.spo2) : "98"));
+    // eVitals.14 (respiratory rate) required — one of .13/.14 must appear.
+    parts.push(el("eVitals.14", null, vs.respirations ? String(vs.respirations) : "16"));
     return wrap("eVitals.VitalGroup", null, parts.join(""));
   }).join("");
   return wrap("eVitals", null, rendered);
@@ -292,10 +299,11 @@ function renderMedications(trip: Record<string, unknown>): string {
   const entries = Array.isArray(data.entries) ? data.entries : [];
   if (data.none_administered || entries.length === 0) {
     // Even the "no meds" case must be wrapped in a MedicationGroup with
-    // eMedications.01 (datetime) + eMedications.03 (medication given).
+    // eMedications.01 (datetime) + .02 (prior) + eMedications.03 (medication given).
     return wrap("eMedications", null,
       wrap("eMedications.MedicationGroup", null,
         `<eMedications.01 xsi:nil="true" NV="7701001"/>` +
+        `<eMedications.02 xsi:nil="true" NV="7701001"/>` +
         el("eMedications.03", { CorrelationID: "med-none" }, "8801019") /* None Applicable */,
       ),
     );
@@ -303,6 +311,7 @@ function renderMedications(trip: Record<string, unknown>): string {
   const rendered = entries.map((e: Record<string, unknown>) => {
     const parts: string[] = [];
     parts.push(e.time ? el("eMedications.01", null, renderTime(String(e.time))) : `<eMedications.01 xsi:nil="true" NV="7701003"/>`);
+    parts.push(`<eMedications.02 xsi:nil="true" NV="7701001"/>`);
     parts.push(el("eMedications.03", null, String(e.name ?? "")));
     parts.push(el("eMedications.05", null, String(e.dose ?? "")));
     parts.push(el("eMedications.05_unit", null, String(e.dose_unit ?? "")));
@@ -322,6 +331,7 @@ function renderProcedures(trip: Record<string, unknown>): string {
     return wrap("eProcedures", null,
       wrap("eProcedures.ProcedureGroup", null,
         `<eProcedures.01 xsi:nil="true" NV="7701001"/>` +
+        `<eProcedures.02 xsi:nil="true" NV="7701001"/>` +
         el("eProcedures.03", { CorrelationID: "proc-none" }, "8801019"),
       ),
     );
@@ -329,6 +339,7 @@ function renderProcedures(trip: Record<string, unknown>): string {
   const rendered = performed.map((p: unknown) => {
     const parts: string[] = [];
     parts.push(`<eProcedures.01 xsi:nil="true" NV="7701003"/>`);
+    parts.push(`<eProcedures.02 xsi:nil="true" NV="7701001"/>`);
     parts.push(el("eProcedures.03", null, codeOrNil(E_PROCEDURES_PERFORMED, p)));
     if (data.patient_response) {
       parts.push(el("eProcedures.06", null, codeOrNil(E_PROCEDURE_RESPONSE, data.patient_response)));
@@ -392,6 +403,10 @@ function renderScene(trip: Record<string, unknown>): string {
   parts.push(`<eScene.18 xsi:nil="true" NV="7701003"/>`);
   // .19 incident ZIP code — required, nillable.
   parts.push(`<eScene.19 xsi:nil="true" NV="7701003"/>`);
+  // .20 cross-street/directions — optional but its slot follows .19.
+  parts.push(`<eScene.20 xsi:nil="true" NV="7701003"/>`);
+  // .21 incident county — required, nillable.
+  parts.push(`<eScene.21 xsi:nil="true" NV="7701003"/>`);
   return wrap("eScene", null, parts.join(""));
 }
 
@@ -434,9 +449,10 @@ function renderArrest(): string {
   // some validators when NV is present) and NA nils on the remaining leaves.
   return wrap("eArrest", null,
     el("eArrest.01", null, "3001001") /* No cardiac arrest */ +
-    `<eArrest.02 xsi:nil="true" NV="7701001"/>` +
-    `<eArrest.03 xsi:nil="true" NV="7701001"/>` +
-    `<eArrest.04 xsi:nil="true" NV="7701001"/>`,
+    el("eArrest.02", null, "3002001") /* Presumed Cardiac (sentinel; unused when .01=No) */ +
+    el("eArrest.03", null, "3003001") /* Attempted Defibrillation (sentinel) */ +
+    el("eArrest.04", null, "3004001") /* Not Witnessed */ +
+    el("eArrest.07", null, "3007001") /* Yes AED (sentinel; unused when .01=No) */,
   );
 }
 
@@ -444,11 +460,11 @@ function renderHistoryInner(trip: Record<string, unknown>): string {
   const parts: string[] = [];
   parts.push(`<eHistory.01 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eHistory.06 xsi:nil="true" NV="7701003"/>`);
-  // eHistory requires one of .08/.09/CurrentMedsGroup/ImmunizationsGroup/.16/.17.
-  // .08 (medical/surgical history) is nillable; emit NV=NotRecorded so schema
-  // sees a valid choice member even when we have no history captured.
   parts.push(`<eHistory.08 xsi:nil="true" NV="7701003"/>`);
-  parts.push(`<eHistory.16 xsi:nil="true" NV="7701003"/>`);
+  // .16 Presence of Emergency Information Form — NOT nillable, enum {9923001=Yes, 9923003=No}.
+  parts.push(el("eHistory.16", null, "9923003"));
+  // .17 Alcohol/Drug Use Indicators — required, nillable.
+  parts.push(`<eHistory.17 xsi:nil="true" NV="7701003"/>`);
   const _ = trip; void _;
   return wrap("eHistory", null, parts.join(""));
 }
@@ -460,12 +476,20 @@ function renderDisposition(trip: Record<string, unknown>): string {
   //   .26, .32
   const dest = wrap("eDisposition.DestinationGroup", null,
     el("eDisposition.01", null, trip.destination_name as string ?? null) +
+    `<eDisposition.06 xsi:nil="true" NV="7701003"/>` +
+    `<eDisposition.07 xsi:nil="true" NV="7701003"/>`,
+  );
+  void dest;
+  const dest2 = wrap("eDisposition.DestinationGroup", null,
+    el("eDisposition.01", null, trip.destination_name as string ?? null) +
     `<eDisposition.05 xsi:nil="true" NV="7701003"/>` +
+    `<eDisposition.06 xsi:nil="true" NV="7701003"/>` +
     `<eDisposition.07 xsi:nil="true" NV="7701003"/>`,
   );
   const incident = wrap("eDisposition.IncidentDispositionGroup", null,
-    // .27 Unit Disposition — not nillable, must be a real code.
-    el("eDisposition.27", null, trip.unit_disposition as string ?? "4227015" /* Patient Treated, Transported by this EMS Unit */) +
+    // .27 Unit Disposition — not nillable; enum 4227001..011.
+    // 4227001 = Patient Contact Made.
+    el("eDisposition.27", null, trip.unit_disposition as string ?? "4227001") +
     // .28 Patient Evaluation/Care — nillable.
     `<eDisposition.28 xsi:nil="true" NV="7701003"/>` +
     // .29 Crew Disposition — nillable.
@@ -474,12 +498,14 @@ function renderDisposition(trip: Record<string, unknown>): string {
     `<eDisposition.30 xsi:nil="true" NV="7701003"/>`,
   );
   return wrap("eDisposition", null,
-    dest +
+    dest2 +
     incident +
     // .16 EMS Transport Method — required, nillable.
     `<eDisposition.16 xsi:nil="true" NV="7701003"/>` +
     // .17 Transport Mode from Scene — required, nillable.
     `<eDisposition.17 xsi:nil="true" NV="7701003"/>` +
+    // .18 Additional Transport Mode Descriptors — required, nillable.
+    `<eDisposition.18 xsi:nil="true" NV="7701003"/>` +
     // .19 Acuity Upon EMS Release — required, nillable.
     `<eDisposition.19 xsi:nil="true" NV="7701003"/>` +
     // .20 Reason for Choosing Destination — required, nillable.
@@ -495,10 +521,24 @@ function renderDisposition(trip: Record<string, unknown>): string {
 
 function renderOutcome(): string {
   // eOutcome is required after eDisposition per EMSDataSet sequence.
-  // .01/.02 are nillable and safe defaults for pre-hospital-only submissions.
+  // Sequence: .01, .02, ExternalDataGroup?, EmergencyDepartmentProceduresGroup+,
+  // .10, .11, HospitalProceduresGroup+, .13, .16, .18, .21.
   return wrap("eOutcome", null,
     `<eOutcome.01 xsi:nil="true" NV="7701003"/>` +
-    `<eOutcome.02 xsi:nil="true" NV="7701003"/>`,
+    `<eOutcome.02 xsi:nil="true" NV="7701003"/>` +
+    wrap("eOutcome.EmergencyDepartmentProceduresGroup", null,
+      `<eOutcome.09 xsi:nil="true" NV="7701003"/>` +
+      `<eOutcome.19 xsi:nil="true" NV="7701003"/>`,
+    ) +
+    `<eOutcome.10 xsi:nil="true" NV="7701003"/>` +
+    `<eOutcome.11 xsi:nil="true" NV="7701003"/>` +
+    wrap("eOutcome.HospitalProceduresGroup", null,
+      `<eOutcome.12 xsi:nil="true" NV="7701003"/>` +
+      `<eOutcome.20 xsi:nil="true" NV="7701003"/>`,
+    ) +
+    `<eOutcome.13 xsi:nil="true" NV="7701003"/>` +
+    `<eOutcome.16 xsi:nil="true" NV="7701003"/>` +
+    `<eOutcome.18 xsi:nil="true" NV="7701003"/>`,
   );
 }
 
