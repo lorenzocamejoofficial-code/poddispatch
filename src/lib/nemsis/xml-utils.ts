@@ -41,7 +41,7 @@ export function el(
     // NEMSIS uses xsi:nil for known-not-recorded fields.
     return `<${tag}${attrStr} xsi:nil="true" NV="7701003"/>`;
   }
-  return `<${tag}${attrStr}>${children}</${tag}>`;
+  return `<${tag}${attrStr}>${xmlEscape(children)}</${tag}>`;
 }
 
 /** Wrap an already-rendered child list in a parent element without escaping. */
