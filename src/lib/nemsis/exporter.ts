@@ -447,17 +447,18 @@ function renderInjury(): string {
 function renderArrest(): string {
   // For non-arrest IFTs, emit a real "No" value on .01 (nil is rejected by
   // some validators when NV is present) and NA nils on the remaining leaves.
+  const nowIso = new Date().toISOString().replace(/\.\d+Z$/, "+00:00");
   return wrap("eArrest", null,
     el("eArrest.01", null, "3001001") /* No cardiac arrest */ +
-    el("eArrest.02", null, "3002001") /* Presumed Cardiac (sentinel; unused when .01=No) */ +
-    el("eArrest.03", null, "3003001") /* Attempted Defibrillation (sentinel) */ +
+    el("eArrest.02", null, "3002001") /* sentinel */ +
+    el("eArrest.03", null, "3003001") /* sentinel */ +
     el("eArrest.04", null, "3004001") /* Not Witnessed */ +
-    el("eArrest.07", null, "3007001") /* AED sentinel */ +
-    el("eArrest.09", null, "3009001") /* Type of CPR Provided sentinel */ +
-    el("eArrest.11", null, "3011001") /* First Monitored Rhythm sentinel */ +
-    el("eArrest.12", null, "3012001") /* ROSC sentinel */ +
-    el("eArrest.14", null, `<eArrest.14 xsi:nil="true"/>`.match(/./) ? new Date().toISOString().replace(/\.\d+Z$/, "+00:00") : "") +
-    `<eArrest.18 xsi:nil="true" NV="7701001"/>`,
+    el("eArrest.07", null, "3007001") /* sentinel */ +
+    el("eArrest.09", null, "3009001") /* sentinel */ +
+    el("eArrest.11", null, "3011001") /* sentinel */ +
+    el("eArrest.12", null, "3012001") /* sentinel */ +
+    el("eArrest.14", null, nowIso) +
+    el("eArrest.18", null, nowIso),
   );
 }
 
