@@ -320,7 +320,15 @@ function renderMedications(trip: Record<string, unknown>): string {
       wrap("eMedications.MedicationGroup", null,
         `<eMedications.01 xsi:nil="true" NV="7701001"/>` +
         `<eMedications.02 xsi:nil="true" NV="7701001"/>` +
-        el("eMedications.03", { CorrelationID: "med-none" }, "8801019") /* None Applicable */,
+        el("eMedications.03", null, "8801019") +
+        `<eMedications.04 xsi:nil="true" NV="7701001"/>` +
+        wrap("eMedications.DosageGroup", null,
+          `<eMedications.05 xsi:nil="true" NV="7701001"/>` +
+          `<eMedications.06 xsi:nil="true" NV="7701001"/>`,
+        ) +
+        `<eMedications.07 xsi:nil="true" NV="7701001"/>` +
+        `<eMedications.08 xsi:nil="true" NV="7701001"/>` +
+        `<eMedications.10 xsi:nil="true" NV="7701001"/>`,
       ),
     );
   }
@@ -329,10 +337,14 @@ function renderMedications(trip: Record<string, unknown>): string {
     parts.push(e.time ? el("eMedications.01", null, renderTime(String(e.time))) : `<eMedications.01 xsi:nil="true" NV="7701003"/>`);
     parts.push(`<eMedications.02 xsi:nil="true" NV="7701001"/>`);
     parts.push(el("eMedications.03", null, String(e.name ?? "")));
-    parts.push(el("eMedications.05", null, String(e.dose ?? "")));
-    parts.push(el("eMedications.05_unit", null, String(e.dose_unit ?? "")));
-    parts.push(el("eMedications.06", null, codeOrNil(E_MEDICATION_ROUTE, e.route)));
-    parts.push(el("eMedications.10", null, codeOrNil(E_MEDICATION_RESPONSE, e.effect)));
+    parts.push(el("eMedications.04", null, codeOrNil(E_MEDICATION_ROUTE, e.route)));
+    parts.push(wrap("eMedications.DosageGroup", null,
+      el("eMedications.05", null, String(e.dose ?? "")) +
+      el("eMedications.06", null, String(e.dose_unit ?? "")),
+    ));
+    parts.push(el("eMedications.07", null, codeOrNil(E_MEDICATION_RESPONSE, e.effect)));
+    parts.push(`<eMedications.08 xsi:nil="true" NV="7701001"/>`);
+    parts.push(`<eMedications.10 xsi:nil="true" NV="7701001"/>`);
     return wrap("eMedications.MedicationGroup", null, parts.join(""));
   }).join("");
   return wrap("eMedications", null, rendered);
@@ -348,7 +360,12 @@ function renderProcedures(trip: Record<string, unknown>): string {
       wrap("eProcedures.ProcedureGroup", null,
         `<eProcedures.01 xsi:nil="true" NV="7701001"/>` +
         `<eProcedures.02 xsi:nil="true" NV="7701001"/>` +
-        el("eProcedures.03", { CorrelationID: "proc-none" }, "8801019"),
+        el("eProcedures.03", null, "8801019") +
+        `<eProcedures.05 xsi:nil="true" NV="7701001"/>` +
+        `<eProcedures.06 xsi:nil="true" NV="7701001"/>` +
+        `<eProcedures.07 xsi:nil="true" NV="7701001"/>` +
+        `<eProcedures.08 xsi:nil="true" NV="7701001"/>` +
+        `<eProcedures.10 xsi:nil="true" NV="7701001"/>`,
       ),
     );
   }
@@ -357,9 +374,15 @@ function renderProcedures(trip: Record<string, unknown>): string {
     parts.push(`<eProcedures.01 xsi:nil="true" NV="7701003"/>`);
     parts.push(`<eProcedures.02 xsi:nil="true" NV="7701001"/>`);
     parts.push(el("eProcedures.03", null, codeOrNil(E_PROCEDURES_PERFORMED, p)));
+    parts.push(`<eProcedures.05 xsi:nil="true" NV="7701001"/>`);
     if (data.patient_response) {
       parts.push(el("eProcedures.06", null, codeOrNil(E_PROCEDURE_RESPONSE, data.patient_response)));
+    } else {
+      parts.push(`<eProcedures.06 xsi:nil="true" NV="7701001"/>`);
     }
+    parts.push(`<eProcedures.07 xsi:nil="true" NV="7701001"/>`);
+    parts.push(`<eProcedures.08 xsi:nil="true" NV="7701001"/>`);
+    parts.push(`<eProcedures.10 xsi:nil="true" NV="7701001"/>`);
     return wrap("eProcedures.ProcedureGroup", null, parts.join(""));
   }).join("");
   return wrap("eProcedures", null, rendered);
