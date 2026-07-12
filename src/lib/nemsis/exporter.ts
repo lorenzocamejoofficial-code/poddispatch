@@ -1,8 +1,8 @@
 /**
- * NEMSIS v3.5.0 eRecord XML exporter — Phase 6.
+ * NEMSIS v3.5.1 eRecord XML exporter — Phase 6.
  *
  * Pure function: given a `trip_records` row + related agency/personnel/vehicle
- * context, return a NEMSIS 3.5.0 XML string suitable for:
+ * context, return a NEMSIS 3.5.1 XML string suitable for:
  *   - file-download (StateDataSet / DEMDataSet outer envelope), and
  *   - Web Service POST (single eRecord fragment).
  *
@@ -287,7 +287,7 @@ export interface PcrExportInput {
   patient: Record<string, unknown> | null;
 }
 
-/** Produce a single-eRecord NEMSIS 3.5.0 XML string (Web Service payload). */
+/** Produce a single-eRecord NEMSIS 3.5.1 XML string (Web Service payload). */
 export function buildERecord(input: PcrExportInput, ctx: ExportContext): string {
   const { trip, patient } = input;
   const tripId = String(trip.id ?? "");
