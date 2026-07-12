@@ -21,19 +21,18 @@ export function renderGeorgiaCustom(
 ): string {
   const parts: string[] = [];
 
-  // GA loaded-mileage attestation (billing already computes this)
-  if (trip.loaded_miles != null) {
-    parts.push(el("eCustom.01", { CustomElementID: "GA-LoadedMiles" }, String(trip.loaded_miles)));
-  }
+  // Each ResultsGroup pairs a value (eCustomResults.01) with the ID of the
+  // matching entry in the state-registered eCustomConfiguration (.02).
+  const group = (id: string, value: string): string =>
+    wrap("eCustomResults.ResultsGroup", null,
+      el("eCustomResults.01", null, value) +
+      el("eCustomResults.02", null, id),
+    );
 
-  // GA wait-time (billable minutes)
-  if (trip.wait_time_minutes != null) {
-    parts.push(el("eCustom.01", { CustomElementID: "GA-WaitTimeMinutes" }, String(trip.wait_time_minutes)));
-  }
+  if (trip.loaded_miles != null) parts.push(group("GA-LoadedMiles", String(trip.loaded_miles)));
+  if (trip.wait_time_minutes != null) parts.push(group("GA-WaitTimeMinutes", String(trip.wait_time_minutes)));
+  parts.push(group("GA-VendorSoftware", ctx.software.name));
+  parts.push(group("GA-VendorSoftwareVersion", ctx.software.version));
 
-  // Software identity — GA requires this in every submission
-  parts.push(el("eCustom.01", { CustomElementID: "GA-VendorSoftware" }, ctx.software.name));
-  parts.push(el("eCustom.01", { CustomElementID: "GA-VendorSoftwareVersion" }, ctx.software.version));
-
-  return wrap("eCustom", null, parts.join(""));
+  return wrap("eCustomResults", null, parts.join(""));
 }

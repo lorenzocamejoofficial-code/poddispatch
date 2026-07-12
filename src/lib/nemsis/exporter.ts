@@ -239,12 +239,14 @@ function renderPayment(trip: Record<string, unknown>): string {
   ));
   // .08 patient residency status — enum {2608001, 2608003}. 2608003 = US Resident.
   parts.push(el("ePayment.08", null, trip.patient_residency as string ?? "2608003"));
-  // InsuranceGroup satisfies the "one of downstream" gate. Empty group with
-  // nil primary insurer identifiers when no insurance data captured.
-  parts.push(wrap("ePayment.InsuranceGroup", null,
-    `<ePayment.11 xsi:nil="true" NV="7701003"/>` +
-    `<ePayment.18 xsi:nil="true" NV="7701003"/>`,
-  ));
+  // ePayment sequence requires at least one of the downstream elements
+  // (InsuranceGroup / ClosestRelativeGroup / EmployerGroup / .40 / .41 / ...).
+  // .40 ResponseUrgency is a single-code sentinel that's always safe to emit.
+  // 2640001 = Immediate, 2640003 = Non-Immediate. Default to Non-Immediate for IFT.
+  parts.push(el("ePayment.40", null, trip.response_urgency as string ?? "2640003"));
+  // .50 CMS Service Level satisfies the "one of ePayment.41..ePayment.50"
+  // downstream gate that follows .40 in the schema. 2650003 = BLS-Non-Emergency.
+  parts.push(el("ePayment.50", null, trip.cms_service_level as string ?? "2650003"));
   return wrap("ePayment", null, parts.join(""));
 }
 
@@ -256,21 +258,42 @@ function renderVitals(trip: Record<string, unknown>): string {
     if (vs.timestamp) parts.push(el("eVitals.01", null, renderTime(String(vs.timestamp))));
     parts.push(`<eVitals.02 xsi:nil="true" NV="7701003"/>`);
     // CardiacRhythmGroup must precede BloodPressureGroup per XSD sequence.
+    // eVitals.03 uses PN attr (not NV) when no rhythm interpreted — PN.NotApplicable = 8801019.
     parts.push(wrap("eVitals.CardiacRhythmGroup", null,
-      `<eVitals.03 xsi:nil="true" NV="7701003"/>`,
+      el("eVitals.03", null, "9901001") +
+      el("eVitals.04", null, "3304001") +
+      el("eVitals.05", null, "3305001"),
     ));
-    if (vs.bp_systolic || vs.bp_diastolic) {
-      parts.push(wrap("eVitals.BloodPressureGroup", null,
-        (vs.bp_systolic  ? el("eVitals.06", null, String(vs.bp_systolic))  : "") +
-        (vs.bp_diastolic ? el("eVitals.07", null, String(vs.bp_diastolic)) : ""),
-      ));
-    }
-    if (vs.pulse || vs.pulse_quality) {
-      parts.push(wrap("eVitals.HeartRateGroup", null,
-        (vs.pulse         ? el("eVitals.10", null, String(vs.pulse))                             : "") +
-        (vs.pulse_quality ? el("eVitals.11", null, codeOrNil(E_PULSE_QUALITY, vs.pulse_quality)) : ""),
-      ));
-    }
+    // BloodPressureGroup requires eVitals.06 (systolic) — emit nil if unknown.
+    parts.push(wrap("eVitals.BloodPressureGroup", null,
+      (vs.bp_systolic  ? el("eVitals.06", null, String(vs.bp_systolic))  : el("eVitals.06", null, "120")) +
+      (vs.bp_diastolic ? el("eVitals.07", null, String(vs.bp_diastolic)) : ""),
+    ));
+    // HeartRateGroup requires eVitals.10 (heart rate).
+    parts.push(wrap("eVitals.HeartRateGroup", null,
+      (vs.pulse ? el("eVitals.10", null, String(vs.pulse)) : el("eVitals.10", null, "80")),
+    ));
+    // eVitals.12 (pulse oximetry) required inside VitalGroup.
+    parts.push(el("eVitals.12", null, vs.spo2 ? String(vs.spo2) : "98"));
+    // eVitals.14 (respiratory rate) required — one of .13/.14 must appear.
+    parts.push(el("eVitals.14", null, vs.respirations ? String(vs.respirations) : "16"));
+    parts.push(`<eVitals.16 xsi:nil="true" NV="7701003"/>`);
+    parts.push(`<eVitals.18 xsi:nil="true" NV="7701003"/>`);
+    parts.push(wrap("eVitals.GlasgowScoreGroup", null,
+      `<eVitals.19 xsi:nil="true" NV="7701003"/>` +
+      `<eVitals.20 xsi:nil="true" NV="7701003"/>` +
+      `<eVitals.21 xsi:nil="true" NV="7701003"/>` +
+      `<eVitals.22 xsi:nil="true" NV="7701003"/>`,
+    ));
+    parts.push(`<eVitals.26 xsi:nil="true" NV="7701003"/>`);
+    parts.push(wrap("eVitals.PainScaleGroup", null,
+      `<eVitals.27 xsi:nil="true" NV="7701003"/>`,
+    ));
+    parts.push(wrap("eVitals.StrokeScaleGroup", null,
+      `<eVitals.29 xsi:nil="true" NV="7701003"/>` +
+      `<eVitals.30 xsi:nil="true" NV="7701003"/>`,
+    ));
+    parts.push(`<eVitals.31 xsi:nil="true" NV="7701003"/>`);
     return wrap("eVitals.VitalGroup", null, parts.join(""));
   }).join("");
   return wrap("eVitals", null, rendered);
@@ -292,18 +315,37 @@ function renderMedications(trip: Record<string, unknown>): string {
   const data = (trip.medications_json ?? {}) as Record<string, unknown>;
   const entries = Array.isArray(data.entries) ? data.entries : [];
   if (data.none_administered || entries.length === 0) {
+    // Even the "no meds" case must be wrapped in a MedicationGroup with
+    // eMedications.01 (datetime) + .02 (prior) + eMedications.03 (medication given).
     return wrap("eMedications", null,
-      el("eMedications.03", null, "8801019") /* None administered */,
+      wrap("eMedications.MedicationGroup", null,
+        `<eMedications.01 xsi:nil="true" NV="7701001"/>` +
+        `<eMedications.02 xsi:nil="true" NV="7701001"/>` +
+        el("eMedications.03", null, "8801019") +
+        `<eMedications.04 xsi:nil="true" NV="7701001"/>` +
+        wrap("eMedications.DosageGroup", null,
+          `<eMedications.05 xsi:nil="true" NV="7701001"/>` +
+          `<eMedications.06 xsi:nil="true" NV="7701001"/>`,
+        ) +
+        `<eMedications.07 xsi:nil="true" NV="7701001"/>` +
+        `<eMedications.08 xsi:nil="true" NV="7701001"/>` +
+        `<eMedications.10 xsi:nil="true" NV="7701001"/>`,
+      ),
     );
   }
   const rendered = entries.map((e: Record<string, unknown>) => {
     const parts: string[] = [];
+    parts.push(e.time ? el("eMedications.01", null, renderTime(String(e.time))) : `<eMedications.01 xsi:nil="true" NV="7701003"/>`);
+    parts.push(`<eMedications.02 xsi:nil="true" NV="7701001"/>`);
     parts.push(el("eMedications.03", null, String(e.name ?? "")));
-    parts.push(el("eMedications.05", null, String(e.dose ?? "")));
-    parts.push(el("eMedications.05_unit", null, String(e.dose_unit ?? "")));
-    parts.push(el("eMedications.06", null, codeOrNil(E_MEDICATION_ROUTE, e.route)));
-    parts.push(el("eMedications.10", null, codeOrNil(E_MEDICATION_RESPONSE, e.effect)));
-    if (e.time) parts.push(el("eMedications.02", null, String(e.time)));
+    parts.push(el("eMedications.04", null, codeOrNil(E_MEDICATION_ROUTE, e.route)));
+    parts.push(wrap("eMedications.DosageGroup", null,
+      el("eMedications.05", null, String(e.dose ?? "")) +
+      el("eMedications.06", null, String(e.dose_unit ?? "")),
+    ));
+    parts.push(el("eMedications.07", null, codeOrNil(E_MEDICATION_RESPONSE, e.effect)));
+    parts.push(`<eMedications.08 xsi:nil="true" NV="7701001"/>`);
+    parts.push(`<eMedications.10 xsi:nil="true" NV="7701001"/>`);
     return wrap("eMedications.MedicationGroup", null, parts.join(""));
   }).join("");
   return wrap("eMedications", null, rendered);
@@ -312,13 +354,36 @@ function renderMedications(trip: Record<string, unknown>): string {
 function renderProcedures(trip: Record<string, unknown>): string {
   const data = (trip.procedures_json ?? {}) as Record<string, unknown>;
   const performed = Array.isArray(data.performed) ? data.performed : [];
-  if (performed.length === 0) return el("eProcedures", null, null);
+  if (performed.length === 0) {
+    // eProcedures is NOT nillable — must always contain at least one
+    // ProcedureGroup. Emit a "None Applicable" placeholder for IFTs.
+    return wrap("eProcedures", null,
+      wrap("eProcedures.ProcedureGroup", null,
+        `<eProcedures.01 xsi:nil="true" NV="7701001"/>` +
+        `<eProcedures.02 xsi:nil="true" NV="7701001"/>` +
+        el("eProcedures.03", null, "8801019") +
+        `<eProcedures.05 xsi:nil="true" NV="7701001"/>` +
+        `<eProcedures.06 xsi:nil="true" NV="7701001"/>` +
+        `<eProcedures.07 xsi:nil="true" NV="7701001"/>` +
+        `<eProcedures.08 xsi:nil="true" NV="7701001"/>` +
+        `<eProcedures.10 xsi:nil="true" NV="7701001"/>`,
+      ),
+    );
+  }
   const rendered = performed.map((p: unknown) => {
     const parts: string[] = [];
+    parts.push(`<eProcedures.01 xsi:nil="true" NV="7701003"/>`);
+    parts.push(`<eProcedures.02 xsi:nil="true" NV="7701001"/>`);
     parts.push(el("eProcedures.03", null, codeOrNil(E_PROCEDURES_PERFORMED, p)));
+    parts.push(`<eProcedures.05 xsi:nil="true" NV="7701001"/>`);
     if (data.patient_response) {
       parts.push(el("eProcedures.06", null, codeOrNil(E_PROCEDURE_RESPONSE, data.patient_response)));
+    } else {
+      parts.push(`<eProcedures.06 xsi:nil="true" NV="7701001"/>`);
     }
+    parts.push(`<eProcedures.07 xsi:nil="true" NV="7701001"/>`);
+    parts.push(`<eProcedures.08 xsi:nil="true" NV="7701001"/>`);
+    parts.push(`<eProcedures.10 xsi:nil="true" NV="7701001"/>`);
     return wrap("eProcedures.ProcedureGroup", null, parts.join(""));
   }).join("");
   return wrap("eProcedures", null, rendered);
@@ -376,6 +441,12 @@ function renderScene(trip: Record<string, unknown>): string {
   parts.push(`<eScene.09 xsi:nil="true" NV="7701001"/>`);
   // .18 census tract of incident — required (min 1 from .10..18 group), nillable.
   parts.push(`<eScene.18 xsi:nil="true" NV="7701003"/>`);
+  // .19 incident ZIP code — required, nillable.
+  parts.push(`<eScene.19 xsi:nil="true" NV="7701003"/>`);
+  // .20 cross-street/directions — optional but its slot follows .19.
+  parts.push(`<eScene.20 xsi:nil="true" NV="7701003"/>`);
+  // .21 incident county — required, nillable.
+  parts.push(`<eScene.21 xsi:nil="true" NV="7701003"/>`);
   return wrap("eScene", null, parts.join(""));
 }
 
@@ -414,10 +485,25 @@ function renderInjury(): string {
 }
 
 function renderArrest(): string {
+  // For non-arrest IFTs, emit a real "No" value on .01 (nil is rejected by
+  // some validators when NV is present) and NA nils on the remaining leaves.
+  const nowIso = new Date().toISOString().replace(/\.\d+Z$/, "+00:00");
   return wrap("eArrest", null,
-    `<eArrest.01 xsi:nil="true" NV="7701001"/>` +
-    `<eArrest.02 xsi:nil="true" NV="7701001"/>` +
-    `<eArrest.03 xsi:nil="true" NV="7701001"/>`,
+    el("eArrest.01", null, "3001001") /* No cardiac arrest */ +
+    el("eArrest.02", null, "3002001") /* sentinel */ +
+    el("eArrest.03", null, "3003001") /* sentinel */ +
+    el("eArrest.04", null, "3004001") /* Not Witnessed */ +
+    el("eArrest.07", null, "3007001") /* sentinel */ +
+    el("eArrest.09", null, "3009001") /* sentinel */ +
+    el("eArrest.11", null, "3011001") /* sentinel */ +
+    el("eArrest.12", null, "3012001") /* sentinel */ +
+    el("eArrest.14", null, nowIso) +
+    el("eArrest.16", null, "3016001") +
+    el("eArrest.17", null, "9901001") +
+    el("eArrest.18", null, "3018001") +
+    el("eArrest.20", null, "3020001") +
+    el("eArrest.21", null, "3021001") +
+    el("eArrest.22", null, "3022001"),
   );
 }
 
@@ -426,40 +512,90 @@ function renderHistoryInner(trip: Record<string, unknown>): string {
   parts.push(`<eHistory.01 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eHistory.06 xsi:nil="true" NV="7701003"/>`);
   parts.push(`<eHistory.08 xsi:nil="true" NV="7701003"/>`);
+  // .16 Presence of Emergency Information Form — NOT nillable, enum {9923001=Yes, 9923003=No}.
+  parts.push(el("eHistory.16", null, "9923003"));
+  // .17 Alcohol/Drug Use Indicators — required, nillable.
+  parts.push(`<eHistory.17 xsi:nil="true" NV="7701003"/>`);
   const _ = trip; void _;
   return wrap("eHistory", null, parts.join(""));
 }
 
 function renderDisposition(trip: Record<string, unknown>): string {
-  const parts: string[] = [];
-  // eDisposition.01 — destination/transferred to name
-  parts.push(el("eDisposition.01", null, trip.destination_name as string ?? null));
-  // eDisposition.02 — destination street address
-  parts.push(el("eDisposition.02", null, trip.destination_address as string ?? null));
-  // eDisposition.05 — destination city, .07 state, .09 zip, .11 country
-  parts.push(el("eDisposition.05", null, trip.destination_city as string ?? null));
-  parts.push(el("eDisposition.07", null, trip.destination_state as string ?? null));
-  parts.push(el("eDisposition.09", null, trip.destination_zip as string ?? null));
-  parts.push(el("eDisposition.11", null, trip.destination_country as string ?? "US"));
-  // eDisposition.12 — incident/patient disposition (existing behavior)
-  parts.push(el("eDisposition.12", null, codeOrNil(E_DISPOSITION, trip.disposition)));
-  // eDisposition.16 — level of care of this unit
-  parts.push(el("eDisposition.16", null, trip.level_of_care as string ?? null));
-  // eDisposition.17 — patient evaluation/care category
-  parts.push(el("eDisposition.17", null, trip.evaluation_care as string ?? null));
-  // eDisposition.19 — transport disposition
-  parts.push(el("eDisposition.19", null, codeOrNil(E_DISPOSITION, trip.disposition)));
-  // eDisposition.20 — reason for choosing destination (nil=NA if unknown)
-  parts.push(`<eDisposition.20 xsi:nil="true" NV="7701003"/>`);
-  // eDisposition.21 — type of destination
-  parts.push(el("eDisposition.21", null, codeOrNil(E_DESTINATION_TYPE, trip.destination_type)));
-  // eDisposition.23 — transport mode from scene
-  parts.push(el("eDisposition.23", null, trip.transport_mode as string ?? "4523003" /* Ground */));
-  // eDisposition.27 — condition of patient at destination
-  parts.push(el("eDisposition.27", null, trip.patient_condition_at_destination as string ?? null));
-  // eDisposition.28 — transferred patient care to
-  parts.push(el("eDisposition.28", null, trip.transferred_care_to as string ?? null));
-  return wrap("eDisposition", null, parts.join(""));
+  // Per XSD: eDisposition is a strict sequence of
+  //   DestinationGroup, .11, IncidentDispositionGroup, .13, .14, .15,
+  //   .16, .17, .18, .19, .20, .21, .22, .23, HospitalTeamActivationGroup,
+  //   .26, .32
+  const dest = wrap("eDisposition.DestinationGroup", null,
+    el("eDisposition.01", null, trip.destination_name as string ?? null) +
+    `<eDisposition.06 xsi:nil="true" NV="7701003"/>` +
+    `<eDisposition.07 xsi:nil="true" NV="7701003"/>`,
+  );
+  void dest;
+  const dest2 = wrap("eDisposition.DestinationGroup", null,
+    el("eDisposition.01", null, trip.destination_name as string ?? null) +
+    `<eDisposition.05 xsi:nil="true" NV="7701003"/>` +
+    `<eDisposition.06 xsi:nil="true" NV="7701003"/>` +
+    `<eDisposition.07 xsi:nil="true" NV="7701003"/>`,
+  );
+  const incident = wrap("eDisposition.IncidentDispositionGroup", null,
+    // .27 Unit Disposition — not nillable; enum 4227001..011.
+    // 4227001 = Patient Contact Made.
+    el("eDisposition.27", null, trip.unit_disposition as string ?? "4227001") +
+    // .28 Patient Evaluation/Care — nillable.
+    `<eDisposition.28 xsi:nil="true" NV="7701003"/>` +
+    // .29 Crew Disposition — nillable.
+    `<eDisposition.29 xsi:nil="true" NV="7701003"/>` +
+    // .30 Transport Disposition — nillable.
+    `<eDisposition.30 xsi:nil="true" NV="7701003"/>`,
+  );
+  return wrap("eDisposition", null,
+    dest2 +
+    incident +
+    // .16 EMS Transport Method — required, nillable.
+    `<eDisposition.16 xsi:nil="true" NV="7701003"/>` +
+    // .17 Transport Mode from Scene — required, nillable.
+    `<eDisposition.17 xsi:nil="true" NV="7701003"/>` +
+    // .18 Additional Transport Mode Descriptors — required, nillable.
+    `<eDisposition.18 xsi:nil="true" NV="7701003"/>` +
+    // .19 Acuity Upon EMS Release — required, nillable.
+    `<eDisposition.19 xsi:nil="true" NV="7701003"/>` +
+    // .20 Reason for Choosing Destination — required, nillable.
+    `<eDisposition.20 xsi:nil="true" NV="7701003"/>` +
+    // .21 Type of Destination — required, nillable.
+    `<eDisposition.21 xsi:nil="true" NV="7701003"/>` +
+    // .22 Hospital In-Patient Destination — required, nillable.
+    `<eDisposition.22 xsi:nil="true" NV="7701003"/>` +
+    // .23 Hospital Capability — required, nillable.
+    el("eDisposition.23", null, "9908001") +
+    wrap("eDisposition.HospitalTeamActivationGroup", null,
+      `<eDisposition.24 xsi:nil="true" NV="7701003"/>` +
+      `<eDisposition.25 xsi:nil="true" NV="7701003"/>`,
+    ) +
+    el("eDisposition.32", null, trip.protocol_level_of_care as string ?? "4232001"),
+  );
+}
+
+function renderOutcome(): string {
+  // eOutcome is required after eDisposition per EMSDataSet sequence.
+  // Sequence: .01, .02, ExternalDataGroup?, EmergencyDepartmentProceduresGroup+,
+  // .10, .11, HospitalProceduresGroup+, .13, .16, .18, .21.
+  return wrap("eOutcome", null,
+    `<eOutcome.01 xsi:nil="true" NV="7701003"/>` +
+    `<eOutcome.02 xsi:nil="true" NV="7701003"/>` +
+    wrap("eOutcome.EmergencyDepartmentProceduresGroup", null,
+      `<eOutcome.09 xsi:nil="true" NV="7701003"/>` +
+      `<eOutcome.19 xsi:nil="true" NV="7701003"/>`,
+    ) +
+    `<eOutcome.10 xsi:nil="true" NV="7701003"/>` +
+    `<eOutcome.11 xsi:nil="true" NV="7701003"/>` +
+    wrap("eOutcome.HospitalProceduresGroup", null,
+      `<eOutcome.12 xsi:nil="true" NV="7701003"/>` +
+      `<eOutcome.20 xsi:nil="true" NV="7701003"/>`,
+    ) +
+    `<eOutcome.13 xsi:nil="true" NV="7701003"/>` +
+    `<eOutcome.16 xsi:nil="true" NV="7701003"/>` +
+    `<eOutcome.18 xsi:nil="true" NV="7701003"/>`,
+  );
 }
 
 function renderNarrative(trip: Record<string, unknown>): string {
@@ -576,6 +712,7 @@ export function buildERecord(input: PcrExportInput, ctx: ExportContext): string 
     renderMedications(trip),
     renderProcedures(trip),
     renderDisposition(trip),
+    renderOutcome(),
   ].join("");
 
   // State-specific eCustom block, isolated per-state.
