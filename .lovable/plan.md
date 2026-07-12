@@ -31,11 +31,13 @@ Swap every PCR dropdown to NEMSIS v3.5.0 code sets via dual-write (`field` = dis
   - [x] Translation helper (`src/lib/nemsis-translate.ts`)
   - [x] Airway, Oxygen, LOC, Skin, Medication route/response, Patient sex
   - [x] Vitals categorical pick lists (pulse quality, respiratory effort, ETCO2 method, GCS E/V/M, pain scale type). Numeric vitals (BP/pulse/resp/SpO2/temp/BG) emit as LOINC observations at export time — no card change needed.
-  - [ ] Procedures (eProcedures) — full SNOMED procedure list
-  - [ ] Assessment/injury (eInjury, eSituation) — mechanism-of-injury, cause, chief complaint
-  - [ ] Disposition (eDisposition) — destination, transport method, reason
-  - [ ] Times (eTimes) — already mostly aligned, verify format
-  - [ ] Backfill script for historical rows
+  - [x] Procedures (eProcedures), procedure response, SMR device, CPR started-by, ECG rhythm
+  - [x] Disposition (eDisposition.12) and Destination type (eDisposition.23)
+  - [x] Times (eTimes) — already ISO-8601 timestamptz; matches NEMSIS format, no change
+  - [ ] Assessment/injury (eInjury, eSituation) — deferred to Phase 2 (needs new columns for mechanism-of-injury / cause)
+  - [x] Backfill script — NOT NEEDED. Phase 1 uses display-as-code (labels round-trip through `findByDisplay`), so historical rows already resolve to a NEMSIS code with no data migration.
+
+**Phase 1 status: DONE for all display-only dropdowns.** Remaining assessment/injury work moves to Phase 2 because it requires new schema columns, not just code-set mapping.
 
 ### Phase 2 — Missing NEMSIS mandatory elements
 Add fields NEMSIS requires that Pod Dispatch does not yet capture. Each addition is additive (new column or JSONB key), never a mutation of billing columns.
