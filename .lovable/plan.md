@@ -6,7 +6,7 @@ Bring Pod Dispatch to full NEMSIS v3 vendor certification so it appears on the N
 
 ## Locked decisions (from user, do not re-ask)
 - **States:** Georgia first; architecture must be pluggable so neighboring states (AL, FL, SC, TN, NC) can be added without touching the exporter core. No hardcoded GA endpoints or GA-only fields in shared code.
-- **NEMSIS version:** Target **v3.5.0** (what GA GEMSIS accepts today). Code paths tagged so a v3.5.1 upgrade is a config swap, not a rewrite.
+- **NEMSIS version:** Target **v3.5.1** (NEMSIS TAC is only accepting initial compliance applications for v3.5.1 as of 2026). GA GEMSIS is on the same track.
 - **Submission methods:** BOTH — file upload (XML download from the app) AND Web Service POST (background edge function). No user-facing export button; submissions run on PCR finalize + nightly retry.
 - **Vendor identity:** Pod Dispatch itself does NOT hold an NPI or state EMS agency #. Those live per-company on `public.companies` (NPI already existed; `state_ems_agency_number` + `state_ems_license_state` added in migration `20260712-161021`).
 - **Crew credentials:** Already tracked via `crew_certifications` (medic_number = state EMS license, CPR, driver's license). No new crew schema needed for NEMSIS `dPersonnel`.
@@ -26,7 +26,7 @@ Bring Pod Dispatch to full NEMSIS v3 vendor certification so it appears on the N
 Every phase ends with `bun test claim-parity` passing. If it fails, the phase is not done.
 
 ### Phase 1 — Dropdown alignment (IN PROGRESS, ~40% complete)
-Swap every PCR dropdown to NEMSIS v3.5.0 code sets via dual-write (`field` = display, `field_code` = NEMSIS code). Billing keeps reading `field`.
+Swap every PCR dropdown to NEMSIS v3.5.1 code sets via dual-write (`field` = display, `field_code` = NEMSIS code). Billing keeps reading `field`.
   - [x] Code-set library scaffold (`src/lib/nemsis-code-sets.ts`)
   - [x] Translation helper (`src/lib/nemsis-translate.ts`)
   - [x] Airway, Oxygen, LOC, Skin, Medication route/response, Patient sex
@@ -51,7 +51,7 @@ Additive only; no billing-column changes.
   - [ ] AL / FL / SC / TN / NC sibling modules — add on demand.
 
 ### Phase 4 — XSD schema validation
-Blocked on: NEMSIS 3.5.0 XSD download (public but versioned; pull once vendor cert docs list the exact filename). Wire libxmljs2 into the edge function; fail submission on validation error, never block claims.
+Blocked on: NEMSIS 3.5.1 XSD download (public but versioned; pull once vendor cert docs list the exact filename). Wire libxmljs2 into the edge function; fail submission on validation error, never block claims.
 
 ### Phase 5 — Schematron business rules
 Blocked on: NEMSIS Schematron file (bundled with the XSD). Same failure model as Phase 4.
