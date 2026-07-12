@@ -30,7 +30,7 @@ Swap every PCR dropdown to NEMSIS v3.5.0 code sets via dual-write (`field` = dis
   - [x] Code-set library scaffold (`src/lib/nemsis-code-sets.ts`)
   - [x] Translation helper (`src/lib/nemsis-translate.ts`)
   - [x] Airway, Oxygen, LOC, Skin, Medication route/response, Patient sex
-  - [ ] Vitals (BP, pulse, resp, SpO2, GCS, temp) — SNOMED/LOINC where NEMSIS mandates
+  - [x] Vitals categorical pick lists (pulse quality, respiratory effort, ETCO2 method, GCS E/V/M, pain scale type). Numeric vitals (BP/pulse/resp/SpO2/temp/BG) emit as LOINC observations at export time — no card change needed.
   - [ ] Procedures (eProcedures) — full SNOMED procedure list
   - [ ] Assessment/injury (eInjury, eSituation) — mechanism-of-injury, cause, chief complaint
   - [ ] Disposition (eDisposition) — destination, transport method, reason
