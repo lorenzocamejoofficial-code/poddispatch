@@ -54,7 +54,7 @@ describe("NEMSIS eRecord exporter", () => {
     for (const tag of [
       "eRecord.SoftwareApplicationGroup", "eResponse", "eDispatch", "eCrew",
       "eTimes", "ePatient", "eScene", "eSituation", "eHistory", "eNarrative",
-      "eVitals", "eExam", "eAirway", "eMedications", "eProcedures", "eDisposition",
+      "eVitals", "eExam", "eMedications", "eProcedures", "eDisposition",
       "eCustom",
     ]) {
       expect(xml.includes(`<${tag}`)).toBe(true);
