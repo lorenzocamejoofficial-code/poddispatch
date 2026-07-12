@@ -1605,6 +1605,8 @@ export type Database = {
           rejected_at: string | null
           rejected_reason: string | null
           service_area_type: string | null
+          state_ems_agency_number: string | null
+          state_ems_license_state: string | null
           state_of_operation: string | null
           suspended_at: string | null
           suspended_by: string | null
@@ -1649,6 +1651,8 @@ export type Database = {
           rejected_at?: string | null
           rejected_reason?: string | null
           service_area_type?: string | null
+          state_ems_agency_number?: string | null
+          state_ems_license_state?: string | null
           state_of_operation?: string | null
           suspended_at?: string | null
           suspended_by?: string | null
@@ -1693,6 +1697,8 @@ export type Database = {
           rejected_at?: string | null
           rejected_reason?: string | null
           service_area_type?: string | null
+          state_ems_agency_number?: string | null
+          state_ems_license_state?: string | null
           state_of_operation?: string | null
           suspended_at?: string | null
           suspended_by?: string | null
