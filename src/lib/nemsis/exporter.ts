@@ -260,9 +260,9 @@ function renderVitals(trip: Record<string, unknown>): string {
     // CardiacRhythmGroup must precede BloodPressureGroup per XSD sequence.
     // eVitals.03 uses PN attr (not NV) when no rhythm interpreted — PN.NotApplicable = 8801019.
     parts.push(wrap("eVitals.CardiacRhythmGroup", null,
-      // Real enum values are safer than xsi:nil on simpleContent extensions.
-      // 9901001 = Sinus Rhythm (documented, non-arrest default).
-      el("eVitals.03", null, "9901001"),
+      el("eVitals.03", null, "9901001") +
+      el("eVitals.04", null, "3304001") +
+      el("eVitals.05", null, "3305001"),
     ));
     // BloodPressureGroup requires eVitals.06 (systolic) — emit nil if unknown.
     parts.push(wrap("eVitals.BloodPressureGroup", null,
@@ -277,6 +277,22 @@ function renderVitals(trip: Record<string, unknown>): string {
     parts.push(el("eVitals.12", null, vs.spo2 ? String(vs.spo2) : "98"));
     // eVitals.14 (respiratory rate) required — one of .13/.14 must appear.
     parts.push(el("eVitals.14", null, vs.respirations ? String(vs.respirations) : "16"));
+    parts.push(`<eVitals.16 xsi:nil="true" NV="7701003"/>`);
+    parts.push(`<eVitals.18 xsi:nil="true" NV="7701003"/>`);
+    parts.push(wrap("eVitals.GlasgowScoreGroup", null,
+      `<eVitals.19 xsi:nil="true" NV="7701003"/>` +
+      `<eVitals.20 xsi:nil="true" NV="7701003"/>` +
+      `<eVitals.21 xsi:nil="true" NV="7701003"/>` +
+      `<eVitals.22 xsi:nil="true" NV="7701003"/>`,
+    ));
+    parts.push(`<eVitals.26 xsi:nil="true" NV="7701003"/>`);
+    parts.push(wrap("eVitals.PainScaleGroup", null,
+      `<eVitals.27 xsi:nil="true" NV="7701003"/>`,
+    ));
+    parts.push(wrap("eVitals.StrokeScaleGroup", null,
+      `<eVitals.29 xsi:nil="true" NV="7701003"/>` +
+      `<eVitals.30 xsi:nil="true" NV="7701003"/>`,
+    ));
     return wrap("eVitals.VitalGroup", null, parts.join(""));
   }).join("");
   return wrap("eVitals", null, rendered);
