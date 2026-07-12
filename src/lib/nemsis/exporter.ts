@@ -134,6 +134,14 @@ function renderResponse(trip: Record<string, unknown>): string {
   parts.push(wrap("eResponse.ServiceGroup", null,
     el("eResponse.05", null, trip.service_level ? String(trip.service_level) : null),
   ));
+  // eResponse.07 (transport capability), .08-.12 (delays) are all required
+  // (minOccurs=1). Emit xsi:nil / NV "not applicable" when we have no data.
+  parts.push(`<eResponse.07 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eResponse.08 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eResponse.09 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eResponse.10 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eResponse.11 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eResponse.12 xsi:nil="true" NV="7701003"/>`);
   parts.push(el("eResponse.13", null, trip.unit_number as string ?? null));
   parts.push(el("eResponse.14", null, trip.shift as string ?? null));
   return wrap("eResponse", null, parts.join(""));
@@ -158,7 +166,13 @@ function renderTimes(trip: Record<string, unknown>): string {
   push("eTimes.09", trip.left_scene_time);
   push("eTimes.10", trip.arrived_at_destination_time);
   push("eTimes.11", trip.in_service_time);
-  push("eTimes.12", trip.back_in_service_time);
+  // eTimes.12 (destination patient transfer time) is required — emit nil
+  // when the caller hasn't given us a real value.
+  if (trip.back_in_service_time) {
+    push("eTimes.12", trip.back_in_service_time);
+  } else {
+    parts.push(`<eTimes.12 xsi:nil="true" NV="7701003"/>`);
+  }
   push("eTimes.13", trip.canceled_time);
   return wrap("eTimes", null, parts.join(""));
 }
@@ -171,18 +185,24 @@ function renderPatient(trip: Record<string, unknown>, patient: Record<string, un
     el("ePatient.02", null, String(patient.last_name ?? "")) +
     el("ePatient.03", null, String(patient.first_name ?? "")),
   ));
+  // ePatient.05-.12 (SSN, home addr, phone) are all required or come before
+  // .13; emit xsi:nil placeholders when unknown.
+  parts.push(`<ePatient.05 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<ePatient.06 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<ePatient.07 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<ePatient.08 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<ePatient.09 xsi:nil="true" NV="7701003"/>`);
   parts.push(el("ePatient.13", null, codeOrNil(E_PATIENT_SEX, patient.gender ?? patient.patient_sex)));
   parts.push(el("ePatient.14", null, patient.date_of_birth ? String(patient.date_of_birth) : null));
   return wrap("ePatient", null, parts.join(""));
 }
 
 function renderPayment(trip: Record<string, unknown>): string {
-  // Minimal ePayment placeholder. Payment section is optional in XSD but must
-  // be positioned before eScene when emitted. We emit only if the caller has
-  // supplied a primary payment method; otherwise the whole section is skipped.
-  if (!trip.primary_payment_method) return "";
+  // ePayment is required in the XSD sequence (minOccurs=1) even when the
+  // agency doesn't track billing at documentation time. Emit nil placeholders
+  // for the required insurance-category fields.
   return wrap("ePayment", null,
-    el("ePayment.01", null, String(trip.primary_payment_method)),
+    el("ePayment.01", null, trip.primary_payment_method as string ?? null),
   );
 }
 
