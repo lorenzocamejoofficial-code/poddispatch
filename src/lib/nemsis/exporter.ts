@@ -99,8 +99,9 @@ function codeOrNil(codeSet: readonly NemsisCode[], stored: unknown): string | nu
 
 function renderTime(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  // NEMSIS uses ISO-8601 with timezone; Postgres timestamptz already qualifies.
-  return iso;
+  // NEMSIS DateTimeType pattern demands an explicit numeric offset
+  // (`+HH:MM` / `-HH:MM`) — the "Z" shortcut is NOT accepted. Convert.
+  return iso.endsWith("Z") ? iso.slice(0, -1) + "+00:00" : iso;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -108,58 +109,143 @@ function renderTime(iso: string | null | undefined): string | null {
 // ─────────────────────────────────────────────────────────────────────
 
 function renderHeader(ctx: ExportContext, tripId: string): string {
-  const parts: string[] = [];
-  parts.push(el("eRecord.01", null, tripId));
-  // NEMSIS 3.5.1 wraps software identity in eRecord.SoftwareApplicationGroup
-  // with numbered children (eRecord.02 vendor, .03 product, .04 version).
-  parts.push(wrap("eRecord.SoftwareApplicationGroup", null,
-    el("eRecord.02", null, ctx.software.name) +
-    el("eRecord.03", null, ctx.software.name) +
-    el("eRecord.04", null, ctx.software.version),
-  ));
-  return parts.join("");
+  // <eRecord> is a single section (record ID + software identity) — it is
+  // a SIBLING of eResponse/eDispatch/eTimes/... inside PatientCareReport,
+  // not a wrapper around them.
+  return wrap("eRecord", null,
+    el("eRecord.01", null, tripId) +
+    wrap("eRecord.SoftwareApplicationGroup", null,
+      el("eRecord.02", null, ctx.software.name) +
+      el("eRecord.03", null, ctx.software.name) +
+      el("eRecord.04", null, ctx.software.version),
+    ),
+  );
 }
 
 function renderResponse(trip: Record<string, unknown>): string {
   const parts: string[] = [];
-  // Agency identity — NEMSIS requires the AgencyGroup wrapper (eResponse.01/.02)
   parts.push(wrap("eResponse.AgencyGroup", null,
     el("eResponse.01", null, String(trip.company_id ?? "")) +
     el("eResponse.02", null, String(trip.company_name ?? "")),
   ));
-  // Service level lives in ServiceGroup wrapper (eResponse.05)
+  // eResponse.03/.04 must come between AgencyGroup and ServiceGroup per XSD sequence.
+  parts.push(el("eResponse.03", null, trip.incident_number as string ?? null));
+  parts.push(el("eResponse.04", null, trip.run_number as string ?? null));
   parts.push(wrap("eResponse.ServiceGroup", null,
     el("eResponse.05", null, trip.service_level ? String(trip.service_level) : null),
   ));
-  // Response IDs / times / unit
-  parts.push(el("eResponse.03", null, trip.incident_number as string ?? null));
-  parts.push(el("eResponse.04", null, trip.run_number as string ?? null));
-  parts.push(el("eResponse.13", null, trip.unit_number as string ?? null));
-  parts.push(el("eResponse.14", null, trip.shift as string ?? null));
+  // eResponse.07 (unit transport equipment capability) — required, NOT nillable,
+  // enum {2207011..2207027}. 2207019 = "Basic Life Support-Ground" as a
+  // sensible IFT default; callers override via trip.unit_capability.
+  parts.push(el("eResponse.07", null, trip.unit_capability as string ?? "2207019"));
+  parts.push(`<eResponse.08 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eResponse.09 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eResponse.10 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eResponse.11 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eResponse.12 xsi:nil="true" NV="7701003"/>`);
+  // .13 (vehicle unit number) and .14 (call sign) are required, not nillable.
+  parts.push(el("eResponse.13", null, (trip.unit_number as string) ?? "UNIT-UNKNOWN"));
+  parts.push(el("eResponse.14", null, (trip.shift as string) ?? (trip.unit_number as string) ?? "UNIT-UNKNOWN"));
+  // .23 response mode to scene — required enum {2223001..2223007}.
+  // 2223005 = "No Lights or Sirens" default for IFT.
+  parts.push(el("eResponse.23", null, trip.response_mode as string ?? "2223005"));
+  // .24 additional response mode descriptors — required (min 1), repeatable.
+  parts.push(el("eResponse.24", null, trip.response_mode_descriptor as string ?? "2224019" /* Initial Response */));
   return wrap("eResponse", null, parts.join(""));
 }
 
 function renderTimes(trip: Record<string, unknown>): string {
+  // eTimes elements are DateTime with strict pattern and NOT nillable — we
+  // must omit rather than xsi:nil when a timestamp is missing.
   const parts: string[] = [];
-  parts.push(el("eTimes.03", null, renderTime(trip.dispatch_time as string)));
-  parts.push(el("eTimes.06", null, renderTime(trip.at_scene_time as string)));
-  parts.push(el("eTimes.07", null, renderTime(trip.patient_contact_time as string)));
-  parts.push(el("eTimes.09", null, renderTime(trip.left_scene_time as string)));
-  parts.push(el("eTimes.11", null, renderTime(trip.in_service_time as string)));
+  const push = (tag: string, iso: unknown) => {
+    const v = renderTime(iso as string | null | undefined);
+    if (v) parts.push(`<${tag}>${v}</${tag}>`);
+  };
+  push("eTimes.01", trip.psap_call_time);
+  push("eTimes.02", trip.dispatch_notified_time);
+  push("eTimes.03", trip.dispatch_time);
+  push("eTimes.04", trip.unit_enroute_time);
+  push("eTimes.05", trip.unit_arrived_on_scene_time ?? trip.at_scene_time);
+  push("eTimes.06", trip.at_scene_time);
+  push("eTimes.07", trip.patient_contact_time);
+  push("eTimes.08", trip.arrived_at_patient_time);
+  push("eTimes.09", trip.left_scene_time);
+  push("eTimes.10", trip.arrived_at_destination_time);
+  push("eTimes.11", trip.in_service_time);
+  // .12 destination patient-care transfer time (nillable).
+  if (trip.destination_transfer_time) {
+    push("eTimes.12", trip.destination_transfer_time);
+  } else {
+    parts.push(`<eTimes.12 xsi:nil="true"/>`);
+  }
+  // .13 unit back-in-service — required, DateTimeType, NOT nillable. Fall
+  // back to in_service_time when a dedicated column isn't available.
+  const backInSvc = renderTime(
+    (trip.back_in_service_time as string | null | undefined) ??
+    (trip.in_service_time as string | null | undefined),
+  );
+  if (backInSvc) parts.push(`<eTimes.13>${backInSvc}</eTimes.13>`);
+  // .14 unit canceled — optional.
+  push("eTimes.14", trip.canceled_time);
   return wrap("eTimes", null, parts.join(""));
 }
 
 function renderPatient(trip: Record<string, unknown>, patient: Record<string, unknown> | null): string {
   if (!patient) return el("ePatient", null, null);
   const parts: string[] = [];
-  parts.push(el("ePatient.NameGroup",
+  parts.push(wrap("ePatient.PatientNameGroup",
     null,
     el("ePatient.02", null, String(patient.last_name ?? "")) +
     el("ePatient.03", null, String(patient.first_name ?? "")),
   ));
-  parts.push(el("ePatient.13", null, codeOrNil(E_PATIENT_SEX, patient.gender ?? patient.patient_sex)));
-  parts.push(el("ePatient.14", null, patient.date_of_birth ? String(patient.date_of_birth) : null));
+  // Address elements: nillable but the schema does NOT allow the NV attribute
+  // — emit plain xsi:nil when the data isn't recorded.
+  parts.push(`<ePatient.05 xsi:nil="true"/>`);
+  parts.push(`<ePatient.06 xsi:nil="true"/>`);
+  parts.push(`<ePatient.07 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<ePatient.08 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<ePatient.09 xsi:nil="true" NV="7701003"/>`);
+  // ePatient.14 is Race (repeating) — required (min 1).
+  parts.push(`<ePatient.14 xsi:nil="true" NV="7701003"/>`);
+  // ePatient.AgeGroup (.15 age, .16 age units) is required — emit nil pair.
+  parts.push(wrap("ePatient.AgeGroup", null,
+    `<ePatient.15 xsi:nil="true" NV="7701003"/>` +
+    `<ePatient.16 xsi:nil="true" NV="7701003"/>`,
+  ));
+  // .17 DateOfBirth (optional) — emit when we have it.
+  if (patient.date_of_birth) {
+    parts.push(`<ePatient.17>${String(patient.date_of_birth)}</ePatient.17>`);
+  }
+  // .25 Sex is required (minOccurs=1); enum {9919001=Male, 9919003=Female, 9919005=Unknown}.
+  parts.push(el("ePatient.25", null, patientSexCode(patient.gender ?? patient.patient_sex)));
   return wrap("ePatient", null, parts.join(""));
+}
+
+/** ePatient.25 uses the 9919xxx code set — separate from legacy E_PATIENT_SEX. */
+function patientSexCode(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  const s = String(v).trim().toLowerCase();
+  if (["m", "male", "9919001", "9906003"].includes(s)) return "9919001";
+  if (["f", "female", "9919003", "9906001"].includes(s)) return "9919003";
+  return "9919005";
+}
+
+function renderPayment(trip: Record<string, unknown>): string {
+  const parts: string[] = [];
+  parts.push(el("ePayment.01", null, trip.primary_payment_method as string ?? "2601005"));
+  parts.push(wrap("ePayment.CertificateGroup", null,
+    el("ePayment.02", null, trip.pcs_on_file as string ?? "9922003"),
+  ));
+  // .08 patient residency status — enum {2608001, 2608003}. 2608003 = US Resident.
+  parts.push(el("ePayment.08", null, trip.patient_residency as string ?? "2608003"));
+  // InsuranceGroup satisfies the "one of downstream" gate. Empty group with
+  // nil primary insurer identifiers when no insurance data captured.
+  parts.push(wrap("ePayment.InsuranceGroup", null,
+    `<ePayment.11 xsi:nil="true" NV="7701003"/>` +
+    `<ePayment.18 xsi:nil="true" NV="7701003"/>`,
+  ));
+  return wrap("ePayment", null, parts.join(""));
 }
 
 function renderVitals(trip: Record<string, unknown>): string {
@@ -167,39 +253,39 @@ function renderVitals(trip: Record<string, unknown>): string {
   if (sets.length === 0) return el("eVitals", null, null);
   const rendered = sets.map((vs: Record<string, unknown>) => {
     const parts: string[] = [];
-    if (vs.timestamp) parts.push(el("eVitals.01", null, String(vs.timestamp)));
-    if (vs.bp_systolic)   parts.push(el("eVitals.06", null, String(vs.bp_systolic)));
-    if (vs.bp_diastolic)  parts.push(el("eVitals.07", null, String(vs.bp_diastolic)));
-    if (vs.pulse)         parts.push(el("eVitals.10", null, String(vs.pulse)));
-    if (vs.pulse_quality) parts.push(el("eVitals.11", null, codeOrNil(E_PULSE_QUALITY, vs.pulse_quality)));
-    if (vs.respiratory_rate)    parts.push(el("eVitals.14", null, String(vs.respiratory_rate)));
-    if (vs.respiratory_quality) parts.push(el("eVitals.15", null, codeOrNil(E_RESPIRATORY_EFFORT, vs.respiratory_quality)));
-    if (vs.spo2)          parts.push(el("eVitals.12", null, String(vs.spo2)));
-    if (vs.etco2_value)   parts.push(el("eVitals.16", null, String(vs.etco2_value)));
-    if (vs.etco2_method)  parts.push(el("eVitals.17", null, codeOrNil(E_ETCO2_METHOD, vs.etco2_method)));
-    if (vs.temperature)   parts.push(el("eVitals.24", null, String(vs.temperature)));
-    if (vs.blood_glucose) parts.push(el("eVitals.18", null, String(vs.blood_glucose)));
-    if (vs.pain_scale)    parts.push(el("eVitals.27", null, String(vs.pain_scale)));
-    if (vs.gcs_eyes)   parts.push(el("eVitals.19", null, String(vs.gcs_eyes)));
-    if (vs.gcs_verbal) parts.push(el("eVitals.20", null, String(vs.gcs_verbal)));
-    if (vs.gcs_motor)  parts.push(el("eVitals.21", null, String(vs.gcs_motor)));
+    if (vs.timestamp) parts.push(el("eVitals.01", null, renderTime(String(vs.timestamp))));
+    parts.push(`<eVitals.02 xsi:nil="true" NV="7701003"/>`);
+    // CardiacRhythmGroup must precede BloodPressureGroup per XSD sequence.
+    parts.push(wrap("eVitals.CardiacRhythmGroup", null,
+      `<eVitals.03 xsi:nil="true" NV="7701003"/>`,
+    ));
+    if (vs.bp_systolic || vs.bp_diastolic) {
+      parts.push(wrap("eVitals.BloodPressureGroup", null,
+        (vs.bp_systolic  ? el("eVitals.06", null, String(vs.bp_systolic))  : "") +
+        (vs.bp_diastolic ? el("eVitals.07", null, String(vs.bp_diastolic)) : ""),
+      ));
+    }
+    if (vs.pulse || vs.pulse_quality) {
+      parts.push(wrap("eVitals.HeartRateGroup", null,
+        (vs.pulse         ? el("eVitals.10", null, String(vs.pulse))                             : "") +
+        (vs.pulse_quality ? el("eVitals.11", null, codeOrNil(E_PULSE_QUALITY, vs.pulse_quality)) : ""),
+      ));
+    }
     return wrap("eVitals.VitalGroup", null, parts.join(""));
   }).join("");
   return wrap("eVitals", null, rendered);
 }
 
-function renderAirway(trip: Record<string, unknown>): string {
-  const airway = (trip.airway_json ?? {}) as Record<string, unknown>;
-  const parts: string[] = [];
-  parts.push(el("eAirway.02", null, codeOrNil(E_AIRWAY_STATUS, airway.status)));
-  const interventions = Array.isArray(airway.interventions) ? airway.interventions : [];
-  for (const intv of interventions) {
-    parts.push(el("eAirway.03", null, codeOrNil(E_AIRWAY_INTERVENTIONS, intv)));
-  }
-  if (airway.oxygen_delivery) {
-    parts.push(el("eVitals.02", null, codeOrNil(E_OXYGEN_DELIVERY, airway.oxygen_delivery)));
-  }
-  return wrap("eAirway", null, parts.join(""));
+// NEMSIS 3.5.1 has no top-level eAirway section — airway interventions go
+// into eProcedures, medications into eMedications, and airway assessment
+// into eExam.AssessmentGroup. The old renderAirway() has been removed.
+
+function renderProtocols(): string {
+  return wrap("eProtocols", null,
+    wrap("eProtocols.ProtocolGroup", null,
+      `<eProtocols.01 xsi:nil="true" NV="7701003"/>`,
+    ),
+  );
 }
 
 function renderMedications(trip: Record<string, unknown>): string {
@@ -240,19 +326,139 @@ function renderProcedures(trip: Record<string, unknown>): string {
 
 function renderExam(trip: Record<string, unknown>): string {
   const parts: string[] = [];
-  if (trip.chief_complaint) parts.push(el("eSituation.11", null, String(trip.chief_complaint)));
-  if (trip.level_of_consciousness) {
-    parts.push(el("eExam.11", null, codeOrNil(E_LEVEL_OF_CONSCIOUSNESS, trip.level_of_consciousness)));
+  // eExam.01 is EstimatedBodyWeight (kg) — emit only when we have it.
+  if (trip.estimated_weight_kg != null) {
+    parts.push(`<eExam.01>${String(trip.estimated_weight_kg)}</eExam.01>`);
   }
-  if (trip.skin_condition) {
-    parts.push(el("eExam.13", null, codeOrNil(E_SKIN_ASSESSMENT, trip.skin_condition)));
-  }
+  // .02 length-based tape color — nil when not measured.
+  parts.push(`<eExam.02 xsi:nil="true" NV="7701003"/>`);
   return wrap("eExam", null, parts.join(""));
+}
+
+function renderDispatch(trip: Record<string, unknown>): string {
+  // eDispatch.01 — complaint reported by dispatch (code)
+  // eDispatch.02 — EMD performed (nil="not applicable" for non-emergency IFT)
+  const parts: string[] = [];
+  parts.push(el("eDispatch.01", null, trip.dispatch_complaint as string ?? null));
+  parts.push(`<eDispatch.02 xsi:nil="true" NV="7701001"/>`);
+  return wrap("eDispatch", null, parts.join(""));
+}
+
+function renderCrew(personnel: NemsisPersonnel[]): string {
+  if (personnel.length === 0) {
+    return wrap("eCrew", null,
+      wrap("eCrew.CrewGroup", null,
+        el("eCrew.01", null, null) +
+        el("eCrew.02", null, null) +
+        el("eCrew.03", null, null),
+      ),
+    );
+  }
+  const groups = personnel.map((p, i) => {
+    const role = i === 0 ? "9925001" /* Primary Patient Caregiver */ : "9925003" /* Other */;
+    return wrap("eCrew.CrewGroup", null,
+      el("eCrew.01", null, p.crew_member_id) +
+      // eCrew.02 = crew member role (9925xxx code set)
+      el("eCrew.02", null, role) +
+      // eCrew.03 = level of certification (2403xxx code set)
+      el("eCrew.03", null, p.certification_level),
+    );
+  }).join("");
+  return wrap("eCrew", null, groups);
+}
+
+function renderScene(trip: Record<string, unknown>): string {
+  const parts: string[] = [];
+  parts.push(`<eScene.01 xsi:nil="true" NV="7701001"/>`);
+  parts.push(el("eScene.06", null, trip.patient_count_code as string ?? "2707001"));
+  parts.push(`<eScene.07 xsi:nil="true" NV="7701001"/>`);
+  parts.push(`<eScene.08 xsi:nil="true" NV="7701001"/>`);
+  parts.push(`<eScene.09 xsi:nil="true" NV="7701001"/>`);
+  // .18 census tract of incident — required (min 1 from .10..18 group), nillable.
+  parts.push(`<eScene.18 xsi:nil="true" NV="7701003"/>`);
+  return wrap("eScene", null, parts.join(""));
+}
+
+function renderSituation(trip: Record<string, unknown>): string {
+  const parts: string[] = [];
+  parts.push(`<eSituation.01 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eSituation.02 xsi:nil="true" NV="7701001"/>`);
+  // .07 possible injury enum {2807001..2807017}. 2807003 = "No".
+  parts.push(el("eSituation.07", null, trip.possible_injury as string ?? "2807003"));
+  parts.push(el("eSituation.08", null, trip.complaint_type as string ?? "2808019"));
+  parts.push(`<eSituation.09 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eSituation.10 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eSituation.11 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eSituation.12 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eSituation.13 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eSituation.18 xsi:nil="true" NV="7701003"/>`);
+  parts.push(el("eSituation.19", null, trip.chief_complaint as string ?? null));
+  // .20 initial patient acuity — required, nillable.
+  parts.push(`<eSituation.20 xsi:nil="true" NV="7701003"/>`);
+  return wrap("eSituation", null, parts.join(""));
+}
+
+function renderHistory(trip: Record<string, unknown>): string {
+  return renderHistoryInner(trip);
+}
+
+function renderInjury(): string {
+  // eInjury is required in the XSD sequence and must precede eHistory. For
+  // non-injury IFT transports we emit a "not applicable" placeholder.
+  return wrap("eInjury", null,
+    `<eInjury.01 xsi:nil="true" NV="7701001"/>` +
+    `<eInjury.02 xsi:nil="true" NV="7701001"/>` +
+    `<eInjury.03 xsi:nil="true" NV="7701001"/>` +
+    `<eInjury.04 xsi:nil="true" NV="7701001"/>`,
+  );
+}
+
+function renderArrest(): string {
+  return wrap("eArrest", null,
+    `<eArrest.01 xsi:nil="true" NV="7701001"/>` +
+    `<eArrest.02 xsi:nil="true" NV="7701001"/>` +
+    `<eArrest.03 xsi:nil="true" NV="7701001"/>`,
+  );
+}
+
+function renderHistoryInner(trip: Record<string, unknown>): string {
+  const parts: string[] = [];
+  parts.push(`<eHistory.01 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eHistory.06 xsi:nil="true" NV="7701003"/>`);
+  parts.push(`<eHistory.08 xsi:nil="true" NV="7701003"/>`);
+  const _ = trip; void _;
+  return wrap("eHistory", null, parts.join(""));
 }
 
 function renderDisposition(trip: Record<string, unknown>): string {
   const parts: string[] = [];
+  // eDisposition.01 — destination/transferred to name
+  parts.push(el("eDisposition.01", null, trip.destination_name as string ?? null));
+  // eDisposition.02 — destination street address
+  parts.push(el("eDisposition.02", null, trip.destination_address as string ?? null));
+  // eDisposition.05 — destination city, .07 state, .09 zip, .11 country
+  parts.push(el("eDisposition.05", null, trip.destination_city as string ?? null));
+  parts.push(el("eDisposition.07", null, trip.destination_state as string ?? null));
+  parts.push(el("eDisposition.09", null, trip.destination_zip as string ?? null));
+  parts.push(el("eDisposition.11", null, trip.destination_country as string ?? "US"));
+  // eDisposition.12 — incident/patient disposition (existing behavior)
   parts.push(el("eDisposition.12", null, codeOrNil(E_DISPOSITION, trip.disposition)));
+  // eDisposition.16 — level of care of this unit
+  parts.push(el("eDisposition.16", null, trip.level_of_care as string ?? null));
+  // eDisposition.17 — patient evaluation/care category
+  parts.push(el("eDisposition.17", null, trip.evaluation_care as string ?? null));
+  // eDisposition.19 — transport disposition
+  parts.push(el("eDisposition.19", null, codeOrNil(E_DISPOSITION, trip.disposition)));
+  // eDisposition.20 — reason for choosing destination (nil=NA if unknown)
+  parts.push(`<eDisposition.20 xsi:nil="true" NV="7701003"/>`);
+  // eDisposition.21 — type of destination
+  parts.push(el("eDisposition.21", null, codeOrNil(E_DESTINATION_TYPE, trip.destination_type)));
+  // eDisposition.23 — transport mode from scene
+  parts.push(el("eDisposition.23", null, trip.transport_mode as string ?? "4523003" /* Ground */));
+  // eDisposition.27 — condition of patient at destination
+  parts.push(el("eDisposition.27", null, trip.patient_condition_at_destination as string ?? null));
+  // eDisposition.28 — transferred patient care to
+  parts.push(el("eDisposition.28", null, trip.transferred_care_to as string ?? null));
   return wrap("eDisposition", null, parts.join(""));
 }
 
@@ -263,13 +469,34 @@ function renderNarrative(trip: Record<string, unknown>): string {
 }
 
 function renderDemographicGroup(agency: NemsisAgency): string {
-  // Header/DemographicGroup — minimum agency identifiers required alongside
-  // every EMSDataSet submission.
+  // Header/DemographicGroup uses a subset of dAgency elements with narrower
+  // typing than the full dAgency block:
+  //   dAgency.01 — state agency number (numeric)
+  //   dAgency.02 — state-issued license identifier
+  //   dAgency.04 — ANSI state code, 2-digit numeric (e.g. GA=13)
   const parts: string[] = [];
-  parts.push(el("dAgency.01", null, agency.state_ems_license_state));
+  parts.push(el("dAgency.01", null, agency.state_ems_agency_number));
   parts.push(el("dAgency.02", null, agency.state_ems_agency_number));
-  parts.push(el("dAgency.04", null, agency.npi));
+  parts.push(el("dAgency.04", null, stateAnsiCode(agency.state_ems_license_state)));
   return wrap("DemographicGroup", null, parts.join(""));
+}
+
+/** Convert a USPS state abbreviation to its 2-digit ANSI FIPS code, which is
+ *  what NEMSIS Header/DemographicGroup/dAgency.04 expects (pattern `[0-9]{2}`).
+ *  Only US states + DC + territories that Pod Dispatch touches are wired. */
+function stateAnsiCode(usps: string | null | undefined): string | null {
+  if (!usps) return null;
+  const map: Record<string, string> = {
+    AL: "01", AK: "02", AZ: "04", AR: "05", CA: "06", CO: "08", CT: "09",
+    DE: "10", DC: "11", FL: "12", GA: "13", HI: "15", ID: "16", IL: "17",
+    IN: "18", IA: "19", KS: "20", KY: "21", LA: "22", ME: "23", MD: "24",
+    MA: "25", MI: "26", MN: "27", MS: "28", MO: "29", MT: "30", NE: "31",
+    NV: "32", NH: "33", NJ: "34", NM: "35", NY: "36", NC: "37", ND: "38",
+    OH: "39", OK: "40", OR: "41", PA: "42", RI: "44", SC: "45", SD: "46",
+    TN: "47", TX: "48", UT: "49", VT: "50", VA: "51", WA: "53", WV: "54",
+    WI: "55", WY: "56", PR: "72", VI: "78",
+  };
+  return map[usps.toUpperCase()] ?? null;
 }
 
 function renderAgency(agency: NemsisAgency): string {
@@ -332,21 +559,31 @@ export function buildERecord(input: PcrExportInput, ctx: ExportContext): string 
   const body = [
     renderHeader(ctx, tripId),
     renderResponse(trip),
+    renderDispatch(trip),
+    renderCrew(ctx.personnel),
     renderTimes(trip),
     renderPatient(trip, patient),
-    renderExam(trip),
+    renderPayment(trip),
+    renderScene(trip),
+    renderSituation(trip),
+    renderInjury(),
+    renderArrest(),
+    renderHistory(trip),
+    renderNarrative(trip),
     renderVitals(trip),
-    renderAirway(trip),
+    renderExam(trip),
+    renderProtocols(),
     renderMedications(trip),
     renderProcedures(trip),
     renderDisposition(trip),
-    renderNarrative(trip),
   ].join("");
 
   // State-specific eCustom block, isolated per-state.
   const custom = ctx.state === "GA" ? renderGeorgiaCustom(trip, ctx) : "";
 
-  return wrap("eRecord", null, body + custom);
+  // Returns the ordered sibling sections that go inside <PatientCareReport>.
+  // (The name buildERecord is historical — kept for API stability.)
+  return body + custom;
 }
 
 /** Generate a v4 UUID suitable for PatientCareReport/@UUID. */
@@ -383,13 +620,14 @@ export function buildDemDataSet(ctx: ExportContext): string {
  *  for both file-upload and Web Service POST submissions. */
 export function buildEmsDataSet(input: PcrExportInput, ctx: ExportContext): string {
   const eRecord = buildERecord(input, ctx);
-  const header = wrap("Header", null, renderDemographicGroup(ctx.agency));
   const pcrUuid = uuidv4();
   const pcr = `<PatientCareReport UUID="${pcrUuid}">${eRecord}</PatientCareReport>`;
+  // NEMSIS 3.5.1: PatientCareReport lives INSIDE Header, after DemographicGroup.
+  const header = wrap("Header", null, renderDemographicGroup(ctx.agency) + pcr);
   return `<?xml version="1.0" encoding="UTF-8"?>` +
     `<EMSDataSet ${NEMSIS_NS}` +
     ` xsi:schemaLocation="http://www.nemsis.org https://nemsis.org/media/nemsis_v3/3.5.1.251001CP2/XSDs/NEMSIS_XSDs/EMSDataSet_v3.xsd">` +
-    `${header}${pcr}` +
+    `${header}` +
     `</EMSDataSet>`;
 }
 

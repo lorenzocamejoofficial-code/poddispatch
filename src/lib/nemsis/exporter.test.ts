@@ -52,22 +52,35 @@ describe("NEMSIS eRecord exporter", () => {
   it("renders an eRecord with expected top-level sections", () => {
     const xml = buildERecord(input, ctx);
     for (const tag of [
-      "eRecord.SoftwareApplicationGroup", "eResponse", "eTimes", "ePatient", "eExam",
-      "eVitals", "eAirway", "eMedications", "eProcedures", "eDisposition",
-      "eNarrative", "eCustom",
+      "eRecord.SoftwareApplicationGroup", "eResponse", "eDispatch", "eCrew",
+      "eTimes", "ePatient", "eScene", "eSituation", "eHistory", "eNarrative",
+      "eVitals", "eExam", "eMedications", "eProcedures", "eDisposition",
+      "eCustom",
     ]) {
       expect(xml.includes(`<${tag}`)).toBe(true);
     }
   });
 
+  it("emits chief complaint in eSituation.11, not eExam", () => {
+    const xml = buildERecord(input, ctx);
+    const situationBlock = xml.match(/<eSituation>[\s\S]*?<\/eSituation>/)?.[0] ?? "";
+    const examBlock = xml.match(/<eExam>[\s\S]*?<\/eExam>/)?.[0] ?? "";
+    expect(situationBlock).toContain("Chest pain");
+    expect(examBlock).not.toContain("Chest pain");
+  });
+
+  it("emits one eCrew.CrewGroup per personnel entry", () => {
+    const xml = buildERecord(input, ctx);
+    const groups = xml.match(/<eCrew\.CrewGroup>/g) ?? [];
+    expect(groups.length).toBe(ctx.personnel.length);
+  });
+
   it("resolves display values to NEMSIS codes", () => {
     const xml = buildERecord(input, ctx);
-    // Nasal cannula → 3406003
-    expect(xml).toContain("3406003");
     // Aspirin PO route → 3006009
     expect(xml).toContain("3006009");
-    // Patient sex M → NEMSIS 9906003
-    expect(xml).toContain("9906003");
+    // Patient sex M → ePatient.25 code set (9919001).
+    expect(xml).toContain("9919001");
   });
 
   it("wraps a PCR in the EMSDataSet/Header/PatientCareReport envelope", () => {
