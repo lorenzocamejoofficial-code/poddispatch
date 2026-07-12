@@ -110,16 +110,32 @@ function renderTime(iso: string | null | undefined): string | null {
 function renderHeader(ctx: ExportContext, tripId: string): string {
   const parts: string[] = [];
   parts.push(el("eRecord.01", null, tripId));
-  parts.push(el("eRecord.SoftwareName", null, ctx.software.name));
-  parts.push(el("eRecord.SoftwareVersion", null, ctx.software.version));
-  return wrap("eRecord.RecordHeader", null, parts.join(""));
+  // NEMSIS 3.5.1 wraps software identity in eRecord.SoftwareApplicationGroup
+  // with numbered children (eRecord.02 vendor, .03 product, .04 version).
+  parts.push(wrap("eRecord.SoftwareApplicationGroup", null,
+    el("eRecord.02", null, ctx.software.name) +
+    el("eRecord.03", null, ctx.software.name) +
+    el("eRecord.04", null, ctx.software.version),
+  ));
+  return parts.join("");
 }
 
 function renderResponse(trip: Record<string, unknown>): string {
   const parts: string[] = [];
-  // eResponse.05 — response mode (BLS/ALS + emergency flag lives in transport level)
-  // eResponse.14 — additional response mode not recorded here yet
-  parts.push(el("eResponse.01", null, String(trip.company_id ?? "")));
+  // Agency identity — NEMSIS requires the AgencyGroup wrapper (eResponse.01/.02)
+  parts.push(wrap("eResponse.AgencyGroup", null,
+    el("eResponse.01", null, String(trip.company_id ?? "")) +
+    el("eResponse.02", null, String(trip.company_name ?? "")),
+  ));
+  // Service level lives in ServiceGroup wrapper (eResponse.05)
+  parts.push(wrap("eResponse.ServiceGroup", null,
+    el("eResponse.05", null, trip.service_level ? String(trip.service_level) : null),
+  ));
+  // Response IDs / times / unit
+  parts.push(el("eResponse.03", null, trip.incident_number as string ?? null));
+  parts.push(el("eResponse.04", null, trip.run_number as string ?? null));
+  parts.push(el("eResponse.13", null, trip.unit_number as string ?? null));
+  parts.push(el("eResponse.14", null, trip.shift as string ?? null));
   return wrap("eResponse", null, parts.join(""));
 }
 
@@ -246,13 +262,34 @@ function renderNarrative(trip: Record<string, unknown>): string {
   );
 }
 
+function renderDemographicGroup(agency: NemsisAgency): string {
+  // Header/DemographicGroup — minimum agency identifiers required alongside
+  // every EMSDataSet submission.
+  const parts: string[] = [];
+  parts.push(el("dAgency.01", null, agency.state_ems_license_state));
+  parts.push(el("dAgency.02", null, agency.state_ems_agency_number));
+  parts.push(el("dAgency.04", null, agency.npi));
+  return wrap("DemographicGroup", null, parts.join(""));
+}
+
 function renderAgency(agency: NemsisAgency): string {
+  // Full dAgency block for DEMDataSet submissions.
   const parts: string[] = [];
   parts.push(el("dAgency.01", null, agency.state_ems_license_state));
   parts.push(el("dAgency.02", null, agency.state_ems_agency_number));
   parts.push(el("dAgency.03", null, agency.name));
   parts.push(el("dAgency.04", null, agency.npi));
-  return wrap("dAgency.AgencyGroup", null, parts.join(""));
+  return wrap("dAgency", null, parts.join(""));
+}
+
+function renderDRecord(ctx: ExportContext): string {
+  return wrap("dRecord", null,
+    wrap("dRecord.SoftwareApplicationGroup", null,
+      el("dRecord.01", null, ctx.software.name) +
+      el("dRecord.02", null, ctx.software.name) +
+      el("dRecord.03", null, ctx.software.version),
+    ),
+  );
 }
 
 function renderPersonnel(personnel: NemsisPersonnel[]): string {
@@ -309,33 +346,57 @@ export function buildERecord(input: PcrExportInput, ctx: ExportContext): string 
   // State-specific eCustom block, isolated per-state.
   const custom = ctx.state === "GA" ? renderGeorgiaCustom(trip, ctx) : "";
 
-  return wrap("eRecord", { [NEMSIS_NS.split("=")[0]]: undefined }, body + custom);
+  return wrap("eRecord", null, body + custom);
+}
+
+/** Generate a v4 UUID suitable for PatientCareReport/@UUID. */
+function uuidv4(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback — deterministic-shape v4 (not crypto-strong).
+  const b = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, "0"));
+  return `${h.slice(0, 4).join("")}-${h.slice(4, 6).join("")}-${h.slice(6, 8).join("")}-${h.slice(8, 10).join("")}-${h.slice(10, 16).join("")}`;
 }
 
 /** Produce a DEMDataSet envelope wrapping agency/personnel/vehicle context. */
 export function buildDemDataSet(ctx: ExportContext): string {
-  const body =
+  const demoBody =
+    renderDRecord(ctx) +
     renderAgency(ctx.agency) +
     renderPersonnel(ctx.personnel) +
     renderVehicle(ctx.vehicle);
+  const timeStamp = new Date().toISOString();
   return `<?xml version="1.0" encoding="UTF-8"?>` +
-    `<DEMDataSet ${NEMSIS_NS}>${body}</DEMDataSet>`;
+    `<DEMDataSet ${NEMSIS_NS}>` +
+    `<DemographicReport timeStamp="${timeStamp}">${demoBody}</DemographicReport>` +
+    `</DEMDataSet>`;
 }
 
-/** Produce a full StateDataSet envelope: dem + one eRecord for the trip.
- *  Used for the file-download submission format. */
-export function buildStateDataSet(input: PcrExportInput, ctx: ExportContext): string {
+/** Produce a full EMSDataSet envelope: Header/DemographicGroup + one
+ *  PatientCareReport containing the eRecord. This is the shape the NEMSIS
+ *  Compliance Testing web service (and the TAC pre-testing tools) expect
+ *  for both file-upload and Web Service POST submissions. */
+export function buildEmsDataSet(input: PcrExportInput, ctx: ExportContext): string {
   const eRecord = buildERecord(input, ctx);
-  const dem =
-    renderAgency(ctx.agency) +
-    renderPersonnel(ctx.personnel) +
-    renderVehicle(ctx.vehicle);
+  const header = wrap("Header", null, renderDemographicGroup(ctx.agency));
+  const pcrUuid = uuidv4();
+  const pcr = `<PatientCareReport UUID="${pcrUuid}">${eRecord}</PatientCareReport>`;
   return `<?xml version="1.0" encoding="UTF-8"?>` +
-    `<StateDataSet ${NEMSIS_NS} testMode="${ctx.test_mode ? "true" : "false"}">` +
-    `<Header>${dem}</Header>` +
-    `<PatientCareReport>${eRecord}</PatientCareReport>` +
-    `</StateDataSet>`;
+    `<EMSDataSet ${NEMSIS_NS}` +
+    ` xsi:schemaLocation="http://www.nemsis.org https://nemsis.org/media/nemsis_v3/3.5.1.251001CP2/XSDs/NEMSIS_XSDs/EMSDataSet_v3.xsd">` +
+    `${header}${pcr}` +
+    `</EMSDataSet>`;
 }
+
+/** @deprecated Use buildEmsDataSet — StateDataSet is a config/reporting
+ *  envelope in NEMSIS, not a PCR carrier. Kept as an alias for one release
+ *  so callers don't break, but forwards to buildEmsDataSet. */
+export const buildStateDataSet = buildEmsDataSet;
 
 // Re-export for callers that want to render just the custom block.
 export { renderGeorgiaCustom };
