@@ -34,6 +34,7 @@ import {
   type NemsisCode,
 } from "@/lib/nemsis-code-sets";
 import { toCode } from "@/lib/nemsis-translate";
+import { findByCode, findByDisplay } from "@/lib/nemsis-code-sets";
 import { el, wrap, xmlEscape } from "./xml-utils";
 import { renderGeorgiaCustom } from "./states/ga";
 
@@ -80,7 +81,20 @@ const NEMSIS_NS = 'xmlns="http://www.nemsis.org" xmlns:xsi="http://www.w3.org/20
  *  "not-recorded" (NV=7701003) when the field is empty. */
 function codeOrNil(codeSet: readonly NemsisCode[], stored: unknown): string | null {
   if (stored == null || stored === "") return null;
-  return toCode(codeSet, String(stored));
+  const s = String(stored);
+  // Prefer canonical NEMSIS numeric codes over legacy display-aliases so
+  // e.g. patient_sex "M" resolves to 9906003, not the M/F/U alias code.
+  const byDisplay = findByDisplay(codeSet, s);
+  if (byDisplay && /^\d+$/.test(byDisplay.code)) return byDisplay.code;
+  const byCode = findByCode(codeSet, s);
+  if (byCode) {
+    if (/^\d+$/.test(byCode.code)) return byCode.code;
+    // Alias hit — try to promote to the numeric canonical via display.
+    const promoted = findByDisplay(codeSet, byCode.display);
+    if (promoted && /^\d+$/.test(promoted.code)) return promoted.code;
+    return byCode.code;
+  }
+  return toCode(codeSet, s);
 }
 
 function renderTime(iso: string | null | undefined): string | null {
