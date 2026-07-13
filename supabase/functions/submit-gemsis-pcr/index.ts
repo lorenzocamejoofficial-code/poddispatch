@@ -25,7 +25,7 @@ import {
   buildEmsDataSet,
   type ExportContext,
   type PcrExportInput,
-} from "../../../src/lib/nemsis/exporter.ts";
+} from "../_shared/nemsis/exporter.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
