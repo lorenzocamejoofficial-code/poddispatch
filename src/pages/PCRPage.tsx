@@ -1366,6 +1366,17 @@ export default function PCRPage() {
         console.error("Failed to create biller task (non-blocking):", taskErr);
       }
 
+      // Fire-and-forget: queue NEMSIS/GEMSIS submission for this PCR. Runs in
+      // test_mode by default until the vendor certification window closes,
+      // so nothing hits GA DPH production. Failures never block billing.
+      try {
+        supabase.functions.invoke("submit-gemsis-pcr", {
+          body: { trip_id: trip.id, test_mode: true },
+        }).catch((err) => console.error("NEMSIS submission queue failed (non-blocking):", err));
+      } catch (nemsisErr) {
+        console.error("NEMSIS submission queue failed (non-blocking):", nemsisErr);
+      }
+
       if (isQaFixMode) {
         toast.success("PCR corrected and resubmitted, trip is ready for billing!");
         navigate("/compliance");
