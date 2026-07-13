@@ -32,11 +32,11 @@ import {
   E_DISPOSITION,
   E_DESTINATION_TYPE,
   type NemsisCode,
-} from "../nemsis-code-sets";
-import { toCode } from "../nemsis-translate";
-import { findByCode, findByDisplay } from "../nemsis-code-sets";
-import { el, wrap, xmlEscape } from "./xml-utils";
-import { renderGeorgiaCustom } from "./states/ga";
+} from "../nemsis-code-sets.ts";
+import { toCode } from "../nemsis-translate.ts";
+import { findByCode, findByDisplay } from "../nemsis-code-sets.ts";
+import { el, wrap, xmlEscape } from "./xml-utils.ts";
+import { renderGeorgiaCustom } from "./states/ga.ts";
 
 export interface NemsisAgency {
   npi: string | null;
