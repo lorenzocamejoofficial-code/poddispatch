@@ -32,9 +32,9 @@ import {
   E_DISPOSITION,
   E_DESTINATION_TYPE,
   type NemsisCode,
-} from "@/lib/nemsis-code-sets";
-import { toCode } from "@/lib/nemsis-translate";
-import { findByCode, findByDisplay } from "@/lib/nemsis-code-sets";
+} from "../nemsis-code-sets";
+import { toCode } from "../nemsis-translate";
+import { findByCode, findByDisplay } from "../nemsis-code-sets";
 import { el, wrap, xmlEscape } from "./xml-utils";
 import { renderGeorgiaCustom } from "./states/ga";
 
