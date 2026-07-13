@@ -26,8 +26,8 @@
  * is safe to use from any layer without creating cycles.
  */
 
-import type { NemsisCode } from "./nemsis-code-sets";
-import { findByCode, findByDisplay } from "./nemsis-code-sets";
+import type { NemsisCode } from "./nemsis-code-sets.ts";
+import { findByCode, findByDisplay } from "./nemsis-code-sets.ts";
 
 /** Return the human-readable display for a stored value, whether it is a
  *  NEMSIS code, a legacy display string, or null. Falls back to the raw

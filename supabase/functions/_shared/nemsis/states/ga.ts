@@ -12,8 +12,8 @@
  * deterministic and unit-testable.
  */
 
-import type { ExportContext } from "../exporter";
-import { el, wrap } from "../xml-utils";
+import type { ExportContext } from "../exporter.ts";
+import { el, wrap } from "../xml-utils.ts";
 
 export function renderGeorgiaCustom(
   trip: Record<string, unknown>,
