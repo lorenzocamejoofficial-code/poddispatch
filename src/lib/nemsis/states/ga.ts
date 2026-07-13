@@ -12,8 +12,8 @@
  * deterministic and unit-testable.
  */
 
-import type { ExportContext } from "@/lib/nemsis/exporter";
-import { el, wrap } from "@/lib/nemsis/xml-utils";
+import type { ExportContext } from "../exporter";
+import { el, wrap } from "../xml-utils";
 
 export function renderGeorgiaCustom(
   trip: Record<string, unknown>,
