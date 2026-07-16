@@ -1,83 +1,98 @@
+# Claim-Failure Gate Audit (read-only)
 
-# GEMSIS/NEMSIS Vendor Certification — Full Roadmap
+Legend: **EXISTS / PARTIAL / DOES NOT EXIST** · **BLOCKS / WARNS / RECORDS / NONE**
 
-## Goal
-Bring Pod Dispatch to full NEMSIS v3 vendor certification so it appears on the NEMSIS Compliant Software list and can submit PCRs to GEMSIS (Georgia) and neighboring state repositories. Billing to Office Ally MUST remain byte-identical throughout — every phase is gated by `src/lib/claim-parity.test.ts`.
+## GATE 1 — Before the trip
 
-## Locked decisions (from user, do not re-ask)
-- **States:** Georgia first; architecture must be pluggable so neighboring states (AL, FL, SC, TN, NC) can be added without touching the exporter core. No hardcoded GA endpoints or GA-only fields in shared code.
-- **NEMSIS version:** Target **v3.5.1** (NEMSIS TAC is only accepting initial compliance applications for v3.5.1 as of 2026). GA GEMSIS is on the same track.
-- **Submission methods:** BOTH — file upload (XML download from the app) AND Web Service POST (background edge function). No user-facing export button; submissions run on PCR finalize + nightly retry.
-- **Vendor identity:** Pod Dispatch itself does NOT hold an NPI or state EMS agency #. Those live per-company on `public.companies` (NPI already existed; `state_ems_agency_number` + `state_ems_license_state` added in migration `20260712-161021`).
-- **Crew credentials:** Already tracked via `crew_certifications` (medic_number = state EMS license, CPR, driver's license). No new crew schema needed for NEMSIS `dPersonnel`.
-- **Test mode:** A `nemsis_test_mode` flag on submissions so TAC compliance test PCRs never touch billing.
-- **UI surface:** No compliance status shown to end users. Vendor status is a sales conversation only.
+**1. PCS on file check**
+PARTIAL · WARNS (pre-trip), BLOCKS (only at claim submission when `pcs_on_file=true` and cert date missing).
+- `src/lib/pre-trip-readiness.ts:63-66` — flags `"PCS not on file"` for non-emergency/non-private-pay. Advisory (`level: "needs_attention"`), not enforced.
+- `src/lib/qa-anomaly-checks.ts:96-104` — post-trip QA flag (`pcs_missing_expired`), red for scheduled / yellow for unscheduled. Queue flag only.
+- `src/lib/claim-readiness.ts:315-327` — blocks at biller stage **only if** `claim.pcs_on_file === true` and `pcs_certification_date` is empty. If `pcs_on_file` is false, no block fires.
+- DB: `patients.pcs_on_file`, `patients.pcs_expiration_date`, `patients.pcs_physician_npi`, `patients.pcs_physician_name`.
 
-## What the user is doing in parallel (do NOT try to automate)
-1. Applying to Georgia DPH as a GEMSIS-approved vendor
-2. Requesting NEMSIS TAC test credentials
-3. Signing GEMSIS data use agreement
-4. Passing the NEMSIS TAC compliance test packet (10–20 synthetic PCRs) when credentials arrive
+**2. PCS expiration / 60-day window**
+PARTIAL · WARNS/BLOCKS on expiry date only. **No 60-day / recertification-window threshold anywhere.**
+- `src/components/billing/UpstreamReadinessPanel.tsx` (~expiration check): blocks when `pcs_expiration_date < today`, warns if ≤14 days out. The 14 is a UI reminder, not the CMS 60-day rule.
+- `src/lib/qa-anomaly-checks.ts:99` — compares `pcs_expiration_date < trip.run_date` only.
+- `rg "60"` across `claim-readiness.ts`, `pre-trip-readiness.ts`, `qa-anomaly-checks.ts` returns no PCS-related 60-day constant. DOES NOT EXIST for the 60-day CMS window specifically.
 
----
+**3. PCS-stated LOS vs documented condition match**
+DOES NOT EXIST.
+- No `pcs_level`, `pcs_los`, or equivalent field on `patients` (grep `pcs_level` → 0 hits).
+- No code compares PCS-declared level of service against `stretcher_placement` / `bed_confined` / `requires_monitoring`. The stretcher rule at `src/lib/claim-readiness.ts:332-350` only checks that a 2nd ICD-10 exists — it does not consult a PCS-stated LOS.
 
-## Phase order — DO NOT skip phases
+**4. Prior authorization (RSNAT) tracking**
+EXISTS · BLOCKS (at biller/export stage only).
+- `src/lib/claim-readiness.ts:79-105` (`isRsnatTransport`) + `:355-377` — blocks when Medicare + (dialysis dest OR standing order OR ≥3x/week recurrence) and `patient.prior_auth_utn` missing or `prior_auth_period_end < run_date`.
+- DB: `patients.prior_auth_utn`, `patients.prior_auth_period_end`, `patients.standing_order`, `patients.recurrence_days`.
+- No pre-trip block — dispatch can still schedule the run without UTN.
 
-Every phase ends with `bun test claim-parity` passing. If it fails, the phase is not done.
+**5. Eligibility / coverage verification before the trip**
+PARTIAL · RECORDS (informational only).
+- Edge function: `supabase/functions/check-eligibility/index.ts`.
+- DB: `eligibility_checks` table (12 cols).
+- Callers: only `src/pages/Patients.tsx` and `src/components/patients/InsuranceToolsHeader.tsx`. No caller in `Scheduling.tsx`, `DispatchBoard.tsx`, or the claim-readiness/queue pipeline (`rg check-eligibility src/pages/Scheduling.tsx src/pages/DispatchBoard.tsx src/pages/BillingAndClaims.tsx` → 0 hits). Result never gates a trip or a claim.
 
-### Phase 1 — Dropdown alignment (IN PROGRESS, ~40% complete)
-Swap every PCR dropdown to NEMSIS v3.5.1 code sets via dual-write (`field` = display, `field_code` = NEMSIS code). Billing keeps reading `field`.
-  - [x] Code-set library scaffold (`src/lib/nemsis-code-sets.ts`)
-  - [x] Translation helper (`src/lib/nemsis-translate.ts`)
-  - [x] Airway, Oxygen, LOC, Skin, Medication route/response, Patient sex
-  - [x] Vitals categorical pick lists (pulse quality, respiratory effort, ETCO2 method, GCS E/V/M, pain scale type). Numeric vitals (BP/pulse/resp/SpO2/temp/BG) emit as LOINC observations at export time — no card change needed.
-  - [x] Procedures (eProcedures), procedure response, SMR device, CPR started-by, ECG rhythm
-  - [x] Disposition (eDisposition.12) and Destination type (eDisposition.23)
-  - [x] Times (eTimes) — already ISO-8601 timestamptz; matches NEMSIS format, no change
-  - [ ] Assessment/injury (eInjury, eSituation) — deferred to Phase 2 (needs new columns for mechanism-of-injury / cause)
-  - [x] Backfill script — NOT NEEDED. Phase 1 uses display-as-code (labels round-trip through `findByDisplay`), so historical rows already resolve to a NEMSIS code with no data migration.
+**6. Secondary/tertiary coverage discovery**
+PARTIAL · RECORDS.
+- Edge function: `supabase/functions/discover-coverage/index.ts`.
+- DB: `coverage_discoveries` table (21 cols).
+- Consumed by `src/pages/OwnerDashboard.tsx`, `src/pages/ReportsAndMetrics.tsx`, `src/pages/MigrationOnboarding.tsx` — surfaces findings only. Nothing auto-attaches a discovered payer to a claim or blocks submission on missing secondary.
 
-**Phase 1 status: DONE for all display-only dropdowns.** Remaining assessment/injury work moves to Phase 2 because it requires new schema columns, not just code-set mapping.
+**7. Patient signature / authorization capture**
+PARTIAL · NONE (hard-coded, not verified).
+- `src/lib/edi-837p-generator.ts:612-615` hard-codes `"Y"` for provider and patient signature on file in the CLM segment.
+- `trip_records.signatures_json` is checked for existence by QA (`src/lib/qa-anomaly-checks.ts:76-79` — red flag "No crew signature") but `evaluateClaimReadiness` does not require a patient-signature record before EDI generation. Claim will emit `sig-on-file=Y` regardless of what `signatures_json` contains.
 
-### Phase 2 — Missing NEMSIS mandatory elements
-Additive only; no billing-column changes.
-  - [x] dAgency populated from `companies` (npi, state_ems_agency_number, state_ems_license_state)
-  - [x] dPersonnel populated from `crew_certifications` (state license, cert level)
-  - [x] dVehicle populated from `trucks` (unit #, VIN, plate)
-  - [ ] eScene / eArrest / eInjury deep audit — deferred until TAC test packet arrives; test packet will surface any missing mandatory fields with concrete failure messages, faster than a speculative audit
+## GATE 2 — Point of care
 
-### Phase 3 — GEMSIS state-specific elements (`eCustom`)
-  - [x] `src/lib/nemsis/states/ga.ts` renders GA eCustom block (loaded miles, wait time, vendor software identity). Real CustomElementIDs slot in when GA DPH sends the current schema with vendor creds.
-  - [ ] AL / FL / SC / TN / NC sibling modules — add on demand.
+**8. Level-of-service billed vs level documented**
+DOES NOT EXIST.
+- No code cross-checks the HCPCS on `claim_records.hcpcs_codes` against PCR-documented condition (`bed_confined`, `stretcher_placement`, `requires_monitoring`, `oxygen_during_transport`). `src/lib/edi-837p-generator.ts` and `src/lib/queue-claims-for-submission.ts` pass HCPCS through without any LOS-vs-documentation reconciliation. The 837p comment at `:725` mentions "upcoding/underbilling" but is descriptive, not a check.
 
-### Phase 4 — XSD schema validation
-Blocked on: NEMSIS 3.5.1 XSD download (public but versioned; pull once vendor cert docs list the exact filename). Wire libxmljs2 into the edge function; fail submission on validation error, never block claims.
+**9. Medical necessity fields + validation**
+EXISTS (fields) / PARTIAL (validation) · BLOCKS (QA flag red).
+- `trip_records`: `bed_confined`, `cannot_transfer_safely`, `requires_monitoring`, `oxygen_during_transport`.
+- `src/lib/qa-anomaly-checks.ts:63-65` — if all four are false, red flag `no_medical_necessity`. Enters QA queue; doesn't hard-block claim generation in `claim-readiness.ts` (grep of that file has no reference to those four flags).
 
-### Phase 5 — Schematron business rules
-Blocked on: NEMSIS Schematron file (bundled with the XSD). Same failure model as Phase 4.
+## GATE 3 — After adjudication
 
-### Phase 6 — NEMSIS XML exporter
-  - [x] `src/lib/nemsis/exporter.ts` — `buildERecord` (Web Service) + `buildStateDataSet` (file download) + `buildDemDataSet`
-  - [x] 7 unit tests covering escaping, code resolution, test-mode flag, per-state eCustom, xsi:nil for missing values
-  - [ ] Swap placeholder XML in edge function to real exporter once module federation for Deno-safe imports is set up (small task)
+**10. 835/ERA ingestion**
+EXISTS · RECORDS.
+- Parser: `src/lib/edi-835-parser.ts` (extracts CLP, CAS, SVC, PLB; aggregates `raw_denial_codes` at claim level).
+- Manual upload: `src/pages/RemittanceImport.tsx`.
+- Automated pull: `supabase/functions/retrieve-remittance-officeally/index.ts`.
+- Ack ingestion: `supabase/functions/ingest-acks-officeally/index.ts`.
+- Tables: `remittance_files`, `claim_payments`, `claim_adjustments`, `remittance_quarantine`, `claim_acknowledgments`.
 
-### Phase 7 — GEMSIS Web Service submission
-  - [x] `nemsis_submissions` table (audit trail, RLS-scoped to company, service-role writes only)
-  - [x] `submit-gemsis-pcr` edge function (queues + POSTs + records ack/nack)
-  - [x] `STATE_ENDPOINTS` map ready to accept endpoints from vendor onboarding
-  - [ ] Nightly retry cron — will be scheduled after first real endpoint lands
-  - [ ] Hook PCR finalize → `supabase.functions.invoke("submit-gemsis-pcr", ...)` — will wire in when endpoints exist so nothing silently fails today
+**11. Crossover-failure detection (MA18 / N89 / MA07)**
+DOES NOT EXIST.
+- `rg "MA18|N89|MA07|crossover"` across `src/lib` and `supabase/functions` returns **zero matches**. No remark-code inspection for crossover success on paid Medicare claims; no auto-detection that a secondary was NOT forwarded.
 
-### Phase 8 — NEMSIS TAC compliance testing
-USER ACTION. When TAC test packet arrives: run synthetic PCRs through exporter, submit in test mode, iterate on any validation errors. Last step before vendor listing.
+**12. Timely-filing countdown on un-crossed / unbilled secondary**
+PARTIAL · BLOCKS on primary only.
+- `src/lib/edi-837p-generator.ts:timelyFilingDays()` + `src/lib/claim-readiness.ts:255-267` block a primary claim past the timely-filing limit.
+- No secondary-specific clock: no code scans for paid-primary claims lacking a secondary submission and counts days remaining. Secondary generation exists (`src/lib/create-secondary-claim.ts`, `SecondaryClaimPanel.tsx`) but is manual/on-demand — no timer surfaces expiring secondaries.
 
----
+**13. Denial capture + rework queue**
+EXISTS · RECORDS + surfaces (no forced workflow).
+- Parsed: `src/lib/edi-835-parser.ts:242-338` populates `raw_denial_codes` per claim.
+- Classified: `src/lib/classify-denial.ts` + `src/lib/denial-code-translations.ts`.
+- Surfaced in: `src/pages/BillingAndClaims.tsx` (denial recovery views), `src/hooks/useMissingMoneyScan.ts` category `denial_no_action`, `MissingMoneyPanel.tsx`.
+- Queue table: no dedicated `denial_queue` table — denials are surfaced by query against `claim_records` (`denial_code`, `rejection_codes`) + `claim_adjustments`.
 
-## Guardrails (non-negotiable)
-- Billing pipeline (`edi-837p-generator.ts`, `claim-readiness.ts`, `queue-claims-for-submission.ts`) is READ-ONLY from NEMSIS phases. It never reads `_code` columns, only display columns.
-- `claim-parity.test.ts` runs before/after every phase's PR. A single byte of 837P drift fails the build.
-- No user-facing "NEMSIS status" UI. No export buttons on customer screens.
-- Submissions are queued + acked in a dedicated `nemsis_submissions` table (created in Phase 7). Never write submission state into `claim_records` or `trip_records`.
+## Also requested
 
-## Next session pickup
-Continue Phase 1 dropdown coverage: Vitals card first (`src/components/pcr/VitalsCard.tsx`), then Procedures, then Disposition. Each PR adds code sets + dual-write + updates the phase 1 checklist above.
+**14. Underbilling detection — payable items provided but not on the claim**
+DOES NOT EXIST.
+- `useMissingMoneyScan` (`src/hooks/useMissingMoneyScan.ts:24-29`) categories are: `no_pcr`, `pcr_not_billed`, `no_followup`, `secondary_not_billed`, `denial_no_action`. All are "claim never went out / never worked" categories. None compare submitted `claim_records.hcpcs_codes` / `hcpcs_modifiers` / `loaded_miles` / `total_charge` against what `trip_records` documented (`oxygen_during_transport`, `bed_confined`, condition modifiers, actual mileage).
+- No file matching `rg "underbill"` implements a check; the only occurrence (`src/lib/edi-837p-generator.ts:725`) is a comment.
+- `trip_records.oxygen_during_transport` is read into the queue payload (`queue-claims-for-submission.ts:425`) but there is no post-submission reconciliation that flags "oxygen documented, no oxygen line item / modifier billed" or "loaded_miles > billed mileage units."
+
+## Summary counts
+- EXISTS + BLOCKS: 2 (RSNAT prior auth at export; timely filing on primary).
+- PARTIAL: 8.
+- DOES NOT EXIST: 4 (PCS 60-day window, PCS-vs-LOS match, LOS-vs-documentation cross-check, crossover-failure detection, underbilling detection).
+
+End of report — no changes made.
