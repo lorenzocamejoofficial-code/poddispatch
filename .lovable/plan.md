@@ -1,98 +1,168 @@
-# Claim-Failure Gate Audit (read-only)
+# End-to-End Flow Audit (Read-Only)
 
-Legend: **EXISTS / PARTIAL / DOES NOT EXIST** · **BLOCKS / WARNS / RECORDS / NONE**
+For each item: EXISTS / PARTIAL / DOES NOT EXIST, file evidence, required vs optional fields. Cited from current code — no changes made.
 
-## GATE 1 — Before the trip
+---
 
-**1. PCS on file check**
-PARTIAL · WARNS (pre-trip), BLOCKS (only at claim submission when `pcs_on_file=true` and cert date missing).
-- `src/lib/pre-trip-readiness.ts:63-66` — flags `"PCS not on file"` for non-emergency/non-private-pay. Advisory (`level: "needs_attention"`), not enforced.
-- `src/lib/qa-anomaly-checks.ts:96-104` — post-trip QA flag (`pcs_missing_expired`), red for scheduled / yellow for unscheduled. Queue flag only.
-- `src/lib/claim-readiness.ts:315-327` — blocks at biller stage **only if** `claim.pcs_on_file === true` and `pcs_certification_date` is empty. If `pcs_on_file` is false, no block fires.
-- DB: `patients.pcs_on_file`, `patients.pcs_expiration_date`, `patients.pcs_physician_npi`, `patients.pcs_physician_name`.
+## 1. COMPANY SIGNUP — EXISTS
+**UI:** `src/pages/CompanySignup.tsx` (4-step wizard: info → profile → agreements → confirm)
+**Edge function:** `supabase/functions/company-signup/index.ts`
 
-**2. PCS expiration / 60-day window**
-PARTIAL · WARNS/BLOCKS on expiry date only. **No 60-day / recertification-window threshold anywhere.**
-- `src/components/billing/UpstreamReadinessPanel.tsx` (~expiration check): blocks when `pcs_expiration_date < today`, warns if ≤14 days out. The 14 is a UI reminder, not the CMS 60-day rule.
-- `src/lib/qa-anomaly-checks.ts:99` — compares `pcs_expiration_date < trip.run_date` only.
-- `rg "60"` across `claim-readiness.ts`, `pre-trip-readiness.ts`, `qa-anomaly-checks.ts` returns no PCS-related 60-day constant. DOES NOT EXIST for the 60-day CMS window specifically.
+**Server-REQUIRED fields (edge function validates independently of UI):**
+- `email`, `password`, `fullName`, `companyName` (`index.ts:33-38`)
+- `npiNumber`, `stateOfOperation`, `serviceAreaType` (`:40-45`) — note: server only checks truthy, does NOT re-validate NPI 10-digit format
+- `addressStreet`, `addressCity`, `addressZip` (5 digits, re-parsed server-side, `:47-54`)
+- `einNumber` — 9 digits after stripping non-digits (`:56-64`)
+- `agreements.terms_of_service`, `agreements.privacy_policy`, `agreements.hipaa_responsibilities` (`:66-71`)
 
-**3. PCS-stated LOS vs documented condition match**
-DOES NOT EXIST.
-- No `pcs_level`, `pcs_los`, or equivalent field on `patients` (grep `pcs_level` → 0 hits).
-- No code compares PCS-declared level of service against `stretcher_placement` / `bed_confined` / `requires_monitoring`. The stretcher rule at `src/lib/claim-readiness.ts:332-350` only checks that a 2nd ICD-10 exists — it does not consult a PCS-stated LOS.
+**Client-only (never re-checked server-side):** payer mix totaling 100%, NPI Luhn/10-digit format, truckCount, currentSoftware, yearsInOperation, hasInhouseBiller, hipaaPrivacyOfficer, phone.
 
-**4. Prior authorization (RSNAT) tracking**
-EXISTS · BLOCKS (at biller/export stage only).
-- `src/lib/claim-readiness.ts:79-105` (`isRsnatTransport`) + `:355-377` — blocks when Medicare + (dialysis dest OR standing order OR ≥3x/week recurrence) and `patient.prior_auth_utn` missing or `prior_auth_period_end < run_date`.
-- DB: `patients.prior_auth_utn`, `patients.prior_auth_period_end`, `patients.standing_order`, `patients.recurrence_days`.
-- No pre-trip block — dispatch can still schedule the run without UTN.
+**DB rows created (all as service-role in one edge-function call):**
+- `companies` (`onboarding_status: "pending_approval"`) — `:134-160`
+- `company_memberships` (role=`owner`) — `:173`
+- `profiles` — `:179`
+- `company_settings` — `:185`
+- `legal_acceptances` ×3 — `:190-197`
+- `subscription_records` (status `pending_approval`, plan `poddispatch_standard`) — `:202-205`
+- `migration_settings` (wizard_step 0) — `:207-210`
+- `charge_master` seeded via `_shared/seed-charge-master.ts` (Medicare real rates for ZIP; 4 placeholder rows `needs_review=true`) — `:212-219`
+- `onboarding_events` — `:221-226`
+- Optional `notifications` to system_creators — `:228-256`
 
-**5. Eligibility / coverage verification before the trip**
-PARTIAL · RECORDS (informational only).
-- Edge function: `supabase/functions/check-eligibility/index.ts`.
-- DB: `eligibility_checks` table (12 cols).
-- Callers: only `src/pages/Patients.tsx` and `src/components/patients/InsuranceToolsHeader.tsx`. No caller in `Scheduling.tsx`, `DispatchBoard.tsx`, or the claim-readiness/queue pipeline (`rg check-eligibility src/pages/Scheduling.tsx src/pages/DispatchBoard.tsx src/pages/BillingAndClaims.tsx` → 0 hits). Result never gates a trip or a claim.
+**Gate after signup:** Auto sign-in → redirect to `/pending-approval`. A system creator must approve before the app is usable. Approval mechanism (which edge function flips `companies.onboarding_status`) not traced in this audit — **open question**.
 
-**6. Secondary/tertiary coverage discovery**
-PARTIAL · RECORDS.
-- Edge function: `supabase/functions/discover-coverage/index.ts`.
-- DB: `coverage_discoveries` table (21 cols).
-- Consumed by `src/pages/OwnerDashboard.tsx`, `src/pages/ReportsAndMetrics.tsx`, `src/pages/MigrationOnboarding.tsx` — surfaces findings only. Nothing auto-attaches a discovered payer to a claim or blocks submission on missing secondary.
+---
 
-**7. Patient signature / authorization capture**
-PARTIAL · NONE (hard-coded, not verified).
-- `src/lib/edi-837p-generator.ts:612-615` hard-codes `"Y"` for provider and patient signature on file in the CLM segment.
-- `trip_records.signatures_json` is checked for existence by QA (`src/lib/qa-anomaly-checks.ts:76-79` — red flag "No crew signature") but `evaluateClaimReadiness` does not require a patient-signature record before EDI generation. Claim will emit `sig-on-file=Y` regardless of what `signatures_json` contains.
+## 2. COMPANY / PROVIDER SETUP — PARTIAL
+Fields captured at signup on `companies`: `npi_number, ein_number, state_of_operation, service_area_type, address_street, address_city, address_state, address_zip`.
 
-## GATE 2 — Point of care
+**837P generator:** `src/lib/edi-837p-generator.ts` takes a pre-built `ProviderInfo` object requiring: `npi, tax_id, organization_name, address, city, state, zip, phone`. The generator is pure — the actual `companies`/`company_settings` → `ProviderInfo` mapping happens upstream in `EDIExport.tsx` / `queue-claims-for-submission.ts` and was NOT enumerated in this audit — **open question** (needs a follow-up read to list exact columns consumed).
 
-**8. Level-of-service billed vs level documented**
-DOES NOT EXIST.
-- No code cross-checks the HCPCS on `claim_records.hcpcs_codes` against PCR-documented condition (`bed_confined`, `stretcher_placement`, `requires_monitoring`, `oxygen_during_transport`). `src/lib/edi-837p-generator.ts` and `src/lib/queue-claims-for-submission.ts` pass HCPCS through without any LOS-vs-documentation reconciliation. The 837p comment at `:725` mentions "upcoding/underbilling" but is descriptive, not a check.
+**Billing readiness gates (referenced by `useOnboardingProgress.ts`, `BillingWorkQueue.tsx`, `BillingAndClaims.tsx`):**
+- **Charge master "verify rates"** — expects all 5 payer types with `base_rate>0`, `mileage_rate>0`, `needs_review=false` (from memory `billing/auto-rate-seeding.md` + `features/onboarding-wizard-v2.md`).
+- **Clearinghouse** — `clearinghouse_settings.is_configured = true` (Office Ally credentials, sender/receiver IDs, folders).
+- Whether these are hard-blocks or soft-warnings inside `queueClaimsForSubmission` — **open question** (file only partially read).
 
-**9. Medical necessity fields + validation**
-EXISTS (fields) / PARTIAL (validation) · BLOCKS (QA flag red).
-- `trip_records`: `bed_confined`, `cannot_transfer_safely`, `requires_monitoring`, `oxygen_during_transport`.
-- `src/lib/qa-anomaly-checks.ts:63-65` — if all four are false, red flag `no_medical_necessity`. Enters QA queue; doesn't hard-block claim generation in `claim-readiness.ts` (grep of that file has no reference to those four flags).
+---
 
-## GATE 3 — After adjudication
+## 3. FACILITIES — EXISTS
+**File:** `src/pages/FacilitiesPage.tsx`, insert `:116` into `facilities` table.
+**Client-required:** `name` (`:90`); if `facility_type === "dialysis"` then `dialysis_subtype` also required (`:94-97`, tied to EDI G/J modifier correctness).
+**Optional in insert payload:** `address, phone, contact_name, notes, active, contract_payer_type, rate_type, invoice_preference, facility_type`.
+Table not present in generated `types.ts` (cast `as any`) — DB-level NOT NULL constraints beyond `name`/`company_id` **could not be confirmed from source**.
 
-**10. 835/ERA ingestion**
-EXISTS · RECORDS.
-- Parser: `src/lib/edi-835-parser.ts` (extracts CLP, CAS, SVC, PLB; aggregates `raw_denial_codes` at claim level).
-- Manual upload: `src/pages/RemittanceImport.tsx`.
-- Automated pull: `supabase/functions/retrieve-remittance-officeally/index.ts`.
-- Ack ingestion: `supabase/functions/ingest-acks-officeally/index.ts`.
-- Tables: `remittance_files`, `claim_payments`, `claim_adjustments`, `remittance_quarantine`, `claim_acknowledgments`.
+---
 
-**11. Crossover-failure detection (MA18 / N89 / MA07)**
-DOES NOT EXIST.
-- `rg "MA18|N89|MA07|crossover"` across `src/lib` and `supabase/functions` returns **zero matches**. No remark-code inspection for crossover success on paid Medicare claims; no auto-detection that a secondary was NOT forwarded.
+## 4. CREW / EMPLOYEES — EXISTS
+**File:** `src/pages/Employees.tsx` (invite flow preferred; legacy direct-create also exists).
+**Invite flow:** inserts `profiles` placeholder with `invitation_status: "invited"`, `pending_role`, `email` (client-required, `:258-260`), `company_id`. Optional: `full_name, phone_number, sex, cert_level, employment_type, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok`. Then calls `send-employee-invite` edge function.
 
-**12. Timely-filing countdown on un-crossed / unbilled secondary**
-PARTIAL · BLOCKS on primary only.
-- `src/lib/edi-837p-generator.ts:timelyFilingDays()` + `src/lib/claim-readiness.ts:255-267` block a primary claim past the timely-filing limit.
-- No secondary-specific clock: no code scans for paid-primary claims lacking a secondary submission and counts days remaining. Secondary generation exists (`src/lib/create-secondary-claim.ts`, `SecondaryClaimPanel.tsx`) but is manual/on-demand — no timer surfaces expiring secondaries.
+**Role enum mismatch:** DB `app_role` = `admin | crew | dispatcher | billing` (`types.ts:6748`); UI form uses `manager | dispatcher | crew | biller`. Either UI is stale or `profiles.pending_role` is a free-text column — **open question**.
 
-**13. Denial capture + rework queue**
-EXISTS · RECORDS + surfaces (no forced workflow).
-- Parsed: `src/lib/edi-835-parser.ts:242-338` populates `raw_denial_codes` per claim.
-- Classified: `src/lib/classify-denial.ts` + `src/lib/denial-code-translations.ts`.
-- Surfaced in: `src/pages/BillingAndClaims.tsx` (denial recovery views), `src/hooks/useMissingMoneyScan.ts` category `denial_no_action`, `MissingMoneyPanel.tsx`.
-- Queue table: no dedicated `denial_queue` table — denials are surfaced by query against `claim_records` (`denial_code`, `rejection_codes`) + `claim_adjustments`.
+**Are crew required for PCR?** `crew_certifications` tracks license expirations (`CrewCertificationsDialog.tsx`, `CertificationReviewQueue.tsx`), but nothing in the visible portion of `pcr-field-requirements.ts` gates PCR finalize on cert expiry. PCR does require `signatures_json` including a crew role signature (see item 8), so a signed-in crew user is functionally required to complete a PCR.
 
-## Also requested
+---
 
-**14. Underbilling detection — payable items provided but not on the claim**
-DOES NOT EXIST.
-- `useMissingMoneyScan` (`src/hooks/useMissingMoneyScan.ts:24-29`) categories are: `no_pcr`, `pcr_not_billed`, `no_followup`, `secondary_not_billed`, `denial_no_action`. All are "claim never went out / never worked" categories. None compare submitted `claim_records.hcpcs_codes` / `hcpcs_modifiers` / `loaded_miles` / `total_charge` against what `trip_records` documented (`oxygen_during_transport`, `bed_confined`, condition modifiers, actual mileage).
-- No file matching `rg "underbill"` implements a check; the only occurrence (`src/lib/edi-837p-generator.ts:725`) is a comment.
-- `trip_records.oxygen_during_transport` is read into the queue payload (`queue-claims-for-submission.ts:425`) but there is no post-submission reconciliation that flags "oxygen documented, no oxygen line item / modifier billed" or "loaded_miles > billed mileage units."
+## 5. VEHICLES — EXISTS
+**File:** `src/pages/TrucksCrews.tsx`, insert `:387` into `trucks`.
+**Client-required:** `truckName` (`:377`). Optional: `vehicle_id`, `service_level` (default `BLS`).
+**Server-enforced cap:** insert can fail with `TRUCK_CAP_EXCEEDED` (`:389-393`) — plan-based truck limit is DB/trigger enforced.
+`is_simulated` on `trucks` **not confirmed in `types.ts`** (exists on patients/scheduling_legs) — **open question**.
 
-## Summary counts
-- EXISTS + BLOCKS: 2 (RSNAT prior auth at export; timely filing on primary).
-- PARTIAL: 8.
-- DOES NOT EXIST: 4 (PCS 60-day window, PCS-vs-LOS match, LOS-vs-documentation cross-check, crossover-failure detection, underbilling detection).
+---
 
-End of report — no changes made.
+## 6. PATIENTS — EXISTS
+**File:** `src/pages/Patients.tsx`, insert `:654` into `patients`.
+**DB-required (from `patients.Insert` in `types.ts`):** `company_id`, `first_name`, `last_name`. Everything else nullable.
+
+**Insurance columns (all in `patients`):**
+- Primary: `primary_payer` (string), `member_id`
+- Secondary: `secondary_payer`, `secondary_payer_id`, `secondary_member_id`, `secondary_group_number`, `secondary_payer_phone`
+- Tertiary: `tertiary_payer`, `tertiary_payer_id`, `tertiary_member_id`, `tertiary_group_number`, `tertiary_payer_phone`
+
+There is NO boolean "is_medicare"/"is_medicaid" — payer type is inferred by string match on `primary_payer`/`secondary_payer` (e.g., `claim-readiness.ts` uses `payer_name.includes("medicare")`). For Medicare primary + Medicaid secondary: set `primary_payer="Medicare"` + `member_id`, `secondary_payer="Medicaid"` + `secondary_member_id`.
+
+**PCS is captured on the PATIENT** (persistent): `pcs_on_file, pcs_physician_name, pcs_physician_npi, pcs_expiration_date, pcs_signed_date`. Per-trip override for one-off runs: `scheduling_legs.oneoff_pcs_obtained`.
+
+---
+
+## 7. SCHEDULING A TRIP / LEGS — EXISTS
+**File:** `src/pages/Scheduling.tsx` + `useSchedulingStore`. Table: `scheduling_legs`.
+**DB-required (Insert):** `company_id, destination_location, leg_type, pickup_location, run_date`. All other columns nullable/defaulted.
+
+**A/B leg modeling:** `leg_type` enum with values `a_leg` / `b_leg` — round-trips are **TWO SEPARATE ROWS**, not a single row with a flag. Confirmed by `Patients.tsx:597-609` filters and auto-leg-generation memory. Recurring dialysis edits at patient level propagate to future `a_leg`/`b_leg` rows dated `>= today`.
+
+**`trip_records` vs `scheduling_legs`:** `scheduling_legs` = schedule slot; `trip_records` = executed instance holding PCR data. Relationship: `trip_records.leg_id → scheduling_legs.id`.
+
+One-off runs carry `oneoff_*` fields directly on the leg (name, dob, member_id, payer, addresses, `oneoff_pcs_obtained`) — these are DB-optional but UI-required in the one-off dialog.
+
+---
+
+## 8. PCR COMPLETION — EXISTS
+**Files:** `src/pages/PCRPage.tsx`, `src/lib/pcr-field-requirements.ts` ("single source of truth"), `src/lib/claim-readiness.ts`.
+
+**Required field groups (assembled per transport type in `REQUIREMENTS` map):**
+- `TIMES_FIELDS` — dispatch, at-scene, patient-contact, left-scene, arrived-dropoff, in-service; `loaded_miles ≥ 0`; origin/destination facility type; odometer at scene & destination (0 valid)
+- `VITALS_FIELDS` — at least one saved vitals set with timestamp
+- `CONDITION_FIELDS` — LOC, skin condition, condition at destination
+- `NECESSITY_FIELDS` — `medical_necessity_reason` + ≥1 of {bed_confined, cannot_transfer_safely, requires_monitoring, oxygen_during_transport}
+- `STRETCHER_FIELDS`, `ISOLATION_FIELDS` (conditional)
+- `SIGNATURE_FIELDS` + `CREW_SIGNATURE_FIELDS` — `signatures_json` non-empty, `signature_obtained=true`, crew role + patient role both present
+- `NARRATIVE_FIELDS` — non-empty; **≥150 chars** for ambulance-level trips (`PCRPage.tsx:~1280`)
+- `ASSESSMENT_FIELDS` — `chief_complaint`, `primary_impression`
+- `ICD10_FIELD` — ≥1 code
+- `SENDING_FACILITY_FIELDS` — for facility-origin trips: facility_name + pcs_attached
+- Payer-specific augmentations (`PAYER_AUGMENTATIONS`) layered on top — full enumeration **open question** (only file lines 1-120 reviewed).
+
+**Finalize gate (`PCRPage.tsx handleSubmit` `:1287-1310`):**
+Blocks submit if `getMissingItems()` returns anything (QA-fix mode allows admin to skip "Crew Signatures"). On success updates `trip_records`:
+- `pcr_status: "submitted"`
+- `status: "ready_for_billing"`
+- `claim_ready: true`
+- `documentation_complete: true`
+
+**Admins CANNOT sign for crew** — admin submit is rerouted to "kick back" (`pcr_status: "kicked_back"`, clears claim_ready). Enforced in UI only.
+
+---
+
+## 9. CLAIM GENERATION — EXISTS (DB trigger, not app code)
+**Trigger:** `public.auto_create_claim_on_pcr_submit()` (`supabase/migrations/20260530125538_...sql:63+`)
+**Fires:** `AFTER UPDATE ON trip_records` when `NEW.pcr_status = 'submitted'` AND value changed.
+
+**So the trigger to generate a claim is simply the PCR finalize in item 8** — no separate button.
+
+Trigger derives payer/member/charges from `patients` → falls back to `scheduling_legs.oneoff_*` → falls back to `trip_records`, looks up facility metadata for ambulance G/J/D modifiers, computes HCPCS + charges from a rate table, then:
+```
+INSERT INTO claim_records (...) VALUES (..., 'ready_to_bill', ...)
+ON CONFLICT (trip_id) DO UPDATE ...
+```
+**Initial `claim_records.status = 'ready_to_bill'`**.
+
+---
+
+## 10. FINAL PRE-SUBMISSION STATE — where to STOP
+- **Status:** `claim_records.status = 'ready_to_bill'`
+- **Screen:** `src/pages/BillingAndClaims.tsx` — filtered list `.filter(c => c.status === "ready_to_bill")` (`:459`) plus per-claim detail panel with a confirm dialog "Submit this claim to Office Ally?" (`:2003`).
+- **Send action:**
+  - Group: "Send via OA" → `handleSendViaOA` (`:454-483`)
+  - Single: submit button in detail panel (`:2000-2015`)
+  Both call `queueClaimsForSubmission()` in `src/lib/queue-claims-for-submission.ts`, which builds the 837P via `generateEDI837P` and INSERTS a row into `claim_submission_queue`.
+- **After that insert, a Railway SFTP worker (external to this repo, per file header comment) polls and transmits to Office Ally.** No outbound SFTP push exists in `supabase/functions/*` — only ack ingest / remittance / connection test.
+
+**Your STOP point for a "generate but don't send" test:** verify the `claim_records` row appears in BillingAndClaims with status `ready_to_bill`, and do NOT click "Send via OA" or confirm the "Submit this claim to Office Ally?" dialog. Once a row lands in `claim_submission_queue`, the external worker may transmit on its next poll.
+
+---
+
+## Open Questions (would need a second read)
+1. Which edge function flips `companies.onboarding_status` from `pending_approval` to active.
+2. Exact `companies`/`company_settings` → `ProviderInfo` column mapping in `EDIExport.tsx` / `queue-claims-for-submission.ts`.
+3. Whether `clearinghouse_settings.is_configured` and charge_master "verify rates" are hard blocks or soft warnings in `queueClaimsForSubmission`.
+4. `facilities` DB-level NOT NULL constraints (table absent from generated types).
+5. Employees UI role vocab (`manager/biller`) vs DB `app_role` enum (`admin/billing`) mismatch.
+6. Whether expired crew certifications block PCR finalize (not seen in first 120 lines of `pcr-field-requirements.ts`).
+7. Existence of `trucks.is_simulated`.
+8. Full `PAYER_AUGMENTATIONS` list per payer type (lines 120-521 of `pcr-field-requirements.ts` not read).
+
+---
+
+**No code changes made. Audit only.**
