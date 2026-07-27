@@ -98,7 +98,7 @@ function computeActiveWeekdays(transportType: string, scheduleDays: string, recu
 
 export default function Patients() {
   useFocusScroll();
-  const { activeCompanyId, role } = useAuth();
+  const { activeCompanyId, role, isSystemCreator } = useAuth();
   const { companyName } = useCompanyName();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [viewPatient, setViewPatient] = useState<Patient | null>(null);
@@ -907,29 +907,31 @@ export default function Patients() {
   return (
     <AdminLayout>
       <div className="space-y-4">
-        {/* Templates view tabs */}
-        <div className="flex items-center gap-1 border-b">
-          <button
-            type="button"
-            onClick={() => setTemplatesView(false)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${!templatesView ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >
-            All Patients
-          </button>
-          <button
-            type="button"
-            onClick={() => setTemplatesView(true)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-1.5 transition-colors ${templatesView ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >
-            <FlaskConical className="h-3.5 w-3.5" />
-            Simulation Templates
-            <Badge variant="outline" className="text-[10px] ml-1">
-              {patients.filter(p => (p as any).is_template).length}
-            </Badge>
-          </button>
-        </div>
+        {/* Templates view tabs — creator-only tooling */}
+        {isSystemCreator && (
+          <div className="flex items-center gap-1 border-b">
+            <button
+              type="button"
+              onClick={() => setTemplatesView(false)}
+              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${!templatesView ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            >
+              All Patients
+            </button>
+            <button
+              type="button"
+              onClick={() => setTemplatesView(true)}
+              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-1.5 transition-colors ${templatesView ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            >
+              <FlaskConical className="h-3.5 w-3.5" />
+              Simulation Templates
+              <Badge variant="outline" className="text-[10px] ml-1">
+                {patients.filter(p => (p as any).is_template).length}
+              </Badge>
+            </button>
+          </div>
+        )}
 
-        {templatesView && (
+        {isSystemCreator && templatesView && (
           <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-foreground">
             <strong>Simulation Templates</strong> — patients flagged here are
             cloned by the Simulation Lab seeder to generate realistic test
@@ -940,7 +942,7 @@ export default function Patients() {
           </div>
         )}
 
-        {!templatesView && patients.filter(p => (p as any).is_template).length === 0 && (
+        {isSystemCreator && !templatesView && patients.filter(p => (p as any).is_template).length === 0 && (
           <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-foreground flex items-start gap-2">
             <FlaskConical className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
             <span>
@@ -1992,7 +1994,7 @@ export default function Patients() {
                           >
                             {p.first_name} {p.last_name}
                           </button>
-                          {(p as any).is_template && (
+                          {isSystemCreator && (p as any).is_template && (
                             <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/40 text-primary gap-1">
                               <FlaskConical className="h-2.5 w-2.5" />
                               Template
@@ -2080,17 +2082,19 @@ export default function Patients() {
                           <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button
-                            variant={(p as any).is_template ? "default" : "outline"}
-                            size="sm"
-                            className="h-7 gap-1 px-2 text-[11px]"
-                            onClick={() => toggleTemplate(p)}
-                            title={(p as any).is_template ? "Unmark as simulation template" : "Mark as simulation template"}
-                          >
-                            {(p as any).is_template
-                              ? <><BookmarkCheck className="h-3 w-3" /> Template</>
-                              : <><Bookmark className="h-3 w-3" /> Template</>}
-                          </Button>
+                          {isSystemCreator && (
+                            <Button
+                              variant={(p as any).is_template ? "default" : "outline"}
+                              size="sm"
+                              className="h-7 gap-1 px-2 text-[11px]"
+                              onClick={() => toggleTemplate(p)}
+                              title={(p as any).is_template ? "Unmark as simulation template" : "Mark as simulation template"}
+                            >
+                              {(p as any).is_template
+                                ? <><BookmarkCheck className="h-3 w-3" /> Template</>
+                                : <><Bookmark className="h-3 w-3" /> Template</>}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
