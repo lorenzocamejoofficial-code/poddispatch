@@ -30,7 +30,7 @@ const STEPS = [
     icon: DollarSign,
     title: "Verify Your Rates",
     description: "Confirm your charge master rates by payer.",
-    blurb: "Set base rate and mileage rate for each payer you bill. You need at least one payer with both values greater than $0.",
+    blurb: "Confirm base rate and mileage rate for each payer type you actually bill (based on your signup payer mix). We'll auto-complete this step once every billed payer has base and mileage rates set and confirmed.",
     cta: "Go to Charge Master",
     route: "/billing?tab=charge-master",
     progressKey: "step_rates_verified" as const,
@@ -170,23 +170,35 @@ export default function OnboardingWizard() {
   };
 
   // ---------- Auto-detect step completion ----------
-  // Rates gate: all 5 standard payers present AND none still flagged needs_review.
-  // (Medicare is auto-seeded from CMS at company creation; the other 4 are placeholders
-  // the owner must confirm in /billing?tab=charge-master.)
+  // Option B: rates step complete when every payer the operator actually bills
+  // (payer_mix_* > 0) has a confirmed charge_master row. Facility Contract maps
+  // to a 'facility' charge_master row if one exists, else 'default'.
   const refreshAutoDetect = async () => {
     if (!activeCompanyId) return;
-    const { data: rates } = await supabase
-      .from("charge_master")
-      .select("payer_type, base_rate, mileage_rate, needs_review")
-      .eq("company_id", activeCompanyId);
-    const REQUIRED = ["medicare", "medicaid", "private", "self_pay", "default"];
-    const byType = new Map((rates ?? []).map((r: any) => [String(r.payer_type).toLowerCase(), r]));
-    const allPresent = REQUIRED.every(t => byType.has(t));
-    const noneNeedReview = REQUIRED.every(t => {
-      const r = byType.get(t);
-      return r && r.needs_review === false && Number(r.base_rate) > 0 && Number(r.mileage_rate) > 0;
-    });
-    const ratesValid = allPresent && noneNeedReview;
+    const [ratesRes, companyRes] = await Promise.all([
+      supabase
+        .from("charge_master")
+        .select("payer_type, base_rate, mileage_rate, needs_review")
+        .eq("company_id", activeCompanyId),
+      supabase
+        .from("companies")
+        .select("payer_mix_medicare, payer_mix_medicaid, payer_mix_facility, payer_mix_private")
+        .eq("id", activeCompanyId)
+        .maybeSingle(),
+    ]);
+    const rows: any[] = (ratesRes.data as any[]) ?? [];
+    const byType = new Map(rows.map(r => [String(r.payer_type).toLowerCase(), r]));
+    const isConfirmed = (key: string) => {
+      const r = byType.get(key);
+      return !!(r && r.needs_review === false && Number(r.base_rate) > 0 && Number(r.mileage_rate) > 0);
+    };
+    const c: any = companyRes.data ?? {};
+    const billedKeys: string[] = [];
+    if (Number(c.payer_mix_medicare ?? 0) > 0) billedKeys.push("medicare");
+    if (Number(c.payer_mix_medicaid ?? 0) > 0) billedKeys.push("medicaid");
+    if (Number(c.payer_mix_facility ?? 0) > 0) billedKeys.push(byType.has("facility") ? "facility" : "default");
+    if (Number(c.payer_mix_private ?? 0) > 0) billedKeys.push("private");
+    const ratesValid = billedKeys.length > 0 && billedKeys.every(isConfirmed);
     if (ratesValid && !progress.step_rates_verified) {
       await progress.markStep("step_rates_verified", true);
       return;
