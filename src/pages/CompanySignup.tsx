@@ -173,18 +173,25 @@ export default function CompanySignup() {
       );
 
       if (fnError) {
+        // FunctionsHttpError exposes the response body via .context. Prefer the
+        // JSON body's `error`/`code` over the generic "non-2xx status code" message.
+        let body: any = null;
         try {
-          const body = JSON.parse(fnError.message);
-          if (body?.code === "email_exists") {
-            setEmailExists(true);
-            setStep("info");
-            setLoading(false);
-            return;
-          }
-          throw new Error(body?.error || fnError.message);
-        } catch {
-          throw new Error(fnError.message);
+          const ctx: any = (fnError as any).context;
+          if (ctx && typeof ctx.json === "function") body = await ctx.json();
+          else if (ctx && typeof ctx.text === "function") body = JSON.parse(await ctx.text());
+          else body = JSON.parse(fnError.message);
+        } catch { /* body stays null */ }
+        if (body?.code === "email_exists") {
+          setEmailExists(true);
+          setStep("info");
+          setLoading(false);
+          return;
         }
+        if (body?.code === "npi_exists") {
+          throw new Error("A company with this NPI is already registered.");
+        }
+        throw new Error(body?.error || fnError.message);
       }
 
       if (data?.error) {
