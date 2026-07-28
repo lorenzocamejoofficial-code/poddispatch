@@ -302,7 +302,7 @@ Deno.serve(async (req) => {
             subscription_status: "trial_pending_start",
             trial_skipped: false,
             trial_started_at: null,
-            approval_grace_deadline: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+            approval_grace_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           })
           .eq("company_id", companyId);
       }
