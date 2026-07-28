@@ -454,6 +454,17 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           onOpenChange={setHelpOpen}
         />
         <PageTour />
+        {showContinueSetup && (
+          <Button
+            onClick={() => navigate("/onboarding")}
+            className="fixed bottom-4 right-4 z-40 shadow-lg gap-2 rounded-full"
+            size="sm"
+          >
+            <Rocket className="h-4 w-4" />
+            Continue Setup
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );
