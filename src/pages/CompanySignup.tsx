@@ -356,7 +356,14 @@ export default function CompanySignup() {
 
             <div className="space-y-2">
               <Label>NPI Number *<PCRTooltip text="Your 10-digit National Provider Identifier issued by CMS. Required on every Medicare/Medicaid claim. Find it on your NPPES record or your last remittance." /></Label>
-              <Input value={npiNumber} onChange={(e) => setNpiNumber(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="1234567890" maxLength={10} />
+              <Input
+                value={npiNumber}
+                onChange={(e) => { setNpiNumber(e.target.value.replace(/\D/g, "").slice(0, 10)); if (npiExists) setNpiExists(false); }}
+                placeholder="1234567890"
+                maxLength={10}
+                aria-invalid={npiExists}
+                className={npiExists ? "border-destructive focus-visible:ring-destructive" : ""}
+              />
               <p className="text-xs text-muted-foreground">Your 10-digit National Provider Identifier</p>
             </div>
 
