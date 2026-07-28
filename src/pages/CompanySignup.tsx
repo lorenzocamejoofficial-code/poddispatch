@@ -52,6 +52,7 @@ export default function CompanySignup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [emailExists, setEmailExists] = useState(false);
+  const [npiExists, setNpiExists] = useState(false);
   const [checking, setChecking] = useState(false);
 
   // Step 1: Account fields
