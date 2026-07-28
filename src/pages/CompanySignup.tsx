@@ -52,6 +52,7 @@ export default function CompanySignup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [emailExists, setEmailExists] = useState(false);
+  const [npiExists, setNpiExists] = useState(false);
   const [checking, setChecking] = useState(false);
 
   // Step 1: Account fields
@@ -134,6 +135,7 @@ export default function CompanySignup() {
 
   const validateProfile = async () => {
     setError("");
+    setNpiExists(false);
     if (!npiNumber.trim()) return setError("NPI number is required.");
     if (npiNumber.trim().length !== 10 || !/^\d{10}$/.test(npiNumber.trim()))
       return setError("NPI number must be exactly 10 digits.");
@@ -154,6 +156,7 @@ export default function CompanySignup() {
         { body: { npi: npiNumber.trim() } }
       );
       if (data?.npiExists) {
+        setNpiExists(true);
         setError("A company with this NPI is already registered.");
         setChecking(false);
         return;
@@ -220,6 +223,7 @@ export default function CompanySignup() {
           return;
         }
         if (body?.code === "npi_exists") {
+          setNpiExists(true);
           throw new Error("A company with this NPI is already registered.");
         }
         throw new Error(body?.error || fnError.message);
@@ -311,7 +315,14 @@ export default function CompanySignup() {
             </div>
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" />
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); if (emailExists) setEmailExists(false); }}
+                placeholder="you@company.com"
+                aria-invalid={emailExists}
+                className={emailExists ? "border-destructive focus-visible:ring-destructive" : ""}
+              />
             </div>
             <div className="space-y-2">
               <Label>Phone (optional)</Label>
@@ -345,7 +356,14 @@ export default function CompanySignup() {
 
             <div className="space-y-2">
               <Label>NPI Number *<PCRTooltip text="Your 10-digit National Provider Identifier issued by CMS. Required on every Medicare/Medicaid claim. Find it on your NPPES record or your last remittance." /></Label>
-              <Input value={npiNumber} onChange={(e) => setNpiNumber(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="1234567890" maxLength={10} />
+              <Input
+                value={npiNumber}
+                onChange={(e) => { setNpiNumber(e.target.value.replace(/\D/g, "").slice(0, 10)); if (npiExists) setNpiExists(false); }}
+                placeholder="1234567890"
+                maxLength={10}
+                aria-invalid={npiExists}
+                className={npiExists ? "border-destructive focus-visible:ring-destructive" : ""}
+              />
               <p className="text-xs text-muted-foreground">Your 10-digit National Provider Identifier</p>
             </div>
 

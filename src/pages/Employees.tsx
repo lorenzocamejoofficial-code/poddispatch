@@ -72,6 +72,7 @@ export default function Employees() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
+  const [createEmailError, setCreateEmailError] = useState(false);
   const [form, setForm] = useState({
     full_name: "", email: "", password: "", role: "crew" as "manager" | "dispatcher" | "crew" | "biller",
     sex: "M" as "M" | "F", cert_level: "EMT-B", phone_number: "",
@@ -239,6 +240,7 @@ export default function Employees() {
       const raw = (body?.error || data?.error || error?.message || "") as string;
       const isEmailDup =
         typeof raw === "string" && /already.*(registered|exist)/i.test(raw);
+      if (isEmailDup) setCreateEmailError(true);
       toast.error(
         isEmailDup
           ? "An account with this email already exists."
@@ -247,6 +249,7 @@ export default function Employees() {
     } else {
       toast.success(`${form.full_name} created successfully`);
       setDialogOpen(false);
+      setCreateEmailError(false);
       const createdEmail = form.email.trim().toLowerCase();
       const createdName = form.full_name.trim();
       setForm({ full_name: "", email: "", password: "", role: "crew" as "manager" | "dispatcher" | "crew" | "biller", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time" as "full_time" | "part_time" | "prn", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
@@ -604,7 +607,7 @@ export default function Employees() {
                 <div className="grid gap-3 py-2">
                   <div><Label>Full Name *</Label><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></div>
                   <div><Label>Phone Number</Label><Input type="tel" value={form.phone_number} onChange={(e) => setForm({ ...form, phone_number: e.target.value })} placeholder="(555) 123-4567" /></div>
-                  <div><Label>Email * <span className="text-xs text-muted-foreground">(for login)</span></Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+                  <div><Label>Email * <span className="text-xs text-muted-foreground">(for login)</span></Label><Input type="email" value={form.email} onChange={(e) => { setForm({ ...form, email: e.target.value }); if (createEmailError) setCreateEmailError(false); }} aria-invalid={createEmailError} className={createEmailError ? "border-destructive focus-visible:ring-destructive" : ""} /></div>
                   {addMode === "credentials" && (
                   <div>
                     <Label>Temporary Password *</Label>
