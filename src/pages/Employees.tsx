@@ -240,6 +240,7 @@ export default function Employees() {
       const raw = (body?.error || data?.error || error?.message || "") as string;
       const isEmailDup =
         typeof raw === "string" && /already.*(registered|exist)/i.test(raw);
+      if (isEmailDup) setCreateEmailError(true);
       toast.error(
         isEmailDup
           ? "An account with this email already exists."
@@ -248,6 +249,7 @@ export default function Employees() {
     } else {
       toast.success(`${form.full_name} created successfully`);
       setDialogOpen(false);
+      setCreateEmailError(false);
       const createdEmail = form.email.trim().toLowerCase();
       const createdName = form.full_name.trim();
       setForm({ full_name: "", email: "", password: "", role: "crew" as "manager" | "dispatcher" | "crew" | "biller", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time" as "full_time" | "part_time" | "prn", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
