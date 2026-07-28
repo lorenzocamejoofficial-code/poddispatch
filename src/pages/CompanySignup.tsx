@@ -52,6 +52,7 @@ export default function CompanySignup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [emailExists, setEmailExists] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   // Step 1: Account fields
   const [companyName, setCompanyName] = useState(saved.companyName || "");
@@ -104,7 +105,7 @@ export default function CompanySignup() {
   const allAccepted = AGREEMENTS.every((a) => accepted[a.key]);
   const payerTotal = payerMix.medicare + payerMix.medicaid + payerMix.facility + payerMix.private;
 
-  const validateInfo = () => {
+  const validateInfo = async () => {
     setError("");
     setEmailExists(false);
     if (!companyName.trim()) return setError("Dispatch name is required.");
@@ -113,10 +114,25 @@ export default function CompanySignup() {
     if (!password || password.length < 8)
       return setError("Password must be at least 8 characters.");
     if (password !== confirmPassword) return setError("Passwords do not match.");
+    setChecking(true);
+    try {
+      const { data } = await supabase.functions.invoke(
+        "check-signup-availability",
+        { body: { email: email.trim() } }
+      );
+      if (data?.emailExists) {
+        setEmailExists(true);
+        setChecking(false);
+        return;
+      }
+    } catch (e) {
+      console.warn("availability check failed, advancing:", e);
+    }
+    setChecking(false);
     setStep("profile");
   };
 
-  const validateProfile = () => {
+  const validateProfile = async () => {
     setError("");
     if (!npiNumber.trim()) return setError("NPI number is required.");
     if (npiNumber.trim().length !== 10 || !/^\d{10}$/.test(npiNumber.trim()))
@@ -131,6 +147,21 @@ export default function CompanySignup() {
     if (!serviceAreaType) return setError("Service area type is required.");
     if (!truckCount || parseInt(truckCount) < 1) return setError("Number of active trucks is required.");
     if (payerTotal !== 100) return setError(`Payer mix must add up to 100%. Currently ${payerTotal}%.`);
+    setChecking(true);
+    try {
+      const { data } = await supabase.functions.invoke(
+        "check-signup-availability",
+        { body: { npi: npiNumber.trim() } }
+      );
+      if (data?.npiExists) {
+        setError("A company with this NPI is already registered.");
+        setChecking(false);
+        return;
+      }
+    } catch (e) {
+      console.warn("availability check failed, advancing:", e);
+    }
+    setChecking(false);
     setStep("agreements");
   };
 
@@ -294,7 +325,9 @@ export default function CompanySignup() {
               <Label>Confirm Password</Label>
               <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter password" />
             </div>
-            <Button className="w-full" onClick={validateInfo}>Continue</Button>
+            <Button className="w-full" onClick={validateInfo} disabled={checking}>
+              {checking ? "Checking..." : "Continue"}
+            </Button>
             <p className="text-center text-xs text-muted-foreground">
               Already have an account?{" "}
               <Link to="/login" className="text-primary hover:underline">Sign in</Link>
@@ -466,7 +499,9 @@ export default function CompanySignup() {
               </div>
             </div>
 
-            <Button className="w-full" onClick={validateProfile}>Continue to Agreements</Button>
+            <Button className="w-full" onClick={validateProfile} disabled={checking}>
+              {checking ? "Checking..." : "Continue to Agreements"}
+            </Button>
           </div>
         )}
 
