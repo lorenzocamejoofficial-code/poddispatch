@@ -204,10 +204,27 @@ export default function OnboardingWizard() {
     const ratesValid = billedKeys.length > 0 && billedKeys.every(isConfirmed);
     if (ratesValid && !progress.step_rates_verified) {
       await progress.markStep("step_rates_verified", true);
-      return;
     }
     // Other steps are auto-detected by useOnboardingProgress on reload.
     await progress.reload();
+  };
+
+  const handleRecheck = async () => {
+    setIsRechecking(true);
+    const before = completedCountRef.current;
+    try {
+      await refreshAutoDetect();
+      // Allow the state update from reload() to flush into the ref.
+      await new Promise((r) => setTimeout(r, 0));
+      const after = completedCountRef.current;
+      if (after > before) {
+        toast.success("Setup progress updated.");
+      } else {
+        toast("No new progress detected yet.");
+      }
+    } finally {
+      setIsRechecking(false);
+    }
   };
 
   // Re-run auto-detect when wizard regains focus (user navigated to a production page and came back)
