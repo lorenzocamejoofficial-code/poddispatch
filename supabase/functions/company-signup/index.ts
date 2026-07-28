@@ -161,6 +161,21 @@ serve(async (req) => {
 
     if (companyError) {
       await supabaseAdmin.auth.admin.deleteUser(userId);
+      // Detect the NPI unique-violation specifically and return a friendly 409.
+      const ce: any = companyError;
+      const isDup = ce?.code === "23505";
+      const mentionsNpi =
+        typeof ce?.message === "string" && ce.message.toLowerCase().includes("npi_number") ||
+        typeof ce?.details === "string" && ce.details.toLowerCase().includes("npi_number");
+      if (isDup && mentionsNpi) {
+        return new Response(
+          JSON.stringify({
+            error: "A company with this NPI is already registered.",
+            code: "npi_exists",
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       return new Response(
         JSON.stringify({ error: "Failed to create company: " + companyError.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
