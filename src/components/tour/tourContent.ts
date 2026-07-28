@@ -147,7 +147,7 @@ export const PAGE_TOURS: PageTour[] = [
     steps: [
       {
         title: "Step 1 — Invite teammates",
-        body: "Invitations are sent by email. Each invite picks one of: Owner, Dispatcher, Biller, or Crew. Max 4 admins per company.",
+        body: "Invitations are sent by email. Each invite picks one of: Owner, Manager, Dispatcher, Biller, or Crew. Max 4 admins per company.",
         lookFor: "the Invite button",
       },
       {

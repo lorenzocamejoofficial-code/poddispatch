@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 import { Building2, Plus, Search, Users, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { normalizePhone } from "@/lib/phone";
 
 interface Facility {
   id: string;
@@ -101,7 +102,7 @@ export default function FacilitiesPage() {
       const payload = {
         name: form.name.trim(), facility_type: form.facility_type, address: form.address || null,
         dialysis_subtype: form.facility_type === "dialysis" ? (form.dialysis_subtype || null) : null,
-        phone: form.phone || null, contact_name: form.contact_name || null, notes: form.notes || null,
+        phone: normalizePhone(form.phone), contact_name: form.contact_name || null, notes: form.notes || null,
         active: form.active, company_id: companyId,
         contract_payer_type: form.contract_payer_type || null,
         rate_type: form.rate_type || null,

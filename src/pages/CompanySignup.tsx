@@ -11,6 +11,7 @@ import { Truck, ArrowLeft, Shield, FileText, Lock } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { US_STATES } from "@/lib/us-states";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { normalizePhone } from "@/lib/phone";
 
 const AGREEMENTS = [
   {
@@ -186,7 +187,7 @@ export default function CompanySignup() {
             password,
             fullName: fullName.trim(),
             companyName: companyName.trim(),
-            phone: phone.trim() || null,
+            phone: normalizePhone(phone),
             agreements: accepted,
             clientIp: null,
             npiNumber: npiNumber.trim(),
