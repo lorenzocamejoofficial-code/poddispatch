@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
           // Two approval paths:
           //   skipTrial=true  → owner gated to /choose-plan on next login.
           //   skipTrial=false → owner gets full app access; trial timer
-          //                     starts on first login OR approval + 12h
+          //                     starts on first login OR approval + 7d
           //                     (whichever is first).
           onboarding_status: skipTrial ? "approved_pending_payment" : "active",
           approved_at: new Date().toISOString(),
@@ -302,7 +302,7 @@ Deno.serve(async (req) => {
             subscription_status: "trial_pending_start",
             trial_skipped: false,
             trial_started_at: null,
-            approval_grace_deadline: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+            approval_grace_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           })
           .eq("company_id", companyId);
       }
@@ -331,7 +331,7 @@ Deno.serve(async (req) => {
           heading: "You're approved 🎉",
           intro: skipTrial
             ? `Good news — ${approveContact.companyName ?? "your company"} has been approved on PodDispatch. The last step is choosing a plan and adding a card to unlock the app.`
-            : `Good news — ${approveContact.companyName ?? "your company"} has been approved on PodDispatch. Sign in to start your <strong>30-day free trial</strong> — no card required. Your trial timer starts the first time you log in (or automatically 12 hours after approval).`,
+            : `Good news — ${approveContact.companyName ?? "your company"} has been approved on PodDispatch. Sign in to start your <strong>30-day free trial</strong> — no card required. Your trial timer starts the first time you log in (or automatically 7 days after approval).`,
           actionLabel: skipTrial ? "Choose your plan" : "Sign in & start trial",
           actionUrl: skipTrial ? planUrl : `${appOrigin()}/login`,
           footer: "PodDispatch · Secure dispatch & billing for NEMT operators.",

@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Hourly sweep: for any approved company whose owner never logged in within
-// 12 hours of approval, force-start the trial timer at the grace deadline so
+// 7 days of approval, force-start the trial timer at the grace deadline so
 // the 30-day countdown can't be indefinitely paused.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

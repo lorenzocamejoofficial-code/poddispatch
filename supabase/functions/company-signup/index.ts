@@ -213,7 +213,7 @@ serve(async (req) => {
 
     // 7. Create subscription record. Trial does NOT start at signup anymore —
     // it begins only after the system creator approves the company (and then
-    // either on first login OR approval + 12h, whichever is first).
+    // either on first login OR approval + 7d, whichever is first).
     await supabaseAdmin.from("subscription_records").insert({
       company_id: companyId, provider: "none",
       subscription_status: "pending_approval", plan_id: "poddispatch_standard",
