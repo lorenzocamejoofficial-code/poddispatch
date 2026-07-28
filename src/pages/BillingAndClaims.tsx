@@ -1200,22 +1200,29 @@ export default function BillingAndClaims() {
   const saveRate = async () => {
     setSavingRate(true);
     const { data: companyId } = await supabase.rpc("get_my_company_id");
+    const base = parseFloat(rateForm.base_rate) || 0;
+    const mileage = parseFloat(rateForm.mileage_rate) || 0;
+    const valid = base > 0 && mileage > 0;
     const payload = {
       payer_type: rateForm.payer_type,
-      base_rate: parseFloat(rateForm.base_rate) || 0,
-      mileage_rate: parseFloat(rateForm.mileage_rate) || 0,
+      base_rate: base,
+      mileage_rate: mileage,
       wait_rate_per_min: parseFloat(rateForm.wait_rate_per_min) || 0,
       oxygen_fee: parseFloat(rateForm.oxygen_fee) || 0,
       extra_attendant_fee: parseFloat(rateForm.extra_attendant_fee) || 0,
       bariatric_fee: parseFloat(rateForm.bariatric_fee) || 0,
       company_id: companyId,
+      // Valid Save auto-confirms; zero/blank stays needing verification.
+      needs_review: !valid,
+      // Manual edit/entry — no longer a CMS auto-seed.
+      auto_seeded: false,
     };
     if (editingRate) {
       await supabase.from("charge_master" as any).update(payload).eq("id", editingRate.id);
     } else {
       await supabase.from("charge_master" as any).insert(payload);
     }
-    toast.success("Rate saved");
+    toast.success(valid ? "Rate saved and confirmed" : "Rate saved — still needs verification");
     setEditingRate(null);
     setAddingRate(false);
     fetchData();
@@ -1811,14 +1818,17 @@ export default function BillingAndClaims() {
                     <td className="px-4 py-3 font-medium capitalize">
                       <div className="flex items-center gap-2">
                         <span>{rate.payer_type}</span>
-                        {rate.needs_review && (
+                        {rate.needs_review ? (
                           <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-200 uppercase tracking-wide">
                             Needs verification
                           </span>
-                        )}
-                        {rate.auto_seeded && !rate.needs_review && (
+                        ) : rate.auto_seeded ? (
                           <span className="inline-flex items-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-200 uppercase tracking-wide">
                             Auto-seeded
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-200 uppercase tracking-wide">
+                            Confirmed
                           </span>
                         )}
                       </div>
