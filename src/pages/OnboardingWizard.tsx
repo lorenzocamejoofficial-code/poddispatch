@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -78,6 +78,9 @@ export default function OnboardingWizard() {
   const { activeCompanyId, refreshWizardStatus } = useAuth();
   const progress = useOnboardingProgress();
   const [currentStep, setCurrentStep] = useState(0);
+  const [isRechecking, setIsRechecking] = useState(false);
+  const completedCountRef = useRef(progress.completedCount);
+  useEffect(() => { completedCountRef.current = progress.completedCount; }, [progress.completedCount]);
 
   // Step 1 — company info (only inline form remaining)
   const [company, setCompany] = useState({
@@ -201,10 +204,27 @@ export default function OnboardingWizard() {
     const ratesValid = billedKeys.length > 0 && billedKeys.every(isConfirmed);
     if (ratesValid && !progress.step_rates_verified) {
       await progress.markStep("step_rates_verified", true);
-      return;
     }
     // Other steps are auto-detected by useOnboardingProgress on reload.
     await progress.reload();
+  };
+
+  const handleRecheck = async () => {
+    setIsRechecking(true);
+    const before = completedCountRef.current;
+    try {
+      await refreshAutoDetect();
+      // Allow the state update from reload() to flush into the ref.
+      await new Promise((r) => setTimeout(r, 0));
+      const after = completedCountRef.current;
+      if (after > before) {
+        toast.success("Setup progress updated.");
+      } else {
+        toast("No new progress detected yet.");
+      }
+    } finally {
+      setIsRechecking(false);
+    }
   };
 
   // Re-run auto-detect when wizard regains focus (user navigated to a production page and came back)
@@ -421,8 +441,8 @@ export default function OnboardingWizard() {
                       {step.cta} <ExternalLink className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button variant="outline" onClick={refreshAutoDetect}>
-                    Re-check status
+                  <Button variant="outline" onClick={handleRecheck} disabled={isRechecking}>
+                    {isRechecking ? "Checking…" : "Re-check status"}
                   </Button>
                   {!stepDone[currentStep] && (
                     <Button
