@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { US_STATES } from "@/lib/us-states";
 import {
-  Building2, DollarSign, Network, Truck, Users, UserPlus,
+  Building2, DollarSign, Truck, Users, UserPlus,
   CheckCircle2, ArrowRight, ArrowLeft, Lock, PartyPopper, ExternalLink,
 } from "lucide-react";
 
@@ -34,15 +34,6 @@ const STEPS = [
     cta: "Go to Charge Master",
     route: "/billing?tab=charge-master",
     progressKey: "step_rates_verified" as const,
-  },
-  {
-    icon: Network,
-    title: "Connect Your Clearinghouse",
-    description: "Link PodDispatch to Office Ally for electronic claims.",
-    blurb: "Save your Office Ally submitter ID and SFTP credentials so 837P claims can be transmitted automatically.",
-    cta: "Go to Clearinghouse Settings",
-    route: "/settings?tab=clearinghouse",
-    progressKey: "step_clearinghouse_connected" as const,
   },
   {
     icon: Truck,
@@ -112,14 +103,13 @@ export default function OnboardingWizard() {
   const stepDone = [
     progress.step_company_info_verified,
     progress.step_rates_verified,
-    progress.step_clearinghouse_connected,
     progress.step_trucks_added,
     progress.step_team_invited,
     progress.step_patients_added,
   ];
   const completedCount = stepDone.filter(Boolean).length;
-  const progressPct = (completedCount / 6) * 100;
-  const allDone = completedCount === 6;
+  const progressPct = (completedCount / 5) * 100;
+  const allDone = completedCount === 5;
 
   // First incomplete step on load
   useEffect(() => {
@@ -280,7 +270,7 @@ export default function OnboardingWizard() {
 
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">{completedCount} of 6 steps complete</span>
+            <span className="text-muted-foreground">{completedCount} of 5 steps complete</span>
             <span className="font-medium">{Math.round(progressPct)}%</span>
           </div>
           <Progress value={progressPct} className="h-2" />
