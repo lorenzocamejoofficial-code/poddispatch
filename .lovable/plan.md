@@ -1,42 +1,32 @@
-## Fix Bug 2 — Re-check Status button feedback
+## Fix Bug 3 — persistent "Continue Setup" affordance
 
-Contained to `src/pages/OnboardingWizard.tsx`. Uses existing `toast` from `sonner` (already imported line 14) and existing `progress.completedCount` from the hook.
+### (a) Where to mount
+`src/components/layout/AdminLayout.tsx` wraps every authenticated admin/owner/dispatcher/billing production page (billing, trucks, employees, facilities, patients, dispatch, etc.). Mount a small floating button here so it appears on every production page without editing each one.
 
-### Change 1 — `refreshAutoDetect` (lines 176–208)
+Placement: a fixed, bottom-right pill button (`fixed bottom-4 right-4 z-40`) reading `Continue Setup →`, using existing `Button` + `Rocket`/`ArrowRight` icon. Unobtrusive, doesn't cover content, works on mobile.
 
-**Before:** flips `step_rates_verified` and `return`s early on the rates path; only calls `progress.reload()` in the else branch.
+Not reusing `OnboardingChecklist` component directly — it's a full inline card designed for dashboard headers (already mounted on DispatchBoard and AdminSettings). A floating button is the cleaner pattern for a global affordance and avoids doubling up when the user is on those two pages.
 
-**After:**
-- Compute `ratesValid` as today.
-- If `ratesValid && !progress.step_rates_verified`, call `progress.markStep("step_rates_verified", true)` — but do **not** return.
-- **Always** call `await progress.reload()` at the end so all other steps re-detect on every click.
-- Return the fresh `completedCount` (read via a second small select or by capturing `progress.completedCount` before/after using a ref/snapshot).
+### (b) Visibility conditions
+Render only when ALL true:
+- `isAdmin` (owner/admin role — matches `OnboardingChecklist`'s gate; onboarding is owner-scoped)
+- `!progress.loading`
+- `!progress.wizard_completed`
+- `!progress.onboarding_dismissed`
+- `location.pathname !== "/onboarding"` (don't show on the wizard itself)
 
-Implementation note: `progress.markStep` already calls `load()` internally, and `progress.reload()` also calls `load()`. To avoid a duplicate fetch, restructure to: capture `before = progress.completedCount`, run the rates check + persist if needed, call `progress.reload()` once, then compare `progress.completedCount` after the state settles. Since React state updates are async, use the return value of `reload()` isn't available — instead re-query the flags inline or trigger the toast in a `useEffect` that watches `completedCount`.
+Uses the existing `useOnboardingProgress` hook and `useAuth().isAdmin` — no new state system.
 
-**Simpler approach chosen:** snapshot `before` at click time, `await progress.reload()` (single fetch), and read `after` from a ref that mirrors `progress.completedCount`. If `after > before` → success toast; else → info toast.
+### (c) Auto-hide confirmed
+`OnboardingChecklist` (lines 21–22) hides when `wizard_completed` or `onboarding_dismissed` are true; the new floating button will use the same flags, so completed operators never see it. (Note: the checklist's stale `completedCount === 5` gate is a separate bug — out of scope here; the `wizard_completed` flag is the authoritative gate and is already correctly derived in the hook.)
 
-### Change 2 — Button (lines 424–426)
+### (d) `?from=onboarding` back-button
+Skipped as non-trivial: would require editing every production page's header to read the param and render a back link. The persistent floating button already covers the return-path need on every page with a single edit.
 
-Add local `isRechecking` state. Button becomes:
-```tsx
-<Button variant="outline" disabled={isRechecking} onClick={handleRecheck}>
-  {isRechecking ? "Checking…" : "Re-check status"}
-</Button>
-```
-
-`handleRecheck` wraps `refreshAutoDetect` with `setIsRechecking(true)` → `await refreshAutoDetect()` → toast → `setIsRechecking(false)`.
-
-### Toast copy
-- Progress advanced: `toast.success("Setup progress updated.")`
-- No change: `toast("No new progress detected yet.")`
-
-### Out of scope
-- Detection rules (Bug 1)
-- Hook internals
-- Other step behaviors, other buttons
+### Scope
+- Edit: `src/components/layout/AdminLayout.tsx` only.
+- No changes to wizard logic, detection, OnboardingChecklist component, or production pages.
 
 ### Verification
-- Typecheck (`tsgo --noEmit`) passes.
-- `progress.reload()` runs on every click regardless of rates outcome.
-- Toast fires on both branches; button shows "Checking…" during the async run.
+- Typecheck passes.
+- Manually confirm: button visible on `/billing`, `/trucks`, etc. while onboarding incomplete; hidden on `/onboarding`; hidden after wizard completes or is dismissed; not shown to non-admin roles.
