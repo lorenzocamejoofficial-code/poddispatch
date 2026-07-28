@@ -607,7 +607,7 @@ export default function Employees() {
                 <div className="grid gap-3 py-2">
                   <div><Label>Full Name *</Label><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></div>
                   <div><Label>Phone Number</Label><Input type="tel" value={form.phone_number} onChange={(e) => setForm({ ...form, phone_number: e.target.value })} placeholder="(555) 123-4567" /></div>
-                  <div><Label>Email * <span className="text-xs text-muted-foreground">(for login)</span></Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+                  <div><Label>Email * <span className="text-xs text-muted-foreground">(for login)</span></Label><Input type="email" value={form.email} onChange={(e) => { setForm({ ...form, email: e.target.value }); if (createEmailError) setCreateEmailError(false); }} aria-invalid={createEmailError} className={createEmailError ? "border-destructive focus-visible:ring-destructive" : ""} /></div>
                   {addMode === "credentials" && (
                   <div>
                     <Label>Temporary Password *</Label>
