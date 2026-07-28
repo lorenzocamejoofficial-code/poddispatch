@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { normalizePhone } from "@/lib/phone";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { toast } from "sonner";
 import type { Tables, Database } from "@/integrations/supabase/types";
@@ -450,13 +451,31 @@ export default function Patients() {
 
   const handleSave = async () => {
     if (saving) return;
+    // DOB sanity: no future dates, no >120 years old.
+    if (form.dob) {
+      const dob = new Date(form.dob);
+      const today = new Date(); today.setHours(23, 59, 59, 999);
+      const min = new Date(); min.setFullYear(min.getFullYear() - 120);
+      if (isNaN(dob.getTime())) {
+        toast.error("Please enter a valid date of birth.");
+        return;
+      }
+      if (dob > today) {
+        toast.error("Date of birth cannot be in the future.");
+        return;
+      }
+      if (dob < min) {
+        toast.error("Date of birth is more than 120 years ago — please double-check.");
+        return;
+      }
+    }
     setSaving(true);
     try {
     const payload: any = {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
       dob: form.dob || null,
-      phone: form.phone || null,
+      phone: normalizePhone(form.phone),
       sex: form.sex || null,
       race: form.race || null,
       ethnicity: form.ethnicity || null,
@@ -486,12 +505,12 @@ export default function Patients() {
       secondary_member_id: form.secondary_member_id || null,
       secondary_group_number: form.secondary_group_number || null,
       secondary_payer_id: form.secondary_payer_id || null,
-      secondary_payer_phone: form.secondary_payer_phone || null,
+      secondary_payer_phone: normalizePhone(form.secondary_payer_phone),
       tertiary_payer: form.tertiary_payer ? form.tertiary_payer.toLowerCase().trim() : null,
       tertiary_member_id: form.tertiary_member_id || null,
       tertiary_group_number: form.tertiary_group_number || null,
       tertiary_payer_id: form.tertiary_payer_id || null,
-      tertiary_payer_phone: form.tertiary_payer_phone || null,
+      tertiary_payer_phone: normalizePhone(form.tertiary_payer_phone),
       auth_required: form.auth_required,
       auth_expiration: form.auth_expiration || null,
       trips_per_week_limit: form.trips_per_week_limit ? parseInt(form.trips_per_week_limit) : null,
