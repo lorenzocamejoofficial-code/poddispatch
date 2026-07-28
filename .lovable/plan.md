@@ -1,34 +1,91 @@
-Plan: Fix authenticated deep-link routing for /login and /signup in src/App.tsx only.
+# Add "Add a Facility" step to Getting Started wizard
 
-Current state (verified in src/App.tsx lines 370-559):
-- System creator branch has /login -> /system, but no /signup -> falls to NotFound (404).
-- Owner/admin branch has /login -> /, but no /signup -> falls to NotFound (404).
-- Dispatcher branch has /login -> /, catch-all -> /; /signup is not explicit.
-- Biller branch has /login -> /, catch-all -> /; /signup is not explicit.
-- Crew branch has no explicit /login or /signup; both currently fall through catch-all -> /.
+## Facilities route (verified)
+`src/App.tsx` registers `FacilitiesPage` at path **`/facilities`** in every authenticated role branch (owner/admin line 542, dispatcher 498, biller 460, and the shared block at 402). Route: **`/facilities`**.
 
-Changes (only additions, no removals or alterations of existing routes):
+## Files touched (2)
+1. `src/hooks/useOnboardingProgress.ts`
+2. `src/pages/OnboardingWizard.tsx`
 
-1. System creator branch (~line 413): Add `<Route path="/signup" element={<Navigate to="/system" replace />} />` immediately after the existing /login redirect.
-   - Redirect target: /system (matches that branch's /login target).
+No other files.
 
-2. Owner/admin branch (~line 554): Add `<Route path="/signup" element={<Navigate to="/" replace />} />` immediately after the existing /login redirect.
-   - Redirect target: / (matches that branch's /login target).
+---
 
-3. Dispatcher branch (~line 471): Add `<Route path="/signup" element={<Navigate to="/" replace />} />` immediately after the existing /login redirect.
-   - Redirect target: / (matches that branch's /login target).
+## 1. `src/hooks/useOnboardingProgress.ts` — add `step_facility_added`
 
-4. Biller branch (~line 505): Add `<Route path="/signup" element={<Navigate to="/" replace />} />` immediately after the existing /login redirect.
-   - Redirect target: / (matches that branch's /login target).
+Mirror the exact `step_trucks_added` mechanism (count query against the `facilities` table scoped to `company_id`, OR-ed with any pre-existing DB flag), then include it in the auto-update block and the `completedCount` math.
 
-5. Crew branch (~line 437): Add explicit `<Route path="/login" element={<Navigate to="/" replace />} />` and `<Route path="/signup" element={<Navigate to="/" replace />} />` before the catch-all.
-   - Redirect target: / (matches that branch's home).
+**Type additions**
+- Add `step_facility_added: boolean;` to the `OnboardingProgress` interface.
+- Initialise it to `false` in the `useState` default.
 
-The unauthenticated branch is untouched. No new components are created. The catch-all routes for other unknown paths remain unchanged.
+**Detection (mirrors trucks exactly)**
+In the `Promise.all([...])`, add:
+```ts
+supabase.from("facilities" as any).select("id", { count: "exact", head: true }).eq("company_id", activeCompanyId),
+```
+Destructure as `facilitiesRes`. Then:
+```ts
+const facilitiesExist = (facilitiesRes.count ?? 0) > 0;
+const stepFacility = (settings as any).step_facility_added || facilitiesExist;
+```
+(Same shape as `trucksExist` / `stepTrucks`.)
 
-Deliverable confirmation by branch:
-- System creator /signup -> /system
-- Owner/admin /signup -> /
-- Dispatcher /signup -> /
-- Biller /signup -> /
-- Crew /login -> /, /signup -> /
+**setProgress**: include `step_facility_added: stepFacility`.
+
+**allComplete**: add `&& stepFacility` in the correct position (before patients).
+
+**Auto-update block**:
+```ts
+if (stepFacility && !(settings as any).step_facility_added) updates.step_facility_added = true;
+```
+
+**`completedCount` array**: insert `progress.step_facility_added` between team-invited and patients-added. (Note: this hook's `completedCount` currently counts 6 items including clearinghouse; adding facility makes it 7. That's fine — this hook's count powers the sidebar `OnboardingChecklist`, not the wizard's math. Wizard uses its own local `stepDone`.)
+
+Note: the `migration_settings` DB column `step_facility_added` may not exist. The `update({ step_facility_added: true })` call is cast `as any` and would fail silently at runtime if the column is missing, but the derived state still works from `facilitiesExist`, so completion detection still functions. If desired, a follow-up migration can add the column — out of scope for this fix per user's SCOPE constraint.
+
+---
+
+## 2. `src/pages/OnboardingWizard.tsx` — wire the new step
+
+**Imports**: add `Hospital` to the lucide import (already-used icon set style).
+
+**STEPS array**: insert **immediately before** the "Add Your First Patient" object:
+```ts
+{
+  icon: Hospital,
+  title: "Add a Facility",
+  description: "Add the dialysis centers, hospitals, or nursing facilities your patients travel to.",
+  blurb: "Patients need a drop-off destination. Add at least one facility so you can assign it when creating patients.",
+  cta: "Go to Facilities",
+  route: "/facilities",
+  progressKey: "step_facility_added" as const,
+},
+```
+Result: 6 entries, order = Company Info, Rates, Trucks, Crew, **Facility**, Patient.
+
+**`stepDone` array**: insert `progress.step_facility_added` between `step_team_invited` and `step_patients_added`:
+```ts
+const stepDone = [
+  progress.step_company_info_verified,
+  progress.step_rates_verified,
+  progress.step_trucks_added,
+  progress.step_team_invited,
+  progress.step_facility_added,
+  progress.step_patients_added,
+];
+```
+
+**Progress math**:
+- `(completedCount / 5) * 100` → `/ 6`
+- `completedCount === 5` → `=== 6`
+- Label `"{completedCount} of 5 steps complete"` → `"of 6 steps complete"`
+
+No other logic changes. The generic "STEPS 2–6" nav-card renderer already handles any non-first step via `step.route` + `step.cta`, so no per-step branching needed.
+
+---
+
+## Verification
+- Typecheck clean.
+- Wizard shows 6 chips, reaches 100% only when all 6 done.
+- Facility step auto-completes when ≥1 row exists in `facilities` for the company (identical mechanism to trucks).
