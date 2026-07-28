@@ -615,7 +615,7 @@ export default function Employees() {
                   <div>
                     <Label>Temporary Password *</Label>
                     <div className="relative">
-                      <Input type={showPassword ? "text" : "password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 6 characters" />
+                      <Input type={showPassword ? "text" : "password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 8 characters" />
                       <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(p => !p)}>
                         {showPassword ? "Hide" : "Show"}
                       </button>
