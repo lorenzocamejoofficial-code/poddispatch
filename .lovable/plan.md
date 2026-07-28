@@ -1,40 +1,31 @@
-## Goal
-Replace raw duplicate-key errors with clear, specific user messages for two cases: (a) NPI already registered on company signup, (b) email already exists on employee create. No other behavior changes.
+## Audit-only report — no changes to apply
 
-## Files touched (3)
+This is a diagnostic report per the AUDIT / DIAGNOSE ONLY request. No files will be modified. If you want fixes, respond with which bug(s) to address and I'll draft an implementation plan.
 
-1. **`supabase/functions/company-signup/index.ts`** — detect NPI unique-violation on the `companies` insert and return a friendly 409.
-2. **`src/pages/CompanySignup.tsx`** — read the edge function's JSON error body (not just `fnError.message`, which is the generic "Edge Function returned a non-2xx status code") and surface it.
-3. **`src/pages/Employees.tsx`** — in `handleCreate`, detect the "email already exists" case from the `create-user` response and show a clean toast. (The edge function already forwards Supabase's `createUser` error message, so this is a client-side message rewrite only — no edge function change needed for this case.)
+### 1. Employee duplicate email → raw "non-2xx" toast
+- `create-user` returns HTTP 400 with `{error: "...already been registered..."}` (`supabase/functions/create-user/index.ts:165-170`).
+- `supabase.functions.invoke` on non-2xx leaves `data = null` and puts a `FunctionsHttpError` in `error`, whose `.message` is the generic string.
+- In `src/pages/Employees.tsx:229-237`, the check reads `data?.error || error?.message`. `data?.error` is undefined; `error?.message` is the generic string, so the `/already.*(registered|exist)/i` regex never sees the real body.
+- Real "already registered" text is on `error.context` (Response), extractable via `await (error as FunctionsHttpError).context.json()` — the same pattern already used in `CompanySignup.tsx:180-184`.
 
-## Detection rules (specific, not blanket)
+### 2. NPI test misfires as "email exists" on fresh email
+- On duplicate NPI, `company-signup` returns 409 `code:"npi_exists"` (`supabase/functions/company-signup/index.ts:170-177`).
+- Client at `src/pages/CompanySignup.tsx:191-193` correctly detects it and throws `Error("A company with this NPI is already registered.")`.
+- The outer `catch` at `src/pages/CompanySignup.tsx:215-222` uses a loose heuristic: `msg.includes("already") && (msg.includes("exist") || msg.includes("register"))`. The NPI message contains "already" + "registered", so the catch treats it as an email-exists case and flips `setEmailExists(true)` + `setStep("info")`.
+- Root cause: overreaching catch-block heuristic, not the regex or a real pre-check. No client-side email pre-query exists at all.
 
-### Signup — NPI duplicate
-The `companies` insert currently returns any error as a generic 500. Detect duplicate specifically by checking the PostgREST error object returned from supabase-js:
-- `companyError.code === "23505"` **AND**
-- (`companyError.message` contains `"npi_number"` OR `companyError.details` contains `"npi_number"`)
+### 3. Email-exists check runs too late
+- Email existence is only enforced server-side by `supabaseAdmin.auth.admin.createUser` inside `company-signup` (`supabase/functions/company-signup/index.ts:112-129`), triggered by `handleSubmit` — after Step 4.
+- `validateInfo` (`src/pages/CompanySignup.tsx:107-117`) only checks format/length; it does not query for existence.
+- No anonymous existence endpoint exists. Anon key cannot query `auth.users`; `profiles` is RLS-locked. Moving the check to blur/step-advance would require a new service-role edge function (e.g. `check-email-exists`) that returns `{exists:boolean}` after checking `auth.admin.listUsers` (filtered by email) **and** replicating the pending-invite guard at `company-signup/index.ts:82-109`. Then call it from `validateInfo` before advancing.
 
-Only then return `409` with `{ error: "A company with this NPI is already registered.", code: "npi_exists" }`. Any other error keeps the existing generic 500 path unchanged.
+### 4. Second tab to /login or /signup → 404 or silent auto-enter
+- `/login` and `/signup` are only registered in the unauthenticated branch of `AppRoutes` (`src/App.tsx:243-244`).
+- Each authenticated branch defines its own `<Routes>` block. None register `/signup`, and only some redirect `/login`:
+  - Owner/admin (`src/App.tsx:515-559`): explicit `/login → "/"` (line 554); no `/signup` → falls to `path="*" → <NotFound />` (line 555). This is the 404.
+  - System creator (`src/App.tsx:370-418`): `/login → "/system"` (line 413); no `/signup` → catch-all `NotFound` (line 414).
+  - Dispatcher/Biller/Crew (`src/App.tsx:471, 505, 438`): `/login → "/"`; no `/signup` → catch-all `Navigate to "/"`. This is the "silently logs into the existing session" behavior.
+- There is no "you're already signed in — sign out first / switch account" affordance for authed users hitting auth pages in a second tab.
 
-### Employee create — email duplicate
-`supabaseAdmin.auth.admin.createUser` returns an error whose message contains phrases like `"already been registered"` / `"already registered"` / `"User already registered"`. The edge function already surfaces that raw message in `data.error`. In the client, before showing the toast, check:
-- `typeof data?.error === "string"` AND `/already.*(registered|exist)/i.test(data.error)`
-
-Only then swap the toast text to the clean message. Any other error text falls through to the existing `toast.error(data?.error || error?.message || "Failed to create user")`.
-
-### Client-side signup error extraction
-`supabase.functions.invoke` returns a `FunctionsHttpError` on non-2xx whose `.message` is the generic string. To get the JSON body, use `await fnError.context.json()` (available on `FunctionsHttpError`). Wrap in a try/catch; if parsing fails, keep the existing generic behavior. Then branch on `body.code === "npi_exists"` → show the specific message; `body.code === "email_exists"` → existing pending-email flow; else → `body.error || fnError.message`.
-
-## User-facing message strings (exact)
-
-- NPI duplicate (signup): **"A company with this NPI is already registered."**
-- Email duplicate (employee create): **"An account with this email already exists."**
-
-## Non-duplicate fall-through (explicit)
-
-- Signup edge function: any non-23505 error, or a 23505 that isn't the NPI constraint, returns the current 500 with the current error text. No masking.
-- Employee client: if `data.error` doesn't match the email-exists regex, the existing toast renders `data?.error || error?.message || "Failed to create user"` unchanged.
-- No other insert paths are modified.
-
-## Out of scope
-No schema changes, no new validation UI, no email/NPI format changes, no other duplicate detection (phone, name, EIN), no styling, no refactor of the invite path or `send-employee-invite`.
+### End of report
+No fixes will be applied without an explicit go-ahead per bug.
