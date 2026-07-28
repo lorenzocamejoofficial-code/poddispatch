@@ -441,8 +441,8 @@ export default function OnboardingWizard() {
                       {step.cta} <ExternalLink className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button variant="outline" onClick={refreshAutoDetect}>
-                    Re-check status
+                  <Button variant="outline" onClick={handleRecheck} disabled={isRechecking}>
+                    {isRechecking ? "Checking…" : "Re-check status"}
                   </Button>
                   {!stepDone[currentStep] && (
                     <Button
