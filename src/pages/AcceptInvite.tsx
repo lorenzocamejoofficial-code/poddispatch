@@ -83,8 +83,8 @@ export default function AcceptInvite() {
       toast.error("Please fill in all fields");
       return;
     }
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters");
       return;
     }
 
@@ -200,7 +200,7 @@ export default function AcceptInvite() {
           </div>
           <div className="space-y-2">
             <Label>Password *</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 6 characters" />
+            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 8 characters" />
           </div>
           <Button type="submit" className="w-full" disabled={submitting}>
             {submitting ? "Creating account..." : "Create Account & Join"}
