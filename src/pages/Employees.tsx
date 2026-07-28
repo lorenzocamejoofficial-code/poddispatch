@@ -227,7 +227,14 @@ export default function Employees() {
     });
 
     if (error || data?.error) {
-      toast.error(data?.error || error?.message || "Failed to create user");
+      const raw = (data?.error || error?.message || "") as string;
+      const isEmailDup =
+        typeof raw === "string" && /already.*(registered|exist)/i.test(raw);
+      toast.error(
+        isEmailDup
+          ? "An account with this email already exists."
+          : (raw || "Failed to create user"),
+      );
     } else {
       toast.success(`${form.full_name} created successfully`);
       setDialogOpen(false);
