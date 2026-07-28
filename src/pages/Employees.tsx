@@ -16,6 +16,7 @@ import { Plus, Search, Pencil, Trash2, Copy, KeyRound, MoreHorizontal, Send, Shi
 import { CrewCertificationsDialog } from "@/components/crew/CrewCertificationsDialog";
 import { toast } from "sonner";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { normalizePhone } from "@/lib/phone";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -191,15 +192,16 @@ export default function Employees() {
       toast.error("Please fill in all required fields");
       return;
     }
-    if (form.password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    if (form.password.length < 8) {
+      toast.error("Password must be at least 8 characters");
       return;
     }
 
     // Issue #1: Duplicate phone check
-    if (form.phone_number.trim()) {
+    if (normalizePhone(form.phone_number)) {
+      const normalized = normalizePhone(form.phone_number);
       const existingPhone = employees.find(
-        (e) => e.phone_number && e.phone_number === form.phone_number.trim()
+        (e) => e.phone_number && normalizePhone(e.phone_number) === normalized
       );
       if (existingPhone) {
         toast.error(`Phone number already in use by ${existingPhone.full_name}`);
@@ -216,7 +218,7 @@ export default function Employees() {
         role: form.role,
         sex: form.sex,
         cert_level: form.cert_level,
-        phone_number: form.phone_number.trim() || null,
+        phone_number: normalizePhone(form.phone_number),
         employment_type: form.employment_type,
         
         stair_chair_trained: form.stair_chair_trained,
@@ -286,7 +288,7 @@ export default function Employees() {
         invitation_status: "invited",
         pending_role: form.role as any,
         active: true,
-        phone_number: form.phone_number.trim() || null,
+        phone_number: normalizePhone(form.phone_number),
         sex: form.sex,
         cert_level: form.cert_level,
         employment_type: form.employment_type,
@@ -380,9 +382,10 @@ export default function Employees() {
     }
 
     // Issue #1: Duplicate phone check on edit
-    if (editForm.phone_number.trim()) {
+    if (normalizePhone(editForm.phone_number)) {
+      const normalized = normalizePhone(editForm.phone_number);
       const existingPhone = employees.find(
-        (e) => e.id !== editingEmployee.id && e.phone_number && e.phone_number === editForm.phone_number.trim()
+        (e) => e.id !== editingEmployee.id && e.phone_number && normalizePhone(e.phone_number) === normalized
       );
       if (existingPhone) {
         toast.error(`Phone number already in use by ${existingPhone.full_name}`);
@@ -402,7 +405,7 @@ export default function Employees() {
       setSaving(true);
       const { error } = await supabase.from("profiles").update({
         full_name: editForm.full_name.trim(),
-        phone_number: editForm.phone_number.trim() || null,
+        phone_number: normalizePhone(editForm.phone_number),
         sex: editForm.sex,
         cert_level: editForm.cert_level,
         employment_type: editForm.employment_type,
@@ -430,7 +433,7 @@ export default function Employees() {
       body: {
         target_user_id: editingEmployee.user_id,
         full_name: editForm.full_name.trim(),
-        phone_number: editForm.phone_number.trim() || null,
+        phone_number: normalizePhone(editForm.phone_number),
         sex: editForm.sex,
         cert_level: editForm.cert_level,
         employment_type: editForm.employment_type,
