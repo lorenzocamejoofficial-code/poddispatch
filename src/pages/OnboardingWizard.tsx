@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { US_STATES } from "@/lib/us-states";
 import {
-  Building2, DollarSign, Truck, Users, UserPlus,
+  Building2, DollarSign, Truck, Users, UserPlus, Hospital,
   CheckCircle2, ArrowRight, ArrowLeft, Lock, PartyPopper, ExternalLink,
 } from "lucide-react";
 
@@ -52,6 +52,15 @@ const STEPS = [
     cta: "Go to Employees",
     route: "/employees",
     progressKey: "step_team_invited" as const,
+  },
+  {
+    icon: Hospital,
+    title: "Add a Facility",
+    description: "Add the dialysis centers, hospitals, or nursing facilities your patients travel to.",
+    blurb: "Patients need a drop-off destination. Add at least one facility so you can assign it when creating patients.",
+    cta: "Go to Facilities",
+    route: "/facilities",
+    progressKey: "step_facility_added" as const,
   },
   {
     icon: Users,
@@ -105,11 +114,12 @@ export default function OnboardingWizard() {
     progress.step_rates_verified,
     progress.step_trucks_added,
     progress.step_team_invited,
+    progress.step_facility_added,
     progress.step_patients_added,
   ];
   const completedCount = stepDone.filter(Boolean).length;
-  const progressPct = (completedCount / 5) * 100;
-  const allDone = completedCount === 5;
+  const progressPct = (completedCount / 6) * 100;
+  const allDone = completedCount === 6;
 
   // First incomplete step on load
   useEffect(() => {
@@ -270,7 +280,7 @@ export default function OnboardingWizard() {
 
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">{completedCount} of 5 steps complete</span>
+            <span className="text-muted-foreground">{completedCount} of 6 steps complete</span>
             <span className="font-medium">{Math.round(progressPct)}%</span>
           </div>
           <Progress value={progressPct} className="h-2" />
