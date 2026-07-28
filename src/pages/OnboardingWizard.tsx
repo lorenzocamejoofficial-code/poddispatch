@@ -78,6 +78,9 @@ export default function OnboardingWizard() {
   const { activeCompanyId, refreshWizardStatus } = useAuth();
   const progress = useOnboardingProgress();
   const [currentStep, setCurrentStep] = useState(0);
+  const [isRechecking, setIsRechecking] = useState(false);
+  const completedCountRef = useRef(progress.completedCount);
+  useEffect(() => { completedCountRef.current = progress.completedCount; }, [progress.completedCount]);
 
   // Step 1 — company info (only inline form remaining)
   const [company, setCompany] = useState({
