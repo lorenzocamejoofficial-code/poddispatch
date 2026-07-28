@@ -1,36 +1,40 @@
-# Plan: Gate Simulation Templates UI to system creators only
+## Goal
+Replace raw duplicate-key errors with clear, specific user messages for two cases: (a) NPI already registered on company signup, (b) email already exists on employee create. No other behavior changes.
 
-## (a) Creator-role check to reuse
+## Files touched (3)
 
-`useAuth()` from `@/hooks/useAuth` already exposes `isSystemCreator: boolean` (see `src/hooks/useAuth.tsx` line 87, set from the `system_creators` table lookup at line 160/164). This is the same flag `src/pages/Index.tsx` and the creator console use to gate creator-only surfaces. Reuse it — no new check.
+1. **`supabase/functions/company-signup/index.ts`** — detect NPI unique-violation on the `companies` insert and return a friendly 409.
+2. **`src/pages/CompanySignup.tsx`** — read the edge function's JSON error body (not just `fnError.message`, which is the generic "Edge Function returned a non-2xx status code") and surface it.
+3. **`src/pages/Employees.tsx`** — in `handleCreate`, detect the "email already exists" case from the `create-user` response and show a clean toast. (The edge function already forwards Supabase's `createUser` error message, so this is a client-side message rewrite only — no edge function change needed for this case.)
 
-In `src/pages/Patients.tsx` line 101, the existing destructure will be extended:
-```
-const { activeCompanyId, role, isSystemCreator } = useAuth();
-```
+## Detection rules (specific, not blanket)
 
-## (b) JSX/logic blocks to wrap
+### Signup — NPI duplicate
+The `companies` insert currently returns any error as a generic 500. Detect duplicate specifically by checking the PostgREST error object returned from supabase-js:
+- `companyError.code === "23505"` **AND**
+- (`companyError.message` contains `"npi_number"` OR `companyError.details` contains `"npi_number"`)
 
-All edits are inside `src/pages/Patients.tsx`. Four gates, all guarded by `isSystemCreator`:
+Only then return `409` with `{ error: "A company with this NPI is already registered.", code: "npi_exists" }`. Any other error keeps the existing generic 500 path unchanged.
 
-1. **Templates view tabs bar** — lines 910–930 (the whole `<div className="flex items-center gap-1 border-b">` containing "All Patients" / "Simulation Templates" buttons). Wrap in `{isSystemCreator && ( ... )}`. Non-creators never see the tab strip.
+### Employee create — email duplicate
+`supabaseAdmin.auth.admin.createUser` returns an error whose message contains phrases like `"already been registered"` / `"already registered"` / `"User already registered"`. The edge function already surfaces that raw message in `data.error`. In the client, before showing the toast, check:
+- `typeof data?.error === "string"` AND `/already.*(registered|exist)/i.test(data.error)`
 
-2. **"Simulation Templates" description card** — lines 932–941 (`{templatesView && ( ... )}`). Change guard to `{isSystemCreator && templatesView && ( ... )}`. Belt-and-suspenders; `templatesView` can't become true without the tab anyway.
+Only then swap the toast text to the clean message. Any other error text falls through to the existing `toast.error(data?.error || error?.message || "Failed to create user")`.
 
-3. **"No simulation templates yet" info card** — lines 943–956. Change guard to `{isSystemCreator && !templatesView && patients.filter(...).length === 0 && ( ... )}`.
+### Client-side signup error extraction
+`supabase.functions.invoke` returns a `FunctionsHttpError` on non-2xx whose `.message` is the generic string. To get the JSON body, use `await fnError.context.json()` (available on `FunctionsHttpError`). Wrap in a try/catch; if parsing fails, keep the existing generic behavior. Then branch on `body.code === "npi_exists"` → show the specific message; `body.code === "email_exists"` → existing pending-email flow; else → `body.error || fnError.message`.
 
-4. **Per-row "Template" toggle button** — lines 2083–2093 (the `<Button ...onClick={() => toggleTemplate(p)}>`). Wrap in `{isSystemCreator && ( ... )}`. Also wrap the small "Template" badge shown on the row at lines 1995–1999 (`{(p as any).is_template && ( ... )}`) with the same creator gate, so tenants don't even see the flag state on templated rows.
+## User-facing message strings (exact)
 
-Also (defensive, still inside the same file): initialize `templatesView` state (line 106) as `useState(false)` — no change needed, but the filter at line 752 (`templatesView ? is_template === true : true`) is a no-op for non-creators since they can't flip the toggle. No logic change required beyond the four JSX gates above.
+- NPI duplicate (signup): **"A company with this NPI is already registered."**
+- Email duplicate (employee create): **"An account with this email already exists."**
 
-The `toggleTemplate` function (lines 791–802) stays untouched — dead code for non-creators, live for creators. Keeping it avoids touching non-UI logic.
+## Non-duplicate fall-through (explicit)
 
-## (c) Confirmation of scope
+- Signup edge function: any non-23505 error, or a 23505 that isn't the NPI constraint, returns the current 500 with the current error text. No masking.
+- Employee client: if `data.error` doesn't match the email-exists regex, the existing toast renders `data?.error || error?.message || "Failed to create user"` unchanged.
+- No other insert paths are modified.
 
-- Only `src/pages/Patients.tsx` is modified.
-- No changes to patient CRUD, claim logic, billing, other tabs, other pages, or the auth hook.
-- Simulation functionality is preserved for system creators.
-
-## Assumption
-
-"System creator" = `isSystemCreator` from `useAuth`, not the `creator` role (which is a company-level role). This matches how the rest of the app gates creator-only tooling. If you actually meant the company `creator` role too, say so and I'll add `|| role === "creator"`.
+## Out of scope
+No schema changes, no new validation UI, no email/NPI format changes, no other duplicate detection (phone, name, EIN), no styling, no refactor of the invite path or `send-employee-invite`.
