@@ -227,7 +227,16 @@ export default function Employees() {
     });
 
     if (error || data?.error) {
-      const raw = (data?.error || error?.message || "") as string;
+      let body: any = null;
+      try {
+        const ctx: any = (error as any)?.context;
+        if (ctx && typeof ctx.json === "function") body = await ctx.json();
+        else if (ctx && typeof ctx.text === "function") body = JSON.parse(await ctx.text());
+      } catch {
+        /* body stays null */
+      }
+
+      const raw = (body?.error || data?.error || error?.message || "") as string;
       const isEmailDup =
         typeof raw === "string" && /already.*(registered|exist)/i.test(raw);
       toast.error(

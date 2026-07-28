@@ -1,70 +1,80 @@
+Minimal plan: extract the real error body from the create-user edge function response in `src/pages/Employees.tsx` so duplicate-email errors show a clean message instead of the generic "non-2xx status code" wrapper.
 
-# Early duplicate detection for email + NPI during signup
+## Current state
 
-Two bugs, one root cause: duplicate email and duplicate NPI are only caught at final submit, after the user has filled the whole wizard. Fix by adding a lightweight server-side existence check callable from Step 1 and Step 2. Server-side final submit remains the source of truth.
+In `src/pages/Employees.tsx` `handleCreate` (lines 229-237), the duplicate-email detection only sees:
 
-## 1. New edge function: `check-signup-availability`
+```ts
+if (error || data?.error) {
+  const raw = (data?.error || error?.message || "") as string;
+  const isEmailDup =
+    typeof raw === "string" && /already.*(registered|exist)/i.test(raw);
+  toast.error(
+    isEmailDup
+      ? "An account with this email already exists."
+      : (raw || "Failed to create user"),
+  );
+}
+```
 
-Path: `supabase/functions/check-signup-availability/index.ts`
-Config: add to `supabase/config.toml` with `verify_jwt = false` (public, pre-auth call).
-Uses service role — never exposes any data beyond two booleans.
+When the create-user edge function returns HTTP 400, `supabase.functions.invoke` puts the response in `error` (a `FunctionsHttpError`) and leaves `data` as `null`. The real message (e.g. `"User with this email has already been registered"`) lives in the response body at `error.context`, not in `error.message`. Therefore `raw` is the generic wrapper text, the regex never matches, and the user sees the raw wrapper.
 
-**Input** (JSON body): `{ email?: string, npi?: string }` — either or both.
+## What will change
 
-**Output** (200): `{ emailExists: boolean, npiExists: boolean }`. Fields the caller didn't ask about return `false`.
+Only the error branch inside `handleCreate` in `src/pages/Employees.tsx`. The same pattern already used in `src/pages/CompanySignup.tsx` (lines 209-215) will be mirrored:
 
-**Logic:**
+1. Try to read the JSON body from `error.context` first, with a try/catch fallback.
+2. Determine the real message from, in order: `body.error`, `data.error`, `error.message`.
+3. If the real message matches `/already.*(registered|exist)/i`, show the friendly duplicate-email message.
+4. Otherwise show the real underlying message (not the generic wrapper if a real body message exists).
 
-- Normalize `email = email.trim().toLowerCase()`; normalize `npi = npi.replace(/\D/g,"")` and require length 10 to check (otherwise skip).
-- `emailExists` — true if EITHER:
-  1. `auth.admin.listUsers({ page:1, perPage:1, filter: ...})` returns a user with that email. (Fallback: page through with a small per-page and filter client-side if `filter` isn't supported by the installed SDK version — same technique used in the current signup guard.)
-  2. The pending-invite guard from `supabase/functions/company-signup/index.ts` lines ~82-109 fires: a row in `profiles` with `email = <normalized>` AND `user_id IS NULL` AND `company_id` points at a `companies` row with `deleted_at IS NULL`. This matches final-submit behavior exactly so Step 1 doesn't say "available" and then final submit says "pending invite".
-- `npiExists` — true if `companies` has a row with `npi_number = <digits>` AND `deleted_at IS NULL` (active only, matching the DB partial unique index the final submit relies on).
-- No writes, no user creation, no auth mutation. CORS headers on every response including OPTIONS.
-- On internal error, return HTTP 200 with `{ emailExists: false, npiExists: false }` so a check-service outage never hard-blocks a legitimate signup (the final submit still enforces uniqueness).
+## Before/after of the exact branch
 
-## 2. Wire into `src/pages/CompanySignup.tsx`
+**Before (lines 229-237):**
 
-Convert two currently-synchronous validators to async and gate advancement on the availability check.
+```ts
+if (error || data?.error) {
+  const raw = (data?.error || error?.message || "") as string;
+  const isEmailDup =
+    typeof raw === "string" && /already.*(registered|exist)/i.test(raw);
+  toast.error(
+    isEmailDup
+      ? "An account with this email already exists."
+      : (raw || "Failed to create user"),
+  );
+}
+```
 
-**Step 1 → Step 2 (`validateInfo`, currently lines 107-117):**
-- Run all existing local validations first (unchanged).
-- Then `await supabase.functions.invoke("check-signup-availability", { body: { email: email.trim() } })`.
-- If response `emailExists === true`: `setEmailExists(true)` and do NOT call `setStep("profile")`. The existing red panel at lines 243-253 (with the clickable "Go to Sign In →" link) already renders — no new UI.
-- If the invoke itself throws or returns `error`: swallow it, log to console, and advance to Step 2 anyway (graceful failure — final submit still protects).
-- Show a small inline "Checking…" state on the Continue button while the call is in flight (disable button + spinner).
+**After:**
 
-**Step 2 → Step 3 (`validateProfile`, currently lines 119-135):**
-- Run all existing local validations first (unchanged).
-- Then `await supabase.functions.invoke("check-signup-availability", { body: { npi: npiNumber.trim() } })`.
-- If `npiExists === true`: `setError("A company with this NPI is already registered.")` and do NOT call `setStep("agreements")`. Uses the existing `error` panel at lines 237-241 — no new UI element.
-- On invoke failure: swallow, log, advance to Step 3 (graceful).
-- Same "Checking…" button state while awaiting.
+```ts
+if (error || data?.error) {
+  let body: any = null;
+  try {
+    const ctx: any = (error as any)?.context;
+    if (ctx && typeof ctx.json === "function") body = await ctx.json();
+    else if (ctx && typeof ctx.text === "function") body = JSON.parse(await ctx.text());
+  } catch {
+    /* body stays null */
+  }
 
-Update the two `onClick={validateInfo}` / `onClick={validateProfile}` buttons to handle the async call (disable while `checking`).
+  const raw = (body?.error || data?.error || error?.message || "") as string;
+  const isEmailDup =
+    typeof raw === "string" && /already.*(registered|exist)/i.test(raw);
+  toast.error(
+    isEmailDup
+      ? "An account with this email already exists."
+      : (raw || "Failed to create user"),
+  );
+}
+```
 
-## 3. Backstops (unchanged)
+## Scope
 
-`supabase/functions/company-signup/index.ts` keeps:
-- The pending-invite guard (lines ~82-109).
-- The `auth.admin.createUser` "already exists" branch that returns `code: "email_exists"` (lines ~117-129).
-- The `23505 / npi_number` unique-violation branch that returns `code: "npi_exists"` (lines ~162-183).
+- Only `src/pages/Employees.tsx`, only the `if (error || data?.error)` block inside `handleCreate`.
+- No changes to the `create-user` edge function, `CompanySignup.tsx`, routing, or any other logic.
+- The duplicate-email mapping remains the only special case; every other error surfaces the real underlying message.
 
-The Step-final handler in `CompanySignup.tsx` (lines 141-219) keeps its existing `email_exists` / `npi_exists` handling — untouched. Early checks are UX; server remains the source of truth.
+## Verification
 
-## 4. Graceful failure summary
-
-| Failure                            | Behavior                                             |
-| ---------------------------------- | ---------------------------------------------------- |
-| Availability edge fn 5xx / timeout | Client advances; final submit still enforces         |
-| Availability edge fn returns error body | Client advances; final submit still enforces    |
-| Network offline                    | Client advances; final submit will surface the error |
-| Availability returns `true`        | Block advancement, show existing panel/inline error  |
-
-## Files touched
-
-- **New:** `supabase/functions/check-signup-availability/index.ts`
-- **Edit:** `supabase/config.toml` (add `[functions.check-signup-availability] verify_jwt = false`)
-- **Edit:** `src/pages/CompanySignup.tsx` (make `validateInfo` + `validateProfile` async, add availability calls, add "checking" button state)
-
-Not touched: `company-signup/index.ts` logic, employee code, routing, styles.
+After the change, the duplicate-email case will toast `"An account with this email already exists."` and other create-user failures will toast the actual server error message (e.g. validation errors) rather than the generic wrapper.
