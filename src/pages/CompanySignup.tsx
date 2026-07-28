@@ -315,7 +315,14 @@ export default function CompanySignup() {
             </div>
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" />
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); if (emailExists) setEmailExists(false); }}
+                placeholder="you@company.com"
+                aria-invalid={emailExists}
+                className={emailExists ? "border-destructive focus-visible:ring-destructive" : ""}
+              />
             </div>
             <div className="space-y-2">
               <Label>Phone (optional)</Label>
