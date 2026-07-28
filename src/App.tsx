@@ -411,6 +411,7 @@ function AppRoutes() {
           {/* Default: creator lands on System Dashboard */}
           <Route path="/" element={<Navigate to="/system" replace />} />
           <Route path="/login" element={<Navigate to="/system" replace />} />
+          <Route path="/signup" element={<Navigate to="/system" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </SchedulingProvider>
@@ -435,6 +436,8 @@ function AppRoutes() {
           <Route path="/crew/:token" element={<DailyRunSheet />} />
           <Route path="/account" element={<AccountSettings />} />
           <Route path="/legal" element={<LegalPage />} />
+          <Route path="/login" element={<Navigate to="/" replace />} />
+          <Route path="/signup" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </HipaaAcknowledgmentGate>
@@ -469,6 +472,7 @@ function AppRoutes() {
             <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
             <Route path="/crew-certifications" element={<CrewCertifications />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="/signup" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </SchedulingProvider>
@@ -503,6 +507,7 @@ function AppRoutes() {
             <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
             <Route path="/crew-certifications" element={<CrewCertifications />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="/signup" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </SchedulingProvider>
@@ -552,6 +557,7 @@ function AppRoutes() {
         <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
         <Route path="/crew-certifications" element={<CrewCertifications />} />
         <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route path="/signup" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </SchedulingProvider>
