@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ContextualHelpPanel } from "@/components/help/ContextualHelpPanel";
 import { useCompanyName } from "@/hooks/useCompanyName";
+import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { CompanySwitcher } from "@/components/layout/CompanySwitcher";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -45,6 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { User as UserIcon, HelpCircle, Bug } from "lucide-react";
+import { Rocket, ArrowRight } from "lucide-react";
 
 /**
  * Single consistent sign-out routine used by both the sidebar and the
@@ -143,10 +145,17 @@ function homePathForRole(role: string | null | undefined): string {
 }
 
 export function AdminLayout({ children }: { children: ReactNode }) {
-  const { user, signOut, role, isSystemCreator } = useAuth();
+  const { user, signOut, role, isSystemCreator, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { companyName } = useCompanyName();
+  const onboardingProgress = useOnboardingProgress();
+  const showContinueSetup =
+    isAdmin &&
+    !onboardingProgress.loading &&
+    !onboardingProgress.wizard_completed &&
+    !onboardingProgress.onboarding_dismissed &&
+    location.pathname !== "/onboarding";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [bugOpen, setBugOpen] = useState(false);
@@ -445,6 +454,17 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           onOpenChange={setHelpOpen}
         />
         <PageTour />
+        {showContinueSetup && (
+          <Button
+            onClick={() => navigate("/onboarding")}
+            className="fixed bottom-4 right-4 z-40 shadow-lg gap-2 rounded-full"
+            size="sm"
+          >
+            <Rocket className="h-4 w-4" />
+            Continue Setup
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );
