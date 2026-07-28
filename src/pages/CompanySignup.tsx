@@ -213,13 +213,7 @@ export default function CompanySignup() {
       try { sessionStorage.removeItem("signup_draft"); } catch { /* ignore */ }
       navigate("/pending-approval");
     } catch (err: any) {
-      const msg = (err.message || "").toLowerCase();
-      if (msg.includes("already") && (msg.includes("exist") || msg.includes("register"))) {
-        setEmailExists(true);
-        setStep("info");
-      } else {
-        setError(err.message || "Something went wrong. Please try again.");
-      }
+      setError(err.message || "Something went wrong. Please try again.");
     }
     setLoading(false);
   };
