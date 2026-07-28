@@ -1,80 +1,39 @@
-Minimal plan: extract the real error body from the create-user edge function response in `src/pages/Employees.tsx` so duplicate-email errors show a clean message instead of the generic "non-2xx status code" wrapper.
-
-## Current state
-
-In `src/pages/Employees.tsx` `handleCreate` (lines 229-237), the duplicate-email detection only sees:
-
-```ts
-if (error || data?.error) {
-  const raw = (data?.error || error?.message || "") as string;
-  const isEmailDup =
-    typeof raw === "string" && /already.*(registered|exist)/i.test(raw);
-  toast.error(
-    isEmailDup
-      ? "An account with this email already exists."
-      : (raw || "Failed to create user"),
-  );
-}
-```
-
-When the create-user edge function returns HTTP 400, `supabase.functions.invoke` puts the response in `error` (a `FunctionsHttpError`) and leaves `data` as `null`. The real message (e.g. `"User with this email has already been registered"`) lives in the response body at `error.context`, not in `error.message`. Therefore `raw` is the generic wrapper text, the regex never matches, and the user sees the raw wrapper.
-
-## What will change
-
-Only the error branch inside `handleCreate` in `src/pages/Employees.tsx`. The same pattern already used in `src/pages/CompanySignup.tsx` (lines 209-215) will be mirrored:
-
-1. Try to read the JSON body from `error.context` first, with a try/catch fallback.
-2. Determine the real message from, in order: `body.error`, `data.error`, `error.message`.
-3. If the real message matches `/already.*(registered|exist)/i`, show the friendly duplicate-email message.
-4. Otherwise show the real underlying message (not the generic wrapper if a real body message exists).
-
-## Before/after of the exact branch
-
-**Before (lines 229-237):**
-
-```ts
-if (error || data?.error) {
-  const raw = (data?.error || error?.message || "") as string;
-  const isEmailDup =
-    typeof raw === "string" && /already.*(registered|exist)/i.test(raw);
-  toast.error(
-    isEmailDup
-      ? "An account with this email already exists."
-      : (raw || "Failed to create user"),
-  );
-}
-```
-
-**After:**
-
-```ts
-if (error || data?.error) {
-  let body: any = null;
-  try {
-    const ctx: any = (error as any)?.context;
-    if (ctx && typeof ctx.json === "function") body = await ctx.json();
-    else if (ctx && typeof ctx.text === "function") body = JSON.parse(await ctx.text());
-  } catch {
-    /* body stays null */
-  }
-
-  const raw = (body?.error || data?.error || error?.message || "") as string;
-  const isEmailDup =
-    typeof raw === "string" && /already.*(registered|exist)/i.test(raw);
-  toast.error(
-    isEmailDup
-      ? "An account with this email already exists."
-      : (raw || "Failed to create user"),
-  );
-}
-```
-
 ## Scope
+Add red-border error state to 3 duplicate-checked inputs. Preserve existing messages/toasts.
 
-- Only `src/pages/Employees.tsx`, only the `if (error || data?.error)` block inside `handleCreate`.
-- No changes to the `create-user` edge function, `CompanySignup.tsx`, routing, or any other logic.
-- The duplicate-email mapping remains the only special case; every other error surfaces the real underlying message.
+## Styling approach
+Reuse `aria-invalid` + `border-destructive`. Applied via a conditional className on each `<Input>`:
+`className={cond ? "border-destructive focus-visible:ring-destructive" : ""}` plus `aria-invalid={cond}`.
+No new components, no shared helper.
+
+## Changes
+
+### 1. `src/pages/CompanySignup.tsx` — Step 1 Email (line ~314)
+- Reuse existing `emailExists` state (no new state needed).
+- Add `aria-invalid={emailExists}` and conditional red border className to the email `<Input>`.
+- In email `onChange`, call `setEmailExists(false)` alongside `setEmail(...)` so the red clears on edit.
+
+### 2. `src/pages/CompanySignup.tsx` — Step 2 NPI (line ~348)
+- Add new state: `const [npiExists, setNpiExists] = useState(false);`
+- In `validateProfile` (line ~137), set `setNpiExists(true)` when `data?.npiExists`, and `setNpiExists(false)` on entry/success.
+- Also set `setNpiExists(true)` in the final-submit catch when `body?.code === "npi_exists"` (backstop parity).
+- Add `aria-invalid={npiExists}` + conditional red border className to the NPI `<Input>`.
+- In NPI `onChange`, call `setNpiExists(false)` alongside `setNpiNumber(...)`.
+- Keep the existing `error` string message unchanged.
+
+### 3. `src/pages/Employees.tsx` — Add Employee email
+- Add new state: `const [createEmailError, setCreateEmailError] = useState(false);`
+- In `handleCreate` catch branch (line ~244), when the duplicate-email friendly message fires, set `setCreateEmailError(true)`.
+- On successful create, reset to `false` (already resets `form`, add the flag reset).
+- On the email `<Input>` in the Add Employee form, add `aria-invalid={createEmailError}` + conditional red border className.
+- In that email `onChange`, call `setCreateEmailError(false)` alongside the existing setter.
+
+## Not in scope
+No changes to edge functions, invite flow, edit-employee form, other inputs, or shared UI components.
 
 ## Verification
-
-After the change, the duplicate-email case will toast `"An account with this email already exists."` and other create-user failures will toast the actual server error message (e.g. validation errors) rather than the generic wrapper.
+- Type-check.
+- Confirm: dup email at Step 1 → red border + existing panel; edit → red clears.
+- Dup NPI at Step 2 → red border + existing error text; edit → red clears.
+- Dup email in Add Employee → red border + existing toast; edit → red clears.
+- Non-duplicate errors on all three: no red border (unchanged behavior).
