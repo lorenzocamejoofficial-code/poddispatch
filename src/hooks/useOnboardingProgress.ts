@@ -49,7 +49,7 @@ export function useOnboardingProgress() {
     }
 
     // Check real data for dynamic steps
-    const [trucksRes, patientsRes, profilesRes, companyRes, clearinghouseRes, facilitiesRes] = await Promise.all([
+    const [trucksRes, patientsRes, profilesRes, companyRes, clearinghouseRes, facilitiesRes, ratesRes] = await Promise.all([
       supabase.from("trucks").select("id", { count: "exact", head: true }).eq("company_id", activeCompanyId),
       supabase.from("patients").select("id", { count: "exact", head: true }).eq("company_id", activeCompanyId),
       // Team is "invited" only when at least one OTHER user (not the owner)
@@ -65,9 +65,10 @@ export function useOnboardingProgress() {
             .from("profiles")
             .select("id", { count: "exact", head: true })
             .eq("company_id", activeCompanyId),
-      supabase.from("companies").select("npi_number, ein_number, state_of_operation, address_street, address_city, address_state, address_zip").eq("id", activeCompanyId).maybeSingle(),
+      supabase.from("companies").select("npi_number, ein_number, state_of_operation, address_street, address_city, address_state, address_zip, payer_mix_medicare, payer_mix_medicaid, payer_mix_facility, payer_mix_private").eq("id", activeCompanyId).maybeSingle(),
       supabase.from("clearinghouse_settings" as any).select("is_configured").eq("company_id", activeCompanyId).maybeSingle(),
       supabase.from("facilities" as any).select("id", { count: "exact", head: true }).eq("company_id", activeCompanyId),
+      supabase.from("charge_master").select("payer_type, base_rate, mileage_rate, needs_review").eq("company_id", activeCompanyId),
     ]);
 
     const trucksExist = (trucksRes.count ?? 0) > 0;
@@ -82,6 +83,22 @@ export function useOnboardingProgress() {
     );
     const clearinghouseConfigured = !!(clearinghouseRes.data as any)?.is_configured;
 
+    // Option B: rates step is complete when every payer the operator ACTUALLY BILLS
+    // (payer_mix_* > 0) has a confirmed charge_master row (base>0, mileage>0, not needs_review).
+    // Facility Contract maps to a 'facility' charge_master row if one exists, else 'default'.
+    const rateRows: any[] = (ratesRes.data as any[]) ?? [];
+    const byType = new Map(rateRows.map(r => [String(r.payer_type).toLowerCase(), r]));
+    const isConfirmed = (key: string) => {
+      const r = byType.get(key);
+      return !!(r && r.needs_review === false && Number(r.base_rate) > 0 && Number(r.mileage_rate) > 0);
+    };
+    const billedKeys: string[] = [];
+    if (Number(c?.payer_mix_medicare ?? 0) > 0) billedKeys.push("medicare");
+    if (Number(c?.payer_mix_medicaid ?? 0) > 0) billedKeys.push("medicaid");
+    if (Number(c?.payer_mix_facility ?? 0) > 0) billedKeys.push(byType.has("facility") ? "facility" : "default");
+    if (Number(c?.payer_mix_private ?? 0) > 0) billedKeys.push("private");
+    const ratesValid = billedKeys.length > 0 && billedKeys.every(isConfirmed);
+
     const stepCompanyInfo = (settings as any).step_company_info_verified || companyInfoComplete;
     const stepTrucks = (settings as any).step_trucks_added || trucksExist;
     const stepPatients = (settings as any).step_patients_added || patientsExist;
@@ -91,7 +108,7 @@ export function useOnboardingProgress() {
     // analytics but never auto-derive it from trip_records — the column is
     // owned by whoever triggers it manually.
     const stepTrip = (settings as any).step_first_trip;
-    const stepRates = (settings as any).step_rates_verified;
+    const stepRates = (settings as any).step_rates_verified || ratesValid;
     const stepClearinghouse = (settings as any).step_clearinghouse_connected || clearinghouseConfigured;
 
     // Wizard steps: company info → rates → clearinghouse → trucks → crew → facility → patient
@@ -120,6 +137,7 @@ export function useOnboardingProgress() {
     if (stepInvited && !(settings as any).step_team_invited) updates.step_team_invited = true;
     if (stepClearinghouse && !(settings as any).step_clearinghouse_connected) updates.step_clearinghouse_connected = true;
     if (stepFacility && !(settings as any).step_facility_added) updates.step_facility_added = true;
+    if (ratesValid && !(settings as any).step_rates_verified) updates.step_rates_verified = true;
     if (allComplete && !(settings as any).wizard_completed) updates.wizard_completed = true;
 
     if (Object.keys(updates).length > 0) {
