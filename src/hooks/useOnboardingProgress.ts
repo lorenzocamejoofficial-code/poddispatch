@@ -9,6 +9,7 @@ export interface OnboardingProgress {
   step_patients_added: boolean;
   step_team_invited: boolean;
   step_clearinghouse_connected: boolean;
+  step_facility_added: boolean;
   step_first_trip: boolean;
   wizard_completed: boolean;
   onboarding_dismissed: boolean;
@@ -25,6 +26,7 @@ export function useOnboardingProgress() {
     step_patients_added: false,
     step_team_invited: false,
     step_clearinghouse_connected: false,
+    step_facility_added: false,
     step_first_trip: false,
     wizard_completed: false,
     onboarding_dismissed: false,
@@ -47,7 +49,7 @@ export function useOnboardingProgress() {
     }
 
     // Check real data for dynamic steps
-    const [trucksRes, patientsRes, profilesRes, companyRes, clearinghouseRes] = await Promise.all([
+    const [trucksRes, patientsRes, profilesRes, companyRes, clearinghouseRes, facilitiesRes] = await Promise.all([
       supabase.from("trucks").select("id", { count: "exact", head: true }).eq("company_id", activeCompanyId),
       supabase.from("patients").select("id", { count: "exact", head: true }).eq("company_id", activeCompanyId),
       // Team is "invited" only when at least one OTHER user (not the owner)
@@ -65,10 +67,12 @@ export function useOnboardingProgress() {
             .eq("company_id", activeCompanyId),
       supabase.from("companies").select("npi_number, ein_number, state_of_operation, address_street, address_city, address_state, address_zip").eq("id", activeCompanyId).maybeSingle(),
       supabase.from("clearinghouse_settings" as any).select("is_configured").eq("company_id", activeCompanyId).maybeSingle(),
+      supabase.from("facilities" as any).select("id", { count: "exact", head: true }).eq("company_id", activeCompanyId),
     ]);
 
     const trucksExist = (trucksRes.count ?? 0) > 0;
     const patientsExist = (patientsRes.count ?? 0) > 0;
+    const facilitiesExist = ((facilitiesRes as any).count ?? 0) > 0;
     // teamPresent = at least one profile OTHER than the owner exists.
     const teamPresent = (profilesRes.count ?? 0) > 0;
     const c = companyRes.data as any;
@@ -82,6 +86,7 @@ export function useOnboardingProgress() {
     const stepTrucks = (settings as any).step_trucks_added || trucksExist;
     const stepPatients = (settings as any).step_patients_added || patientsExist;
     const stepInvited = (settings as any).step_team_invited || teamPresent;
+    const stepFacility = (settings as any).step_facility_added || facilitiesExist;
     // step_first_trip is no longer part of the wizard. We keep the column for
     // analytics but never auto-derive it from trip_records — the column is
     // owned by whoever triggers it manually.
@@ -89,8 +94,8 @@ export function useOnboardingProgress() {
     const stepRates = (settings as any).step_rates_verified;
     const stepClearinghouse = (settings as any).step_clearinghouse_connected || clearinghouseConfigured;
 
-    // 6 wizard steps: company info → rates → clearinghouse → trucks → crew → patient
-    const allComplete = stepCompanyInfo && stepRates && stepClearinghouse && stepTrucks && stepInvited && stepPatients;
+    // Wizard steps: company info → rates → clearinghouse → trucks → crew → facility → patient
+    const allComplete = stepCompanyInfo && stepRates && stepClearinghouse && stepTrucks && stepInvited && stepFacility && stepPatients;
 
     setProgress({
       step_company_info_verified: stepCompanyInfo,
@@ -99,6 +104,7 @@ export function useOnboardingProgress() {
       step_patients_added: stepPatients,
       step_team_invited: stepInvited,
       step_clearinghouse_connected: stepClearinghouse,
+      step_facility_added: stepFacility,
       step_first_trip: stepTrip,
       wizard_completed: (settings as any).wizard_completed || allComplete,
       onboarding_dismissed: (settings as any).onboarding_dismissed || false,
@@ -113,6 +119,7 @@ export function useOnboardingProgress() {
     if (stepPatients && !(settings as any).step_patients_added) updates.step_patients_added = true;
     if (stepInvited && !(settings as any).step_team_invited) updates.step_team_invited = true;
     if (stepClearinghouse && !(settings as any).step_clearinghouse_connected) updates.step_clearinghouse_connected = true;
+    if (stepFacility && !(settings as any).step_facility_added) updates.step_facility_added = true;
     if (allComplete && !(settings as any).wizard_completed) updates.wizard_completed = true;
 
     if (Object.keys(updates).length > 0) {
@@ -140,6 +147,7 @@ export function useOnboardingProgress() {
     progress.step_clearinghouse_connected,
     progress.step_trucks_added,
     progress.step_team_invited,
+    progress.step_facility_added,
     progress.step_patients_added,
   ].filter(Boolean).length;
 
