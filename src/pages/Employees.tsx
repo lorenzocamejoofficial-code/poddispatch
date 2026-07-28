@@ -72,6 +72,7 @@ export default function Employees() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
+  const [createEmailError, setCreateEmailError] = useState(false);
   const [form, setForm] = useState({
     full_name: "", email: "", password: "", role: "crew" as "manager" | "dispatcher" | "crew" | "biller",
     sex: "M" as "M" | "F", cert_level: "EMT-B", phone_number: "",
