@@ -135,6 +135,7 @@ export default function CompanySignup() {
 
   const validateProfile = async () => {
     setError("");
+    setNpiExists(false);
     if (!npiNumber.trim()) return setError("NPI number is required.");
     if (npiNumber.trim().length !== 10 || !/^\d{10}$/.test(npiNumber.trim()))
       return setError("NPI number must be exactly 10 digits.");
@@ -155,6 +156,7 @@ export default function CompanySignup() {
         { body: { npi: npiNumber.trim() } }
       );
       if (data?.npiExists) {
+        setNpiExists(true);
         setError("A company with this NPI is already registered.");
         setChecking(false);
         return;
@@ -221,6 +223,7 @@ export default function CompanySignup() {
           return;
         }
         if (body?.code === "npi_exists") {
+          setNpiExists(true);
           throw new Error("A company with this NPI is already registered.");
         }
         throw new Error(body?.error || fnError.message);
