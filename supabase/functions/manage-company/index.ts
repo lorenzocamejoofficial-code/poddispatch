@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
           // Two approval paths:
           //   skipTrial=true  → owner gated to /choose-plan on next login.
           //   skipTrial=false → owner gets full app access; trial timer
-          //                     starts on first login OR approval + 12h
+          //                     starts on first login OR approval + 7d
           //                     (whichever is first).
           onboarding_status: skipTrial ? "approved_pending_payment" : "active",
           approved_at: new Date().toISOString(),
