@@ -1,85 +1,101 @@
-# Certification Flow — Audit (read-only)
+# AUDIT — Crew-end access & Employees cert_level
 
-## 1. Cert data model
+Read-only. No code changes proposed.
 
-**Table:** `public.crew_certifications`
-**Migration:** `supabase/migrations/20260623154115_5985d1ba-1bb1-41e5-8944-f9b81821357a.sql`
+## 1. Crew-end access / owner bounce
 
-Columns of interest:
-- `user_id` (FK to auth users), `company_id`
-- `cert_type` enum `crew_cert_type`: `medic_number | cpr | drivers_license`
-- `cert_level` enum `crew_cert_level`: `EMR | EMT_B | EMT_A | PARAMEDIC` (only used for `medic_number`)
-- `cert_number`, `photo_path` (storage bucket `crew-certifications`)
-- `issue_date`, `expiration_date`
-- `status` enum `crew_cert_status`: `pending_review | approved | rejected | expired`
-- `rejection_reason`
-- `manually_verified` bool, `manual_verification_reason`, `manual_verification_expires_at` (used by the 30-day override)
-- `uploaded_by`, `reviewed_by`, `reviewed_at`, `notes`, `created_at`, `updated_at`
+### `src/hooks/useCrewViewEligibility.ts`
+The check is **cert_level only** — no role, no truck/crew assignment:
 
-**No 2-year renewal is encoded anywhere.** Each cert simply carries whatever `expiration_date` was entered on submission. The only automated renewal-related job is `supabase/functions/check-cert-expirations/index.ts`, which flips `approved → expired` once `expiration_date < today` and pings the crew + admins at 90/60/30/7/0 day marks. No auto-2-year default.
-
-RLS: crew can read/insert/update their own pending rows; admins / system creator can update/delete any. Rows are append-only in practice (the panel always inserts a new row and displays the latest per `cert_type`).
-
-## 2. The eligibility gate on Trucks & Crews
-
-**File:** `src/pages/TrucksCrews.tsx` (lines ~320-353, in `fetchAll`).
-
-Predicate (client-side, computed per profile):
-
-```
-REQUIRED = ["medic_number", "cpr", "drivers_license"]
-A cert "counts" if:
-  status === "approved"
-  AND (
-    (expiration_date exists AND expiration_date >= today)
-    OR (manually_verified === true
-        AND (manual_verification_expires_at is null OR >= today))
-  )
-assignable = all 3 REQUIRED cert_types are covered
-blockedReason = "Missing/expired: <list of missing types>"
+```ts
+const { data: profile } = await supabase
+  .from("profiles")
+  .select("cert_level")
+  .eq("id", profileId)
+  .maybeSingle();
+setEligible(!!profile?.cert_level);
 ```
 
-The 🚫 shown in the crew dropdown is driven entirely by `missing.length > 0`.
+`eligible = true` iff `profiles.cert_level` is a non-empty value. (The file header comment explicitly says "Truck assignment is NOT required — cert alone grants crew UI access.")
 
-There is a mirror rule in the DB — `public.crew_assignable(_user_id uuid)` in the same migration — which also requires all 3 approved + non-expired (or manually verified). That RPC is defined but the Trucks & Crews page does its own client-side computation; it does not call the RPC.
+### The gate — `src/App.tsx` lines 106-119
+```tsx
+function CrewRouteGate({ children }) {
+  const { profileId } = useAuth();
+  const { eligible, loading } = useCrewViewEligibility(profileId);
+  if (loading) return <spinner/>;
+  if (!eligible) return <Navigate to="/" replace />;  // ← the bounce
+  return <>{children}</>;
+}
+```
 
-Sibling gate: `src/hooks/useCrewViewEligibility.ts` decides whether a user sees the Crew UI, and only checks `profiles.cert_level` (not the crew_certifications table). Different gate, different rule.
+So an unauthorized crew navigation redirects to `/`, and `/` for an owner routes to `/owner-dashboard` via `src/pages/Index.tsx:31` → that's the "sent back to admin side" behavior.
 
-## 3. Admin-side entry ("Employees → Certifications")
+### Why an owner with a cert_level still gets bounced
+The gate itself doesn't exclude owner by role — the predicate is purely `!!profiles.cert_level`. Two structural causes:
 
-**Two admin surfaces exist:**
+**A. Owner is missing `/crew-schedule` in the owner route table.**
+`src/App.tsx` lines 553-558 (owner branch) wires only:
+- `/crew-dashboard`, `/crew-patients`, `/pcr`, `/crew-checklist`, `/crew-certifications`
 
-- **`src/pages/Employees.tsx`** — each employee row has a `ShieldCheck` dropdown item (line 799) that opens `CrewCertificationsDialog` in `adminMode` (line 979). The dialog is `src/components/crew/CrewCertificationsDialog.tsx`. Also shows a badge with pending count and a header link "Certification Queue" → `/certification-queue`.
-- **`src/pages/CertificationReviewQueue.tsx`** at route `/certification-queue` — approve / reject only; no create.
+There is **no** `<Route path="/crew-schedule" ...>` in the owner branch. Compare:
+- crew role (line 432): has `/crew-schedule`
+- dispatcher branch (lines 469-473): also missing `/crew-schedule`
+- biller branch (line 505): has `/crew-schedule` via `CrewRouteGate`
+- owner branch (553-558): missing `/crew-schedule`
 
-**In the per-employee dialog (adminMode), an admin CAN:**
-- Insert a new cert row for that employee (the `submit()` in `CertCard`, line ~180-222, always does `insert` into `crew_certifications` — it does NOT differentiate self vs admin). The `(isSelf || adminMode)` guard on line 284 exposes the Add/Update button to admins.
-- Approve a pending row (`approve()`, line ~224).
-- Reject with reason (`reject()`, line ~236).
-- Apply a 30-day manual-verify override (`override()`, line ~250) — sets `manually_verified=true`, `manual_verification_expires_at = today+30`, and status→approved.
+If the owner clicks a link to `/crew-schedule`, it falls through to `*` → `<Navigate to="/" replace />` (line 561) → Index → `/owner-dashboard`. That is the redirect they're seeing, and it is **not** the cert gate firing — it's a missing route.
 
-So the answer to "can an admin INSERT for an employee": **yes, via the per-employee ShieldCheck dialog.** The `/certification-queue` page is approve/reject-only.
+**B. If `profiles.cert_level` is actually NULL for that owner**, then `CrewRouteGate` redirects to `/` for every wired crew route as well. Worth a DB check on that specific owner's `profiles.cert_level` value.
 
-## 4. Crew self-service entry
+### Role check that would exclude owner/manager/dispatcher from crew UI
+**There isn't one.** No role predicate anywhere in `CrewRouteGate` or `useCrewViewEligibility`. Access is cert-based only. The owner bounce is either (A) the missing `/crew-schedule` route on the owner branch, or (B) a null `cert_level` on the owner's profile row.
 
-**Page:** `src/pages/crew/CrewCertifications.tsx` — renders `CrewCertificationsPanel` (non-adminMode) for `user.id`.
-**Route:** `/crew-certifications` — registered in `src/App.tsx` across multiple role branches (lines 388, 435, 473, 508, 558). It is routed and reachable. Crew login exists (crew role in `useAuth`, `CrewLayout`, `useCrewViewEligibility`).
+---
 
-The form is the same `CertCard` used by admins. Crew members can add/replace their own three certs; each submit inserts a new `pending_review` row that an admin must approve before it counts toward the eligibility gate.
+## 2. Add-Employee cert_level options
 
-## 5. All write paths to `crew_certifications`
+### File: `src/pages/Employees.tsx` lines 649-660
+```tsx
+<Label>Cert Level</Label>
+<Select value={form.cert_level} onValueChange={(v) => setForm({ ...form, cert_level: v })}>
+  <SelectTrigger><SelectValue /></SelectTrigger>
+  <SelectContent>
+    <SelectItem value="EMT-B">EMT-B</SelectItem>
+    <SelectItem value="EMT-A">EMT-A</SelectItem>
+    <SelectItem value="EMT-P">EMT-P</SelectItem>
+    <SelectItem value="AEMT">AEMT</SelectItem>
+    <SelectItem value="Other">Other</SelectItem>
+  </SelectContent>
+</Select>
+```
 
-INSERTs:
-- `src/components/crew/CrewCertificationsDialog.tsx` line ~213 — `CertCard.submit()`. Fires for both crew self-submit and admin-on-behalf-of-employee (same code path). Always inserts a new `pending_review` row.
+Default value: `"EMT-B"` (Employees.tsx lines 79, 87, 257, 309).
+Values written to `profiles.cert_level`: `"EMT-B" | "EMT-A" | "EMT-P" | "AEMT" | "Other"` (dash format).
 
-UPDATEs:
-- `src/components/crew/CrewCertificationsDialog.tsx` — `approve()` (~229), `reject()` (~242), `override()` (~256).
-- `src/pages/CertificationReviewQueue.tsx` — bulk `approveIds()` (~132) and `rejectOne()` (~157).
-- `supabase/functions/check-cert-expirations/index.ts` — daily cron flips `approved → expired` when past `expiration_date`; also writes notifications (separate table).
+### EMR presence
+**No EMR option** in the Employees add/edit form.
 
-Seeds / other edge functions: none found. No writes from `create-user`, no migration/seed inserts, no other functions touching `crew_certifications`.
+### Enum format mismatch (important)
+There are **two different enums** in `src/integrations/supabase/types.ts`:
 
-## Notable gaps worth naming (still no changes)
-- **No auto 2-year renewal / default expiration.** Every cert must have a manually entered `expiration_date`, or `submit()` blocks with "Expiration date is required".
-- **Dual-source eligibility.** Client computes it in `TrucksCrews.tsx`; DB has `crew_assignable()` RPC that isn't wired to the UI. Any future rule change needs both.
-- **`useCrewViewEligibility` uses only `profiles.cert_level`**, not `crew_certifications`. Someone with an unapproved (or no) `crew_certifications` row can still reach the Crew UI as long as their profile has a `cert_level` string — they just can't be assigned to a truck.
+| Enum | Values | Used by |
+|---|---|---|
+| `cert_level` (line 6749/6982) | `"EMT-B" \| "EMT-A" \| "EMT-P" \| "AEMT" \| "Other"` | `profiles.cert_level` — what Employees.tsx writes |
+| `crew_cert_level` (line 6761/6995) | `"EMR" \| "EMT_B" \| "EMT_A" \| "PARAMEDIC"` | `crew_certifications.cert_level` — what `CrewCertificationsDialog.tsx` writes |
+
+So:
+- `profiles.cert_level` uses **dash** format (`EMT-B`) and has **no EMR**.
+- `crew_certifications.cert_level` uses **underscore** format (`EMT_B`) and **does** include EMR (see `CrewCertificationsDialog.tsx` line 163 default `"EMT_B"`, and `CertificationReviewQueue.tsx` line 277 renders it as `cert_level.replace("_", "-")`).
+
+These two tables use different value formats and different level sets. `profiles.cert_level` and `crew_certifications.cert_level` are not interchangeable strings, and only the crew_certifications side knows about EMR.
+
+---
+
+## Files referenced
+- `src/hooks/useCrewViewEligibility.ts` (whole file)
+- `src/App.tsx:106-119` (CrewRouteGate), `:400-561` (per-role route tables), notably owner branch `:553-561` missing `/crew-schedule`
+- `src/pages/Index.tsx:25-39` (`/` → role-based redirect; owner → `/owner-dashboard`)
+- `src/pages/Employees.tsx:649-660` (cert_level Select), `:79, 87, 257, 309` (default `"EMT-B"`)
+- `src/components/crew/CrewCertificationsDialog.tsx:163` (crew_cert_level default `"EMT_B"`)
+- `src/integrations/supabase/types.ts:6749, 6761` (both enum definitions)
