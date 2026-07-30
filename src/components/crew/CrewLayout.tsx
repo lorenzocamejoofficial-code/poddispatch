@@ -11,6 +11,7 @@ import { useCrewLocationTracking } from "@/hooks/useCrewLocationTracking";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { ContextualHelpPanel, HelpIconButton } from "@/components/help/ContextualHelpPanel";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { PageTour } from "@/components/tour/PageTour";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -132,6 +133,7 @@ export function CrewLayout({ children }: { children: ReactNode }) {
             {crewNav.find(i => i.path === location.pathname)?.label ?? "Crew"}
           </h2>
           <NotificationBell mode="crew" />
+          <ThemeToggle />
           <BugReportDialog currentPath={location.pathname} userId={user?.id} />
           <HelpIconButton onClick={() => setHelpOpen((p) => !p)} />
         </header>
