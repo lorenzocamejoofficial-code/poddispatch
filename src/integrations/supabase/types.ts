@@ -2221,6 +2221,56 @@ export type Database = {
         }
         Relationships: []
       }
+      crew_locations: {
+        Row: {
+          accuracy_m: number | null
+          company_id: string
+          created_at: string
+          heading: number | null
+          id: string
+          latitude: number
+          longitude: number
+          recorded_at: string
+          speed_mps: number | null
+          truck_id: string | null
+          user_id: string
+        }
+        Insert: {
+          accuracy_m?: number | null
+          company_id: string
+          created_at?: string
+          heading?: number | null
+          id?: string
+          latitude: number
+          longitude: number
+          recorded_at?: string
+          speed_mps?: number | null
+          truck_id?: string | null
+          user_id: string
+        }
+        Update: {
+          accuracy_m?: number | null
+          company_id?: string
+          created_at?: string
+          heading?: number | null
+          id?: string
+          latitude?: number
+          longitude?: number
+          recorded_at?: string
+          speed_mps?: number | null
+          truck_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crew_locations_truck_id_fkey"
+            columns: ["truck_id"]
+            isOneToOne: false
+            referencedRelation: "trucks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crew_share_tokens: {
         Row: {
           active: boolean
@@ -6702,6 +6752,7 @@ export type Database = {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
       }
+      purge_old_crew_locations: { Args: never; Returns: number }
       reap_stale_loadtest_reports: { Args: never; Returns: number }
       retry_claim_creation: { Args: { p_trip_id: string }; Returns: Json }
       run_daily_proactive_alerts: { Args: never; Returns: undefined }
