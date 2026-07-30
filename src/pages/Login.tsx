@@ -9,8 +9,12 @@ import { Truck, ShieldCheck, Users, ArrowLeft, Loader2, Eye, EyeOff } from "luci
 
 const MARKETING_SITE_URL = "https://www.thepoddispatch.com";
 
-function getRoleLanding(role: string | null, isSystemCreator: boolean): string {
+function getRoleLanding(role: string | null, isSystemCreator: boolean, crewMode = false): string {
   if (isSystemCreator) return "/system";
+  // Crew-entry login: any role that can be certified to ride (owner, manager,
+  // dispatcher, biller, crew) lands on the crew workspace. CrewRouteGate then
+  // sends them to /crew-certifications if they aren't cleared to ride yet.
+  if (crewMode && role) return "/crew-dashboard";
   switch (role) {
     case "owner": return "/";
     case "manager": return "/";
@@ -85,7 +89,7 @@ export default function Login() {
         if (tokenRedirect) {
           navigate(`/crew/${tokenRedirect}`, { replace: true });
         } else {
-          navigate(getRoleLanding(role, isSystemCreator), { replace: true });
+          navigate(getRoleLanding(role, isSystemCreator, mode === "crew"), { replace: true });
         }
       })();
       return;
@@ -97,8 +101,8 @@ export default function Login() {
       return;
     }
 
-    navigate(getRoleLanding(role, isSystemCreator), { replace: true });
-  }, [user, role, isSystemCreator, activeCompanyId, authLoading, membershipLoaded, navigate, tokenRedirect, signOut, mfaFactorId]);
+    navigate(getRoleLanding(role, isSystemCreator, mode === "crew"), { replace: true });
+  }, [user, role, isSystemCreator, activeCompanyId, authLoading, membershipLoaded, navigate, tokenRedirect, signOut, mfaFactorId, mode]);
 
   // The public /login page is not scoped to a tenant, so we always show
   // the platform brand. A previous unfiltered `company_settings` lookup
