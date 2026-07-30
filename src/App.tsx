@@ -125,7 +125,10 @@ function CrewRouteGate({ children }: { children: React.ReactNode }) {
  * persisted query parameter instead of relying on Login's local state. */
 function AuthenticatedLoginRedirect({ fallback }: { fallback: string }) {
   const location = useLocation();
-  const crewMode = new URLSearchParams(location.search).get("mode") === "crew";
+  const queryMode = new URLSearchParams(location.search).get("mode");
+  const storedMode = window.sessionStorage.getItem("poddispatch_login_mode");
+  const crewMode = queryMode === "crew" || (!queryMode && storedMode === "crew");
+  window.sessionStorage.removeItem("poddispatch_login_mode");
   return <Navigate to={crewMode ? "/crew-dashboard" : fallback} replace />;
 }
 
