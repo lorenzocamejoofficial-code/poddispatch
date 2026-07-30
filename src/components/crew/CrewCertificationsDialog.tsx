@@ -30,6 +30,8 @@ interface CertRow {
   manually_verified: boolean;
   manual_verification_reason: string | null;
   manual_verification_expires_at: string | null;
+  confirmed_by_user_at: string | null;
+  uploaded_by: string | null;
 }
 
 const CERT_LABELS: Record<CertType, string> = {
@@ -73,6 +75,7 @@ export function CrewCertificationsPanel({ userId, adminMode }: { userId: string;
   const [rows, setRows] = useState<CertRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+  const [confirming, setConfirming] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,9 +109,37 @@ export function CrewCertificationsPanel({ userId, adminMode }: { userId: string;
 
   const types: CertType[] = ["medic_number", "cpr", "drivers_license"];
 
+  // Rows the employer entered that this crew member has not reviewed yet.
+  const unconfirmed = rows.filter((r) => !r.confirmed_by_user_at);
+
+  const confirmAll = async () => {
+    setConfirming(true);
+    const { error } = await supabase
+      .from("crew_certifications" as any)
+      .update({ confirmed_by_user_at: new Date().toISOString() })
+      .in("id", unconfirmed.map((r) => r.id));
+    setConfirming(false);
+    if (error) { toast.error("Could not confirm — try again"); return; }
+    toast.success("Thanks — your certifications are confirmed");
+    load();
+  };
+
   if (loading) return <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>;
   return (
     <div className="space-y-4">
+      {isSelf && unconfirmed.length > 0 && (
+        <div className="rounded-lg border border-amber-500/60 bg-amber-500/10 p-4 space-y-2">
+          <p className="text-sm font-semibold">Review what your employer entered</p>
+          <p className="text-xs text-muted-foreground">
+            Your employer filled in {unconfirmed.length === 1 ? "one of your certifications" : `${unconfirmed.length} of your certifications`}.
+            Check the details below. If something is wrong, tap <strong>Update</strong> on that card to correct it — your change
+            goes back to your manager for approval. If everything is right, confirm below to unlock the crew tools.
+          </p>
+          <Button size="sm" onClick={confirmAll} disabled={confirming}>
+            <Check className="h-3.5 w-3.5 mr-1.5" />{confirming ? "Confirming…" : "Everything looks right — confirm"}
+          </Button>
+        </div>
+      )}
       {types.map((t) => {
         const row = rows.find((r) => r.cert_type === t);
         return (
