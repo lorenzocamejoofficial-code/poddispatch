@@ -25,6 +25,7 @@ import {
   Mail,
   Home,
   ChevronDown,
+  Map,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageTour } from "@/components/tour/PageTour";
