@@ -27,6 +27,11 @@ const ROLE_OPTIONS: { value: string; label: string }[] = [
   { value: "crew", label: "Crew" },
 ];
 
+const WORKSPACE_OPTIONS: { value: string; label: string; hint: string }[] = [
+  { value: "admin", label: "Administration end", hint: "Owner / manager / dispatcher / biller bell" },
+  { value: "crew", label: "Crew end", hint: "Crew workspace bell" },
+];
+
 export function AnnouncementComposer() {
   const { user } = useAuth();
   const [title, setTitle] = useState("");
@@ -34,6 +39,7 @@ export function AnnouncementComposer() {
   const [tier, setTier] = useState<"action" | "fyi" | "system">("system");
   const [link, setLink] = useState("");
   const [roles, setRoles] = useState<string[]>(["owner", "manager", "dispatcher", "biller", "crew"]);
+  const [workspaces, setWorkspaces] = useState<string[]>(["admin", "crew"]);
   const [isProductUpdate, setIsProductUpdate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [recent, setRecent] = useState<any[]>([]);
@@ -55,6 +61,12 @@ export function AnnouncementComposer() {
     setRoles((prev) => (prev.includes(value) ? prev.filter((r) => r !== value) : [...prev, value]));
   };
 
+  const toggleWorkspace = (value: string) => {
+    setWorkspaces((prev) =>
+      prev.includes(value) ? prev.filter((w) => w !== value) : [...prev, value]
+    );
+  };
+
   const publish = async () => {
     if (!title.trim() || !body.trim()) {
       toast.error("Title and body are required.");
@@ -62,6 +74,10 @@ export function AnnouncementComposer() {
     }
     if (roles.length === 0) {
       toast.error("Pick at least one audience role.");
+      return;
+    }
+    if (workspaces.length === 0) {
+      toast.error("Pick at least one side of the app (administration and/or crew).");
       return;
     }
     setSubmitting(true);
@@ -72,6 +88,7 @@ export function AnnouncementComposer() {
       category: isProductUpdate ? "product_update" : null,
       link: link.trim() || null,
       audience_roles: roles,
+      audience_workspaces: workspaces,
       created_by: user?.id ?? null,
     });
     setSubmitting(false);
@@ -88,6 +105,8 @@ export function AnnouncementComposer() {
     setBody("");
     setLink("");
     setIsProductUpdate(false);
+    setRoles(["owner", "manager", "dispatcher", "biller", "crew"]);
+    setWorkspaces(["admin", "crew"]);
     loadRecent();
   };
 
@@ -179,6 +198,27 @@ export function AnnouncementComposer() {
                 onChange={(e) => setLink(e.target.value)}
               />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Which side of the app</Label>
+            <div className="flex flex-wrap gap-3">
+              {WORKSPACE_OPTIONS.map((w) => (
+                <label key={w.value} className="flex items-start gap-2 text-xs rounded-md border p-2 flex-1 min-w-[180px] cursor-pointer hover:bg-muted/40">
+                  <Checkbox
+                    checked={workspaces.includes(w.value)}
+                    onCheckedChange={() => toggleWorkspace(w.value)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="block font-medium">{w.label}</span>
+                    <span className="block text-muted-foreground">{w.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Admin-only notices never reach the crew bell. Crew notices can be sent to both so admins stay aware.
+            </p>
           </div>
           <div className="space-y-2">
             <Label className="text-xs">Audience roles</Label>

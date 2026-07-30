@@ -96,11 +96,27 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
     jobs.push((async () => {
       const { data } = await supabase
         .from("system_announcements" as any)
-        .select("id, title, body, tier, link, published_at, category")
+        .select("id, title, body, tier, link, published_at, category, audience_roles, audience_workspaces, audience_company_id, expires_at")
         .gte("published_at", since)
         .order("published_at", { ascending: false })
         .limit(LIMIT_PER_SOURCE);
+      const workspace = mode === "crew" ? "crew" : "admin";
+      const nowMs = Date.now();
       (data ?? []).forEach((r: any) => {
+        // Expired
+        if (r.expires_at && new Date(r.expires_at).getTime() < nowMs) return;
+        // Tenant targeting
+        if (r.audience_company_id && r.audience_company_id !== activeCompanyId) return;
+        // Workspace targeting: admin-side notices never reach the crew bell
+        const workspaces: string[] = r.audience_workspaces ?? ["admin", "crew"];
+        if (workspaces.length > 0 && !workspaces.includes(workspace)) return;
+        // Role targeting. Creators see everything.
+        const audRoles: string[] = r.audience_roles ?? [];
+        if (!isSystemCreator && audRoles.length > 0) {
+          // In the crew workspace the user is acting as crew regardless of admin role.
+          const effectiveRole = mode === "crew" ? "crew" : (role ?? "");
+          if (!audRoles.includes(effectiveRole)) return;
+        }
         const isUpdate = r.category === "product_update";
         next.push({
           id: `system_announcements:${r.id}`,
