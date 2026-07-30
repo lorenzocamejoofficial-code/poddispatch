@@ -73,6 +73,7 @@ const EDIExport = lazyRoute(() => import("./pages/EDIExport"));
 const LegalPage = lazyRoute(() => import("./pages/LegalPage"));
 const RemittanceImport = lazyRoute(() => import("./pages/RemittanceImport"));
 const OwnerDashboard = lazyRoute(() => import("./pages/OwnerDashboard"));
+const FleetMap = lazyRoute(() => import("./pages/FleetMap"));
 const SelectCompany = lazyRoute(() => import("./pages/SelectCompany"));
 const CrewInspectionChecklist = lazyRoute(() => import("./components/inspection/CrewInspectionChecklist"));
 const CreatorPlaybook = lazyRoute(() => import("./pages/CreatorPlaybook"));
@@ -411,7 +412,8 @@ function AppRoutes() {
           <Route path="/billing" element={<BillingAndClaims />} />
           <Route path="/edi-export" element={<EDIExport />} />
           <Route path="/remittance-import" element={<RemittanceImport />} />
-          <Route path="/owner-dashboard" element={<OwnerDashboard />} />
+            <Route path="/owner-dashboard" element={<OwnerDashboard />} />
+            <Route path="/fleet-map" element={<FleetMap />} />
           <Route path="/my-schedule" element={<CrewSchedulePage />} />
           <Route path="/compliance" element={<ComplianceAndQA />} />
           <Route path="/facilities" element={<FacilitiesPage />} />
@@ -555,7 +557,8 @@ function AppRoutes() {
         <Route path="/billing" element={<BillingAndClaims />} />
         <Route path="/edi-export" element={<EDIExport />} />
         <Route path="/remittance-import" element={<RemittanceImport />} />
-        <Route path="/owner-dashboard" element={<OwnerDashboard />} />
+          <Route path="/owner-dashboard" element={<OwnerDashboard />} />
+          <Route path="/fleet-map" element={<FleetMap />} />
         <Route path="/compliance" element={<ComplianceAndQA />} />
         <Route path="/facilities" element={<FacilitiesPage />} />
         <Route path="/reports" element={<ReportsAndMetrics />} />
