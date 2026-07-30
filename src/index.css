@@ -99,6 +99,22 @@
     --sidebar-accent-foreground: 210 20% 85%;
     --sidebar-border: 215 20% 18%;
     --sidebar-ring: 210 50% 60%;
+
+    /* Status colors — dark surfaces need darker tinted backgrounds */
+    --status-green: 142 60% 48%;
+    --status-green-bg: 142 40% 14%;
+    --status-yellow: 38 85% 55%;
+    --status-yellow-bg: 38 50% 15%;
+    --status-red: 0 70% 55%;
+    --status-red-bg: 0 45% 16%;
+    --status-pending: 215 12% 60%;
+    --status-pending-bg: 215 15% 18%;
+
+    /* Dispatch specific */
+    --dispatch-surface: 215 25% 10%;
+    --dispatch-panel: 215 22% 12%;
+    --dispatch-header: 215 28% 8%;
+    --dispatch-header-foreground: 210 20% 90%;
   }
 }
 
