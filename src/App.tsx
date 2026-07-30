@@ -398,6 +398,7 @@ function AppRoutes() {
           <Route path="/edi-export" element={<EDIExport />} />
           <Route path="/remittance-import" element={<RemittanceImport />} />
           <Route path="/owner-dashboard" element={<OwnerDashboard />} />
+          <Route path="/my-schedule" element={<CrewSchedulePage />} />
           <Route path="/compliance" element={<ComplianceAndQA />} />
           <Route path="/facilities" element={<FacilitiesPage />} />
           <Route path="/reports" element={<ReportsAndMetrics />} />
@@ -429,7 +430,8 @@ function AppRoutes() {
           <Route path="/" element={<CrewDashboard />} />
           <Route path="/crew-dashboard" element={<CrewDashboard />} />
           <Route path="/crew-patients" element={<CrewPatients />} />
-          <Route path="/crew-schedule" element={<CrewSchedulePage />} />
+          <Route path="/my-schedule" element={<CrewSchedulePage />} />
+          <Route path="/crew-schedule" element={<Navigate to="/my-schedule" replace />} />
           <Route path="/pcr" element={<PCRPage />} />
           <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
           <Route path="/crew-certifications" element={<CrewCertifications />} />
@@ -459,6 +461,7 @@ function AppRoutes() {
             <Route path="/patients" element={<Patients />} />
             <Route path="/facilities" element={<FacilitiesPage />} />
             <Route path="/employees" element={<Employees />} />
+            <Route path="/my-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
             <Route path="/trucks" element={<TrucksCrews />} />
             <Route path="/migration" element={<MigrationOnboarding />} />
             <Route path="/settings" element={<AdminSettings />} />
@@ -502,7 +505,7 @@ function AppRoutes() {
             {/* Crew routes for billers with cert + crew assignment */}
             <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
             <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
-            <Route path="/crew-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
+            <Route path="/my-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
             <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
             <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
             <Route path="/crew-certifications" element={<CrewCertifications />} />
@@ -534,6 +537,7 @@ function AppRoutes() {
         <Route path="/crew/:token" element={<DailyRunSheet />} />
         <Route path="/patients" element={<Patients />} />
         <Route path="/trips" element={<TripsAndClinical />} />
+        <Route path="/my-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
         <Route path="/billing" element={<BillingAndClaims />} />
         <Route path="/edi-export" element={<EDIExport />} />
         <Route path="/remittance-import" element={<RemittanceImport />} />
