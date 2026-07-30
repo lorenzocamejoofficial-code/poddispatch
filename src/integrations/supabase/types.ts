@@ -5211,6 +5211,7 @@ export type Database = {
         Row: {
           audience_company_id: string | null
           audience_roles: string[]
+          audience_workspaces: string[]
           body: string
           category: string | null
           created_at: string
@@ -5226,6 +5227,7 @@ export type Database = {
         Insert: {
           audience_company_id?: string | null
           audience_roles?: string[]
+          audience_workspaces?: string[]
           body: string
           category?: string | null
           created_at?: string
@@ -5241,6 +5243,7 @@ export type Database = {
         Update: {
           audience_company_id?: string | null
           audience_roles?: string[]
+          audience_workspaces?: string[]
           body?: string
           category?: string | null
           created_at?: string
