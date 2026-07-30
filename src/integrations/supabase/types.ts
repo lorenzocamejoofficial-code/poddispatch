@@ -2269,6 +2269,13 @@ export type Database = {
             referencedRelation: "trucks"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "crew_locations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
         ]
       }
       crew_share_tokens: {
