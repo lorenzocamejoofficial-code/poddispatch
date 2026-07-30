@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCompanyName } from "@/hooks/useCompanyName";
 import { useCrewBadges } from "@/hooks/useCrewBadges";
+import { useCrewViewEligibility } from "@/hooks/useCrewViewEligibility";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { ContextualHelpPanel, HelpIconButton } from "@/components/help/ContextualHelpPanel";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -28,6 +29,14 @@ export function CrewLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { companyName } = useCompanyName();
   const badges = useCrewBadges(profileId);
+  const { eligible, loading: eligibilityLoading } = useCrewViewEligibility(user?.id ?? null);
+  // Until all three certifications are approved, the only reachable crew page
+  // is My Certifications. While the check is in flight, show the full nav so
+  // an already-cleared crew member never sees a flash of the locked state.
+  const navLocked = !eligibilityLoading && !eligible;
+  const visibleNav = navLocked
+    ? crewNav.filter((i) => i.path === "/crew-certifications")
+    : crewNav;
   const [helpOpen, setHelpOpen] = useState(false);
   const [displayName, setDisplayName] = useState<string>("");
 
@@ -68,7 +77,12 @@ export function CrewLayout({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
-          {crewNav.map((item) => {
+          {navLocked && (
+            <p className="mb-2 rounded-md bg-sidebar-accent/60 px-3 py-2 text-xs text-sidebar-foreground/80">
+              Complete and get all three certifications approved to unlock the crew tools.
+            </p>
+          )}
+          {visibleNav.map((item) => {
             const active = location.pathname === item.path;
             const showBadge = item.badgeKey ? badges[item.badgeKey] : false;
             return (
