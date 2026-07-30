@@ -72,6 +72,7 @@ const ChoosePlan = lazyRoute(() => import("./pages/ChoosePlan"));
 const EDIExport = lazyRoute(() => import("./pages/EDIExport"));
 const LegalPage = lazyRoute(() => import("./pages/LegalPage"));
 const RemittanceImport = lazyRoute(() => import("./pages/RemittanceImport"));
+const OwnerDashboard = lazyRoute(() => import("./pages/OwnerDashboard"));
 const FleetMap = lazyRoute(() => import("./pages/FleetMap"));
 const SelectCompany = lazyRoute(() => import("./pages/SelectCompany"));
 const CrewInspectionChecklist = lazyRoute(() => import("./components/inspection/CrewInspectionChecklist"));
