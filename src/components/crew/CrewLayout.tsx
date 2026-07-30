@@ -79,7 +79,7 @@ export function CrewLayout({ children }: { children: ReactNode }) {
         <nav className="flex-1 space-y-1 p-3">
           {navLocked && (
             <p className="mb-2 rounded-md bg-sidebar-accent/60 px-3 py-2 text-xs text-sidebar-foreground/80">
-              Complete and get all three certifications approved to unlock the crew tools.
+              Review and confirm your three certifications — all must be approved and confirmed by you to unlock the crew tools.
             </p>
           )}
           {visibleNav.map((item) => {
