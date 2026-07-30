@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 const crewNav = [
   { path: "/crew-dashboard", label: "Crew Dashboard", icon: LayoutDashboard, badgeKey: "dashboard" as const },
   { path: "/crew-patients", label: "Patients", icon: Users, badgeKey: null },
-  { path: "/crew-schedule", label: "Schedule", icon: CalendarDays, badgeKey: "schedule" as const },
+  { path: "/my-schedule", label: "Schedule", icon: CalendarDays, badgeKey: "schedule" as const },
   { path: "/crew-checklist", label: "Checklist", icon: ClipboardCheck, badgeKey: "checklist" as const },
   { path: "/pcr", label: "PCR", icon: FileText, badgeKey: "pcr" as const },
   { path: "/crew-certifications", label: "My Certifications", icon: ShieldCheck, badgeKey: null },

@@ -220,7 +220,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
     ],
   },
 
-  "/crew-schedule": {
+  "/my-schedule": {
     title: "Crew Schedule (Crew View)",
     description: "Your upcoming runs across the week. See what is on the truck before the day starts.",
     questions: [
