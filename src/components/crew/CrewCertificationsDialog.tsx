@@ -362,6 +362,11 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
               <AlertTriangle className="h-3 w-3 mr-1" />Manually verified
             </Badge>
           )}
+          {row && !row.confirmed_by_user_at && (
+            <Badge variant="outline" className="border-amber-500 text-amber-600">
+              {isSelf ? "Needs your review" : "Awaiting employee review"}
+            </Badge>
+          )}
         </div>
         {!editing && (isSelf || adminMode) && (
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
