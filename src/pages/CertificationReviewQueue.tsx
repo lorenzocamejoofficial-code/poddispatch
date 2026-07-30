@@ -63,13 +63,21 @@ export default function CertificationReviewQueue() {
       )
       .eq("company_id", activeCompanyId)
       .eq("status", "pending_review")
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: false });
     if (error) {
       setLoading(false);
       toast.error("Failed to load pending certifications");
       return;
     }
-    const list = (data ?? []) as any[];
+    const raw = (data ?? []) as any[];
+    // Safety net: never show more than one row per (user_id, cert_type).
+    const seen = new Set<string>();
+    const list = raw.filter((r) => {
+      const k = `${r.user_id}|${r.cert_type}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
     const userIds = Array.from(new Set(list.map((r) => r.user_id)));
     const nameMap = new Map<string, string>();
     if (userIds.length > 0) {

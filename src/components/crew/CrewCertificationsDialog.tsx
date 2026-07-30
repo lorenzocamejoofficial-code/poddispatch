@@ -189,6 +189,19 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
       const { data: { user: actor } } = await supabase.auth.getUser();
       const actorId = actor?.id ?? null;
       const enteringForSelf = actorId ? actorId === userId : isSelf;
+
+      // Resolve the existing row for this (user, cert_type) — one row per pair.
+      let existing: CertRow | null = row ?? null;
+      if (!existing) {
+        const { data: found } = await supabase
+          .from("crew_certifications" as any)
+          .select("*")
+          .eq("user_id", userId)
+          .eq("cert_type", type)
+          .maybeSingle();
+        existing = (found as any as CertRow) ?? null;
+      }
+
       let photoPath = row?.photo_path ?? null;
       if (file) {
         const ext = file.name.split(".").pop() || "jpg";
@@ -199,23 +212,51 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
         if (upErr) { toast.error("Photo upload failed"); setSaving(false); return; }
         photoPath = path;
       }
+
+      const nextNumber = number.trim() || null;
+      const nextLevel = type === "medic_number" ? level : null;
+      const materialChanged = !!existing && (
+        (existing.cert_number ?? null) !== nextNumber ||
+        (existing.expiration_date ?? null) !== exp ||
+        (type === "medic_number" && (existing.cert_level ?? null) !== nextLevel)
+      );
+
+      let nextStatus: CertStatus;
+      if (!enteringForSelf) {
+        // Admin entering/editing for another employee: lands approved.
+        nextStatus = "approved";
+      } else if (!existing) {
+        nextStatus = "pending_review";
+      } else if (existing.status === "approved") {
+        nextStatus = materialChanged ? "pending_review" : "approved";
+      } else {
+        nextStatus = "pending_review";
+      }
+
       const payload: any = {
         user_id: userId,
         company_id: companyId,
         cert_type: type,
-        cert_level: type === "medic_number" ? level : null,
-        cert_number: number.trim() || null,
+        cert_level: nextLevel,
+        cert_number: nextNumber,
         photo_path: photoPath,
         issue_date: issue || null,
         expiration_date: exp,
-        status: enteringForSelf ? "pending_review" : "approved",
+        status: nextStatus,
         rejection_reason: null,
         uploaded_by: actorId,
       };
-      // Always insert a new row so we keep history; the latest is shown.
-      const { error } = await supabase.from("crew_certifications" as any).insert(payload);
+      if (nextStatus === "pending_review") {
+        payload.reviewed_by = null;
+        payload.reviewed_at = null;
+      }
+
+      // One row per (user_id, cert_type): update in place, insert only when new.
+      const { error } = existing
+        ? await supabase.from("crew_certifications" as any).update(payload).eq("id", existing.id)
+        : await supabase.from("crew_certifications" as any).insert(payload);
       if (error) { toast.error(error.message); setSaving(false); return; }
-      toast.success("Submitted for review");
+      toast.success(nextStatus === "pending_review" ? "Submitted for review" : "Certification saved");
       setEditing(false);
       setFile(null);
       onChanged();
