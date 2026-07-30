@@ -90,6 +90,7 @@ const navSections: NavSection[] = [
       { path: "/scheduling", label: "Patient Runs / Scheduling", icon: ClipboardList, roles: ["owner", "manager", "dispatcher"] },
       { path: "/crew-schedule", label: "Crew Schedule Delivery", icon: Send, roles: ["owner", "manager", "dispatcher"] },
       { path: "/trucks", label: "Trucks & Crews", icon: Truck, roles: ["owner", "manager", "dispatcher"] },
+      { path: "/fleet-map", label: "Live Fleet Map", icon: Map, roles: ["owner", "manager", "dispatcher"] },
       { path: "/override-monitor", label: "Override Monitor", icon: Eye, roles: ["owner"] },
     ],
   },
