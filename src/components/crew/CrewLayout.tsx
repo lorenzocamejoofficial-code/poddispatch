@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useCompanyName } from "@/hooks/useCompanyName";
 import { useCrewBadges } from "@/hooks/useCrewBadges";
 import { useCrewViewEligibility } from "@/hooks/useCrewViewEligibility";
+import { useCrewLocationTracking } from "@/hooks/useCrewLocationTracking";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { ContextualHelpPanel, HelpIconButton } from "@/components/help/ContextualHelpPanel";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
