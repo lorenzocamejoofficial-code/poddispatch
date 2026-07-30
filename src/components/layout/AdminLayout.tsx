@@ -37,6 +37,7 @@ import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { CompanySwitcher } from "@/components/layout/CompanySwitcher";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   DropdownMenu,
@@ -393,6 +394,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             {allVisibleItems.find((i) => i.path === location.pathname)?.label ?? "PodDispatch"}
           </h2>
           <NotificationBell mode="admin" />
+          <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
