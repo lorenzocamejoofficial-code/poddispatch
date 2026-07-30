@@ -134,7 +134,8 @@ export function CrewLayout({ children }: { children: ReactNode }) {
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>
         <ContextualHelpPanel routeKey={location.pathname} open={helpOpen} onOpenChange={setHelpOpen} />
-        <PageTour />
+        {/* Anyone in the crew workspace gets the crew tours, whatever their admin role is. */}
+        <PageTour roleOverride="crew" />
       </div>
     </div>
   );

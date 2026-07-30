@@ -14,14 +14,22 @@ const AGREEMENT_VERSION = "1.0";
  * Gate component that blocks access until the user has accepted the
  * HIPAA workforce acknowledgment agreement. Renders children once accepted.
  */
-export function HipaaAcknowledgmentGate({ children }: { children: React.ReactNode }) {
+export function HipaaAcknowledgmentGate({
+  children,
+  force = false,
+}: {
+  children: React.ReactNode;
+  /** Require the acknowledgment even for owners/creators (used for crew-workspace routes). */
+  force?: boolean;
+}) {
   const { user, activeCompanyId, isSystemCreator, role } = useAuth();
   const [accepted, setAccepted] = useState<boolean | null>(null); // null = loading
   const [checked, setChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // System creators and owners already accepted BAA during signup — skip gate
-  const skipGate = isSystemCreator || role === "owner";
+  // unless this is a crew-workspace route, where everyone rides under the same rules.
+  const skipGate = !force && (isSystemCreator || role === "owner");
 
   useEffect(() => {
     if (!user || skipGate) {

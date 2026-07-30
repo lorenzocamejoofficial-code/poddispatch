@@ -342,6 +342,117 @@ export const PAGE_TOURS: PageTour[] = [
     ],
   },
   {
+    pageKey: "crew-patients",
+    route: "/crew-patients",
+    roles: ["crew"],
+    pageName: "Crew Patients",
+    goal: "Look up the patient you're transporting before you touch the PCR.",
+    steps: [
+      {
+        title: "Step 1 — Find your patient",
+        body: "Search by name to pull up demographics, facility, mobility needs, and insurance on file.",
+        lookFor: "the search box at the top of the patient list",
+      },
+      {
+        title: "Step 2 — Check mobility and equipment notes",
+        body: "Bariatric, stretcher, and oxygen notes drive the safety rules for your run. Flag dispatch if reality doesn't match the record.",
+      },
+      {
+        title: "Why this matters",
+        body: "Wrong demographics or insurance on the claim is the #1 reason a payer rejects it. Catching it in the field saves a denial later.",
+      },
+    ],
+  },
+  {
+    pageKey: "my-schedule",
+    route: "/my-schedule",
+    roles: ["crew"],
+    pageName: "My Schedule",
+    goal: "See the runs assigned to your truck for the day, in order.",
+    steps: [
+      {
+        title: "Step 1 — Read the day in order",
+        body: "Runs appear in run order for your assigned truck. Changes from dispatch show up here in real time.",
+      },
+      {
+        title: "Step 2 — Watch for change banners",
+        body: "If dispatch moves or cancels a run, a banner appears at the top. Acknowledge it so dispatch knows you saw it.",
+        lookFor: "a colored banner above the run list",
+      },
+      {
+        title: "Why this matters",
+        body: "Running an outdated schedule creates no-shows and unbillable trips.",
+      },
+    ],
+  },
+  {
+    pageKey: "crew-checklist",
+    route: "/crew-checklist",
+    roles: ["crew"],
+    pageName: "Vehicle Checklist",
+    goal: "Document the truck inspection before your first run.",
+    steps: [
+      {
+        title: "Step 1 — Work the categories",
+        body: "Go through each inspection category and mark items pass or fail. Failures create an alert for the shop.",
+      },
+      {
+        title: "Step 2 — Note anything out of service",
+        body: "An out-of-service truck is blocked from assignments until it's cleared, so report problems immediately.",
+      },
+      {
+        title: "Why this matters",
+        body: "State inspections and insurance audits ask for these records. A missing checklist is a compliance finding.",
+      },
+    ],
+  },
+  {
+    pageKey: "pcr",
+    route: "/pcr",
+    roles: ["crew"],
+    pageName: "PCR",
+    goal: "Complete the patient care report that becomes both the medical record and the claim.",
+    steps: [
+      {
+        title: "Step 1 — Timestamps in order",
+        body: "Enroute → At Scene → With Patient → At Destination → In Service. Out-of-order times are rejected.",
+      },
+      {
+        title: "Step 2 — Vitals, odometer, narrative",
+        body: "Vitals are required before At Destination. Odometer readings drive loaded miles, and the narrative needs at least 150 characters.",
+      },
+      {
+        title: "Step 3 — Signatures",
+        body: "Capture the patient or facility signature and your own attestation before submitting.",
+      },
+      {
+        title: "Why this matters",
+        body: "An incomplete PCR blocks the claim. Everything the payer sees comes from this form.",
+      },
+    ],
+  },
+  {
+    pageKey: "crew-certifications",
+    route: "/crew-certifications",
+    roles: ["crew"],
+    pageName: "My Certifications",
+    goal: "Keep your three certifications current so you can be assigned to a truck.",
+    steps: [
+      {
+        title: "Step 1 — Review what's on file",
+        body: "Your employer may have already entered your Medic/EMT number, CPR card, and driver's license. Check each one for accuracy.",
+      },
+      {
+        title: "Step 2 — Confirm or correct",
+        body: "Confirm the entries that are right, and fix or upload anything missing. Edits you make go back for approval.",
+      },
+      {
+        title: "Why this matters",
+        body: "All three must be approved, unexpired, and confirmed by you before the rest of the crew tools unlock.",
+      },
+    ],
+  },
+  {
     pageKey: "system",
     route: "/system",
     roles: ["creator"],
