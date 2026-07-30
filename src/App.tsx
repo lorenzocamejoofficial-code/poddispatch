@@ -103,10 +103,12 @@ function RouteFallback() {
   );
 }
 
-/** Wrapper that renders crew routes only if the user is eligible (has cert + assigned today) */
+/** Wrapper that renders crew routes only if the user is truly cleared to ride
+ * (public.crew_assignable: 3 approved, unexpired certifications).
+ * Ineligible users are sent to /crew-certifications so they can complete them. */
 function CrewRouteGate({ children }: { children: React.ReactNode }) {
-  const { profileId } = useAuth();
-  const { eligible, loading } = useCrewViewEligibility(profileId);
+  const { user } = useAuth();
+  const { eligible, loading } = useCrewViewEligibility(user?.id ?? null);
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -114,7 +116,7 @@ function CrewRouteGate({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (!eligible) return <Navigate to="/" replace />;
+  if (!eligible) return <Navigate to="/crew-certifications" replace />;
   return <>{children}</>;
 }
 
@@ -427,13 +429,13 @@ function AppRoutes() {
     return (
       <HipaaAcknowledgmentGate>
         <Routes>
-          <Route path="/" element={<CrewDashboard />} />
-          <Route path="/crew-dashboard" element={<CrewDashboard />} />
-          <Route path="/crew-patients" element={<CrewPatients />} />
-          <Route path="/my-schedule" element={<CrewSchedulePage />} />
+          <Route path="/" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
+          <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
+          <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
+          <Route path="/my-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
           <Route path="/crew-schedule" element={<Navigate to="/my-schedule" replace />} />
-          <Route path="/pcr" element={<PCRPage />} />
-          <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
+          <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
+          <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
           <Route path="/crew-certifications" element={<CrewCertifications />} />
           <Route path="/crew/:token" element={<DailyRunSheet />} />
           <Route path="/account" element={<AccountSettings />} />

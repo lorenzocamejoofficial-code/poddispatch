@@ -1,45 +1,64 @@
-## 1. Collision confirmed
+## What I confirmed
 
-Both sidebars point at the same path:
+- `public.crew_assignable(_user_id uuid) returns boolean` — SQL, STABLE, SECURITY DEFINER. Returns true when the user has **3 distinct cert_types** with `status='approved'` and either an unexpired `expiration_date` or `manually_verified` (unexpired manual verification). Callable from the client via `supabase.rpc("crew_assignable", { _user_id })`; the typed signature already exists in `src/integrations/supabase/types.ts:6646`.
+- **ID semantics:** `crew_certifications.user_id` is the **auth user id** — `src/pages/crew/CrewCertifications.tsx:20` passes `user.id` into `CrewCertificationsPanel`. So the gate must key off `user.id`, **not** `profileId`. Today `useCrewViewEligibility(profileId)` reads `profiles.cert_level` (free-text string) — `src/hooks/useCrewViewEligibility.ts:23-31`.
+- **HIPAA flow:** `HipaaAcknowledgmentGate` (`src/components/compliance/HipaaAcknowledgmentGate.tsx`) is an inline blocker, not a route. On accept it inserts into `legal_acceptances` and sets local `accepted=true`, then renders `children` at the current URL — there is **no post-accept navigation today**. It wraps the crew (App.tsx:428), dispatcher (452) and biller (490) branches; the admin/owner branch (523) is **not** wrapped, and owners/system creators skip the gate anyway (`skipGate`, line 24).
+- **CrewRouteGate** (`src/App.tsx:107-119`): spinner while loading, `<Navigate to="/" replace />` when not eligible.
+- **Branch drift** (crew routes per branch):
+  - creator (383-388): crew routes **ungated**
+  - crew role (430-438): crew routes **ungated**
+  - dispatcher (472-476) / biller (506-511) / admin (558-562): gated, but `/my-schedule` gated in dispatcher/biller/admin while crew branch has it plain
+  - `/crew-certifications` is **already ungated in every branch** (388, 437, 476, 511, 562) — good, keep it that way.
 
-- Admin nav: `src/components/layout/AdminLayout.tsx:90` — `{ path: "/crew-schedule", label: "Crew Schedule Delivery", roles: ["owner","manager","dispatcher"] }`
-- Crew nav: `src/components/crew/CrewLayout.tsx:18` — `{ path: "/crew-schedule", label: "Schedule" }`
+## A. Rewrite `useCrewViewEligibility`
 
-And `/crew-schedule` resolves differently per role branch in `src/App.tsx`:
+Change signature to take the **auth user id** and call the real rule:
 
-| Line | Branch | Renders |
-|---|---|---|
-| 393 | system creator | `CrewScheduleAdmin` |
-| 432 | crew | `CrewSchedulePage` |
-| 457 | dispatcher | `CrewScheduleAdmin` |
-| 505 | biller | `CrewRouteGate` + `CrewSchedulePage` |
-| 533 | owner/manager (admin) | `CrewScheduleAdmin` |
+```ts
+export function useCrewViewEligibility(userId: string | null) {
+  // loading=true until the rpc resolves (prevents flash-redirect)
+  // supabase.rpc("crew_assignable", { _user_id: userId })
+  // eligible = data === true; on error -> eligible = false
+  return { eligible, loading };
+}
+```
 
-So an owner in the crew UI taps Schedule → line 533 → admin page. Root cause is the shared path, exactly as described.
+Keeps `{ eligible, loading }` shape. Cancellation guard stays. No more `profiles.cert_level` read.
 
-## 2. Recommendation: Option A
+Call-site updates: `CrewRouteGate` switches from `profileId` to `user?.id` (both come from `useAuth()`). I'll grep for any other consumer and update it the same way.
 
-Give the crew schedule its own path. Option B would leave one URL meaning two pages, which keeps badges, help content, tours, and deep links ambiguous forever.
+## B. Post-HIPAA lock → force to My Certifications
 
-**New path: `/my-schedule`** (reads correctly in the crew UI and doesn't collide with the existing `/crew/:token` public run sheet).
+Two coordinated pieces, both driven by the same `crew_assignable` value (so it works across sessions — no one-time flag):
 
-## 3. Exact changes
+1. **CrewRouteGate redirect target changes**: when `!eligible`, redirect to `/crew-certifications` instead of `/`. `/crew-certifications` itself stays outside the gate, so the user always lands somewhere usable and can complete their certs.
+2. **Crew-role branch gets the gate too**: in the crew branch (App.tsx:430-438), wrap `/`, `/crew-dashboard`, `/crew-patients`, `/my-schedule`, `/pcr`, `/crew-checklist` in `CrewRouteGate`. Result: right after HIPAA accept, an un-certified crew member is pushed to `/crew-certifications` and can't leave it. Once all 3 certs are approved, `crew_assignable` flips true and every crew route opens on the next load.
+3. **CrewLayout nav lock** (`src/components/crew/CrewLayout.tsx:15-22`): call `useCrewViewEligibility(user.id)`; while `!eligible`, render only the **My Certifications** item and show a one-line notice ("Complete and get all three certifications approved to unlock the crew tools."). While loading, render nav as-is (no flicker/lock-out). When eligible, nav is unchanged from today.
 
-**a. `src/components/crew/CrewLayout.tsx:18`** — change `path: "/crew-schedule"` → `path: "/my-schedule"`.
+## C. De-drift the branches
 
-**b. `src/App.tsx`** — add `/my-schedule` in every branch that renders the crew UI, keeping `/crew-schedule` bound to `CrewScheduleAdmin` where it already is:
-- crew branch (~432): replace `/crew-schedule` → `/my-schedule` with `<CrewSchedulePage />` (crew role has no admin page, so no need to keep the old path; optionally add a `<Navigate to="/my-schedule" replace />` on `/crew-schedule` for old bookmarks — I'd include this).
-- biller branch (~505): replace `/crew-schedule` → `/my-schedule`, still `CrewRouteGate`-wrapped.
-- owner/manager branch (~533): **keep** `/crew-schedule` → `CrewScheduleAdmin`, and **add** `<Route path="/my-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />`.
-- system creator branch (~393): keep `/crew-schedule` → admin page, add `/my-schedule` → `CrewSchedulePage` (creator branch is ungated, matching its other crew routes at 383–388).
-- dispatcher branch (~457): keep `/crew-schedule` → admin page; add `/my-schedule` → `CrewRouteGate`-wrapped `CrewSchedulePage` so a certified dispatcher riding a truck gets the same behavior as biller/owner. Say the word if you'd rather leave dispatcher untouched.
+Every branch that exposes the crew UI wraps the **same** five/six crew routes in the **same** `CrewRouteGate`, with `/crew-certifications` always outside it:
 
-**c. Supporting path references** (needed so the crew badge/help stay attached to the crew page):
-- `src/hooks/useCrewBadges.ts:180` — map `"/my-schedule"` to `tabKey = "schedule"`.
-- `src/components/help/helpContent.ts:300` and `helpContentQA.ts:223` — the `/crew-schedule` entries are the crew-facing copy; re-key them to `/my-schedule`. The separate `/crew-schedule-admin` help key (helpContentQA.ts:236) stays as-is.
+| Branch | Change |
+|---|---|
+| crew (430-438) | add `CrewRouteGate` to `/`, `/crew-dashboard`, `/crew-patients`, `/my-schedule`, `/pcr`, `/crew-checklist` |
+| dispatcher (472-476) | add `/my-schedule` already gated (464) — no change; consistent set confirmed |
+| biller (506-511) | already consistent — no change |
+| admin/owner (558-562) | already gated; `/my-schedule` (540) already gated — no change |
+| system creator (383-388) | leave **ungated** (creator preview/simulation access, matches the rest of that branch) |
 
-## 4. Untouched
+Owner-as-crew then works purely on capability: an owner with 3 approved certs sees the crew pages; one without gets bounced to `/crew-certifications`.
 
-`src/pages/CrewScheduleAdmin.tsx`, `AdminLayout.tsx` nav (still `/crew-schedule`, still lands on the admin delivery page), `AdminLayout.tsx:449` help-key remap, `tourContent.ts:414`, `DevModePanel.tsx:12`. No change to `useCrewViewEligibility` or `CrewRouteGate` logic, cert enums, or truck schema.
+## Safety confirmations
 
-Verification after build: typecheck, plus load `/my-schedule` and `/crew-schedule` as an owner and confirm crew page vs admin delivery page respectively.
+- **(i) Existing assignable crew keep full access.** The new rule is exactly `crew_assignable` — the same function `TrucksCrews` already uses to allow truck assignment. Anyone currently cleared to ride returns `true` and sees no change. The only people newly restricted are those who had a `cert_level` string but no 3 approved certs — i.e. people the DB already refuses to put on a truck.
+- **(ii) `/crew-certifications` is always reachable.** It stays registered outside `CrewRouteGate` in all five branches, it's the redirect target when ineligible, and it's the one nav item kept visible while locked. It is never gated behind the cert requirement.
+- Loading is always a spinner, never a redirect, so a slow RPC can't bounce a valid crew member.
+
+## Not in scope
+
+No `cert_type`/`cert_level` enum changes, no truck schema, no minimum-crew rule, no DB migration (the function already exists).
+
+## Verification after build
+
+Typecheck, then in the preview: (a) a `crew_assignable=true` user reaches `/crew-dashboard` with full nav; (b) a user with 0–2 approved certs hitting any crew route lands on `/crew-certifications` with nav reduced to that single item; (c) owner with certs vs. owner without behave per the same rule.
