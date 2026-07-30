@@ -253,8 +253,8 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
       );
 
       let nextStatus: CertStatus;
-      if (!enteringForSelf) {
-        // Admin entering/editing for another employee: lands approved.
+      if (adminMode || !enteringForSelf) {
+        // Entered from the admin side (the reviewer): lands approved.
         nextStatus = "approved";
       } else if (!existing) {
         nextStatus = "pending_review";
@@ -435,7 +435,7 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
             <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setFile(null); }}>Cancel</Button>
             <Button size="sm" onClick={submit} disabled={saving}>
               <Upload className="h-3.5 w-3.5 mr-1.5" />
-              {adminMode && !isSelf
+              {adminMode
                 ? (saving ? "Saving…" : "Save & approve")
                 : (saving ? "Submitting…" : "Submit for review")}
             </Button>
