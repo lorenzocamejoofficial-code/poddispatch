@@ -103,10 +103,12 @@ function RouteFallback() {
   );
 }
 
-/** Wrapper that renders crew routes only if the user is eligible (has cert + assigned today) */
+/** Wrapper that renders crew routes only if the user is truly cleared to ride
+ * (public.crew_assignable: 3 approved, unexpired certifications).
+ * Ineligible users are sent to /crew-certifications so they can complete them. */
 function CrewRouteGate({ children }: { children: React.ReactNode }) {
-  const { profileId } = useAuth();
-  const { eligible, loading } = useCrewViewEligibility(profileId);
+  const { user } = useAuth();
+  const { eligible, loading } = useCrewViewEligibility(user?.id ?? null);
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -114,7 +116,7 @@ function CrewRouteGate({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (!eligible) return <Navigate to="/" replace />;
+  if (!eligible) return <Navigate to="/crew-certifications" replace />;
   return <>{children}</>;
 }
 
