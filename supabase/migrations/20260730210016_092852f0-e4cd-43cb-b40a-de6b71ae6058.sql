@@ -1,0 +1,1 @@
+ALTER TABLE public.crew_locations ADD CONSTRAINT crew_locations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(user_id) ON DELETE CASCADE;
