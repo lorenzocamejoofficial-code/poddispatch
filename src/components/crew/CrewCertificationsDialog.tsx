@@ -277,6 +277,13 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
         rejection_reason: null,
         uploaded_by: actorId,
       };
+      if (enteringForSelf) {
+        // The crew member typed it themselves — nothing for them to review.
+        payload.confirmed_by_user_at = new Date().toISOString();
+      } else if (!existing) {
+        // Employer entered it at hire — the employee must review it on first login.
+        payload.confirmed_by_user_at = null;
+      }
       if (nextStatus === "pending_review") {
         payload.reviewed_by = null;
         payload.reviewed_at = null;
