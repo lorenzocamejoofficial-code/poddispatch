@@ -412,7 +412,8 @@ function AppRoutes() {
           <Route path="/billing" element={<BillingAndClaims />} />
           <Route path="/edi-export" element={<EDIExport />} />
           <Route path="/remittance-import" element={<RemittanceImport />} />
-          <Route path="/owner-dashboard" element={<OwnerDashboard />} />
+            <Route path="/owner-dashboard" element={<OwnerDashboard />} />
+            <Route path="/fleet-map" element={<FleetMap />} />
           <Route path="/my-schedule" element={<CrewSchedulePage />} />
           <Route path="/compliance" element={<ComplianceAndQA />} />
           <Route path="/facilities" element={<FacilitiesPage />} />
@@ -556,7 +557,8 @@ function AppRoutes() {
         <Route path="/billing" element={<BillingAndClaims />} />
         <Route path="/edi-export" element={<EDIExport />} />
         <Route path="/remittance-import" element={<RemittanceImport />} />
-        <Route path="/owner-dashboard" element={<OwnerDashboard />} />
+          <Route path="/owner-dashboard" element={<OwnerDashboard />} />
+          <Route path="/fleet-map" element={<FleetMap />} />
         <Route path="/compliance" element={<ComplianceAndQA />} />
         <Route path="/facilities" element={<FacilitiesPage />} />
         <Route path="/reports" element={<ReportsAndMetrics />} />
