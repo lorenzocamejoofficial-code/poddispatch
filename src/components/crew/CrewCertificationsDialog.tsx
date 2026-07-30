@@ -434,7 +434,10 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
           <div className="flex gap-2 justify-end">
             <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setFile(null); }}>Cancel</Button>
             <Button size="sm" onClick={submit} disabled={saving}>
-              <Upload className="h-3.5 w-3.5 mr-1.5" />{saving ? "Submitting…" : "Submit for review"}
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+              {adminMode && !isSelf
+                ? (saving ? "Saving…" : "Save & approve")
+                : (saving ? "Submitting…" : "Submit for review")}
             </Button>
           </div>
         </div>
