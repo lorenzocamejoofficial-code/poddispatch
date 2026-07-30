@@ -2155,6 +2155,7 @@ export type Database = {
           cert_number: string | null
           cert_type: Database["public"]["Enums"]["crew_cert_type"]
           company_id: string
+          confirmed_by_user_at: string | null
           created_at: string
           expiration_date: string | null
           id: string
@@ -2177,6 +2178,7 @@ export type Database = {
           cert_number?: string | null
           cert_type: Database["public"]["Enums"]["crew_cert_type"]
           company_id: string
+          confirmed_by_user_at?: string | null
           created_at?: string
           expiration_date?: string | null
           id?: string
@@ -2199,6 +2201,7 @@ export type Database = {
           cert_number?: string | null
           cert_type?: Database["public"]["Enums"]["crew_cert_type"]
           company_id?: string
+          confirmed_by_user_at?: string | null
           created_at?: string
           expiration_date?: string | null
           id?: string
