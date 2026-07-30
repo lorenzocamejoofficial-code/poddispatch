@@ -551,7 +551,7 @@ function AppRoutes() {
         <Route path="/crew/:token" element={<DailyRunSheet />} />
         <Route path="/patients" element={<Patients />} />
         <Route path="/trips" element={<TripsAndClinical />} />
-        <Route path="/my-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
+        <Route path="/my-schedule" element={<HipaaAcknowledgmentGate force><CrewRouteGate><CrewSchedulePage /></CrewRouteGate></HipaaAcknowledgmentGate>} />
         <Route path="/billing" element={<BillingAndClaims />} />
         <Route path="/edi-export" element={<EDIExport />} />
         <Route path="/remittance-import" element={<RemittanceImport />} />
@@ -569,11 +569,11 @@ function AppRoutes() {
         <Route path="/admin/email-activity" element={<EmailActivity />} />
         <Route path="/legal" element={<LegalPage />} />
         {/* Crew routes for owners with cert + crew assignment */}
-        <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
-        <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
-        <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
-        <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
-        <Route path="/crew-certifications" element={<CrewCertifications />} />
+        <Route path="/crew-dashboard" element={<HipaaAcknowledgmentGate force><CrewRouteGate><CrewDashboard /></CrewRouteGate></HipaaAcknowledgmentGate>} />
+        <Route path="/crew-patients" element={<HipaaAcknowledgmentGate force><CrewRouteGate><CrewPatients /></CrewRouteGate></HipaaAcknowledgmentGate>} />
+        <Route path="/pcr" element={<HipaaAcknowledgmentGate force><CrewRouteGate><PCRPage /></CrewRouteGate></HipaaAcknowledgmentGate>} />
+        <Route path="/crew-checklist" element={<HipaaAcknowledgmentGate force><CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate></HipaaAcknowledgmentGate>} />
+        <Route path="/crew-certifications" element={<HipaaAcknowledgmentGate force><CrewCertifications /></HipaaAcknowledgmentGate>} />
          <Route path="/login" element={<AuthenticatedLoginRedirect fallback="/" />} />
         <Route path="/signup" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
