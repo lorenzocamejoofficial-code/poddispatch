@@ -18,7 +18,7 @@ import { getTourForRoute, type PageTour as PageTourConfig, type TourRole } from 
  *
  * Replayed via the "?tour=replay" search param or the Account Settings panel.
  */
-export function PageTour() {
+export function PageTour({ roleOverride }: { roleOverride?: TourRole } = {}) {
   const { user, role, isSystemCreator } = useAuth();
   const location = useLocation();
   const [tour, setTour] = useState<PageTourConfig | null>(null);
@@ -27,7 +27,7 @@ export function PageTour() {
 
   // Resolve effective role (system creator sees creator tours)
   const effectiveRole: TourRole | null =
-    isSystemCreator ? "creator" : ((role ?? null) as TourRole | null);
+    roleOverride ?? (isSystemCreator ? "creator" : ((role ?? null) as TourRole | null));
 
   useEffect(() => {
     if (!user?.id || !effectiveRole) return;
