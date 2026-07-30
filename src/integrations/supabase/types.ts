@@ -4227,6 +4227,7 @@ export type Database = {
           sex: Database["public"]["Enums"]["sex_type"]
           simulation_run_id: string | null
           stair_chair_trained: boolean
+          theme_preference: string
           updated_at: string
           user_id: string | null
         }
@@ -4251,6 +4252,7 @@ export type Database = {
           sex?: Database["public"]["Enums"]["sex_type"]
           simulation_run_id?: string | null
           stair_chair_trained?: boolean
+          theme_preference?: string
           updated_at?: string
           user_id?: string | null
         }
@@ -4275,6 +4277,7 @@ export type Database = {
           sex?: Database["public"]["Enums"]["sex_type"]
           simulation_run_id?: string | null
           stair_chair_trained?: boolean
+          theme_preference?: string
           updated_at?: string
           user_id?: string | null
         }
