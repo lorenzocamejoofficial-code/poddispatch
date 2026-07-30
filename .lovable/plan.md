@@ -1,96 +1,55 @@
-## Cert duplicates: replace-in-place model
+# AUDIT — Owner accessing the Crew side (read-only findings)
 
-Verified: `crew_certifications` has no `deleted_at`/soft-delete column (columns confirmed by query), so a plain unique index is correct. Order is mandatory: cleanup migration first, then the unique index.
+## (a) Does an owner-as-crew / view-switch mechanism exist?
+**Effectively no.** The only "view switcher" file in the codebase is `src/components/creator/ViewAsSwitcher.tsx` (lines 13–66, roles `creator|owner|manager|dispatcher|biller|crew`) — and a repo-wide search shows **it is imported nowhere**. It is dead code, and by its own footer text (line 61) it was for *synthetic-data* creator previews, not real crew access.
 
-### Part 1 — Cleanup migration (runs first)
+Also present but unrelated to a real owner switch:
+- `src/pages/CrewUIPreview.tsx:261` — "Open Crew View" button, on the **system-creator-only** `/crew-preview` route (`src/App.tsx:381`).
+- No `viewMode`, `crewMode`, `activeRole`, or "act as" state exists anywhere (search returned only unrelated hits: `SignaturesCard.tsx:381 activeRoles`, help-content titles).
 
-```sql
-DELETE FROM public.crew_certifications c
-USING (
-  SELECT id,
-         row_number() OVER (
-           PARTITION BY user_id, cert_type
-           ORDER BY created_at DESC, id DESC
-         ) AS rn
-  FROM public.crew_certifications
-) ranked
-WHERE c.id = ranked.id
-  AND ranked.rn > 1;
-```
-Generic — keeps the newest row per (user_id, cert_type), deletes the rest. Today that removes exactly 1 row (user 2549ad4b…, medic_number).
+There is **no UI link from the admin side into the crew side**. `src/components/layout/AdminLayout.tsx` nav (line 90–91) only contains `/crew-schedule` ("Crew Schedule Delivery", the *admin* dispatch page) and `/trucks`. No `/crew-dashboard` or `/crew-certifications` entry for any admin role.
 
-### Part 2 — Unique index (same migration, immediately after the DELETE)
+## (b) Role-gated or capability-gated?
+**Both, in two layers.**
 
-```sql
-CREATE UNIQUE INDEX IF NOT EXISTS crew_certifications_user_cert_type_uniq
-  ON public.crew_certifications (user_id, cert_type);
-```
-No table, grant, policy, or column changes.
+1. **Route registration is ROLE-gated** — `src/App.tsx` branches on `role`:
+   - `isSystemCreator` (line 370): all crew routes, ungated (383–388, 393).
+   - `role === "crew"` (line 425): home `/` = `CrewDashboard` (429); full crew set 430–436 including **`/crew-schedule` → `CrewSchedulePage`** (432).
+   - `role === "dispatcher"` (line 448): home `/` = DispatchBoard; crew routes 469–473 wrapped in `CrewRouteGate`. **No `/crew-schedule` crew page** — line 457 maps `/crew-schedule` to the *admin* `CrewScheduleAdmin`.
+   - `role === "biller"` (line 485): home `/` → `/trips`; crew routes 503–508, **including** `/crew-schedule` → `CrewRouteGate><CrewSchedulePage>` (505).
+   - **Owner / manager fallback** (line 520–565): home `/` = `<Index />` (530). Crew routes 554–558: `/crew-dashboard`, `/crew-patients`, `/pcr`, `/crew-checklist` (all `CrewRouteGate`-wrapped) and `/crew-certifications` (ungated, 558).
+   - Owner wizard-incomplete branch (line 340–364): **no crew routes at all**; `*` → `/onboarding` (360).
 
-### Part 3 — `submit()` in `src/components/crew/CrewCertificationsDialog.tsx`
+2. **Access within those routes is CAPABILITY-gated** — `CrewRouteGate` (`src/App.tsx:107–119`) calls `useCrewViewEligibility(profileId)` and does `if (!eligible) return <Navigate to="/" replace />;` (line 117). No role check.
 
-Existing-row resolution (safe against the new constraint even if `row` wasn't passed):
-
+`src/hooks/useCrewViewEligibility.ts:23–31` checks **only** `profiles.cert_level` being non-empty:
 ```ts
-let existing = row ?? null;
-if (!existing) {
-  const { data: found } = await supabase
-    .from("crew_certifications" as any)
-    .select("*")
-    .eq("user_id", userId)
-    .eq("cert_type", type)
-    .maybeSingle();
-  existing = (found as any) ?? null;
-}
+const { data: profile } = await supabase.from("profiles").select("cert_level").eq("id", profileId).maybeSingle();
+setEligible(!!profile?.cert_level);
 ```
+Note this is **not** the real cert gate. The DB gate `public.crew_assignable(_user_id)` (migration `20260623154115…sql:97–114`) requires 3 distinct `crew_certifications` rows with `status='approved'` and unexpired (or `manually_verified`). So the UI gate (a free-text `cert_level` string) and the truck-assignment gate (3 approved certs) are **two different, unlinked checks**.
 
-Actor lookup stays as-is (`actorId`, `enteringForSelf = actorId ? actorId === userId : isSelf`). `uploaded_by = actorId`, `user_id = userId` unchanged.
+## (c) Exact reason an owner gets bounced
+Two distinct causes, depending on the route:
 
-Status decision:
+1. **`/crew-schedule` is the real "missing route" bug.** In the owner/manager branch, `src/App.tsx:533` binds `/crew-schedule` to `CrewScheduleAdmin` (the admin delivery page) — so an owner clicking "Schedule" in the crew sidebar (`src/components/crew/CrewLayout.tsx:18`, `path: "/crew-schedule"`) is silently thrown back to the **admin** page, breaking out of the crew UI. The crew `CrewSchedulePage` is unreachable for owners/managers/dispatchers (only crew role at 432 and biller at 505 have it).
+2. **Everything else bounces at `CrewRouteGate`** — if `profiles.cert_level` is empty for that owner, line 117 `<Navigate to="/" replace />` fires; `/` renders `<Index />` (line 530), which for `role==='owner'|'manager'|'creator'` redirects to `/owner-dashboard` (`src/pages/Index.tsx:28–31`). That is the admin-dashboard bounce.
+3. Confirmed: owner branch **is** missing `/crew-schedule` (crew version) — the other four crew routes *are* registered, contrary to a blanket "owner branch has no crew routes". `/crew-certifications` (558) is registered and **not** gated, so My Certifications already works for an owner.
 
-| Case | Status written |
+## (d) Can an owner hold the certs?
+**Yes.** Nothing restricts `crew_certifications` by role:
+- `crew_assignable()` takes any `_user_id` and counts approved certs — role-agnostic, so an owner's assignable status is computed identically to a crew member's.
+- The INSERT policy (as amended this session) allows self-insert *and* `is_admin()` insert for anyone in the same company, so an owner can enter their own or another's certs.
+- `/crew-certifications` is reachable in the owner branch (`src/App.tsx:558`) with no gate.
+- Caveat: `profiles.cert_level` (dash format, `EMT-B`…, set in `src/pages/Employees.tsx:649–660`) is the field `useCrewViewEligibility` reads — an owner created outside the employee form may have it null, which alone blocks the crew UI even with three approved certs.
+
+## Summary
+| Question | Finding |
 |---|---|
-| No existing row, self-entry | `pending_review` |
-| No existing row, admin for another employee | `approved` |
-| Existing row, admin for another employee (`!enteringForSelf`) | `approved` |
-| Existing row, self, current status `pending_review` (or `rejected`) | `pending_review` |
-| Existing row, self, current status `approved`, and any of `cert_number` / `expiration_date` / `cert_level` (medic_number only) changed | `pending_review` (re-pend) |
-| Existing row, self, current status `approved`, only photo/issue_date/notes changed | `approved` (unchanged) |
+| Existing owner-as-crew switch | None wired up; `ViewAsSwitcher.tsx` is unused dead code |
+| Crew access gating | Route registration by role + `CrewRouteGate` capability check on `profiles.cert_level` |
+| Bounce cause | `/crew-schedule` resolves to the admin page for owners; other crew routes redirect via `CrewRouteGate:117` → `Index.tsx:31` → `/owner-dashboard` |
+| Owner can hold certs | Yes — cert tables and `crew_assignable()` are role-agnostic |
+| Inconsistency worth noting | UI eligibility (`cert_level` string) ≠ DB assignability (3 approved certs) |
 
-Change detection compares old-vs-new on exactly those three fields:
-
-```ts
-const materialChanged =
-  (existing?.cert_number ?? null) !== (number.trim() || null) ||
-  (existing?.expiration_date ?? null) !== exp ||
-  (type === "medic_number" && (existing?.cert_level ?? null) !== level);
-```
-
-Write path:
-- `existing` → `.update(payload).eq("id", existing.id)`; when the resulting status is `pending_review`, also clear `reviewed_by`/`reviewed_at` and `rejection_reason`.
-- no `existing` → `.insert(payload)` as today.
-
-Toast text follows the outcome: "Submitted for review" when the row lands pending, "Certification saved" when it lands approved.
-
-Re-pend notification: no existing admin-notify hook is wired to this dialog, so the plan only re-pends (the row reappears in the review queue). A push/notification on re-pend is a separate item, not built here.
-
-### Part 4 — Review queue dedupe
-
-`src/pages/CertificationReviewQueue.tsx` `load()` — the query already orders ascending by `created_at`. Change the order to `{ ascending: false }` and, right after `const list = (data ?? []) as any[];`, collapse to the newest row per (user_id, cert_type):
-
-```ts
-const seen = new Set<string>();
-const deduped = list.filter((r) => {
-  const k = `${r.user_id}|${r.cert_type}`;
-  if (seen.has(k)) return false;
-  seen.add(k);
-  return true;
-});
-```
-Everything downstream (`withNames`, photo signing, render) uses `deduped`. Display-only safety net; no approve/reject logic touched.
-
-### Not in scope
-No enum changes, no routing/gating changes, no new notification system, no changes to approve/reject/override handlers beyond the reviewed_by/reviewed_at clearing that re-pend requires.
-
-### Verification after build
-Typecheck; confirm the unique index exists and no (user_id, cert_type) group has more than one row.
+No changes made.
