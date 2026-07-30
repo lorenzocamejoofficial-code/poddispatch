@@ -30,6 +30,8 @@ export default function AdminSettings() {
   const [retentionYears, setRetentionYears] = useState("10");
   const [verifiedCallerId, setVerifiedCallerId] = useState("");
   const [enforceRunGap, setEnforceRunGap] = useState(false);
+  const [trackingCurfewEnabled, setTrackingCurfewEnabled] = useState(true);
+  const [trackingCurfewTime, setTrackingCurfewTime] = useState("21:00");
   const [saving, setSaving] = useState(false);
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
 
@@ -72,6 +74,8 @@ export default function AdminSettings() {
         setRetentionYears(String((data as any).retention_policy_years ?? 10));
         setVerifiedCallerId(String((data as any).verified_caller_id ?? ""));
         setEnforceRunGap(Boolean((data as any).enforce_run_gap_minutes ?? false));
+        setTrackingCurfewEnabled((data as any).tracking_curfew_enabled ?? true);
+        setTrackingCurfewTime(String((data as any).tracking_curfew_time ?? "21:00").slice(0, 5));
       }
     });
 
@@ -90,6 +94,8 @@ export default function AdminSettings() {
       session_warning_enabled: sessionWarningEnabled,
       verified_caller_id: verifiedCallerId.trim() || null,
       enforce_run_gap_minutes: enforceRunGap,
+      tracking_curfew_enabled: trackingCurfewEnabled,
+      tracking_curfew_time: `${trackingCurfewTime}:00`,
     };
     // Retention policy is owner-narrow (legal/compliance commitment).
     if (isOwner) payload.retention_policy_years = parseInt(retentionYears);
@@ -185,6 +191,45 @@ export default function AdminSettings() {
         </section>
 
         {/* Service Time Defaults */}
+        {/* Fleet Tracking */}
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Fleet Tracking</h3>
+            <p className="text-sm text-muted-foreground">
+              Crew locations are only tracked while a crew member is assigned to a truck scheduled for that day, signed into the crew workspace, with location permission granted.
+            </p>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border bg-card p-4">
+            <div className="pr-4">
+              <p className="text-sm font-medium text-foreground">Nightly tracking cutoff</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {trackingCurfewEnabled
+                  ? `Location tracking hard-stops at ${trackingCurfewTime} each night.`
+                  : "Tracking continues around the clock (still only for crews assigned to a scheduled truck)."}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{trackingCurfewEnabled ? "ON" : "OFF"}</span>
+              <Checkbox
+                id="trackingCurfew"
+                checked={trackingCurfewEnabled}
+                onCheckedChange={(v) => setTrackingCurfewEnabled(v === true)}
+              />
+            </div>
+          </div>
+          {trackingCurfewEnabled && (
+            <div>
+              <Label>Cutoff time</Label>
+              <Input
+                type="time"
+                value={trackingCurfewTime}
+                onChange={(e) => setTrackingCurfewTime(e.target.value)}
+                className="max-w-[160px]"
+              />
+            </div>
+          )}
+        </section>
+
         <section className="space-y-3">
           <div>
             <h3 className="text-lg font-semibold text-foreground">Service Time Defaults</h3>
