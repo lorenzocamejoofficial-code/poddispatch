@@ -11,11 +11,11 @@ const MARKETING_SITE_URL = "https://www.thepoddispatch.com";
 const LOGIN_MODE_STORAGE_KEY = "poddispatch_login_mode";
 
 function getRoleLanding(role: string | null, isSystemCreator: boolean, crewMode = false): string {
-  if (isSystemCreator) return "/system";
   // Crew-entry login: any role that can be certified to ride (owner, manager,
   // dispatcher, biller, crew) lands on the crew workspace. CrewRouteGate then
   // sends them to /crew-certifications if they aren't cleared to ride yet.
   if (crewMode && role) return "/crew-dashboard";
+  if (isSystemCreator) return "/system";
   switch (role) {
     case "owner": return "/";
     case "manager": return "/";
