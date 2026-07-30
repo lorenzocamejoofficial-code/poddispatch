@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Truck, ShieldCheck, Users, ArrowLeft, Loader2, Eye, EyeOff } from "lucide-react";
 
 const MARKETING_SITE_URL = "https://www.thepoddispatch.com";
+const LOGIN_MODE_STORAGE_KEY = "poddispatch_login_mode";
 
 function getRoleLanding(role: string | null, isSystemCreator: boolean, crewMode = false): string {
   if (isSystemCreator) return "/system";
@@ -112,6 +113,11 @@ export default function Login() {
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    // Keep the selected entrance available after auth swaps Login out for the
+    // authenticated route tree. OAuth/session hydration can discard the query
+    // string before that tree decides where to send the user.
+    window.sessionStorage.setItem(LOGIN_MODE_STORAGE_KEY, mode);
 
     if (!email.trim() || !password.trim()) {
       setError("Please enter your email and password.");
@@ -232,6 +238,7 @@ export default function Login() {
             <button
               onClick={() => {
                 setMode("crew");
+                 window.sessionStorage.setItem(LOGIN_MODE_STORAGE_KEY, "crew");
                 const next = new URLSearchParams(searchParams);
                 next.set("mode", "crew");
                 setSearchParams(next, { replace: true });
@@ -252,6 +259,7 @@ export default function Login() {
             <button
               onClick={() => {
                 setMode("staff");
+                 window.sessionStorage.setItem(LOGIN_MODE_STORAGE_KEY, "staff");
                 const next = new URLSearchParams(searchParams);
                 next.set("mode", "staff");
                 setSearchParams(next, { replace: true });
@@ -296,6 +304,7 @@ export default function Login() {
           <button
             onClick={() => {
               setMode("landing");
+               window.sessionStorage.removeItem(LOGIN_MODE_STORAGE_KEY);
               setError("");
               setPassword("");
               const next = new URLSearchParams(searchParams);
