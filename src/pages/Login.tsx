@@ -28,7 +28,7 @@ function getRoleLanding(role: string | null, isSystemCreator: boolean, crewMode 
 type LoginMode = "landing" | "staff" | "crew";
 
 export default function Login() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialMode = searchParams.get("mode") === "crew" ? "crew" as LoginMode : "landing" as LoginMode;
   const [mode, setMode] = useState<LoginMode>(initialMode);
   const [email, setEmail] = useState(searchParams.get("email") || "");
@@ -230,7 +230,12 @@ export default function Login() {
 
           <div className="space-y-3">
             <button
-              onClick={() => setMode("crew")}
+              onClick={() => {
+                setMode("crew");
+                const next = new URLSearchParams(searchParams);
+                next.set("mode", "crew");
+                setSearchParams(next, { replace: true });
+              }}
               className="group w-full rounded-xl border-2 border-border bg-card p-5 text-left transition-all hover:border-primary/40 hover:shadow-md"
             >
               <div className="flex items-center gap-4">
@@ -245,7 +250,12 @@ export default function Login() {
             </button>
 
             <button
-              onClick={() => setMode("staff")}
+              onClick={() => {
+                setMode("staff");
+                const next = new URLSearchParams(searchParams);
+                next.set("mode", "staff");
+                setSearchParams(next, { replace: true });
+              }}
               className="group w-full rounded-xl border-2 border-border bg-card p-5 text-left transition-all hover:border-primary/40 hover:shadow-md"
             >
               <div className="flex items-center gap-4">
@@ -284,7 +294,14 @@ export default function Login() {
       <div className="w-full max-w-sm">
         <div className="mb-6">
           <button
-            onClick={() => { setMode("landing"); setError(""); setPassword(""); }}
+            onClick={() => {
+              setMode("landing");
+              setError("");
+              setPassword("");
+              const next = new URLSearchParams(searchParams);
+              next.delete("mode");
+              setSearchParams(next, { replace: true });
+            }}
             className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" /> Back

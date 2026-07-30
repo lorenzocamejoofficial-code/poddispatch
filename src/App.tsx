@@ -120,6 +120,15 @@ function CrewRouteGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Preserves the entrance selected before authentication. Login unmounts as
+ * soon as the session appears, so the authenticated router must honor the
+ * persisted query parameter instead of relying on Login's local state. */
+function AuthenticatedLoginRedirect({ fallback }: { fallback: string }) {
+  const location = useLocation();
+  const crewMode = new URLSearchParams(location.search).get("mode") === "crew";
+  return <Navigate to={crewMode ? "/crew-dashboard" : fallback} replace />;
+}
+
 // Token links redirect to login with crew mode when unauthenticated
 function TokenLoginRedirect() {
   const { token } = useParams<{ token: string }>();
@@ -413,7 +422,7 @@ function AppRoutes() {
           <Route path="/legal" element={<LegalPage />} />
           {/* Default: creator lands on System Dashboard */}
           <Route path="/" element={<Navigate to="/system" replace />} />
-          <Route path="/login" element={<Navigate to="/system" replace />} />
+          <Route path="/login" element={<AuthenticatedLoginRedirect fallback="/system" />} />
           <Route path="/signup" element={<Navigate to="/system" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -440,7 +449,7 @@ function AppRoutes() {
           <Route path="/crew/:token" element={<DailyRunSheet />} />
           <Route path="/account" element={<AccountSettings />} />
           <Route path="/legal" element={<LegalPage />} />
-          <Route path="/login" element={<Navigate to="/" replace />} />
+           <Route path="/login" element={<AuthenticatedLoginRedirect fallback="/" />} />
           <Route path="/signup" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
@@ -476,7 +485,7 @@ function AppRoutes() {
             <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
             <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
             <Route path="/crew-certifications" element={<CrewCertifications />} />
-            <Route path="/login" element={<Navigate to="/" replace />} />
+             <Route path="/login" element={<AuthenticatedLoginRedirect fallback="/" />} />
             <Route path="/signup" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -511,7 +520,7 @@ function AppRoutes() {
             <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
             <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
             <Route path="/crew-certifications" element={<CrewCertifications />} />
-            <Route path="/login" element={<Navigate to="/" replace />} />
+             <Route path="/login" element={<AuthenticatedLoginRedirect fallback="/" />} />
             <Route path="/signup" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -562,7 +571,7 @@ function AppRoutes() {
         <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
         <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
         <Route path="/crew-certifications" element={<CrewCertifications />} />
-        <Route path="/login" element={<Navigate to="/" replace />} />
+         <Route path="/login" element={<AuthenticatedLoginRedirect fallback="/" />} />
         <Route path="/signup" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
