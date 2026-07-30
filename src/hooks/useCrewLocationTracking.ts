@@ -19,15 +19,18 @@ export function useCrewLocationTracking(enabled: boolean) {
       if (now - latestPosition.timestamp > MAX_AGE_MS) return;
       if (now - lastUploadRef.current < UPLOAD_INTERVAL_MS) return;
 
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: companyId, error: companyError } = await supabase.rpc("get_my_company_id");
+      if (companyError || !companyId) return;
+
       const { latitude, longitude, accuracy, speed, heading } = latestPosition.coords;
-      const { error: companyError } = await supabase.rpc("get_my_company_id");
-      if (companyError) return;
-
-      const companyId = await supabase.rpc("get_my_company_id").then(({ data }) => data as string | null);
-      if (!companyId) return;
-
       const { error: insertError } = await supabase.from("crew_locations").insert({
-        company_id: companyId,
+        company_id: companyId as string,
+        user_id: user.id,
         latitude,
         longitude,
         accuracy_m: accuracy || null,

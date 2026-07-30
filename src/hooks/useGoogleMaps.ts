@@ -1,3 +1,5 @@
+/// <reference types="google.maps" />
+
 import { useEffect, useRef, useState } from "react";
 
 let loaderPromise: Promise<typeof google> | null = null;

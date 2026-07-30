@@ -24,7 +24,7 @@ interface MapMarker {
 }
 
 export default function FleetMap() {
-  const { activeCompanyId, isAdmin } = useAuth();
+  const { activeCompanyId } = useAuth();
   const { ready, error: mapError, google } = useGoogleMaps();
   const { locations, loading, error: feedError, refresh } = useCrewLocations(activeCompanyId);
   const mapRef = useRef<HTMLDivElement | null>(null);
@@ -35,7 +35,7 @@ export default function FleetMap() {
 
   // Group pings by user/truck and build markers + trails
   const markers: MapMarker[] = [];
-  const grouped = new Map<string, (typeof locations)[number]>();
+  const grouped = new Map<string, EnrichedLocation[]>();
   for (const ping of locations) {
     const key = ping.truck_id ?? ping.user_id;
     if (!grouped.has(key)) grouped.set(key, []);
@@ -148,10 +148,13 @@ export default function FleetMap() {
     }
 
     // Fit bounds if we have markers and this is the first batch
-    if (markers.length > 0 && map.getCenter()?.lat() === 33.749 && map.getCenter()?.lng() === -84.388) {
-      const bounds = new google.maps.LatLngBounds();
-      for (const m of markers) bounds.extend({ lat: m.lat, lng: m.lng });
-      map.fitBounds(bounds, 60);
+    if (markers.length > 0) {
+      const center = map.getCenter();
+      if (center && center.lat() === 33.749 && center.lng() === -84.388) {
+        const bounds = new google.maps.LatLngBounds();
+        for (const m of markers) bounds.extend({ lat: m.lat, lng: m.lng });
+        map.fitBounds(bounds, 60);
+      }
     }
   }, [google, markers]);
 
@@ -254,4 +257,20 @@ export default function FleetMap() {
       </div>
     </AdminLayout>
   );
+}
+
+interface EnrichedLocation {
+  id: string;
+  company_id: string;
+  user_id: string;
+  truck_id: string | null;
+  latitude: number;
+  longitude: number;
+  accuracy_m: number | null;
+  speed_mps: number | null;
+  heading: number | null;
+  recorded_at: string;
+  created_at: string;
+  profile?: { full_name: string | null } | null;
+  truck?: { name: string | null; vehicle_id: string | null } | null;
 }
