@@ -429,13 +429,13 @@ function AppRoutes() {
     return (
       <HipaaAcknowledgmentGate>
         <Routes>
-          <Route path="/" element={<CrewDashboard />} />
-          <Route path="/crew-dashboard" element={<CrewDashboard />} />
-          <Route path="/crew-patients" element={<CrewPatients />} />
-          <Route path="/my-schedule" element={<CrewSchedulePage />} />
+          <Route path="/" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
+          <Route path="/crew-dashboard" element={<CrewRouteGate><CrewDashboard /></CrewRouteGate>} />
+          <Route path="/crew-patients" element={<CrewRouteGate><CrewPatients /></CrewRouteGate>} />
+          <Route path="/my-schedule" element={<CrewRouteGate><CrewSchedulePage /></CrewRouteGate>} />
           <Route path="/crew-schedule" element={<Navigate to="/my-schedule" replace />} />
-          <Route path="/pcr" element={<PCRPage />} />
-          <Route path="/crew-checklist" element={<CrewInspectionChecklist />} />
+          <Route path="/pcr" element={<CrewRouteGate><PCRPage /></CrewRouteGate>} />
+          <Route path="/crew-checklist" element={<CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate>} />
           <Route path="/crew-certifications" element={<CrewCertifications />} />
           <Route path="/crew/:token" element={<DailyRunSheet />} />
           <Route path="/account" element={<AccountSettings />} />
