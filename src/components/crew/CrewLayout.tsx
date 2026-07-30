@@ -31,6 +31,8 @@ export function CrewLayout({ children }: { children: ReactNode }) {
   const { companyName } = useCompanyName();
   const badges = useCrewBadges(profileId);
   const { eligible, loading: eligibilityLoading } = useCrewViewEligibility(user?.id ?? null);
+  // Track location whenever a cleared crew member is in the crew workspace.
+  useCrewLocationTracking(eligible);
   // Until all three certifications are approved, the only reachable crew page
   // is My Certifications. While the check is in flight, show the full nav so
   // an already-cleared crew member never sees a flash of the locked state.
