@@ -186,6 +186,9 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
     setSaving(true);
     try {
       const { data: companyId } = await supabase.rpc("get_my_company_id");
+      const { data: { user: actor } } = await supabase.auth.getUser();
+      const actorId = actor?.id ?? null;
+      const enteringForSelf = actorId ? actorId === userId : isSelf;
       let photoPath = row?.photo_path ?? null;
       if (file) {
         const ext = file.name.split(".").pop() || "jpg";
@@ -205,9 +208,9 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
         photo_path: photoPath,
         issue_date: issue || null,
         expiration_date: exp,
-        status: "pending_review",
+        status: enteringForSelf ? "pending_review" : "approved",
         rejection_reason: null,
-        uploaded_by: userId,
+        uploaded_by: actorId,
       };
       // Always insert a new row so we keep history; the latest is shown.
       const { error } = await supabase.from("crew_certifications" as any).insert(payload);
