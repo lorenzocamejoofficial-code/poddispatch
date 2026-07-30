@@ -1794,6 +1794,8 @@ export type Database = {
           retention_policy_years: number
           session_timeout_minutes: number
           session_warning_enabled: boolean
+          tracking_curfew_enabled: boolean
+          tracking_curfew_time: string
           unload_time_minutes: number
           updated_at: string
           verified_caller_id: string | null
@@ -1811,6 +1813,8 @@ export type Database = {
           retention_policy_years?: number
           session_timeout_minutes?: number
           session_warning_enabled?: boolean
+          tracking_curfew_enabled?: boolean
+          tracking_curfew_time?: string
           unload_time_minutes?: number
           updated_at?: string
           verified_caller_id?: string | null
@@ -1828,6 +1832,8 @@ export type Database = {
           retention_policy_years?: number
           session_timeout_minutes?: number
           session_warning_enabled?: boolean
+          tracking_curfew_enabled?: boolean
+          tracking_curfew_time?: string
           unload_time_minutes?: number
           updated_at?: string
           verified_caller_id?: string | null
