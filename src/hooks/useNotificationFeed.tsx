@@ -80,9 +80,15 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
     const next: NotificationItem[] = [];
     const isAdmin = role === "owner" || role === "manager" || role === "creator";
     const isOwner = role === "owner" || role === "creator";
-    const isDispatcher = role === "dispatcher" || isAdmin;
-    const isBiller = role === "biller" || isAdmin;
+    // Crew workspace is strictly personal: no admin/dispatch/billing/owner sources,
+    // regardless of the signed-in user's actual role.
+    const isCrewMode = mode === "crew";
+    const isDispatcher = !isCrewMode && (role === "dispatcher" || isAdmin);
+    const isBiller = !isCrewMode && (role === "biller" || isAdmin);
     const isCrew = role === "crew";
+
+    // Notification types that belong to the crew workspace only.
+    const CREW_ONLY_TYPES = ["pcr_kickback", "schedule_change", "run_assigned", "cert_expiration"];
 
     const jobs: Promise<void>[] = [];
 
@@ -122,13 +128,20 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
           .gte("created_at", since)
           .order("created_at", { ascending: false })
           .limit(LIMIT_PER_SOURCE);
-        // Notifications are addressed to a profile_id via user_id. Owner sees all; others only theirs.
-        if (!isOwner) {
+        // Notifications are addressed to a profile_id via user_id.
+        // In the crew workspace everyone sees only their own; on the admin side owners see all.
+        if (isCrewMode || !isOwner) {
           q = q.eq("user_id", userId);
         }
         const { data } = await q;
         (data ?? []).forEach((r: any) => {
           const type = r.notification_type ?? "";
+          // Keep the two workspaces separate: crew-facing items never appear on the admin bell.
+          if (isCrewMode) {
+            // crew bell: everything addressed to this user is fine
+          } else if (CREW_ONLY_TYPES.includes(type)) {
+            return;
+          }
           const isAction = ["pcr_kickback", "claim_rejection", "schedule_change", "emergency"].includes(type);
           next.push({
             id: `notifications:${r.id}`,
@@ -278,7 +291,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
       }
 
       // Owner-only: overrides + subscription history
-      if (isOwner) {
+      if (isOwner && !isCrewMode) {
         jobs.push((async () => {
           const [{ data: so }, { data: bo }] = await Promise.all([
             supabase
