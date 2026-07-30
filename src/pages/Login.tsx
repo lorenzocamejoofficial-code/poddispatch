@@ -89,7 +89,7 @@ export default function Login() {
         if (tokenRedirect) {
           navigate(`/crew/${tokenRedirect}`, { replace: true });
         } else {
-          navigate(getRoleLanding(role, isSystemCreator), { replace: true });
+          navigate(getRoleLanding(role, isSystemCreator, mode === "crew"), { replace: true });
         }
       })();
       return;
@@ -101,8 +101,8 @@ export default function Login() {
       return;
     }
 
-    navigate(getRoleLanding(role, isSystemCreator), { replace: true });
-  }, [user, role, isSystemCreator, activeCompanyId, authLoading, membershipLoaded, navigate, tokenRedirect, signOut, mfaFactorId]);
+    navigate(getRoleLanding(role, isSystemCreator, mode === "crew"), { replace: true });
+  }, [user, role, isSystemCreator, activeCompanyId, authLoading, membershipLoaded, navigate, tokenRedirect, signOut, mfaFactorId, mode]);
 
   // The public /login page is not scoped to a tenant, so we always show
   // the platform brand. A previous unfiltered `company_settings` lookup
