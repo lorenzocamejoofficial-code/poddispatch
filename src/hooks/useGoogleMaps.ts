@@ -10,7 +10,17 @@ function loadGoogleMaps(): Promise<typeof google> {
 
   if (!loaderPromise) {
     loaderPromise = new Promise((resolve, reject) => {
-      const key = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
+      // The Lovable-managed key is referrer-locked to *.lovable.app /
+      // *.lovableproject.com; our own key is locked to thepoddispatch.com.
+      // Pick whichever matches the host we're actually running on.
+      const host = window.location.hostname;
+      const isLovableHost =
+        host.endsWith(".lovable.app") ||
+        host.endsWith(".lovableproject.com") ||
+        host === "localhost";
+      const ownKey = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY;
+      const managedKey = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
+      const key = isLovableHost ? managedKey || ownKey : ownKey || managedKey;
       const channel = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
       if (!key) {
         reject(new Error("Google Maps browser key is not configured"));
@@ -29,7 +39,9 @@ function loadGoogleMaps(): Promise<typeof google> {
 
       const script = document.createElement("script");
       script.id = scriptId;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async&callback=initPoddispatchMap&channel=${channel}`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async&callback=initPoddispatchMap${
+        channel ? `&channel=${channel}` : ""
+      }`;
       script.async = true;
       script.onerror = () => reject(new Error("Failed to load Google Maps script"));
       document.head.appendChild(script);
