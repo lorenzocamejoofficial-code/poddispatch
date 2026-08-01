@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useGoogleMaps } from "@/hooks/useGoogleMaps";
 import { useCrewLocations } from "@/hooks/useCrewLocations";
+import { useTruckTripStatus, type TruckTripStatus } from "@/hooks/useTruckTripStatus";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,17 @@ interface MapMarker {
   heading: number | null;
   trail: google.maps.LatLngLiteral[];
   stale: boolean;
+  truckId: string | null;
+  run: TruckTripStatus | null;
 }
+
+/** Same status vocabulary the Dispatch Board uses, mapped to map colors. */
+const STATUS_COLORS: Record<string, string> = {
+  gray: "#94A3B8",
+  amber: "#F59E0B",
+  blue: "#3B82F6",
+  green: "#22C55E",
+};
 
 /** A unit is "live" if it pinged within the last 5 minutes. */
 const LIVE_WINDOW_MS = 5 * 60_000;
@@ -32,6 +43,7 @@ export default function FleetMap() {
   const { activeCompanyId } = useAuth();
   const { ready, error: mapError, google } = useGoogleMaps();
   const { locations, loading, error: feedError, refresh } = useCrewLocations(activeCompanyId);
+  const { byTruck, refresh: refreshRuns } = useTruckTripStatus(activeCompanyId);
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
@@ -75,6 +87,8 @@ export default function FleetMap() {
       heading: latest.heading,
       trail: sorted.map((p) => ({ lat: p.latitude, lng: p.longitude })),
       stale: Date.now() - new Date(latest.recorded_at).getTime() > LIVE_WINDOW_MS,
+      truckId: latest.truck_id,
+      run: latest.truck_id ? byTruck[latest.truck_id] ?? null : null,
     });
   }
   // Live units first, then most recently seen.
@@ -111,7 +125,9 @@ export default function FleetMap() {
       let marker = existingMarkers.get(m.id);
       const icon: google.maps.Symbol = {
         path: google.maps.SymbolPath.CIRCLE,
-        fillColor: m.stale ? "#94A3B8" : "#3B82F6",
+        fillColor: m.stale
+          ? "#94A3B8"
+          : STATUS_COLORS[m.run?.color ?? "blue"] ?? "#3B82F6",
         fillOpacity: m.stale ? 0.65 : 1,
         strokeColor: "#ffffff",
         strokeWeight: 2,
@@ -135,6 +151,7 @@ export default function FleetMap() {
       } else {
         marker.setPosition({ lat: m.lat, lng: m.lng });
         marker.setIcon(icon);
+        marker.setTitle(m.run ? `${m.label} — ${m.run.label}` : m.label);
       }
 
       let trail = existingTrails.get(m.id);
@@ -143,7 +160,7 @@ export default function FleetMap() {
           map,
           path: m.trail,
           geodesic: true,
-          strokeColor: m.stale ? "#94A3B8" : "#3B82F6",
+          strokeColor: m.stale ? "#94A3B8" : STATUS_COLORS[m.run?.color ?? "blue"] ?? "#3B82F6",
           strokeOpacity: m.stale ? 0.35 : 0.6,
           strokeWeight: 2,
         });
@@ -151,7 +168,7 @@ export default function FleetMap() {
       } else {
         trail.setPath(m.trail);
         trail.setOptions({
-          strokeColor: m.stale ? "#94A3B8" : "#3B82F6",
+          strokeColor: m.stale ? "#94A3B8" : STATUS_COLORS[m.run?.color ?? "blue"] ?? "#3B82F6",
           strokeOpacity: m.stale ? 0.35 : 0.6,
         });
       }
@@ -191,12 +208,13 @@ export default function FleetMap() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Live Fleet Map</h1>
             <p className="text-sm text-muted-foreground">
-              Real-time crew and truck locations, updated every 30 seconds. Units stay on the map
+              Real-time crew and truck locations, colored by the same PCR run signals the
+              Dispatch Board reads, updated every 30 seconds. Units stay on the map
               for the rest of the service day at their last known position — greyed out — if a crew
               signs out or their device sleeps.
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => { refresh(); refreshRuns(); }} disabled={loading}>
             <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
             Refresh
           </Button>
@@ -252,8 +270,19 @@ export default function FleetMap() {
                           {m.stale ? "Last known" : "Live"}
                         </span>
                       </div>
+                      {m.run && (
+                        <div className="mt-1 text-xs font-medium" style={{ color: STATUS_COLORS[m.run.color] }}>
+                          {m.run.label}
+                          {m.run.lastSignalLabel && m.run.lastSignalAt && (
+                            <span className="font-normal text-muted-foreground">
+                              {" "}· {m.run.lastSignalLabel}{" "}
+                              {formatDistanceToNow(new Date(m.run.lastSignalAt), { addSuffix: true })}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <div className="mt-1 text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(m.recordedAt), { addSuffix: true })}
+                        Ping {formatDistanceToNow(new Date(m.recordedAt), { addSuffix: true })}
                       </div>
                       {m.speed !== null && m.speed !== undefined && (
                         <div className="text-xs text-muted-foreground">{Math.round(m.speed * 2.23694)} mph</div>
@@ -268,6 +297,25 @@ export default function FleetMap() {
               <Card className="p-3">
                 <h3 className="mb-2 text-sm font-semibold text-foreground">{selected.label}</h3>
                 <div className="space-y-1 text-sm">
+                  {selected.run && (
+                    <>
+                      <div className="font-medium" style={{ color: STATUS_COLORS[selected.run.color] }}>
+                        {selected.run.label}
+                      </div>
+                      {selected.run.patientName && (
+                        <div className="text-muted-foreground">Patient: {selected.run.patientName}</div>
+                      )}
+                      {selected.run.destination && (
+                        <div className="text-muted-foreground">To: {selected.run.destination}</div>
+                      )}
+                      {selected.run.lastSignalLabel && selected.run.lastSignalAt && (
+                        <div className="text-muted-foreground">
+                          Last PCR signal: {selected.run.lastSignalLabel} ·{" "}
+                          {formatDistanceToNow(new Date(selected.run.lastSignalAt), { addSuffix: true })}
+                        </div>
+                      )}
+                    </>
+                  )}
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Navigation className="h-4 w-4" />
                     {selected.lat.toFixed(5)}, {selected.lng.toFixed(5)}
