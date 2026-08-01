@@ -162,7 +162,7 @@ const CLAIM_COLUMNS: { status: ClaimStatus; label: string; icon: React.ReactNode
   { status: "needs_review", label: "Needs Review", icon: <ShieldAlert className="h-4 w-4" />, color: "border-amber-500/30 bg-amber-50 dark:bg-amber-950/20" },
 ];
 
-const PAYER_TYPES = ["default", "medicare", "medicaid", "facility", "cash"];
+const PAYER_TYPES = PAYER_KEYS;
 
 export default function BillingAndClaims() {
   const { activeCompanyId } = useAuth();
@@ -552,15 +552,16 @@ export default function BillingAndClaims() {
     const leg = t.leg as any;
     const isOneoff = !t.patient_id && leg?.is_oneoff;
     const rawPayerType = t.patient?.primary_payer ?? (isOneoff ? leg?.oneoff_primary_payer : null) ?? "default";
-    // Normalize payer_type to lowercase so rate lookup is consistent across all transport types.
-    // Charge master rows are stored lowercase; patient/oneoff payer values may be capitalized.
-    const payerType = String(rawPayerType).toLowerCase().trim();
+    // Normalize to the canonical payer vocabulary (medicare | medicaid | private |
+    // self_pay | default) so legacy "cash"/"facility" charts no longer fall through
+    // to the $0 default rate.
+    const payerType = normalizePayerKey(rawPayerType);
     const payerRules = payerRulesMap.get(payerType) ?? payerRulesMap.get(rawPayerType) ?? null;
     const authInfo = t.patient ? { auth_required: t.patient.auth_required, auth_expiration: t.patient.auth_expiration } : null;
     const gateResult = computeCleanTripStatus(t, payerRules, authInfo);
 
-    const rate = chargeMaster.find(r => String(r.payer_type).toLowerCase() === payerType)
-      ?? chargeMaster.find(r => String(r.payer_type).toLowerCase() === "default");
+    const rate = chargeMaster.find(r => normalizePayerKey(r.payer_type) === payerType)
+      ?? chargeMaster.find(r => normalizePayerKey(r.payer_type) === "default");
     const base = rate?.base_rate ?? 0;
     const miles = Number(t.loaded_miles ?? 0) * Number(rate?.mileage_rate ?? 0);
     const wait = Number(t.wait_time_minutes ?? 0) * Number(rate?.wait_rate_per_min ?? 0);
@@ -1204,7 +1205,7 @@ export default function BillingAndClaims() {
     const mileage = parseFloat(rateForm.mileage_rate) || 0;
     const valid = base > 0 && mileage > 0;
     const payload = {
-      payer_type: rateForm.payer_type,
+      payer_type: normalizePayerKey(rateForm.payer_type),
       base_rate: base,
       mileage_rate: mileage,
       wait_rate_per_min: parseFloat(rateForm.wait_rate_per_min) || 0,
