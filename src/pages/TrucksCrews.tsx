@@ -21,6 +21,8 @@ import { InspectionConfigPanel } from "@/components/inspection/InspectionConfigP
 import { TruckInspectionHistory } from "@/components/inspection/TruckInspectionHistory";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
+import type { CertLevel } from "@/lib/cert-levels";
+import { evaluateCrewComposition, deriveUnitCapability } from "@/lib/crew-composition";
 import type { Tables } from "@/integrations/supabase/types";
 
 type TruckRow = Tables<"trucks">;
@@ -30,6 +32,7 @@ interface ProfileOption {
   full_name: string;
   assignable: boolean;
   blockedReason?: string;
+  cert_level?: CertLevel | null;
 }
 
 interface CrewRecord {
@@ -42,6 +45,8 @@ interface CrewRecord {
   member2_name: string | null;
   member3_name: string | null;
   active_date: string;
+  driver_member_id?: string | null;
+  crew_override_reason?: string | null;
 }
 
 interface AvailabilityRecord {
@@ -89,8 +94,8 @@ interface TruckDayCellProps {
   crew: CrewRecord | undefined;
   downRecord: AvailabilityRecord | undefined;
   profiles: ProfileOption[];
-  onAssign: (truckId: string, date: string, m1: string, m2: string, m3: string) => Promise<void>;
-  onEdit: (crewId: string, m1: string, m2: string, m3: string) => Promise<void>;
+  onAssign: (truckId: string, date: string, m1: string, m2: string, m3: string, driverId: string | null, overrideReason: string | null) => Promise<void>;
+  onEdit: (crewId: string, m1: string, m2: string, m3: string, driverId: string | null, overrideReason: string | null) => Promise<void>;
   onClear: (crewId: string) => Promise<void>;
   onMarkDown: (truckId: string) => void;
   onRemoveDown: (availId: string) => Promise<void>;
@@ -104,24 +109,49 @@ function TruckDayCell({
   const [m1, setM1] = useState(crew?.member1_id ?? "");
   const [m2, setM2] = useState(crew?.member2_id ?? "");
   const [m3, setM3] = useState(crew?.member3_id ?? "");
+  const [driverId, setDriverId] = useState(crew?.driver_member_id ?? "");
+  const [overrideText, setOverrideText] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setM1(crew?.member1_id ?? "");
     setM2(crew?.member2_id ?? "");
     setM3(crew?.member3_id ?? "");
+    setDriverId(crew?.driver_member_id ?? "");
+    setOverrideText("");
+    setOverrideReason("");
   }, [crew]);
 
   const isDown = !!downRecord;
 
+  const selectedMembers = [m1, m2, m3]
+    .filter((id) => id && id !== "none")
+    .map((id) => profiles.find((p) => p.id === id))
+    .filter((p): p is ProfileOption => !!p)
+    .map((p) => ({ id: p.id, full_name: p.full_name, cert_level: p.cert_level ?? null }));
+  const composition = evaluateCrewComposition(selectedMembers, driverId && driverId !== "none" ? driverId : null);
+  const unitCapability = deriveUnitCapability(
+    composition.crewCapability,
+    ((truck as any).service_level ?? "BLS") as "BLS" | "ALS",
+  );
+  const overrideOk = overrideText.trim().toUpperCase() === "OVERRIDE" && overrideReason.trim().length >= 5;
+  const canSave = composition.valid || overrideOk;
+
   const handleSave = async () => {
+    if (!canSave) {
+      toast.error("This crew doesn't meet the minimum-staffing rule. Fix it or type OVERRIDE with a reason.");
+      return;
+    }
     setSaving(true);
     try {
+      const drv = driverId && driverId !== "none" ? driverId : null;
+      const ovr = composition.valid ? null : overrideReason.trim();
       if (crew) {
-        await onEdit(crew.id, m1, m2, m3);
+        await onEdit(crew.id, m1, m2, m3, drv, ovr);
       } else {
         if (!m1 && !m2 && !m3) { toast.error("Select at least one crew member"); return; }
-        await onAssign(truck.id, date, m1, m2, m3);
+        await onAssign(truck.id, date, m1, m2, m3, drv, ovr);
       }
       setEditing(false);
     } finally {
@@ -159,7 +189,7 @@ function TruckDayCell({
             <SelectItem value="none">— None —</SelectItem>
             {profiles.map((p) => (
               <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
-                {p.full_name}{!p.assignable ? " 🚫" : ""}
+                {p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}{!p.assignable ? " 🚫" : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -170,7 +200,7 @@ function TruckDayCell({
             <SelectItem value="none">— None —</SelectItem>
             {profiles.map((p) => (
               <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
-                {p.full_name}{!p.assignable ? " 🚫" : ""}
+                {p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}{!p.assignable ? " 🚫" : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -181,19 +211,61 @@ function TruckDayCell({
             <SelectItem value="none">— None —</SelectItem>
             {profiles.map((p) => (
               <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
-                {p.full_name}{!p.assignable ? " 🚫" : ""}
+                {p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}{!p.assignable ? " 🚫" : ""}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <Select value={driverId} onValueChange={setDriverId}>
+          <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="Driver" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">— Driver not set —</SelectItem>
+            {selectedMembers.map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                Driver: {m.full_name}{m.cert_level ? ` · ${m.cert_level}` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {composition.notes.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {composition.notes.map((n) => (
+              <span key={n} className="text-[9px] rounded-full border border-[hsl(var(--status-yellow))] text-[hsl(var(--status-yellow))] px-1.5 py-0">{n}</span>
+            ))}
+          </div>
+        )}
+        {!composition.valid && selectedMembers.length > 0 && (
+          <div className="rounded border border-destructive bg-destructive/10 p-1.5 space-y-1">
+            {composition.errors.map((e) => (
+              <p key={e} className="text-[9px] text-destructive leading-tight font-medium">{e}</p>
+            ))}
+            <Input
+              value={overrideText}
+              onChange={(ev) => setOverrideText(ev.target.value)}
+              placeholder="Type OVERRIDE"
+              className="h-6 text-[10px]"
+            />
+            <Input
+              value={overrideReason}
+              onChange={(ev) => setOverrideReason(ev.target.value)}
+              placeholder="Reason (required)"
+              className="h-6 text-[10px]"
+            />
+          </div>
+        )}
+        {composition.valid && (
+          <p className="text-[9px] text-muted-foreground leading-tight">
+            Unit capability: <strong>{unitCapability}</strong> (crew {composition.crewCapability} · truck {((truck as any).service_level ?? "BLS")})
+          </p>
+        )}
         <p className="text-[9px] text-muted-foreground leading-tight">
           🚫 = missing/expired certification — approve on Employees → Certifications.
         </p>
         <div className="flex gap-1 pt-0.5">
-          <Button size="sm" className="h-6 text-[10px] flex-1" onClick={handleSave} disabled={saving}>
+          <Button size="sm" className="h-6 text-[10px] flex-1" onClick={handleSave} disabled={saving || !canSave}>
             <Check className="h-3 w-3 mr-0.5" /> Save
           </Button>
-          <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { setEditing(false); setM1(crew?.member1_id ?? ""); setM2(crew?.member2_id ?? ""); setM3(crew?.member3_id ?? ""); }}>
+          <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { setEditing(false); setM1(crew?.member1_id ?? ""); setM2(crew?.member2_id ?? ""); setM3(crew?.member3_id ?? ""); setDriverId(crew?.driver_member_id ?? ""); setOverrideText(""); setOverrideReason(""); }}>
             <X className="h-3 w-3" />
           </Button>
         </div>
@@ -202,20 +274,31 @@ function TruckDayCell({
   }
 
   if (crew) {
+    const roleFor = (id: string | null) =>
+      id && crew.driver_member_id === id ? "Driver" : id ? "Attendant" : null;
     return (
       <div className="rounded border bg-card p-2 group relative">
+        <div className="flex items-center gap-1 mb-1">
+          <Badge variant="outline" className="text-[9px] px-1 py-0">{unitCapability === "NONE" ? "NO ATTENDANT" : unitCapability}</Badge>
+          {crew.crew_override_reason && (
+            <Badge variant="destructive" className="text-[9px] px-1 py-0" title={crew.crew_override_reason}>OVERRIDE</Badge>
+          )}
+        </div>
         <div className="flex items-center gap-1 text-[11px]">
           <Users className="h-3 w-3 text-muted-foreground shrink-0" />
           <span className="truncate text-card-foreground">{crew.member1_name ?? "—"}</span>
+          {roleFor(crew.member1_id) && <span className="text-[9px] text-muted-foreground shrink-0">{roleFor(crew.member1_id)}</span>}
         </div>
         <div className="flex items-center gap-1 text-[11px] mt-0.5">
           <span className="w-3 shrink-0" />
           <span className="truncate text-muted-foreground">{crew.member2_name ?? "—"}</span>
+          {roleFor(crew.member2_id) && <span className="text-[9px] text-muted-foreground shrink-0">{roleFor(crew.member2_id)}</span>}
         </div>
         {crew.member3_name && (
           <div className="flex items-center gap-1 text-[11px] mt-0.5">
             <span className="w-3 shrink-0" />
             <span className="truncate text-muted-foreground">{crew.member3_name}</span>
+            {roleFor(crew.member3_id) && <span className="text-[9px] text-muted-foreground shrink-0">{roleFor(crew.member3_id)}</span>}
           </div>
         )}
         <div className="mt-1.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -305,7 +388,7 @@ export default function TrucksCrews() {
 
     const [{ data: t }, { data: p }, { data: c }, { data: av }] = await Promise.all([
       supabase.from("trucks").select("*").eq("company_id", companyId).order("name"),
-      supabase.from("profiles").select("id, full_name, user_id").eq("active", true).eq("company_id", companyId).order("full_name"),
+      supabase.from("profiles").select("id, full_name, user_id, cert_level").eq("active", true).eq("company_id", companyId).order("full_name"),
       supabase.from("crews")
         .select("*, member1:profiles!crews_member1_id_fkey(full_name, id), member2:profiles!crews_member2_id_fkey(full_name, id), member3:profiles!crews_member3_id_fkey(full_name, id)")
         .eq("company_id", companyId)
@@ -318,7 +401,7 @@ export default function TrucksCrews() {
     ]);
 
     // Compute crew certification eligibility for each profile
-    const profileRows = (p ?? []) as Array<{ id: string; full_name: string; user_id: string | null }>;
+    const profileRows = (p ?? []) as Array<{ id: string; full_name: string; user_id: string | null; cert_level?: CertLevel | null }>;
     const userIds = profileRows.map((r) => r.user_id).filter((x): x is string => !!x);
     const today = new Date().toISOString().split("T")[0];
     const certsByUser = new Map<string, Set<string>>();
@@ -345,6 +428,7 @@ export default function TrucksCrews() {
       return {
         id: r.id,
         full_name: r.full_name,
+        cert_level: (r.cert_level ?? null) as CertLevel | null,
         assignable: missing.length === 0,
         blockedReason: missing.length === 0
           ? undefined
@@ -364,6 +448,8 @@ export default function TrucksCrews() {
       member2_name: cr.member2?.full_name ?? null,
       member3_name: cr.member3?.full_name ?? null,
       active_date: cr.active_date,
+      driver_member_id: cr.driver_member_id ?? null,
+      crew_override_reason: cr.crew_override_reason ?? null,
     })));
     setAvailability((av ?? []) as unknown as AvailabilityRecord[]);
   }, [weekDates[0]]);
@@ -503,7 +589,10 @@ export default function TrucksCrews() {
   };
 
   // Crew CRUD
-  const assignCrew = async (truckId: string, date: string, m1: string, m2: string, m3: string) => {
+  const assignCrew = async (
+    truckId: string, date: string, m1: string, m2: string, m3: string,
+    driverId: string | null, overrideReason: string | null,
+  ) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
     const m3Val = m3 === "none" || !m3 ? null : m3;
@@ -528,10 +617,20 @@ export default function TrucksCrews() {
       fetchAll();
       return;
     }
-    toast.success("Crew assigned"); fetchAll();
+    const { data: authUser } = await supabase.auth.getUser();
+    await supabase.from("crews").update({
+      driver_member_id: driverId,
+      crew_override_reason: overrideReason,
+      crew_override_by: overrideReason ? authUser?.user?.id ?? null : null,
+      crew_override_at: overrideReason ? new Date().toISOString() : null,
+    } as any).eq("truck_id", truckId).eq("active_date", date);
+    toast.success(overrideReason ? "Crew assigned with override" : "Crew assigned"); fetchAll();
   };
 
-  const editCrew = async (crewId: string, m1: string, m2: string, m3: string) => {
+  const editCrew = async (
+    crewId: string, m1: string, m2: string, m3: string,
+    driverId: string | null, overrideReason: string | null,
+  ) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
     const m3Val = m3 === "none" || !m3 ? null : m3;
@@ -561,13 +660,18 @@ export default function TrucksCrews() {
       }
     }
 
+    const { data: authUser } = await supabase.auth.getUser();
     const { error } = await supabase.from("crews").update({
       member1_id: m1Val,
       member2_id: m2Val,
       member3_id: m3Val,
+      driver_member_id: driverId,
+      crew_override_reason: overrideReason,
+      crew_override_by: overrideReason ? authUser?.user?.id ?? null : null,
+      crew_override_at: overrideReason ? new Date().toISOString() : null,
     } as any).eq("id", crewId);
     if (error) { toast.error("Failed to update crew"); return; }
-    toast.success("Crew updated"); fetchAll();
+    toast.success(overrideReason ? "Crew updated with override" : "Crew updated"); fetchAll();
   };
 
   const clearCrew = async (crewId: string) => {

@@ -12,6 +12,7 @@
 import { parseAddressString, timelyFilingDays, type ClaimForEDI } from "./edi-837p-generator";
 import type { PayerResolution } from "./payer-directory-lookup";
 import { locationTypeCode } from "./ambulance-modifier";
+import { evaluatePcsConsistency } from "./pcs-consistency";
 
 export type ReadinessStage = "scheduling" | "pcr" | "biller" | "export";
 export type ReadinessSeverity = "block" | "warn";
@@ -60,6 +61,9 @@ export interface ReadinessInputs {
     hospice_enrolled?: boolean | null;
     hospice_election_date?: string | null;
     terminal_illness_icd?: string | null;
+    /** patients.mobility — what the PCS / chart says the patient requires. */
+    mobility?: string | null;
+    default_bed_confined?: boolean | null;
   } | null;
   /** Optional transport / scheduling context for biller-stage checks.
    *  destination_facility_type is the resolved facilities.facility_type
@@ -68,6 +72,10 @@ export interface ReadinessInputs {
     destination_facility_type?: string | null;
     standing_order?: boolean | null;
     recurrence_days?: number[] | null;
+    /** trip_records.patient_mobility (or the one-off leg mobility). */
+    patient_mobility?: string | null;
+    stretcher_required?: boolean | null;
+    bed_confined?: boolean | null;
   } | null;
 }
 
@@ -469,6 +477,30 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
         message:
           "Z51.5 (palliative care) alone doesn't support medical necessity — add the terminal-illness diagnosis.",
         fixPath: claim.trip_id ? `/pcr?tripId=${claim.trip_id}&mode=qa-fix&focus=icd10` : undefined,
+        fixLabel: claim.trip_id ? "Fix in PCR" : undefined,
+      });
+    }
+  }
+
+  // Rule 6 — PCS-vs-condition mismatch. Presence isn't truth: if the chart /
+  // PCS says wheelchair but the run documents stretcher (or bed-confinement
+  // disagrees), the claim can't go out.
+  {
+    const mismatches = evaluatePcsConsistency({
+      chartMobility: inputs.patient?.mobility,
+      chartBedConfined: inputs.patient?.default_bed_confined,
+      documentedMobility: inputs.transport?.patient_mobility,
+      stretcherRequired: inputs.transport?.stretcher_required,
+      stretcherPlacement: claim.stretcher_placement,
+      bedConfined: inputs.transport?.bed_confined,
+    });
+    for (const m of mismatches) {
+      issues.push({
+        field: m.code,
+        severity: "block",
+        stage: "biller",
+        message: m.message,
+        fixPath: claim.trip_id ? `/pcr?tripId=${claim.trip_id}&mode=qa-fix&focus=mobility` : undefined,
         fixLabel: claim.trip_id ? "Fix in PCR" : undefined,
       });
     }

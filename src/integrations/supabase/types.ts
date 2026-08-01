@@ -2340,6 +2340,10 @@ export type Database = {
           active_date: string
           company_id: string
           created_at: string
+          crew_override_at: string | null
+          crew_override_by: string | null
+          crew_override_reason: string | null
+          driver_member_id: string | null
           id: string
           is_simulated: boolean
           member1_id: string | null
@@ -2352,6 +2356,10 @@ export type Database = {
           active_date?: string
           company_id: string
           created_at?: string
+          crew_override_at?: string | null
+          crew_override_by?: string | null
+          crew_override_reason?: string | null
+          driver_member_id?: string | null
           id?: string
           is_simulated?: boolean
           member1_id?: string | null
@@ -2364,6 +2372,10 @@ export type Database = {
           active_date?: string
           company_id?: string
           created_at?: string
+          crew_override_at?: string | null
+          crew_override_by?: string | null
+          crew_override_reason?: string | null
+          driver_member_id?: string | null
           id?: string
           is_simulated?: boolean
           member1_id?: string | null
@@ -2378,6 +2390,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crews_driver_member_id_fkey"
+            columns: ["driver_member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
