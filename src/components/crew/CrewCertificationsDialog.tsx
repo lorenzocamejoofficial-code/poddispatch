@@ -151,6 +151,7 @@ export function CrewCertificationsPanel({ userId, adminMode }: { userId: string;
             userId={userId}
             isSelf={isSelf}
             adminMode={!!adminMode}
+            displayName={displayName}
             onChanged={load}
           />
         );
@@ -185,10 +186,11 @@ interface CardProps {
   userId: string;
   isSelf: boolean;
   adminMode: boolean;
+  displayName?: string;
   onChanged: () => void;
 }
 
-function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }: CardProps) {
+function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName, onChanged }: CardProps) {
   const [editing, setEditing] = useState(false);
   const [number, setNumber] = useState(row?.cert_number ?? "");
   const [level, setLevel] = useState<CertLevel>(row?.cert_level ?? "EMT-B");
@@ -306,7 +308,7 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
             .in("role", ["owner", "manager", "dispatcher", "creator"]);
           const targets = (reviewers ?? []).map((r: any) => r.user_id).filter(Boolean);
           if (targets.length > 0) {
-            const who = "A crew member";
+            const who = displayName?.trim() || "A crew member";
             const label = type === "medic_number" ? "Medic / EMT #" : type === "cpr" ? "CPR card" : "Driver's license";
             await supabase.from("notifications").insert(
               targets.map((uid: string) => ({
