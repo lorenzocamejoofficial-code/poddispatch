@@ -50,6 +50,9 @@ export default function FleetMap() {
   const trailsRef = useRef<Map<string, google.maps.Polyline>>(new Map());
   const [selected, setSelected] = useState<MapMarker | null>(null);
   const [address, setAddress] = useState<string | null>(null);
+  const [addressState, setAddressState] = useState<"idle" | "loading" | "done" | "failed">("idle");
+  const geocodeCacheRef = useRef<Map<string, string>>(new Map());
+  const geocoderRef = useRef<google.maps.Geocoder | null>(null);
   // Re-render periodically so "last seen" and stale styling stay accurate
   // even when no new pings arrive.
   const [, setTick] = useState(0);
@@ -114,28 +117,51 @@ export default function FleetMap() {
   }, [ready, google]);
 
   // Reverse-geocode the selected unit's position into a street address.
+  // Keyed on rounded coordinates + cached, so re-renders and 30s refreshes
+  // don't restart the lookup and leave the card stuck on "Locating…".
+  const geoKey = selected ? `${selected.lat.toFixed(4)},${selected.lng.toFixed(4)}` : null;
   useEffect(() => {
-    if (!google || !selected) {
+    if (!google || !geoKey || !selected) {
       setAddress(null);
+      setAddressState("idle");
+      return;
+    }
+    const cached = geocodeCacheRef.current.get(geoKey);
+    if (cached) {
+      setAddress(cached);
+      setAddressState("done");
       return;
     }
     let cancelled = false;
     setAddress(null);
+    setAddressState("loading");
+    const timeout = setTimeout(() => {
+      if (!cancelled) setAddressState((s) => (s === "loading" ? "failed" : s));
+    }, 8000);
     try {
-      const geocoder = new google.maps.Geocoder();
+      if (!geocoderRef.current) geocoderRef.current = new google.maps.Geocoder();
+      const geocoder = geocoderRef.current;
       geocoder.geocode({ location: { lat: selected.lat, lng: selected.lng } }, (results, status) => {
         if (cancelled) return;
         if (status === "OK" && results && results[0]) {
+          geocodeCacheRef.current.set(geoKey, results[0].formatted_address);
           setAddress(results[0].formatted_address);
+          setAddressState("done");
+        } else {
+          console.warn("Reverse geocode failed:", status);
+          setAddressState("failed");
         }
       });
     } catch {
-      // Geocoding unavailable for this key — the card simply omits the address.
+      // Geocoding unavailable for this key — fall back to coordinates.
+      setAddressState("failed");
     }
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
     };
-  }, [google, selected?.lat, selected?.lng, selected]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [google, geoKey]);
 
   // Update markers and trails
   useEffect(() => {
@@ -333,7 +359,12 @@ export default function FleetMap() {
                   )}
                   <div className="flex items-start gap-2 text-muted-foreground">
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{address ?? "Locating address…"}</span>
+                    <span>
+                      {address ??
+                        (addressState === "failed"
+                          ? "Address unavailable for this location"
+                          : "Locating address…")}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Navigation className="h-4 w-4" />
