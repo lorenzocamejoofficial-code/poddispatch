@@ -32,6 +32,9 @@ export interface PcsMismatch {
 export function classifyMobility(value?: string | null): MobilityClass {
   const v = String(value ?? "").trim().toLowerCase();
   if (!v) return "unknown";
+  // Negations first — "Unable to Ambulate" / "non-ambulatory" must never be
+  // read as ambulatory just because the word "ambulat" appears.
+  if (/(unable|non|not|cannot|can't)[ -]*(to )?ambulat/.test(v)) return "unknown";
   if (v.includes("stretcher") || v.includes("gurney") || v.includes("cot") || v.includes("bed confined") || v.includes("bed-confined")) return "stretcher";
   if (v.includes("wheelchair") || v.includes("w/c") || v.includes("chair")) return "wheelchair";
   if (v.includes("ambulat") || v.includes("walks") || v.includes("independent")) return "ambulatory";
