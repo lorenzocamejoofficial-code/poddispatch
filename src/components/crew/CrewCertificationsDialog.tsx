@@ -13,7 +13,7 @@ import { Upload, Check, X, ShieldCheck, AlertTriangle } from "lucide-react";
 
 type CertType = "medic_number" | "cpr" | "drivers_license";
 type CertStatus = "pending_review" | "approved" | "rejected" | "expired";
-type CertLevel = "EMR" | "EMT_B" | "EMT_A" | "PARAMEDIC";
+import { CERT_LEVELS, type CertLevel } from "@/lib/cert-levels";
 
 interface CertRow {
   id: string;
@@ -191,7 +191,7 @@ interface CardProps {
 function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }: CardProps) {
   const [editing, setEditing] = useState(false);
   const [number, setNumber] = useState(row?.cert_number ?? "");
-  const [level, setLevel] = useState<CertLevel>(row?.cert_level ?? "EMT_B");
+  const [level, setLevel] = useState<CertLevel>(row?.cert_level ?? "EMT-B");
   const [issue, setIssue] = useState(row?.issue_date ?? "");
   const [exp, setExp] = useState(row?.expiration_date ?? "");
   const [file, setFile] = useState<File | null>(null);
@@ -203,7 +203,7 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
 
   useEffect(() => {
     setNumber(row?.cert_number ?? "");
-    setLevel(row?.cert_level ?? "EMT_B");
+    setLevel(row?.cert_level ?? "EMT-B");
     setIssue(row?.issue_date ?? "");
     setExp(row?.expiration_date ?? "");
   }, [row?.id]);
@@ -404,10 +404,9 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
               <Select value={level} onValueChange={(v) => setLevel(v as CertLevel)}>
                 <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="EMR">EMR</SelectItem>
-                  <SelectItem value="EMT_B">EMT-B</SelectItem>
-                  <SelectItem value="EMT_A">EMT-A</SelectItem>
-                  <SelectItem value="PARAMEDIC">Paramedic</SelectItem>
+                  {CERT_LEVELS.map((lvl) => (
+                    <SelectItem key={lvl} value={lvl}>{lvl}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

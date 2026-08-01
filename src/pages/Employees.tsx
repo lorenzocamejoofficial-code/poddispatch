@@ -17,6 +17,7 @@ import { CrewCertificationsDialog } from "@/components/crew/CrewCertificationsDi
 import { toast } from "sonner";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { normalizePhone } from "@/lib/phone";
+import { CERT_LEVELS } from "@/lib/cert-levels";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -650,11 +651,9 @@ export default function Employees() {
                       <Select value={form.cert_level} onValueChange={(v) => setForm({ ...form, cert_level: v })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="EMT-B">EMT-B</SelectItem>
-                          <SelectItem value="EMT-A">EMT-A</SelectItem>
-                          <SelectItem value="EMT-P">EMT-P</SelectItem>
-                          <SelectItem value="AEMT">AEMT</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
+                          {CERT_LEVELS.map((lvl) => (
+                            <SelectItem key={lvl} value={lvl}>{lvl}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -879,11 +878,9 @@ export default function Employees() {
                   <Select value={editForm.cert_level} onValueChange={(v) => setEditForm({ ...editForm, cert_level: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="EMT-B">EMT-B</SelectItem>
-                      <SelectItem value="EMT-A">EMT-A</SelectItem>
-                      <SelectItem value="EMT-P">EMT-P</SelectItem>
-                      <SelectItem value="AEMT">AEMT</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
+                      {CERT_LEVELS.map((lvl) => (
+                        <SelectItem key={lvl} value={lvl}>{lvl}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

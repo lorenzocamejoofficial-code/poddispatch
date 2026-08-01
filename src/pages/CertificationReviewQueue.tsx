@@ -282,7 +282,7 @@ export default function CertificationReviewQueue() {
               <div className="text-xs">
                 {r.cert_number || <span className="text-muted-foreground">—</span>}
                 {r.cert_level && (
-                  <span className="ml-1 text-muted-foreground">({r.cert_level.replace("_", "-")})</span>
+                  <span className="ml-1 text-muted-foreground">({r.cert_level})</span>
                 )}
               </div>
               <div className="text-xs">{r.issue_date || <span className="text-muted-foreground">—</span>}</div>

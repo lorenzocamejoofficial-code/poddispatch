@@ -182,7 +182,7 @@ export function generateEmployees(): SandboxEmployee[] {
     { id: "e-4", fullName: "Morgan Mock", certLevel: "EMT-B", phone: "(555) 300-0004", active: true },
     { id: "e-5", fullName: "Riley Tester", certLevel: "EMT-P", phone: "(555) 300-0005", active: true },
     { id: "e-6", fullName: "Taylor Demo", certLevel: "EMT-B", phone: "(555) 300-0006", active: true },
-    { id: "e-7", fullName: "Sam Fake", certLevel: "AEMT", phone: "(555) 300-0007", active: true },
+    { id: "e-7", fullName: "Sam Fake", certLevel: "EMT-A", phone: "(555) 300-0007", active: true },
     { id: "e-8", fullName: "Pat Synthetic", certLevel: "EMT-B", phone: "(555) 300-0008", active: true },
     { id: "e-9", fullName: "Drew Mockson", certLevel: "EMT-B", phone: "(555) 300-0009", active: false },
   ];
