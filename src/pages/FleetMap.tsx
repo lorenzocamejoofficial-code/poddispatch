@@ -187,16 +187,6 @@ export default function FleetMap() {
         existingTrails.delete(key);
       }
     }
-
-    // Fit bounds if we have markers and this is the first batch
-    if (markers.length > 0) {
-      const center = map.getCenter();
-      if (center && center.lat() === 33.749 && center.lng() === -84.388) {
-        const bounds = new google.maps.LatLngBounds();
-        for (const m of markers) bounds.extend({ lat: m.lat, lng: m.lng });
-        map.fitBounds(bounds, 60);
-      }
-    }
   }, [google, markers]);
 
   const error = mapError || feedError;
