@@ -59,6 +59,7 @@ Before claiming "done" on anything with buttons or edge functions: click-test in
 - [Crew Management and Workspace](mem://features/crew-management-and-workspace) — PWA workspace with pulsing notification badges
 - [Emergency Upgrade Finalized](mem://features/emergency-upgrade-finalized) — 120s accidental trigger window before escalating to emergency
 - [Automated Verification and Metrics](mem://creator/automated-verification-and-metrics) — Edge functions for automated NPI/OIG compliance checks
+- [Payer Vocabulary](mem://billing/payer-vocabulary) — Canonical payer keys (medicare/medicaid/private/self_pay/default); self-pay never billed to insurance
 - [Charge Master Navigation](mem://billing/charge-master-navigation) — Configurable base/mileage rates across 5 standard payer types
 - [EDI Export Access](mem://billing/edi-export-access) — Hidden route /edi-export for 837P file generation
 - [Onboarding Wizard v2](mem://features/onboarding-wizard-v2) — 6-step setup saving progress via migration_settings

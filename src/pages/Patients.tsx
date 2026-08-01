@@ -1,3 +1,4 @@
+import { PATIENT_PAYER_KEYS, PAYER_LABELS, normalizePayerKey } from "@/lib/payer-vocabulary";
 import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
@@ -499,7 +500,7 @@ export default function Patients() {
       // Fix 4: payer is stored canonically lowercase. Dropdown values are
       // already lowercase (medicare/medicaid/facility/cash) but we normalize
       // defensively in case a value originated from CSV import or migration.
-      primary_payer: form.primary_payer ? form.primary_payer.toLowerCase().trim() : null,
+      primary_payer: form.primary_payer ? normalizePayerKey(form.primary_payer) : null,
       secondary_payer: form.secondary_payer ? form.secondary_payer.toLowerCase().trim() : null,
       member_id: form.member_id || null,
       secondary_member_id: form.secondary_member_id || null,
@@ -1384,10 +1385,9 @@ export default function Patients() {
                           <SelectTrigger className={ringIfMissing("primary_payer")}><SelectValue placeholder="Select payer" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">— None —</SelectItem>
-                            <SelectItem value="medicare">Medicare</SelectItem>
-                            <SelectItem value="medicaid">Medicaid</SelectItem>
-                            <SelectItem value="facility">Facility</SelectItem>
-                            <SelectItem value="cash">Cash / Private</SelectItem>
+                            {PATIENT_PAYER_KEYS.map(p => (
+                              <SelectItem key={p} value={p}>{PAYER_LABELS[p]}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
