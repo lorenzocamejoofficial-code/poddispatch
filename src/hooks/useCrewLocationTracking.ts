@@ -25,7 +25,7 @@ function parseTimeToMinutes(value: string | null | undefined): number | null {
  * Only runs when the signed-in user is assigned to a truck crew for TODAY,
  * and only before the company's nightly tracking curfew (if enabled).
  */
-export function useCrewLocationTracking(enabled: boolean) {
+export function useCrewLocationTracking(enabled: boolean, profileId: string | null) {
   const lastUploadRef = useRef<number>(0);
   const [trackable, setTrackable] = useState(false);
   const [permission, setPermission] = useState<"unknown" | "granted" | "denied" | "prompt" | "unsupported">("unknown");
@@ -69,27 +69,19 @@ export function useCrewLocationTracking(enabled: boolean) {
 
   // Determine eligibility: scheduled today + within curfew window
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !profileId) {
       setTrackable(false);
       return;
     }
     let cancelled = false;
 
     const check = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        if (!cancelled) setTrackable(false);
-        return;
-      }
-
       const today = localDateString();
       const { data: crewRows } = await supabase
         .from("crews")
         .select("id")
         .eq("active_date", today)
-        .or(`member1_id.eq.${user.id},member2_id.eq.${user.id},member3_id.eq.${user.id}`)
+         .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
         .limit(1);
 
       const onScheduledTruck = !!crewRows && crewRows.length > 0;
@@ -117,7 +109,7 @@ export function useCrewLocationTracking(enabled: boolean) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [enabled]);
+  }, [enabled, profileId]);
 
   useEffect(() => {
     if (!enabled || !trackable) return;
