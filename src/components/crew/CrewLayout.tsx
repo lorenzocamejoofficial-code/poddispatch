@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, LogOut, Menu, X, Truck, Users, CalendarDays, ClipboardCheck, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, FileText, LogOut, Menu, X, Truck, Users, CalendarDays, ClipboardCheck, ShieldCheck, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCompanyName } from "@/hooks/useCompanyName";
@@ -33,7 +33,8 @@ export function CrewLayout({ children }: { children: ReactNode }) {
   const badges = useCrewBadges(profileId);
   const { eligible, loading: eligibilityLoading } = useCrewViewEligibility(user?.id ?? null);
   // Track location whenever a cleared crew member is in the crew workspace.
-  useCrewLocationTracking(eligible);
+  const { trackable, permission, requestPermission } = useCrewLocationTracking(eligible);
+  const showLocationPrompt = eligible && trackable && (permission === "prompt" || permission === "denied");
   // Until all three certifications are approved, the only reachable crew page
   // is My Certifications. While the check is in flight, show the full nav so
   // an already-cleared crew member never sees a flash of the locked state.
@@ -138,6 +139,23 @@ export function CrewLayout({ children }: { children: ReactNode }) {
           <HelpIconButton onClick={() => setHelpOpen((p) => !p)} />
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>
+        {showLocationPrompt && (
+          <div className="border-t bg-muted/60 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <MapPin className="h-4 w-4 text-primary shrink-0" />
+              <p className="flex-1 min-w-[12rem] text-xs text-muted-foreground">
+                {permission === "denied"
+                  ? "Location is blocked for this site, so dispatch can't see your unit on the fleet map. Enable location in your browser settings, then reload."
+                  : "Share your location so dispatch can see your unit on the live fleet map while you're on shift."}
+              </p>
+              {permission !== "denied" && (
+                <Button size="sm" onClick={requestPermission}>
+                  Enable location
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
         <ContextualHelpPanel routeKey={location.pathname} open={helpOpen} onOpenChange={setHelpOpen} />
         {/* Anyone in the crew workspace gets the crew tours, whatever their admin role is. */}
         <PageTour roleOverride="crew" />
