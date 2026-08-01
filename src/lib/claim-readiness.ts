@@ -482,10 +482,32 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     }
   }
 
+  // Rule 6 — PCS-vs-condition mismatch. Presence isn't truth: if the chart /
+  // PCS says wheelchair but the run documents stretcher (or bed-confinement
+  // disagrees), the claim can't go out.
+  {
+    const mismatches = evaluatePcsConsistency({
+      chartMobility: inputs.patient?.mobility,
+      chartBedConfined: inputs.patient?.default_bed_confined,
+      documentedMobility: inputs.transport?.patient_mobility,
+      stretcherRequired: inputs.transport?.stretcher_required,
+      stretcherPlacement: claim.stretcher_placement,
+      bedConfined: inputs.transport?.bed_confined,
+    });
+    for (const m of mismatches) {
+      issues.push({
+        field: m.code,
+        severity: "block",
+        stage: "biller",
+        message: m.message,
+        fixPath: claim.trip_id ? `/pcr?tripId=${claim.trip_id}&mode=qa-fix&focus=mobility` : undefined,
+        fixLabel: claim.trip_id ? "Fix in PCR" : undefined,
+      });
+    }
+  }
+
   return issues;
 }
-
-// (appended below: Rule 6 lives inside evaluateClaimReadiness)
 
 /** Convert structured issues back to flat strings for callers that haven't
  *  migrated yet (preserves existing validateClaimForEDI return-shape). */
