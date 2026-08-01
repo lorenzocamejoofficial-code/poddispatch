@@ -2059,7 +2059,7 @@ export default function BillingAndClaims() {
               <Select value={rateForm.payer_type} onValueChange={v => setRateForm({ ...rateForm, payer_type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {PAYER_TYPES.map(p => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}
+                  {PAYER_TYPES.map(p => <SelectItem key={p} value={p}>{payerLabel(p)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
