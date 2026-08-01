@@ -27,6 +27,7 @@ function parseTimeToMinutes(value: string | null | undefined): number | null {
  */
 export function useCrewLocationTracking(enabled: boolean, profileId: string | null) {
   const lastUploadRef = useRef<number>(0);
+  const truckIdRef = useRef<string | null>(null);
   const [trackable, setTrackable] = useState(false);
   const [permission, setPermission] = useState<"unknown" | "granted" | "denied" | "prompt" | "unsupported">("unknown");
 
@@ -79,12 +80,13 @@ export function useCrewLocationTracking(enabled: boolean, profileId: string | nu
       const today = localDateString();
       const { data: crewRows } = await supabase
         .from("crews")
-        .select("id")
+        .select("id, truck_id")
         .eq("active_date", today)
          .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
         .limit(1);
 
       const onScheduledTruck = !!crewRows && crewRows.length > 0;
+      truckIdRef.current = onScheduledTruck ? ((crewRows![0] as any).truck_id ?? null) : null;
 
       let withinCurfew = true;
       const { data: settings } = await supabase
@@ -136,6 +138,7 @@ export function useCrewLocationTracking(enabled: boolean, profileId: string | nu
       const { error: insertError } = await supabase.from("crew_locations").insert({
         company_id: companyId as string,
         user_id: user.id,
+        truck_id: truckIdRef.current,
         latitude,
         longitude,
         accuracy_m: accuracy || null,
