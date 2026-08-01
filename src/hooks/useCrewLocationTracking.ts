@@ -28,6 +28,44 @@ function parseTimeToMinutes(value: string | null | undefined): number | null {
 export function useCrewLocationTracking(enabled: boolean) {
   const lastUploadRef = useRef<number>(0);
   const [trackable, setTrackable] = useState(false);
+  const [permission, setPermission] = useState<"unknown" | "granted" | "denied" | "prompt" | "unsupported">("unknown");
+
+  // Watch the browser's geolocation permission state so the crew UI can
+  // explain what's happening instead of silently failing.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setPermission("unsupported");
+      return;
+    }
+    if (!navigator.permissions?.query) return;
+    let status: PermissionStatus | null = null;
+    let cancelled = false;
+    navigator.permissions
+      .query({ name: "geolocation" as PermissionName })
+      .then((s) => {
+        if (cancelled) return;
+        status = s;
+        setPermission(s.state as "granted" | "denied" | "prompt");
+        s.onchange = () => setPermission(s.state as "granted" | "denied" | "prompt");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (status) status.onchange = null;
+    };
+  }, []);
+
+  /** Explicitly trigger the browser permission prompt. */
+  const requestPermission = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      () => setPermission("granted"),
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) setPermission("denied");
+      },
+      { enableHighAccuracy: true, timeout: 20_000 }
+    );
+  };
 
   // Determine eligibility: scheduled today + within curfew window
   useEffect(() => {
@@ -125,6 +163,7 @@ export function useCrewLocationTracking(enabled: boolean) {
       },
       (err) => {
         console.warn("Geolocation watch error:", err.message);
+        if (err.code === err.PERMISSION_DENIED) setPermission("denied");
       },
       {
         enableHighAccuracy: true,
@@ -141,5 +180,5 @@ export function useCrewLocationTracking(enabled: boolean) {
     };
   }, [enabled, trackable]);
 
-  return { trackable };
+  return { trackable, permission, requestPermission };
 }
