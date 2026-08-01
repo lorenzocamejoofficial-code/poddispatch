@@ -12,6 +12,7 @@
 import { parseAddressString, timelyFilingDays, type ClaimForEDI } from "./edi-837p-generator";
 import type { PayerResolution } from "./payer-directory-lookup";
 import { locationTypeCode } from "./ambulance-modifier";
+import { evaluatePcsConsistency } from "./pcs-consistency";
 
 export type ReadinessStage = "scheduling" | "pcr" | "biller" | "export";
 export type ReadinessSeverity = "block" | "warn";
@@ -60,6 +61,9 @@ export interface ReadinessInputs {
     hospice_enrolled?: boolean | null;
     hospice_election_date?: string | null;
     terminal_illness_icd?: string | null;
+    /** patients.mobility — what the PCS / chart says the patient requires. */
+    mobility?: string | null;
+    default_bed_confined?: boolean | null;
   } | null;
   /** Optional transport / scheduling context for biller-stage checks.
    *  destination_facility_type is the resolved facilities.facility_type
@@ -68,6 +72,10 @@ export interface ReadinessInputs {
     destination_facility_type?: string | null;
     standing_order?: boolean | null;
     recurrence_days?: number[] | null;
+    /** trip_records.patient_mobility (or the one-off leg mobility). */
+    patient_mobility?: string | null;
+    stretcher_required?: boolean | null;
+    bed_confined?: boolean | null;
   } | null;
 }
 
