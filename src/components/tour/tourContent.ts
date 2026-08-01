@@ -152,7 +152,7 @@ export const PAGE_TOURS: PageTour[] = [
       },
       {
         title: "Step 2 — Track certifications",
-        body: "EMT-B, AEMT, EMT-P, CPR, etc. Certifications expire — expired certs block crew assignment automatically.",
+        body: "EMR, EMT-B, EMT-A, EMT-P, CPR, etc. Certifications expire — expired certs block crew assignment automatically.",
       },
       {
         title: "Why this matters",

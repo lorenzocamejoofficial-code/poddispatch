@@ -59,7 +59,7 @@ function rand(min: number, max: number): number { return min + Math.floor(Math.r
 function coinFlip(prob = 0.5): boolean { return Math.random() < prob; }
 
 // Valid enum values from database
-const VALID_CERT_LEVELS = ["EMT-B", "EMT-A", "EMT-P", "AEMT", "Other"] as const;
+const VALID_CERT_LEVELS = ["EMR", "EMT-B", "EMT-A", "EMT-P"] as const;
 const VALID_SEX_TYPES = ["M", "F"] as const;
 const VALID_TRANSPORT_TYPES = ["dialysis", "outpatient", "adhoc", "wound_care", "ift", "discharge", "private_pay", "psych_transport"] as const;
 const VALID_TRIP_TYPES = ["dialysis", "discharge", "outpatient", "hospital", "private_pay", "ift", "wound_care", "psych_transport"] as const;
