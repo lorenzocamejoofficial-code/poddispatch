@@ -30,6 +30,7 @@ import {
 import { evaluateClaimReadiness, type ReadinessIssue } from "@/lib/claim-readiness";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { resolvePayerForClaim, type PayerResolution } from "@/lib/payer-directory-lookup";
+import { isNonInsurancePayer } from "@/lib/payer-vocabulary";
 
 export interface QueueResult {
   ok: boolean;
@@ -464,6 +465,16 @@ export async function queueClaimsForSubmission(
         destination_facility_type: destMeta?.facility_type ?? null,
       },
     }).filter(x => x.severity === "block");
+
+    // Self-pay / private-pay is billed directly to the patient. It is never
+    // transmitted to Office Ally, Medicare or Medicaid.
+    if (isNonInsurancePayer(c.payer_type) || isNonInsurancePayer(c.payer_name)) {
+      issues.push({
+        field: "payer_type",
+        severity: "block",
+        message: "Self-pay / private-pay claims are billed directly to the patient and are not submitted to insurance.",
+      } as ReadinessIssue);
+    }
     if (issues.length) {
       blocked.push({ claimId: c.id, issues });
       if (payerResolution.ok === false) {
