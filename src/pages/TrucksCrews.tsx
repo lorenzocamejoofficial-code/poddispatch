@@ -189,7 +189,7 @@ function TruckDayCell({
             <SelectItem value="none">— None —</SelectItem>
             {profiles.map((p) => (
               <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
-                {p.full_name}{!p.assignable ? " 🚫" : ""}
+                {p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}{!p.assignable ? " 🚫" : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -200,7 +200,7 @@ function TruckDayCell({
             <SelectItem value="none">— None —</SelectItem>
             {profiles.map((p) => (
               <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
-                {p.full_name}{!p.assignable ? " 🚫" : ""}
+                {p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}{!p.assignable ? " 🚫" : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -211,19 +211,61 @@ function TruckDayCell({
             <SelectItem value="none">— None —</SelectItem>
             {profiles.map((p) => (
               <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
-                {p.full_name}{!p.assignable ? " 🚫" : ""}
+                {p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}{!p.assignable ? " 🚫" : ""}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <Select value={driverId} onValueChange={setDriverId}>
+          <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="Driver" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">— Driver not set —</SelectItem>
+            {selectedMembers.map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                Driver: {m.full_name}{m.cert_level ? ` · ${m.cert_level}` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {composition.notes.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {composition.notes.map((n) => (
+              <span key={n} className="text-[9px] rounded-full border border-[hsl(var(--status-yellow))] text-[hsl(var(--status-yellow))] px-1.5 py-0">{n}</span>
+            ))}
+          </div>
+        )}
+        {!composition.valid && selectedMembers.length > 0 && (
+          <div className="rounded border border-destructive bg-destructive/10 p-1.5 space-y-1">
+            {composition.errors.map((e) => (
+              <p key={e} className="text-[9px] text-destructive leading-tight font-medium">{e}</p>
+            ))}
+            <Input
+              value={overrideText}
+              onChange={(ev) => setOverrideText(ev.target.value)}
+              placeholder="Type OVERRIDE"
+              className="h-6 text-[10px]"
+            />
+            <Input
+              value={overrideReason}
+              onChange={(ev) => setOverrideReason(ev.target.value)}
+              placeholder="Reason (required)"
+              className="h-6 text-[10px]"
+            />
+          </div>
+        )}
+        {composition.valid && (
+          <p className="text-[9px] text-muted-foreground leading-tight">
+            Unit capability: <strong>{unitCapability}</strong> (crew {composition.crewCapability} · truck {((truck as any).service_level ?? "BLS")})
+          </p>
+        )}
         <p className="text-[9px] text-muted-foreground leading-tight">
           🚫 = missing/expired certification — approve on Employees → Certifications.
         </p>
         <div className="flex gap-1 pt-0.5">
-          <Button size="sm" className="h-6 text-[10px] flex-1" onClick={handleSave} disabled={saving}>
+          <Button size="sm" className="h-6 text-[10px] flex-1" onClick={handleSave} disabled={saving || !canSave}>
             <Check className="h-3 w-3 mr-0.5" /> Save
           </Button>
-          <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { setEditing(false); setM1(crew?.member1_id ?? ""); setM2(crew?.member2_id ?? ""); setM3(crew?.member3_id ?? ""); }}>
+          <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { setEditing(false); setM1(crew?.member1_id ?? ""); setM2(crew?.member2_id ?? ""); setM3(crew?.member3_id ?? ""); setDriverId(crew?.driver_member_id ?? ""); setOverrideText(""); setOverrideReason(""); }}>
             <X className="h-3 w-3" />
           </Button>
         </div>
