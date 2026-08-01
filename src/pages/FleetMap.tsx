@@ -22,7 +22,11 @@ interface MapMarker {
   speed: number | null;
   heading: number | null;
   trail: google.maps.LatLngLiteral[];
+  stale: boolean;
 }
+
+/** A unit is "live" if it pinged within the last 5 minutes. */
+const LIVE_WINDOW_MS = 5 * 60_000;
 
 export default function FleetMap() {
   const { activeCompanyId } = useAuth();
@@ -33,6 +37,13 @@ export default function FleetMap() {
   const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
   const trailsRef = useRef<Map<string, google.maps.Polyline>>(new Map());
   const [selected, setSelected] = useState<MapMarker | null>(null);
+  // Re-render periodically so "last seen" and stale styling stay accurate
+  // even when no new pings arrive.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Group pings by user/truck and build markers + trails
   const markers: MapMarker[] = [];
@@ -63,8 +74,14 @@ export default function FleetMap() {
       speed: latest.speed_mps,
       heading: latest.heading,
       trail: sorted.map((p) => ({ lat: p.latitude, lng: p.longitude })),
+      stale: Date.now() - new Date(latest.recorded_at).getTime() > LIVE_WINDOW_MS,
     });
   }
+  // Live units first, then most recently seen.
+  markers.sort((a, b) =>
+    Number(a.stale) - Number(b.stale) ||
+    new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
+  );
 
   // Initialize map
   useEffect(() => {
@@ -92,19 +109,20 @@ export default function FleetMap() {
     for (const m of markers) {
       seenKeys.add(m.id);
       let marker = existingMarkers.get(m.id);
+      const icon: google.maps.Symbol = {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: m.stale ? "#94A3B8" : "#3B82F6",
+        fillOpacity: m.stale ? 0.65 : 1,
+        strokeColor: "#ffffff",
+        strokeWeight: 2,
+        scale: 10,
+      };
       if (!marker) {
         marker = new google.maps.Marker({
           map,
           position: { lat: m.lat, lng: m.lng },
           title: m.label,
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            fillColor: "#3B82F6",
-            fillOpacity: 1,
-            strokeColor: "#ffffff",
-            strokeWeight: 2,
-            scale: 10,
-          },
+          icon,
           label: {
             text: m.name.slice(0, 2).toUpperCase(),
             color: "#ffffff",
@@ -116,6 +134,7 @@ export default function FleetMap() {
         existingMarkers.set(m.id, marker);
       } else {
         marker.setPosition({ lat: m.lat, lng: m.lng });
+        marker.setIcon(icon);
       }
 
       let trail = existingTrails.get(m.id);
@@ -124,13 +143,17 @@ export default function FleetMap() {
           map,
           path: m.trail,
           geodesic: true,
-          strokeColor: "#3B82F6",
-          strokeOpacity: 0.6,
+          strokeColor: m.stale ? "#94A3B8" : "#3B82F6",
+          strokeOpacity: m.stale ? 0.35 : 0.6,
           strokeWeight: 2,
         });
         existingTrails.set(m.id, trail);
       } else {
         trail.setPath(m.trail);
+        trail.setOptions({
+          strokeColor: m.stale ? "#94A3B8" : "#3B82F6",
+          strokeOpacity: m.stale ? 0.35 : 0.6,
+        });
       }
     }
 
@@ -168,7 +191,9 @@ export default function FleetMap() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Live Fleet Map</h1>
             <p className="text-sm text-muted-foreground">
-              Real-time crew and truck locations. Updates every 30 seconds.
+              Real-time crew and truck locations, updated every 30 seconds. Units stay on the map
+              for the rest of the service day at their last known position — greyed out — if a crew
+              signs out or their device sleeps.
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
@@ -201,7 +226,8 @@ export default function FleetMap() {
               <h3 className="mb-2 text-sm font-semibold text-foreground">Units ({markers.length})</h3>
               {markers.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No crew locations in the last 30 minutes. Crew locations update when a crew member is signed into the crew workspace with location services enabled.
+                  No crew locations today. Locations start reporting once a crew member assigned to a
+                  truck opens the crew workspace and allows location access.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -215,8 +241,16 @@ export default function FleetMap() {
                       )}
                     >
                       <div className="flex items-center gap-2 font-medium">
-                        <Truck className="h-4 w-4 text-primary" />
+                        <Truck className={cn("h-4 w-4", m.stale ? "text-muted-foreground" : "text-primary")} />
                         {m.label}
+                        <span
+                          className={cn(
+                            "ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
+                            m.stale ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
+                          )}
+                        >
+                          {m.stale ? "Last known" : "Live"}
+                        </span>
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
                         {formatDistanceToNow(new Date(m.recordedAt), { addSuffix: true })}

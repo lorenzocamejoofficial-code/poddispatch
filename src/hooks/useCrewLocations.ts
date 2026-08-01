@@ -20,7 +20,16 @@ interface EnrichedLocation extends LocationPing {
   truck?: { name: string | null; vehicle_id: string | null } | null;
 }
 
-const RECENT_WINDOW_MS = 30 * 60_000; // 30 minutes
+/**
+ * Units stay on the map for the whole service day. A crew signing out (or their
+ * phone sleeping) stops new pings, but the last known position is still shown —
+ * flagged as stale — instead of the unit vanishing mid-shift.
+ */
+function startOfLocalDayISO() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
 
 export function useCrewLocations(companyId: string | null) {
   const [locations, setLocations] = useState<EnrichedLocation[]>([]);
@@ -30,7 +39,7 @@ export function useCrewLocations(companyId: string | null) {
   const fetchLocations = useCallback(async () => {
     if (!companyId) return;
     setLoading(true);
-    const since = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
+    const since = startOfLocalDayISO();
     const { data, error: supaError } = await supabase
       .from("crew_locations")
       .select(
