@@ -10,11 +10,17 @@ function loadGoogleMaps(): Promise<typeof google> {
 
   if (!loaderPromise) {
     loaderPromise = new Promise((resolve, reject) => {
-      // Own key (works on the custom domain) takes priority; the Lovable-managed
-      // key is the fallback for *.lovable.app previews.
-      const key =
-        import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ||
-        import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
+      // The Lovable-managed key is referrer-locked to *.lovable.app /
+      // *.lovableproject.com; our own key is locked to thepoddispatch.com.
+      // Pick whichever matches the host we're actually running on.
+      const host = window.location.hostname;
+      const isLovableHost =
+        host.endsWith(".lovable.app") ||
+        host.endsWith(".lovableproject.com") ||
+        host === "localhost";
+      const ownKey = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY;
+      const managedKey = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
+      const key = isLovableHost ? managedKey || ownKey : ownKey || managedKey;
       const channel = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
       if (!key) {
         reject(new Error("Google Maps browser key is not configured"));
