@@ -30,6 +30,7 @@ interface ProfileOption {
   full_name: string;
   assignable: boolean;
   blockedReason?: string;
+  cert_level?: CertLevel | null;
 }
 
 interface CrewRecord {
@@ -42,6 +43,8 @@ interface CrewRecord {
   member2_name: string | null;
   member3_name: string | null;
   active_date: string;
+  driver_member_id?: string | null;
+  crew_override_reason?: string | null;
 }
 
 interface AvailabilityRecord {
