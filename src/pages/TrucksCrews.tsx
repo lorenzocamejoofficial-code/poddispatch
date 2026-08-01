@@ -388,7 +388,7 @@ export default function TrucksCrews() {
 
     const [{ data: t }, { data: p }, { data: c }, { data: av }] = await Promise.all([
       supabase.from("trucks").select("*").eq("company_id", companyId).order("name"),
-      supabase.from("profiles").select("id, full_name, user_id").eq("active", true).eq("company_id", companyId).order("full_name"),
+      supabase.from("profiles").select("id, full_name, user_id, cert_level").eq("active", true).eq("company_id", companyId).order("full_name"),
       supabase.from("crews")
         .select("*, member1:profiles!crews_member1_id_fkey(full_name, id), member2:profiles!crews_member2_id_fkey(full_name, id), member3:profiles!crews_member3_id_fkey(full_name, id)")
         .eq("company_id", companyId)
@@ -401,7 +401,7 @@ export default function TrucksCrews() {
     ]);
 
     // Compute crew certification eligibility for each profile
-    const profileRows = (p ?? []) as Array<{ id: string; full_name: string; user_id: string | null }>;
+    const profileRows = (p ?? []) as Array<{ id: string; full_name: string; user_id: string | null; cert_level?: CertLevel | null }>;
     const userIds = profileRows.map((r) => r.user_id).filter((x): x is string => !!x);
     const today = new Date().toISOString().split("T")[0];
     const certsByUser = new Map<string, Set<string>>();
@@ -428,6 +428,7 @@ export default function TrucksCrews() {
       return {
         id: r.id,
         full_name: r.full_name,
+        cert_level: (r.cert_level ?? null) as CertLevel | null,
         assignable: missing.length === 0,
         blockedReason: missing.length === 0
           ? undefined
@@ -447,6 +448,8 @@ export default function TrucksCrews() {
       member2_name: cr.member2?.full_name ?? null,
       member3_name: cr.member3?.full_name ?? null,
       active_date: cr.active_date,
+      driver_member_id: cr.driver_member_id ?? null,
+      crew_override_reason: cr.crew_override_reason ?? null,
     })));
     setAvailability((av ?? []) as unknown as AvailabilityRecord[]);
   }, [weekDates[0]]);
