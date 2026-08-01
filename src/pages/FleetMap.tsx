@@ -113,6 +113,30 @@ export default function FleetMap() {
     mapInstanceRef.current = map;
   }, [ready, google]);
 
+  // Reverse-geocode the selected unit's position into a street address.
+  useEffect(() => {
+    if (!google || !selected) {
+      setAddress(null);
+      return;
+    }
+    let cancelled = false;
+    setAddress(null);
+    try {
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ location: { lat: selected.lat, lng: selected.lng } }, (results, status) => {
+        if (cancelled) return;
+        if (status === "OK" && results && results[0]) {
+          setAddress(results[0].formatted_address);
+        }
+      });
+    } catch {
+      // Geocoding unavailable for this key — the card simply omits the address.
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [google, selected?.lat, selected?.lng, selected]);
+
   // Update markers and trails
   useEffect(() => {
     if (!google || !mapInstanceRef.current) return;
