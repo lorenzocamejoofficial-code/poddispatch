@@ -1384,10 +1384,9 @@ export default function Patients() {
                           <SelectTrigger className={ringIfMissing("primary_payer")}><SelectValue placeholder="Select payer" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">— None —</SelectItem>
-                            <SelectItem value="medicare">Medicare</SelectItem>
-                            <SelectItem value="medicaid">Medicaid</SelectItem>
-                            <SelectItem value="facility">Facility</SelectItem>
-                            <SelectItem value="cash">Cash / Private</SelectItem>
+                            {PATIENT_PAYER_KEYS.map(p => (
+                              <SelectItem key={p} value={p}>{PAYER_LABELS[p]}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
