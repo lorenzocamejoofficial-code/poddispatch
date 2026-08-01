@@ -33,8 +33,11 @@ export function CrewLayout({ children }: { children: ReactNode }) {
   const badges = useCrewBadges(profileId);
   const { eligible, loading: eligibilityLoading } = useCrewViewEligibility(user?.id ?? null);
   // Track location whenever a cleared crew member is in the crew workspace.
-  const { trackable, permission, requestPermission } = useCrewLocationTracking(eligible, profileId);
-  const showLocationPrompt = eligible && trackable && (permission === "prompt" || permission === "denied");
+  const { trackable, permission, requestPermission, autoPrompted } = useCrewLocationTracking(eligible, profileId);
+  // The hook auto-fires the browser prompt on shift, so only fall back to the
+  // manual banner if the crew member blocked it or dismissed the auto prompt.
+  const showLocationPrompt =
+    eligible && trackable && (permission === "denied" || (permission === "prompt" && autoPrompted));
   // Until all three certifications are approved, the only reachable crew page
   // is My Certifications. While the check is in flight, show the full nav so
   // an already-cleared crew member never sees a flash of the locked state.
