@@ -1,71 +1,60 @@
-# Unify cert levels to one vocabulary
+# Ordered build: safety, crew integrity, and billing guards
 
-Final value set everywhere: `EMR`, `EMT-B`, `EMT-A`, `EMT-P`.
+Three items are already done in this pass (no approval needed, shipped):
 
-## Confirmations (re-verified against the live database)
+- Onboarding checklist stale gating — now reads the live 6-step total instead of a hardcoded 5, and the chips match the real wizard steps (company info, rates, trucks, crew, facility, patients). The retired clearinghouse step no longer blocks completion.
+- Cert-queue back navigation — "Back to Employees" button on the Certification Review Queue.
+- Re-pend notification — when a crew member self-edits an approved certification and it re-pends, every owner/manager/dispatcher now gets a notification.
 
-- `profiles.cert_level` — type `public.cert_level`, NOT NULL, default `'EMT-B'::cert_level`. The default must be dropped before the type swap and restored after.
-- `crew_certifications.cert_level` — type `public.crew_cert_level`, nullable, **no default** (confirmed — nothing to drop).
-- No functions, policies, views, constraints, or indexes reference either enum or its values. Only these two columns use the types, so nothing blocks either ALTER.
-- Data: profiles has only EMT-B / EMT-P; crew_certifications has only EMT_B and NULLs. Zero AEMT, zero Other.
+The cert-level enum change (add EMR, remap AEMT to EMT-A, drop Other) and truck unit level (BLS/ALS at creation) were already completed in earlier passes; both are verified in the database.
 
-## Migration SQL (one migration)
+## Order and rationale
 
-```sql
--- Part 1: public.cert_level (profiles)
-CREATE TYPE public.cert_level_new AS ENUM ('EMR','EMT-B','EMT-A','EMT-P');
+Work moves outward from data truth -> operational rules -> display -> cleanup. Nothing in this plan changes how a claim is priced or coded; the billing pipeline stays byte-identical except where a new guard blocks a bad claim from leaving.
 
-ALTER TABLE public.profiles ALTER COLUMN cert_level DROP DEFAULT;
+### Phase 1 — Crew integrity (driver/attendant + minimum crew)
 
-ALTER TABLE public.profiles
-  ALTER COLUMN cert_level TYPE public.cert_level_new
-  USING (CASE cert_level::text
-           WHEN 'AEMT'  THEN 'EMT-A'
-           WHEN 'Other' THEN 'EMT-B'
-           ELSE cert_level::text
-         END)::public.cert_level_new;
+1. Add `role_on_truck` ("driver" | "attendant") per crew slot on the daily truck assignment.
+2. Minimum-crew rule: a valid crew is one driver plus at least one non-EMR attendant. Two EMRs is invalid. EMR is driver-only.
+3. Assignment is blocked when invalid, with an OVERRIDE gate: owner/manager types OVERRIDE plus a reason, written to the override monitor with the crew composition captured.
+4. Derived unit capability = min(crew capability, truck service level). Display and dispatch only — never read by billing.
 
-DROP TYPE public.cert_level;
-ALTER TYPE public.cert_level_new RENAME TO cert_level;
+### Phase 2 — PCS-vs-condition mismatch (the pitch feature)
 
-ALTER TABLE public.profiles
-  ALTER COLUMN cert_level SET DEFAULT 'EMT-B'::public.cert_level;
+A shared rule module compares what the PCS asserts (wheelchair / ambulatory / stretcher / bed-confined) against what the run documents (mobility, stretcher placement, transport type, PCR assessment).
 
--- Part 2: public.crew_cert_level (crew_certifications)
-CREATE TYPE public.crew_cert_level_new AS ENUM ('EMR','EMT-B','EMT-A','EMT-P');
+Hard block everywhere:
+- Scheduling: cannot save a run whose transport mode contradicts the PCS on file.
+- Dispatch: mismatch badge on the truck card, run cannot be started.
+- PCR: blocked at submit with the specific contradiction named.
+- Claim readiness: block-severity issue so it can never reach Office Ally.
 
-ALTER TABLE public.crew_certifications
-  ALTER COLUMN cert_level TYPE public.crew_cert_level_new
-  USING (CASE cert_level::text
-           WHEN 'EMT_B'     THEN 'EMT-B'
-           WHEN 'EMT_A'     THEN 'EMT-A'
-           WHEN 'PARAMEDIC' THEN 'EMT-P'
-           WHEN 'EMR'       THEN 'EMR'
-           ELSE NULL
-         END)::public.crew_cert_level_new;
+Same OVERRIDE gate pattern as crew, since a legitimate condition change mid-cycle has to be documentable.
 
-DROP TYPE public.crew_cert_level;
-ALTER TYPE public.crew_cert_level_new RENAME TO crew_cert_level;
-```
+### Phase 3 — Money guards
 
-NULL rows pass through untouched (the CASE yields NULL for NULL input). The AEMT/Other remap matches 0 rows today but is kept so the migration is safe and re-runnable.
+5. Pricing seed guard: a claim whose matched charge_master row is $0 or `needs_review` gets a block-severity readiness issue with a "Fix rates" link, so a company whose ZIP missed the locality table cannot submit $0 claims.
+6. Payer taxonomy cleanup: the charge-master dropdown stops listing payer types seeding never creates, and self-pay is added to the signup payer mix so the rates step can actually be satisfied.
 
-## Code edits (after types.ts regenerates)
+### Phase 4 — Integrity sweep
 
-1. **src/lib/cert-levels.ts (new)** — yes, I'll add the shared constant; it's trivial and stops future drift:
-   `export const CERT_LEVELS = ["EMR","EMT-B","EMT-A","EMT-P"] as const;`
-   `export type CertLevel = typeof CERT_LEVELS[number];`
-2. **src/pages/Employees.tsx** — add form (~650-657) and edit form (~879-886): replace the hardcoded `EMT-B / EMT-A / EMT-P / AEMT / Other` items with a map over `CERT_LEVELS`. Removes AEMT and Other, adds EMR.
-3. **src/components/crew/CrewCertificationsDialog.tsx**
-   - line 16: `type CertLevel = "EMR" | "EMT_B" | "EMT_A" | "PARAMEDIC"` → import `CertLevel` from the shared constant.
-   - lines 194 / 206: default `"EMT_B"` → `"EMT-B"`.
-   - select items 407-410: values `EMR / EMT_B / EMT_A / PARAMEDIC` → `EMR / EMT-B / EMT-A / EMT-P`; label "Paramedic" → "EMT-P".
-4. **src/pages/CertificationReviewQueue.tsx:285** — drop `.replace("_","-")`, render `r.cert_level` directly. It's the only underscore-display hack in the codebase; nothing else depends on it.
-5. **supabase/functions/simulation-lab/index.ts:62** — `VALID_CERT_LEVELS = ["EMR","EMT-B","EMT-A","EMT-P"]`. `normalizeCertLevel` (line 109) keeps its `"paramedic"` → `EMT-P` inbound alias, and `STRICT_CERT_LEVELS = ["EMT-B","EMT-P"]` stays as-is (both values still valid).
-6. **src/lib/sandbox-data.ts:185** — `certLevel: "AEMT"` → `"EMT-A"`.
-7. **src/components/tour/tourContent.ts:155** — copy "EMT-B, AEMT, EMT-P, CPR, etc." → "EMR, EMT-B, EMT-A, EMT-P, CPR, etc."
-8. **Left unchanged (re-confirmed still-valid values)** — the `'EMT-B'` defaults at Employees.tsx 79/87/257/309, create-user:194, setup-system-creator:92, creator-recovery:77, loadtest-harness:133.
+7. Facility name uniqueness per company (real risk — dropoff matches by name), truck name/unit uniqueness per company, and a patient duplicate warning on name plus DOB.
+8. Company cert-records export: CSV of every certification with entered-by, approved-by, level, numbers, and dates, for state audits.
 
-## Not in scope
+### Phase 5 — Display polish
 
-No truck `unit_level`, no minimum-crew rule, no EMR driver-only logic. EMR simply becomes selectable; its restrictions are a later pass.
+9. Truck unit-level pill, per-person level and role in the assignment view, "EMR — driver only" chip, invalid-crew red block styling.
+10. First-login Quick Tours on the crew side.
+11. Fix the "Return 12:30:00" scheduling mislabel.
+12. Extend the inline field-error styling used for email/NPI across the remaining forms.
+
+## Deliberately not doing
+
+- `step_facility_added` persisted column — the live facility count already drives it correctly; a column adds a second source of truth for no gain.
+- ZIP validation on free-text address fields — needs discrete ZIP inputs first. Revisit when the address fields are split.
+
+## Technical notes
+
+- Crew role and override reason live on the existing daily truck assignment rows; the safety-matrix evaluator is extended rather than duplicated.
+- PCS mismatch lives in one module consumed by scheduling, dispatch, PCR, and `claim-readiness.ts`, so the four surfaces can never disagree.
+- Every claim-readiness addition is covered by the existing parity test harness to prove the 837P output for currently-valid claims is unchanged.
