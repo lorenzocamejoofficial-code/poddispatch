@@ -6761,6 +6761,8 @@ export type Database = {
         Returns: boolean
       }
       is_dispatcher: { Args: never; Returns: boolean }
+      is_in_my_company: { Args: { _user_id: string }; Returns: boolean }
+      is_owner_of_current_company: { Args: never; Returns: boolean }
       is_owner_or_creator: { Args: never; Returns: boolean }
       is_protected_record: { Args: { _company_id: string }; Returns: boolean }
       is_system_creator: { Args: never; Returns: boolean }
