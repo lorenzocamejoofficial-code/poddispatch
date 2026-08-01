@@ -43,7 +43,7 @@ export function useTruckTripStatus(companyId: string | null) {
     const { data } = await supabase
       .from("trip_records")
       .select(
-        "id, truck_id, run_date, pcr_status, dispatch_time, at_scene_time, patient_contact_time, left_scene_time, arrived_dropoff_at, in_service_time, patient_first_name, patient_last_name, destination_location"
+        "id, truck_id, run_date, pcr_status, dispatch_time, at_scene_time, patient_contact_time, left_scene_time, arrived_dropoff_at, in_service_time, patient_name_override, destination_location"
       )
       .eq("company_id", companyId)
       .eq("run_date", localDate());
@@ -69,8 +69,7 @@ export function useTruckTripStatus(companyId: string | null) {
         tripId: trip.id,
         label,
         color,
-        patientName:
-          [trip.patient_first_name, trip.patient_last_name].filter(Boolean).join(" ") || null,
+        patientName: trip.patient_name_override ?? null,
         destination: trip.destination_location ?? null,
         lastSignalAt,
         lastSignalLabel,
