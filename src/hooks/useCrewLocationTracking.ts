@@ -30,6 +30,8 @@ export function useCrewLocationTracking(enabled: boolean, profileId: string | nu
   const truckIdRef = useRef<string | null>(null);
   const [trackable, setTrackable] = useState(false);
   const [permission, setPermission] = useState<"unknown" | "granted" | "denied" | "prompt" | "unsupported">("unknown");
+  const [autoPrompted, setAutoPrompted] = useState(false);
+  const autoPromptRef = useRef(false);
 
   // Watch the browser's geolocation permission state so the crew UI can
   // explain what's happening instead of silently failing.
@@ -67,6 +69,20 @@ export function useCrewLocationTracking(enabled: boolean, profileId: string | nu
       { enableHighAccuracy: true, timeout: 20_000 }
     );
   };
+
+  // Auto-request on entering the crew workspace while on shift, so browsers that
+  // don't persist the grant (notably iOS Safari) re-prompt themselves instead of
+  // making the crew tap "Enable location" every login.
+  useEffect(() => {
+    if (!enabled || !trackable) return;
+    if (permission !== "prompt" && permission !== "unknown") return;
+    if (autoPromptRef.current) return;
+    autoPromptRef.current = true;
+    requestPermission();
+    const t = setTimeout(() => setAutoPrompted(true), 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, trackable, permission]);
 
   // Determine eligibility: scheduled today + within curfew window
   useEffect(() => {
@@ -175,5 +191,5 @@ export function useCrewLocationTracking(enabled: boolean, profileId: string | nu
     };
   }, [enabled, trackable]);
 
-  return { trackable, permission, requestPermission };
+  return { trackable, permission, requestPermission, autoPrompted };
 }
