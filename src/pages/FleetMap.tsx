@@ -331,19 +331,19 @@ export default function FleetMap() {
                       )}
                     </>
                   )}
+                  <div className="flex items-start gap-2 text-muted-foreground">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{address ?? "Locating address…"}</span>
+                  </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Navigation className="h-4 w-4" />
                     {selected.lat.toFixed(5)}, {selected.lng.toFixed(5)}
                   </div>
-                  {selected.accuracy !== null && selected.accuracy !== undefined && (
-                    <div className="text-muted-foreground">Accuracy: ±{Math.round(selected.accuracy)} m</div>
-                  )}
-                  {selected.speed !== null && selected.speed !== undefined && (
-                    <div className="text-muted-foreground">Speed: {Math.round(selected.speed * 2.23694)} mph</div>
-                  )}
-                  {selected.heading !== null && selected.heading !== undefined && (
-                    <div className="text-muted-foreground">Heading: {Math.round(selected.heading)}°</div>
-                  )}
+                  <div className="text-muted-foreground">
+                    {selected.speed !== null && selected.speed !== undefined && selected.speed > 1
+                      ? `Moving · ${Math.round(selected.speed * 2.23694)} mph`
+                      : "Stopped"}
+                  </div>
                   <div className="text-muted-foreground">
                     Last seen: {formatDistanceToNow(new Date(selected.recordedAt), { addSuffix: true })}
                   </div>
