@@ -22,7 +22,11 @@ interface MapMarker {
   speed: number | null;
   heading: number | null;
   trail: google.maps.LatLngLiteral[];
+  stale: boolean;
 }
+
+/** A unit is "live" if it pinged within the last 5 minutes. */
+const LIVE_WINDOW_MS = 5 * 60_000;
 
 export default function FleetMap() {
   const { activeCompanyId } = useAuth();
@@ -63,8 +67,14 @@ export default function FleetMap() {
       speed: latest.speed_mps,
       heading: latest.heading,
       trail: sorted.map((p) => ({ lat: p.latitude, lng: p.longitude })),
+      stale: Date.now() - new Date(latest.recorded_at).getTime() > LIVE_WINDOW_MS,
     });
   }
+  // Live units first, then most recently seen.
+  markers.sort((a, b) =>
+    Number(a.stale) - Number(b.stale) ||
+    new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
+  );
 
   // Initialize map
   useEffect(() => {
@@ -92,19 +102,20 @@ export default function FleetMap() {
     for (const m of markers) {
       seenKeys.add(m.id);
       let marker = existingMarkers.get(m.id);
+      const icon: google.maps.Symbol = {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: m.stale ? "#94A3B8" : "#3B82F6",
+        fillOpacity: m.stale ? 0.65 : 1,
+        strokeColor: "#ffffff",
+        strokeWeight: 2,
+        scale: 10,
+      };
       if (!marker) {
         marker = new google.maps.Marker({
           map,
           position: { lat: m.lat, lng: m.lng },
           title: m.label,
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            fillColor: "#3B82F6",
-            fillOpacity: 1,
-            strokeColor: "#ffffff",
-            strokeWeight: 2,
-            scale: 10,
-          },
+          icon,
           label: {
             text: m.name.slice(0, 2).toUpperCase(),
             color: "#ffffff",
@@ -116,6 +127,7 @@ export default function FleetMap() {
         existingMarkers.set(m.id, marker);
       } else {
         marker.setPosition({ lat: m.lat, lng: m.lng });
+        marker.setIcon(icon);
       }
 
       let trail = existingTrails.get(m.id);
@@ -124,13 +136,17 @@ export default function FleetMap() {
           map,
           path: m.trail,
           geodesic: true,
-          strokeColor: "#3B82F6",
-          strokeOpacity: 0.6,
+          strokeColor: m.stale ? "#94A3B8" : "#3B82F6",
+          strokeOpacity: m.stale ? 0.35 : 0.6,
           strokeWeight: 2,
         });
         existingTrails.set(m.id, trail);
       } else {
         trail.setPath(m.trail);
+        trail.setOptions({
+          strokeColor: m.stale ? "#94A3B8" : "#3B82F6",
+          strokeOpacity: m.stale ? 0.35 : 0.6,
+        });
       }
     }
 
