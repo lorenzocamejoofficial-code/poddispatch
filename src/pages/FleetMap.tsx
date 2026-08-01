@@ -49,6 +49,7 @@ export default function FleetMap() {
   const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
   const trailsRef = useRef<Map<string, google.maps.Polyline>>(new Map());
   const [selected, setSelected] = useState<MapMarker | null>(null);
+  const [address, setAddress] = useState<string | null>(null);
   // Re-render periodically so "last seen" and stale styling stay accurate
   // even when no new pings arrive.
   const [, setTick] = useState(0);
