@@ -186,6 +186,8 @@ export default function CrewScheduleAdmin() {
       outpatient: "Outpatient",
       discharge: "Discharge",
       woundcare: "Wound Care",
+      wound_care: "Wound Care",
+      psych_transport: "Psych Transport",
       ift: "IFT",
       emergency: "Emergency",
       private_pay: "Private Pay",

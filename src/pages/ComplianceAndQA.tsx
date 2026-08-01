@@ -28,7 +28,7 @@ interface PayerRule {
   requires_auth: boolean;
 }
 
-const PAYER_TYPES = ["medicare", "medicaid", "facility", "cash", "default"];
+import { PAYER_KEYS as PAYER_TYPES } from "@/lib/payer-vocabulary";
 
 export default function ComplianceAndQA() {
   const [payerRules, setPayerRules] = useState<PayerRule[]>([]);
