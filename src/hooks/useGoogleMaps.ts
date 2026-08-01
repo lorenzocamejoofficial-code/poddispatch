@@ -10,7 +10,11 @@ function loadGoogleMaps(): Promise<typeof google> {
 
   if (!loaderPromise) {
     loaderPromise = new Promise((resolve, reject) => {
-      const key = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
+      // Own key (works on the custom domain) takes priority; the Lovable-managed
+      // key is the fallback for *.lovable.app previews.
+      const key =
+        import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY ||
+        import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY;
       const channel = import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID;
       if (!key) {
         reject(new Error("Google Maps browser key is not configured"));
@@ -29,7 +33,9 @@ function loadGoogleMaps(): Promise<typeof google> {
 
       const script = document.createElement("script");
       script.id = scriptId;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async&callback=initPoddispatchMap&channel=${channel}`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async&callback=initPoddispatchMap${
+        channel ? `&channel=${channel}` : ""
+      }`;
       script.async = true;
       script.onerror = () => reject(new Error("Failed to load Google Maps script"));
       document.head.appendChild(script);
