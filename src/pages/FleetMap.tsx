@@ -49,6 +49,7 @@ export default function FleetMap() {
   const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
   const trailsRef = useRef<Map<string, google.maps.Polyline>>(new Map());
   const [selected, setSelected] = useState<MapMarker | null>(null);
+  const [address, setAddress] = useState<string | null>(null);
   // Re-render periodically so "last seen" and stale styling stay accurate
   // even when no new pings arrive.
   const [, setTick] = useState(0);
@@ -111,6 +112,30 @@ export default function FleetMap() {
     });
     mapInstanceRef.current = map;
   }, [ready, google]);
+
+  // Reverse-geocode the selected unit's position into a street address.
+  useEffect(() => {
+    if (!google || !selected) {
+      setAddress(null);
+      return;
+    }
+    let cancelled = false;
+    setAddress(null);
+    try {
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ location: { lat: selected.lat, lng: selected.lng } }, (results, status) => {
+        if (cancelled) return;
+        if (status === "OK" && results && results[0]) {
+          setAddress(results[0].formatted_address);
+        }
+      });
+    } catch {
+      // Geocoding unavailable for this key — the card simply omits the address.
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [google, selected?.lat, selected?.lng, selected]);
 
   // Update markers and trails
   useEffect(() => {
@@ -306,19 +331,19 @@ export default function FleetMap() {
                       )}
                     </>
                   )}
+                  <div className="flex items-start gap-2 text-muted-foreground">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{address ?? "Locating address…"}</span>
+                  </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Navigation className="h-4 w-4" />
                     {selected.lat.toFixed(5)}, {selected.lng.toFixed(5)}
                   </div>
-                  {selected.accuracy !== null && selected.accuracy !== undefined && (
-                    <div className="text-muted-foreground">Accuracy: ±{Math.round(selected.accuracy)} m</div>
-                  )}
-                  {selected.speed !== null && selected.speed !== undefined && (
-                    <div className="text-muted-foreground">Speed: {Math.round(selected.speed * 2.23694)} mph</div>
-                  )}
-                  {selected.heading !== null && selected.heading !== undefined && (
-                    <div className="text-muted-foreground">Heading: {Math.round(selected.heading)}°</div>
-                  )}
+                  <div className="text-muted-foreground">
+                    {selected.speed !== null && selected.speed !== undefined && selected.speed > 1
+                      ? `Moving · ${Math.round(selected.speed * 2.23694)} mph`
+                      : "Stopped"}
+                  </div>
                   <div className="text-muted-foreground">
                     Last seen: {formatDistanceToNow(new Date(selected.recordedAt), { addSuffix: true })}
                   </div>
