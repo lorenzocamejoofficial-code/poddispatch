@@ -94,8 +94,8 @@ interface TruckDayCellProps {
   crew: CrewRecord | undefined;
   downRecord: AvailabilityRecord | undefined;
   profiles: ProfileOption[];
-  onAssign: (truckId: string, date: string, m1: string, m2: string, m3: string) => Promise<void>;
-  onEdit: (crewId: string, m1: string, m2: string, m3: string) => Promise<void>;
+  onAssign: (truckId: string, date: string, m1: string, m2: string, m3: string, driverId: string | null, overrideReason: string | null) => Promise<void>;
+  onEdit: (crewId: string, m1: string, m2: string, m3: string, driverId: string | null, overrideReason: string | null) => Promise<void>;
   onClear: (crewId: string) => Promise<void>;
   onMarkDown: (truckId: string) => void;
   onRemoveDown: (availId: string) => Promise<void>;
@@ -109,24 +109,49 @@ function TruckDayCell({
   const [m1, setM1] = useState(crew?.member1_id ?? "");
   const [m2, setM2] = useState(crew?.member2_id ?? "");
   const [m3, setM3] = useState(crew?.member3_id ?? "");
+  const [driverId, setDriverId] = useState(crew?.driver_member_id ?? "");
+  const [overrideText, setOverrideText] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setM1(crew?.member1_id ?? "");
     setM2(crew?.member2_id ?? "");
     setM3(crew?.member3_id ?? "");
+    setDriverId(crew?.driver_member_id ?? "");
+    setOverrideText("");
+    setOverrideReason("");
   }, [crew]);
 
   const isDown = !!downRecord;
 
+  const selectedMembers = [m1, m2, m3]
+    .filter((id) => id && id !== "none")
+    .map((id) => profiles.find((p) => p.id === id))
+    .filter((p): p is ProfileOption => !!p)
+    .map((p) => ({ id: p.id, full_name: p.full_name, cert_level: p.cert_level ?? null }));
+  const composition = evaluateCrewComposition(selectedMembers, driverId && driverId !== "none" ? driverId : null);
+  const unitCapability = deriveUnitCapability(
+    composition.crewCapability,
+    ((truck as any).service_level ?? "BLS") as "BLS" | "ALS",
+  );
+  const overrideOk = overrideText.trim().toUpperCase() === "OVERRIDE" && overrideReason.trim().length >= 5;
+  const canSave = composition.valid || overrideOk;
+
   const handleSave = async () => {
+    if (!canSave) {
+      toast.error("This crew doesn't meet the minimum-staffing rule. Fix it or type OVERRIDE with a reason.");
+      return;
+    }
     setSaving(true);
     try {
+      const drv = driverId && driverId !== "none" ? driverId : null;
+      const ovr = composition.valid ? null : overrideReason.trim();
       if (crew) {
-        await onEdit(crew.id, m1, m2, m3);
+        await onEdit(crew.id, m1, m2, m3, drv, ovr);
       } else {
         if (!m1 && !m2 && !m3) { toast.error("Select at least one crew member"); return; }
-        await onAssign(truck.id, date, m1, m2, m3);
+        await onAssign(truck.id, date, m1, m2, m3, drv, ovr);
       }
       setEditing(false);
     } finally {
