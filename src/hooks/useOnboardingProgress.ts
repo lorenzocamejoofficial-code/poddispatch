@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
+/** Number of steps in the Getting Started wizard (clearinghouse excluded). */
+export const ONBOARDING_TOTAL_STEPS = 6;
+
 export interface OnboardingProgress {
   step_company_info_verified: boolean;
   step_rates_verified: boolean;
