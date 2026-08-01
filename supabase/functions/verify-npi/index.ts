@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { requireSystemCreator, UUID_RE } from "../_shared/creator-gate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,7 +10,14 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    const gate = await requireSystemCreator(req);
+    if (gate.error) {
+      return new Response(JSON.stringify({ status: "not_found", error: gate.error }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: gate.status });
+    }
     const { npi, company_name, company_id } = await req.json();
+    if (company_id !== undefined && (typeof company_id !== "string" || !UUID_RE.test(company_id))) {
+      return new Response(JSON.stringify({ status: "not_found", error: "company_id must be a valid uuid" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+    }
     if (!npi) return new Response(JSON.stringify({ status: "not_found", error: "No NPI provided" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 });
 
     const resp = await fetch(`https://npiregistry.cms.hhs.gov/api/?number=${npi}&version=2.1`);
@@ -42,8 +49,7 @@ Deno.serve(async (req) => {
 
     // Store to DB
     if (company_id) {
-      const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-      await supabase.from("companies").update({
+      await gate.admin.from("companies").update({
         npi_verified: result.status === "verified",
         npi_registered_name: result.registeredName,
         verification_checked_at: new Date().toISOString(),
