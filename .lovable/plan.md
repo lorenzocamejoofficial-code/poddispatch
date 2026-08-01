@@ -1,64 +1,71 @@
-## What I confirmed
+# Unify cert levels to one vocabulary
 
-- `public.crew_assignable(_user_id uuid) returns boolean` — SQL, STABLE, SECURITY DEFINER. Returns true when the user has **3 distinct cert_types** with `status='approved'` and either an unexpired `expiration_date` or `manually_verified` (unexpired manual verification). Callable from the client via `supabase.rpc("crew_assignable", { _user_id })`; the typed signature already exists in `src/integrations/supabase/types.ts:6646`.
-- **ID semantics:** `crew_certifications.user_id` is the **auth user id** — `src/pages/crew/CrewCertifications.tsx:20` passes `user.id` into `CrewCertificationsPanel`. So the gate must key off `user.id`, **not** `profileId`. Today `useCrewViewEligibility(profileId)` reads `profiles.cert_level` (free-text string) — `src/hooks/useCrewViewEligibility.ts:23-31`.
-- **HIPAA flow:** `HipaaAcknowledgmentGate` (`src/components/compliance/HipaaAcknowledgmentGate.tsx`) is an inline blocker, not a route. On accept it inserts into `legal_acceptances` and sets local `accepted=true`, then renders `children` at the current URL — there is **no post-accept navigation today**. It wraps the crew (App.tsx:428), dispatcher (452) and biller (490) branches; the admin/owner branch (523) is **not** wrapped, and owners/system creators skip the gate anyway (`skipGate`, line 24).
-- **CrewRouteGate** (`src/App.tsx:107-119`): spinner while loading, `<Navigate to="/" replace />` when not eligible.
-- **Branch drift** (crew routes per branch):
-  - creator (383-388): crew routes **ungated**
-  - crew role (430-438): crew routes **ungated**
-  - dispatcher (472-476) / biller (506-511) / admin (558-562): gated, but `/my-schedule` gated in dispatcher/biller/admin while crew branch has it plain
-  - `/crew-certifications` is **already ungated in every branch** (388, 437, 476, 511, 562) — good, keep it that way.
+Final value set everywhere: `EMR`, `EMT-B`, `EMT-A`, `EMT-P`.
 
-## A. Rewrite `useCrewViewEligibility`
+## Confirmations (re-verified against the live database)
 
-Change signature to take the **auth user id** and call the real rule:
+- `profiles.cert_level` — type `public.cert_level`, NOT NULL, default `'EMT-B'::cert_level`. The default must be dropped before the type swap and restored after.
+- `crew_certifications.cert_level` — type `public.crew_cert_level`, nullable, **no default** (confirmed — nothing to drop).
+- No functions, policies, views, constraints, or indexes reference either enum or its values. Only these two columns use the types, so nothing blocks either ALTER.
+- Data: profiles has only EMT-B / EMT-P; crew_certifications has only EMT_B and NULLs. Zero AEMT, zero Other.
 
-```ts
-export function useCrewViewEligibility(userId: string | null) {
-  // loading=true until the rpc resolves (prevents flash-redirect)
-  // supabase.rpc("crew_assignable", { _user_id: userId })
-  // eligible = data === true; on error -> eligible = false
-  return { eligible, loading };
-}
+## Migration SQL (one migration)
+
+```sql
+-- Part 1: public.cert_level (profiles)
+CREATE TYPE public.cert_level_new AS ENUM ('EMR','EMT-B','EMT-A','EMT-P');
+
+ALTER TABLE public.profiles ALTER COLUMN cert_level DROP DEFAULT;
+
+ALTER TABLE public.profiles
+  ALTER COLUMN cert_level TYPE public.cert_level_new
+  USING (CASE cert_level::text
+           WHEN 'AEMT'  THEN 'EMT-A'
+           WHEN 'Other' THEN 'EMT-B'
+           ELSE cert_level::text
+         END)::public.cert_level_new;
+
+DROP TYPE public.cert_level;
+ALTER TYPE public.cert_level_new RENAME TO cert_level;
+
+ALTER TABLE public.profiles
+  ALTER COLUMN cert_level SET DEFAULT 'EMT-B'::public.cert_level;
+
+-- Part 2: public.crew_cert_level (crew_certifications)
+CREATE TYPE public.crew_cert_level_new AS ENUM ('EMR','EMT-B','EMT-A','EMT-P');
+
+ALTER TABLE public.crew_certifications
+  ALTER COLUMN cert_level TYPE public.crew_cert_level_new
+  USING (CASE cert_level::text
+           WHEN 'EMT_B'     THEN 'EMT-B'
+           WHEN 'EMT_A'     THEN 'EMT-A'
+           WHEN 'PARAMEDIC' THEN 'EMT-P'
+           WHEN 'EMR'       THEN 'EMR'
+           ELSE NULL
+         END)::public.crew_cert_level_new;
+
+DROP TYPE public.crew_cert_level;
+ALTER TYPE public.crew_cert_level_new RENAME TO crew_cert_level;
 ```
 
-Keeps `{ eligible, loading }` shape. Cancellation guard stays. No more `profiles.cert_level` read.
+NULL rows pass through untouched (the CASE yields NULL for NULL input). The AEMT/Other remap matches 0 rows today but is kept so the migration is safe and re-runnable.
 
-Call-site updates: `CrewRouteGate` switches from `profileId` to `user?.id` (both come from `useAuth()`). I'll grep for any other consumer and update it the same way.
+## Code edits (after types.ts regenerates)
 
-## B. Post-HIPAA lock → force to My Certifications
-
-Two coordinated pieces, both driven by the same `crew_assignable` value (so it works across sessions — no one-time flag):
-
-1. **CrewRouteGate redirect target changes**: when `!eligible`, redirect to `/crew-certifications` instead of `/`. `/crew-certifications` itself stays outside the gate, so the user always lands somewhere usable and can complete their certs.
-2. **Crew-role branch gets the gate too**: in the crew branch (App.tsx:430-438), wrap `/`, `/crew-dashboard`, `/crew-patients`, `/my-schedule`, `/pcr`, `/crew-checklist` in `CrewRouteGate`. Result: right after HIPAA accept, an un-certified crew member is pushed to `/crew-certifications` and can't leave it. Once all 3 certs are approved, `crew_assignable` flips true and every crew route opens on the next load.
-3. **CrewLayout nav lock** (`src/components/crew/CrewLayout.tsx:15-22`): call `useCrewViewEligibility(user.id)`; while `!eligible`, render only the **My Certifications** item and show a one-line notice ("Complete and get all three certifications approved to unlock the crew tools."). While loading, render nav as-is (no flicker/lock-out). When eligible, nav is unchanged from today.
-
-## C. De-drift the branches
-
-Every branch that exposes the crew UI wraps the **same** five/six crew routes in the **same** `CrewRouteGate`, with `/crew-certifications` always outside it:
-
-| Branch | Change |
-|---|---|
-| crew (430-438) | add `CrewRouteGate` to `/`, `/crew-dashboard`, `/crew-patients`, `/my-schedule`, `/pcr`, `/crew-checklist` |
-| dispatcher (472-476) | add `/my-schedule` already gated (464) — no change; consistent set confirmed |
-| biller (506-511) | already consistent — no change |
-| admin/owner (558-562) | already gated; `/my-schedule` (540) already gated — no change |
-| system creator (383-388) | leave **ungated** (creator preview/simulation access, matches the rest of that branch) |
-
-Owner-as-crew then works purely on capability: an owner with 3 approved certs sees the crew pages; one without gets bounced to `/crew-certifications`.
-
-## Safety confirmations
-
-- **(i) Existing assignable crew keep full access.** The new rule is exactly `crew_assignable` — the same function `TrucksCrews` already uses to allow truck assignment. Anyone currently cleared to ride returns `true` and sees no change. The only people newly restricted are those who had a `cert_level` string but no 3 approved certs — i.e. people the DB already refuses to put on a truck.
-- **(ii) `/crew-certifications` is always reachable.** It stays registered outside `CrewRouteGate` in all five branches, it's the redirect target when ineligible, and it's the one nav item kept visible while locked. It is never gated behind the cert requirement.
-- Loading is always a spinner, never a redirect, so a slow RPC can't bounce a valid crew member.
+1. **src/lib/cert-levels.ts (new)** — yes, I'll add the shared constant; it's trivial and stops future drift:
+   `export const CERT_LEVELS = ["EMR","EMT-B","EMT-A","EMT-P"] as const;`
+   `export type CertLevel = typeof CERT_LEVELS[number];`
+2. **src/pages/Employees.tsx** — add form (~650-657) and edit form (~879-886): replace the hardcoded `EMT-B / EMT-A / EMT-P / AEMT / Other` items with a map over `CERT_LEVELS`. Removes AEMT and Other, adds EMR.
+3. **src/components/crew/CrewCertificationsDialog.tsx**
+   - line 16: `type CertLevel = "EMR" | "EMT_B" | "EMT_A" | "PARAMEDIC"` → import `CertLevel` from the shared constant.
+   - lines 194 / 206: default `"EMT_B"` → `"EMT-B"`.
+   - select items 407-410: values `EMR / EMT_B / EMT_A / PARAMEDIC` → `EMR / EMT-B / EMT-A / EMT-P`; label "Paramedic" → "EMT-P".
+4. **src/pages/CertificationReviewQueue.tsx:285** — drop `.replace("_","-")`, render `r.cert_level` directly. It's the only underscore-display hack in the codebase; nothing else depends on it.
+5. **supabase/functions/simulation-lab/index.ts:62** — `VALID_CERT_LEVELS = ["EMR","EMT-B","EMT-A","EMT-P"]`. `normalizeCertLevel` (line 109) keeps its `"paramedic"` → `EMT-P` inbound alias, and `STRICT_CERT_LEVELS = ["EMT-B","EMT-P"]` stays as-is (both values still valid).
+6. **src/lib/sandbox-data.ts:185** — `certLevel: "AEMT"` → `"EMT-A"`.
+7. **src/components/tour/tourContent.ts:155** — copy "EMT-B, AEMT, EMT-P, CPR, etc." → "EMR, EMT-B, EMT-A, EMT-P, CPR, etc."
+8. **Left unchanged (re-confirmed still-valid values)** — the `'EMT-B'` defaults at Employees.tsx 79/87/257/309, create-user:194, setup-system-creator:92, creator-recovery:77, loadtest-harness:133.
 
 ## Not in scope
 
-No `cert_type`/`cert_level` enum changes, no truck schema, no minimum-crew rule, no DB migration (the function already exists).
-
-## Verification after build
-
-Typecheck, then in the preview: (a) a `crew_assignable=true` user reaches `/crew-dashboard` with full nav; (b) a user with 0–2 approved certs hitting any crew route lands on `/crew-certifications` with nav reduced to that single item; (c) owner with certs vs. owner without behave per the same rule.
+No truck `unit_level`, no minimum-crew rule, no EMR driver-only logic. EMR simply becomes selectable; its restrictions are a later pass.
