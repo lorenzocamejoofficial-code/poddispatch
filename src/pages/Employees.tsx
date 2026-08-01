@@ -17,6 +17,7 @@ import { CrewCertificationsDialog } from "@/components/crew/CrewCertificationsDi
 import { toast } from "sonner";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { normalizePhone } from "@/lib/phone";
+import { CERT_LEVELS } from "@/lib/cert-levels";
 import {
   DropdownMenu,
   DropdownMenuContent,
