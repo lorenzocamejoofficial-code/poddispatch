@@ -6821,7 +6821,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "crew" | "dispatcher" | "billing"
-      cert_level: "EMT-B" | "EMT-A" | "EMT-P" | "AEMT" | "Other"
+      cert_level: "EMR" | "EMT-B" | "EMT-A" | "EMT-P"
       claim_status:
         | "ready_to_bill"
         | "submitted"
@@ -6833,7 +6833,7 @@ export type Database = {
         | "reversal"
         | "forwarded"
         | "blocked_payer_mapping"
-      crew_cert_level: "EMR" | "EMT_B" | "EMT_A" | "PARAMEDIC"
+      crew_cert_level: "EMR" | "EMT-B" | "EMT-A" | "EMT-P"
       crew_cert_status: "pending_review" | "approved" | "rejected" | "expired"
       crew_cert_type: "medic_number" | "cpr" | "drivers_license"
       email_send_status:
@@ -7054,7 +7054,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "crew", "dispatcher", "billing"],
-      cert_level: ["EMT-B", "EMT-A", "EMT-P", "AEMT", "Other"],
+      cert_level: ["EMR", "EMT-B", "EMT-A", "EMT-P"],
       claim_status: [
         "ready_to_bill",
         "submitted",
@@ -7067,7 +7067,7 @@ export const Constants = {
         "forwarded",
         "blocked_payer_mapping",
       ],
-      crew_cert_level: ["EMR", "EMT_B", "EMT_A", "PARAMEDIC"],
+      crew_cert_level: ["EMR", "EMT-B", "EMT-A", "EMT-P"],
       crew_cert_status: ["pending_review", "approved", "rejected", "expired"],
       crew_cert_type: ["medic_number", "cpr", "drivers_license"],
       email_send_status: ["pending", "sent", "failed", "bounced", "suppressed"],
