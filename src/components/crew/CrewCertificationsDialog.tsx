@@ -69,7 +69,7 @@ function statusBadge(c: CertRow) {
   return <Badge variant="outline">Not submitted</Badge>;
 }
 
-export function CrewCertificationsPanel({ userId, adminMode }: { userId: string; adminMode?: boolean }) {
+export function CrewCertificationsPanel({ userId, adminMode, displayName }: { userId: string; adminMode?: boolean; displayName?: string }) {
   const { user } = useAuth();
   const isSelf = user?.id === userId;
   const [rows, setRows] = useState<CertRow[]>([]);
@@ -173,7 +173,7 @@ export function CrewCertificationsDialog({ open, onOpenChange, userId, displayNa
             Crew members must keep these three certifications current to be assignable to a truck.
           </DialogDescription>
         </DialogHeader>
-        {open && <CrewCertificationsPanel userId={userId} adminMode={adminMode} />}
+        {open && <CrewCertificationsPanel userId={userId} adminMode={adminMode} displayName={displayName} />}
       </DialogContent>
     </Dialog>
   );
