@@ -21,6 +21,8 @@ import { InspectionConfigPanel } from "@/components/inspection/InspectionConfigP
 import { TruckInspectionHistory } from "@/components/inspection/TruckInspectionHistory";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
+import type { CertLevel } from "@/lib/cert-levels";
+import { evaluateCrewComposition, deriveUnitCapability } from "@/lib/crew-composition";
 import type { Tables } from "@/integrations/supabase/types";
 
 type TruckRow = Tables<"trucks">;
