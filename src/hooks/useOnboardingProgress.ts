@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
+/** Number of steps in the Getting Started wizard (clearinghouse excluded). */
+export const ONBOARDING_TOTAL_STEPS = 6;
+
 export interface OnboardingProgress {
   step_company_info_verified: boolean;
   step_rates_verified: boolean;
@@ -111,8 +114,10 @@ export function useOnboardingProgress() {
     const stepRates = (settings as any).step_rates_verified || ratesValid;
     const stepClearinghouse = (settings as any).step_clearinghouse_connected || clearinghouseConfigured;
 
-    // Wizard steps: company info → rates → clearinghouse → trucks → crew → facility → patient
-    const allComplete = stepCompanyInfo && stepRates && stepClearinghouse && stepTrucks && stepInvited && stepFacility && stepPatients;
+    // Wizard steps: company info → rates → trucks → crew → facility → patient
+    // (the clearinghouse step was removed from the wizard; the column is kept
+    //  for analytics but no longer gates completion)
+    const allComplete = stepCompanyInfo && stepRates && stepTrucks && stepInvited && stepFacility && stepPatients;
 
     setProgress({
       step_company_info_verified: stepCompanyInfo,
@@ -162,12 +167,11 @@ export function useOnboardingProgress() {
   const completedCount = [
     progress.step_company_info_verified,
     progress.step_rates_verified,
-    progress.step_clearinghouse_connected,
     progress.step_trucks_added,
     progress.step_team_invited,
     progress.step_facility_added,
     progress.step_patients_added,
   ].filter(Boolean).length;
 
-  return { ...progress, completedCount, reload: load, markStep, dismiss };
+  return { ...progress, completedCount, totalSteps: ONBOARDING_TOTAL_STEPS, reload: load, markStep, dismiss };
 }

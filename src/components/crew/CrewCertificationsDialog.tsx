@@ -69,7 +69,7 @@ function statusBadge(c: CertRow) {
   return <Badge variant="outline">Not submitted</Badge>;
 }
 
-export function CrewCertificationsPanel({ userId, adminMode }: { userId: string; adminMode?: boolean }) {
+export function CrewCertificationsPanel({ userId, adminMode, displayName }: { userId: string; adminMode?: boolean; displayName?: string }) {
   const { user } = useAuth();
   const isSelf = user?.id === userId;
   const [rows, setRows] = useState<CertRow[]>([]);
@@ -151,6 +151,7 @@ export function CrewCertificationsPanel({ userId, adminMode }: { userId: string;
             userId={userId}
             isSelf={isSelf}
             adminMode={!!adminMode}
+            displayName={displayName}
             onChanged={load}
           />
         );
@@ -172,7 +173,7 @@ export function CrewCertificationsDialog({ open, onOpenChange, userId, displayNa
             Crew members must keep these three certifications current to be assignable to a truck.
           </DialogDescription>
         </DialogHeader>
-        {open && <CrewCertificationsPanel userId={userId} adminMode={adminMode} />}
+        {open && <CrewCertificationsPanel userId={userId} adminMode={adminMode} displayName={displayName} />}
       </DialogContent>
     </Dialog>
   );
@@ -185,10 +186,11 @@ interface CardProps {
   userId: string;
   isSelf: boolean;
   adminMode: boolean;
+  displayName?: string;
   onChanged: () => void;
 }
 
-function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }: CardProps) {
+function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName, onChanged }: CardProps) {
   const [editing, setEditing] = useState(false);
   const [number, setNumber] = useState(row?.cert_number ?? "");
   const [level, setLevel] = useState<CertLevel>(row?.cert_level ?? "EMT-B");
@@ -294,6 +296,33 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
         ? await supabase.from("crew_certifications" as any).update(payload).eq("id", existing.id)
         : await supabase.from("crew_certifications" as any).insert(payload);
       if (error) { toast.error(error.message); setSaving(false); return; }
+
+      // Re-pend / new submission from the crew side: tell the reviewers.
+      // (Admin-side entries land approved and need no notification.)
+      if (nextStatus === "pending_review" && companyId) {
+        try {
+          const { data: reviewers } = await supabase
+            .from("company_memberships")
+            .select("user_id, role")
+            .eq("company_id", companyId)
+            .in("role", ["owner", "manager", "dispatcher", "creator"]);
+          const targets = (reviewers ?? []).map((r: any) => r.user_id).filter(Boolean);
+          if (targets.length > 0) {
+            const who = displayName?.trim() || "A crew member";
+            const label = type === "medic_number" ? "Medic / EMT #" : type === "cpr" ? "CPR card" : "Driver's license";
+            await supabase.from("notifications").insert(
+              targets.map((uid: string) => ({
+                user_id: uid,
+                notification_type: "general",
+                message: `${who} submitted a ${label} for certification review.`,
+              })) as any,
+            );
+          }
+        } catch {
+          // Notification failure must never block the certification save.
+        }
+      }
+
       toast.success(nextStatus === "pending_review" ? "Submitted for review" : "Certification saved");
       setEditing(false);
       setFile(null);

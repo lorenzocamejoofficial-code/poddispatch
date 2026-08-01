@@ -2,15 +2,16 @@ import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle2, Circle, X, DollarSign, Truck, Users, Mail, Rocket } from "lucide-react";
+import { CheckCircle2, Circle, X, DollarSign, Truck, Users, Mail, Building2, Building } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const STEPS = [
+  { key: "step_company_info_verified", label: "Company info", icon: Building },
   { key: "step_rates_verified", label: "Verify rates", icon: DollarSign },
   { key: "step_trucks_added", label: "Add trucks", icon: Truck },
-  { key: "step_patients_added", label: "Add patients", icon: Users },
   { key: "step_team_invited", label: "Invite team", icon: Mail },
-  { key: "step_first_trip", label: "First trip", icon: Rocket },
+  { key: "step_facility_added", label: "Add a facility", icon: Building2 },
+  { key: "step_patients_added", label: "Add patients", icon: Users },
 ] as const;
 
 export function OnboardingChecklist() {
@@ -19,14 +20,14 @@ export function OnboardingChecklist() {
   const navigate = useNavigate();
 
   if (!isAdmin || progress.loading || progress.wizard_completed || progress.onboarding_dismissed) return null;
-  if (progress.completedCount === 5) return null;
+  if (progress.completedCount >= progress.totalSteps) return null;
 
   return (
     <div className="rounded-lg border bg-card p-4 mb-6">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <p className="text-sm font-semibold text-foreground">Getting Started — {progress.completedCount}/5 complete</p>
-          <Progress value={(progress.completedCount / 5) * 100} className="h-1.5 mt-1.5 w-48" />
+          <p className="text-sm font-semibold text-foreground">Getting Started — {progress.completedCount}/{progress.totalSteps} complete</p>
+          <Progress value={(progress.completedCount / progress.totalSteps) * 100} className="h-1.5 mt-1.5 w-48" />
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => navigate("/onboarding")}>Continue Setup</Button>

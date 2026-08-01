@@ -15,8 +15,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ShieldCheck, Check, X, ExternalLink, RefreshCw } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ShieldCheck, Check, X, ExternalLink, RefreshCw, ArrowLeft } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 
 type CertType = "medic_number" | "cpr" | "drivers_license";
 
@@ -42,6 +42,7 @@ const CERT_LABELS: Record<CertType, string> = {
 
 export default function CertificationReviewQueue() {
   const { activeCompanyId, user, role } = useAuth();
+  const navigate = useNavigate();
   const [rows, setRows] = useState<PendingRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -195,6 +196,14 @@ export default function CertificationReviewQueue() {
   return (
     <AdminLayout>
       <div className="space-y-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2 w-fit"
+          onClick={() => navigate("/employees")}
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" /> Back to Employees
+        </Button>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-xl font-semibold flex items-center gap-2">
