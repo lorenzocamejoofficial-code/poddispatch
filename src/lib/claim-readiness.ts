@@ -485,6 +485,8 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
   return issues;
 }
 
+// (appended below: Rule 6 lives inside evaluateClaimReadiness)
+
 /** Convert structured issues back to flat strings for callers that haven't
  *  migrated yet (preserves existing validateClaimForEDI return-shape). */
 export function readinessToErrorStrings(issues: ReadinessIssue[]): string[] {
