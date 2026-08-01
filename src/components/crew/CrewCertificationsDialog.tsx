@@ -306,7 +306,7 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, onChanged }:
             .in("role", ["owner", "manager", "dispatcher", "creator"]);
           const targets = (reviewers ?? []).map((r: any) => r.user_id).filter(Boolean);
           if (targets.length > 0) {
-            const who = fullName || "A crew member";
+            const who = "A crew member";
             const label = type === "medic_number" ? "Medic / EMT #" : type === "cpr" ? "CPR card" : "Driver's license";
             await supabase.from("notifications").insert(
               targets.map((uid: string) => ({
