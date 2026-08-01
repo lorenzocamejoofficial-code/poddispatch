@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireSystemCreator, UUID_RE } from "../_shared/creator-gate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,7 +10,14 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    const gate = await requireSystemCreator(req);
+    if (gate.error) {
+      return new Response(JSON.stringify({ status: "pending", error: gate.error }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: gate.status });
+    }
     const { name, state, company_id } = await req.json();
+    if (company_id !== undefined && (typeof company_id !== "string" || !UUID_RE.test(company_id))) {
+      return new Response(JSON.stringify({ status: "pending", error: "company_id must be a valid uuid" }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+    }
     if (!name) return new Response(JSON.stringify({ status: "pending", error: "No company name provided" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const params = new URLSearchParams({ name });
@@ -44,8 +51,7 @@ Deno.serve(async (req) => {
     }
 
     if (company_id) {
-      const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-      await supabase.from("companies").update({
+      await gate.admin.from("companies").update({
         oig_excluded: result.status === "excluded",
         oig_exclusion_details: result.details || null,
         verification_checked_at: new Date().toISOString(),
