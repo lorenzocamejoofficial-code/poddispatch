@@ -85,6 +85,7 @@ import { evaluateClaimReadiness } from "@/lib/claim-readiness";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
+import { PAYER_KEYS, normalizePayerKey, payerLabel } from "@/lib/payer-vocabulary";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
 import { SecondaryClaimPanel } from "@/components/billing/SecondaryClaimPanel";
