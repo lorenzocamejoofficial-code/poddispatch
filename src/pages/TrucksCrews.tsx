@@ -589,7 +589,10 @@ export default function TrucksCrews() {
   };
 
   // Crew CRUD
-  const assignCrew = async (truckId: string, date: string, m1: string, m2: string, m3: string) => {
+  const assignCrew = async (
+    truckId: string, date: string, m1: string, m2: string, m3: string,
+    driverId: string | null, overrideReason: string | null,
+  ) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
     const m3Val = m3 === "none" || !m3 ? null : m3;
@@ -614,10 +617,20 @@ export default function TrucksCrews() {
       fetchAll();
       return;
     }
-    toast.success("Crew assigned"); fetchAll();
+    const { data: authUser } = await supabase.auth.getUser();
+    await supabase.from("crews").update({
+      driver_member_id: driverId,
+      crew_override_reason: overrideReason,
+      crew_override_by: overrideReason ? authUser?.user?.id ?? null : null,
+      crew_override_at: overrideReason ? new Date().toISOString() : null,
+    } as any).eq("truck_id", truckId).eq("active_date", date);
+    toast.success(overrideReason ? "Crew assigned with override" : "Crew assigned"); fetchAll();
   };
 
-  const editCrew = async (crewId: string, m1: string, m2: string, m3: string) => {
+  const editCrew = async (
+    crewId: string, m1: string, m2: string, m3: string,
+    driverId: string | null, overrideReason: string | null,
+  ) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
     const m3Val = m3 === "none" || !m3 ? null : m3;
@@ -647,13 +660,18 @@ export default function TrucksCrews() {
       }
     }
 
+    const { data: authUser } = await supabase.auth.getUser();
     const { error } = await supabase.from("crews").update({
       member1_id: m1Val,
       member2_id: m2Val,
       member3_id: m3Val,
+      driver_member_id: driverId,
+      crew_override_reason: overrideReason,
+      crew_override_by: overrideReason ? authUser?.user?.id ?? null : null,
+      crew_override_at: overrideReason ? new Date().toISOString() : null,
     } as any).eq("id", crewId);
     if (error) { toast.error("Failed to update crew"); return; }
-    toast.success("Crew updated"); fetchAll();
+    toast.success(overrideReason ? "Crew updated with override" : "Crew updated"); fetchAll();
   };
 
   const clearCrew = async (crewId: string) => {
