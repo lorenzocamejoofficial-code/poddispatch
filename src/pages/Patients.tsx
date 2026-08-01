@@ -500,7 +500,7 @@ export default function Patients() {
       // Fix 4: payer is stored canonically lowercase. Dropdown values are
       // already lowercase (medicare/medicaid/facility/cash) but we normalize
       // defensively in case a value originated from CSV import or migration.
-      primary_payer: form.primary_payer ? form.primary_payer.toLowerCase().trim() : null,
+      primary_payer: form.primary_payer ? normalizePayerKey(form.primary_payer) : null,
       secondary_payer: form.secondary_payer ? form.secondary_payer.toLowerCase().trim() : null,
       member_id: form.member_id || null,
       secondary_member_id: form.secondary_member_id || null,
