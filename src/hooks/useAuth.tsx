@@ -134,16 +134,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadUserData = async (userId: string) => {
-    if (!inviteClaimAttemptedForRef.current.has(userId)) {
-      inviteClaimAttemptedForRef.current.add(userId);
-      await supabase.functions.invoke("claim-employee-invites").catch(() => {
-        // Non-fatal: normal membership loading below still decides routing.
-      });
-    }
+    const firstClaimAttempt = !inviteClaimAttemptedForRef.current.has(userId);
+    if (firstClaimAttempt) inviteClaimAttemptedForRef.current.add(userId);
 
     // Single query: memberships JOIN companies (for switcher labels).
     // Filter out memberships whose company has been soft-deleted.
-    const [
+    let [
       { data: membershipRows },
       { data: profileData },
       { data: scData },
@@ -159,6 +155,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle(),
       supabase.from("system_creators").select("id").eq("user_id", userId).maybeSingle(),
     ]);
+
+    // Claiming pending employee invites used to block every single login on a
+    // cold-start edge function call. Only wait for it when the user has no
+    // membership yet (the only case where routing actually depends on it);
+    // otherwise fire it off in the background.
+    if (firstClaimAttempt) {
+      const claim = supabase.functions.invoke("claim-employee-invites").catch(() => null);
+      if (!membershipRows || membershipRows.length === 0) {
+        await claim;
+        const { data: retryRows } = await supabase
+          .from("company_memberships")
+          .select("company_id, role, companies:company_id(id, name, deleted_at)")
+          .eq("user_id", userId);
+        membershipRows = retryRows;
+      }
+    }
 
     if (profileData) setProfileId(profileData.id);
     setIsSystemCreator(!!scData);
