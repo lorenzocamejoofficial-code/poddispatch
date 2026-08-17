@@ -23,6 +23,7 @@ import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import type { CertLevel } from "@/lib/cert-levels";
 import { evaluateCrewComposition, deriveUnitCapability } from "@/lib/crew-composition";
+import { MEMBER3_ROLES, MEMBER3_ROLE_LABELS, member3RoleLabel } from "@/lib/crew-roles";
 import type { Tables } from "@/integrations/supabase/types";
 
 type TruckRow = Tables<"trucks">;
