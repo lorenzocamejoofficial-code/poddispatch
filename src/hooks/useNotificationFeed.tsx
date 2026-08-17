@@ -140,7 +140,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
       jobs.push((async () => {
         let q = supabase
           .from("notifications" as any)
-          .select("id, message, notification_type, created_at, user_id")
+          .select("id, message, notification_type, created_at, user_id, related_run_id, related_patient_id")
           .gte("created_at", since)
           .order("created_at", { ascending: false })
           .limit(LIMIT_PER_SOURCE);
@@ -159,6 +159,15 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
             return;
           }
           const isAction = ["pcr_kickback", "claim_rejection", "schedule_change", "emergency"].includes(type);
+          // Deep-link where the row actually carries a destination record.
+          let link: string | undefined;
+          if (r.related_run_id) {
+            link = `/pcr?tripId=${r.related_run_id}`;
+          } else if (r.related_patient_id && !isCrewMode) {
+            link = `/patients?patientId=${r.related_patient_id}`;
+          } else if (isCrewMode && type === "schedule_change") {
+            link = "/my-schedule";
+          }
           next.push({
             id: `notifications:${r.id}`,
             source_table: "notifications",
@@ -166,7 +175,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
             tier: isAction ? "action" : "fyi",
             title: r.message?.slice(0, 80) ?? "Notification",
             body: r.message,
-            link: undefined,
+            link,
             category: type || "notification",
             created_at: r.created_at,
             read: false,
@@ -176,6 +185,47 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
 
       // Dispatch alerts
       if (isDispatcher) {
+        // Dispatch board `alerts` (vehicle inspection completions, emergencies, etc.)
+        jobs.push((async () => {
+          const { data } = await supabase
+            .from("alerts" as any)
+            .select("id, message, severity, created_at, truck_id, run_id")
+            .eq("company_id", activeCompanyId)
+            .eq("dismissed", false)
+            .gte("created_at", since)
+            .order("created_at", { ascending: false })
+            .limit(LIMIT_PER_SOURCE);
+          (data ?? []).forEach((r: any) => {
+            const msg: string = r.message ?? "";
+            const isInspection = /inspection/i.test(msg);
+            const isEmergency = /EMERGENCY/.test(msg);
+            // Only link where a real admin-side destination record exists.
+            const link = isInspection
+              ? "/compliance?tab=inspections"
+              : isEmergency
+              ? "/dispatch"
+              : undefined;
+            next.push({
+              id: `alerts:${r.id}`,
+              source_table: "alerts",
+              source_id: r.id,
+              tier: r.severity === "red" ? "action" : "fyi",
+              title: isInspection
+                ? r.severity === "red"
+                  ? "Vehicle inspection — items missing"
+                  : "Vehicle inspection complete"
+                : isEmergency
+                ? "Emergency upgrade"
+                : "Dispatch alert",
+              body: msg,
+              link,
+              category: isInspection ? "vehicle_inspection" : isEmergency ? "emergency" : "dispatch_alert",
+              created_at: r.created_at,
+              read: false,
+            });
+          });
+        })());
+
         jobs.push((async () => {
           const { data } = await supabase
             .from("operational_alerts" as any)
@@ -222,7 +272,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
               tier: "action",
               title: "Claim creation failed",
               body: r.error_message?.slice(0, 200),
-              link: r.trip_id ? `/pcr/${r.trip_id}` : "/billing",
+              link: r.trip_id ? `/pcr?tripId=${r.trip_id}` : "/billing",
               category: "claim_failure",
               created_at: r.created_at,
               read: false,
@@ -297,7 +347,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
               tier: r.severity === "red" ? "action" : "fyi",
               title: `QA flag — ${r.severity ?? ""}`.trim(),
               body: r.flag_reason,
-              link: r.trip_id ? `/pcr/${r.trip_id}` : "/compliance",
+              link: r.trip_id ? `/pcr?tripId=${r.trip_id}` : "/compliance",
               category: "qa_review",
               created_at: r.created_at,
               read: false,
@@ -510,6 +560,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
       .channel(`notif-feed-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => fetchAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "operational_alerts" }, () => fetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => fetchAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "claim_creation_failures" }, () => fetchAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "system_announcements" }, () => fetchAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "notification_reads", filter: `user_id=eq.${userId}` }, () => fetchReads())
