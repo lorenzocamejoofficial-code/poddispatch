@@ -855,6 +855,19 @@ export default function Patients() {
   }, [form]);
   const ringIfMissing = (field: string) => missingFieldSet.has(field) ? "ring-2 ring-destructive/60 rounded-md" : "";
 
+  // "Clinical & Billing Defaults" is collapsed by default, which hid the
+  // Standing ICD-10 picker. Make it controlled so we can open it whenever the
+  // ICD-10 is missing on a dialysis patient, or when a readiness deep-link
+  // points at ?focus=icd10.
+  const dialysisIcdMissing =
+    form.transport_type === "dialysis" && (form.icd10_codes?.length ?? 0) === 0;
+  const [clinicalDefaultsOpen, setClinicalDefaultsOpen] = useState(false);
+  useEffect(() => {
+    if (dialysisIcdMissing || searchParams.get("focus") === "icd10") {
+      setClinicalDefaultsOpen(true);
+    }
+  }, [dialysisIcdMissing, searchParams]);
+
   // Phase 3 — Item 3: auto-fill defaults on transport_type change (only blanks).
   const handleTransportTypeChange = (newType: TransportType) => {
     setForm(prev => {
