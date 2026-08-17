@@ -33,6 +33,8 @@ interface TruckData {
   id: string;
   name: string;
   crewNames: string[];
+  driverLabel?: string | null;
+  thirdMemberLabel?: string | null;
   scheduledLegsCount: number;
   runs: {
     id: string;
