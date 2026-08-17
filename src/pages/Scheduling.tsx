@@ -52,6 +52,7 @@ import {
   DragOverlay,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
+import { sortSchedulingLegs } from "@/lib/leg-order";
 
 // Custom collision: always check pool-droppable first so dragging from a
 // truck back to the pool reliably registers even when sortable items are nearby
@@ -988,14 +989,7 @@ export default function Scheduling() {
 
     if (currentTruckId === targetTruckId) {
       // ── Reorder within same truck ──
-      const tLegs = legs
-        .filter(l => l.assigned_truck_id === targetTruckId)
-        .sort((a, b) => {
-          if (a.slot_order != null && b.slot_order != null) return a.slot_order - b.slot_order;
-          if (a.slot_order != null) return -1;
-          if (b.slot_order != null) return 1;
-          return (a.pickup_time ?? "").localeCompare(b.pickup_time ?? "");
-        });
+      const tLegs = sortSchedulingLegs(legs.filter(l => l.assigned_truck_id === targetTruckId));
       const oldIdx = tLegs.findIndex(l => l.id === activeId);
       const newIdx = tLegs.findIndex(l => l.id === overId);
       if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return;
