@@ -22,6 +22,7 @@ import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist
 import { TrialBanner } from "@/components/onboarding/TrialBanner";
 import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
+import { sortTruckRunSlots } from "@/lib/leg-order";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
 type BillingStatus = "clean" | "missing_pcs" | "blocked_auth" | "blocked_other" | "not_ready" | null;
@@ -143,7 +144,7 @@ export default function DispatchBoard() {
       supabase.from("trucks").select("*").eq("active", true).order("name"),
       supabase
         .from("truck_run_slots")
-        .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, trip_type, destination_location, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, pcs_on_file, auth_required, auth_expiration, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric))")
+        .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, leg_type, patient_id, trip_type, destination_location, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, pcs_on_file, auth_required, auth_expiration, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric))")
         .eq("run_date", selectedDate)
         .order("slot_order"),
       supabase.from("alerts").select("*").eq("dismissed", false).order("created_at", { ascending: false }),
@@ -242,9 +243,9 @@ export default function DispatchBoard() {
         has_oxygen_mount: t.has_oxygen_mount ?? false,
       };
 
-      const truckSlots = ((slotRows ?? []) as any[])
-        .filter((s) => s.truck_id === t.id)
-        .sort((a, b) => (a.slot_order ?? 0) - (b.slot_order ?? 0));
+      const truckSlots = sortTruckRunSlots(
+        ((slotRows ?? []) as any[]).filter((s) => s.truck_id === t.id)
+      );
 
       const truckRuns = truckSlots.map((s) => {
         const leg = s.leg as any;

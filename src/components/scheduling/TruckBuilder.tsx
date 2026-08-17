@@ -22,6 +22,7 @@ import {
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import type { OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
+import { sortSchedulingLegs } from "@/lib/leg-order";
 
 interface AvailabilityRecord {
   id: string;
@@ -324,16 +325,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   );
 
   const truckLegs = useCallback((truckId: string) =>
-    legs
-      .filter((l) => l.assigned_truck_id === truckId)
-      .sort((a, b) => {
-        if (a.slot_order != null && b.slot_order != null) return a.slot_order - b.slot_order;
-        if (a.slot_order != null) return -1;
-        if (b.slot_order != null) return 1;
-        if (!a.pickup_time) return 1;
-        if (!b.pickup_time) return -1;
-        return a.pickup_time.localeCompare(b.pickup_time);
-      }),
+    sortSchedulingLegs(legs.filter((l) => l.assigned_truck_id === truckId)),
     [legs]
   );
 
