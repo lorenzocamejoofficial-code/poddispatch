@@ -461,6 +461,7 @@ export default function TrucksCrews() {
       member3_name: cr.member3?.full_name ?? null,
       active_date: cr.active_date,
       driver_member_id: cr.driver_member_id ?? null,
+      member3_role: cr.member3_role ?? null,
       crew_override_reason: cr.crew_override_reason ?? null,
     })));
     setAvailability((av ?? []) as unknown as AvailabilityRecord[]);
@@ -603,7 +604,7 @@ export default function TrucksCrews() {
   // Crew CRUD
   const assignCrew = async (
     truckId: string, date: string, m1: string, m2: string, m3: string,
-    driverId: string | null, overrideReason: string | null,
+    m3Role: string | null, overrideReason: string | null,
   ) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
@@ -613,6 +614,10 @@ export default function TrucksCrews() {
       toast.error("Select at least one crew member");
       return;
     }
+    if (m3Val && !m3Role) {
+      toast.error("Select a role for the third crew member");
+      return;
+    }
 
     const { data: result, error } = await supabase.rpc("safe_assign_crew", {
       p_truck_id: truckId,
@@ -620,7 +625,8 @@ export default function TrucksCrews() {
       p_member1_id: m1Val,
       p_member2_id: m2Val,
       p_member3_id: m3Val,
-    });
+      p_member3_role: m3Val ? m3Role : null,
+    } as any);
 
     if (error) { toast.error("Failed to assign crew"); return; }
     const res = result as any;
@@ -631,7 +637,8 @@ export default function TrucksCrews() {
     }
     const { data: authUser } = await supabase.auth.getUser();
     await supabase.from("crews").update({
-      driver_member_id: driverId,
+      // Legacy column: only meaningful when the third member IS the driver.
+      driver_member_id: m3Val && m3Role === "driver" ? m3Val : null,
       crew_override_reason: overrideReason,
       crew_override_by: overrideReason ? authUser?.user?.id ?? null : null,
       crew_override_at: overrideReason ? new Date().toISOString() : null,
@@ -641,11 +648,16 @@ export default function TrucksCrews() {
 
   const editCrew = async (
     crewId: string, m1: string, m2: string, m3: string,
-    driverId: string | null, overrideReason: string | null,
+    m3Role: string | null, overrideReason: string | null,
   ) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
     const m3Val = m3 === "none" || !m3 ? null : m3;
+
+    if (m3Val && !m3Role) {
+      toast.error("Select a role for the third crew member");
+      return;
+    }
 
     // Prevent assigning the same person to multiple slots
     const vals = [m1Val, m2Val, m3Val].filter(Boolean);
@@ -677,7 +689,8 @@ export default function TrucksCrews() {
       member1_id: m1Val,
       member2_id: m2Val,
       member3_id: m3Val,
-      driver_member_id: driverId,
+      member3_role: m3Val ? m3Role : null,
+      driver_member_id: m3Val && m3Role === "driver" ? m3Val : null,
       crew_override_reason: overrideReason,
       crew_override_by: overrideReason ? authUser?.user?.id ?? null : null,
       crew_override_at: overrideReason ? new Date().toISOString() : null,
