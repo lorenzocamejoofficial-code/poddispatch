@@ -418,7 +418,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     return { origin_type: "Residence", destination_type: destination };
   };
 
-  const createTripForRun = async (run: RunForPCR) => {
+  const createTripForRun = async (run: RunForPCR, icd10Override?: string[]) => {
     setCreating(run.legId);
     const companyId = run.companyId;
     if (!companyId) {
