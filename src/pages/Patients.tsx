@@ -452,6 +452,17 @@ export default function Patients() {
 
   const handleSave = async () => {
     if (saving) return;
+    // Dialysis + no ICD-10 is hard-blocked downstream when the crew tries to
+    // open the PCR. Block it here instead of letting it surface in the field.
+    // We never auto-fill a code — the operator must enter the real diagnosis.
+    if (form.transport_type === "dialysis" && (form.icd10_codes?.length ?? 0) === 0) {
+      setClinicalDefaultsOpen(true);
+      toast.error(
+        "Dialysis patients need an ICD-10 diagnosis code. Add it under 'Standing ICD-10 Codes' in Clinical & Billing Defaults before saving.",
+        { duration: 8000 }
+      );
+      return;
+    }
     // DOB sanity: no future dates, no >120 years old.
     if (form.dob) {
       const dob = new Date(form.dob);
