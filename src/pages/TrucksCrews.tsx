@@ -821,6 +821,7 @@ export default function TrucksCrews() {
               member1_id: crew.member1_id,
               member2_id: crew.member2_id,
               member3_id: crew.member3_id,
+              member3_role: crew.member3_id ? crew.member3_role ?? null : null,
               active_date: targetDate,
               company_id: companyId,
             });
@@ -849,6 +850,7 @@ export default function TrucksCrews() {
                 member1_id: tmpl.member1_id,
                 member2_id: tmpl.member2_id,
                 member3_id: tmpl.member3_id,
+                member3_role: tmpl.member3_id ? tmpl.member3_role ?? null : null,
                 active_date: targetDate,
                 company_id: companyId,
               });
