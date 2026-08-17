@@ -76,6 +76,9 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<string | null>(null);
   const [dupWarning, setDupWarning] = useState<{ run: RunForPCR; existingTrips: { id: string; pickup_time: string | null; status: string }[] } | null>(null);
+  // One-off dialysis runs have no patient chart, so the crew enters the real
+  // ICD-10 here. Nothing is pre-selected — no auto-stamped diagnosis.
+  const [icdPrompt, setIcdPrompt] = useState<{ run: RunForPCR; codes: string[] } | null>(null);
   const [inspectionGated, setInspectionGated] = useState(false);
   const [crewTruckId, setCrewTruckId] = useState<string | null>(null);
   const [hasCrewToday, setHasCrewToday] = useState(false);
