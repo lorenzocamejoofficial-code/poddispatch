@@ -154,12 +154,18 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       const items: RunForPCR[] = [];
 
       // --- 1. Try to find today's crew assignment ---
-      const { data: crewRow } = await supabase
+      const { data: crewRow, error: crewErr } = await supabase
         .from("crews")
         .select("id, truck_id, company_id, active_date")
         .eq("active_date", today)
         .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
         .maybeSingle();
+
+      if (crewErr) {
+        setLoadError(crewErr.message);
+        setLoading(false);
+        return;
+      }
 
       let todayTruckId: string | null = crewRow?.truck_id ?? null;
       let todayCrewId: string | null = crewRow?.id ?? null;
