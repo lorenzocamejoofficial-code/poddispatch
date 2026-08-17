@@ -1605,7 +1605,7 @@ export default function Patients() {
                   </div>
 
                   {/* Clinical & Billing Defaults — pre-fills the PCR for every transport this patient takes */}
-                  <Collapsible defaultOpen={false}>
+                  <Collapsible open={clinicalDefaultsOpen} onOpenChange={setClinicalDefaultsOpen}>
                     <div className="border-t pt-3">
                       <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
                         <div>
