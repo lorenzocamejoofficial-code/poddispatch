@@ -22,6 +22,7 @@ import {
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import type { OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
+import { sortSchedulingLegs } from "@/lib/leg-order";
 
 interface AvailabilityRecord {
   id: string;
