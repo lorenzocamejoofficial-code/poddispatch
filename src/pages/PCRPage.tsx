@@ -7,6 +7,7 @@ import { usePCRSectionRules } from "@/hooks/usePCRSectionRules";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { MedicSelector } from "@/components/pcr/MedicSelector";
+import { canThirdMemberAttend } from "@/lib/crew-roles";
 import { TimesCard } from "@/components/pcr/TimesCard";
 import { getTimeSequenceWarnings } from "@/components/pcr/TimesCard";
 import { PatientInfoCard } from "@/components/pcr/PatientInfoCard";
