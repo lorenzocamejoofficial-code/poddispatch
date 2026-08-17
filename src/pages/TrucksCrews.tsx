@@ -225,17 +225,22 @@ function TruckDayCell({
             ))}
           </SelectContent>
         </Select>
-        <Select value={driverId} onValueChange={setDriverId}>
-          <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="Driver" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">— Driver not set —</SelectItem>
-            {selectedMembers.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                Driver: {m.full_name}{m.cert_level ? ` · ${m.cert_level}` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {hasThird && (
+          <Select value={m3Role} onValueChange={setM3Role}>
+            <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="3rd member role (required)" /></SelectTrigger>
+            <SelectContent>
+              {MEMBER3_ROLES.map((r) => (
+                <SelectItem key={r} value={r}>{MEMBER3_ROLE_LABELS[r]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {missingThirdRole && (
+          <p className="text-[9px] text-destructive leading-tight">Select a role for the third crew member.</p>
+        )}
+        <p className="text-[9px] text-muted-foreground leading-tight">
+          The driver isn't chosen here — it's derived in the field from whoever isn't charting the PCR.
+        </p>
         {composition.notes.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {composition.notes.map((n) => (
@@ -243,7 +248,7 @@ function TruckDayCell({
             ))}
           </div>
         )}
-        {!composition.valid && selectedMembers.length > 0 && (
+        {!composition.valid && primaryMembers.length > 0 && (
           <div className="rounded border border-destructive bg-destructive/10 p-1.5 space-y-1">
             {composition.errors.map((e) => (
               <p key={e} className="text-[9px] text-destructive leading-tight font-medium">{e}</p>
