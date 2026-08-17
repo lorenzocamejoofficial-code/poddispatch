@@ -32,6 +32,10 @@ interface PayerRule {
 import { PAYER_KEYS as PAYER_TYPES } from "@/lib/payer-vocabulary";
 
 export default function ComplianceAndQA() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const VALID_TABS = ["qa", "incidents", "overrides-log", "claim-failures", "vault", "payer-rules", "inspections"];
+  const tabParam = searchParams.get("tab");
+  const activeTab = tabParam && VALID_TABS.includes(tabParam) ? tabParam : "qa";
   const [payerRules, setPayerRules] = useState<PayerRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingRule, setEditingRule] = useState<PayerRule | null>(null);
@@ -72,7 +76,11 @@ export default function ComplianceAndQA() {
 
   return (
     <AdminLayout>
-      <Tabs defaultValue="qa" className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setSearchParams({ tab: v }, { replace: true })}
+        className="space-y-4"
+      >
         <TabsList>
           <TabsTrigger value="qa">QA Queue</TabsTrigger>
           <TabsTrigger value="incidents"><FileWarning className="h-3.5 w-3.5 mr-1.5" />Incidents</TabsTrigger>
