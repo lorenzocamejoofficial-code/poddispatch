@@ -279,7 +279,7 @@ function TruckDayCell({
           <Button size="sm" className="h-6 text-[10px] flex-1" onClick={handleSave} disabled={saving || !canSave}>
             <Check className="h-3 w-3 mr-0.5" /> Save
           </Button>
-          <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { setEditing(false); setM1(crew?.member1_id ?? ""); setM2(crew?.member2_id ?? ""); setM3(crew?.member3_id ?? ""); setDriverId(crew?.driver_member_id ?? ""); setOverrideText(""); setOverrideReason(""); }}>
+          <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { setEditing(false); setM1(crew?.member1_id ?? ""); setM2(crew?.member2_id ?? ""); setM3(crew?.member3_id ?? ""); setM3Role(crew?.member3_role ?? ""); setOverrideText(""); setOverrideReason(""); }}>
             <X className="h-3 w-3" />
           </Button>
         </div>
@@ -288,8 +288,7 @@ function TruckDayCell({
   }
 
   if (crew) {
-    const roleFor = (id: string | null) =>
-      id && crew.driver_member_id === id ? "Driver" : id ? "Attendant" : null;
+    const thirdRoleLabel = member3RoleLabel(crew.member3_role);
     return (
       <div className="rounded border bg-card p-2 group relative">
         <div className="flex items-center gap-1 mb-1">
@@ -312,7 +311,7 @@ function TruckDayCell({
           <div className="flex items-center gap-1 text-[11px] mt-0.5">
             <span className="w-3 shrink-0" />
             <span className="truncate text-muted-foreground">{crew.member3_name}</span>
-            {roleFor(crew.member3_id) && <span className="text-[9px] text-muted-foreground shrink-0">{roleFor(crew.member3_id)}</span>}
+            {thirdRoleLabel && <span className="text-[9px] text-muted-foreground shrink-0">{thirdRoleLabel}</span>}
           </div>
         )}
         <div className="mt-1.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
