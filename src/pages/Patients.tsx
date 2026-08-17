@@ -452,6 +452,17 @@ export default function Patients() {
 
   const handleSave = async () => {
     if (saving) return;
+    // Dialysis + no ICD-10 is hard-blocked downstream when the crew tries to
+    // open the PCR. Block it here instead of letting it surface in the field.
+    // We never auto-fill a code — the operator must enter the real diagnosis.
+    if (form.transport_type === "dialysis" && (form.icd10_codes?.length ?? 0) === 0) {
+      setClinicalDefaultsOpen(true);
+      toast.error(
+        "Dialysis patients need an ICD-10 diagnosis code. Add it under 'Standing ICD-10 Codes' in Clinical & Billing Defaults before saving.",
+        { duration: 8000 }
+      );
+      return;
+    }
     // DOB sanity: no future dates, no >120 years old.
     if (form.dob) {
       const dob = new Date(form.dob);
@@ -855,6 +866,19 @@ export default function Patients() {
   }, [form]);
   const ringIfMissing = (field: string) => missingFieldSet.has(field) ? "ring-2 ring-destructive/60 rounded-md" : "";
 
+  // "Clinical & Billing Defaults" is collapsed by default, which hid the
+  // Standing ICD-10 picker. Make it controlled so we can open it whenever the
+  // ICD-10 is missing on a dialysis patient, or when a readiness deep-link
+  // points at ?focus=icd10.
+  const dialysisIcdMissing =
+    form.transport_type === "dialysis" && (form.icd10_codes?.length ?? 0) === 0;
+  const [clinicalDefaultsOpen, setClinicalDefaultsOpen] = useState(false);
+  useEffect(() => {
+    if (dialysisIcdMissing || searchParams.get("focus") === "icd10") {
+      setClinicalDefaultsOpen(true);
+    }
+  }, [dialysisIcdMissing, searchParams]);
+
   // Phase 3 — Item 3: auto-fill defaults on transport_type change (only blanks).
   const handleTransportTypeChange = (newType: TransportType) => {
     setForm(prev => {
@@ -1096,6 +1120,8 @@ export default function Patients() {
                       member_id: form.member_id,
                       pcs_on_file: form.pcs_on_file,
                       pcs_expiration_date: form.pcs_expiration_date,
+                      transport_type: form.transport_type,
+                      icd10_codes: form.icd10_codes,
                     }}
                   />
 
@@ -1592,7 +1618,7 @@ export default function Patients() {
                   </div>
 
                   {/* Clinical & Billing Defaults — pre-fills the PCR for every transport this patient takes */}
-                  <Collapsible defaultOpen={false}>
+                  <Collapsible open={clinicalDefaultsOpen} onOpenChange={setClinicalDefaultsOpen}>
                     <div className="border-t pt-3">
                       <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
                         <div>

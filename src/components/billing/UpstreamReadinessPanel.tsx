@@ -26,6 +26,10 @@ export interface UpstreamCheckInput {
   pcs_expiration_date?: string | null;
   // Optional context — when present, lets us tailor PCS requirement
   transport_type?: string | null;  // e.g. "dialysis", "emergency", "ift"
+  /** Standing ICD-10 diagnosis codes on the patient chart. Required (blocking)
+   *  for dialysis transport, soft-warned for everything else. We never
+   *  auto-fill a code here — the operator must enter the real diagnosis. */
+  icd10_codes?: string[] | null;
 }
 
 interface Issue {
@@ -98,6 +102,25 @@ export function evaluateUpstreamReadiness(input: UpstreamCheckInput): {
       label: "Member / policy ID missing",
       detail: "Required so the payer can identify the patient on their side.",
     });
+  }
+
+  // ICD-10 diagnosis. Dialysis runs are hard-blocked downstream at PCR
+  // creation, so surface the same requirement here, before the patient is
+  // saved. Other transport types stay a soft warning.
+  const hasIcd = Array.isArray(input.icd10_codes) && input.icd10_codes.length > 0;
+  if (!hasIcd) {
+    const isDialysis = (input.transport_type ?? "").toLowerCase() === "dialysis";
+    if (isDialysis) {
+      blockers.push({
+        label: "ICD-10 diagnosis code required for dialysis transport",
+        detail: "Add it under Clinical & Billing Defaults — the crew cannot start the PCR without it.",
+      });
+    } else {
+      warnings.push({
+        label: "No ICD-10 diagnosis code on file",
+        detail: "Claims need a diagnosis. Add it under Clinical & Billing Defaults when you know it.",
+      });
+    }
   }
 
   // PCS — only matters when the trip is non-emergency and the payer

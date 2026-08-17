@@ -28,6 +28,7 @@ import { ProceduresCard } from "@/components/pcr/ProceduresCard";
 import { MedicationsCard } from "@/components/pcr/MedicationsCard";
 import { IVAccessCard } from "@/components/pcr/IVAccessCard";
 import { LockedSectionOverlay } from "@/components/pcr/LockedSectionOverlay";
+import { ICD10Picker } from "@/components/pcr/ICD10Picker";
 import { CrewSignaturesSection, areAllCrewSigned } from "@/components/pcr/CrewSignaturesSection";
 import { DocumentAttachments } from "@/components/documents/DocumentAttachments";
 import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
@@ -76,6 +77,9 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<string | null>(null);
   const [dupWarning, setDupWarning] = useState<{ run: RunForPCR; existingTrips: { id: string; pickup_time: string | null; status: string }[] } | null>(null);
+  // One-off dialysis runs have no patient chart, so the crew enters the real
+  // ICD-10 here. Nothing is pre-selected — no auto-stamped diagnosis.
+  const [icdPrompt, setIcdPrompt] = useState<{ run: RunForPCR; codes: string[] } | null>(null);
   const [inspectionGated, setInspectionGated] = useState(false);
   const [crewTruckId, setCrewTruckId] = useState<string | null>(null);
   const [hasCrewToday, setHasCrewToday] = useState(false);
@@ -418,7 +422,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     return { origin_type: "Residence", destination_type: destination };
   };
 
-  const createTripForRun = async (run: RunForPCR) => {
+  const createTripForRun = async (run: RunForPCR, icd10Override?: string[]) => {
     setCreating(run.legId);
     const companyId = run.companyId;
     if (!companyId) {
@@ -545,9 +549,21 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     // the ICD-10 picker. We do NOT synthesize a diagnosis (previously auto-stamped
     // N18.6 ESRD on dialysis runs) — that is federal fraud exposure. Block PCR
     // creation when a dialysis run has no codes and direct the user to fix it.
+    if (icd10Override && icd10Override.length > 0) {
+      // Crew-entered codes for a one-off dialysis run (no patient chart to
+      // pull from). Never synthesized — typed by the crew in the prompt below.
+      insertData.icd10_codes = icd10Override;
+    }
     if (tripTypeKey === "dialysis" && (!insertData.icd10_codes || insertData.icd10_codes.length === 0)) {
+      if (isOneoff || !run.patientId) {
+        // One-off run has no patient chart, so a hard block would be a dead
+        // end. Prompt the crew to enter the real diagnosis inline instead.
+        setIcdPrompt({ run, codes: [] });
+        setCreating(null);
+        return;
+      }
       toast.error(
-        "ICD-10 code required for dialysis transport. Open the patient chart and add the patient's diagnosis (e.g., N18.6 / Z99.2) on the Assessment card before starting the PCR."
+        "This dialysis patient has no ICD-10 diagnosis code. Add it on the patient chart under 'Standing ICD-10 Codes' (Clinical & Billing Defaults) before starting the PCR."
       );
       setCreating(null);
       return;
@@ -789,6 +805,42 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
               }}
             >
               Create Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* One-off dialysis run — capture the ICD-10 from the crew */}
+      <Dialog open={!!icdPrompt} onOpenChange={o => { if (!o) setIcdPrompt(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              ICD-10 Diagnosis Required
+            </DialogTitle>
+            <DialogDescription>
+              This is a one-off dialysis run with no patient chart, so there is no standing diagnosis to pull from. Enter the patient's actual ICD-10 diagnosis to start the PCR. Do not guess — use the code documented for this patient.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <ICD10Picker
+              selectedCodes={icdPrompt?.codes ?? []}
+              onCodesChange={(codes) => setIcdPrompt(p => (p ? { ...p, codes } : p))}
+              required
+              chiefComplaint="dialysis"
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIcdPrompt(null)}>Cancel</Button>
+            <Button
+              disabled={!icdPrompt?.codes.length}
+              onClick={async () => {
+                const p = icdPrompt!;
+                setIcdPrompt(null);
+                await createTripForRun(p.run, p.codes);
+              }}
+            >
+              Start PCR
             </Button>
           </DialogFooter>
         </DialogContent>
