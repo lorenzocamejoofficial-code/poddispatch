@@ -28,6 +28,18 @@ interface Patient {
   recurrence_days: number[] | null;
 }
 
+/** A one-off rider has no patient record — it only exists on the leg. */
+interface OneOffRider {
+  id: string;
+  name: string;
+  transport_type: string | null;
+  pickup: string | null;
+  destination: string | null;
+  pickup_time: string | null;
+}
+
+type EmptyReason = "no_crew" | "no_runs" | "no_patients" | null;
+
 const TRANSPORT_COLORS: Record<string, string> = {
   dialysis: "bg-primary/10 text-primary",
   outpatient: "bg-accent text-accent-foreground",
@@ -61,6 +73,9 @@ function toDateString(d: Date): string {
 export default function CrewPatients() {
   const { profileId } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [oneOffs, setOneOffs] = useState<OneOffRider[]>([]);
+  const [emptyReason, setEmptyReason] = useState<EmptyReason>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -70,45 +85,75 @@ export default function CrewPatients() {
   const fetchPatients = useCallback(async () => {
     if (!profileId) return;
     setLoading(true);
+    setError(null);
+    setEmptyReason(null);
+
+    const fail = (msg: string) => { setError(msg); setPatients([]); setOneOffs([]); setLoading(false); };
+    const empty = (reason: EmptyReason) => { setEmptyReason(reason); setPatients([]); setOneOffs([]); setLoading(false); };
 
     // 1. Find crew's truck for today
-    const { data: crewRow } = await supabase
+    const { data: crewRows, error: crewErr } = await supabase
       .from("crews")
       .select("truck_id")
       .eq("active_date", today)
       .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
-      .maybeSingle();
+      .limit(1);
 
-    if (!crewRow) { setPatients([]); setLoading(false); return; }
+    if (crewErr) return fail(crewErr.message);
+
+    const crewRow = crewRows?.[0];
+    if (!crewRow) return empty("no_crew");
 
     // 2. Get leg ids from today's truck run slots
-    const { data: slots } = await supabase
+    const { data: slots, error: slotErr } = await supabase
       .from("truck_run_slots")
       .select("leg_id")
       .eq("truck_id", crewRow.truck_id)
       .eq("run_date", today);
 
-    if (!slots?.length) { setPatients([]); setLoading(false); return; }
+    if (slotErr) return fail(slotErr.message);
+    if (!slots?.length) return empty("no_runs");
 
     const legIds = slots.map(s => s.leg_id);
 
-    // 3. Get patient ids from scheduling legs
-    const { data: legs } = await supabase
+    // 3. Get patient ids from scheduling legs (one-off legs carry no patient_id)
+    const { data: legs, error: legErr } = await supabase
       .from("scheduling_legs")
-      .select("patient_id")
-      .in("id", legIds)
-      .not("patient_id", "is", null);
+      .select("id, patient_id, is_oneoff, oneoff_name, trip_type, pickup_location, destination_location, pickup_time")
+      .in("id", legIds);
+
+    if (legErr) return fail(legErr.message);
+
+    const riders: OneOffRider[] = (legs ?? [])
+      .filter(l => !l.patient_id)
+      .map(l => ({
+        id: l.id,
+        name: (l.oneoff_name as string | null)?.trim() || l.pickup_location || "One-off rider",
+        transport_type: (l.trip_type as string | null) ?? null,
+        pickup: l.pickup_location ?? null,
+        destination: l.destination_location ?? null,
+        pickup_time: l.pickup_time ?? null,
+      }));
+    setOneOffs(riders);
 
     const patientIds = [...new Set((legs ?? []).map(l => l.patient_id).filter(Boolean))] as string[];
 
-    if (!patientIds.length) { setPatients([]); setLoading(false); return; }
+    if (!patientIds.length) {
+      setPatients([]);
+      setEmptyReason(riders.length ? null : "no_runs");
+      setLoading(false);
+      return;
+    }
 
     // 4. Fetch only those patients
-    const { data } = await supabase
+    const { data, error: patErr } = await supabase
       .from("patients")
       .select("id, first_name, last_name, transport_type, phone, schedule_days, pickup_address, dropoff_facility, sex, weight_lbs, mobility, oxygen_required, bariatric, stair_chair_required, notes, primary_payer, member_id, recurrence_days")
       .in("id", patientIds)
       .order("last_name", { ascending: true });
+
+    if (patErr) return fail(patErr.message);
+    if (!data?.length && !riders.length) return empty("no_patients");
 
     setPatients((data as Patient[]) ?? []);
     setLoading(false);
@@ -134,6 +179,27 @@ export default function CrewPatients() {
     );
   }, [patients, search]);
 
+  const filteredOneOffs = useMemo(() => {
+    if (!search.trim()) return oneOffs;
+    const q = search.toLowerCase();
+    return oneOffs.filter(o => o.name.toLowerCase().includes(q));
+  }, [oneOffs, search]);
+
+  const EMPTY_COPY: Record<Exclude<EmptyReason, null>, { title: string; body: string }> = {
+    no_crew: {
+      title: "No crew assignment for today",
+      body: "You're not on a truck for today's date. Check with dispatch if you believe this is wrong.",
+    },
+    no_runs: {
+      title: "Assigned, but no runs scheduled",
+      body: "You're on a truck today, but dispatch hasn't put any runs on it yet.",
+    },
+    no_patients: {
+      title: "Runs scheduled, but no patient records",
+      body: "Your runs today don't have patient records attached yet. Dispatch can link them on the schedule.",
+    },
+  };
+
   return (
     <CrewLayout>
       <div className="p-4 max-w-2xl mx-auto space-y-4">
@@ -152,12 +218,45 @@ export default function CrewPatients() {
           <div className="flex items-center justify-center py-12">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
-        ) : filtered.length === 0 ? (
-          <p className="text-center text-sm text-muted-foreground py-8">
-            {search.trim() ? "No matching patients" : "No patients assigned for today."}
-          </p>
+        ) : error ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-center space-y-1">
+            <p className="text-sm font-medium text-destructive">Couldn't load today's patients</p>
+            <p className="text-xs text-muted-foreground break-words">{error}</p>
+          </div>
+        ) : filtered.length === 0 && filteredOneOffs.length === 0 ? (
+          search.trim() ? (
+            <p className="text-center text-sm text-muted-foreground py-8">No matching patients</p>
+          ) : (
+            <div className="py-8 text-center space-y-1">
+              <p className="text-sm font-medium text-foreground">
+                {EMPTY_COPY[emptyReason ?? "no_runs"].title}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {EMPTY_COPY[emptyReason ?? "no_runs"].body}
+              </p>
+            </div>
+          )
         ) : (
           <div className="space-y-2">
+            {filteredOneOffs.map(o => (
+              <div key={o.id} className="border border-border rounded-lg bg-card px-4 py-3">
+                <p className="font-medium text-sm text-foreground truncate">{o.name}</p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">One-off</Badge>
+                  {o.transport_type && (
+                    <Badge variant="secondary" className={cn("text-[10px] px-1.5 py-0", TRANSPORT_COLORS[o.transport_type])}>
+                      {o.transport_type.replace(/_/g, " ")}
+                    </Badge>
+                  )}
+                  {o.pickup_time && (
+                    <span className="text-xs text-muted-foreground font-mono">{o.pickup_time.substring(0, 5)}</span>
+                  )}
+                </div>
+                {(o.pickup || o.destination) && (
+                  <p className="text-xs text-muted-foreground mt-1 truncate">{o.pickup ?? "—"} → {o.destination ?? "—"}</p>
+                )}
+              </div>
+            ))}
             {filtered.map(p => {
               const isExpanded = expandedId === p.id;
               return (
