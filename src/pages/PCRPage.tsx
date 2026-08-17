@@ -78,6 +78,8 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
   const [dupWarning, setDupWarning] = useState<{ run: RunForPCR; existingTrips: { id: string; pickup_time: string | null; status: string }[] } | null>(null);
   const [inspectionGated, setInspectionGated] = useState(false);
   const [crewTruckId, setCrewTruckId] = useState<string | null>(null);
+  const [hasCrewToday, setHasCrewToday] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
 
@@ -152,12 +154,18 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
       const items: RunForPCR[] = [];
 
       // --- 1. Try to find today's crew assignment ---
-      const { data: crewRow } = await supabase
+      const { data: crewRow, error: crewErr } = await supabase
         .from("crews")
         .select("id, truck_id, company_id, active_date")
         .eq("active_date", today)
         .or(`member1_id.eq.${profileId},member2_id.eq.${profileId},member3_id.eq.${profileId}`)
         .maybeSingle();
+
+      if (crewErr) {
+        setLoadError(crewErr.message);
+        setLoading(false);
+        return;
+      }
 
       let todayTruckId: string | null = crewRow?.truck_id ?? null;
       let todayCrewId: string | null = crewRow?.id ?? null;
@@ -165,6 +173,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
 
       if (crewRow) {
         setCrewTruckId(crewRow.truck_id);
+        setHasCrewToday(true);
 
         // Check inspection gate
         const gated = await checkInspectionGate(crewRow.truck_id, crewRow.company_id);
@@ -596,10 +605,45 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     return <div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
   }
 
+  // The inspection gate must be evaluated BEFORE the empty state: when the gate is
+  // active the loader returns early with zero runs, so an empty-state-first order
+  // would hide the guidance the crew needs.
+  if (inspectionGated) {
+    return (
+      <div className="flex flex-col items-center justify-center p-10 space-y-4 text-center">
+        <Lock className="h-10 w-10 text-muted-foreground" />
+        <h3 className="text-lg font-bold text-foreground">Pre-Trip Inspection Required</h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          Your truck's pre-trip inspection hasn't been completed today. Finish the checklist and your PCRs will unlock automatically.
+        </p>
+        <Button onClick={() => navigate("/crew-checklist")}>
+          Go to Checklist
+        </Button>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center space-y-2">
+        <AlertCircle className="h-8 w-8 text-destructive" />
+        <p className="text-sm font-medium text-foreground">Couldn't load your runs</p>
+        <p className="text-xs text-muted-foreground max-w-md">{loadError}</p>
+      </div>
+    );
+  }
+
   if (runs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] p-6">
-        <p className="text-muted-foreground text-sm">No runs assigned.</p>
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center space-y-1">
+        <p className="text-sm font-medium text-foreground">
+          {hasCrewToday ? "Assigned, but no runs scheduled" : "No crew assignment for today"}
+        </p>
+        <p className="text-xs text-muted-foreground max-w-md">
+          {hasCrewToday
+            ? "You're on a truck today, but dispatch hasn't put any runs on it yet."
+            : "You're not on a truck for today's date. Check with dispatch if you believe this is wrong."}
+        </p>
       </div>
     );
   }
@@ -621,21 +665,6 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     private_pay: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
     emergency: "bg-destructive/10 text-destructive",
   };
-
-  if (inspectionGated) {
-    return (
-      <div className="flex flex-col items-center justify-center p-10 space-y-4 text-center">
-        <Lock className="h-10 w-10 text-muted-foreground" />
-        <h3 className="text-lg font-bold text-foreground">Pre-Trip Inspection Required</h3>
-        <p className="text-sm text-muted-foreground max-w-md">
-          Pre-trip inspection required before accessing PCR. Complete the inspection in the Checklist tab.
-        </p>
-        <Button onClick={() => navigate("/crew-checklist")}>
-          Go to Checklist
-        </Button>
-      </div>
-    );
-  }
 
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-3">
