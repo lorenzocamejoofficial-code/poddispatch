@@ -28,6 +28,7 @@ import { ProceduresCard } from "@/components/pcr/ProceduresCard";
 import { MedicationsCard } from "@/components/pcr/MedicationsCard";
 import { IVAccessCard } from "@/components/pcr/IVAccessCard";
 import { LockedSectionOverlay } from "@/components/pcr/LockedSectionOverlay";
+import { ICD10Picker } from "@/components/pcr/ICD10Picker";
 import { CrewSignaturesSection, areAllCrewSigned } from "@/components/pcr/CrewSignaturesSection";
 import { DocumentAttachments } from "@/components/documents/DocumentAttachments";
 import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
