@@ -47,6 +47,7 @@ import { ChevronLeft, Check, Loader2, Send, AlertCircle, Lock, AlertTriangle, Ey
 import { FileText } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { sortLegsForDisplay } from "@/lib/leg-order";
 
 interface CrewMember { id: string; name: string; cert: string; }
 
@@ -210,7 +211,17 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
         const legMap = new Map((legs ?? []).map(l => [l.id, l]));
         const tripMap = new Map((trips ?? []).map(t => [t.leg_id, t]));
 
-        for (const slot of (slots ?? [])) {
+        const orderedSlots = sortLegsForDisplay((slots ?? []) as any[], (s: any) => {
+          const l = legMap.get(s.leg_id) as any;
+          return {
+            slotOrder: s.slot_order,
+            pickupTime: l?.pickup_time,
+            patientId: l?.patient_id,
+            legType: l?.leg_type,
+          };
+        });
+
+        for (const slot of orderedSlots) {
           const leg = legMap.get(slot.leg_id) as any;
           const trip = tripMap.get(slot.leg_id) as any;
           const patient = leg?.patient;

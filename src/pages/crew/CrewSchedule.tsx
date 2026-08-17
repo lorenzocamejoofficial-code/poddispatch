@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { format, addDays, addWeeks, startOfDay, startOfWeek, isToday, isSameWeek } from "date-fns";
 import { useCrewPartner } from "@/hooks/useCrewPartner";
+import { sortLegsForDisplay } from "@/lib/leg-order";
 
 interface ScheduleRun {
   date: string;
@@ -22,6 +23,7 @@ interface ScheduleRun {
   pcrStatus: string;
   tripId: string | null;
   slotOrder: number;
+  patientId: string | null;
 }
 
 const TRANSPORT_COLORS: Record<string, string> = {
@@ -197,12 +199,17 @@ export default function CrewSchedule() {
           pcrStatus: trip?.pcr_status ?? "not_started",
           tripId: trip?.id ?? null,
           slotOrder: slot?.slot_order ?? 0,
+          patientId: leg.patient_id ?? null,
         });
       }
     }
 
-    allRuns.sort((a, b) => a.slotOrder - b.slotOrder);
-    setRuns(allRuns);
+    setRuns(sortLegsForDisplay(allRuns, (r) => ({
+      slotOrder: r.slotOrder,
+      pickupTime: r.pickupTime,
+      patientId: r.patientId,
+      legType: r.legType,
+    })));
     setLoading(false);
   }, [user, selectedDate]);
 
