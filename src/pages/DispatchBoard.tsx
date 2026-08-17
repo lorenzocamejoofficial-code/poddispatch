@@ -22,6 +22,8 @@ import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist
 import { TrialBanner } from "@/components/onboarding/TrialBanner";
 import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
+import { deriveDriver } from "@/lib/derive-driver";
+import { member3RoleLabel } from "@/lib/crew-roles";
 import { sortTruckRunSlots } from "@/lib/leg-order";
 
 type RunStatus = Database["public"]["Enums"]["run_status"];
@@ -31,6 +33,8 @@ interface TruckData {
   id: string;
   name: string;
   crewNames: string[];
+  driverLabel?: string | null;
+  thirdMemberLabel?: string | null;
   scheduledLegsCount: number;
   runs: {
     id: string;
@@ -352,10 +356,32 @@ export default function DispatchBoard() {
       }).length;
       const revenueStrength = computeRevenueStrength(truckRuns.length, medicareCount, facilityContractCount);
 
+      // Driver is derived in the field: whoever on the primary pair is NOT
+      // charting the PCR (or an explicitly-assigned third-member driver).
+      const truckMedicId = truckSlots
+        .map((s: any) => (tripBySlot.get(s.id) ?? tripByLeg.get((s.leg as any)?.id))?.attending_medic_id)
+        .find((v: any) => !!v) ?? null;
+      const derivedDriver = deriveDriver(
+        crew
+          ? {
+              member1: { id: crew.member1_id ?? null, name: crew.member1?.full_name ?? null },
+              member2: { id: crew.member2_id ?? null, name: crew.member2?.full_name ?? null },
+              member3: { id: crew.member3_id ?? null, name: crew.member3?.full_name ?? null },
+              member3Role: crew.member3_role ?? null,
+            }
+          : null,
+        truckMedicId,
+      );
+      const thirdMemberLabel = crew?.member3?.full_name && crew?.member3_role
+        ? `${member3RoleLabel(crew.member3_role)} — ${crew.member3.full_name}`
+        : null;
+
       return {
         id: t.id,
         name: t.name,
         crewNames,
+        driverLabel: crew ? derivedDriver.label : null,
+        thirdMemberLabel,
         scheduledLegsCount: truckSlots.length,
         runs: truckRuns,
         overallStatus: computeOverallStatus(truckRuns),
@@ -650,6 +676,8 @@ export default function DispatchBoard() {
                     key={t.id}
                     truckName={t.name}
                     crewNames={t.crewNames}
+                    driverLabel={t.driverLabel}
+                    thirdMemberLabel={t.thirdMemberLabel}
                     scheduledLegsCount={t.scheduledLegsCount}
                     runs={t.runs}
                     overallStatus={t.overallStatus}

@@ -57,6 +57,9 @@ interface RunInfo {
 interface TruckCardProps {
   truckName: string;
   crewNames: string[];
+  /** Derived in the field from who is NOT charting the PCR. Display only. */
+  driverLabel?: string | null;
+  thirdMemberLabel?: string | null;
   scheduledLegsCount?: number;
   runs: RunInfo[];
   overallStatus: "green" | "yellow" | "red";
@@ -146,7 +149,7 @@ function PreTripReadinessChip({ reasons }: { reasons: string[] }) {
   );
 }
 
-export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, overallStatus, downStatus, downReason, revenueStrength, medicareCount = 0, facilityContractCount = 0, onRestoreRun, readOnly = false, overriddenLegIds = new Set(), forceExpanded = false }: TruckCardProps) {
+export function TruckCard({ truckName, crewNames, driverLabel = null, thirdMemberLabel = null, scheduledLegsCount = 0, runs, overallStatus, downStatus, downReason, revenueStrength, medicareCount = 0, facilityContractCount = 0, onRestoreRun, readOnly = false, overriddenLegIds = new Set(), forceExpanded = false }: TruckCardProps) {
   const hasHeavy = runs.some((r) => (r.patient_weight ?? 0) > 200);
   const isDown = !!downStatus;
   const hasRunsWhileDown = isDown && runs.length > 0;
@@ -219,6 +222,13 @@ export function TruckCard({ truckName, crewNames, scheduledLegsCount = 0, runs, 
             <Badge variant="destructive" className="text-[9px] px-1.5 py-0 ml-1">No Crew</Badge>
           )}
         </div>
+
+        {crewNames.length > 0 && (
+          <div className="mb-3 -mt-2 space-y-0.5 pl-5 text-xs text-muted-foreground">
+            <p>Driver: {driverLabel ?? "Not yet determined"}</p>
+            {thirdMemberLabel && <p>3rd: {thirdMemberLabel}</p>}
+          </div>
+        )}
 
         {scheduledLegsCount > 0 && (
           <p className="mb-2 text-xs text-muted-foreground">{scheduledLegsCount} scheduled leg{scheduledLegsCount !== 1 ? "s" : ""}</p>

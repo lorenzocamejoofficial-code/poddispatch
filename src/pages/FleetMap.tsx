@@ -349,6 +349,15 @@ export default function FleetMap() {
                       {selected.run.destination && (
                         <div className="text-muted-foreground">To: {selected.run.destination}</div>
                       )}
+                      <div className="text-muted-foreground">
+                        Driver: {selected.run.driverLabel ?? "Not yet determined"}
+                      </div>
+                      {selected.run.attendingMedicName && (
+                        <div className="text-muted-foreground">Attending: {selected.run.attendingMedicName}</div>
+                      )}
+                      {selected.run.thirdMemberLabel && (
+                        <div className="text-muted-foreground">3rd: {selected.run.thirdMemberLabel}</div>
+                      )}
                       {selected.run.lastSignalLabel && selected.run.lastSignalAt && (
                         <div className="text-muted-foreground">
                           Last PCR signal: {selected.run.lastSignalLabel} ·{" "}

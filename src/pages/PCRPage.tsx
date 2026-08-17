@@ -7,6 +7,7 @@ import { usePCRSectionRules } from "@/hooks/usePCRSectionRules";
 import { CrewLayout } from "@/components/crew/CrewLayout";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { MedicSelector } from "@/components/pcr/MedicSelector";
+import { canThirdMemberAttend } from "@/lib/crew-roles";
 import { TimesCard } from "@/components/pcr/TimesCard";
 import { getTimeSequenceWarnings } from "@/components/pcr/TimesCard";
 import { PatientInfoCard } from "@/components/pcr/PatientInfoCard";
@@ -992,7 +993,7 @@ export default function PCRPage() {
     (async () => {
       const { data: crew } = await supabase
         .from("crews")
-        .select("truck_id, member1_id, member2_id, member3_id, truck:trucks!crews_truck_id_fkey(name), member1:profiles!crews_member1_id_fkey(id, full_name, cert_level), member2:profiles!crews_member2_id_fkey(id, full_name, cert_level), member3:profiles!crews_member3_id_fkey(id, full_name, cert_level)")
+        .select("truck_id, member1_id, member2_id, member3_id, member3_role, truck:trucks!crews_truck_id_fkey(name), member1:profiles!crews_member1_id_fkey(id, full_name, cert_level), member2:profiles!crews_member2_id_fkey(id, full_name, cert_level), member3:profiles!crews_member3_id_fkey(id, full_name, cert_level)")
         .eq("id", trip.crew_id)
         .maybeSingle();
       if (crew) {
@@ -1000,10 +1001,13 @@ export default function PCRPage() {
         const m1 = crew.member1 as any;
         const m2 = crew.member2 as any;
         const m3 = (crew as any).member3 as any;
+        // Only a Second Medic third member may ever be the attending (billable)
+        // clinician. Trainee/Observer, Lift Assist and Driver are never offered.
+        const thirdCanAttend = canThirdMemberAttend((crew as any).member3_role);
         setCrewMembers({
           m1: m1 ? { id: m1.id, name: m1.full_name, cert: m1.cert_level } : null,
           m2: m2 ? { id: m2.id, name: m2.full_name, cert: m2.cert_level } : null,
-          m3: m3 ? { id: m3.id, name: m3.full_name, cert: m3.cert_level } : null,
+          m3: m3 && thirdCanAttend ? { id: m3.id, name: m3.full_name, cert: m3.cert_level } : null,
         });
         let count = 0;
         if (crew.member1_id) count++;

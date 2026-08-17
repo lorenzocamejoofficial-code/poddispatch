@@ -2349,6 +2349,7 @@ export type Database = {
           member1_id: string | null
           member2_id: string | null
           member3_id: string | null
+          member3_role: string | null
           simulation_run_id: string | null
           truck_id: string
         }
@@ -2365,6 +2366,7 @@ export type Database = {
           member1_id?: string | null
           member2_id?: string | null
           member3_id?: string | null
+          member3_role?: string | null
           simulation_run_id?: string | null
           truck_id: string
         }
@@ -2381,6 +2383,7 @@ export type Database = {
           member1_id?: string | null
           member2_id?: string | null
           member3_id?: string | null
+          member3_role?: string | null
           simulation_run_id?: string | null
           truck_id?: string
         }
@@ -6735,6 +6738,11 @@ export type Database = {
       cancel_submission_queue: { Args: { p_queue_id: string }; Returns: Json }
       categorize_denial_code: { Args: { _code: string }; Returns: string }
       crew_assignable: { Args: { _user_id: string }; Returns: boolean }
+      crew_assignable_for_role: {
+        Args: { _role: string; _user_id: string }
+        Returns: boolean
+      }
+      crew_role_cert_requirement: { Args: { _role: string }; Returns: string }
       derive_ambulance_hcpcs: {
         Args: { _is_emergency: boolean; _service_level: string }
         Returns: string
@@ -6809,6 +6817,17 @@ export type Database = {
               p_member1_id?: string
               p_member2_id?: string
               p_member3_id?: string
+              p_truck_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_active_date: string
+              p_member1_id: string
+              p_member2_id: string
+              p_member3_id: string
+              p_member3_role: string
               p_truck_id: string
             }
             Returns: Json

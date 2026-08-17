@@ -23,6 +23,7 @@ import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import type { CertLevel } from "@/lib/cert-levels";
 import { evaluateCrewComposition, deriveUnitCapability } from "@/lib/crew-composition";
+import { MEMBER3_ROLES, MEMBER3_ROLE_LABELS, member3RoleLabel } from "@/lib/crew-roles";
 import type { Tables } from "@/integrations/supabase/types";
 
 type TruckRow = Tables<"trucks">;
@@ -46,6 +47,7 @@ interface CrewRecord {
   member3_name: string | null;
   active_date: string;
   driver_member_id?: string | null;
+  member3_role?: string | null;
   crew_override_reason?: string | null;
 }
 
@@ -94,8 +96,8 @@ interface TruckDayCellProps {
   crew: CrewRecord | undefined;
   downRecord: AvailabilityRecord | undefined;
   profiles: ProfileOption[];
-  onAssign: (truckId: string, date: string, m1: string, m2: string, m3: string, driverId: string | null, overrideReason: string | null) => Promise<void>;
-  onEdit: (crewId: string, m1: string, m2: string, m3: string, driverId: string | null, overrideReason: string | null) => Promise<void>;
+  onAssign: (truckId: string, date: string, m1: string, m2: string, m3: string, m3Role: string | null, overrideReason: string | null) => Promise<void>;
+  onEdit: (crewId: string, m1: string, m2: string, m3: string, m3Role: string | null, overrideReason: string | null) => Promise<void>;
   onClear: (crewId: string) => Promise<void>;
   onMarkDown: (truckId: string) => void;
   onRemoveDown: (availId: string) => Promise<void>;
@@ -109,7 +111,7 @@ function TruckDayCell({
   const [m1, setM1] = useState(crew?.member1_id ?? "");
   const [m2, setM2] = useState(crew?.member2_id ?? "");
   const [m3, setM3] = useState(crew?.member3_id ?? "");
-  const [driverId, setDriverId] = useState(crew?.driver_member_id ?? "");
+  const [m3Role, setM3Role] = useState(crew?.member3_role ?? "");
   const [overrideText, setOverrideText] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
   const [saving, setSaving] = useState(false);
@@ -118,40 +120,48 @@ function TruckDayCell({
     setM1(crew?.member1_id ?? "");
     setM2(crew?.member2_id ?? "");
     setM3(crew?.member3_id ?? "");
-    setDriverId(crew?.driver_member_id ?? "");
+    setM3Role(crew?.member3_role ?? "");
     setOverrideText("");
     setOverrideReason("");
   }, [crew]);
 
   const isDown = !!downRecord;
 
-  const selectedMembers = [m1, m2, m3]
+  // Validity is judged on the PRIMARY two seats only — the third member never
+  // counts as the certified attendant, whatever their role.
+  const primaryMembers = [m1, m2]
     .filter((id) => id && id !== "none")
     .map((id) => profiles.find((p) => p.id === id))
     .filter((p): p is ProfileOption => !!p)
     .map((p) => ({ id: p.id, full_name: p.full_name, cert_level: p.cert_level ?? null }));
-  const composition = evaluateCrewComposition(selectedMembers, driverId && driverId !== "none" ? driverId : null);
+  const composition = evaluateCrewComposition(primaryMembers);
   const unitCapability = deriveUnitCapability(
     composition.crewCapability,
     ((truck as any).service_level ?? "BLS") as "BLS" | "ALS",
   );
+  const hasThird = !!m3 && m3 !== "none";
+  const missingThirdRole = hasThird && !m3Role;
   const overrideOk = overrideText.trim().toUpperCase() === "OVERRIDE" && overrideReason.trim().length >= 5;
-  const canSave = composition.valid || overrideOk;
+  const canSave = (composition.valid || overrideOk) && !missingThirdRole;
 
   const handleSave = async () => {
+    if (missingThirdRole) {
+      toast.error("Select a role for the third crew member.");
+      return;
+    }
     if (!canSave) {
       toast.error("This crew doesn't meet the minimum-staffing rule. Fix it or type OVERRIDE with a reason.");
       return;
     }
     setSaving(true);
     try {
-      const drv = driverId && driverId !== "none" ? driverId : null;
+      const role = hasThird ? m3Role : null;
       const ovr = composition.valid ? null : overrideReason.trim();
       if (crew) {
-        await onEdit(crew.id, m1, m2, m3, drv, ovr);
+        await onEdit(crew.id, m1, m2, m3, role, ovr);
       } else {
         if (!m1 && !m2 && !m3) { toast.error("Select at least one crew member"); return; }
-        await onAssign(truck.id, date, m1, m2, m3, drv, ovr);
+        await onAssign(truck.id, date, m1, m2, m3, role, ovr);
       }
       setEditing(false);
     } finally {
@@ -216,17 +226,22 @@ function TruckDayCell({
             ))}
           </SelectContent>
         </Select>
-        <Select value={driverId} onValueChange={setDriverId}>
-          <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="Driver" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">— Driver not set —</SelectItem>
-            {selectedMembers.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                Driver: {m.full_name}{m.cert_level ? ` · ${m.cert_level}` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {hasThird && (
+          <Select value={m3Role} onValueChange={setM3Role}>
+            <SelectTrigger className="h-7 text-[11px]"><SelectValue placeholder="3rd member role (required)" /></SelectTrigger>
+            <SelectContent>
+              {MEMBER3_ROLES.map((r) => (
+                <SelectItem key={r} value={r}>{MEMBER3_ROLE_LABELS[r]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {missingThirdRole && (
+          <p className="text-[9px] text-destructive leading-tight">Select a role for the third crew member.</p>
+        )}
+        <p className="text-[9px] text-muted-foreground leading-tight">
+          The driver isn't chosen here — it's derived in the field from whoever isn't charting the PCR.
+        </p>
         {composition.notes.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {composition.notes.map((n) => (
@@ -234,7 +249,7 @@ function TruckDayCell({
             ))}
           </div>
         )}
-        {!composition.valid && selectedMembers.length > 0 && (
+        {!composition.valid && primaryMembers.length > 0 && (
           <div className="rounded border border-destructive bg-destructive/10 p-1.5 space-y-1">
             {composition.errors.map((e) => (
               <p key={e} className="text-[9px] text-destructive leading-tight font-medium">{e}</p>
@@ -265,7 +280,7 @@ function TruckDayCell({
           <Button size="sm" className="h-6 text-[10px] flex-1" onClick={handleSave} disabled={saving || !canSave}>
             <Check className="h-3 w-3 mr-0.5" /> Save
           </Button>
-          <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { setEditing(false); setM1(crew?.member1_id ?? ""); setM2(crew?.member2_id ?? ""); setM3(crew?.member3_id ?? ""); setDriverId(crew?.driver_member_id ?? ""); setOverrideText(""); setOverrideReason(""); }}>
+          <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => { setEditing(false); setM1(crew?.member1_id ?? ""); setM2(crew?.member2_id ?? ""); setM3(crew?.member3_id ?? ""); setM3Role(crew?.member3_role ?? ""); setOverrideText(""); setOverrideReason(""); }}>
             <X className="h-3 w-3" />
           </Button>
         </div>
@@ -274,8 +289,7 @@ function TruckDayCell({
   }
 
   if (crew) {
-    const roleFor = (id: string | null) =>
-      id && crew.driver_member_id === id ? "Driver" : id ? "Attendant" : null;
+    const thirdRoleLabel = member3RoleLabel(crew.member3_role);
     return (
       <div className="rounded border bg-card p-2 group relative">
         <div className="flex items-center gap-1 mb-1">
@@ -287,18 +301,16 @@ function TruckDayCell({
         <div className="flex items-center gap-1 text-[11px]">
           <Users className="h-3 w-3 text-muted-foreground shrink-0" />
           <span className="truncate text-card-foreground">{crew.member1_name ?? "—"}</span>
-          {roleFor(crew.member1_id) && <span className="text-[9px] text-muted-foreground shrink-0">{roleFor(crew.member1_id)}</span>}
         </div>
         <div className="flex items-center gap-1 text-[11px] mt-0.5">
           <span className="w-3 shrink-0" />
           <span className="truncate text-muted-foreground">{crew.member2_name ?? "—"}</span>
-          {roleFor(crew.member2_id) && <span className="text-[9px] text-muted-foreground shrink-0">{roleFor(crew.member2_id)}</span>}
         </div>
         {crew.member3_name && (
           <div className="flex items-center gap-1 text-[11px] mt-0.5">
             <span className="w-3 shrink-0" />
             <span className="truncate text-muted-foreground">{crew.member3_name}</span>
-            {roleFor(crew.member3_id) && <span className="text-[9px] text-muted-foreground shrink-0">{roleFor(crew.member3_id)}</span>}
+            {thirdRoleLabel && <span className="text-[9px] text-muted-foreground shrink-0">{thirdRoleLabel}</span>}
           </div>
         )}
         <div className="mt-1.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -449,6 +461,7 @@ export default function TrucksCrews() {
       member3_name: cr.member3?.full_name ?? null,
       active_date: cr.active_date,
       driver_member_id: cr.driver_member_id ?? null,
+      member3_role: cr.member3_role ?? null,
       crew_override_reason: cr.crew_override_reason ?? null,
     })));
     setAvailability((av ?? []) as unknown as AvailabilityRecord[]);
@@ -591,7 +604,7 @@ export default function TrucksCrews() {
   // Crew CRUD
   const assignCrew = async (
     truckId: string, date: string, m1: string, m2: string, m3: string,
-    driverId: string | null, overrideReason: string | null,
+    m3Role: string | null, overrideReason: string | null,
   ) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
@@ -601,6 +614,10 @@ export default function TrucksCrews() {
       toast.error("Select at least one crew member");
       return;
     }
+    if (m3Val && !m3Role) {
+      toast.error("Select a role for the third crew member");
+      return;
+    }
 
     const { data: result, error } = await supabase.rpc("safe_assign_crew", {
       p_truck_id: truckId,
@@ -608,7 +625,8 @@ export default function TrucksCrews() {
       p_member1_id: m1Val,
       p_member2_id: m2Val,
       p_member3_id: m3Val,
-    });
+      p_member3_role: m3Val ? m3Role : null,
+    } as any);
 
     if (error) { toast.error("Failed to assign crew"); return; }
     const res = result as any;
@@ -619,7 +637,8 @@ export default function TrucksCrews() {
     }
     const { data: authUser } = await supabase.auth.getUser();
     await supabase.from("crews").update({
-      driver_member_id: driverId,
+      // Legacy column: only meaningful when the third member IS the driver.
+      driver_member_id: m3Val && m3Role === "driver" ? m3Val : null,
       crew_override_reason: overrideReason,
       crew_override_by: overrideReason ? authUser?.user?.id ?? null : null,
       crew_override_at: overrideReason ? new Date().toISOString() : null,
@@ -629,11 +648,16 @@ export default function TrucksCrews() {
 
   const editCrew = async (
     crewId: string, m1: string, m2: string, m3: string,
-    driverId: string | null, overrideReason: string | null,
+    m3Role: string | null, overrideReason: string | null,
   ) => {
     const m1Val = m1 === "none" || !m1 ? null : m1;
     const m2Val = m2 === "none" || !m2 ? null : m2;
     const m3Val = m3 === "none" || !m3 ? null : m3;
+
+    if (m3Val && !m3Role) {
+      toast.error("Select a role for the third crew member");
+      return;
+    }
 
     // Prevent assigning the same person to multiple slots
     const vals = [m1Val, m2Val, m3Val].filter(Boolean);
@@ -665,7 +689,8 @@ export default function TrucksCrews() {
       member1_id: m1Val,
       member2_id: m2Val,
       member3_id: m3Val,
-      driver_member_id: driverId,
+      member3_role: m3Val ? m3Role : null,
+      driver_member_id: m3Val && m3Role === "driver" ? m3Val : null,
       crew_override_reason: overrideReason,
       crew_override_by: overrideReason ? authUser?.user?.id ?? null : null,
       crew_override_at: overrideReason ? new Date().toISOString() : null,
@@ -742,6 +767,7 @@ export default function TrucksCrews() {
           member2_name: null,
           member3_name: null,
           active_date: cr.active_date,
+          member3_role: cr.member3_role ?? null,
         }));
       }
       if (sourceCrews.length === 0) {
@@ -796,6 +822,7 @@ export default function TrucksCrews() {
               member1_id: crew.member1_id,
               member2_id: crew.member2_id,
               member3_id: crew.member3_id,
+              member3_role: crew.member3_id ? crew.member3_role ?? null : null,
               active_date: targetDate,
               company_id: companyId,
             });
@@ -824,6 +851,7 @@ export default function TrucksCrews() {
                 member1_id: tmpl.member1_id,
                 member2_id: tmpl.member2_id,
                 member3_id: tmpl.member3_id,
+                member3_role: tmpl.member3_id ? tmpl.member3_role ?? null : null,
                 active_date: targetDate,
                 company_id: companyId,
               });

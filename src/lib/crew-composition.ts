@@ -1,6 +1,14 @@
 /**
- * Crew composition rules — driver / attendant designation, the minimum-crew
- * rule, and derived unit capability.
+ * Crew composition rules — the minimum-crew rule and derived unit capability.
+ *
+ * The driver is NOT chosen here. It is derived in the field from the PCR
+ * author (see src/lib/derive-driver.ts). Crew validity depends only on the
+ * two PRIMARY members having a genuinely certified attendant between them.
+ *
+ * The optional third member (whatever their role — Second Medic, Lift Assist,
+ * Driver, Trainee/Observer) is deliberately EXCLUDED from validity and from
+ * crew capability, so a trainee can never satisfy "certified attendant" and
+ * can never upgrade a BLS crew to ALS.
  *
  * BILLING NOTE: derived unit capability is display + dispatch only. Nothing in
  * this module is read by claim generation or pricing; the billed level of
@@ -22,9 +30,7 @@ export interface CrewCompositionResult {
   errors: string[];
   /** Non-blocking notes (e.g. EMR is driver-only). */
   notes: string[];
-  /** Role assigned to each member id. */
-  roles: Record<string, CrewRole>;
-  /** Highest service level the CREW can staff. */
+  /** Highest service level the PRIMARY crew can staff. */
   crewCapability: "NONE" | "BLS" | "ALS";
 }
 
@@ -41,52 +47,48 @@ export function attendantCapability(level: CertLevel | null | undefined): "NONE"
 }
 
 /**
- * A valid crew = one designated driver + at least one non-EMR attendant.
- * Two EMRs is invalid (nobody can attend the patient).
+ * A valid crew = two primary members, at least one of whom is a certified
+ * attendant (EMT-B or higher). Two EMRs is invalid — nobody can attend the
+ * patient. No driver designation is required.
+ *
+ * @param primaryMembers member1 + member2 only. Do NOT pass the third member.
  */
 export function evaluateCrewComposition(
-  members: CrewMemberInput[],
-  driverId: string | null,
+  primaryMembers: CrewMemberInput[],
 ): CrewCompositionResult {
   const errors: string[] = [];
   const notes: string[] = [];
-  const roles: Record<string, CrewRole> = {};
-  const present = members.filter((m) => !!m?.id);
+  const present = primaryMembers.filter((m) => !!m?.id);
 
   if (present.length < 2) {
-    errors.push("A truck needs at least two crew members — one driver and one attendant.");
-  }
-
-  const driver = present.find((m) => m.id === driverId) ?? null;
-  if (present.length >= 1 && !driver) {
-    errors.push("Designate which crew member is the driver.");
+    errors.push("A truck needs at least two crew members — one to drive and one to attend the patient.");
   }
 
   for (const m of present) {
-    roles[m.id] = m.id === driver?.id ? "driver" : "attendant";
-    if (isDriverOnly(m.cert_level) && roles[m.id] === "attendant") {
-      notes.push(`${m.full_name} is EMR — driver only.`);
+    if (isDriverOnly(m.cert_level)) {
+      notes.push(`${m.full_name} is EMR — driver only, cannot attend the patient.`);
     }
   }
 
-  const attendants = present.filter((m) => m.id !== driver?.id);
-  const qualifiedAttendants = attendants.filter((m) => !isDriverOnly(m.cert_level) && attendantCapability(m.cert_level) !== "NONE");
+  const qualified = present.filter(
+    (m) => !isDriverOnly(m.cert_level) && attendantCapability(m.cert_level) !== "NONE",
+  );
 
-  if (present.length >= 2 && qualifiedAttendants.length === 0) {
-    if (attendants.every((m) => isDriverOnly(m.cert_level)) && attendants.length > 0) {
+  if (present.length >= 2 && qualified.length === 0) {
+    if (present.every((m) => isDriverOnly(m.cert_level))) {
       errors.push("EMR is driver-only — this crew has no certified attendant. Two EMRs is not a valid crew.");
     } else {
       errors.push("This crew has no certified patient-care attendant (EMT-B or higher).");
     }
   }
 
-  const crewCapability = qualifiedAttendants.some((m) => attendantCapability(m.cert_level) === "ALS")
+  const crewCapability = qualified.some((m) => attendantCapability(m.cert_level) === "ALS")
     ? "ALS"
-    : qualifiedAttendants.length > 0
+    : qualified.length > 0
       ? "BLS"
       : "NONE";
 
-  return { valid: errors.length === 0, errors, notes, roles, crewCapability };
+  return { valid: errors.length === 0, errors, notes, crewCapability };
 }
 
 /**
