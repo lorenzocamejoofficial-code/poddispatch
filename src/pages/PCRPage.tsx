@@ -545,9 +545,21 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     // the ICD-10 picker. We do NOT synthesize a diagnosis (previously auto-stamped
     // N18.6 ESRD on dialysis runs) — that is federal fraud exposure. Block PCR
     // creation when a dialysis run has no codes and direct the user to fix it.
+    if (icd10Override && icd10Override.length > 0) {
+      // Crew-entered codes for a one-off dialysis run (no patient chart to
+      // pull from). Never synthesized — typed by the crew in the prompt below.
+      insertData.icd10_codes = icd10Override;
+    }
     if (tripTypeKey === "dialysis" && (!insertData.icd10_codes || insertData.icd10_codes.length === 0)) {
+      if (isOneoff || !run.patientId) {
+        // One-off run has no patient chart, so a hard block would be a dead
+        // end. Prompt the crew to enter the real diagnosis inline instead.
+        setIcdPrompt({ run, codes: [] });
+        setCreating(null);
+        return;
+      }
       toast.error(
-        "ICD-10 code required for dialysis transport. Open the patient chart and add the patient's diagnosis (e.g., N18.6 / Z99.2) on the Assessment card before starting the PCR."
+        "This dialysis patient has no ICD-10 diagnosis code. Add it on the patient chart under 'Standing ICD-10 Codes' (Clinical & Billing Defaults) before starting the PCR."
       );
       setCreating(null);
       return;
