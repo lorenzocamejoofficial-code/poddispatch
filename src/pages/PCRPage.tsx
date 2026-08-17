@@ -808,6 +808,42 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* One-off dialysis run — capture the ICD-10 from the crew */}
+      <Dialog open={!!icdPrompt} onOpenChange={o => { if (!o) setIcdPrompt(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              ICD-10 Diagnosis Required
+            </DialogTitle>
+            <DialogDescription>
+              This is a one-off dialysis run with no patient chart, so there is no standing diagnosis to pull from. Enter the patient's actual ICD-10 diagnosis to start the PCR. Do not guess — use the code documented for this patient.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <ICD10Picker
+              selectedCodes={icdPrompt?.codes ?? []}
+              onCodesChange={(codes) => setIcdPrompt(p => (p ? { ...p, codes } : p))}
+              required
+              chiefComplaint="dialysis"
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIcdPrompt(null)}>Cancel</Button>
+            <Button
+              disabled={!icdPrompt?.codes.length}
+              onClick={async () => {
+                const p = icdPrompt!;
+                setIcdPrompt(null);
+                await createTripForRun(p.run, p.codes);
+              }}
+            >
+              Start PCR
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
