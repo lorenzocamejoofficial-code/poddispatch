@@ -767,6 +767,7 @@ export default function TrucksCrews() {
           member2_name: null,
           member3_name: null,
           active_date: cr.active_date,
+          member3_role: cr.member3_role ?? null,
         }));
       }
       if (sourceCrews.length === 0) {
