@@ -162,11 +162,11 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
           // Deep-link where the row actually carries a destination record.
           let link: string | undefined;
           if (r.related_run_id) {
-            link = `/pcr/${r.related_run_id}`;
+            link = `/pcr?tripId=${r.related_run_id}`;
           } else if (r.related_patient_id && !isCrewMode) {
-            link = `/patients?patient=${r.related_patient_id}`;
+            link = `/patients?patientId=${r.related_patient_id}`;
           } else if (isCrewMode && type === "schedule_change") {
-            link = "/crew/schedule";
+            link = "/my-schedule";
           }
           next.push({
             id: `notifications:${r.id}`,
