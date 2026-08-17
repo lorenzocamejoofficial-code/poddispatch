@@ -1109,6 +1109,8 @@ export default function Patients() {
                       member_id: form.member_id,
                       pcs_on_file: form.pcs_on_file,
                       pcs_expiration_date: form.pcs_expiration_date,
+                      transport_type: form.transport_type,
+                      icd10_codes: form.icd10_codes,
                     }}
                   />
 
