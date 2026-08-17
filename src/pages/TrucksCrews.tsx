@@ -300,12 +300,10 @@ function TruckDayCell({
         <div className="flex items-center gap-1 text-[11px]">
           <Users className="h-3 w-3 text-muted-foreground shrink-0" />
           <span className="truncate text-card-foreground">{crew.member1_name ?? "—"}</span>
-          {roleFor(crew.member1_id) && <span className="text-[9px] text-muted-foreground shrink-0">{roleFor(crew.member1_id)}</span>}
         </div>
         <div className="flex items-center gap-1 text-[11px] mt-0.5">
           <span className="w-3 shrink-0" />
           <span className="truncate text-muted-foreground">{crew.member2_name ?? "—"}</span>
-          {roleFor(crew.member2_id) && <span className="text-[9px] text-muted-foreground shrink-0">{roleFor(crew.member2_id)}</span>}
         </div>
         {crew.member3_name && (
           <div className="flex items-center gap-1 text-[11px] mt-0.5">
