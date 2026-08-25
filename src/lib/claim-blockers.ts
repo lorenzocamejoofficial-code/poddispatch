@@ -80,8 +80,9 @@ export async function fetchClaimBlockerSnapshot(
       ? supabase
           .from("patients")
           .select(
-            "id, first_name, last_name, dob, sex, primary_payer, member_id, pickup_address, pcs_on_file, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd",
+            "id, first_name, last_name, dob, sex, primary_payer, member_id, pickup_address, pcs_on_file, pcs_signed_date, pcs_expiration_date, prior_auth_utn, prior_auth_period_start, prior_auth_period_end, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd",
           )
+
           .eq("id", c.patient_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
