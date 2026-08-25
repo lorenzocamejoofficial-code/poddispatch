@@ -154,9 +154,23 @@ export function useMissingMoneyScan() {
       const { data: deniedClaims, error: deniedError } = await deniedQuery;
       if (deniedError) throw deniedError;
 
+      // ---- CHECK 6: Paid short (underpayment) ----
+      // "Paid" is not the same as "paid correctly". Compare what the payer
+      // allowed (or what we expected) against what actually arrived.
+      const paidShortQuery = applyScope(supabase
+        .from("claim_records" as any)
+        .select("id, patient_id, payer_name, payer_type, run_date, status, total_charge, expected_revenue, allowed_amount, amount_paid, patient_responsibility_amount, write_off_amount, adjustment_codes")
+        .eq("status", "paid")
+        .gte("run_date", ninetyDaysAgo)
+        .not("is_test_submission", "is", true)
+        .limit(500));
+      const { data: paidClaims, error: paidShortError } = await paidShortQuery;
+      if (paidShortError) throw paidShortError;
+
       // Gather all patient and truck IDs for enrichment
       const allTrips = [...(noPcrTrips ?? []) as any[], ...(pcrSubmittedTrips ?? []) as any[]];
-      const allClaims = [...(agingClaims ?? []) as any[], ...(secondaryClaims ?? []) as any[], ...(deniedClaims ?? []) as any[]];
+      const allClaims = [...(agingClaims ?? []) as any[], ...(secondaryClaims ?? []) as any[], ...(deniedClaims ?? []) as any[], ...(paidClaims ?? []) as any[]];
+
 
       const patientIds = [...new Set([
         ...allTrips.map((t: any) => t.patient_id),
