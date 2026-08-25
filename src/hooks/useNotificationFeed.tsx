@@ -283,7 +283,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
         jobs.push((async () => {
           const { data } = await supabase
             .from("claim_records" as any)
-            .select("id, status, denial_reason, denial_code, updated_at, total_charge")
+            .select("id, status, denial_reason, denial_code, updated_at")
             .eq("company_id", activeCompanyId)
             .eq("status", "denied")
             .gte("updated_at", since)
@@ -308,7 +308,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
         jobs.push((async () => {
           const { data } = await supabase
             .from("biller_tasks" as any)
-            .select("id, title, description, priority, created_at, status")
+            .select("id, description, priority, created_at, status")
             .eq("company_id", activeCompanyId)
             .eq("status", "pending")
             .gte("created_at", since)
@@ -320,7 +320,8 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
               source_table: "biller_tasks",
               source_id: r.id,
               tier: r.priority === "high" || r.priority === "urgent" ? "action" : "fyi",
-              title: r.title ?? "AR task",
+              title: "Billing Task",
+              
               body: r.description,
               link: "/billing",
               category: "biller_task",
@@ -369,7 +370,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
               .limit(LIMIT_PER_SOURCE),
             supabase
               .from("billing_overrides" as any)
-              .select("id, reason, created_at, trip_id")
+              .select("id, override_reason, reason, created_at, trip_id")
               .eq("company_id", activeCompanyId)
               .gte("created_at", since)
               .order("created_at", { ascending: false })
