@@ -55,6 +55,7 @@ export interface ReadinessInputs {
    *  callers that haven't migrated). */
   patient?: {
     prior_auth_utn?: string | null;
+    prior_auth_period_start?: string | null;
     prior_auth_period_end?: string | null;
     standing_order?: boolean | null;
     recurrence_days?: number[] | null;
@@ -64,7 +65,13 @@ export interface ReadinessInputs {
     /** patients.mobility — what the PCS / chart says the patient requires. */
     mobility?: string | null;
     default_bed_confined?: boolean | null;
+    /** Date the physician signed the PCS (42 CFR 410.40(d) 60-day clock). */
+    pcs_signed_date?: string | null;
+    /** Denormalized signed_date + 60 days, maintained by the patient form. */
+    pcs_expiration_date?: string | null;
+    pcs_on_file?: boolean | null;
   } | null;
+
   /** Optional transport / scheduling context for biller-stage checks.
    *  destination_facility_type is the resolved facilities.facility_type
    *  (e.g. "dialysis") for the destination of this run. */
@@ -78,6 +85,177 @@ export interface ReadinessInputs {
     bed_confined?: boolean | null;
   } | null;
 }
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const isIso = (v: unknown): v is string => typeof v === "string" && ISO_DATE.test(v);
+/** Whole days between two ISO dates (b - a). UTC-anchored, no TZ drift. */
+const daysBetween = (a: string, b: string): number =>
+  Math.round(
+    (new Date(b + "T00:00:00Z").getTime() - new Date(a + "T00:00:00Z").getTime()) / 86400000,
+  );
+
+/** 42 CFR 410.40(d): the Physician Certification Statement must be dated
+ *  within 60 days of the date of service for scheduled, non-emergency
+ *  ambulance transport. */
+export const PCS_VALIDITY_DAYS = 60;
+
+export type PcsWindowStatus = "ok" | "missing" | "expired" | "signed_after_dos";
+
+export interface PcsWindowResult {
+  status: PcsWindowStatus;
+  /** Days between the PCS signature and the date of service. */
+  ageDays: number | null;
+  /** The signature date the evaluation used. */
+  referenceSignedDate: string | null;
+  /** Last date of service this PCS can still cover. */
+  validThrough: string | null;
+  message: string;
+}
+
+/**
+ * Evaluate the PCS 60-day window for one date of service.
+ *
+ * The reference signature is the most recent of the patient-chart PCS signed
+ * date and the biller-entered certification date — either can be the real
+ * physician signature, and using the newer one avoids blocking a claim whose
+ * PCS was legitimately re-obtained.
+ */
+export function evaluatePcsWindow(input: {
+  patientSignedDate?: string | null;
+  billerCertificationDate?: string | null;
+  patientExpirationDate?: string | null;
+  runDate?: string | null;
+}): PcsWindowResult {
+  const candidates = [input.patientSignedDate, input.billerCertificationDate]
+    .map((d) => (isIso(d) ? d : null))
+    .filter((d): d is string => !!d)
+    .sort();
+  const signed = candidates.length ? candidates[candidates.length - 1] : null;
+  const runDate = isIso(input.runDate) ? input.runDate : null;
+
+  if (!signed) {
+    return {
+      status: "missing",
+      ageDays: null,
+      referenceSignedDate: null,
+      validThrough: null,
+      message: "No PCS signature date on file.",
+    };
+  }
+
+  const validThroughMs =
+    new Date(signed + "T00:00:00Z").getTime() + PCS_VALIDITY_DAYS * 86400000;
+  const validThrough = new Date(validThroughMs).toISOString().slice(0, 10);
+
+  if (!runDate) {
+    return {
+      status: "ok",
+      ageDays: null,
+      referenceSignedDate: signed,
+      validThrough,
+      message: `PCS signed ${signed}, valid for dates of service through ${validThrough}.`,
+    };
+  }
+
+  const ageDays = daysBetween(signed, runDate);
+
+  if (ageDays < 0) {
+    return {
+      status: "signed_after_dos",
+      ageDays,
+      referenceSignedDate: signed,
+      validThrough,
+      message: `PCS is dated ${signed}, after the date of service ${runDate}. A certification cannot post-date the transport it certifies.`,
+    };
+  }
+
+  // An explicit chart expiration date wins when it is earlier than the
+  // computed 60-day ceiling (e.g. physician limited the certification).
+  const explicitExp = isIso(input.patientExpirationDate) ? input.patientExpirationDate : null;
+  const effectiveThrough = explicitExp && explicitExp < validThrough ? explicitExp : validThrough;
+
+  if (runDate > effectiveThrough) {
+    return {
+      status: "expired",
+      ageDays,
+      referenceSignedDate: signed,
+      validThrough: effectiveThrough,
+      message: `PCS signed ${signed} expired ${effectiveThrough} — the date of service ${runDate} is ${ageDays} days after signature (CMS allows ${PCS_VALIDITY_DAYS}). Obtain a new physician certification before billing.`,
+    };
+  }
+
+  return {
+    status: "ok",
+    ageDays,
+    referenceSignedDate: signed,
+    validThrough: effectiveThrough,
+    message: `PCS signed ${signed}, valid through ${effectiveThrough}.`,
+  };
+}
+
+export type RsnatAuthStatus = "ok" | "missing" | "expired" | "not_yet_effective";
+
+export interface RsnatAuthResult {
+  status: RsnatAuthStatus;
+  utn: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  /** Days until the auth period ends relative to the date of service. */
+  daysToExpiry: number | null;
+  message: string;
+}
+
+/**
+ * Evaluate the RSNAT prior-authorization (UTN) coverage for one date of
+ * service. The UTN must exist AND the date of service must fall inside the
+ * authorized period — an auth that starts after the run, or ended before it,
+ * does not cover the trip and the MAC will deny it.
+ */
+export function evaluateRsnatAuth(input: {
+  utn?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  runDate?: string | null;
+}): RsnatAuthResult {
+  const utn = String(input.utn ?? "").trim() || null;
+  const periodStart = isIso(input.periodStart) ? input.periodStart : null;
+  const periodEnd = isIso(input.periodEnd) ? input.periodEnd : null;
+  const runDate = isIso(input.runDate) ? input.runDate : null;
+  const daysToExpiry = periodEnd && runDate ? daysBetween(runDate, periodEnd) : null;
+
+  const base = { utn, periodStart, periodEnd, daysToExpiry };
+
+  if (!utn) {
+    return {
+      ...base,
+      status: "missing",
+      message:
+        "No RSNAT prior-authorization UTN on file. Medicare requires prior authorization for repetitive scheduled non-emergent transport — submit the request to the MAC and record the UTN on the patient chart.",
+    };
+  }
+  if (runDate && periodEnd && runDate > periodEnd) {
+    return {
+      ...base,
+      status: "expired",
+      message: `RSNAT authorization ${utn} expired ${periodEnd}, before the date of service ${runDate}. Obtain a new UTN for the current period.`,
+    };
+  }
+  if (runDate && periodStart && runDate < periodStart) {
+    return {
+      ...base,
+      status: "not_yet_effective",
+      message: `RSNAT authorization ${utn} does not start until ${periodStart}, after the date of service ${runDate}. This trip is not covered by the authorization on file.`,
+    };
+  }
+  return {
+    ...base,
+    status: "ok",
+    message: periodEnd
+      ? `RSNAT authorization ${utn} valid through ${periodEnd}.`
+      : `RSNAT authorization ${utn} on file.`,
+  };
+}
+
 
 /** True when a Medicare transport meets the RSNAT (Repetitive Scheduled
  *  Non-emergent) criteria that require prior authorization per CMS:
@@ -314,25 +492,52 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
 
   // ---- Biller-stage pre-submission checks (additive) ----------------------
 
-  // Rule 5 — PCS certification date required when PCS is on file (or the
-  // transport type requires PCS). Emergency transports never need PCS.
-  const transportType = String(claim.payer_type ? "" : "").toLowerCase();
-  // Note: claim.payer_type is the payer class; PCS requirement is driven by
-  // claim.pcs_on_file (set by biller / patient record). We treat pcs_on_file
-  // === true as the explicit assertion that PCS is required for this claim.
-  if (claim.pcs_on_file === true) {
+  // Rule 5 — PCS certification required when PCS is on file (or the patient
+  // chart asserts one). Emergency transports never assert pcs_on_file, so
+  // they are untouched by this rule.
+  //
+  // Two separate failures are enforced:
+  //   5a. No certification date at all.
+  //   5b. The certification is outside the 42 CFR 410.40(d) 60-day window
+  //       for this date of service (or post-dates the transport). Before
+  //       this, an expired PCS was only a soft warning in the pre-submit
+  //       checklist — the queue path let it through to the payer.
+  const pcsAsserted = claim.pcs_on_file === true || inputs.patient?.pcs_on_file === true;
+  if (pcsAsserted) {
+    const pcsFixPath = claim.id ? `/billing?claimId=${claim.id}&focus=pcs` : "/billing?focus=pcs";
     const certDate = String(claim.pcs_certification_date ?? "").trim();
-    if (!certDate) {
+    const chartSigned = String(inputs.patient?.pcs_signed_date ?? "").trim();
+    if (!certDate && !chartSigned) {
       issues.push({
         field: "pcs_certification_date",
         severity: "block",
         stage: "biller",
         message: "PCS certification date missing",
-        fixPath: claim.id ? `/billing?claimId=${claim.id}&focus=pcs` : "/billing?focus=pcs",
+        fixPath: pcsFixPath,
         fixLabel: "Open PCS panel",
       });
+    } else {
+      const win = evaluatePcsWindow({
+        patientSignedDate: inputs.patient?.pcs_signed_date,
+        billerCertificationDate: claim.pcs_certification_date,
+        patientExpirationDate: inputs.patient?.pcs_expiration_date,
+        runDate: claim.run_date,
+      });
+      if (win.status === "expired" || win.status === "signed_after_dos") {
+        issues.push({
+          field: "pcs_certification_date",
+          severity: "block",
+          stage: "biller",
+          message: win.message,
+          fixPath: claim.patient_id
+            ? `/patients?patientId=${claim.patient_id}&focus=pcs`
+            : pcsFixPath,
+          fixLabel: claim.patient_id ? "Update PCS in patient chart" : "Open PCS panel",
+        });
+      }
     }
   }
+
 
   // Rule 4 — Stretcher claims need a secondary diagnosis supporting
   // bed-confinement. If stretcher_placement is set and not "ambulatory",
@@ -359,30 +564,41 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
 
   // Rule 2 — RSNAT prior authorization required for Medicare repetitive
   // non-emergent transport (dialysis destination, standing order, or
-  // ≥3x/week recurrence). UTN must be present and not expired vs run_date.
+  // ≥3x/week recurrence). The UTN must exist AND the date of service must
+  // fall inside the authorized period — an auth that ended before the run,
+  // or that does not start until after it, covers nothing.
   if (isRsnatTransport(claim, inputs.patient, inputs.transport)) {
-    const utn = String(inputs.patient?.prior_auth_utn ?? "").trim();
-    const periodEnd = String(inputs.patient?.prior_auth_period_end ?? "").trim();
-    const runDate = String(claim.run_date ?? "").trim();
-    const expired =
-      !!periodEnd &&
-      /^\d{4}-\d{2}-\d{2}$/.test(periodEnd) &&
-      !!runDate &&
-      /^\d{4}-\d{2}-\d{2}$/.test(runDate) &&
-      periodEnd < runDate;
-    if (!utn || expired) {
+    const auth = evaluateRsnatAuth({
+      utn: inputs.patient?.prior_auth_utn,
+      periodStart: inputs.patient?.prior_auth_period_start,
+      periodEnd: inputs.patient?.prior_auth_period_end,
+      runDate: claim.run_date,
+    });
+    if (auth.status !== "ok") {
       issues.push({
         field: "prior_auth_utn",
         severity: "block",
         stage: "biller",
-        message: "Prior authorization (RSNAT) required for repetitive Medicare transport",
+        message: `Prior authorization (RSNAT) required for repetitive Medicare transport. ${auth.message}`,
         fixPath: claim.patient_id
           ? `/patients?patientId=${claim.patient_id}&focus=prior_auth`
           : "/patients?focus=prior_auth",
         fixLabel: "Fix in patient chart",
       });
+    } else if (auth.daysToExpiry !== null && auth.daysToExpiry <= 14) {
+      issues.push({
+        field: "prior_auth_utn",
+        severity: "warn",
+        stage: "biller",
+        message: `RSNAT authorization ${auth.utn} expires ${auth.periodEnd} (${auth.daysToExpiry} days after this date of service). Request the next authorization now so upcoming trips aren't blocked.`,
+        fixPath: claim.patient_id
+          ? `/patients?patientId=${claim.patient_id}&focus=prior_auth`
+          : "/patients?focus=prior_auth",
+        fixLabel: "Open patient chart",
+      });
     }
   }
+
 
   // Rule 1 (backstop) — A leg whose type or facility says "dialysis" must
   // resolve to J (freestanding) or G (hospital-based) via the canonical

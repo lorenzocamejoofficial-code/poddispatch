@@ -31,13 +31,18 @@ export function buildReadinessInputs(claim: any) {
     },
     patient: {
       prior_auth_utn: claim.patient_prior_auth_utn ?? null,
+      prior_auth_period_start: claim.patient_prior_auth_period_start ?? null,
       prior_auth_period_end: claim.patient_prior_auth_period_end ?? null,
       standing_order: claim.patient_standing_order ?? null,
       recurrence_days: claim.patient_recurrence_days ?? null,
       hospice_enrolled: claim.patient_hospice_enrolled ?? null,
       hospice_election_date: claim.patient_hospice_election_date ?? null,
       terminal_illness_icd: claim.patient_terminal_illness_icd ?? null,
+      pcs_on_file: claim.pcs_on_file ?? null,
+      pcs_signed_date: claim.patient_pcs_signed_date ?? null,
+      pcs_expiration_date: claim.patient_pcs_expiration_date ?? null,
     },
+
   };
 }
 
@@ -75,8 +80,9 @@ export async function fetchClaimBlockerSnapshot(
       ? supabase
           .from("patients")
           .select(
-            "id, first_name, last_name, dob, sex, primary_payer, member_id, pickup_address, pcs_on_file, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd",
+            "id, first_name, last_name, dob, sex, primary_payer, member_id, pickup_address, pcs_on_file, pcs_signed_date, pcs_expiration_date, prior_auth_utn, prior_auth_period_start, prior_auth_period_end, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd",
           )
+
           .eq("id", c.patient_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -111,7 +117,11 @@ export async function fetchClaimBlockerSnapshot(
     leg: t?.leg ?? null,
     pcs_on_file: c.pcs_on_file ?? !!p?.pcs_on_file,
     patient_prior_auth_utn: p?.prior_auth_utn ?? null,
+    patient_prior_auth_period_start: p?.prior_auth_period_start ?? null,
     patient_prior_auth_period_end: p?.prior_auth_period_end ?? null,
+    patient_pcs_signed_date: p?.pcs_signed_date ?? null,
+    patient_pcs_expiration_date: p?.pcs_expiration_date ?? null,
+
     patient_standing_order: p?.standing_order ?? null,
     patient_recurrence_days: p?.recurrence_days ?? null,
     patient_hospice_enrolled: p?.hospice_enrolled ?? false,

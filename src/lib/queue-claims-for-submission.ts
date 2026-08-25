@@ -144,7 +144,7 @@ export async function queueClaimsForSubmission(
     patientIds.length
       ? supabase
           .from("patients")
-          .select("id, first_name, last_name, dob, sex, weight_lbs, member_id, primary_payer, pickup_address, pcs_on_file, pcs_physician_npi, pcs_physician_name, facility_id, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd")
+          .select("id, first_name, last_name, dob, sex, weight_lbs, member_id, primary_payer, pickup_address, pcs_on_file, pcs_physician_npi, pcs_physician_name, facility_id, prior_auth_utn, prior_auth_period_start, prior_auth_period_end, pcs_signed_date, pcs_expiration_date, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd")
           .in("id", patientIds)
       : Promise.resolve({ data: [] as any[] }),
   ]);
@@ -454,13 +454,18 @@ export async function queueClaimsForSubmission(
       payerResolution,
       patient: {
         prior_auth_utn: pat.prior_auth_utn ?? null,
+        prior_auth_period_start: pat.prior_auth_period_start ?? null,
         prior_auth_period_end: pat.prior_auth_period_end ?? null,
         standing_order: pat.standing_order ?? null,
         recurrence_days: pat.recurrence_days ?? null,
         hospice_enrolled: pat.hospice_enrolled ?? null,
         hospice_election_date: pat.hospice_election_date ?? null,
         terminal_illness_icd: pat.terminal_illness_icd ?? null,
+        pcs_on_file: pat.pcs_on_file ?? null,
+        pcs_signed_date: pat.pcs_signed_date ?? null,
+        pcs_expiration_date: pat.pcs_expiration_date ?? null,
       },
+
       transport: {
         destination_facility_type: destMeta?.facility_type ?? null,
       },

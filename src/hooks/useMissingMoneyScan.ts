@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
+import { evaluateUnderpayment, underpaymentSummaryLine } from "@/lib/underpayment";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
@@ -19,6 +20,11 @@ export interface MissingMoneyItem {
   claimId?: string;
   tripId?: string;
   status?: string;
+  /** Paid-short only — benchmark the payer owed, and what actually arrived. */
+  expectedAmount?: number;
+  paidAmount?: number;
+  /** Plain-English detail line shown in the row (paid-short). */
+  note?: string;
 }
 
 export type MissingMoneyCategory =
@@ -26,7 +32,8 @@ export type MissingMoneyCategory =
   | "pcr_not_billed"
   | "no_followup"
   | "secondary_not_billed"
-  | "denial_no_action";
+  | "denial_no_action"
+  | "paid_short";
 
 export interface MissingMoneyCategorySummary {
   category: MissingMoneyCategory;
@@ -36,6 +43,7 @@ export interface MissingMoneyCategorySummary {
   items: MissingMoneyItem[];
   route: string;
 }
+
 
 export function useMissingMoneyScan() {
   const { activeCompanyId } = useAuth();
@@ -146,9 +154,23 @@ export function useMissingMoneyScan() {
       const { data: deniedClaims, error: deniedError } = await deniedQuery;
       if (deniedError) throw deniedError;
 
+      // ---- CHECK 6: Paid short (underpayment) ----
+      // "Paid" is not the same as "paid correctly". Compare what the payer
+      // allowed (or what we expected) against what actually arrived.
+      const paidShortQuery = applyScope(supabase
+        .from("claim_records" as any)
+        .select("id, patient_id, payer_name, payer_type, run_date, status, total_charge, expected_revenue, allowed_amount, amount_paid, patient_responsibility_amount, write_off_amount, adjustment_codes")
+        .eq("status", "paid")
+        .gte("run_date", ninetyDaysAgo)
+        .not("is_test_submission", "is", true)
+        .limit(500));
+      const { data: paidClaims, error: paidShortError } = await paidShortQuery;
+      if (paidShortError) throw paidShortError;
+
       // Gather all patient and truck IDs for enrichment
       const allTrips = [...(noPcrTrips ?? []) as any[], ...(pcrSubmittedTrips ?? []) as any[]];
-      const allClaims = [...(agingClaims ?? []) as any[], ...(secondaryClaims ?? []) as any[], ...(deniedClaims ?? []) as any[]];
+      const allClaims = [...(agingClaims ?? []) as any[], ...(secondaryClaims ?? []) as any[], ...(deniedClaims ?? []) as any[], ...(paidClaims ?? []) as any[]];
+
 
       const patientIds = [...new Set([
         ...allTrips.map((t: any) => t.patient_id),
@@ -302,7 +324,25 @@ export function useMissingMoneyScan() {
           };
         });
 
+      const cat6Items: MissingMoneyItem[] = ((paidClaims ?? []) as any[])
+        .map((c: any) => ({ c, u: evaluateUnderpayment(c) }))
+        .filter(({ u }) => u.isShort)
+        .map(({ c, u }) => ({
+          id: c.id,
+          category: "paid_short" as MissingMoneyCategory,
+          patientName: patName(c.patient_id),
+          payerName: c.payer_name ?? c.payer_type ?? "Unknown",
+          runDate: c.run_date,
+          amount: u.shortfall,
+          expectedAmount: u.expectedFromPayer,
+          paidAmount: u.paid,
+          note: underpaymentSummaryLine(u),
+          denialExplanation: u.reason,
+          claimId: c.id,
+        }));
+
       const results: MissingMoneyCategorySummary[] = [
+
         {
           category: "no_pcr",
           label: "Completed — No PCR Submitted",
@@ -343,7 +383,16 @@ export function useMissingMoneyScan() {
           items: cat5Items,
           route: "/billing",
         },
+        {
+          category: "paid_short",
+          label: "Paid Short — Underpaid by Payer",
+          count: cat6Items.length,
+          amount: cat6Items.reduce((s, i) => s + i.amount, 0),
+          items: cat6Items,
+          route: "/billing",
+        },
       ];
+
 
       const total = results.reduce((s, c) => s + c.amount, 0);
       setCategories(results);
