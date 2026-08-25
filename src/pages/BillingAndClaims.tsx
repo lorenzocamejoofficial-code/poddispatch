@@ -245,7 +245,7 @@ export default function BillingAndClaims() {
     const tripIds = [...new Set(((claimRows ?? []) as any[]).map((c: any) => c.trip_id).filter(Boolean))];
     const [{ data: pRows }, { data: tripRows }] = await Promise.all([
       patientIds.length > 0
-        ? supabase.from("patients").select("id, first_name, last_name, dob, sex, primary_payer, member_id, pickup_address, secondary_payer, secondary_member_id, secondary_payer_id, pcs_on_file, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd").in("id", patientIds)
+        ? supabase.from("patients").select("id, first_name, last_name, dob, sex, primary_payer, member_id, pickup_address, secondary_payer, secondary_member_id, secondary_payer_id, pcs_on_file, pcs_signed_date, pcs_expiration_date, prior_auth_utn, prior_auth_period_start, prior_auth_period_end, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd").in("id", patientIds)
         : Promise.resolve({ data: [] }),
       tripIds.length > 0
         ? supabase.from("trip_records" as any).select("id, leg_id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type, updated_at, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name)").in("id", tripIds)
@@ -263,7 +263,10 @@ export default function BillingAndClaims() {
       secondary_member_id: p.secondary_member_id,
       secondary_payer_id: p.secondary_payer_id,
       pcs_on_file: p.pcs_on_file,
+      pcs_signed_date: p.pcs_signed_date,
+      pcs_expiration_date: p.pcs_expiration_date,
       prior_auth_utn: p.prior_auth_utn,
+      prior_auth_period_start: p.prior_auth_period_start,
       prior_auth_period_end: p.prior_auth_period_end,
       standing_order: p.standing_order,
       recurrence_days: p.recurrence_days,
@@ -302,7 +305,10 @@ export default function BillingAndClaims() {
           // Biller-stage readiness inputs (rules 2 + 5).
           pcs_on_file: (c as any).pcs_on_file ?? !!patData?.pcs_on_file,
           patient_prior_auth_utn: patData?.prior_auth_utn ?? null,
+          patient_prior_auth_period_start: patData?.prior_auth_period_start ?? null,
           patient_prior_auth_period_end: patData?.prior_auth_period_end ?? null,
+          patient_pcs_signed_date: patData?.pcs_signed_date ?? null,
+          patient_pcs_expiration_date: patData?.pcs_expiration_date ?? null,
           patient_standing_order: patData?.standing_order ?? null,
           patient_recurrence_days: patData?.recurrence_days ?? null,
           patient_hospice_enrolled: patData?.hospice_enrolled ?? false,
