@@ -324,7 +324,25 @@ export function useMissingMoneyScan() {
           };
         });
 
+      const cat6Items: MissingMoneyItem[] = ((paidClaims ?? []) as any[])
+        .map((c: any) => ({ c, u: evaluateUnderpayment(c) }))
+        .filter(({ u }) => u.isShort)
+        .map(({ c, u }) => ({
+          id: c.id,
+          category: "paid_short" as MissingMoneyCategory,
+          patientName: patName(c.patient_id),
+          payerName: c.payer_name ?? c.payer_type ?? "Unknown",
+          runDate: c.run_date,
+          amount: u.shortfall,
+          expectedAmount: u.expectedFromPayer,
+          paidAmount: u.paid,
+          note: underpaymentSummaryLine(u),
+          denialExplanation: u.reason,
+          claimId: c.id,
+        }));
+
       const results: MissingMoneyCategorySummary[] = [
+
         {
           category: "no_pcr",
           label: "Completed — No PCR Submitted",
