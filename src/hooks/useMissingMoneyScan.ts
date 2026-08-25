@@ -383,7 +383,16 @@ export function useMissingMoneyScan() {
           items: cat5Items,
           route: "/billing",
         },
+        {
+          category: "paid_short",
+          label: "Paid Short — Underpaid by Payer",
+          count: cat6Items.length,
+          amount: cat6Items.reduce((s, i) => s + i.amount, 0),
+          items: cat6Items,
+          route: "/billing",
+        },
       ];
+
 
       const total = results.reduce((s, c) => s + c.amount, 0);
       setCategories(results);
