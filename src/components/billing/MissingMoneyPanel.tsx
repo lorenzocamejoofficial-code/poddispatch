@@ -12,7 +12,7 @@ import {
 } from "@/hooks/useMissingMoneyScan";
 import {
   DollarSign, AlertTriangle, ChevronDown, ChevronRight,
-  ArrowRight, CheckCircle, FileText, Send, Shield, XCircle,
+  ArrowRight, CheckCircle, FileText, Send, Shield, XCircle, TrendingDown,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TimelineTrigger } from "@/components/billing/ClaimTimelineDrawer";
@@ -23,7 +23,9 @@ const CATEGORY_CONFIG: Record<string, { icon: React.ReactNode; color: string }> 
   no_followup: { icon: <AlertTriangle className="h-4 w-4" />, color: "text-[hsl(var(--status-yellow))]" },
   secondary_not_billed: { icon: <Shield className="h-4 w-4" />, color: "text-primary" },
   denial_no_action: { icon: <XCircle className="h-4 w-4" />, color: "text-destructive" },
+  paid_short: { icon: <TrendingDown className="h-4 w-4" />, color: "text-destructive" },
 };
+
 
 const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
