@@ -197,12 +197,19 @@ export function ClaimTimelineDrawer() {
         <SheetHeader className="p-4 pb-3 border-b">
           <SheetTitle className="flex items-center gap-2">
             <History className="h-4 w-4" />
-            Claim timeline
+            Claim timeline — full audit trail
           </SheetTitle>
-          <SheetDescription className="text-xs">
-            {claim
-              ? `${claim.payer_name ?? claim.payer_type ?? "—"} · DOS ${claim.run_date} · status ${claim.status}`
-              : "Loading…"}
+          <SheetDescription className="text-xs space-y-1">
+            <span className="block">
+              {claim
+                ? `${claim.payer_name ?? claim.payer_type ?? "—"} · DOS ${claim.run_date} · status ${claim.status}`
+                : "Loading…"}
+            </span>
+            <span className="block">
+              Every submission, payer response, correction and status change on this claim, in
+              order and timestamped. This is your proof: it's what you cite in an appeal, what
+              settles a timely-filing dispute with a payer, and what an auditor asks to see.
+            </span>
           </SheetDescription>
           <div className="flex items-center justify-between pt-2">
             <div className="flex flex-wrap gap-1.5">
