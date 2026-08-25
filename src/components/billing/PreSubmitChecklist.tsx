@@ -11,6 +11,7 @@ import { normalizeTransportKey } from "@/lib/pcr-field-requirements";
 import { getMissingPatientRequirements } from "@/lib/pcr-dropdowns";
 import { isValidNpi, NPI_INVALID_MESSAGE } from "@/lib/npi-luhn";
 import { queueClaimsForSubmission } from "@/lib/queue-claims-for-submission";
+import { evaluatePcsWindow } from "@/lib/claim-readiness";
 
 // Local helper mirroring pcr-field-requirements.hasValue — used by the
 // Audit Fix 2 + 3 checks below to keep the billing gate aligned with the
@@ -150,7 +151,12 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       // Patient-level PCS satisfies the check (and hides the biller panel) for any
       // run whose patient already has PCS on file and not expired. Most common on
       // dialysis but applies to any standing-PCS patient.
-      const patientPcsValid = !!(p?.pcs_on_file && (!p?.pcs_expiration_date || new Date(p.pcs_expiration_date) >= new Date(t.run_date)));
+      const patientPcsWindow = evaluatePcsWindow({
+        patientSignedDate: p?.pcs_signed_date,
+        patientExpirationDate: p?.pcs_expiration_date,
+        runDate: t.run_date,
+      });
+      const patientPcsValid = !!(p?.pcs_on_file && patientPcsWindow.status === "ok");
       const pcsSkippable = isEmergency || isUnscheduled || isPrivatePay || !need.pcs || patientPcsValid;
       // Hide the biller PCS data-entry panel when PCS is already covered by the
       // patient record, when the payer doesn't require it, or for emergency/unscheduled runs.
@@ -217,21 +223,20 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       if (need.pcs) {
         // 42 CFR 410.40(d) — non-emergency scheduled transport requires a
         // Physician Certification Statement DATED WITHIN 60 DAYS of the
-        // service date. Compute against patient PCS or biller-entered PCS;
-        // whichever provides the most recent signed date.
-        const referenceSigned: string | null =
-          (p as any)?.pcs_signed_date || (claim as any)?.pcs_certification_date || null;
-        let pcsExpired60 = false;
-        let pcsAgeDays: number | null = null;
-        if (!pcsSkippable && referenceSigned && t.run_date) {
-          const signed = new Date(referenceSigned + "T00:00:00");
-          const run = new Date(t.run_date + "T00:00:00");
-          pcsAgeDays = Math.floor((run.getTime() - signed.getTime()) / 86400000);
-          pcsExpired60 = pcsAgeDays > 60;
-        }
+        // service date. Use the same claim-specific-first evaluator as the
+        // submission gate so a later patient-chart renewal cannot invalidate
+        // an older claim's saved certification.
+        const pcsWindow = evaluatePcsWindow({
+          patientSignedDate: p?.pcs_signed_date,
+          billerCertificationDate: claim?.pcs_certification_date,
+          patientExpirationDate: p?.pcs_expiration_date,
+          runDate: t.run_date,
+        });
+        const referenceSigned = pcsWindow.referenceSignedDate;
+        const pcsExpired60 = pcsWindow.status === "expired" || pcsWindow.status === "signed_after_dos";
         const fmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-US");
         const sixtyDayDetail = pcsExpired60 && referenceSigned && t.run_date
-          ? `PCS signed ${fmt(referenceSigned)} is more than 60 days before trip date ${fmt(t.run_date)}. CMS requires PCS dated within 60 days of service per 42 CFR 410.40(d). Update PCS on file or get a new physician certification.`
+          ? `${pcsWindow.message} CMS requires PCS dated within 60 days of service per 42 CFR 410.40(d). Open the claim PCS panel to correct the certification for this trip.`
           : undefined;
         checks.push({
           label: "PCS on file and not expired",
