@@ -117,7 +117,11 @@ export async function fetchClaimBlockerSnapshot(
     leg: t?.leg ?? null,
     pcs_on_file: c.pcs_on_file ?? !!p?.pcs_on_file,
     patient_prior_auth_utn: p?.prior_auth_utn ?? null,
+    patient_prior_auth_period_start: p?.prior_auth_period_start ?? null,
     patient_prior_auth_period_end: p?.prior_auth_period_end ?? null,
+    patient_pcs_signed_date: p?.pcs_signed_date ?? null,
+    patient_pcs_expiration_date: p?.pcs_expiration_date ?? null,
+
     patient_standing_order: p?.standing_order ?? null,
     patient_recurrence_days: p?.recurrence_days ?? null,
     patient_hospice_enrolled: p?.hospice_enrolled ?? false,
