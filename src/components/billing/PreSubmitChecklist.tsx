@@ -234,7 +234,6 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         });
         const referenceSigned = pcsWindow.referenceSignedDate;
         const pcsExpired60 = pcsWindow.status === "expired" || pcsWindow.status === "signed_after_dos";
-        const fmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-US");
         const sixtyDayDetail = pcsExpired60 && referenceSigned && t.run_date
           ? `${pcsWindow.message} CMS requires PCS dated within 60 days of service per 42 CFR 410.40(d). Open the claim PCS panel to correct the certification for this trip.`
           : undefined;
