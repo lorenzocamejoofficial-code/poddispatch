@@ -28,11 +28,14 @@ const baseClaim = {
   origin_zip: "30301",
 };
 
+const DIALYSIS_TRANSPORT = { destination_facility_type: "dialysis" };
+
 const blockersFor = (patient: any, claimOverrides: any = {}) =>
   evaluateClaimReadiness({
     claim: { ...baseClaim, ...claimOverrides } as any,
     patient,
-  }).filter((i) => i.severity === "block");
+    transport: DIALYSIS_TRANSPORT,
+  } as any).filter((i) => i.severity === "block");
 
 const fieldSet = (issues: { field: string }[]) => new Set(issues.map((i) => i.field));
 
@@ -161,6 +164,7 @@ describe("RSNAT enforcement in claim readiness", () => {
   it("warns (does not block) when the auth expires within 14 days", () => {
     const all = evaluateClaimReadiness({
       claim: baseClaim as any,
+      transport: DIALYSIS_TRANSPORT,
       patient: {
         ...currentPcs,
         prior_auth_utn: "UTN1",
