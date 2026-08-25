@@ -139,7 +139,7 @@ export function CrewCertificationsPanel({ userId, adminMode, displayName }: { us
     load();
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>;
+  if (loading && !firstLoadDone) return <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>;
   return (
     <div className="space-y-4">
       {isSelf && unconfirmed.length > 0 && (
