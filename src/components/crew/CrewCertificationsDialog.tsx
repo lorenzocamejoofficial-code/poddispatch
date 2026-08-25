@@ -383,7 +383,7 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName,
 
       toast.success(nextStatus === "pending_review" ? "Submitted for review" : "Certification saved");
       setEditing(false);
-      setFile(null);
+      clearPickedFile();
       onChanged();
     } finally {
       setSaving(false);
