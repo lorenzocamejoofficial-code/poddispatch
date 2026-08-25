@@ -171,7 +171,7 @@ export default function EDIExport() {
       if (patientIds.length > 0) {
         const { data: patients } = await supabase
           .from("patients")
-          .select("id, first_name, last_name, dob, pickup_address, member_id, primary_payer, sex, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days, auth_required, weight_lbs, pcs_on_file, pcs_physician_npi, pcs_physician_name, hospice_enrolled, hospice_election_date, terminal_illness_icd")
+          .select("id, first_name, last_name, dob, pickup_address, member_id, primary_payer, sex, prior_auth_utn, prior_auth_period_start, prior_auth_period_end, pcs_signed_date, pcs_expiration_date, standing_order, recurrence_days, auth_required, weight_lbs, pcs_on_file, pcs_physician_npi, pcs_physician_name, hospice_enrolled, hospice_election_date, terminal_illness_icd")
           .in("id", patientIds);
         (patients || []).forEach((p) => {
           patientsMap[p.id] = p;

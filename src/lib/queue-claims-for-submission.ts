@@ -144,7 +144,7 @@ export async function queueClaimsForSubmission(
     patientIds.length
       ? supabase
           .from("patients")
-          .select("id, first_name, last_name, dob, sex, weight_lbs, member_id, primary_payer, pickup_address, pcs_on_file, pcs_physician_npi, pcs_physician_name, facility_id, prior_auth_utn, prior_auth_period_end, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd")
+          .select("id, first_name, last_name, dob, sex, weight_lbs, member_id, primary_payer, pickup_address, pcs_on_file, pcs_physician_npi, pcs_physician_name, facility_id, prior_auth_utn, prior_auth_period_start, prior_auth_period_end, pcs_signed_date, pcs_expiration_date, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd")
           .in("id", patientIds)
       : Promise.resolve({ data: [] as any[] }),
   ]);
