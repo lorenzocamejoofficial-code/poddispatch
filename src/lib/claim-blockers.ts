@@ -31,13 +31,18 @@ export function buildReadinessInputs(claim: any) {
     },
     patient: {
       prior_auth_utn: claim.patient_prior_auth_utn ?? null,
+      prior_auth_period_start: claim.patient_prior_auth_period_start ?? null,
       prior_auth_period_end: claim.patient_prior_auth_period_end ?? null,
       standing_order: claim.patient_standing_order ?? null,
       recurrence_days: claim.patient_recurrence_days ?? null,
       hospice_enrolled: claim.patient_hospice_enrolled ?? null,
       hospice_election_date: claim.patient_hospice_election_date ?? null,
       terminal_illness_icd: claim.patient_terminal_illness_icd ?? null,
+      pcs_on_file: claim.pcs_on_file ?? null,
+      pcs_signed_date: claim.patient_pcs_signed_date ?? null,
+      pcs_expiration_date: claim.patient_pcs_expiration_date ?? null,
     },
+
   };
 }
 
