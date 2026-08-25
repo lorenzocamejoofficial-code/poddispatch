@@ -42,6 +42,78 @@ const STAGE_META: Record<TimelineStage, { label: string; icon: typeof Send }> = 
   internal: { label: "Internal", icon: History },
 };
 
+/**
+ * Plain-English gloss for the raw event titles. Copy only — the underlying
+ * event data is untouched. Anything not listed here simply renders its raw
+ * title with no gloss (safe fallback for new event types).
+ */
+const EVENT_GLOSS: { match: (title: string) => boolean; gloss: string }[] = [
+  {
+    match: (t) => t === "Claim record created",
+    gloss: "The finished trip became a billable claim in the system.",
+  },
+  {
+    match: (t) => t === "837P built",
+    gloss: "The electronic claim file was generated and is ready to send to the clearinghouse.",
+  },
+  {
+    match: (t) => t.startsWith("837P artifact"),
+    gloss: "A copy of the exact file sent to the payer was saved for your records.",
+  },
+  {
+    match: (t) => t.startsWith("Dropped to clearinghouse"),
+    gloss: "The claim left your system and is now with Office Ally.",
+  },
+  {
+    match: (t) => t.startsWith("Resubmitted"),
+    gloss: "A corrected version of this claim was sent back to the payer.",
+  },
+  {
+    match: (t) => t === "Rejection recorded manually",
+    gloss: "A biller logged a payer rejection that did not arrive electronically.",
+  },
+  {
+    match: (t) => t === "Claim marked paid",
+    gloss: "The payer's money for this claim has been posted.",
+  },
+  {
+    match: (t) => t === "Secondary claim generated",
+    gloss: "A follow-on claim was created for the secondary payer to cover the remaining balance.",
+  },
+  {
+    match: (t) => t.startsWith("Remittance quarantined"),
+    gloss: "An incoming payment file could not be matched safely and is being held for review.",
+  },
+  {
+    match: (t) => t === "Quarantine resolved",
+    gloss: "The held payment file was reviewed and cleared.",
+  },
+  {
+    match: (t) => t === "Marked for resubmission",
+    gloss: "This claim was queued to go back out after corrections.",
+  },
+  {
+    match: (t) => t === "AR follow-up note",
+    gloss: "A biller logged a note while chasing this money.",
+  },
+  {
+    match: (t) => t.startsWith("Field corrected:"),
+    gloss: "A field on the claim was changed — who changed it and when is recorded.",
+  },
+  {
+    match: (t) => t === "Billing override applied",
+    gloss: "A manager overrode a billing rule for this claim.",
+  },
+  {
+    match: (t) => t.startsWith("Trip status:"),
+    gloss: "The underlying trip moved to a new status.",
+  },
+];
+
+function glossFor(title: string): string | null {
+  return EVENT_GLOSS.find((g) => g.match(title))?.gloss ?? null;
+}
+
 function severityIcon(sev: TimelineSeverity) {
   const cls = "h-4 w-4";
   switch (sev) {
