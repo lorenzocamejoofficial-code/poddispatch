@@ -361,8 +361,18 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: 
   };
 
   const handleMarkReady = async () => {
-    if (!allChecked) {
-      toast.error("Complete all checklist items before resubmitting");
+    // Hard gate on the REAL detected blockers. Re-validate first so a fix made
+    // seconds ago in another tab counts, and a stale clean read can't slip a
+    // broken claim back out to the payer.
+    setSaving(true);
+    const { blockers: fresh } = await fetchClaimBlockerSnapshot(claim.id);
+    setBlockers(fresh);
+    setBlockerRefreshedAt(Date.now());
+    setSaving(false);
+    if (fresh.length > 0) {
+      toast.error(
+        `${fresh.length} claim blocker${fresh.length === 1 ? "" : "s"} still open — fix ${fresh.length === 1 ? "it" : "them"} before resubmitting, or this claim will just be denied again.`,
+      );
       return;
     }
     if (!correctionNotes.trim()) {
