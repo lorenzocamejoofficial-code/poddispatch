@@ -1750,7 +1750,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     return { ok: false, error: `Pool query failed: ${poolErr.message}` };
   }
 
-  const requiredPoolSize = 18;
+  const requiredPoolSize = 21;
   let generatedPoolCount = 0;
   if (!pool || pool.length < requiredPoolSize) {
     const generated = await createDenialsRemitsClaimPool(admin, companyId, requiredPoolSize - (pool?.length ?? 0));
@@ -1779,7 +1779,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
   const isoMinus = (days: number) => new Date(now - days * dayMs).toISOString();
   const dateMinus = (days: number) => new Date(now - days * dayMs).toISOString().slice(0, 10);
 
-  const counts = { denied: 0, paid_with_secondary: 0, aging: 0, timely_filing: 0, errors: 0 };
+  const counts = { denied: 0, paid_with_secondary: 0, aging: 0, timely_filing: 0, paid_short: 0, errors: 0 };
   const errorLog: string[] = [];
 
   // ── Bucket 1: 6 denied claims with recoverable CARCs ─────────────────────
@@ -1879,8 +1879,46 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     else counts.timely_filing++;
   }
 
+  // ── Bucket 5: 3 underpaid ("paid short") claims ─────────────────────────
+  // Payer allowed the full contracted amount but remitted less than it owed
+  // after patient responsibility. Exercises the Missing Money "Paid Short"
+  // bucket end to end (allowed vs patient responsibility vs amount paid).
+  const shortSlice = pool.slice(18, 21);
+  const shortConfigs = [
+    { allowedPct: 0.55, prPct: 0.00, paidPctOfOwed: 0.62 },  // ~38% short
+    { allowedPct: 0.55, prPct: 0.20, paidPctOfOwed: 0.80 },  // ~20% short w/ PR
+    { allowedPct: 0.55, prPct: 0.00, paidPctOfOwed: 0.00 },  // marked paid, $0 in
+  ];
+  for (let i = 0; i < shortSlice.length && i < shortConfigs.length; i++) {
+    const c = shortSlice[i];
+    const cfg = shortConfigs[i];
+    const total = Number(c.total_charge) || 349.48;
+    const allowed = Math.round(total * cfg.allowedPct * 100) / 100;
+    const pr = Math.round(allowed * cfg.prPct * 100) / 100;
+    const owed = Math.round((allowed - pr) * 100) / 100;
+    const paid = Math.round(owed * cfg.paidPctOfOwed * 100) / 100;
+    const { error } = await admin.from("claim_records").update({
+      status: "paid",
+      allowed_amount: allowed,
+      amount_paid: paid,
+      patient_responsibility_amount: pr,
+      write_off_amount: Math.round((total - allowed) * 100) / 100,
+      adjustment_codes: ["CO-45"],
+      paid_at: isoMinus(6),
+      remittance_date: dateMinus(6),
+      secondary_claim_generated: true,
+      submitted_at: isoMinus(25),
+      is_simulated: false,
+      is_test_submission: false,
+      simulation_run_id: runId,
+    }).eq("id", c.id);
+    if (error) { counts.errors++; errorLog.push(`paid_short[${i}]: ${error.message}`); }
+    else counts.paid_short++;
+  }
+
   const transformed =
-    counts.denied + counts.paid_with_secondary + counts.aging + counts.timely_filing;
+    counts.denied + counts.paid_with_secondary + counts.aging + counts.timely_filing +
+    counts.paid_short;
 
   return {
     ok: counts.errors === 0,
@@ -1893,7 +1931,8 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     description:
       `Transformed ${transformed} claims: ${counts.denied} denials, ` +
       `${counts.paid_with_secondary} paid w/ secondary opportunity, ` +
-      `${counts.aging} aging-submitted, ${counts.timely_filing} timely-filing.`,
+      `${counts.aging} aging-submitted, ${counts.timely_filing} timely-filing, ` +
+      `${counts.paid_short} paid short.`,
   };
 }
 
