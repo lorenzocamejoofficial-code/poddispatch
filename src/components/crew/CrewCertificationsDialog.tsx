@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -9,7 +9,16 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Upload, Check, X, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Upload, Check, X, ShieldCheck, AlertTriangle, Trash2, FileText } from "lucide-react";
+import { InfoTip } from "@/components/ui/info-tip";
+import {
+  CERT_TOOLTIPS,
+  CERT_PHOTO_ACCEPT,
+  CERT_PHOTO_MAX_MB,
+  validateCertPhoto,
+  certPhotoExtension,
+} from "@/lib/cert-tooltips";
+
 
 type CertType = "medic_number" | "cpr" | "drivers_license";
 type CertStatus = "pending_review" | "approved" | "rejected" | "expired";
@@ -197,11 +206,14 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName,
   const [issue, setIssue] = useState(row?.issue_date ?? "");
   const [exp, setExp] = useState(row?.expiration_date ?? "");
   const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
   const [saving, setSaving] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
   const [showOverride, setShowOverride] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setNumber(row?.cert_number ?? "");
@@ -209,6 +221,47 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName,
     setIssue(row?.issue_date ?? "");
     setExp(row?.expiration_date ?? "");
   }, [row?.id]);
+
+  // Local preview for the newly picked file (images only).
+  useEffect(() => {
+    if (!file || !(file.type || "").startsWith("image/")) { setPreview(null); return; }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const clearPickedFile = () => {
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const pickFile = (f: File | null) => {
+    if (!f) { clearPickedFile(); return; }
+    const problem = validateCertPhoto(f);
+    if (problem) { toast.error(problem); clearPickedFile(); return; }
+    setFile(f);
+  };
+
+  /** Deletes the stored photo and clears it off the record. */
+  const deleteStoredPhoto = async () => {
+    if (!row?.photo_path) return;
+    setRemovingPhoto(true);
+    try {
+      const { error: rmErr } = await supabase.storage.from("crew-certifications").remove([row.photo_path]);
+      if (rmErr) { toast.error(`Could not delete the photo: ${rmErr.message}`); return; }
+      const { error } = await supabase
+        .from("crew_certifications" as any)
+        .update({ photo_path: null })
+        .eq("id", row.id);
+      if (error) { toast.error(error.message); return; }
+      toast.success("Photo deleted");
+      clearPickedFile();
+      onChanged();
+    } finally {
+      setRemovingPhoto(false);
+    }
+  };
+
 
   const submit = async () => {
     if (!exp) { toast.error("Expiration date is required"); return; }
@@ -237,14 +290,19 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName,
 
       let photoPath = row?.photo_path ?? null;
       if (file) {
-        const ext = file.name.split(".").pop() || "jpg";
+        const ext = certPhotoExtension(file);
         const path = `${userId}/${type}-${Date.now()}.${ext}`;
         const { error: upErr } = await supabase.storage
           .from("crew-certifications")
-          .upload(path, file, { upsert: false });
-        if (upErr) { toast.error("Photo upload failed"); setSaving(false); return; }
+          .upload(path, file, { upsert: false, contentType: file.type || undefined });
+        if (upErr) {
+          toast.error(`Photo upload failed: ${upErr.message}`);
+          setSaving(false);
+          return;
+        }
         photoPath = path;
       }
+
 
       const nextNumber = number.trim() || null;
       const nextLevel = type === "medic_number" ? level : null;
@@ -325,7 +383,7 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName,
 
       toast.success(nextStatus === "pending_review" ? "Submitted for review" : "Certification saved");
       setEditing(false);
-      setFile(null);
+      clearPickedFile();
       onChanged();
     } finally {
       setSaving(false);
@@ -383,9 +441,13 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName,
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h4 className="font-semibold text-sm">{CERT_LABELS[type]}</h4>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h4 className="font-semibold text-sm flex items-center">
+            {CERT_LABELS[type]}
+            <InfoTip align="left" text={CERT_TOOLTIPS[`${type}_purpose`]} />
+          </h4>
           {row ? statusBadge(row) : <Badge variant="outline">Not submitted</Badge>}
+
           {row?.manually_verified && (
             <Badge variant="outline" className="border-amber-500 text-amber-600">
               <AlertTriangle className="h-3 w-3 mr-1" />Manually verified
@@ -415,11 +477,40 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName,
           {row.rejection_reason && (
             <div className="col-span-2 text-destructive">Rejected: {row.rejection_reason}</div>
           )}
-          {photoUrl && (
-            <div className="col-span-2 pt-2">
-              <a href={photoUrl} target="_blank" rel="noreferrer" className="inline-block">
-                <img src={photoUrl} alt="cert" className="max-h-32 rounded border" />
-              </a>
+          {row.photo_path && (
+            <div className="col-span-2 pt-2 space-y-1.5">
+              {photoUrl && !row.photo_path.endsWith(".pdf") ? (
+                <a href={photoUrl} target="_blank" rel="noreferrer" className="inline-block">
+                  <img src={photoUrl} alt={`${CERT_LABELS[type]} card`} className="max-h-32 rounded border" />
+                </a>
+              ) : (
+                <a
+                  href={photoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs underline text-primary"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  View uploaded document
+                </a>
+              )}
+              {(isSelf || adminMode) && (
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditing(true)}>
+                    Replace photo
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs text-destructive hover:text-destructive"
+                    disabled={removingPhoto}
+                    onClick={deleteStoredPhoto}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    {removingPhoto ? "Deleting…" : "Delete photo"}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -429,7 +520,10 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName,
         <div className="space-y-2 border-t pt-3">
           {type === "medic_number" && (
             <div>
-              <Label className="text-xs">Level</Label>
+              <Label className="text-xs flex items-center">
+                Level
+                <InfoTip align="left" text={CERT_TOOLTIPS.level} />
+              </Label>
               <Select value={level} onValueChange={(v) => setLevel(v as CertLevel)}>
                 <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -441,26 +535,82 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName,
             </div>
           )}
           <div>
-            <Label className="text-xs">{type === "medic_number" ? "Medic Number" : "Number on card"}</Label>
+            <Label className="text-xs flex items-center">
+              {type === "medic_number" ? "Medic Number" : "Number on card"}
+              <InfoTip align="left" text={type === "medic_number" ? CERT_TOOLTIPS.medic_number : CERT_TOOLTIPS.card_number} />
+            </Label>
             <Input className="h-8" value={number} onChange={(e) => setNumber(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label className="text-xs">Issue date</Label>
+              <Label className="text-xs flex items-center">
+                Issue date
+                <InfoTip align="left" text={CERT_TOOLTIPS.issue_date} />
+              </Label>
               <Input className="h-8" type="date" value={issue} onChange={(e) => setIssue(e.target.value)} />
             </div>
             <div>
-              <Label className="text-xs">Expiration date *</Label>
+              <Label className="text-xs flex items-center">
+                Expiration date *
+                <InfoTip align="left" text={CERT_TOOLTIPS.expiration_date} />
+              </Label>
               <Input className="h-8" type="date" value={exp} onChange={(e) => setExp(e.target.value)} />
             </div>
           </div>
           <div>
-            <Label className="text-xs">Photo of card</Label>
-            <Input className="h-8" type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-            {row?.photo_path && !file && <p className="text-[11px] text-muted-foreground mt-1">Current photo on file — uploading a new one replaces it.</p>}
+            <Label className="text-xs flex items-center">
+              Photo of card
+              <InfoTip align="left" text={CERT_TOOLTIPS.photo} />
+            </Label>
+            <Input
+              ref={fileInputRef}
+              className="h-8"
+              type="file"
+              accept={CERT_PHOTO_ACCEPT}
+              onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              JPG, PNG, WEBP, HEIC or PDF · up to {CERT_PHOTO_MAX_MB}MB
+            </p>
+
+            {file && (
+              <div className="mt-2 flex items-start gap-2 rounded-md border p-2">
+                {preview ? (
+                  <img src={preview} alt="Selected card preview" className="h-16 w-16 object-cover rounded" />
+                ) : (
+                  <FileText className="h-6 w-6 text-muted-foreground mt-1" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs truncate">{file.name}</p>
+                  <p className="text-[11px] text-muted-foreground">{(file.size / 1024 / 1024).toFixed(1)}MB</p>
+                </div>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={clearPickedFile}>
+                  <X className="h-3.5 w-3.5 mr-1" />Remove
+                </Button>
+              </div>
+            )}
+
+            {row?.photo_path && !file && (
+              <div className="mt-2 flex items-center justify-between gap-2 rounded-md border p-2">
+                <p className="text-[11px] text-muted-foreground">
+                  A photo is already on file. Choosing a new one replaces it.
+                </p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs text-destructive hover:text-destructive"
+                  disabled={removingPhoto}
+                  onClick={deleteStoredPhoto}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  {removingPhoto ? "Deleting…" : "Delete"}
+                </Button>
+              </div>
+            )}
           </div>
           <div className="flex gap-2 justify-end">
-            <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setFile(null); }}>Cancel</Button>
+            <Button size="sm" variant="ghost" onClick={() => { setEditing(false); clearPickedFile(); }}>Cancel</Button>
+
             <Button size="sm" onClick={submit} disabled={saving}>
               <Upload className="h-3.5 w-3.5 mr-1.5" />
               {adminMode
