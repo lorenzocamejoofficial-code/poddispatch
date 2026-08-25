@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
+import { evaluateUnderpayment, underpaymentSummaryLine } from "@/lib/underpayment";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
@@ -19,6 +20,11 @@ export interface MissingMoneyItem {
   claimId?: string;
   tripId?: string;
   status?: string;
+  /** Paid-short only — benchmark the payer owed, and what actually arrived. */
+  expectedAmount?: number;
+  paidAmount?: number;
+  /** Plain-English detail line shown in the row (paid-short). */
+  note?: string;
 }
 
 export type MissingMoneyCategory =
@@ -26,7 +32,8 @@ export type MissingMoneyCategory =
   | "pcr_not_billed"
   | "no_followup"
   | "secondary_not_billed"
-  | "denial_no_action";
+  | "denial_no_action"
+  | "paid_short";
 
 export interface MissingMoneyCategorySummary {
   category: MissingMoneyCategory;
@@ -36,6 +43,7 @@ export interface MissingMoneyCategorySummary {
   items: MissingMoneyItem[];
   route: string;
 }
+
 
 export function useMissingMoneyScan() {
   const { activeCompanyId } = useAuth();
