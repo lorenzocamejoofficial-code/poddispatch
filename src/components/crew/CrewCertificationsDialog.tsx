@@ -237,14 +237,19 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName,
 
       let photoPath = row?.photo_path ?? null;
       if (file) {
-        const ext = file.name.split(".").pop() || "jpg";
+        const ext = certPhotoExtension(file);
         const path = `${userId}/${type}-${Date.now()}.${ext}`;
         const { error: upErr } = await supabase.storage
           .from("crew-certifications")
-          .upload(path, file, { upsert: false });
-        if (upErr) { toast.error("Photo upload failed"); setSaving(false); return; }
+          .upload(path, file, { upsert: false, contentType: file.type || undefined });
+        if (upErr) {
+          toast.error(`Photo upload failed: ${upErr.message}`);
+          setSaving(false);
+          return;
+        }
         photoPath = path;
       }
+
 
       const nextNumber = number.trim() || null;
       const nextLevel = type === "medic_number" ? level : null;
