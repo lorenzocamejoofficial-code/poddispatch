@@ -228,7 +228,15 @@ function CategoryDetailCard({ cat, navigate }: { cat: MissingMoneyCategorySummar
                     {cat.category === "denial_no_action" && (
                       <TableHead className="text-xs">Denial</TableHead>
                     )}
-                    <TableHead className="text-xs text-right">Amount</TableHead>
+                    {cat.category === "paid_short" && (
+                      <>
+                        <TableHead className="text-xs text-right">Expected</TableHead>
+                        <TableHead className="text-xs text-right">Paid</TableHead>
+                      </>
+                    )}
+                    <TableHead className="text-xs text-right">
+                      {cat.category === "paid_short" ? "Short By" : "Amount"}
+                    </TableHead>
                     <TableHead className="text-xs text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -251,7 +259,18 @@ function CategoryDetailCard({ cat, navigate }: { cat: MissingMoneyCategorySummar
                           )}
                         </TableCell>
                       )}
-                      <TableCell className="text-xs text-right font-medium">${fmt(item.amount)}</TableCell>
+                      {cat.category === "paid_short" && (
+                        <>
+                          <TableCell className="text-xs text-right">${fmt(item.expectedAmount ?? 0)}</TableCell>
+                          <TableCell className="text-xs text-right">${fmt(item.paidAmount ?? 0)}</TableCell>
+                        </>
+                      )}
+                      <TableCell
+                        className="text-xs text-right font-medium"
+                        title={cat.category === "paid_short" ? item.denialExplanation : undefined}
+                      >
+                        ${fmt(item.amount)}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                         {item.claimId && <TimelineTrigger claimId={item.claimId} />}
@@ -261,22 +280,21 @@ function CategoryDetailCard({ cat, navigate }: { cat: MissingMoneyCategorySummar
                           className="h-6 text-[10px] px-2"
                           onClick={() => {
                             if (cat.category === "no_pcr" || cat.category === "pcr_not_billed") {
-                              navigate("/trips");
-                            } else if (cat.category === "no_followup" || cat.category === "denial_no_action") {
-                              navigate("/billing");
+                              navigate(item.tripId ? `/pcr?tripId=${item.tripId}&mode=qa-fix` : "/trips");
                             } else {
-                              navigate("/billing");
+                              navigate(item.claimId ? `/billing?claimId=${item.claimId}` : "/billing");
                             }
                           }}
                         >
                           {cat.category === "no_pcr" || cat.category === "pcr_not_billed"
                             ? "Open PCR"
-                            : cat.category === "no_followup" || cat.category === "denial_no_action"
-                              ? "Open Claim"
+                            : cat.category === "paid_short"
+                              ? "Review Payment"
                               : "Open Claim"}
                         </Button>
                         </div>
                       </TableCell>
+
                     </TableRow>
                   ))}
                 </TableBody>
