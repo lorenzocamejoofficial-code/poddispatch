@@ -64,6 +64,10 @@ export function TimelyFilingStrip({
         <span className="flex items-center gap-1.5">
           <AlertTriangle className="h-3.5 w-3.5" />
           Timely Filing Watch
+          <InfoTip
+            align="left"
+            text="Every payer gives you a limited window, counted from the date of service, to get a claim in the door — Medicare allows 365 days, Georgia Medicaid 180, commercial plans vary. Miss it and the money isn't late, it's gone: the payer will never pay it and you can't bill the patient for it either. This strip lists the claims closest to (or past) their deadline so you work those first."
+          />
           {pastCount > 0 && (
             <span className="ml-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[9px] text-destructive">
               {pastCount} past due
@@ -74,6 +78,9 @@ export function TimelyFilingStrip({
           ${dollarsAtRisk.toFixed(0)} at risk · top {items.length}
         </span>
       </div>
+      <p className="text-[10px] font-normal normal-case text-amber-800/80 dark:text-amber-300/70">
+        Deadlines are payer-specific and counted from date of service.
+      </p>
       <div className="flex flex-wrap gap-1.5">
         {items.map(({ c, daysLeft, past }) => (
           <button
