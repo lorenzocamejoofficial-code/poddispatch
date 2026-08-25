@@ -55,6 +55,7 @@ export interface ReadinessInputs {
    *  callers that haven't migrated). */
   patient?: {
     prior_auth_utn?: string | null;
+    prior_auth_period_start?: string | null;
     prior_auth_period_end?: string | null;
     standing_order?: boolean | null;
     recurrence_days?: number[] | null;
@@ -64,7 +65,13 @@ export interface ReadinessInputs {
     /** patients.mobility — what the PCS / chart says the patient requires. */
     mobility?: string | null;
     default_bed_confined?: boolean | null;
+    /** Date the physician signed the PCS (42 CFR 410.40(d) 60-day clock). */
+    pcs_signed_date?: string | null;
+    /** Denormalized signed_date + 60 days, maintained by the patient form. */
+    pcs_expiration_date?: string | null;
+    pcs_on_file?: boolean | null;
   } | null;
+
   /** Optional transport / scheduling context for biller-stage checks.
    *  destination_facility_type is the resolved facilities.facility_type
    *  (e.g. "dialysis") for the destination of this run. */
