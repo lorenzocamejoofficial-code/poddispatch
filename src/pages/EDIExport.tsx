@@ -228,7 +228,10 @@ export default function EDIExport() {
           // non-emergent transport). Propagated through to the inner build
           // step in handleGenerate / handleSubmit on the enriched claim row.
           patient_prior_auth_utn: pat.prior_auth_utn ?? null,
+          patient_prior_auth_period_start: pat.prior_auth_period_start ?? null,
           patient_prior_auth_period_end: pat.prior_auth_period_end ?? null,
+          patient_pcs_signed_date: pat.pcs_signed_date ?? null,
+          patient_pcs_expiration_date: pat.pcs_expiration_date ?? null,
           patient_standing_order: pat.standing_order ?? null,
           patient_recurrence_days: pat.recurrence_days ?? null,
           patient_hospice_enrolled: pat.hospice_enrolled ?? false,
@@ -610,7 +613,11 @@ export default function EDIExport() {
           billingState: providerInfo.state,
           patient: {
             prior_auth_utn: ci.patient_prior_auth_utn ?? null,
+            prior_auth_period_start: ci.patient_prior_auth_period_start ?? null,
             prior_auth_period_end: ci.patient_prior_auth_period_end ?? null,
+            pcs_on_file: ci.patient_pcs_on_file ?? null,
+            pcs_signed_date: ci.patient_pcs_signed_date ?? null,
+            pcs_expiration_date: ci.patient_pcs_expiration_date ?? null,
             standing_order: ci.patient_standing_order ?? null,
             recurrence_days: ci.patient_recurrence_days ?? null,
             hospice_enrolled: ci.patient_hospice_enrolled ?? null,
@@ -970,7 +977,11 @@ export default function EDIExport() {
           billingState: providerInfo.state,
           patient: {
             prior_auth_utn: ci.patient_prior_auth_utn ?? null,
+            prior_auth_period_start: ci.patient_prior_auth_period_start ?? null,
             prior_auth_period_end: ci.patient_prior_auth_period_end ?? null,
+            pcs_on_file: ci.patient_pcs_on_file ?? null,
+            pcs_signed_date: ci.patient_pcs_signed_date ?? null,
+            pcs_expiration_date: ci.patient_pcs_expiration_date ?? null,
             standing_order: ci.patient_standing_order ?? null,
             recurrence_days: ci.patient_recurrence_days ?? null,
             hospice_enrolled: ci.patient_hospice_enrolled ?? null,
