@@ -230,6 +230,41 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: 
 
   const allChecked = checklist.length > 0 && checklist.every(c => checked[c.id]);
 
+  /* ---- Real detected field blockers (shared with the claim card) ----------
+   * These are NOT the CARC guidance above. They come from the same
+   * evaluateClaimReadiness rules that power the claim card's blocker list,
+   * re-read live from the database, so a fix made in the patient chart /
+   * trip / PCS panel clears here on return. Resubmission is gated on THESE,
+   * never on the manual checklist. */
+  const [blockers, setBlockers] = useState<ReadinessIssue[]>([]);
+  const [blockersLoading, setBlockersLoading] = useState(false);
+  const [blockerRefreshedAt, setBlockerRefreshedAt] = useState<number>(0);
+
+  const refreshBlockers = useCallback(async () => {
+    if (!claim.id) return;
+    setBlockersLoading(true);
+    const { blockers: found } = await fetchClaimBlockerSnapshot(claim.id);
+    setBlockers(found);
+    setBlockerRefreshedAt(Date.now());
+    setBlockersLoading(false);
+  }, [claim.id]);
+
+  useEffect(() => {
+    if (open) void refreshBlockers();
+  }, [open, refreshBlockers]);
+
+  // Re-validate when the biller comes back from a fix page / another tab.
+  useEffect(() => {
+    if (!open) return;
+    const onFocus = () => { void refreshBlockers(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [open, refreshBlockers]);
+
   const getProfileName = async () => {
     if (!user) return "Unknown";
     const { data } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).maybeSingle();
