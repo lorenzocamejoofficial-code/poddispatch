@@ -83,6 +83,10 @@ export function CrewCertificationsPanel({ userId, adminMode, displayName }: { us
   const isSelf = user?.id === userId;
   const [rows, setRows] = useState<CertRow[]>([]);
   const [loading, setLoading] = useState(false);
+  // Only the very first fetch may blank out the panel. Later refetches
+  // (after saving one card) must keep the other cards mounted, otherwise
+  // anything typed into them but not yet saved is thrown away.
+  const [firstLoadDone, setFirstLoadDone] = useState(false);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
 
@@ -94,7 +98,9 @@ export function CrewCertificationsPanel({ userId, adminMode, displayName }: { us
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
     setLoading(false);
+    setFirstLoadDone(true);
     if (error) { toast.error("Failed to load certifications"); return; }
+
     const seen = new Set<string>();
     const latest = (data as any as CertRow[]).filter((r) => {
       if (seen.has(r.cert_type)) return false;
