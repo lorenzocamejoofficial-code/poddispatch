@@ -288,6 +288,9 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
               </Badge>
             )}
           </div>
+          {glossFor(event.title) && (
+            <p className="text-xs text-muted-foreground mt-0.5">{glossFor(event.title)}</p>
+          )}
           {event.detail && (
             <p className="text-xs text-muted-foreground mt-0.5 break-words">{event.detail}</p>
           )}
