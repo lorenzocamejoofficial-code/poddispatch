@@ -169,11 +169,13 @@ interface DenialRecoveryEngineProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onComplete: () => void;
+  /** Optional: lets a "PCS" blocker open the in-page PCS panel instead of navigating. */
+  onOpenPcsPanel?: (tripId: string | null, patientId: string | null) => void;
 }
 
 const LOCATION_TYPES = ["residence", "dialysis_facility", "hospital", "snf", "assisted_living", "doctors_office", "other"];
 
-export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: DenialRecoveryEngineProps) {
+export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, onOpenPcsPanel }: DenialRecoveryEngineProps) {
   const { user, activeCompanyId } = useAuth();
   const translation = claim.denial_code ? getDenialTranslation(claim.denial_code) : null;
   const checklist = useMemo(() => getChecklistForDenial(claim.denial_code ?? "", translation), [claim.denial_code, translation]);
