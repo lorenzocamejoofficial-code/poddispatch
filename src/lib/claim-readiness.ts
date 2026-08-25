@@ -492,25 +492,52 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
 
   // ---- Biller-stage pre-submission checks (additive) ----------------------
 
-  // Rule 5 — PCS certification date required when PCS is on file (or the
-  // transport type requires PCS). Emergency transports never need PCS.
-  const transportType = String(claim.payer_type ? "" : "").toLowerCase();
-  // Note: claim.payer_type is the payer class; PCS requirement is driven by
-  // claim.pcs_on_file (set by biller / patient record). We treat pcs_on_file
-  // === true as the explicit assertion that PCS is required for this claim.
-  if (claim.pcs_on_file === true) {
+  // Rule 5 — PCS certification required when PCS is on file (or the patient
+  // chart asserts one). Emergency transports never assert pcs_on_file, so
+  // they are untouched by this rule.
+  //
+  // Two separate failures are enforced:
+  //   5a. No certification date at all.
+  //   5b. The certification is outside the 42 CFR 410.40(d) 60-day window
+  //       for this date of service (or post-dates the transport). Before
+  //       this, an expired PCS was only a soft warning in the pre-submit
+  //       checklist — the queue path let it through to the payer.
+  const pcsAsserted = claim.pcs_on_file === true || inputs.patient?.pcs_on_file === true;
+  if (pcsAsserted) {
+    const pcsFixPath = claim.id ? `/billing?claimId=${claim.id}&focus=pcs` : "/billing?focus=pcs";
     const certDate = String(claim.pcs_certification_date ?? "").trim();
-    if (!certDate) {
+    const chartSigned = String(inputs.patient?.pcs_signed_date ?? "").trim();
+    if (!certDate && !chartSigned) {
       issues.push({
         field: "pcs_certification_date",
         severity: "block",
         stage: "biller",
         message: "PCS certification date missing",
-        fixPath: claim.id ? `/billing?claimId=${claim.id}&focus=pcs` : "/billing?focus=pcs",
+        fixPath: pcsFixPath,
         fixLabel: "Open PCS panel",
       });
+    } else {
+      const win = evaluatePcsWindow({
+        patientSignedDate: inputs.patient?.pcs_signed_date,
+        billerCertificationDate: claim.pcs_certification_date,
+        patientExpirationDate: inputs.patient?.pcs_expiration_date,
+        runDate: claim.run_date,
+      });
+      if (win.status === "expired" || win.status === "signed_after_dos") {
+        issues.push({
+          field: "pcs_certification_date",
+          severity: "block",
+          stage: "biller",
+          message: win.message,
+          fixPath: claim.patient_id
+            ? `/patients?patientId=${claim.patient_id}&focus=pcs`
+            : pcsFixPath,
+          fixLabel: claim.patient_id ? "Update PCS in patient chart" : "Open PCS panel",
+        });
+      }
     }
   }
+
 
   // Rule 4 — Stretcher claims need a secondary diagnosis supporting
   // bed-confinement. If stretcher_placement is set and not "ambulatory",
