@@ -9,7 +9,16 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Upload, Check, X, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Upload, Check, X, ShieldCheck, AlertTriangle, Trash2, FileText } from "lucide-react";
+import { InfoTip } from "@/components/ui/info-tip";
+import {
+  CERT_TOOLTIPS,
+  CERT_PHOTO_ACCEPT,
+  CERT_PHOTO_MAX_MB,
+  validateCertPhoto,
+  certPhotoExtension,
+} from "@/lib/cert-tooltips";
+
 
 type CertType = "medic_number" | "cpr" | "drivers_license";
 type CertStatus = "pending_review" | "approved" | "rejected" | "expired";
