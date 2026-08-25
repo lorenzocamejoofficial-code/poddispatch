@@ -82,6 +82,8 @@ import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { evaluateClaimReadiness } from "@/lib/claim-readiness";
+import { detectClaimBlockers } from "@/lib/claim-blockers";
+import { InfoTip } from "@/components/ui/info-tip";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
