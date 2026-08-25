@@ -115,10 +115,11 @@ export interface PcsWindowResult {
 /**
  * Evaluate the PCS 60-day window for one date of service.
  *
- * The reference signature is the most recent of the patient-chart PCS signed
- * date and the biller-entered certification date — either can be the real
- * physician signature, and using the newer one avoids blocking a claim whose
- * PCS was legitimately re-obtained.
+ * A claim-specific biller certification date is an immutable snapshot for
+ * that date of service and therefore takes precedence over the patient chart.
+ * The chart date is only a fallback for claims that do not yet have their own
+ * certification date. This prevents a later PCS renewal on a recurring
+ * patient's chart from invalidating older, not-yet-billed trips.
  */
 export function evaluatePcsWindow(input: {
   patientSignedDate?: string | null;
@@ -126,11 +127,11 @@ export function evaluatePcsWindow(input: {
   patientExpirationDate?: string | null;
   runDate?: string | null;
 }): PcsWindowResult {
-  const candidates = [input.patientSignedDate, input.billerCertificationDate]
-    .map((d) => (isIso(d) ? d : null))
-    .filter((d): d is string => !!d)
-    .sort();
-  const signed = candidates.length ? candidates[candidates.length - 1] : null;
+  const billerSigned = isIso(input.billerCertificationDate)
+    ? input.billerCertificationDate
+    : null;
+  const patientSigned = isIso(input.patientSignedDate) ? input.patientSignedDate : null;
+  const signed = billerSigned ?? patientSigned;
   const runDate = isIso(input.runDate) ? input.runDate : null;
 
   if (!signed) {
@@ -171,7 +172,12 @@ export function evaluatePcsWindow(input: {
 
   // An explicit chart expiration date wins when it is earlier than the
   // computed 60-day ceiling (e.g. physician limited the certification).
-  const explicitExp = isIso(input.patientExpirationDate) ? input.patientExpirationDate : null;
+  // The patient expiration belongs to the chart PCS. A claim-specific PCS may
+  // represent a different certification period, so its 60-day window must not
+  // be shortened by a later chart renewal's expiration date.
+  const explicitExp = !billerSigned && isIso(input.patientExpirationDate)
+    ? input.patientExpirationDate
+    : null;
   const effectiveThrough = explicitExp && explicitExp < validThrough ? explicitExp : validThrough;
 
   if (runDate > effectiveThrough) {
@@ -529,10 +535,8 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
           severity: "block",
           stage: "biller",
           message: win.message,
-          fixPath: claim.patient_id
-            ? `/patients?patientId=${claim.patient_id}&focus=pcs`
-            : pcsFixPath,
-          fixLabel: claim.patient_id ? "Update PCS in patient chart" : "Open PCS panel",
+          fixPath: pcsFixPath,
+          fixLabel: "Open PCS panel",
         });
       }
     }

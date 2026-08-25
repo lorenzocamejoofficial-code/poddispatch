@@ -62,13 +62,25 @@ describe("evaluatePcsWindow", () => {
     expect(r.status).toBe("signed_after_dos");
   });
 
-  it("uses the most recent of chart and biller certification dates", () => {
+  it("uses the claim-specific certification instead of a newer chart renewal", () => {
     const r = evaluatePcsWindow({
-      patientSignedDate: "2025-11-01",
+      patientSignedDate: "2026-03-15",
       billerCertificationDate: "2026-02-15",
       runDate: "2026-03-01",
     });
     expect(r.referenceSignedDate).toBe("2026-02-15");
+    expect(r.status).toBe("ok");
+  });
+
+  it("does not apply a renewed chart PCS expiration to a claim-specific PCS", () => {
+    const r = evaluatePcsWindow({
+      patientSignedDate: "2026-03-15",
+      patientExpirationDate: "2026-03-20",
+      billerCertificationDate: "2026-02-15",
+      runDate: "2026-03-25",
+    });
+    expect(r.referenceSignedDate).toBe("2026-02-15");
+    expect(r.validThrough).toBe("2026-04-16");
     expect(r.status).toBe("ok");
   });
 
@@ -90,6 +102,14 @@ describe("PCS 60-day enforcement in claim readiness", () => {
 
   it("does not block when the PCS is current", () => {
     const issues = blockersFor({ pcs_on_file: true, pcs_signed_date: "2026-02-10", prior_auth_utn: "UTN1" });
+    expect(fieldSet(issues).has("pcs_certification_date")).toBe(false);
+  });
+
+  it("does not block an older trip when the patient chart has since been renewed", () => {
+    const issues = blockersFor(
+      { pcs_on_file: true, pcs_signed_date: "2026-03-15", prior_auth_utn: "UTN1" },
+      { pcs_on_file: true, pcs_certification_date: "2026-02-15" },
+    );
     expect(fieldSet(issues).has("pcs_certification_date")).toBe(false);
   });
 

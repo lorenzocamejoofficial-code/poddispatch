@@ -229,21 +229,21 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
         jobs.push((async () => {
           const { data } = await supabase
             .from("operational_alerts" as any)
-            .select("id, alert_type, message, severity, created_at, status")
+            .select("id, alert_type, note, created_at, status")
             .eq("company_id", activeCompanyId)
             .eq("status", "open")
             .gte("created_at", since)
             .order("created_at", { ascending: false })
             .limit(LIMIT_PER_SOURCE);
           (data ?? []).forEach((r: any) => {
-            const isAction = r.severity === "critical" || r.alert_type === "emergency";
+            const isAction = ["emergency", "patient_not_ready"].includes(r.alert_type);
             next.push({
               id: `operational_alerts:${r.id}`,
               source_table: "operational_alerts",
               source_id: r.id,
               tier: isAction ? "action" : "fyi",
               title: r.alert_type?.replaceAll("_", " ") ?? "Operational alert",
-              body: r.message,
+              body: r.note,
               link: "/dispatch",
               category: r.alert_type ?? "operational",
               created_at: r.created_at,
@@ -362,7 +362,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
           const [{ data: so }, { data: bo }] = await Promise.all([
             supabase
               .from("safety_overrides" as any)
-              .select("id, reason, created_at, leg_id")
+              .select("id, override_reason, reasons, created_at, leg_id")
               .eq("company_id", activeCompanyId)
               .gte("created_at", since)
               .order("created_at", { ascending: false })
@@ -382,7 +382,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
               source_id: r.id,
               tier: "action",
               title: "Safety override applied",
-              body: r.reason,
+              body: r.override_reason ?? r.reasons?.join(" · "),
               link: `/override-monitor?row=${r.id}`,
               category: "override",
               created_at: r.created_at,
@@ -486,7 +486,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
       jobs.push((async () => {
         const { data } = await supabase
           .from("email_send_log" as any)
-          .select("id, recipient_email, template_name, status, created_at")
+          .select("id, recipient_email, email_type, subject, status, created_at")
           .gte("created_at", since)
           .order("created_at", { ascending: false })
           .limit(LIMIT_PER_SOURCE);
@@ -498,7 +498,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
             source_id: r.id,
             tier: failed ? "action" : "system",
             title: `Email ${r.status} → ${r.recipient_email}`,
-            body: r.template_name,
+            body: r.subject ?? r.email_type?.replaceAll("_", " "),
             category: "email_log",
             created_at: r.created_at,
             read: false,
