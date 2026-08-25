@@ -703,11 +703,18 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
             </Button>
             <Button
               className="flex-1"
-              disabled={saving || !allChecked || !correctionNotes.trim()}
+              disabled={saving || blockers.length > 0 || !correctionNotes.trim()}
               onClick={handleMarkReady}
+              title={
+                blockers.length > 0
+                  ? `${blockers.length} field blocker(s) must be fixed first`
+                  : undefined
+              }
             >
               <Send className="h-3.5 w-3.5 mr-1.5" />
-              Mark Ready to Resubmit
+              {blockers.length > 0
+                ? `Blocked — ${blockers.length} to fix`
+                : "Mark Ready to Resubmit"}
             </Button>
           </div>
         </div>
