@@ -492,12 +492,97 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: 
 
           <Separator />
 
-          {/* Recovery Checklist */}
+          {/* SECTION B — real detected field blockers (live, deep-linked) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Claim blockers detected on this record
+              </h3>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-[11px] gap-1"
+                onClick={() => void refreshBlockers()}
+                disabled={blockersLoading}
+              >
+                <RefreshCw className={`h-3 w-3 ${blockersLoading ? "animate-spin" : ""}`} />
+                Re-check
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              These are actual missing or invalid fields on this claim — the same checks the claim
+              card runs. They clear on their own once the field is filled in; there is nothing to
+              tick off. Resubmission stays locked until this list is empty.
+            </p>
+
+            {blockersLoading && blockers.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Checking claim…</p>
+            ) : blockers.length === 0 ? (
+              <div className="rounded-md border border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5 p-3 flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-[hsl(var(--status-green))] shrink-0" />
+                <span className="text-sm font-medium text-[hsl(var(--status-green))]">
+                  No field blockers — this claim is structurally clean to resubmit.
+                </span>
+              </div>
+            ) : (
+              <ul className="space-y-1.5">
+                {blockers.map((iss, i) => (
+                  <li
+                    key={`${iss.field}-${i}`}
+                    className="flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/5 p-2.5"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                    <span className="flex-1 min-w-0 text-xs">{iss.message}</span>
+                    {iss.fixLabel === "Open PCS panel" && onOpenPcsPanel ? (
+                      <button
+                        type="button"
+                        className="shrink-0 text-xs text-primary underline hover:no-underline"
+                        onClick={() => {
+                          onOpenPcsPanel(claim.trip_id, (claim as any).patient_id ?? null);
+                          onOpenChange(false);
+                        }}
+                      >
+                        Open PCS panel →
+                      </button>
+                    ) : iss.fixPath ? (
+                      <Link
+                        to={iss.fixPath}
+                        onClick={() => onOpenChange(false)}
+                        className="shrink-0 inline-flex items-center gap-1 text-xs text-primary underline hover:no-underline"
+                      >
+                        {iss.fixLabel ?? "Fix"}
+                        <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    ) : (
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        no direct fix link
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {blockerRefreshedAt > 0 && (
+              <p className="text-[10px] text-muted-foreground">
+                Last checked {new Date(blockerRefreshedAt).toLocaleTimeString()}
+              </p>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* SECTION A — CARC guidance / appeal path (manual judgment) */}
           <div className="space-y-3">
             <h3 className="text-sm font-semibold flex items-center gap-2">
               <CheckCircle className="h-4 w-4" />
-              Recovery Checklist
+              Payer reason &amp; recovery steps
             </h3>
+            <p className="text-xs text-muted-foreground">
+              Judgment calls tied to the payer's denial reason (medical necessity, appeals,
+              documentation). These are notes for you — ticking them does not unlock resubmission.
+            </p>
             <div className="space-y-2">
               {checklist.map(item => (
                 <label
