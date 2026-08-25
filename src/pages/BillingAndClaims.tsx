@@ -82,6 +82,8 @@ import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { evaluateClaimReadiness } from "@/lib/claim-readiness";
+import { detectClaimBlockers } from "@/lib/claim-blockers";
+import { InfoTip } from "@/components/ui/info-tip";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
@@ -1276,6 +1278,14 @@ export default function BillingAndClaims() {
   return (
     <AdminLayout>
       <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        {/* Page purpose — same circled-i affordance used elsewhere in the app */}
+        <div className="flex items-center gap-1">
+          <h1 className="text-lg font-semibold tracking-tight">Money &amp; Claims</h1>
+          <InfoTip
+            align="left"
+            text="This is where a completed trip turns into money. Every finished run becomes a claim here: the app checks it against payer rules, shows you exactly what's missing before it goes out, sends clean claims to Office Ally, then tracks the payer's answer — paid, denied, or partially paid — and hands you the next step for each one."
+          />
+        </div>
         {/* 1. MONEY AT A GLANCE — reused metrics, no new queries */}
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border bg-card p-4">
@@ -1683,32 +1693,10 @@ export default function BillingAndClaims() {
                           {(() => {
                             // Inline readiness — only "block" severity surfaces
                             // here. Soft warnings stay out of the biller queue
-                            // and only fire at the export gate.
-                            const issues = evaluateClaimReadiness({
-                              claim: {
-                                ...(claim as any),
-                                id: claim.id,
-                                trip_id: (claim as any).trip_id,
-                                patient_id: (claim as any).patient_id,
-                                patient_address:
-                                  (claim as any).patient_address ??
-                                  (claim as any).patient?.pickup_address ??
-                                  (claim as any).leg?.oneoff_pickup_address ??
-                                  (claim as any).origin_address ??
-                                  null,
-                                is_oneoff: !!(claim as any).leg?.is_oneoff,
-                                hospice_unrelated_to_terminal: (claim as any).hospice_unrelated_to_terminal ?? false,
-                              },
-                              patient: {
-                                prior_auth_utn: (claim as any).patient_prior_auth_utn ?? null,
-                                prior_auth_period_end: (claim as any).patient_prior_auth_period_end ?? null,
-                                standing_order: (claim as any).patient_standing_order ?? null,
-                                recurrence_days: (claim as any).patient_recurrence_days ?? null,
-                                hospice_enrolled: (claim as any).patient_hospice_enrolled ?? null,
-                                hospice_election_date: (claim as any).patient_hospice_election_date ?? null,
-                                terminal_illness_icd: (claim as any).patient_terminal_illness_icd ?? null,
-                              },
-                            }).filter((i) => i.severity === "block");
+                            // and only fire at the export gate. Shared with the
+                            // Denial Recovery Engine via detectClaimBlockers so
+                            // both surfaces tell the same story.
+                            const issues = detectClaimBlockers(claim);
                             if (!issues.length) return null;
                             return (
                               <ul className="mt-1.5 space-y-0.5">

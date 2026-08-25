@@ -16,6 +16,10 @@ import { toast } from "sonner";
 import { getDenialTranslation, type DenialTranslation } from "@/lib/denial-code-translations";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { TimelineTrigger } from "@/components/billing/ClaimTimelineDrawer";
+import { fetchClaimBlockerSnapshot } from "@/lib/claim-blockers";
+import type { ReadinessIssue } from "@/lib/claim-readiness";
+import { Link } from "react-router-dom";
+import { RefreshCw, ArrowRight } from "lucide-react";
 
 /* ---------- denial-specific checklists ---------- */
 interface ChecklistItem {
@@ -165,11 +169,13 @@ interface DenialRecoveryEngineProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onComplete: () => void;
+  /** Optional: lets a "PCS" blocker open the in-page PCS panel instead of navigating. */
+  onOpenPcsPanel?: (tripId: string | null, patientId: string | null) => void;
 }
 
 const LOCATION_TYPES = ["residence", "dialysis_facility", "hospital", "snf", "assisted_living", "doctors_office", "other"];
 
-export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: DenialRecoveryEngineProps) {
+export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, onOpenPcsPanel }: DenialRecoveryEngineProps) {
   const { user, activeCompanyId } = useAuth();
   const translation = claim.denial_code ? getDenialTranslation(claim.denial_code) : null;
   const checklist = useMemo(() => getChecklistForDenial(claim.denial_code ?? "", translation), [claim.denial_code, translation]);
@@ -229,6 +235,41 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: 
   }, [open, claim.id]);
 
   const allChecked = checklist.length > 0 && checklist.every(c => checked[c.id]);
+
+  /* ---- Real detected field blockers (shared with the claim card) ----------
+   * These are NOT the CARC guidance above. They come from the same
+   * evaluateClaimReadiness rules that power the claim card's blocker list,
+   * re-read live from the database, so a fix made in the patient chart /
+   * trip / PCS panel clears here on return. Resubmission is gated on THESE,
+   * never on the manual checklist. */
+  const [blockers, setBlockers] = useState<ReadinessIssue[]>([]);
+  const [blockersLoading, setBlockersLoading] = useState(false);
+  const [blockerRefreshedAt, setBlockerRefreshedAt] = useState<number>(0);
+
+  const refreshBlockers = useCallback(async () => {
+    if (!claim.id) return;
+    setBlockersLoading(true);
+    const { blockers: found } = await fetchClaimBlockerSnapshot(claim.id);
+    setBlockers(found);
+    setBlockerRefreshedAt(Date.now());
+    setBlockersLoading(false);
+  }, [claim.id]);
+
+  useEffect(() => {
+    if (open) void refreshBlockers();
+  }, [open, refreshBlockers]);
+
+  // Re-validate when the biller comes back from a fix page / another tab.
+  useEffect(() => {
+    if (!open) return;
+    const onFocus = () => { void refreshBlockers(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [open, refreshBlockers]);
 
   const getProfileName = async () => {
     if (!user) return "Unknown";
@@ -322,8 +363,18 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: 
   };
 
   const handleMarkReady = async () => {
-    if (!allChecked) {
-      toast.error("Complete all checklist items before resubmitting");
+    // Hard gate on the REAL detected blockers. Re-validate first so a fix made
+    // seconds ago in another tab counts, and a stale clean read can't slip a
+    // broken claim back out to the payer.
+    setSaving(true);
+    const { blockers: fresh } = await fetchClaimBlockerSnapshot(claim.id);
+    setBlockers(fresh);
+    setBlockerRefreshedAt(Date.now());
+    setSaving(false);
+    if (fresh.length > 0) {
+      toast.error(
+        `${fresh.length} claim blocker${fresh.length === 1 ? "" : "s"} still open — fix ${fresh.length === 1 ? "it" : "them"} before resubmitting, or this claim will just be denied again.`,
+      );
       return;
     }
     if (!correctionNotes.trim()) {
@@ -443,12 +494,97 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: 
 
           <Separator />
 
-          {/* Recovery Checklist */}
+          {/* SECTION B — real detected field blockers (live, deep-linked) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Claim blockers detected on this record
+              </h3>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-[11px] gap-1"
+                onClick={() => void refreshBlockers()}
+                disabled={blockersLoading}
+              >
+                <RefreshCw className={`h-3 w-3 ${blockersLoading ? "animate-spin" : ""}`} />
+                Re-check
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              These are actual missing or invalid fields on this claim — the same checks the claim
+              card runs. They clear on their own once the field is filled in; there is nothing to
+              tick off. Resubmission stays locked until this list is empty.
+            </p>
+
+            {blockersLoading && blockers.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Checking claim…</p>
+            ) : blockers.length === 0 ? (
+              <div className="rounded-md border border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5 p-3 flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-[hsl(var(--status-green))] shrink-0" />
+                <span className="text-sm font-medium text-[hsl(var(--status-green))]">
+                  No field blockers — this claim is structurally clean to resubmit.
+                </span>
+              </div>
+            ) : (
+              <ul className="space-y-1.5">
+                {blockers.map((iss, i) => (
+                  <li
+                    key={`${iss.field}-${i}`}
+                    className="flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/5 p-2.5"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                    <span className="flex-1 min-w-0 text-xs">{iss.message}</span>
+                    {iss.fixLabel === "Open PCS panel" && onOpenPcsPanel ? (
+                      <button
+                        type="button"
+                        className="shrink-0 text-xs text-primary underline hover:no-underline"
+                        onClick={() => {
+                          onOpenPcsPanel(claim.trip_id, (claim as any).patient_id ?? null);
+                          onOpenChange(false);
+                        }}
+                      >
+                        Open PCS panel →
+                      </button>
+                    ) : iss.fixPath ? (
+                      <Link
+                        to={iss.fixPath}
+                        onClick={() => onOpenChange(false)}
+                        className="shrink-0 inline-flex items-center gap-1 text-xs text-primary underline hover:no-underline"
+                      >
+                        {iss.fixLabel ?? "Fix"}
+                        <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    ) : (
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        no direct fix link
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {blockerRefreshedAt > 0 && (
+              <p className="text-[10px] text-muted-foreground">
+                Last checked {new Date(blockerRefreshedAt).toLocaleTimeString()}
+              </p>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* SECTION A — CARC guidance / appeal path (manual judgment) */}
           <div className="space-y-3">
             <h3 className="text-sm font-semibold flex items-center gap-2">
               <CheckCircle className="h-4 w-4" />
-              Recovery Checklist
+              Payer reason &amp; recovery steps
             </h3>
+            <p className="text-xs text-muted-foreground">
+              Judgment calls tied to the payer's denial reason (medical necessity, appeals,
+              documentation). These are notes for you — ticking them does not unlock resubmission.
+            </p>
             <div className="space-y-2">
               {checklist.map(item => (
                 <label
@@ -567,11 +703,18 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete }: 
             </Button>
             <Button
               className="flex-1"
-              disabled={saving || !allChecked || !correctionNotes.trim()}
+              disabled={saving || blockers.length > 0 || !correctionNotes.trim()}
               onClick={handleMarkReady}
+              title={
+                blockers.length > 0
+                  ? `${blockers.length} field blocker(s) must be fixed first`
+                  : undefined
+              }
             >
               <Send className="h-3.5 w-3.5 mr-1.5" />
-              Mark Ready to Resubmit
+              {blockers.length > 0
+                ? `Blocked — ${blockers.length} to fix`
+                : "Mark Ready to Resubmit"}
             </Button>
           </div>
         </div>
