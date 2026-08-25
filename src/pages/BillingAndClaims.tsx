@@ -1278,6 +1278,14 @@ export default function BillingAndClaims() {
   return (
     <AdminLayout>
       <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        {/* Page purpose — same circled-i affordance used elsewhere in the app */}
+        <div className="flex items-center gap-1">
+          <h1 className="text-lg font-semibold tracking-tight">Money &amp; Claims</h1>
+          <InfoTip
+            align="left"
+            text="This is where a completed trip turns into money. Every finished run becomes a claim here: the app checks it against payer rules, shows you exactly what's missing before it goes out, sends clean claims to Office Ally, then tracks the payer's answer — paid, denied, or partially paid — and hands you the next step for each one."
+          />
+        </div>
         {/* 1. MONEY AT A GLANCE — reused metrics, no new queries */}
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border bg-card p-4">
