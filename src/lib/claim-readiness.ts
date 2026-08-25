@@ -564,30 +564,41 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
 
   // Rule 2 — RSNAT prior authorization required for Medicare repetitive
   // non-emergent transport (dialysis destination, standing order, or
-  // ≥3x/week recurrence). UTN must be present and not expired vs run_date.
+  // ≥3x/week recurrence). The UTN must exist AND the date of service must
+  // fall inside the authorized period — an auth that ended before the run,
+  // or that does not start until after it, covers nothing.
   if (isRsnatTransport(claim, inputs.patient, inputs.transport)) {
-    const utn = String(inputs.patient?.prior_auth_utn ?? "").trim();
-    const periodEnd = String(inputs.patient?.prior_auth_period_end ?? "").trim();
-    const runDate = String(claim.run_date ?? "").trim();
-    const expired =
-      !!periodEnd &&
-      /^\d{4}-\d{2}-\d{2}$/.test(periodEnd) &&
-      !!runDate &&
-      /^\d{4}-\d{2}-\d{2}$/.test(runDate) &&
-      periodEnd < runDate;
-    if (!utn || expired) {
+    const auth = evaluateRsnatAuth({
+      utn: inputs.patient?.prior_auth_utn,
+      periodStart: inputs.patient?.prior_auth_period_start,
+      periodEnd: inputs.patient?.prior_auth_period_end,
+      runDate: claim.run_date,
+    });
+    if (auth.status !== "ok") {
       issues.push({
         field: "prior_auth_utn",
         severity: "block",
         stage: "biller",
-        message: "Prior authorization (RSNAT) required for repetitive Medicare transport",
+        message: `Prior authorization (RSNAT) required for repetitive Medicare transport. ${auth.message}`,
         fixPath: claim.patient_id
           ? `/patients?patientId=${claim.patient_id}&focus=prior_auth`
           : "/patients?focus=prior_auth",
         fixLabel: "Fix in patient chart",
       });
+    } else if (auth.daysToExpiry !== null && auth.daysToExpiry <= 14) {
+      issues.push({
+        field: "prior_auth_utn",
+        severity: "warn",
+        stage: "biller",
+        message: `RSNAT authorization ${auth.utn} expires ${auth.periodEnd} (${auth.daysToExpiry} days after this date of service). Request the next authorization now so upcoming trips aren't blocked.`,
+        fixPath: claim.patient_id
+          ? `/patients?patientId=${claim.patient_id}&focus=prior_auth`
+          : "/patients?focus=prior_auth",
+        fixLabel: "Open patient chart",
+      });
     }
   }
+
 
   // Rule 1 (backstop) — A leg whose type or facility says "dialysis" must
   // resolve to J (freestanding) or G (hospital-based) via the canonical
