@@ -441,9 +441,13 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName,
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h4 className="font-semibold text-sm">{CERT_LABELS[type]}</h4>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h4 className="font-semibold text-sm flex items-center">
+            {CERT_LABELS[type]}
+            <InfoTip align="left" text={CERT_TOOLTIPS[`${type}_purpose`]} />
+          </h4>
           {row ? statusBadge(row) : <Badge variant="outline">Not submitted</Badge>}
+
           {row?.manually_verified && (
             <Badge variant="outline" className="border-amber-500 text-amber-600">
               <AlertTriangle className="h-3 w-3 mr-1" />Manually verified
