@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Clock, AlertTriangle } from "lucide-react";
 import { timelyFilingDays } from "@/lib/edi-837p-generator";
+import { InfoTip } from "@/components/ui/info-tip";
 
 interface ClaimLite {
   id: string;
