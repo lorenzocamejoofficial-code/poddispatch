@@ -156,9 +156,12 @@ describe("evaluateClaimReadiness — biller-stage rules (additive)", () => {
       });
       const rsnat = billerBlocks(issues).find((b) => b.field === "prior_auth_utn");
       expect(rsnat).toBeDefined();
-      expect(rsnat?.message).toBe(
-        "Prior authorization (RSNAT) required for repetitive Medicare transport",
+      // The message now carries the specific reason (missing / expired /
+      // not yet effective) appended after this stable prefix.
+      expect(rsnat?.message).toContain(
+        "Prior authorization (RSNAT) required for repetitive Medicare transport"
       );
+      expect(rsnat?.message).toContain("No RSNAT prior-authorization UTN on file");
     });
 
     it("BLOCKS Medicare dialysis transport when prior_auth_period_end < run_date", () => {
