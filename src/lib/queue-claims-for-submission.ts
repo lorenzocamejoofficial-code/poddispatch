@@ -454,13 +454,18 @@ export async function queueClaimsForSubmission(
       payerResolution,
       patient: {
         prior_auth_utn: pat.prior_auth_utn ?? null,
+        prior_auth_period_start: pat.prior_auth_period_start ?? null,
         prior_auth_period_end: pat.prior_auth_period_end ?? null,
         standing_order: pat.standing_order ?? null,
         recurrence_days: pat.recurrence_days ?? null,
         hospice_enrolled: pat.hospice_enrolled ?? null,
         hospice_election_date: pat.hospice_election_date ?? null,
         terminal_illness_icd: pat.terminal_illness_icd ?? null,
+        pcs_on_file: pat.pcs_on_file ?? null,
+        pcs_signed_date: pat.pcs_signed_date ?? null,
+        pcs_expiration_date: pat.pcs_expiration_date ?? null,
       },
+
       transport: {
         destination_facility_type: destMeta?.facility_type ?? null,
       },
