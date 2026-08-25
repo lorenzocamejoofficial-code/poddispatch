@@ -16,6 +16,10 @@ import { toast } from "sonner";
 import { getDenialTranslation, type DenialTranslation } from "@/lib/denial-code-translations";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { TimelineTrigger } from "@/components/billing/ClaimTimelineDrawer";
+import { fetchClaimBlockerSnapshot } from "@/lib/claim-blockers";
+import type { ReadinessIssue } from "@/lib/claim-readiness";
+import { Link } from "react-router-dom";
+import { RefreshCw, ArrowRight } from "lucide-react";
 
 /* ---------- denial-specific checklists ---------- */
 interface ChecklistItem {
