@@ -206,11 +206,14 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName,
   const [issue, setIssue] = useState(row?.issue_date ?? "");
   const [exp, setExp] = useState(row?.expiration_date ?? "");
   const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
   const [saving, setSaving] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
   const [showOverride, setShowOverride] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setNumber(row?.cert_number ?? "");
@@ -218,6 +221,47 @@ function CertCard({ type, row, photoUrl, userId, isSelf, adminMode, displayName,
     setIssue(row?.issue_date ?? "");
     setExp(row?.expiration_date ?? "");
   }, [row?.id]);
+
+  // Local preview for the newly picked file (images only).
+  useEffect(() => {
+    if (!file || !(file.type || "").startsWith("image/")) { setPreview(null); return; }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const clearPickedFile = () => {
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const pickFile = (f: File | null) => {
+    if (!f) { clearPickedFile(); return; }
+    const problem = validateCertPhoto(f);
+    if (problem) { toast.error(problem); clearPickedFile(); return; }
+    setFile(f);
+  };
+
+  /** Deletes the stored photo and clears it off the record. */
+  const deleteStoredPhoto = async () => {
+    if (!row?.photo_path) return;
+    setRemovingPhoto(true);
+    try {
+      const { error: rmErr } = await supabase.storage.from("crew-certifications").remove([row.photo_path]);
+      if (rmErr) { toast.error(`Could not delete the photo: ${rmErr.message}`); return; }
+      const { error } = await supabase
+        .from("crew_certifications" as any)
+        .update({ photo_path: null })
+        .eq("id", row.id);
+      if (error) { toast.error(error.message); return; }
+      toast.success("Photo deleted");
+      clearPickedFile();
+      onChanged();
+    } finally {
+      setRemovingPhoto(false);
+    }
+  };
+
 
   const submit = async () => {
     if (!exp) { toast.error("Expiration date is required"); return; }
