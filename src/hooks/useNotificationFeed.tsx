@@ -174,7 +174,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
             source_id: r.id,
             tier: isAction ? "action" : "fyi",
             title: r.message?.slice(0, 80) ?? "Notification",
-            body: r.note,
+            body: r.message && r.message.length > 80 ? r.message : undefined,
             link,
             category: type || "notification",
             created_at: r.created_at,
@@ -308,7 +308,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
         jobs.push((async () => {
           const { data } = await supabase
             .from("biller_tasks" as any)
-            .select("id, description, priority, created_at, status")
+            .select("id, title, description, priority, created_at, status")
             .eq("company_id", activeCompanyId)
             .eq("status", "pending")
             .gte("created_at", since)
@@ -320,8 +320,7 @@ export function useNotificationFeed(mode: NotificationMode = "admin") {
               source_table: "biller_tasks",
               source_id: r.id,
               tier: r.priority === "high" || r.priority === "urgent" ? "action" : "fyi",
-              title: "Billing Task",
-              
+              title: r.title || "Billing Task",
               body: r.description,
               link: "/billing",
               category: "biller_task",
