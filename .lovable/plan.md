@@ -1,91 +1,73 @@
-# Driver derived in the field + third-member roles
+# AUDIT — Post-Denial Rework Loop (read-only report, nothing changed)
 
-Driver is no longer picked at scheduling. It is derived from who is NOT charting the PCR. The optional third crew member gets an admin-assigned role, and that role decides how strict the certification gate is for them. The trainee never counts as a clinician.
+## The chain in one line
 
-## Part 1 — Remove the driver select from Trucks & Crews
+835 arrives → payment/denial posted on the claim → denial code translated to plain English → claim shows in the Denied tab / AR queue → biller opens Denial Recovery Engine, fixes real blockers → claim flips to `needs_correction` → a manual "Refresh Claims" pass promotes it to `ready_to_bill` → re-queued to Office Ally. The loop is closed, but with two real seams (auto-retrieval loses denial codes; `needs_correction` doesn't auto-return to the submit queue).
 
-Files: `src/pages/TrucksCrews.tsx`, `src/lib/crew-composition.ts`
+---
 
-- Remove the "Driver" `<Select>`, the `driverId` state, and all resets of it in the edit/cancel handlers.
-- Stop sending `driver_member_id` on save, with one exception: if the third member's role is `driver`, we write `driver_member_id = member3_id` so the field stays truthful. Otherwise we write `null`. It is never a save blocker and the column stays in place (legacy).
-- The inline crew roster labels currently derived from `driver_member_id` (lines ~278-301) change to show the third member's assigned role instead of "Driver / Attendant" guesses.
+## 1. 835 / Remittance ingestion — PARTIAL (two paths, unequal)
 
-### Redefined crew validity (no driver required)
+**Path A — manual upload (full fidelity): WORKS**
+- `src/lib/edi-835-parser.ts` — parses BPR (payment total), CLP (claim ref, status code, charged/paid/patient-resp), CAS adjustment groups with group code + reason code, PLB provider-level adjustments. `raw_denial_codes` built as `CO-45`, `PR-1` style strings (`edi-835-parser.ts:34, 242, 265, 338`); `getPrimaryDenialCode` skips CO-45 (`:418`).
+- `src/pages/RemittanceImport.tsx` — matches by patient control number, then member ID + date of service, then charge amount (`:100-147`). Writes a `claim_payments` row per claim carrying `denial_code`, `denial_reason` (plain English), `adjustment_codes`, full `cas_adjustments` JSON, `write_off`, `allowed_amount`, capped `patient_responsibility` (`:334-354`). A DB trigger (`recompute_claim_from_payments`) rolls those into `claim_records`. File stored in `remittance_files`; PLBs in `plb_adjustments`.
 
-`evaluateCrewComposition` drops the "Designate which crew member is the driver" error entirely. New rule set, evaluated only over the **primary two members** (member1, member2):
+**Path B — automated Office Ally pull: PARTIAL / this is the important gap**
+- `supabase/functions/retrieve-remittance-officeally/index.ts:183-243` uses an inline "minimal parser" that reads only NM1*85 (billing NPI) and CLP. **It never reads CAS segments**, so no CARC/RARC is captured.
+- It updates `claim_records` with `amount_paid`, `patient_responsibility_amount`, `status`, `paid_at`, `remittance_date`, `payer_claim_control_number` only (`:315-324`) — **no `denial_code`, no `denial_reason`, no `claim_payments` row**.
+- Status is derived from CLP02 alone: `1|19 → paid`, `3|4 → denied`, else `needs_correction` (`:313`).
+- Net effect: a claim denied via the automated pull lands in the Denied tab with a blank reason, and every downstream classifier/checklist falls through to "Unrecognized denial code."
+- NPI-mismatch and no-match CLPs are diverted to `remittance_quarantine` (`:257, :345`) and reviewed in `src/components/creator/RemittanceQuarantinePanel.tsx` — that part WORKS.
+- `supabase/functions/ingest-acks-officeally/index.ts` handles 999/277CA acknowledgments (front-end rejections), not 835s.
 
-1. Two primary members must be present ("A truck needs at least two crew members").
-2. At least one primary member must be a certified attendant: cert level EMT-B, EMT-A or EMT-P. EMR still never counts (driver-only).
-3. Two EMRs remains invalid, same message as today.
-4. The third member is excluded from this calculation entirely, whatever their role.
+## 2. Denial classification — WORKS
 
-`crewCapability` (ALS vs BLS) is likewise computed from the primary two only — so a paramedic trainee riding third can never upgrade a BLS crew's capability. The function keeps its `roles` output but roles become: primary members are `attendant`, third member is its assigned role. `driverId` becomes an optional argument used only for display.
+- `src/lib/denial-code-translations.ts` (389 lines) — plain-English text, category, and `typical_resolution` per code.
+  - CARC handled: CO-4, CO-5, CO-11, CO-15, CO-16, CO-18, CO-22, CO-23, CO-26, CO-27, CO-29, CO-31, CO-45, CO-50, CO-55, CO-56, CO-96, CO-97, CO-109, CO-119, CO-167, CO-197, CO-204; PR-1, PR-2, PR-3, PR-26, PR-27, PR-96; OA-18, OA-23, OA-96.
+  - RARC handled: N30, N115, N180, N210, N211, N570.
+- `src/lib/classify-denial.ts` — wraps the table, prefers `denial_code`, falls back to `rejection_codes`, treats partial pay as coordination-of-benefits rather than denial (`:53-70`), and returns an honest "Unrecognized denial code" fallback (`:207`).
+- Also a DB-side `categorize_denial_code(text)` for bucketing.
+- Categories map to your list (medical necessity CO-50, prior auth CO-15/CO-197, timely filing CO-29, wrong level CO-4/CO-55, missing info CO-16, patient responsibility PR-*).
 
-## Part 2 — Third-member role
+## 3. Rework queue — WORKS
 
-New column on `crews`:
+- `src/pages/BillingAndClaims.tsx` — status tabs including a **Denied** tab (`:163, :1265-1282`) with denied count, dollars recoverable, and denial rate (`:1249, :1311`). A banner deep-links straight to it (`:1376-1382`).
+- Supporting surfaces: `BillerTaskQueue.tsx` (auto-generated `denial_unworked` tasks), `MissingMoneyPanel.tsx` (incl. paid-short), `TimelyFilingStrip.tsx` (tracks `denied` and `needs_correction` as still-active), `RemittanceActivityPanel.tsx` / `RemittanceHistoryPanel.tsx`, `ClaimTimelineDrawer.tsx`.
+- It is actionable, not a static list — each denied row opens the recovery engine.
 
-```
-member3_role text  -- 'second_medic' | 'lift_assist' | 'driver' | 'trainee'
-```
+## 4. Fix step — WORKS
 
-- Enforced with a CHECK constraint (text, not an enum, so future roles are cheap).
-- A validation trigger requires `member3_role` to be non-null when `member3_id` is set, and null when it isn't.
-- Admin picks the role in the Trucks & Crews crew editor, in a select that appears only once a third member is chosen. Saving a third member without a role is blocked in the UI with a clear message.
-- Same column/param added to `truck_builder_templates` copy-forward paths and to `safe_assign_crew` (new `p_member3_role` argument, added as a new overload so existing callers keep working).
+`src/components/billing/DenialRecoveryEngine.tsx`:
+- Denial-specific checklists per CARC (`:30-123`).
+- Editable claim/trip fields per denial code (`FIELDS_FOR_DENIAL`, `:126-133`) that actually persist via `saveFieldCorrections`.
+- **Live blocker re-read** from `src/lib/claim-blockers.ts` (`:249-260`), the same rules the pre-submit checklist uses, so a fix made elsewhere (patient chart, PCS panel, trip) clears here on return; deep-links to those pages, and `onOpenPcsPanel` opens the PCS panel in place.
+- Timely-filing countdown badge on the dialog (`:136-146, :191`).
 
-## Part 3 — Cert gating per third-member role
+## 5. Re-stage / resubmit — PARTIAL (one manual hop)
 
-The gate lives in two places today and both must agree: `public.crew_assignable(user_id)` (all three of Medic #, CPR, Driver's License approved) called from `enforce_crew_cert_gate()` and from `safe_assign_crew`.
+- `handleMarkReady` (`DenialRecoveryEngine.tsx:365-433`) hard-gates on fresh blockers, requires correction notes, saves field edits, then sets `status: "needs_correction"`, bumps `resubmission_count`, stamps `resubmitted_at`, writes a `[RESUBMIT]` note, auto-completes the `denial_unworked` biller task, and audit-logs.
+- **`needs_correction` is not submittable.** Bulk submit filters `status === "ready_to_bill"` (`BillingAndClaims.tsx:469`) and the single-claim Submit button only renders for `ready_to_bill` (`:2004`). `queueClaimsForSubmission` is only ever called with those.
+- The only bridge is the manual **Refresh Claims** action (`BillingAndClaims.tsx:730-820`), which re-derives the claim from the trip and promotes `needs_correction → ready_to_bill` when the gate is clean. Nothing calls it automatically after recovery.
+- Once `ready_to_bill`, `src/lib/queue-claims-for-submission.ts` builds the 837P and inserts into `claim_submission_queue` with `status: submitted` (`:534-542`), blocking unmapped payers as `blocked_payer_mapping` (`:498-506`) and hard-blocking self-pay.
+- **Where the loop ends with no live customer:** at the clearinghouse boundary. Without Office Ally credentials the claim can be built and queued (and exported via `/edi-export`), but nothing transmits and no real 835 ever comes back. Everything past "queued" must be simulated.
 
-New function `public.crew_assignable_for_role(_user_id uuid, _role text)`:
+## 6. Simulation — EXISTS (two ways), no injector needs building from scratch
 
-| Role | Required approved, unexpired certs |
-|---|---|
-| primary member 1 / 2 (unchanged) | Medic #, CPR, Driver's License |
-| `second_medic` | Medic #, CPR, Driver's License (same as primary) |
-| `driver` | Driver's License + CPR (no Medic #) |
-| `lift_assist` | CPR only |
-| `trainee` | none required |
+- **Simulation Lab injector — WORKS.** `supabase/functions/simulation-lab/index.ts`, action `inject_denials_remits` (`:2006`, implementation `:1740-1935`), driven from `src/pages/SimulationLab.tsx:199-251, 621`. It transforms up to 21 sim claims into: 6 denials with recoverable CARCs (CO-16, CO-50, CO-197, CO-29, CO-11, CO-167) setting `denial_code` / `denial_reason` / `adjustment_codes`, 4 paid-with-secondary, 5 aging >45d, 3 timely-filing, 3 paid-short. Every row is tagged with a `simulation_run_id` so reset can sweep it (`:1561-1580`).
+- **Manual 835 upload — WORKS as a fuller test.** `RemittanceImport.tsx` accepts any hand-written 835 text file; on a sandbox/creator-test tenant `useIsSimulationCompany` flags the resulting `remittance_files` / `claim_payments` / `plb_adjustments` as simulated, and the DB guard `guard_simulated_payment` refuses that flag on real tenants. This is the only path that exercises the real CAS parser end to end.
+- **Gap:** the Lab injector writes `denial_code` straight onto `claim_records` — it does not produce an 835 file, so it never exercises `edi-835-parser.ts`, `claim_payments`, or the trigger. Full-fidelity denial testing today means hand-crafting an 835 and uploading it.
 
-`enforce_crew_cert_gate()` and `safe_assign_crew` are rewritten to call the role-aware function: primary members always go through the full check; the third member goes through the check for its role. The existing full-strength behaviour is preserved for every seat that isn't the third one, so nothing already assigned becomes invalid.
+## 7. Dead ends / seams to flag
 
-### Keeping the trainee out of clinical and billing
+1. **Auto-retrieved denials have no reason code** (`retrieve-remittance-officeally/index.ts:183-243`) — the highest-value gap. Recovery checklists degrade to generic for any claim denied through the automated pull.
+2. **`needs_correction` limbo** — recovery marks a claim "ready for resubmission" but no submit control accepts that status; the biller must know to press Refresh Claims. The toast says "marked ready for resubmission," which overstates it.
+3. **Auto pull writes no `claim_payments` row**, so the remittance/timeline panels and the recompute trigger see nothing for those claims — history is thinner than for manual imports.
+4. **Auto pull ignores PLB** provider-level adjustments entirely.
+5. **CLP02 fallback to `needs_correction`** for any status code other than 1/19/3/4 silently reclassifies odd payer responses as internal rework.
+6. No auto re-check after a fix: blockers only refresh when the recovery dialog is open.
 
-- The certified-attendant rule (Part 1) only looks at member1/member2, so a trainee can never satisfy it.
-- The attending-medic picker on the PCR is restricted to primary members with an attendant-level cert; third members are only offered when the role is `second_medic`. `trainee`, `lift_assist` and `driver` third members are filtered out of the attending-medic list.
-- `crewCapability` / `deriveUnitCapability` ignore the third member, so a trainee cannot influence BLS/ALS display or dispatch capability.
-- Nothing in `src/lib/crew-composition.ts` is read by claim generation or pricing (documented at the top of that file), and no billing path gains a member3 read, so the trainee touches no claim, level of service, or medical-necessity logic.
+## Bottom line
 
-Confirmed: **a Trainee/Observer can never be the billable attendant.**
+Ingest **PARTIAL** · classify **WORKS** · queue **WORKS** · fix **WORKS** · re-stage **PARTIAL** · resubmit **WORKS (to the OA boundary)** · simulate **EXISTS**. A test-denial injector does **not** need to be built — but if you want the simulated denial to travel the same road a real one does, the missing piece is a canned 835 fixture pushed through the real parser, plus CAS parsing added to the automated Office Ally retrieval.
 
-## Part 4 — Shared driver-derivation helper
-
-New file `src/lib/derive-driver.ts`, exporting `deriveDriver({ crew, attendingMedicId })`:
-
-1. If `crew.member3_role === 'driver'` and `member3_id` is set → the third member is the driver. (Explicit admin assignment wins.)
-2. Else if `attendingMedicId` matches one of the primary two → the *other* primary member is the driver.
-3. Else if only one primary member is present → that person is the driver only when they are not the attending medic; otherwise unknown.
-4. Else (no PCR started / no attending medic yet) → `null`, and callers show "Driver: not yet determined".
-
-Pure display logic; it writes nothing and is never called at scheduling time.
-
-## Part 5 — Live display on dispatch cards and the fleet map
-
-**Dispatch board** — `src/pages/DispatchBoard.tsx`, `src/components/dispatch/TruckCard.tsx`
-- Widen the crews select to include `member3_role` and keep the member ids it already pulls; widen the trip select to include `attending_medic_id`.
-- Pass a `crewDetail` object (member ids/names, `member3_role`, current `attending_medic_id`) to `TruckCard` alongside the existing `crewNames`.
-- `TruckCard` renders a "Driver: X" line under the crew line and, when a third member exists, "3rd: Trainee — Name" using a role label map.
-- The board already subscribes to `crews` and `trip_records` realtime, so a medic swap in the field flips the driver line without a reload.
-
-**Fleet map** — `src/hooks/useTruckTripStatus.ts`, `src/pages/FleetMap.tsx`
-- Widen the `trip_records` select with `attending_medic_id` and `crew_id`, and fetch today's crews (member ids + names + `member3_role`) for the company so the helper has a roster.
-- Extend `TruckTripStatus` with `driverName`, `attendingMedicName`, `thirdMember` ({ name, role }).
-- `FleetMap` unit detail card shows Driver, Attending medic, and the third member with their role; the unit list gets a compact "Driver: X".
-- Existing `trip_records` realtime subscription already refreshes this.
-
-## Technical notes
-
-- One migration: `crews.member3_role` + CHECK + presence trigger, `crew_assignable_for_role`, rewritten `enforce_crew_cert_gate`, new `safe_assign_crew` overload with `p_member3_role`. `driver_member_id` is left in place and untouched by the migration.
-- No changes to claim generation, `claim-readiness`, pricing, or NEMSIS paths.
-- A unit test covers `deriveDriver` (2-person, 3-person-with-driver-role, no-medic-yet) and the redefined `evaluateCrewComposition` (two EMRs invalid, no-driver-designated now valid, trainee third does not satisfy attendant).
+No files were changed.
