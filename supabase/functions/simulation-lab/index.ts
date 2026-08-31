@@ -1779,7 +1779,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
   const isoMinus = (days: number) => new Date(now - days * dayMs).toISOString();
   const dateMinus = (days: number) => new Date(now - days * dayMs).toISOString().slice(0, 10);
 
-  const counts = { denied: 0, paid_with_secondary: 0, aging: 0, timely_filing: 0, paid_short: 0, errors: 0 };
+  const counts = { denied: 0, paid_with_secondary: 0, aging: 0, timely_filing: 0, paid_short: 0, needs_review: 0, needs_correction: 0, errors: 0 };
   const errorLog: string[] = [];
 
   // ── Bucket 1: 6 denied claims with recoverable CARCs ─────────────────────
