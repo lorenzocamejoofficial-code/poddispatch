@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { parseEDI835Envelope } from "../_shared/edi-835-parser.ts";
+import { matchRemittanceClaim } from "../_shared/remittance-match.ts";
+import { buildClaimPaymentRow } from "../_shared/remittance-post.ts";
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
