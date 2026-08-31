@@ -3,6 +3,7 @@ import { Phone, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { CallConfirmationDrawer } from "./CallConfirmationDrawer";
 import { CommsOutboxPanel } from "./CommsOutboxPanel";
 import { PlaceCallDialog, type PlaceCallRun, type PlaceCallTruck } from "./PlaceCallDialog";
@@ -80,9 +81,11 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
   useEffect(() => {
     if (totalActive === 0) return;
     (async () => {
+      const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
       const { data } = await supabase
         .from("facilities")
         .select("id, name, phone")
+        .eq("company_id", scopedCompanyId)
         .eq("active", true);
       const map = new Map<string, { id: string; name: string; phone: string | null }>();
       (data ?? []).forEach((f) => {

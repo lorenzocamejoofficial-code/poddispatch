@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { buildTimestampForRunDate } from "@/lib/pcr-time";
 import { toast } from "sonner";
 
@@ -118,10 +119,13 @@ export function usePCRData(
 
   const fetchTrip = useCallback(async () => {
     if (!tripId) { setLoading(false); return; }
+    // Creators have cross-tenant read; scope explicitly to the active company.
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data, error } = await supabase
       .from("trip_records")
       .select("*")
       .eq("id", tripId)
+      .eq("company_id", scopedCompanyId)
       .maybeSingle();
 
     if (error) {

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +71,7 @@ export function BillerTaskQueue() {
       const { data: claims } = await supabase
         .from("claim_records")
         .select("id, patient_id, payer_name")
+        .eq("company_id", (await getActiveCompanyId()) ?? NO_COMPANY)
         .in("id", claimIds);
 
       const patientIds = [...new Set((claims ?? []).map((c: any) => c.patient_id).filter(Boolean))];

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useAuth } from "@/hooks/useAuth";
 
 export interface SidebarBadgeCounts {
@@ -55,7 +56,9 @@ async function countAfter(
   since: string | null,
   dateCol = "created_at"
 ): Promise<number> {
-  let q = supabase.from(table as any).select("id", { count: "exact", head: true });
+  // Creators have cross-tenant read on these tables; scope explicitly to the active company.
+  const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+  let q = supabase.from(table as any).select("id", { count: "exact", head: true }).eq("company_id", scopedCompanyId);
   for (const [k, v] of Object.entries(filters)) {
     q = q.eq(k, v);
   }
@@ -112,6 +115,7 @@ export function useSidebarBadges(role: string | null) {
         const { count } = await supabase
           .from("claim_creation_failures" as any)
           .select("id", { count: "exact", head: true })
+          .eq("company_id", (await getActiveCompanyId()) ?? NO_COMPANY)
           .is("resolved_at", null);
         next.claimFailures = count ?? 0;
       })());
@@ -120,6 +124,7 @@ export function useSidebarBadges(role: string | null) {
         const { count } = await supabase
           .from("biller_tasks")
           .select("id", { count: "exact", head: true })
+          .eq("company_id", (await getActiveCompanyId()) ?? NO_COMPANY)
           .eq("status", "pending");
         next.arTasks = count ?? 0;
       })());
@@ -128,6 +133,7 @@ export function useSidebarBadges(role: string | null) {
         let q = supabase
           .from("trip_records")
           .select("id", { count: "exact", head: true })
+          .eq("company_id", (await getActiveCompanyId()) ?? NO_COMPANY)
           .eq("status", "completed")
           .eq("documentation_complete", false);
         if (seenTrips) {
@@ -143,9 +149,10 @@ export function useSidebarBadges(role: string | null) {
       const overrideSince = seenOverrides && seenOverrides > windowStart ? seenOverrides : windowStart;
 
       jobs.push((async () => {
+        const badgeCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
         const [{ count: sc }, { count: bc }] = await Promise.all([
-          supabase.from("safety_overrides").select("id", { count: "exact", head: true }).gte("created_at", overrideSince),
-          supabase.from("billing_overrides").select("id", { count: "exact", head: true }).gte("created_at", overrideSince),
+          supabase.from("safety_overrides").select("id", { count: "exact", head: true }).eq("company_id", badgeCompanyId).gte("created_at", overrideSince),
+          supabase.from("billing_overrides").select("id", { count: "exact", head: true }).eq("company_id", badgeCompanyId).gte("created_at", overrideSince),
         ]);
         next.overrides = (sc ?? 0) + (bc ?? 0);
       })());
