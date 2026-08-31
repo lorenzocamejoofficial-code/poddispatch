@@ -75,6 +75,8 @@ export default function ReportsAndMetrics() {
     if (!start || !end) return;
     setLoading(true);
     try {
+      // Creators have cross-tenant read on trucks; scope explicitly to the active company.
+      const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
       const [
         { data: trips },
         { data: claims },

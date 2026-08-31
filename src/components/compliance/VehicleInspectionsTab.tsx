@@ -63,6 +63,8 @@ export function VehicleInspectionsTab() {
       inspQuery = inspQuery.eq("truck_id", truckFilter);
     }
 
+    // Creators have cross-tenant read on trucks; scope explicitly to the active company.
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const [{ data: inspRows }, { data: alertRows }, { data: truckRows }] = await Promise.all([
       inspQuery,
       supabase.from("vehicle_inspection_alerts" as any).select("*"),

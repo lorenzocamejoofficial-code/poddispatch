@@ -133,6 +133,8 @@ export default function DispatchBoard() {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // Creators have cross-tenant read on trucks; scope explicitly to the active company.
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const [
       { data: truckRows },
       { data: slotRows },

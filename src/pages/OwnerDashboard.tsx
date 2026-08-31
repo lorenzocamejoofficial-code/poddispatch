@@ -31,6 +31,8 @@ export default function OwnerDashboard() {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
       const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
 
+      // Creators have cross-tenant read on trucks; scope explicitly to the active company.
+      const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
       const [claimRes, deniedRes, tripRes, truckRes, inspRes] = await Promise.all([
         // Fix 2 & 3: 90-day window + exclude simulated
         supabase.from("claim_records").select("*").gte("run_date", ninetyDaysAgo).or("is_simulated.eq.false,is_simulated.is.null"),
