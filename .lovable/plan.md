@@ -1,62 +1,59 @@
-# Fix the `needs_correction` dead-end after denial recovery
+# Bring automated Office Ally 835 retrieval to parity with manual upload
 
-## Is `needs_correction` load-bearing?
+Today the automated pull uses a hand-rolled "minimal parser" that reads only `NM1*85` and `CLP`. It never reads `CAS`, so denials arrive with no CARC/RARC, no `denial_reason`, no `claim_payments` row, and no PLB capture. Manual upload does all of it. This plan makes the two paths produce identical data.
 
-Yes — but **only as an inbound payer-driven state, never as an outbound "worked and ready" state.** Everything that writes it comes from the payer side:
+## 1. One parser, shared by client and edge function
 
-- `recompute_claim_from_payments` trigger (migration `20260519162738...sql:107-119`) sets `needs_correction` when a remittance reverses a payment or pays nothing.
-- Office Ally 277CA/999 ack ingestion (`supabase/functions/ingest-acks-officeally/index.ts:213, :297`) sets it on a front-end rejection.
-- Auto 835 retrieval fallback (`retrieve-remittance-officeally/index.ts:312`) for any CLP status that isn't clearly paid or denied.
-- 835 parser status map (`src/lib/edi-835-parser.ts:392, :396`).
+The edge bundler only uploads files under `supabase/functions/`, so the Deno function cannot import `src/lib/edi-835-parser.ts` directly. The project already solved this exact problem for NEMSIS: `scripts/sync-nemsis-to-edge.sh` copies `src/lib/**` into `supabase/functions/_shared/` and rewrites relative imports to add `.ts` extensions.
 
-Everything that reads it treats it as **open, unworked A/R**:
+Recommendation: reuse that pattern rather than rewriting or duplicating logic by hand.
 
-- AR aging buckets (`src/lib/billing-utils.ts:667`) count `submitted` + `needs_correction` as outstanding money.
-- Billing Work Queue (`src/components/billing/BillingWorkQueue.tsx:66, :167`).
-- `generate_biller_tasks` timely-filing risk task (`20260414035544...sql:160`, `20260519162738...sql:218`) fires only for `submitted`/`needs_correction`.
-- Pipeline header marks it `attention: true` (`BillingPipelineHeader.tsx:22`); `classify-denial.ts:225` treats it as "review".
+- Add `scripts/sync-billing-to-edge.sh` (same shape as the NEMSIS script) that copies:
+  - `src/lib/edi-835-parser.ts` → `supabase/functions/_shared/edi-835-parser.ts`
+  - `src/lib/denial-code-translations.ts` → `supabase/functions/_shared/denial-code-translations.ts`
+  - `src/lib/payer-compliance.ts` → `supabase/functions/_shared/payer-compliance.ts`
+- `src/lib/edi-835-parser.ts` stays the single source of truth and is edited only there. The `_shared` copies are generated artifacts with a "generated — do not edit" header.
+- The edge function imports the `_shared` copies. Both paths then call the same `parseEDI835Envelope`, `extractCO45WriteOff`, `getPrimaryDenialCode`, `mapToEventType`, `parsePatientControlNumber`, `isValid835`.
 
-So the current behavior is actively wrong in two ways: a fully-worked denial is filed under "payer sent it back, still needs work," it inflates AR aging, and it can never be submitted (bulk submit filters `ready_to_bill` only — `BillingAndClaims.tsx:469`; single Submit button only renders for `ready_to_bill` — `:2004`). Nothing else *depends* on a worked denial passing through `needs_correction` — no trigger, report, or filter needs that hop.
+All three modules are pure TypeScript with no browser/Supabase-client dependencies, so they run unchanged under Deno.
 
-**Verdict: `needs_correction` is load-bearing for inbound payer states, and an unnecessary intermediate for outbound worked denials. It is the cause of the dead-end.**
+## 2. Unified claim matching (quarantine preserved)
 
-## Recommendation: Option A
+Current manual matching (`RemittanceImport.tsx`): CLP01 patient-control-number prefix → member ID + date of service → charge-amount tiebreak on multiples.
+Current auto matching: `payer_claim_control_number` equality only — which is the payer's own number, frequently absent on a first remittance, so most auto CLPs fall straight into quarantine.
 
-Set `ready_to_bill` directly in `handleMarkReady` when the live blocker gate passes.
+Change: extract the matching function into a shared helper (`_shared/remittance-match.ts`, mirrored from a new `src/lib/remittance-match.ts` so the client uses the identical code) that takes the parsed claims plus the company's candidate `claim_records` and returns `{ matchedClaimId, matchedPatientId, errors }` using the manual precedence order, with `payer_claim_control_number` added as a first-tier check before the CLP01 prefix.
 
-Why A over B:
-- The gate has already run (`fetchClaimBlockerSnapshot` re-read seconds earlier, `DenialRecoveryEngine.tsx:369-379`) — the claim is, by the app's own definition, clean. `ready_to_bill` is the truthful state.
-- B would mean teaching two separate submit surfaces (bulk filter + single button) plus the queue path to accept a second status and re-run blockers at submit time — more code, two places to drift, and it leaves the claim mis-counted in AR aging and biller tasks in the meantime.
-- A keeps `needs_correction` meaning exactly one thing: *the payer sent this back and it hasn't been worked yet.* Cleaner semantics, no change to how `ready_to_bill` claims submit.
-- Risk check: no trigger fires on a `claim_records` status update, so writing `ready_to_bill` won't be clobbered. `recompute_claim_from_payments` only runs on new `claim_payments` rows — i.e. if a *new* remittance arrives, which should override the status anyway.
+Quarantine behavior is unchanged and still runs first:
+- NPI mismatch (file NPI vs importing company NPI) → `remittance_quarantine`, never posted.
+- No match after the full ladder → `remittance_quarantine` with the existing reason text and file back-fill.
 
-## The change
+## 3. Write path: `claim_payments` + trigger, not a direct `claim_records` update
 
-**`src/components/billing/DenialRecoveryEngine.tsx` — `handleMarkReady` (~365-433)**
+Replace the auto path's direct `claim_records` update with the same insert manual does:
+`claim_record_id, company_id, event_type, clp_status_code, amount, patient_responsibility, write_off, allowed_amount, denial_code, denial_reason, adjustment_codes, cas_adjustments, payer_claim_control_number, remittance_file_id, payment_date, is_simulated`.
 
-1. Keep the existing hard gate unchanged: re-read blockers, bail with the current error toast if any remain, still require correction notes. No change to blocker rules.
-2. After the gate passes and field corrections save, write `status: "ready_to_bill"` instead of `"needs_correction"` (`:392`), alongside the unchanged `resubmission_count` bump and `resubmitted_at` stamp.
-3. Update the audit-log `newData` (`:426`) to record `status: "ready_to_bill"` so the log matches what was actually written.
+Safety: this is safe and strictly better. `recompute_claim_from_payments` already writes `amount_paid`, `patient_responsibility_amount`, `write_off_amount`, `allowed_amount`, `denial_code`, `denial_reason`, `denial_category`, `paid_at`, `remittance_date`, `payer_claim_control_number`, `adjustment_codes`, and `status` from the payment rows — a superset of the thin update. Keeping both would be a double-write: the direct update writes `status` from CLP02 while the trigger derives it from the payment ledger, and the two disagree (e.g. CLP 3). So the direct `claim_records` update is removed entirely, exactly as the manual path does. The PR cap and its audit log move onto the `claim_payments.patient_responsibility` value via the shared `capPatientResponsibility` helper, so the cap is applied before the trigger aggregates.
 
-**Partial-work path (new, small):** the "Save Progress" button already exists for partial work and only writes an `ar_followup_notes` `[PROGRESS]` note — it does not touch status. That stays as-is, so a partially-worked denial simply remains `denied` and keeps showing in the denial queue. No new status writes.
+Also carried over from manual: `remittance_files` gains the envelope fields (`bpr_total_paid`, `payment_date`, `payer_name`, `eft_trace_number`, `reconciled`, `reconciliation_variance`) instead of only counters.
 
-**Submit filters:** unchanged. Once the claim is `ready_to_bill` it flows through the existing bulk submit and single-claim Submit button with no modification.
+## 4. PLB capture
 
-## Messaging
+Parse provider-level adjustments from the envelope and insert `plb_adjustments` rows (`remittance_file_id`, `company_id`, `provider_npi`, `fiscal_period`, `reason_code`, `reference_id`, `amount`, `is_simulated`), matching manual. Reconciliation variance is computed as BPR02 vs (sum of claim payments + sum of PLB), same formula the manual path uses.
 
-- Blocker gate fails (unchanged behavior, existing copy is already accurate): "N claim blockers still open — fix them before resubmitting, or this claim will just be denied again."
-- Missing correction notes (unchanged): "Correction notes are required before resubmission."
-- Success (replaces the overstated "Claim marked ready for resubmission"): **"Claim is ready to resubmit — send it from the Ready to Bill tab."** Plus a short secondary line noting how many fields were corrected when `changesCount > 0`.
+## 5. Simulation guards stay intact
 
-## Counters, notes, audit — all preserved
+- `is_simulated` on the auto path is derived server-side from the company row (`creator_test_tenant` / `is_sandbox`), not from request input.
+- `guard_simulated_payment` stays untouched and continues to reject `is_simulated = true` on real tenants.
+- `recompute_claim_from_payments` keeps its rule that a claim only becomes simulated when every payment on it is simulated.
+- `useIsSimulationCompany` is client-side and unchanged.
 
-Every one of these stays exactly where it is in `handleMarkReady`, unconditional on the resulting status:
-- `resubmission_count` + 1 and `resubmitted_at` timestamp — same update call as the status write.
-- `[RESUBMIT]` note inserted into `ar_followup_notes` with denial code, notes, and corrected-field count.
-- `biller_tasks` auto-complete for `denial_unworked` tasks on that claim.
-- `logAuditEvent` entry (with the corrected `newData.status`).
-- `saveFieldCorrections()` still runs before the status write.
+## Out of scope
 
-## Out of scope (untouched)
+Manual upload UI, blocker rules, the denial classifier, the submit path, and the recent `needs_correction` fix are untouched. The trigger's CLP-3 handling is identical for both paths after this change, so no new divergence is introduced (it is a pre-existing behavior, left as-is).
 
-835 parser and Office Ally auto-retrieval, blocker rules themselves, and the existing `ready_to_bill` submission path.
+## Verification after build
+
+- Typecheck plus the existing billing/parity test suites.
+- A drift test asserting each `_shared` copy is byte-identical to its `src/lib` source apart from the generated header and `.ts` import extensions, so the two parsers cannot silently diverge again.
+- Feed the same synthetic denial 835 through both paths and confirm the resulting `claim_payments` / `claim_records` rows match field for field.
