@@ -380,8 +380,13 @@ Deno.serve(async (req) => {
               }
 
               // Finalize the imported file record
+              // Parity with the manual import path (src/pages/RemittanceImport.tsx):
+              // variance = BPR02 - (sum of ALL parsed CLP paid amounts - sum of PLB).
+              // Must use every parsed claim (including quarantined/unmatched ones),
+              // not just the ones that posted, or the file looks out of balance.
+              const sumClp = envelope.claims.reduce((s: number, c: any) => s + c.paid_amount, 0);
               const variance = Number(
-                (envelope.bpr_total_paid - (totalPaid + sumPlb)).toFixed(2)
+                (envelope.bpr_total_paid - (sumClp - sumPlb)).toFixed(2)
               );
               const fileStatus = parsedClaims.length === 0
                 ? "no_claims"

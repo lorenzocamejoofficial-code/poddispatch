@@ -159,9 +159,12 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       // Legacy charts carry pcs_on_file with an expiration date but no signature
       // date. Those were valid before the 60-day window check existed, so keep
       // honoring the expiration date rather than forcing biller re-entry.
+      // An expiration date is required — "PCS on file" with no dates at all is
+      // not evidence of a certification and must still be entered by the biller.
       const legacyChartPcsValid =
         patientPcsWindow.status === "missing" &&
-        (!p?.pcs_expiration_date || !t.run_date || p.pcs_expiration_date >= t.run_date);
+        !!p?.pcs_expiration_date &&
+        (!t.run_date || p.pcs_expiration_date >= t.run_date);
       const patientPcsValid = !!(
         p?.pcs_on_file && (patientPcsWindow.status === "ok" || legacyChartPcsValid)
       );
