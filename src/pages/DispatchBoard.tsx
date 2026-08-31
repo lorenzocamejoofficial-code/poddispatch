@@ -161,8 +161,8 @@ export default function DispatchBoard() {
       supabase.from("crews")
         .select("*, member1:profiles!crews_member1_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member3:profiles!crews_member3_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
         .eq("active_date", selectedDate),
-      supabase.from("safety_overrides").select("leg_id").not("leg_id", "is", null),
-      supabase.from("hold_timers").select("*").eq("is_active", true),
+      supabase.from("safety_overrides").select("leg_id").eq("company_id", scopedCompanyId).not("leg_id", "is", null),
+      supabase.from("hold_timers").select("*").eq("company_id", scopedCompanyId).eq("is_active", true),
       supabase.from("leg_exceptions" as any).select("*").eq("run_date", selectedDate),
       supabase.from("operational_alerts").select("*").eq("run_date", selectedDate).eq("status", "open"),
     ]);
