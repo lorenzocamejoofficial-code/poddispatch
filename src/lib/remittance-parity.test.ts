@@ -35,10 +35,11 @@ const DENIED_835 = [
   "NM1*PR*2*MEDICARE B*****PI*00123~",
   "NM1*85*2*POD AMBULANCE*****XX*1234567893~",
   "LX*1~",
-  "CLP*20250110-a1b2c3d4*4*450.00*0.00*100.00*MB*PAYERCTRL999*11~",
+  "CLP*250110-a1b2c3d4*4*450.00*0.00*100.00*MB*PAYERCTRL999*11~",
   "NM1*QC*1*DOE*JANE****MI*W123456789~",
   "DTM*232*20250110~",
   "CAS*CO*45*350.00~",
+  "CAS*CO*50*0.00~",
   "CAS*PR*1*100.00~",
   "SVC*HC:A0428*450.00*0.00**1~",
   "PLB*1234567893*20251231*WO:REF987*25.00~",
@@ -50,7 +51,7 @@ describe("automated pull ↔ manual upload parity (same 835, same shared code)",
 
   it("parses CAS adjustments into CARC codes", () => {
     const claim = envelope.claims[0];
-    expect(claim.raw_denial_codes).toEqual(expect.arrayContaining(["CO-45", "PR-1"]));
+    expect(claim.raw_denial_codes).toEqual(expect.arrayContaining(["CO-45", "CO-50", "PR-1"]));
     expect(claim.billing_provider_npi).toBe("1234567893");
   });
 
@@ -107,7 +108,7 @@ describe("automated pull ↔ manual upload parity (same 835, same shared code)",
     const auto = buildClaimPaymentRow(rem, ctx).row;
     expect(auto).toEqual(manual);
 
-    expect(manual.denial_code).toBe("45");
+    expect(manual.denial_code).toBe("CO-50");
     expect(manual.denial_reason).toBeTruthy();
     expect(manual.adjustment_codes).toEqual(expect.arrayContaining(["CO-45", "PR-1"]));
     expect(manual.write_off).toBe(350);
