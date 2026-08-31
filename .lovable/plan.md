@@ -1,59 +1,91 @@
-# Bring automated Office Ally 835 retrieval to parity with manual upload
+# AUDIT: Billing status bucketing (read-only, no changes made)
 
-Today the automated pull uses a hand-rolled "minimal parser" that reads only `NM1*85` and `CLP`. It never reads `CAS`, so denials arrive with no CARC/RARC, no `denial_reason`, no `claim_payments` row, and no PLB capture. Manual upload does all of it. This plan makes the two paths produce identical data.
+## 1. Tab membership rules — exact filters
 
-## 1. One parser, shared by client and edge function
+All six tabs are rendered from one array and one filter expression. There is no per-tab query; the page loads every claim once and filters in memory.
 
-The edge bundler only uploads files under `supabase/functions/`, so the Deno function cannot import `src/lib/edi-835-parser.ts` directly. The project already solved this exact problem for NEMSIS: `scripts/sync-nemsis-to-edge.sh` copies `src/lib/**` into `supabase/functions/_shared/` and rewrites relative imports to add `.ts` extensions.
+- `src/pages/BillingAndClaims.tsx:159-166` — `CLAIM_COLUMNS` defines the six tabs.
+- `src/pages/BillingAndClaims.tsx:223-226` — the only fetch: `.from("claim_records").select("*").order("run_date", {ascending:false}).limit(1000)` plus `.or("is_simulated.eq.false,is_simulated.is.null")` for non-sim tenants.
+- `src/pages/BillingAndClaims.tsx:1541-1550` — the membership logic:
+  - `baseList = secondaryFilter ? claims.filter(c => c.status === "paid" && c.patient_secondary_payer && !c.secondary_claim_generated) : claims`
+  - `filteredAll = baseList.filter(c => !hideTestClaims || !c.is_test_submission)`
+  - counts: `filteredAll.filter(c => c.status === col.status).length`
+  - list: `colClaims = filteredAll.filter(c => c.status === activeCol.status)`
 
-Recommendation: reuse that pattern rather than rewriting or duplicating logic by hand.
+| Tab | Exact membership rule | Line |
+| --- | --- | --- |
+| Ready to Bill | `c.status === "ready_to_bill"` | 1550 (config 160) |
+| Submitted | `c.status === "submitted"` | 1550 (config 161) |
+| Paid | `c.status === "paid"` | 1550 (config 162) |
+| Denied | `c.status === "denied"` | 1550 (config 163) |
+| Needs Correction | `c.status === "needs_correction"` | 1550 (config 164) |
+| Needs Review | `c.status === "needs_review"` | 1550 (config 165) |
 
-- Add `scripts/sync-billing-to-edge.sh` (same shape as the NEMSIS script) that copies:
-  - `src/lib/edi-835-parser.ts` → `supabase/functions/_shared/edi-835-parser.ts`
-  - `src/lib/denial-code-translations.ts` → `supabase/functions/_shared/denial-code-translations.ts`
-  - `src/lib/payer-compliance.ts` → `supabase/functions/_shared/payer-compliance.ts`
-- `src/lib/edi-835-parser.ts` stays the single source of truth and is edited only there. The `_shared` copies are generated artifacts with a "generated — do not edit" header.
-- The edge function imports the `_shared` copies. Both paths then call the same `parseEDI835Envelope`, `extractCO45WriteOff`, `getPrimaryDenialCode`, `mapToEventType`, `parsePatientControlNumber`, `isValid835`.
+Global modifiers applied before bucketing: test-submission hide toggle (1544), secondary-review filter (1541-1543), simulation scoping (224-235), 25-per-page slice (1551-1554).
 
-All three modules are pure TypeScript with no browser/Supabase-client dependencies, so they run unchanged under Deno.
+`BillingPipelineHeader` (`src/components/billing/BillingPipelineHeader.tsx:17-23, 40-43`) uses the identical `c.status` equality over the same six values.
 
-## 2. Unified claim matching (quarantine preserved)
+**Blockers are never part of tab membership.** `detectClaimBlockers` is imported at line 85 and called only at line 1705, inside the card render, to draw an issues badge. It does not move or exclude a claim from any bucket.
 
-Current manual matching (`RemittanceImport.tsx`): CLP01 patient-control-number prefix → member ID + date of service → charge-amount tiebreak on multiples.
-Current auto matching: `payer_claim_control_number` equality only — which is the payer's own number, frequently absent on a first remittance, so most auto CLPs fall straight into quarantine.
+## 2. All possible status values
 
-Change: extract the matching function into a shared helper (`_shared/remittance-match.ts`, mirrored from a new `src/lib/remittance-match.ts` so the client uses the identical code) that takes the parsed claims plus the company's candidate `claim_records` and returns `{ matchedClaimId, matchedPatientId, errors }` using the manual precedence order, with `payer_claim_control_number` added as a first-tier check before the CLP01 prefix.
+Postgres enum `claim_status` (`src/integrations/supabase/types.ts:6864-6873`, mirrored at 7097-7106):
 
-Quarantine behavior is unchanged and still runs first:
-- NPI mismatch (file NPI vs importing company NPI) → `remittance_quarantine`, never posted.
-- No match after the full ladder → `remittance_quarantine` with the existing reason text and file back-fill.
+`ready_to_bill, submitted, paid, denied, needs_correction, needs_review, pending, reversal, forwarded, blocked_payer_mapping`
 
-## 3. Write path: `claim_payments` + trigger, not a direct `claim_records` update
+The page's local TypeScript type only covers six of them (`src/pages/BillingAndClaims.tsx:99`).
 
-Replace the auto path's direct `claim_records` update with the same insert manual does:
-`claim_record_id, company_id, event_type, clp_status_code, amount, patient_responsibility, write_off, allowed_amount, denial_code, denial_reason, adjustment_codes, cas_adjustments, payer_claim_control_number, remittance_file_id, payment_date, is_simulated`.
+**Gap:** `pending`, `reversal`, `forwarded`, `blocked_payer_mapping` have **no tab**. A claim in one of those four states is fetched, counted in nothing, and rendered nowhere on the claims board. Writers that produce them:
+- `blocked_payer_mapping` — `src/lib/queue-claims-for-submission.ts:498-506`
+- `pending` / `forwarded` / `needs_correction` — DB trigger `recompute_claim_from_payments` (835 posting), CLP status codes `5/13/15/25` → `pending`, `19/20/21` → `forwarded`, reversal with no money → `needs_correction`
+- `needs_correction` — `supabase/functions/ingest-acks-officeally/index.ts:213, 297`
 
-Safety: this is safe and strictly better. `recompute_claim_from_payments` already writes `amount_paid`, `patient_responsibility_amount`, `write_off_amount`, `allowed_amount`, `denial_code`, `denial_reason`, `denial_category`, `paid_at`, `remittance_date`, `payer_claim_control_number`, `adjustment_codes`, and `status` from the payment rows — a superset of the thin update. Keeping both would be a double-write: the direct update writes `status` from CLP02 while the trigger derives it from the payment ledger, and the two disagree (e.g. CLP 3). So the direct `claim_records` update is removed entirely, exactly as the manual path does. The PR cap and its audit log move onto the `claim_payments.patient_responsibility` value via the shared `capPatientResponsibility` helper, so the cap is applied before the trigger aggregates.
+## 3. The reported mismatches
 
-Also carried over from manual: `remittance_files` gains the envelope fields (`bpr_total_paid`, `payment_date`, `payer_name`, `eft_trace_number`, `reconciled`, `reconciliation_variance`) instead of only counters.
+### "Ready to Bill has claims with issues"
+Three independent writers set `ready_to_bill` with **no blocker check at all**:
 
-## 4. PLB capture
+1. **DB trigger `auto_create_claim_on_pcr_submit`** — every claim created on PCR submit is hardcoded `'ready_to_bill'::claim_status` (function body line 117) and simultaneously sets the trip `claim_ready = true`, `billing_blocked_reason = NULL`, `blockers = '{}'`. This is the primary creation path and it never consults readiness.
+2. **Simulation Lab seeder** — `supabase/functions/simulation-lab/index.ts:1869` and the timely-filing bucket at ~1866-1876 write `status: "ready_to_bill"` directly.
+3. **Secondary claim creation** — `src/lib/create-secondary-claim.ts:134` `status: "ready_to_bill" as const`.
 
-Parse provider-level adjustments from the envelope and insert `plb_adjustments` rows (`remittance_file_id`, `company_id`, `provider_npi`, `fiscal_period`, `reason_code`, `reference_id`, `amount`, `is_simulated`), matching manual. Reconciliation variance is computed as BPR02 vs (sum of claim payments + sum of PLB), same formula the manual path uses.
+Only the two client-side paths gate on readiness: `buildClaimFromTrip` (line 602: `claimStatus = (gateResult.level === "blocked" || "review" || addressIssue) ? "needs_review" : "ready_to_bill"`) and `refreshExistingClaims` (line 771-774). Those only run when a user presses Sync/Refresh.
 
-## 5. Simulation guards stay intact
+So: claim status is a *stage marker*, not a *quality verdict*. The card computes blockers at render (1705) and shows them, but the claim still sits in Ready to Bill. That is exactly the symptom reported.
 
-- `is_simulated` on the auto path is derived server-side from the company row (`creator_test_tenant` / `is_sandbox`), not from request input.
-- `guard_simulated_payment` stays untouched and continues to reject `is_simulated = true` on real tenants.
-- `recompute_claim_from_payments` keeps its rule that a claim only becomes simulated when every payment on it is simulated.
-- `useIsSimulationCompany` is client-side and unchanged.
+### "Submitted and Paid also have claims with issues"
+`submitted` is set by the submission pipeline (`src/lib/queue-claims-for-submission.ts:542`) and `paid` by `recompute_claim_from_payments` when `sum(paid) > 0`. Neither re-evaluates blockers — correctly so for `paid`, but it means the same render-time blocker badge appears on claims that already left the pre-submit gate. A claim can be submitted with unresolved soft/hard blockers whenever it was queued from a path that skipped `PreSubmitChecklist`.
 
-## Out of scope
+### "Nothing in Needs Correction / Needs Review"
+Not a value mismatch — the strings match the enum exactly everywhere. The tabs are empty because **nothing in this tenant's data has ever been written to those values**. Live data confirms it:
 
-Manual upload UI, blocker rules, the denial classifier, the submit path, and the recent `needs_correction` fix are untouched. The trigger's CLP-3 handling is identical for both paths after this change, so no new divergence is introduced (it is a pre-existing behavior, left as-is).
+`select status, count(*) from claim_records group by 1` → `paid 7, denied 6, submitted 5, ready_to_bill 4`. Zero `needs_review`, zero `needs_correction`. 21 of the 22 rows carry `notes = 'Simulation Lab Tier 1 demo seed'` — i.e. the entire board is Simulation Lab seed data, which only ever writes `ready_to_bill / submitted / paid / denied`. The seeder has no bucket for `needs_review` or `needs_correction`.
 
-## Verification after build
+The only writers of `needs_review` are client-side (`BillingAndClaims.tsx:602, 773, 984, 1185`), triggered by Sync/Refresh; `needs_correction` only comes from ack ingestion or an 835 reversal. None of those have fired here.
 
-- Typecheck plus the existing billing/parity test suites.
-- A drift test asserting each `_shared` copy is byte-identical to its `src/lib` source apart from the generated header and `.ts` import extensions, so the two parsers cannot silently diverge again.
-- Feed the same synthetic denial 835 through both paths and confirm the resulting `claim_payments` / `claim_records` rows match field for field.
+## 4. Categorization gap — confirmed
+
+| Stage | Writer | Blocker-checked? |
+| --- | --- | --- |
+| Claim creation on PCR submit | DB trigger, hardcoded `ready_to_bill` | **No** |
+| Sim Lab seed | edge function, hardcoded statuses | **No** |
+| Secondary claim | `create-secondary-claim.ts:134` | **No** |
+| Manual Sync from trips | `buildClaimFromTrip:602` | Yes (`computeCleanTripStatus`) |
+| Manual Refresh | `refreshExistingClaims:771-774` | Yes |
+| Submission queue | `queue-claims-for-submission.ts:498-542` | Payer mapping only |
+| Remittance/ack | `recompute_claim_from_payments`, `ingest-acks-officeally` | N/A (payer-driven) |
+
+The trigger and the client Sync disagree on the same claim: the trigger says `ready_to_bill` and clears the trip's `blockers` array; a later Sync can flip the same claim to `needs_review`. Whichever ran last wins. That's the "things just land with no categorizing" behaviour.
+
+## 5. Mutual exclusivity
+
+Tabs are strictly mutually exclusive — single-field equality on `c.status`, so a claim appears in at most one tab. The real problem is the opposite: with four enum values having no tab, a claim can appear in **zero** tabs while still counting toward the fetched 1000-row set, and a claim's bucket can contradict its blocker state because blockers are cosmetic at render time.
+
+## Inconsistencies to flag
+
+1. Trigger-created claims bypass every readiness rule and are stamped `ready_to_bill`.
+2. The trigger also wipes `trip_records.blockers` and `billing_blocked_reason`, destroying the upstream signal the Trip Queue relies on.
+3. `pending`, `reversal`, `forwarded`, `blocked_payer_mapping` are unreachable in the UI.
+4. Local `ClaimStatus` type (line 99) is narrower than the DB enum, so those four values are cast-invisible to TypeScript.
+5. `needs_review` is only ever produced by a manual button press, so the tab is structurally empty in normal operation.
+6. Blocker detection runs at render only (line 1705) and never influences status or bucket.
