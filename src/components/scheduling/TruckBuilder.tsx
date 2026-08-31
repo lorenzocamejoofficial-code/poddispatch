@@ -241,9 +241,12 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
 
   // Fetch overridden leg IDs for this date
   const loadOverrides = useCallback(async () => {
+    // Creators have cross-tenant read; scope explicitly to the active company.
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data } = await supabase
       .from("safety_overrides")
       .select("leg_id")
+      .eq("company_id", scopedCompanyId)
       .not("leg_id", "is", null);
     if (data) {
       setOverriddenLegIds(new Set((data as any[]).map(r => r.leg_id).filter(Boolean)));
