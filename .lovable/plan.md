@@ -1,73 +1,62 @@
-# AUDIT — Post-Denial Rework Loop (read-only report, nothing changed)
+# Fix the `needs_correction` dead-end after denial recovery
 
-## The chain in one line
+## Is `needs_correction` load-bearing?
 
-835 arrives → payment/denial posted on the claim → denial code translated to plain English → claim shows in the Denied tab / AR queue → biller opens Denial Recovery Engine, fixes real blockers → claim flips to `needs_correction` → a manual "Refresh Claims" pass promotes it to `ready_to_bill` → re-queued to Office Ally. The loop is closed, but with two real seams (auto-retrieval loses denial codes; `needs_correction` doesn't auto-return to the submit queue).
+Yes — but **only as an inbound payer-driven state, never as an outbound "worked and ready" state.** Everything that writes it comes from the payer side:
 
----
+- `recompute_claim_from_payments` trigger (migration `20260519162738...sql:107-119`) sets `needs_correction` when a remittance reverses a payment or pays nothing.
+- Office Ally 277CA/999 ack ingestion (`supabase/functions/ingest-acks-officeally/index.ts:213, :297`) sets it on a front-end rejection.
+- Auto 835 retrieval fallback (`retrieve-remittance-officeally/index.ts:312`) for any CLP status that isn't clearly paid or denied.
+- 835 parser status map (`src/lib/edi-835-parser.ts:392, :396`).
 
-## 1. 835 / Remittance ingestion — PARTIAL (two paths, unequal)
+Everything that reads it treats it as **open, unworked A/R**:
 
-**Path A — manual upload (full fidelity): WORKS**
-- `src/lib/edi-835-parser.ts` — parses BPR (payment total), CLP (claim ref, status code, charged/paid/patient-resp), CAS adjustment groups with group code + reason code, PLB provider-level adjustments. `raw_denial_codes` built as `CO-45`, `PR-1` style strings (`edi-835-parser.ts:34, 242, 265, 338`); `getPrimaryDenialCode` skips CO-45 (`:418`).
-- `src/pages/RemittanceImport.tsx` — matches by patient control number, then member ID + date of service, then charge amount (`:100-147`). Writes a `claim_payments` row per claim carrying `denial_code`, `denial_reason` (plain English), `adjustment_codes`, full `cas_adjustments` JSON, `write_off`, `allowed_amount`, capped `patient_responsibility` (`:334-354`). A DB trigger (`recompute_claim_from_payments`) rolls those into `claim_records`. File stored in `remittance_files`; PLBs in `plb_adjustments`.
+- AR aging buckets (`src/lib/billing-utils.ts:667`) count `submitted` + `needs_correction` as outstanding money.
+- Billing Work Queue (`src/components/billing/BillingWorkQueue.tsx:66, :167`).
+- `generate_biller_tasks` timely-filing risk task (`20260414035544...sql:160`, `20260519162738...sql:218`) fires only for `submitted`/`needs_correction`.
+- Pipeline header marks it `attention: true` (`BillingPipelineHeader.tsx:22`); `classify-denial.ts:225` treats it as "review".
 
-**Path B — automated Office Ally pull: PARTIAL / this is the important gap**
-- `supabase/functions/retrieve-remittance-officeally/index.ts:183-243` uses an inline "minimal parser" that reads only NM1*85 (billing NPI) and CLP. **It never reads CAS segments**, so no CARC/RARC is captured.
-- It updates `claim_records` with `amount_paid`, `patient_responsibility_amount`, `status`, `paid_at`, `remittance_date`, `payer_claim_control_number` only (`:315-324`) — **no `denial_code`, no `denial_reason`, no `claim_payments` row**.
-- Status is derived from CLP02 alone: `1|19 → paid`, `3|4 → denied`, else `needs_correction` (`:313`).
-- Net effect: a claim denied via the automated pull lands in the Denied tab with a blank reason, and every downstream classifier/checklist falls through to "Unrecognized denial code."
-- NPI-mismatch and no-match CLPs are diverted to `remittance_quarantine` (`:257, :345`) and reviewed in `src/components/creator/RemittanceQuarantinePanel.tsx` — that part WORKS.
-- `supabase/functions/ingest-acks-officeally/index.ts` handles 999/277CA acknowledgments (front-end rejections), not 835s.
+So the current behavior is actively wrong in two ways: a fully-worked denial is filed under "payer sent it back, still needs work," it inflates AR aging, and it can never be submitted (bulk submit filters `ready_to_bill` only — `BillingAndClaims.tsx:469`; single Submit button only renders for `ready_to_bill` — `:2004`). Nothing else *depends* on a worked denial passing through `needs_correction` — no trigger, report, or filter needs that hop.
 
-## 2. Denial classification — WORKS
+**Verdict: `needs_correction` is load-bearing for inbound payer states, and an unnecessary intermediate for outbound worked denials. It is the cause of the dead-end.**
 
-- `src/lib/denial-code-translations.ts` (389 lines) — plain-English text, category, and `typical_resolution` per code.
-  - CARC handled: CO-4, CO-5, CO-11, CO-15, CO-16, CO-18, CO-22, CO-23, CO-26, CO-27, CO-29, CO-31, CO-45, CO-50, CO-55, CO-56, CO-96, CO-97, CO-109, CO-119, CO-167, CO-197, CO-204; PR-1, PR-2, PR-3, PR-26, PR-27, PR-96; OA-18, OA-23, OA-96.
-  - RARC handled: N30, N115, N180, N210, N211, N570.
-- `src/lib/classify-denial.ts` — wraps the table, prefers `denial_code`, falls back to `rejection_codes`, treats partial pay as coordination-of-benefits rather than denial (`:53-70`), and returns an honest "Unrecognized denial code" fallback (`:207`).
-- Also a DB-side `categorize_denial_code(text)` for bucketing.
-- Categories map to your list (medical necessity CO-50, prior auth CO-15/CO-197, timely filing CO-29, wrong level CO-4/CO-55, missing info CO-16, patient responsibility PR-*).
+## Recommendation: Option A
 
-## 3. Rework queue — WORKS
+Set `ready_to_bill` directly in `handleMarkReady` when the live blocker gate passes.
 
-- `src/pages/BillingAndClaims.tsx` — status tabs including a **Denied** tab (`:163, :1265-1282`) with denied count, dollars recoverable, and denial rate (`:1249, :1311`). A banner deep-links straight to it (`:1376-1382`).
-- Supporting surfaces: `BillerTaskQueue.tsx` (auto-generated `denial_unworked` tasks), `MissingMoneyPanel.tsx` (incl. paid-short), `TimelyFilingStrip.tsx` (tracks `denied` and `needs_correction` as still-active), `RemittanceActivityPanel.tsx` / `RemittanceHistoryPanel.tsx`, `ClaimTimelineDrawer.tsx`.
-- It is actionable, not a static list — each denied row opens the recovery engine.
+Why A over B:
+- The gate has already run (`fetchClaimBlockerSnapshot` re-read seconds earlier, `DenialRecoveryEngine.tsx:369-379`) — the claim is, by the app's own definition, clean. `ready_to_bill` is the truthful state.
+- B would mean teaching two separate submit surfaces (bulk filter + single button) plus the queue path to accept a second status and re-run blockers at submit time — more code, two places to drift, and it leaves the claim mis-counted in AR aging and biller tasks in the meantime.
+- A keeps `needs_correction` meaning exactly one thing: *the payer sent this back and it hasn't been worked yet.* Cleaner semantics, no change to how `ready_to_bill` claims submit.
+- Risk check: no trigger fires on a `claim_records` status update, so writing `ready_to_bill` won't be clobbered. `recompute_claim_from_payments` only runs on new `claim_payments` rows — i.e. if a *new* remittance arrives, which should override the status anyway.
 
-## 4. Fix step — WORKS
+## The change
 
-`src/components/billing/DenialRecoveryEngine.tsx`:
-- Denial-specific checklists per CARC (`:30-123`).
-- Editable claim/trip fields per denial code (`FIELDS_FOR_DENIAL`, `:126-133`) that actually persist via `saveFieldCorrections`.
-- **Live blocker re-read** from `src/lib/claim-blockers.ts` (`:249-260`), the same rules the pre-submit checklist uses, so a fix made elsewhere (patient chart, PCS panel, trip) clears here on return; deep-links to those pages, and `onOpenPcsPanel` opens the PCS panel in place.
-- Timely-filing countdown badge on the dialog (`:136-146, :191`).
+**`src/components/billing/DenialRecoveryEngine.tsx` — `handleMarkReady` (~365-433)**
 
-## 5. Re-stage / resubmit — PARTIAL (one manual hop)
+1. Keep the existing hard gate unchanged: re-read blockers, bail with the current error toast if any remain, still require correction notes. No change to blocker rules.
+2. After the gate passes and field corrections save, write `status: "ready_to_bill"` instead of `"needs_correction"` (`:392`), alongside the unchanged `resubmission_count` bump and `resubmitted_at` stamp.
+3. Update the audit-log `newData` (`:426`) to record `status: "ready_to_bill"` so the log matches what was actually written.
 
-- `handleMarkReady` (`DenialRecoveryEngine.tsx:365-433`) hard-gates on fresh blockers, requires correction notes, saves field edits, then sets `status: "needs_correction"`, bumps `resubmission_count`, stamps `resubmitted_at`, writes a `[RESUBMIT]` note, auto-completes the `denial_unworked` biller task, and audit-logs.
-- **`needs_correction` is not submittable.** Bulk submit filters `status === "ready_to_bill"` (`BillingAndClaims.tsx:469`) and the single-claim Submit button only renders for `ready_to_bill` (`:2004`). `queueClaimsForSubmission` is only ever called with those.
-- The only bridge is the manual **Refresh Claims** action (`BillingAndClaims.tsx:730-820`), which re-derives the claim from the trip and promotes `needs_correction → ready_to_bill` when the gate is clean. Nothing calls it automatically after recovery.
-- Once `ready_to_bill`, `src/lib/queue-claims-for-submission.ts` builds the 837P and inserts into `claim_submission_queue` with `status: submitted` (`:534-542`), blocking unmapped payers as `blocked_payer_mapping` (`:498-506`) and hard-blocking self-pay.
-- **Where the loop ends with no live customer:** at the clearinghouse boundary. Without Office Ally credentials the claim can be built and queued (and exported via `/edi-export`), but nothing transmits and no real 835 ever comes back. Everything past "queued" must be simulated.
+**Partial-work path (new, small):** the "Save Progress" button already exists for partial work and only writes an `ar_followup_notes` `[PROGRESS]` note — it does not touch status. That stays as-is, so a partially-worked denial simply remains `denied` and keeps showing in the denial queue. No new status writes.
 
-## 6. Simulation — EXISTS (two ways), no injector needs building from scratch
+**Submit filters:** unchanged. Once the claim is `ready_to_bill` it flows through the existing bulk submit and single-claim Submit button with no modification.
 
-- **Simulation Lab injector — WORKS.** `supabase/functions/simulation-lab/index.ts`, action `inject_denials_remits` (`:2006`, implementation `:1740-1935`), driven from `src/pages/SimulationLab.tsx:199-251, 621`. It transforms up to 21 sim claims into: 6 denials with recoverable CARCs (CO-16, CO-50, CO-197, CO-29, CO-11, CO-167) setting `denial_code` / `denial_reason` / `adjustment_codes`, 4 paid-with-secondary, 5 aging >45d, 3 timely-filing, 3 paid-short. Every row is tagged with a `simulation_run_id` so reset can sweep it (`:1561-1580`).
-- **Manual 835 upload — WORKS as a fuller test.** `RemittanceImport.tsx` accepts any hand-written 835 text file; on a sandbox/creator-test tenant `useIsSimulationCompany` flags the resulting `remittance_files` / `claim_payments` / `plb_adjustments` as simulated, and the DB guard `guard_simulated_payment` refuses that flag on real tenants. This is the only path that exercises the real CAS parser end to end.
-- **Gap:** the Lab injector writes `denial_code` straight onto `claim_records` — it does not produce an 835 file, so it never exercises `edi-835-parser.ts`, `claim_payments`, or the trigger. Full-fidelity denial testing today means hand-crafting an 835 and uploading it.
+## Messaging
 
-## 7. Dead ends / seams to flag
+- Blocker gate fails (unchanged behavior, existing copy is already accurate): "N claim blockers still open — fix them before resubmitting, or this claim will just be denied again."
+- Missing correction notes (unchanged): "Correction notes are required before resubmission."
+- Success (replaces the overstated "Claim marked ready for resubmission"): **"Claim is ready to resubmit — send it from the Ready to Bill tab."** Plus a short secondary line noting how many fields were corrected when `changesCount > 0`.
 
-1. **Auto-retrieved denials have no reason code** (`retrieve-remittance-officeally/index.ts:183-243`) — the highest-value gap. Recovery checklists degrade to generic for any claim denied through the automated pull.
-2. **`needs_correction` limbo** — recovery marks a claim "ready for resubmission" but no submit control accepts that status; the biller must know to press Refresh Claims. The toast says "marked ready for resubmission," which overstates it.
-3. **Auto pull writes no `claim_payments` row**, so the remittance/timeline panels and the recompute trigger see nothing for those claims — history is thinner than for manual imports.
-4. **Auto pull ignores PLB** provider-level adjustments entirely.
-5. **CLP02 fallback to `needs_correction`** for any status code other than 1/19/3/4 silently reclassifies odd payer responses as internal rework.
-6. No auto re-check after a fix: blockers only refresh when the recovery dialog is open.
+## Counters, notes, audit — all preserved
 
-## Bottom line
+Every one of these stays exactly where it is in `handleMarkReady`, unconditional on the resulting status:
+- `resubmission_count` + 1 and `resubmitted_at` timestamp — same update call as the status write.
+- `[RESUBMIT]` note inserted into `ar_followup_notes` with denial code, notes, and corrected-field count.
+- `biller_tasks` auto-complete for `denial_unworked` tasks on that claim.
+- `logAuditEvent` entry (with the corrected `newData.status`).
+- `saveFieldCorrections()` still runs before the status write.
 
-Ingest **PARTIAL** · classify **WORKS** · queue **WORKS** · fix **WORKS** · re-stage **PARTIAL** · resubmit **WORKS (to the OA boundary)** · simulate **EXISTS**. A test-denial injector does **not** need to be built — but if you want the simulated denial to travel the same road a real one does, the missing piece is a canned 835 fixture pushed through the real parser, plus CAS parsing added to the automated Office Ally retrieval.
+## Out of scope (untouched)
 
-No files were changed.
+835 parser and Office Ally auto-retrieval, blocker rules themselves, and the existing `ready_to_bill` submission path.
