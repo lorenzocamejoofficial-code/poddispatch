@@ -3,6 +3,7 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -85,7 +86,7 @@ export default function ReportsAndMetrics() {
         supabase.from("trip_records" as any).select("id, status, truck_id, pcr_status, at_scene_time, leg_id, run_date").gte("run_date", start).lte("run_date", end).eq("is_simulated", false),
         supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, denial_reason, submitted_at, paid_at, trip_id").gte("run_date", start).lte("run_date", end).eq("is_simulated", false),
         supabase.from("operational_alerts" as any).select("id").gte("run_date", start).lte("run_date", end).eq("status", "open"),
-        supabase.from("trucks").select("id, name").eq("is_simulated", false),
+        supabase.from("trucks").select("id, name").eq("company_id", scopedCompanyId).eq("is_simulated", false),
         // All claims for AR aging + Revenue Cycle tab (not date filtered).
         // Revenue Cycle needs the richer field set, so we pull it once here.
         supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, submitted_at, paid_at, denial_code, denial_reason, payer_type, payer_name, adjustment_codes, patient_secondary_payer, secondary_claim_generated, patient_responsibility_amount, run_date").eq("is_simulated", false),

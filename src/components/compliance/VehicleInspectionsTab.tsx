@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, Fragment } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -65,7 +66,7 @@ export function VehicleInspectionsTab() {
     const [{ data: inspRows }, { data: alertRows }, { data: truckRows }] = await Promise.all([
       inspQuery,
       supabase.from("vehicle_inspection_alerts" as any).select("*"),
-      supabase.from("trucks").select("id, name").eq("active", true).order("name"),
+      supabase.from("trucks").select("id, name").eq("company_id", scopedCompanyId).eq("active", true).order("name"),
     ]);
 
     const mapped: InspectionRecord[] = ((inspRows ?? []) as any[]).map((r: any) => ({

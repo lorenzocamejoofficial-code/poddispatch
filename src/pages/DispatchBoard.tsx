@@ -4,6 +4,7 @@ import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
 import { PageLoader } from "@/components/ui/page-loader";
 import { getLocalToday } from "@/lib/local-date";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { TruckCard } from "@/components/dispatch/TruckCard";
 import { AlertsPanel } from "@/components/dispatch/AlertsPanel";
 import { OperationalAlertsPanel, type OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
@@ -145,7 +146,7 @@ export default function DispatchBoard() {
       { data: exceptionRows },
       { data: opAlertRows },
     ] = await Promise.all([
-      supabase.from("trucks").select("*").eq("active", true).order("name"),
+      supabase.from("trucks").select("*").eq("company_id", scopedCompanyId).eq("active", true).order("name"),
       supabase
         .from("truck_run_slots")
         .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, leg_type, patient_id, trip_type, destination_location, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, pcs_on_file, auth_required, auth_expiration, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric))")

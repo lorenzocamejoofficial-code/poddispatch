@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { getDenialTranslation } from "@/lib/denial-code-translations";
 import { useNavigate } from "react-router-dom";
 import {
@@ -37,7 +38,7 @@ export default function OwnerDashboard() {
         supabase.from("claim_records").select("*").eq("status", "denied" as any).or("is_simulated.eq.false,is_simulated.is.null").limit(500),
         // Fix 3: Exclude simulated trips
         supabase.from("trip_records" as any).select("id, status, run_date, pcr_status, blockers, patient_id, leg_id").gte("run_date", weekAgo).or("is_simulated.eq.false,is_simulated.is.null").limit(1000),
-        supabase.from("trucks" as any).select("id, name, active"),
+        supabase.from("trucks" as any).select("id, name, active").eq("company_id", scopedCompanyId),
         supabase.from("vehicle_inspections" as any).select("id, truck_id, run_date").eq("run_date", today),
       ]);
 
