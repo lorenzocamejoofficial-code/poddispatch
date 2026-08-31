@@ -14,16 +14,14 @@ import {
   parseEDI835Envelope,
   isValid835,
   mapClaimStatus,
-  extractCO45WriteOff,
-  getPrimaryDenialCode,
-  parsePatientControlNumber,
-  mapToEventType,
   type ParsedRemittance,
   type ParsedRemittanceItem,
 } from "@/lib/edi-835-parser";
+import { matchRemittanceClaim } from "@/lib/remittance-match";
+import { buildClaimPaymentRow } from "@/lib/remittance-post";
 import { getDenialTranslation } from "@/lib/denial-code-translations";
 import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
-import { capPatientResponsibility } from "@/lib/payer-compliance";
+
 
 interface MatchedItem {
   remittance: ParsedRemittanceItem;
