@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface FacilitySelectProps {
@@ -11,9 +12,12 @@ export function FacilitySelect({ value, onChange }: FacilitySelectProps) {
   const [facilities, setFacilities] = useState<{ id: string; name: string }[]>([]);
 
   const fetch = useCallback(async () => {
+    // Creators have cross-tenant read; scope explicitly to the active company.
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data } = await supabase
       .from("facilities")
       .select("id, name")
+      .eq("company_id", scopedCompanyId)
       .eq("active", true)
       .order("name");
     setFacilities((data ?? []) as { id: string; name: string }[]);

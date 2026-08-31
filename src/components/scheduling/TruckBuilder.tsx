@@ -1,6 +1,7 @@
 import { memo, useEffect, useState, useCallback } from "react";
 import { ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";

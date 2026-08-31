@@ -3,6 +3,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useSchedulingStore as useGlobalSchedulingStore } from "@/hooks/useSchedulingStore";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { evaluateSafetyRules, type PatientNeeds, type CrewCapability, type TruckEquipment } from "@/lib/safety-rules";
 import { useAuth } from "@/hooks/useAuth";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
@@ -287,8 +288,10 @@ export default function CrewScheduleAdmin() {
     const { data: truckRow } = await supabase
       .from("trucks").select("has_power_stretcher, has_stair_chair, has_oxygen_mount")
       .eq("id", backupTruckId).single();
+    // Creators have cross-tenant read; scope explicitly to the active company.
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data: existingOverrides } = await supabase
-      .from("safety_overrides").select("leg_id").eq("override_status", "BLOCKED");
+      .from("safety_overrides").select("leg_id").eq("company_id", scopedCompanyId).eq("override_status", "BLOCKED");
 
     const overriddenLegIds = new Set((existingOverrides ?? []).map((o: any) => o.leg_id));
     const crewCap: CrewCapability = {
