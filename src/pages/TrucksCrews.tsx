@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { getLocalToday } from "@/lib/local-date";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -421,6 +422,7 @@ export default function TrucksCrews() {
       const { data: certs } = await supabase
         .from("crew_certifications")
         .select("user_id, cert_type, status, expiration_date, manually_verified, manual_verification_expires_at")
+        .eq("company_id", (await getActiveCompanyId()) ?? NO_COMPANY)
         .in("user_id", userIds);
       for (const cert of (certs ?? []) as any[]) {
         if (cert.status !== "approved") continue;
