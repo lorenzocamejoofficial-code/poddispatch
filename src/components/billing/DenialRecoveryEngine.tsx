@@ -387,9 +387,11 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
     // Save field corrections
     const changesCount = await saveFieldCorrections();
 
-    // Update claim status
+    // Update claim status — blocker gate already passed, so this claim is
+    // genuinely submittable. Land it in ready_to_bill (not needs_correction)
+    // so the existing submit path picks it up without a manual Refresh.
     await supabase.from("claim_records").update({
-      status: "needs_correction",
+      status: "ready_to_bill",
       resubmission_count: (claim.resubmission_count ?? 0) + 1,
       resubmitted_at: new Date().toISOString(),
     } as any).eq("id", claim.id);
@@ -423,11 +425,18 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
       tableName: "claim_records",
       recordId: claim.id,
       oldData: { status: "denied", resubmission_count: claim.resubmission_count },
-      newData: { status: "needs_correction", resubmission_count: (claim.resubmission_count ?? 0) + 1 },
+      newData: { status: "ready_to_bill", resubmission_count: (claim.resubmission_count ?? 0) + 1 },
       notes: `Denial recovery resubmission: ${correctionNotes}`,
     });
 
-    toast.success("Claim marked ready for resubmission");
+    toast.success(
+      "Claim is ready to resubmit — send it from the Ready to Bill tab.",
+      {
+        description: changesCount > 0
+          ? `${changesCount} field${changesCount === 1 ? "" : "s"} corrected.`
+          : undefined,
+      },
+    );
     setSaving(false);
     onOpenChange(false);
     onComplete();
