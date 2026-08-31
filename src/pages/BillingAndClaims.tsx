@@ -96,7 +96,13 @@ import { EmergencyEventPanel } from "@/components/billing/EmergencyEventPanel";
 import { queueClaimsForSubmission } from "@/lib/queue-claims-for-submission";
 import { PreSubmitChecklist } from "@/components/billing/PreSubmitChecklist";
 
-type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction" | "needs_review";
+import {
+  type ClaimStatus,
+  type ClaimTab,
+  tabForStatus,
+  subLabelForStatus,
+  MANUALLY_SETTABLE_STATUSES,
+} from "@/lib/claim-status-tabs";
 
 interface ClaimRecord {
   id: string;
