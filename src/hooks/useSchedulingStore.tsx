@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { getLocalToday } from "@/lib/local-date";
 
 /* ── Shared types ── */
@@ -245,9 +246,11 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   }, [selectedDate]);
 
   const fetchOptions = useCallback(async () => {
+    // Creators have cross-tenant read on trucks; scope explicitly to the active company.
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const [{ data: p }, { data: t }] = await Promise.all([
       supabase.from("patients").select("id, first_name, last_name, weight_lbs, status, pickup_address, dropoff_facility, chair_time, run_duration_minutes, schedule_days, notes, transport_type, recurrence_start_date, recurrence_end_date, recurrence_days, chair_time_duration_hours, chair_time_duration_minutes, location_type").order("last_name"),
-      supabase.from("trucks").select("id, name").eq("active", true).order("name"),
+      supabase.from("trucks").select("id, name").eq("company_id", scopedCompanyId).eq("active", true).order("name"),
     ]);
     setPatients((p ?? []).map((x: any) => ({
       id: x.id,

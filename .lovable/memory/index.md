@@ -107,3 +107,4 @@ Before claiming "done" on anything with buttons or edge functions: click-test in
 - [Per-Page Product Tour](mem://features/per-page-product-tour) — Role-scoped first-visit guided tour per (user_id, page_key), replayable from Account Settings
 - [Notification Center](mem://features/notification-center) — Unified bell in all layouts replacing sidebar badges, per-user read state, Owner digest mode, creator announcement composer
 - [NEMSIS/GEMSIS Alignment Phase 1](mem://features/nemsis-alignment-phase-1) — NEMSIS v3.5.1 code sets library, transport_category enum, coded-value persistence pattern for adaptive PCR
+- [Creator Cross-Tenant Truck Reads](mem://security/creator-cross-tenant-truck-reads) — Tenant-facing truck queries must filter company_id; creator RLS reads all tenants
