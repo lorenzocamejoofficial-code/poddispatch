@@ -1550,10 +1550,10 @@ export default function BillingAndClaims() {
               const filteredAll = baseList.filter(c => !hideTestClaims || !c.is_test_submission);
               const counts: Record<string, number> = {};
               CLAIM_COLUMNS.forEach(col => {
-                counts[col.status] = filteredAll.filter(c => c.status === col.status).length;
+                counts[col.status] = filteredAll.filter(c => tabForStatus(c.status) === col.status).length;
               });
               const activeCol = CLAIM_COLUMNS.find(c => c.status === statusTab) ?? CLAIM_COLUMNS[0];
-              const colClaims = filteredAll.filter(c => c.status === activeCol.status);
+              const colClaims = filteredAll.filter(c => tabForStatus(c.status) === activeCol.status);
               const totalPages = Math.max(1, Math.ceil(colClaims.length / STATUS_PAGE_SIZE));
               const safePage = Math.min(Math.max(1, statusPage), totalPages);
               const start = (safePage - 1) * STATUS_PAGE_SIZE;
