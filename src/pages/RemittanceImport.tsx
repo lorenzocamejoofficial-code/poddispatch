@@ -285,14 +285,17 @@ export default function RemittanceImport() {
       // 2) Insert payment events — the recompute trigger derives claim_records fields.
       for (const item of toUpdate) {
         const rem = item.remittance;
-        const co45 = extractCO45WriteOff(rem.adjustment_groups);
-        const primaryDenial = getPrimaryDenialCode(rem.adjustment_groups);
-        const adjustmentCodes = rem.raw_denial_codes;
-        const rawPrAmount = rem.adjustment_groups
-          .filter((a) => a.group_code === "PR")
-          .reduce((sum, a) => sum + a.amount, 0);
-        const prCap = capPatientResponsibility(rawPrAmount, item.primaryPayer, item.secondaryPayer);
-        const prAmount = prCap.capped;
+        // Shared builder — identical row shape as the automated Office Ally pull.
+        const { row, prCap } = buildClaimPaymentRow(rem, {
+          claimRecordId: item.matchedClaimId!,
+          companyId: companyId!,
+          remittanceFileId,
+          primaryPayer: item.primaryPayer,
+          secondaryPayer: item.secondaryPayer,
+          envelopePaymentDate: envelope?.payment_date ?? null,
+          isSimulated: isSimTenant,
+        });
+        const prAmount = row.patient_responsibility;
         if (prCap.wasCapped) {
           await logAuditEvent({
             action: "edit",
@@ -303,36 +306,11 @@ export default function RemittanceImport() {
             notes: `PR auto-capped on 835 import: ${prCap.reason}`,
           });
         }
-        const eventType = mapToEventType(rem.claim_status_code);
-        const translation = primaryDenial
-          ? getDenialTranslation(primaryDenial.code)
-          : null;
-        const denialReason =
-          primaryDenial && (eventType === "adjustment" || rem.claim_status_code === "4" ||
-                            rem.claim_status_code === "11" || rem.claim_status_code === "23")
-            ? translation?.plain_english_explanation ?? primaryDenial.code
-            : null;
 
         const { error: payErr } = await supabase
           .from("claim_payments" as any)
-          .insert({
-            claim_record_id: item.matchedClaimId,
-            company_id: companyId,
-            event_type: eventType,
-            clp_status_code: rem.claim_status_code,
-            amount: rem.paid_amount, // already signed (negative for reversals)
-            patient_responsibility: prAmount,
-            write_off: co45,
-            allowed_amount: rem.charged_amount - co45,
-            denial_code: primaryDenial?.code ?? null,
-            denial_reason: denialReason,
-            adjustment_codes: adjustmentCodes,
-            cas_adjustments: rem.adjustment_groups,
-            payer_claim_control_number: rem.payer_claim_control_number || null,
-            remittance_file_id: remittanceFileId,
-            payment_date: rem.payment_date || envelope?.payment_date || null,
-            is_simulated: isSimTenant,
-          } as any);
+          .insert(row as any);
+
 
         if (!payErr) {
           updated++;
