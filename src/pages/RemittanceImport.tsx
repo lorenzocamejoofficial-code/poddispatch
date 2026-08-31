@@ -98,35 +98,16 @@ export default function RemittanceImport() {
       patientsList.forEach((p) => { if (p.member_id) memberToPatient.set(p.member_id.trim().toUpperCase(), p); });
 
       const matched: MatchedItem[] = parsed.map((rem) => {
-        const errors: string[] = [];
-        let matchedClaimId: string | null = null;
-        let matchedPatientId: string | null = null;
         let hasSecondaryPayer = false;
         let hasTertiaryPayer = false;
         let primaryPayer: string | null = null;
         let secondaryPayer: string | null = null;
-        const pcn = parsePatientControlNumber(rem.patient_control_number);
-        if (pcn) {
-          const candidate = claimsList.find((c: any) => {
-            const cId = (c.id || "").replace(/-/g, "").slice(0, 8).toLowerCase();
-            return cId === pcn.idPrefix;
-          });
-          if (candidate) { matchedClaimId = candidate.id; matchedPatientId = candidate.patient_id; }
-        }
-        if (!matchedClaimId) {
-          const remMemberId = rem.patient_member_id?.trim().toUpperCase();
-          const remDate = rem.date_of_service;
-          if (remMemberId && remDate) {
-            const cand = claimsList.filter((c: any) => (c.member_id || "").trim().toUpperCase() === remMemberId && c.run_date === remDate);
-            if (cand.length === 1) { matchedClaimId = cand[0].id; matchedPatientId = cand[0].patient_id; }
-            else if (cand.length > 1) {
-              const exact = cand.find((c: any) => Math.abs((c.total_charge || 0) - rem.charged_amount) < 0.01);
-              if (exact) { matchedClaimId = exact.id; matchedPatientId = exact.patient_id; }
-              else { matchedClaimId = cand[0].id; matchedPatientId = cand[0].patient_id; errors.push("Multiple claims matched — used first"); }
-            }
-          }
-        }
-        if (!matchedClaimId) errors.push("No matching claim found");
+        // Shared matcher — identical ladder used by the automated Office Ally pull.
+        const m = matchRemittanceClaim(rem, claimsList as any);
+        const matchedClaimId = m.matchedClaimId;
+        const matchedPatientId = m.matchedPatientId;
+        const errors: string[] = [...m.errors];
+
         if (matchedClaimId) {
           const cm = claimsList.find((c: any) => c.id === matchedClaimId);
           if (cm) primaryPayer = (cm.payer_type ?? cm.payer_name ?? null) as string | null;
