@@ -826,6 +826,62 @@ export default function BillingAndClaims() {
     fetchData();
   };
 
+  /**
+   * Auto-promotion pass — runs silently on page load.
+   *
+   * The claim-creation trigger is deliberately pessimistic: every new claim is
+   * born `needs_review` because the database cannot evaluate the readiness
+   * rules in claim-readiness.ts without duplicating them. This pass is the ONLY
+   * promoter: it re-runs the same TypeScript gate `buildClaimFromTrip` uses and
+   * moves a claim to `ready_to_bill` only when it comes back provably clean.
+   *
+   * It is strictly one-directional. It reads ONLY `needs_review` claims and
+   * only ever writes `ready_to_bill`, so it can never demote a submitted, paid,
+   * denied or already-ready claim. It writes the `status` field alone — no
+   * pricing, codes or notes are touched here.
+   */
+  const autoPromotedRef = useRef<Set<string>>(new Set());
+
+  const autoPromoteNeedsReview = useCallback(async () => {
+    if (chargeMaster.length === 0) return;
+
+    const candidates = claims.filter(
+      c => c.status === "needs_review" && c.trip_id && !autoPromotedRef.current.has(c.id),
+    );
+    if (candidates.length === 0) return;
+    for (const c of candidates) autoPromotedRef.current.add(c.id);
+
+    const { data: trips } = await supabase
+      .from("trip_records" as any)
+      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_utn, pickup_address), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen, oneoff_pickup_address)")
+      .in("id", candidates.map(c => c.trip_id));
+
+    if (!trips?.length) return;
+    const tripMap = new Map((trips as any[]).map((t: any) => [t.id, t]));
+
+    const promoteIds: string[] = [];
+    for (const c of candidates) {
+      const t = tripMap.get(c.trip_id);
+      if (!t) continue;
+      const { gateResult, addressIssue } = buildClaimFromTrip(t);
+      if (gateResult.level === "clean" && !addressIssue) promoteIds.push(c.id);
+    }
+
+    if (promoteIds.length === 0) return;
+
+    const { error } = await supabase
+      .from("claim_records" as any)
+      .update({ status: "ready_to_bill" } as any)
+      .in("id", promoteIds)
+      .eq("status", "needs_review"); // belt-and-braces: never touch another bucket
+
+    if (!error) fetchData();
+  }, [claims, chargeMaster, payerRulesMap, fetchData]);
+
+  useEffect(() => { autoPromoteNeedsReview(); }, [autoPromoteNeedsReview]);
+
+
+
   const syncClaimsFromTrips = async () => {
     const { data: trips } = await supabase
       .from("trip_records" as any)
