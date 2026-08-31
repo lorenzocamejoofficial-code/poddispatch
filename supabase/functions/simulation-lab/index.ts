@@ -1916,9 +1916,55 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     else counts.paid_short++;
   }
 
+  // ── Bucket 6: 3 needs-review claims with real, visible data gaps ─────────
+  // Demo data by design, but the gaps are genuine so the render-time blocker
+  // badge has something true to show and the Needs Review tab is populated.
+  const reviewSlice = pool.slice(21, 24);
+  const reviewConfigs = [
+    { member_id: null, notes: "Sim: missing member ID" },
+    { icd10_codes: [], notes: "Sim: missing ICD-10 from PCR" },
+    { origin_address: null, origin_zip: null, notes: "Sim: incomplete pickup address" },
+  ];
+  for (let i = 0; i < reviewSlice.length && i < reviewConfigs.length; i++) {
+    const c = reviewSlice[i];
+    const { error } = await admin.from("claim_records").update({
+      status: "needs_review",
+      submitted_at: null,
+      paid_at: null,
+      is_simulated: false,
+      is_test_submission: false,
+      simulation_run_id: runId,
+      ...reviewConfigs[i],
+    }).eq("id", c.id);
+    if (error) { counts.errors++; errorLog.push(`needs_review[${i}]: ${error.message}`); }
+    else counts.needs_review++;
+  }
+
+  // ── Bucket 7: 2 needs-correction claims (clearinghouse ack rejections) ───
+  // Mirrors exactly what ingest-acks-officeally writes on a 999/277CA reject.
+  const correctionSlice = pool.slice(24, 26);
+  const correctionConfigs = [
+    { acknowledgment_status: "rejected_999", rejection_reason: "Sim: segment CLM missing required element" },
+    { acknowledgment_status: "rejected_277ca", rejection_reason: "Sim: subscriber not found at payer" },
+  ];
+  for (let i = 0; i < correctionSlice.length && i < correctionConfigs.length; i++) {
+    const c = correctionSlice[i];
+    const { error } = await admin.from("claim_records").update({
+      status: "needs_correction",
+      submitted_at: isoMinus(9),
+      paid_at: null,
+      is_simulated: false,
+      is_test_submission: false,
+      simulation_run_id: runId,
+      ...correctionConfigs[i],
+    }).eq("id", c.id);
+    if (error) { counts.errors++; errorLog.push(`needs_correction[${i}]: ${error.message}`); }
+    else counts.needs_correction++;
+  }
+
   const transformed =
     counts.denied + counts.paid_with_secondary + counts.aging + counts.timely_filing +
-    counts.paid_short;
+    counts.paid_short + counts.needs_review + counts.needs_correction;
 
   return {
     ok: counts.errors === 0,
@@ -1932,7 +1978,8 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
       `Transformed ${transformed} claims: ${counts.denied} denials, ` +
       `${counts.paid_with_secondary} paid w/ secondary opportunity, ` +
       `${counts.aging} aging-submitted, ${counts.timely_filing} timely-filing, ` +
-      `${counts.paid_short} paid short.`,
+      `${counts.paid_short} paid short, ${counts.needs_review} needs-review, ` +
+      `${counts.needs_correction} needs-correction.`,
   };
 }
 
