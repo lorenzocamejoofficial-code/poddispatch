@@ -14,16 +14,14 @@ import {
   parseEDI835Envelope,
   isValid835,
   mapClaimStatus,
-  extractCO45WriteOff,
-  getPrimaryDenialCode,
-  parsePatientControlNumber,
-  mapToEventType,
   type ParsedRemittance,
   type ParsedRemittanceItem,
 } from "@/lib/edi-835-parser";
+import { matchRemittanceClaim } from "@/lib/remittance-match";
+import { buildClaimPaymentRow } from "@/lib/remittance-post";
 import { getDenialTranslation } from "@/lib/denial-code-translations";
 import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
-import { capPatientResponsibility } from "@/lib/payer-compliance";
+
 
 interface MatchedItem {
   remittance: ParsedRemittanceItem;
@@ -86,7 +84,7 @@ export default function RemittanceImport() {
       }
       const { data: claims } = await supabase
         .from("claim_records" as any)
-        .select("id, member_id, run_date, patient_id, status, hcpcs_codes, payer_type, payer_name, original_claim_id, total_charge")
+        .select("id, member_id, run_date, patient_id, status, hcpcs_codes, payer_type, payer_name, original_claim_id, total_charge, payer_claim_control_number")
         .in("status", ["submitted", "ready_to_bill", "needs_correction", "needs_review"]);
       const { data: patients } = await supabase
         .from("patients")
@@ -98,35 +96,16 @@ export default function RemittanceImport() {
       patientsList.forEach((p) => { if (p.member_id) memberToPatient.set(p.member_id.trim().toUpperCase(), p); });
 
       const matched: MatchedItem[] = parsed.map((rem) => {
-        const errors: string[] = [];
-        let matchedClaimId: string | null = null;
-        let matchedPatientId: string | null = null;
         let hasSecondaryPayer = false;
         let hasTertiaryPayer = false;
         let primaryPayer: string | null = null;
         let secondaryPayer: string | null = null;
-        const pcn = parsePatientControlNumber(rem.patient_control_number);
-        if (pcn) {
-          const candidate = claimsList.find((c: any) => {
-            const cId = (c.id || "").replace(/-/g, "").slice(0, 8).toLowerCase();
-            return cId === pcn.idPrefix;
-          });
-          if (candidate) { matchedClaimId = candidate.id; matchedPatientId = candidate.patient_id; }
-        }
-        if (!matchedClaimId) {
-          const remMemberId = rem.patient_member_id?.trim().toUpperCase();
-          const remDate = rem.date_of_service;
-          if (remMemberId && remDate) {
-            const cand = claimsList.filter((c: any) => (c.member_id || "").trim().toUpperCase() === remMemberId && c.run_date === remDate);
-            if (cand.length === 1) { matchedClaimId = cand[0].id; matchedPatientId = cand[0].patient_id; }
-            else if (cand.length > 1) {
-              const exact = cand.find((c: any) => Math.abs((c.total_charge || 0) - rem.charged_amount) < 0.01);
-              if (exact) { matchedClaimId = exact.id; matchedPatientId = exact.patient_id; }
-              else { matchedClaimId = cand[0].id; matchedPatientId = cand[0].patient_id; errors.push("Multiple claims matched — used first"); }
-            }
-          }
-        }
-        if (!matchedClaimId) errors.push("No matching claim found");
+        // Shared matcher — identical ladder used by the automated Office Ally pull.
+        const m = matchRemittanceClaim(rem, claimsList as any);
+        const matchedClaimId = m.matchedClaimId;
+        const matchedPatientId = m.matchedPatientId;
+        const errors: string[] = [...m.errors];
+
         if (matchedClaimId) {
           const cm = claimsList.find((c: any) => c.id === matchedClaimId);
           if (cm) primaryPayer = (cm.payer_type ?? cm.payer_name ?? null) as string | null;
@@ -304,14 +283,17 @@ export default function RemittanceImport() {
       // 2) Insert payment events — the recompute trigger derives claim_records fields.
       for (const item of toUpdate) {
         const rem = item.remittance;
-        const co45 = extractCO45WriteOff(rem.adjustment_groups);
-        const primaryDenial = getPrimaryDenialCode(rem.adjustment_groups);
-        const adjustmentCodes = rem.raw_denial_codes;
-        const rawPrAmount = rem.adjustment_groups
-          .filter((a) => a.group_code === "PR")
-          .reduce((sum, a) => sum + a.amount, 0);
-        const prCap = capPatientResponsibility(rawPrAmount, item.primaryPayer, item.secondaryPayer);
-        const prAmount = prCap.capped;
+        // Shared builder — identical row shape as the automated Office Ally pull.
+        const { row, prCap } = buildClaimPaymentRow(rem, {
+          claimRecordId: item.matchedClaimId!,
+          companyId: companyId!,
+          remittanceFileId,
+          primaryPayer: item.primaryPayer,
+          secondaryPayer: item.secondaryPayer,
+          envelopePaymentDate: envelope?.payment_date ?? null,
+          isSimulated: isSimTenant,
+        });
+        const prAmount = row.patient_responsibility;
         if (prCap.wasCapped) {
           await logAuditEvent({
             action: "edit",
@@ -322,36 +304,11 @@ export default function RemittanceImport() {
             notes: `PR auto-capped on 835 import: ${prCap.reason}`,
           });
         }
-        const eventType = mapToEventType(rem.claim_status_code);
-        const translation = primaryDenial
-          ? getDenialTranslation(primaryDenial.code)
-          : null;
-        const denialReason =
-          primaryDenial && (eventType === "adjustment" || rem.claim_status_code === "4" ||
-                            rem.claim_status_code === "11" || rem.claim_status_code === "23")
-            ? translation?.plain_english_explanation ?? primaryDenial.code
-            : null;
 
         const { error: payErr } = await supabase
           .from("claim_payments" as any)
-          .insert({
-            claim_record_id: item.matchedClaimId,
-            company_id: companyId,
-            event_type: eventType,
-            clp_status_code: rem.claim_status_code,
-            amount: rem.paid_amount, // already signed (negative for reversals)
-            patient_responsibility: prAmount,
-            write_off: co45,
-            allowed_amount: rem.charged_amount - co45,
-            denial_code: primaryDenial?.code ?? null,
-            denial_reason: denialReason,
-            adjustment_codes: adjustmentCodes,
-            cas_adjustments: rem.adjustment_groups,
-            payer_claim_control_number: rem.payer_claim_control_number || null,
-            remittance_file_id: remittanceFileId,
-            payment_date: rem.payment_date || envelope?.payment_date || null,
-            is_simulated: isSimTenant,
-          } as any);
+          .insert(row as any);
+
 
         if (!payErr) {
           updated++;

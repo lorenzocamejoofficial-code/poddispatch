@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { parseEDI835Envelope } from "../_shared/edi-835-parser.ts";
+import { matchRemittanceClaim } from "../_shared/remittance-match.ts";
+import { buildClaimPaymentRow } from "../_shared/remittance-post.ts";
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -180,63 +184,69 @@ Deno.serve(async (req) => {
 
               const ediContent = await fileResponse.text();
 
-              // Parse 835 content — inline minimal parser for edge function context.
-              // We extract: file-level Billing Provider NPI (NM1*85 before any CLP),
-              // then for each CLP we capture the claim reference, payer control #,
-              // amounts, status, and any per-claim NM1*85 override.
-              const segments = ediContent.split("~").map(s => s.replace(/[\r\n]/g, "").trim()).filter(Boolean);
+              // Full 835 parse using the SAME parser the manual upload uses
+              // (src/lib/edi-835-parser.ts, mirrored into _shared by
+              // scripts/sync-billing-to-edge.sh). CAS → CARC/RARC, SVC lines,
+              // and PLB provider-level adjustments are all captured.
+              const envelope = parseEDI835Envelope(ediContent);
+              const parsedClaims = envelope.claims;
 
-              // Look up the importing company's billing NPI (the company whose creds we used)
+              // Importing company: billing NPI + simulation flags (server-derived,
+              // never client input — guard_simulated_payment rejects is_simulated
+              // on a real tenant).
               const { data: importingCompany } = await supabase
                 .from("companies")
-                .select("npi_number, name")
+                .select("id, name, npi_number, creator_test_tenant, is_sandbox")
                 .eq("id", settings.company_id)
                 .maybeSingle();
               const importingNpi = (importingCompany?.npi_number ?? "").trim();
+              const isSimTenant = Boolean(
+                (importingCompany as any)?.creator_test_tenant || (importingCompany as any)?.is_sandbox
+              );
 
-              type ParsedClp = {
-                pcn: string;
-                payerControlNum: string;
-                statusCode: string;
-                paidAmount: number;
-                patientResp: number;
-                billingNpi: string;
-                rawSegment: string;
-              };
-
-              let fileLevelBillingNpi = "";
-              const claims: ParsedClp[] = [];
-              let current: ParsedClp | null = null;
-
-              for (const seg of segments) {
-                const els = seg.split("*");
-                const tag = els[0];
-                if (tag === "NM1" && els[1] === "85") {
-                  const npi = (els[9] ?? "").trim();
-                  if (current) current.billingNpi = npi;
-                  else fileLevelBillingNpi = npi;
-                } else if (tag === "CLP") {
-                  if (current) claims.push(current);
-                  current = {
-                    pcn: els[1] ?? "",
-                    payerControlNum: els[7] ?? "",
-                    statusCode: els[2] ?? "",
-                    paidAmount: parseFloat(els[4] ?? "0") || 0,
-                    patientResp: parseFloat(els[5] ?? "0") || 0,
-                    billingNpi: fileLevelBillingNpi,
-                    rawSegment: seg,
-                  };
-                }
-              }
-              if (current) claims.push(current);
+              // Candidate claims for this company — same status window the manual
+              // upload uses, so both paths match against the same population.
+              const { data: candidateClaims } = await supabase
+                .from("claim_records")
+                .select("id, member_id, run_date, patient_id, total_charge, payer_type, payer_name, payer_claim_control_number")
+                .eq("company_id", settings.company_id)
+                .in("status", ["submitted", "ready_to_bill", "needs_correction", "needs_review"]);
+              const claimsList = (candidateClaims ?? []) as any[];
 
               let claimsMatched = 0;
               let claimsUpdated = 0;
               let totalPaid = 0;
               let claimsQuarantined = 0;
 
-              for (const c of claims) {
-                const { pcn, payerControlNum, statusCode, paidAmount, patientResp, billingNpi, rawSegment } = c;
+              // Create the remittance_files row first so claim_payments / PLB rows
+              // can reference it. Counters are finalized at the end.
+              const sumPlb = envelope.plb_adjustments.reduce((s, p) => s + p.amount, 0);
+              const { data: insertedFile } = await supabase.from("remittance_files" as any).insert({
+                company_id: settings.company_id,
+                file_identifier: fileId,
+                file_name: file.fileName ?? fileId,
+                file_content: ediContent,
+                imported_at: new Date().toISOString(),
+                claims_matched: 0,
+                claims_updated: 0,
+                total_paid: 0,
+                status: "processing",
+                bpr_total_paid: envelope.bpr_total_paid,
+                payment_date: envelope.payment_date || null,
+                payer_name: envelope.payer_name || null,
+                eft_trace_number: envelope.eft_trace_number || null,
+                is_simulated: isSimTenant,
+              }).select("id").maybeSingle();
+              const remittanceFileId = (insertedFile as any)?.id ?? null;
+
+              for (const rem of parsedClaims) {
+                const pcn = rem.patient_control_number;
+                const payerControlNum = rem.payer_claim_control_number;
+                const statusCode = rem.claim_status_code;
+                const paidAmount = rem.paid_amount;
+                const patientResp = rem.patient_responsibility;
+                const billingNpi = (rem.billing_provider_npi ?? "").trim();
+                const rawSegment = `CLP*${pcn}*${statusCode}*${rem.charged_amount}*${paidAmount}*${patientResp}**${payerControlNum}`;
 
                 // ===== NPI verification gate =====
                 // If the 835 carries a Billing NPI and we know the importing company's NPI,
@@ -257,6 +267,7 @@ Deno.serve(async (req) => {
                   await supabase.from("remittance_quarantine").insert({
                     importing_company_id: settings.company_id,
                     matched_company_id: trueOwner?.id ?? null,
+                    remittance_file_id: remittanceFileId,
                     patient_control_number: pcn,
                     payer_claim_control_number: payerControlNum,
                     billing_npi_in_file: billingNpi,
@@ -275,122 +286,124 @@ Deno.serve(async (req) => {
                   continue; // do not post
                 }
 
-                // Try to match claim by payer_claim_control_number
-                if (payerControlNum) {
-                  const { data: matchedClaims } = await supabase
-                    .from("claim_records")
-                    .select("id, company_id, patient_id, payer_type, payer_name")
-                    .eq("company_id", settings.company_id)
-                    .eq("payer_claim_control_number", payerControlNum)
-                    .limit(1);
+                // Shared matcher — identical precedence ladder as the manual upload.
+                const match = matchRemittanceClaim(rem as any, claimsList);
 
-                  if (matchedClaims?.length) {
-                    claimsMatched++;
-                    // Cap patient_responsibility for Medicaid primary and dual-eligible.
-                    // 42 CFR §447.15 — Medicaid payment is payment in full.
-                    const mc: any = matchedClaims[0];
-                    let cappedPatientResp = patientResp;
-                    let prCapReason: string | null = null;
-                    const primary = String(mc.payer_type ?? mc.payer_name ?? "").toLowerCase();
-                    let secondary = "";
-                    if (mc.patient_id) {
-                      const { data: pat } = await supabase
-                        .from("patients")
-                        .select("secondary_payer")
-                        .eq("id", mc.patient_id)
-                        .maybeSingle();
-                      secondary = String(pat?.secondary_payer ?? "").toLowerCase();
-                    }
-                    if (patientResp > 0 && primary.includes("medicaid")) {
-                      cappedPatientResp = 0;
-                      prCapReason = "Medicaid primary — 42 CFR §447.15";
-                    } else if (patientResp > 0 && primary.includes("medicare") && secondary.includes("medicaid")) {
-                      cappedPatientResp = 0;
-                      prCapReason = "Dual-eligible — secondary Medicaid absorbs balance";
-                    }
-                    const newStatus = (statusCode === "1" || statusCode === "19") ? "paid" :
-                                      (statusCode === "3" || statusCode === "4") ? "denied" : "needs_correction";
+                if (!match.matchedClaimId) {
+                  // No matching claim under this company — quarantine for review.
+                  // Could be: stale control #, claim under a different company, or test data.
+                  await supabase.from("remittance_quarantine").insert({
+                    importing_company_id: settings.company_id,
+                    matched_company_id: null,
+                    remittance_file_id: remittanceFileId,
+                    patient_control_number: pcn,
+                    payer_claim_control_number: payerControlNum,
+                    billing_npi_in_file: billingNpi,
+                    expected_billing_npi: importingNpi,
+                    paid_amount: paidAmount,
+                    patient_responsibility: patientResp,
+                    claim_status_code: statusCode,
+                    file_name: file.fileName ?? fileId,
+                    raw_clp_segment: rawSegment,
+                    quarantine_reason: payerControlNum
+                      ? `No matching claim found under importing company for payer control number ${payerControlNum}`
+                      : `No matching claim found under importing company for patient control number ${pcn}`,
+                    status: "pending_review",
+                  });
+                  claimsQuarantined++;
+                  continue;
+                }
 
-                    const { error: upErr } = await supabase
-                      .from("claim_records")
-                      .update({
-                        amount_paid: paidAmount,
-                        patient_responsibility_amount: cappedPatientResp,
-                        status: newStatus,
-                        paid_at: paidAmount > 0 ? new Date().toISOString() : null,
-                        remittance_date: new Date().toISOString().split("T")[0],
-                        payer_claim_control_number: payerControlNum,
-                      })
-                      .eq("id", matchedClaims[0].id);
-                    if (!upErr) {
-                      claimsUpdated++;
-                      totalPaid += paidAmount;
-                      if (prCapReason) {
-                        try {
-                          await supabase.from("audit_logs").insert({
-                            company_id: settings.company_id,
-                            action: "edit",
-                            table_name: "claim_records",
-                            record_id: matchedClaims[0].id,
-                            old_data: { patient_responsibility_amount: patientResp },
-                            new_data: { patient_responsibility_amount: 0, capped: true },
-                            notes: `PR auto-capped on Office Ally 835 retrieval: ${prCapReason}`,
-                          });
-                        } catch (_) { /* best-effort */ }
-                      }
-                    }
-                  } else {
-                    // No matching claim under this company — quarantine for review.
-                    // Could be: stale control #, claim under a different company, or test data.
-                    await supabase.from("remittance_quarantine").insert({
-                      importing_company_id: settings.company_id,
-                      matched_company_id: null,
-                      patient_control_number: pcn,
-                      payer_claim_control_number: payerControlNum,
-                      billing_npi_in_file: billingNpi,
-                      expected_billing_npi: importingNpi,
-                      paid_amount: paidAmount,
-                      patient_responsibility: patientResp,
-                      claim_status_code: statusCode,
-                      file_name: file.fileName ?? fileId,
-                      raw_clp_segment: rawSegment,
-                      quarantine_reason: `No matching claim found under importing company for payer control number ${payerControlNum}`,
-                      status: "pending_review",
-                    });
-                    claimsQuarantined++;
+                claimsMatched++;
+                const matchedClaim = claimsList.find((c) => c.id === match.matchedClaimId);
+                const primaryPayer = (matchedClaim?.payer_type ?? matchedClaim?.payer_name ?? null) as string | null;
+                let secondaryPayer: string | null = null;
+                if (match.matchedPatientId) {
+                  const { data: pat } = await supabase
+                    .from("patients")
+                    .select("secondary_payer")
+                    .eq("id", match.matchedPatientId)
+                    .maybeSingle();
+                  secondaryPayer = (pat?.secondary_payer ?? null) as string | null;
+                }
+
+                // Shared row builder — identical shape as the manual upload.
+                // recompute_claim_from_payments derives every claim_records field
+                // from this ledger row; we never write claim_records.status here.
+                const { row, prCap } = buildClaimPaymentRow(rem as any, {
+                  claimRecordId: match.matchedClaimId,
+                  companyId: settings.company_id,
+                  remittanceFileId,
+                  primaryPayer,
+                  secondaryPayer,
+                  envelopePaymentDate: envelope.payment_date || null,
+                  isSimulated: isSimTenant,
+                });
+
+                const { error: payErr } = await supabase
+                  .from("claim_payments" as any)
+                  .insert(row as any);
+
+                if (!payErr) {
+                  claimsUpdated++;
+                  totalPaid += rem.paid_amount;
+                  if (prCap.wasCapped) {
+                    try {
+                      await supabase.from("audit_logs").insert({
+                        company_id: settings.company_id,
+                        action: "edit",
+                        table_name: "claim_records",
+                        record_id: match.matchedClaimId,
+                        old_data: { patient_responsibility: prCap.original },
+                        new_data: { patient_responsibility: 0, capped: true },
+                        notes: `PR auto-capped on Office Ally 835 retrieval: ${prCap.reason}`,
+                      });
+                    } catch (_) { /* best-effort */ }
                   }
                 }
               }
 
-              // Record the imported file
-              const fileStatus = claims.length === 0
+              // Provider-level adjustments (PLB) — same capture as the manual upload.
+              if (remittanceFileId && envelope.plb_adjustments.length > 0) {
+                await supabase.from("plb_adjustments" as any).insert(
+                  envelope.plb_adjustments.map((p) => ({
+                    remittance_file_id: remittanceFileId,
+                    company_id: settings.company_id,
+                    provider_npi: p.provider_npi || null,
+                    fiscal_period: p.fiscal_period || null,
+                    reason_code: p.reason_code,
+                    reference_id: p.reference_id || null,
+                    amount: p.amount,
+                    is_simulated: isSimTenant,
+                  })) as any
+                );
+              }
+
+              // Finalize the imported file record
+              const variance = Number(
+                (envelope.bpr_total_paid - (totalPaid + sumPlb)).toFixed(2)
+              );
+              const fileStatus = parsedClaims.length === 0
                 ? "no_claims"
                 : claimsQuarantined > 0 && claimsMatched === 0
                   ? "quarantined"
                   : claimsMatched === 0
                     ? "unmatched"
                     : "imported";
-              const { data: insertedFile } = await supabase.from("remittance_files" as any).insert({
-                company_id: settings.company_id,
-                file_identifier: fileId,
-                file_name: file.fileName ?? fileId,
-                file_content: ediContent,
-                imported_at: new Date().toISOString(),
-                claims_matched: claimsMatched,
-                claims_updated: claimsUpdated,
-                total_paid: totalPaid,
-                status: fileStatus,
-              }).select("id").maybeSingle();
-
-              // Back-fill remittance_file_id on the just-created quarantine rows for this file
-              if (insertedFile?.id && claimsQuarantined > 0) {
+              if (remittanceFileId) {
                 await supabase
-                  .from("remittance_quarantine")
-                  .update({ remittance_file_id: insertedFile.id })
-                  .eq("file_name", file.fileName ?? fileId)
-                  .eq("importing_company_id", settings.company_id)
-                  .is("remittance_file_id", null);
+                  .from("remittance_files" as any)
+                  .update({
+                    claims_matched: claimsMatched,
+                    claims_updated: claimsUpdated,
+                    total_paid: totalPaid,
+                    status: fileStatus,
+                    reconciled: Math.abs(variance) < 0.01,
+                    reconciliation_variance: variance,
+                  })
+                  .eq("id", remittanceFileId);
               }
+
 
               totalReceived++;
             }
