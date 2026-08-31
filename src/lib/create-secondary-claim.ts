@@ -131,7 +131,10 @@ export async function createDownstreamClaim(
     pcs_diagnosis: p.pcs_diagnosis,
     auth_number: p.auth_number,
     is_simulated: p.is_simulated,
-    status: "ready_to_bill" as const,
+    // Born pessimistic, same as the creation trigger. The secondary inherits
+    // the primary's data but carries its own payer/member-ID exposure, so the
+    // TypeScript readiness gate promotes it to ready_to_bill once it is clean.
+    status: "needs_review" as const,
     resubmission_count: 0,
   };
 
