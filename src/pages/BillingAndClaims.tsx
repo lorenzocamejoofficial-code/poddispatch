@@ -101,7 +101,6 @@ import {
   type ClaimTab,
   tabForStatus,
   subLabelForStatus,
-  MANUALLY_SETTABLE_STATUSES,
 } from "@/lib/claim-status-tabs";
 
 interface ClaimRecord {
