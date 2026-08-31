@@ -1699,6 +1699,15 @@ export default function BillingAndClaims() {
                             </div>
                           </div>
                           <p className="text-[10px] text-muted-foreground">{claim.run_date}</p>
+                          {/* Sub-label for statuses folded into another tab
+                              (pending/forwarded → Submitted, reversal →
+                              Needs Correction, blocked_payer_mapping →
+                              Needs Review) so nothing is silently reclassified. */}
+                          {subLabelForStatus(claim.status) && (
+                            <Badge variant="outline" className="mt-1 text-[9px] px-1 py-0">
+                              {subLabelForStatus(claim.status)}
+                            </Badge>
+                          )}
                           {claim.hcpcs_codes?.length ? (
                             <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{claim.hcpcs_codes.join(", ")}</p>
                           ) : null}
