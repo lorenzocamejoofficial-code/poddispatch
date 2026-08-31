@@ -17,6 +17,18 @@ using `getActiveCompanyId()` from `src/lib/company-scope.ts` (falls back to
 **Why:** Do not narrow the creator policy — SystemCreatorDashboard's truck count
 across real tenants depends on it.
 
-**Scoped surfaces:** DispatchBoard, useSchedulingStore (Scheduling/run pages),
-TrucksCrews (already scoped), VehicleInspectionsTab, OwnerDashboard,
-ReportsAndMetrics.
+**Scope is NOT limited to trucks.** ~55 public-table policies use
+`is_system_creator()`/`is_owner_or_creator()` with no company predicate, incl.
+trip_records, claim_records, safety_overrides, billing_overrides, hold_timers,
+facilities, biller_tasks, qa_reviews, claim_creation_failures, comms_events,
+crew_certifications, operational_alerts.
+
+**Scoped surfaces:** DispatchBoard (trucks, safety_overrides, hold_timers),
+useSchedulingStore, TrucksCrews (trucks, crew_certifications),
+VehicleInspectionsTab, OwnerDashboard (trucks, claim_records, trip_records),
+ReportsAndMetrics, TruckBuilder, CrewScheduleAdmin, FacilitySelect,
+CommunicationsSection, usePCRData, useSidebarBadges (all badge counts),
+BillerTaskQueue.
+
+Creator-only surfaces (SystemCreatorDashboard, CreatorConsole,
+CreatorCompanyDetail, src/components/creator/**) stay unscoped by design.
