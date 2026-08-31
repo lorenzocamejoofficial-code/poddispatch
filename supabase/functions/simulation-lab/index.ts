@@ -1750,7 +1750,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     return { ok: false, error: `Pool query failed: ${poolErr.message}` };
   }
 
-  const requiredPoolSize = 21;
+  const requiredPoolSize = 26;
   let generatedPoolCount = 0;
   if (!pool || pool.length < requiredPoolSize) {
     const generated = await createDenialsRemitsClaimPool(admin, companyId, requiredPoolSize - (pool?.length ?? 0));
