@@ -210,7 +210,7 @@ export default function BillingAndClaims() {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [secondaryFilter, setSecondaryFilter] = useState(false);
   const [hideTestClaims, setHideTestClaims] = useState(false);
-  const [statusTab, setStatusTab] = useState<ClaimStatus>("ready_to_bill");
+  const [statusTab, setStatusTab] = useState<ClaimTab>("ready_to_bill");
   const [statusPage, setStatusPage] = useState(1);
   const STATUS_PAGE_SIZE = 25;
   const { simulationRunId, refreshToken } = useSimulationSession();
