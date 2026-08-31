@@ -1571,7 +1571,7 @@ export default function BillingAndClaims() {
                     claims={filteredAll as any}
                     onClickClaim={(claimId) => {
                       const c = filteredAll.find((x) => x.id === claimId);
-                      if (c) { setStatusTab(c.status); setStatusPage(1); openClaim(c); }
+                      if (c) { setStatusTab(tabForStatus(c.status)); setStatusPage(1); openClaim(c); }
                     }}
                   />
                   {/* Status pills */}
