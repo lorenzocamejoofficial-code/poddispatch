@@ -84,7 +84,7 @@ export default function RemittanceImport() {
       }
       const { data: claims } = await supabase
         .from("claim_records" as any)
-        .select("id, member_id, run_date, patient_id, status, hcpcs_codes, payer_type, payer_name, original_claim_id, total_charge")
+        .select("id, member_id, run_date, patient_id, status, hcpcs_codes, payer_type, payer_name, original_claim_id, total_charge, payer_claim_control_number")
         .in("status", ["submitted", "ready_to_bill", "needs_correction", "needs_review"]);
       const { data: patients } = await supabase
         .from("patients")
