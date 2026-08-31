@@ -1,6 +1,5 @@
 import { DollarSign, RefreshCw, CheckCircle, XCircle, AlertTriangle, ShieldAlert, ArrowRight } from "lucide-react";
-
-type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction" | "needs_review";
+import { type ClaimStatus, type ClaimTab, tabForStatus } from "@/lib/claim-status-tabs";
 
 interface Claim {
   status: ClaimStatus;
@@ -10,11 +9,11 @@ interface Claim {
 
 interface Props {
   claims: Claim[];
-  activeStatus: ClaimStatus;
-  onSelect: (status: ClaimStatus) => void;
+  activeStatus: ClaimTab;
+  onSelect: (status: ClaimTab) => void;
 }
 
-const STAGES: { status: ClaimStatus; label: string; icon: typeof DollarSign; attention?: boolean }[] = [
+const STAGES: { status: ClaimTab; label: string; icon: typeof DollarSign; attention?: boolean }[] = [
   { status: "ready_to_bill",    label: "Ready to Bill",    icon: DollarSign },
   { status: "submitted",        label: "Submitted",        icon: RefreshCw },
   { status: "paid",             label: "Paid",             icon: CheckCircle },
@@ -36,10 +35,12 @@ function fmt(n: number) {
  * "attention" stages pulse softly while they hold > 0 items.
  */
 export function BillingPipelineHeader({ claims, activeStatus, onSelect }: Props) {
-  const byStatus = new Map<ClaimStatus, { count: number; total: number }>();
+  const byStatus = new Map<ClaimTab, { count: number; total: number }>();
   for (const s of STAGES) byStatus.set(s.status, { count: 0, total: 0 });
   for (const c of claims) {
-    const bucket = byStatus.get(c.status);
+    // Total map — pending/forwarded roll into Submitted, reversal into Needs
+    // Correction, blocked_payer_mapping into Needs Review. Nothing falls out.
+    const bucket = byStatus.get(tabForStatus(c.status));
     if (!bucket) continue;
     bucket.count += 1;
     bucket.total += Number(c.total_charge ?? 0);

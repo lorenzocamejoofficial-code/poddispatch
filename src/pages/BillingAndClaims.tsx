@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { PageLoader } from "@/components/ui/page-loader";
 import { AdminLayout } from "@/components/layout/AdminLayout";
@@ -96,7 +96,12 @@ import { EmergencyEventPanel } from "@/components/billing/EmergencyEventPanel";
 import { queueClaimsForSubmission } from "@/lib/queue-claims-for-submission";
 import { PreSubmitChecklist } from "@/components/billing/PreSubmitChecklist";
 
-type ClaimStatus = "ready_to_bill" | "submitted" | "paid" | "denied" | "needs_correction" | "needs_review";
+import {
+  type ClaimStatus,
+  type ClaimTab,
+  tabForStatus,
+  subLabelForStatus,
+} from "@/lib/claim-status-tabs";
 
 interface ClaimRecord {
   id: string;
@@ -156,7 +161,7 @@ interface ChargeMaster {
   needs_review?: boolean;
 }
 
-const CLAIM_COLUMNS: { status: ClaimStatus; label: string; icon: React.ReactNode; color: string }[] = [
+const CLAIM_COLUMNS: { status: ClaimTab; label: string; icon: React.ReactNode; color: string }[] = [
   { status: "ready_to_bill", label: "Ready to Bill", icon: <DollarSign className="h-4 w-4" />, color: "border-primary/30 bg-primary/5" },
   { status: "submitted", label: "Submitted", icon: <RefreshCw className="h-4 w-4" />, color: "border-[hsl(var(--status-yellow))]/30 bg-[hsl(var(--status-yellow-bg))]" },
   { status: "paid", label: "Paid", icon: <CheckCircle className="h-4 w-4" />, color: "border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5" },
@@ -204,7 +209,7 @@ export default function BillingAndClaims() {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [secondaryFilter, setSecondaryFilter] = useState(false);
   const [hideTestClaims, setHideTestClaims] = useState(false);
-  const [statusTab, setStatusTab] = useState<ClaimStatus>("ready_to_bill");
+  const [statusTab, setStatusTab] = useState<ClaimTab>("ready_to_bill");
   const [statusPage, setStatusPage] = useState(1);
   const STATUS_PAGE_SIZE = 25;
   const { simulationRunId, refreshToken } = useSimulationSession();
@@ -820,6 +825,62 @@ export default function BillingAndClaims() {
     toast.success(parts.join(" · ") || "Claims refreshed");
     fetchData();
   };
+
+  /**
+   * Auto-promotion pass — runs silently on page load.
+   *
+   * The claim-creation trigger is deliberately pessimistic: every new claim is
+   * born `needs_review` because the database cannot evaluate the readiness
+   * rules in claim-readiness.ts without duplicating them. This pass is the ONLY
+   * promoter: it re-runs the same TypeScript gate `buildClaimFromTrip` uses and
+   * moves a claim to `ready_to_bill` only when it comes back provably clean.
+   *
+   * It is strictly one-directional. It reads ONLY `needs_review` claims and
+   * only ever writes `ready_to_bill`, so it can never demote a submitted, paid,
+   * denied or already-ready claim. It writes the `status` field alone — no
+   * pricing, codes or notes are touched here.
+   */
+  const autoPromotedRef = useRef<Set<string>>(new Set());
+
+  const autoPromoteNeedsReview = useCallback(async () => {
+    if (chargeMaster.length === 0) return;
+
+    const candidates = claims.filter(
+      c => c.status === "needs_review" && c.trip_id && !autoPromotedRef.current.has(c.id),
+    );
+    if (candidates.length === 0) return;
+    for (const c of candidates) autoPromotedRef.current.add(c.id);
+
+    const { data: trips } = await supabase
+      .from("trip_records" as any)
+      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_utn, pickup_address), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen, oneoff_pickup_address)")
+      .in("id", candidates.map(c => c.trip_id));
+
+    if (!trips?.length) return;
+    const tripMap = new Map((trips as any[]).map((t: any) => [t.id, t]));
+
+    const promoteIds: string[] = [];
+    for (const c of candidates) {
+      const t = tripMap.get(c.trip_id);
+      if (!t) continue;
+      const { gateResult, addressIssue } = buildClaimFromTrip(t);
+      if (gateResult.level === "clean" && !addressIssue) promoteIds.push(c.id);
+    }
+
+    if (promoteIds.length === 0) return;
+
+    const { error } = await supabase
+      .from("claim_records" as any)
+      .update({ status: "ready_to_bill" } as any)
+      .in("id", promoteIds)
+      .eq("status", "needs_review"); // belt-and-braces: never touch another bucket
+
+    if (!error) fetchData();
+  }, [claims, chargeMaster, payerRulesMap, fetchData]);
+
+  useEffect(() => { autoPromoteNeedsReview(); }, [autoPromoteNeedsReview]);
+
+
 
   const syncClaimsFromTrips = async () => {
     const { data: trips } = await supabase
@@ -1544,10 +1605,10 @@ export default function BillingAndClaims() {
               const filteredAll = baseList.filter(c => !hideTestClaims || !c.is_test_submission);
               const counts: Record<string, number> = {};
               CLAIM_COLUMNS.forEach(col => {
-                counts[col.status] = filteredAll.filter(c => c.status === col.status).length;
+                counts[col.status] = filteredAll.filter(c => tabForStatus(c.status) === col.status).length;
               });
               const activeCol = CLAIM_COLUMNS.find(c => c.status === statusTab) ?? CLAIM_COLUMNS[0];
-              const colClaims = filteredAll.filter(c => c.status === activeCol.status);
+              const colClaims = filteredAll.filter(c => tabForStatus(c.status) === activeCol.status);
               const totalPages = Math.max(1, Math.ceil(colClaims.length / STATUS_PAGE_SIZE));
               const safePage = Math.min(Math.max(1, statusPage), totalPages);
               const start = (safePage - 1) * STATUS_PAGE_SIZE;
@@ -1565,7 +1626,7 @@ export default function BillingAndClaims() {
                     claims={filteredAll as any}
                     onClickClaim={(claimId) => {
                       const c = filteredAll.find((x) => x.id === claimId);
-                      if (c) { setStatusTab(c.status); setStatusPage(1); openClaim(c); }
+                      if (c) { setStatusTab(tabForStatus(c.status)); setStatusPage(1); openClaim(c); }
                     }}
                   />
                   {/* Status pills */}
@@ -1693,6 +1754,15 @@ export default function BillingAndClaims() {
                             </div>
                           </div>
                           <p className="text-[10px] text-muted-foreground">{claim.run_date}</p>
+                          {/* Sub-label for statuses folded into another tab
+                              (pending/forwarded → Submitted, reversal →
+                              Needs Correction, blocked_payer_mapping →
+                              Needs Review) so nothing is silently reclassified. */}
+                          {subLabelForStatus(claim.status) && (
+                            <Badge variant="outline" className="mt-1 text-[9px] px-1 py-0">
+                              {subLabelForStatus(claim.status)}
+                            </Badge>
+                          )}
                           {claim.hcpcs_codes?.length ? (
                             <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{claim.hcpcs_codes.join(", ")}</p>
                           ) : null}
