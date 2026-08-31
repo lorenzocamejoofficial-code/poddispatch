@@ -162,7 +162,7 @@ interface ChargeMaster {
   needs_review?: boolean;
 }
 
-const CLAIM_COLUMNS: { status: ClaimStatus; label: string; icon: React.ReactNode; color: string }[] = [
+const CLAIM_COLUMNS: { status: ClaimTab; label: string; icon: React.ReactNode; color: string }[] = [
   { status: "ready_to_bill", label: "Ready to Bill", icon: <DollarSign className="h-4 w-4" />, color: "border-primary/30 bg-primary/5" },
   { status: "submitted", label: "Submitted", icon: <RefreshCw className="h-4 w-4" />, color: "border-[hsl(var(--status-yellow))]/30 bg-[hsl(var(--status-yellow-bg))]" },
   { status: "paid", label: "Paid", icon: <CheckCircle className="h-4 w-4" />, color: "border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5" },
