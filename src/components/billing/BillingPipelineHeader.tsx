@@ -35,10 +35,12 @@ function fmt(n: number) {
  * "attention" stages pulse softly while they hold > 0 items.
  */
 export function BillingPipelineHeader({ claims, activeStatus, onSelect }: Props) {
-  const byStatus = new Map<ClaimStatus, { count: number; total: number }>();
+  const byStatus = new Map<ClaimTab, { count: number; total: number }>();
   for (const s of STAGES) byStatus.set(s.status, { count: 0, total: 0 });
   for (const c of claims) {
-    const bucket = byStatus.get(c.status);
+    // Total map — pending/forwarded roll into Submitted, reversal into Needs
+    // Correction, blocked_payer_mapping into Needs Review. Nothing falls out.
+    const bucket = byStatus.get(tabForStatus(c.status));
     if (!bucket) continue;
     bucket.count += 1;
     bucket.total += Number(c.total_charge ?? 0);
