@@ -1547,6 +1547,18 @@ async function resetSandbox(admin: any, companyId: string, userId: string) {
   await admin.from("daily_truck_metrics").delete().eq("company_id", companyId);
 
   const counts: Record<string, number> = {};
+
+  // Demo-injected claim rows are stored with is_simulated=false (so the
+  // Missing Money scanner picks them up) but tagged with simulation_run_id.
+  // These MUST go before the trip_records wipe below: injected claims now
+  // carry a trip_id, so deleting their trips first would trip the FK.
+  const { data: injectedClaims } = await admin.from("claim_records")
+    .delete()
+    .eq("company_id", companyId)
+    .not("simulation_run_id", "is", null)
+    .select("id");
+  counts["claim_records_injected"] = injectedClaims?.length ?? 0;
+
   for (const table of tables) {
     const { data } = await admin.from(table)
       .delete()
@@ -1556,16 +1568,6 @@ async function resetSandbox(admin: any, companyId: string, userId: string) {
     counts[table] = data?.length ?? 0;
   }
 
-  // Demo-injected claim rows are stored with is_simulated=false (so the
-  // Missing Money scanner picks them up) but tagged with simulation_run_id.
-  // Sweep those too — and the claim_payments / remittance_files they may
-  // have produced, which the standard wipe loop above does not include.
-  const { data: injectedClaims } = await admin.from("claim_records")
-    .delete()
-    .eq("company_id", companyId)
-    .not("simulation_run_id", "is", null)
-    .select("id");
-  counts["claim_records_injected"] = injectedClaims?.length ?? 0;
 
   for (const t of ["claim_payments", "remittance_files", "plb_adjustments"]) {
     const { data } = await admin.from(t)
