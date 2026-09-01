@@ -1407,6 +1407,13 @@ export default function BillingAndClaims() {
     setStatusPage(1);
   };
 
+  const goReadyToBill = () => {
+    setActiveTab("claims");
+    setStatusTab("ready_to_bill");
+    setStatusPage(1);
+  };
+
+
   return (
     <AdminLayout>
       <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="space-y-4">
