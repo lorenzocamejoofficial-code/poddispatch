@@ -741,8 +741,13 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
                 <h3 className="text-sm font-semibold">Claim Field Corrections</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {editableFields.map(field => (
-                    <div key={field}>
+                    <div
+                      key={field}
+                      ref={el => { fieldRefs.current[field] = el; }}
+                      className={`rounded-md p-1 transition-colors ${flashField === field ? "ring-2 ring-primary bg-primary/5" : ""}`}
+                    >
                       <Label className="text-xs">{FIELD_LABELS[field] ?? field}</Label>
+
                       {(field === "origin_type" || field === "destination_type") ? (
                         <Select
                           value={editFields[field] ?? ""}
