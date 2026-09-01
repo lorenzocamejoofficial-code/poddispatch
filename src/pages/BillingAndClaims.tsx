@@ -2105,6 +2105,12 @@ export default function BillingAndClaims() {
             <DialogDescription>{selectedClaim?.run_date} · {selectedClaim?.payer_type}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            <Alert className="border-blue-300/50 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-700/40">
+              <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <AlertDescription className="text-xs text-blue-900 dark:text-blue-200">
+                This is the claim record editor. Use it to view or manually update status, denial code, reason, and notes. If this claim is denied and you want to fix it and send it back out, click <strong>Recover</strong> on the billing board instead — that opens the guided denial repair workflow.
+              </AlertDescription>
+            </Alert>
             {/* Emergency Event Panel */}
             {selectedClaim && (selectedClaim as any).has_emergency_event && (
               <EmergencyEventPanel claim={selectedClaim} onUpdate={fetchData} />
