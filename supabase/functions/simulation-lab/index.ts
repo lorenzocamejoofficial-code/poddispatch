@@ -1844,7 +1844,7 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
   if (tripErr) return { ok: false, error: `Demo trip creation failed: ${tripErr.message}` };
 
   const claimRows = specs.map((s, i) => ({
-    ...CLEAN_CLAIM_FIELDS,
+    ...cleanClaimFieldsFor(s.runDate),
     company_id: companyId,
     patient_id: s.patientId,
     trip_id: trips?.[i]?.id ?? null,
@@ -1932,7 +1932,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const c = deniedSlice[i];
     const carc = RECOVERABLE_CARCS[i % RECOVERABLE_CARCS.length];
     const { error } = await admin.from("claim_records").update({
-      ...CLEAN_CLAIM_FIELDS,
+      ...cleanClaimFieldsFor(c.run_date),
       status: "denied",
       denial_code: carc.code,
       denial_reason: carc.reason,
@@ -1956,7 +1956,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const pr = Math.round(total * 0.20 * 100) / 100;
 
     const { error: cerr } = await admin.from("claim_records").update({
-      ...CLEAN_CLAIM_FIELDS,
+      ...cleanClaimFieldsFor(c.run_date),
       status: "paid",
       amount_paid: paid,
       patient_responsibility_amount: pr,
@@ -1989,7 +1989,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
   for (let i = 0; i < agingSlice.length; i++) {
     const c = agingSlice[i];
     const { error } = await admin.from("claim_records").update({
-      ...CLEAN_CLAIM_FIELDS,
+      ...cleanClaimFieldsFor(c.run_date),
       status: "submitted",
       submitted_at: isoMinus(60),
       is_simulated: false,
@@ -2016,7 +2016,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const c = tfSlice[i];
     const cfg = tfConfigs[i];
     const { error } = await admin.from("claim_records").update({
-      ...CLEAN_CLAIM_FIELDS,
+      ...cleanClaimFieldsFor(cfg.runDate),
       status: cfg.status,
       run_date: cfg.runDate,
       payer_type: "medicare",
@@ -2049,7 +2049,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const owed = Math.round((allowed - pr) * 100) / 100;
     const paid = Math.round(owed * cfg.paidPctOfOwed * 100) / 100;
     const { error } = await admin.from("claim_records").update({
-      ...CLEAN_CLAIM_FIELDS,
+      ...cleanClaimFieldsFor(c.run_date),
       status: "paid",
       allowed_amount: allowed,
       amount_paid: paid,
