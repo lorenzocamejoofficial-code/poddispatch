@@ -806,7 +806,9 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         : tripType === "outpatient" ? "outpatient_specialty"
         : "other";
 
-      const destinationType = tripType === "dialysis" ? "Dialysis Center"
+      // "Freestanding" is required: a bare "Dialysis Center" resolves to
+      // modifier D, which the readiness gate hard-blocks for dialysis legs.
+      const destinationType = tripType === "dialysis" ? "Freestanding Dialysis Center"
         : tripType === "wound_care" ? "Wound Care Clinic"
         : tripType === "psych_transport" ? "Behavioral Health Facility"
         : tripType === "discharge" ? "Skilled Nursing Facility"
