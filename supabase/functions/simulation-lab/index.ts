@@ -1724,6 +1724,7 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
     const patient = source[i % source.length];
     const total = 340 + (i % 6) * 42;
     return {
+      ...CLEAN_CLAIM_FIELDS,
       company_id: companyId,
       patient_id: patient?.id ?? null,
       run_date: dateMinus(10 + i),
