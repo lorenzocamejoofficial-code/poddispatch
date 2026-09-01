@@ -1371,9 +1371,18 @@ export default function BillingAndClaims() {
   ).length;
 
   // ----- Money-at-a-glance metrics (reused from `realClaims`; no new queries) -----
-  const readyClaims = realClaims.filter(c => c.status === "ready_to_bill");
+  // A claim sitting in Ready to Bill is NOT automatically submittable — the card
+  // shows a red BLOCKED badge when `detectClaimBlockers` finds a hard issue. The
+  // headline number and the action row use that SAME check so the counts on this
+  // page match the cards in the Claims Board exactly.
+  const readyBucket = realClaims.filter(c => c.status === "ready_to_bill");
+  const readyClaims = readyBucket.filter(c => detectClaimBlockers(c).length === 0);
+  const readyBlockedClaims = readyBucket.filter(c => detectClaimBlockers(c).length > 0);
   const readyCount = readyClaims.length;
   const readyTotal = readyClaims.reduce((s, c) => s + (c.total_charge ?? 0), 0);
+  const readyBlockedCount = readyBlockedClaims.length;
+  const readyBlockedTotal = readyBlockedClaims.reduce((s, c) => s + (c.total_charge ?? 0), 0);
+
 
   const submittedClaims = realClaims.filter(c => c.status === "submitted");
   const submittedCount = submittedClaims.length;
@@ -1398,6 +1407,13 @@ export default function BillingAndClaims() {
     setStatusPage(1);
   };
 
+  const goReadyToBill = () => {
+    setActiveTab("claims");
+    setStatusTab("ready_to_bill");
+    setStatusPage(1);
+  };
+
+
   return (
     <AdminLayout>
       <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -1412,12 +1428,20 @@ export default function BillingAndClaims() {
         {/* 1. MONEY AT A GLANCE — reused metrics, no new queries */}
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border bg-card p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Ready to submit</p>
+            <div className="flex items-center gap-1 mb-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">Ready to submit</p>
+              <InfoTip
+                align="left"
+                text="Only the claims in Ready to Bill that pass every hard billing check right now — these are the ones that will actually go out. Claims sitting in Ready to Bill with a red BLOCKED badge are counted separately below under 'Fix before submitting'."
+              />
+            </div>
             <p className="text-2xl font-bold text-foreground">{fmtMoney(readyTotal)}</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {readyCount} claim{readyCount === 1 ? "" : "s"} · passes billing checks
+              {readyCount} clean claim{readyCount === 1 ? "" : "s"}
+              {readyBlockedCount > 0 ? ` · ${readyBlockedCount} blocked` : " · passes billing checks"}
             </p>
           </div>
+
           <div className="rounded-lg border bg-card p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Awaiting payer</p>
             <p className="text-2xl font-bold text-foreground">{fmtMoney(submittedTotal)}</p>
@@ -1436,7 +1460,8 @@ export default function BillingAndClaims() {
         </div>
 
         {/* 2. NEEDS YOUR ACTION — task rows wired to existing handlers */}
-        {(readyCount > 0 || deniedCount > 0 || secondaryOpportunities > 0) && (
+        {(readyCount > 0 || readyBlockedCount > 0 || deniedCount > 0 || secondaryOpportunities > 0) && (
+
           <div className="rounded-lg border bg-card divide-y">
             <div className="px-4 py-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">
               Needs your action
@@ -1447,9 +1472,11 @@ export default function BillingAndClaims() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">Ready to submit</p>
                   <p className="text-xs text-muted-foreground">
-                    {readyCount} claim{readyCount === 1 ? "" : "s"} · {fmtMoney(readyTotal)}
+                    {readyCount} clean claim{readyCount === 1 ? "" : "s"} · {fmtMoney(readyTotal)}
+                    {readyBlockedCount > 0 ? ` — ${readyBlockedCount} blocked claim${readyBlockedCount === 1 ? "" : "s"} will be held back` : ""}
                   </p>
                 </div>
+
                 {clearinghouseConfigured ? (
                   <ConfirmActionDialog
                     trigger={
@@ -1490,6 +1517,22 @@ export default function BillingAndClaims() {
                 )}
               </div>
             )}
+            {readyBlockedCount > 0 && (
+              <div className="flex items-center gap-3 px-4 py-3 border-l-2 border-l-destructive">
+                <ShieldAlert className="h-4 w-4 text-destructive shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Fix before submitting</p>
+                  <p className="text-xs text-muted-foreground">
+                    {readyBlockedCount} claim{readyBlockedCount === 1 ? "" : "s"} in Ready to Bill · {fmtMoney(readyBlockedTotal)} · blocked by a missing piece (PCS, ICD-10, signature, mileage)
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={goReadyToBill} className="gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Fix blockers
+                </Button>
+              </div>
+            )}
+
             {deniedCount > 0 && (
               <div className="flex items-center gap-3 px-4 py-3">
                 <XCircle className="h-4 w-4 text-destructive shrink-0" />
@@ -1710,11 +1753,21 @@ export default function BillingAndClaims() {
                   </div>
 
                   {/* What this bucket means */}
-                  <div className="flex items-start gap-1.5 rounded-md border bg-muted/40 px-3 py-2">
+                  <div className="flex flex-wrap items-start gap-1.5 rounded-md border bg-muted/40 px-3 py-2">
                     <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{activeCol.label}</span>
                     <InfoTip align="left" text={activeCol.help} />
                     <span className="text-xs text-muted-foreground">{activeCol.help.split(". ")[0]}.</span>
+                    {statusTab === "ready_to_bill" && (readyCount > 0 || readyBlockedCount > 0) && (
+                      <span className="text-xs font-medium w-full">
+                        <span className="text-[hsl(var(--status-green))]">{readyCount} clean and submittable</span>
+                        {" · "}
+                        <span className={readyBlockedCount > 0 ? "text-destructive" : "text-muted-foreground"}>
+                          {readyBlockedCount} blocked — held back until fixed
+                        </span>
+                      </span>
+                    )}
                   </div>
+
 
                   {/* List */}
                   <div className={`rounded-lg border p-3 ${activeCol.color}`}>
