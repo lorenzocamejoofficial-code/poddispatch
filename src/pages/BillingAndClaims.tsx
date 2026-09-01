@@ -1371,9 +1371,18 @@ export default function BillingAndClaims() {
   ).length;
 
   // ----- Money-at-a-glance metrics (reused from `realClaims`; no new queries) -----
-  const readyClaims = realClaims.filter(c => c.status === "ready_to_bill");
+  // A claim sitting in Ready to Bill is NOT automatically submittable — the card
+  // shows a red BLOCKED badge when `detectClaimBlockers` finds a hard issue. The
+  // headline number and the action row use that SAME check so the counts on this
+  // page match the cards in the Claims Board exactly.
+  const readyBucket = realClaims.filter(c => c.status === "ready_to_bill");
+  const readyClaims = readyBucket.filter(c => detectClaimBlockers(c).length === 0);
+  const readyBlockedClaims = readyBucket.filter(c => detectClaimBlockers(c).length > 0);
   const readyCount = readyClaims.length;
   const readyTotal = readyClaims.reduce((s, c) => s + (c.total_charge ?? 0), 0);
+  const readyBlockedCount = readyBlockedClaims.length;
+  const readyBlockedTotal = readyBlockedClaims.reduce((s, c) => s + (c.total_charge ?? 0), 0);
+
 
   const submittedClaims = realClaims.filter(c => c.status === "submitted");
   const submittedCount = submittedClaims.length;
