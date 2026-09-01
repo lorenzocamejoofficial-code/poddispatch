@@ -132,5 +132,5 @@ export async function fetchClaimBlockerSnapshot(
     patient_terminal_illness_icd: p?.terminal_illness_icd ?? null,
   };
 
-  return { claim: enriched, blockers: detectClaimBlockers(enriched) };
+  return { claim: enriched, blockers: detectClaimBlockers(enriched), ok: true };
 }
