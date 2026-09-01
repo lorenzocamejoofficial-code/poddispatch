@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { evaluateUnderpayment, underpaymentSummaryLine } from "@/lib/underpayment";
 import { useAuth } from "@/hooks/useAuth";
-import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
+import { useSimulationCompanyState } from "@/hooks/useIsSimulationCompany";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 
 export interface MissingMoneyItem {
@@ -47,7 +47,7 @@ export interface MissingMoneyCategorySummary {
 
 export function useMissingMoneyScan() {
   const { activeCompanyId } = useAuth();
-  const isSimulationCompany = useIsSimulationCompany();
+  const { isSim: isSimulationCompany, resolved: simFlagResolved } = useSimulationCompanyState();
   const { simulationRunId, refreshToken } = useSimulationSession();
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<MissingMoneyCategorySummary[]>([]);
@@ -56,6 +56,7 @@ export function useMissingMoneyScan() {
   const [scanError, setScanError] = useState<string | null>(null);
 
   const runScan = useCallback(async () => {
+    if (!simFlagResolved) return;
     setLoading(true);
     setScanError(null);
     if (!activeCompanyId) {
