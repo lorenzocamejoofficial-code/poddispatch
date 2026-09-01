@@ -89,7 +89,7 @@ import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
 import { PAYER_KEYS, normalizePayerKey, payerLabel } from "@/lib/payer-vocabulary";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
-import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
+import { useSimulationCompanyState } from "@/hooks/useIsSimulationCompany";
 import { SecondaryClaimPanel } from "@/components/billing/SecondaryClaimPanel";
 import { RevenueCycleTab } from "@/components/billing/RevenueCycleTab";
 import { EmergencyEventPanel } from "@/components/billing/EmergencyEventPanel";
@@ -214,7 +214,10 @@ export default function BillingAndClaims() {
   const [statusPage, setStatusPage] = useState(1);
   const STATUS_PAGE_SIZE = 25;
   const { simulationRunId, refreshToken } = useSimulationSession();
-  const isSimulationCompany = useIsSimulationCompany();
+  // `resolved` matters: until we know whether this tenant is the sandbox, the
+  // claim query would run with the wrong scope and the counts would flicker
+  // (e.g. Ready to Bill 6 → 7) as the flag settles. Hold the fetch instead.
+  const { isSim: isSimulationCompany, resolved: simFlagResolved } = useSimulationCompanyState();
   const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
   const [oaSending, setOaSending] = useState(false);
   const [oaReceiving, setOaReceiving] = useState(false);
@@ -224,6 +227,7 @@ export default function BillingAndClaims() {
   const [pcsCheckTarget, setPcsCheckTarget] = useState<{ tripId: string; patientId: string | null } | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (!simFlagResolved) return; // scope not known yet — avoid a wrong-scope read
     setLoading(true);
 
     let claimsQuery = supabase.from("claim_records" as any).select("*").order("run_date", { ascending: false }).limit(1000);
@@ -334,9 +338,10 @@ export default function BillingAndClaims() {
       .then(({ data }) => {
         setReversalClaimIds(new Set(((data as any[]) ?? []).map((r: any) => r.claim_record_id)));
       });
-  }, [simulationRunId, isSimulationCompany]);
+  }, [simulationRunId, isSimulationCompany, simFlagResolved]);
 
   const fetchQueueTrips = useCallback(async () => {
+    if (!simFlagResolved) return;
     setQueueLoading(true);
     let tripQuery = supabase
       .from("trip_records" as any)
@@ -383,7 +388,7 @@ export default function BillingAndClaims() {
       })
     );
     setQueueLoading(false);
-  }, [dateFilter, simulationRunId, isSimulationCompany]);
+  }, [dateFilter, simulationRunId, isSimulationCompany, simFlagResolved]);
 
   const fetchOverrideLogs = useCallback(async () => {
     const tripScope = simulationRunId

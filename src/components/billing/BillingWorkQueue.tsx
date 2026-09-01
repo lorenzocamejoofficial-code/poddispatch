@@ -13,7 +13,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { TimelineTrigger } from "@/components/billing/ClaimTimelineDrawer";
-import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
+import { useSimulationCompanyState } from "@/hooks/useIsSimulationCompany";
 
 /* ---------- types ---------- */
 export interface WorkItem {
@@ -47,13 +47,13 @@ interface BillingWorkQueueProps {
 
 export function BillingWorkQueue({ onOpenClaim, refreshKey }: BillingWorkQueueProps) {
   const { activeCompanyId } = useAuth();
-  const isSimulationCompany = useIsSimulationCompany();
+  const { isSim: isSimulationCompany, resolved: simFlagResolved } = useSimulationCompanyState();
   const navigate = useNavigate();
   const [items, setItems] = useState<WorkItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchWorkItems = useCallback(async () => {
-    if (!activeCompanyId) return;
+    if (!activeCompanyId || !simFlagResolved) return;
     setLoading(true);
 
     const allItems: WorkItem[] = [];
@@ -272,7 +272,7 @@ export function BillingWorkQueue({ onOpenClaim, refreshKey }: BillingWorkQueuePr
     allItems.sort((a, b) => a.priority - b.priority || b.amount - a.amount);
     setItems(allItems);
     setLoading(false);
-  }, [activeCompanyId, isSimulationCompany]);
+  }, [activeCompanyId, isSimulationCompany, simFlagResolved]);
 
   useEffect(() => { fetchWorkItems(); }, [fetchWorkItems, refreshKey]);
 
