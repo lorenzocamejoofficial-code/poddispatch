@@ -1547,6 +1547,18 @@ async function resetSandbox(admin: any, companyId: string, userId: string) {
   await admin.from("daily_truck_metrics").delete().eq("company_id", companyId);
 
   const counts: Record<string, number> = {};
+
+  // Demo-injected claim rows are stored with is_simulated=false (so the
+  // Missing Money scanner picks them up) but tagged with simulation_run_id.
+  // These MUST go before the trip_records wipe below: injected claims now
+  // carry a trip_id, so deleting their trips first would trip the FK.
+  const { data: injectedClaims } = await admin.from("claim_records")
+    .delete()
+    .eq("company_id", companyId)
+    .not("simulation_run_id", "is", null)
+    .select("id");
+  counts["claim_records_injected"] = injectedClaims?.length ?? 0;
+
   for (const table of tables) {
     const { data } = await admin.from(table)
       .delete()
@@ -1556,16 +1568,6 @@ async function resetSandbox(admin: any, companyId: string, userId: string) {
     counts[table] = data?.length ?? 0;
   }
 
-  // Demo-injected claim rows are stored with is_simulated=false (so the
-  // Missing Money scanner picks them up) but tagged with simulation_run_id.
-  // Sweep those too — and the claim_payments / remittance_files they may
-  // have produced, which the standard wipe loop above does not include.
-  const { data: injectedClaims } = await admin.from("claim_records")
-    .delete()
-    .eq("company_id", companyId)
-    .not("simulation_run_id", "is", null)
-    .select("id");
-  counts["claim_records_injected"] = injectedClaims?.length ?? 0;
 
   for (const t of ["claim_payments", "remittance_files", "plb_adjustments"]) {
     const { data } = await admin.from(t)
@@ -1720,38 +1722,123 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
   const dateMinus = (days: number) => new Date(now - days * dayMs).toISOString().slice(0, 10);
   const source = patients ?? [];
 
-  const claimRows = Array.from({ length: needed }, (_, i) => {
+  // Each pooled claim gets a REAL trip behind it. Without a trip_id the Denial
+  // Recovery Engine can't load trip data, so the Claim Field Corrections editor
+  // never renders and the denial can't actually be worked.
+  const poolRunId = crypto.randomUUID();
+  const specs = Array.from({ length: needed }, (_, i) => {
     const patient = source[i % source.length];
     const total = 340 + (i % 6) * 42;
+    const runDate = dateMinus(10 + i);
+    const pickupTime = ["06:00", "07:15", "08:30", "09:45", "11:00", "13:15"][i % 6];
+    const odoScene = 20000 + i * 137;
+    const loadedMi = Math.round((5 + (i % 9) * 2.5) * 10) / 10;
     return {
-      ...CLEAN_CLAIM_FIELDS,
-      company_id: companyId,
-      patient_id: patient?.id ?? null,
-      run_date: dateMinus(10 + i),
-      payer_type: i % 3 === 0 ? "medicare" : i % 3 === 1 ? "medicaid" : "commercial",
-      payer_name: i % 3 === 0 ? "MEDICARE" : i % 3 === 1 ? "GA MEDICAID" : "AETNA BETTER HEALTH",
-      member_id: `SIM-DEMO-${Date.now()}-${i}`,
-      base_charge: 250,
-      mileage_charge: total - 250,
-      extras_charge: 0,
-      total_charge: total,
-      expected_revenue: total,
-      status: "submitted",
-      submitted_at: new Date(now - (8 + i) * dayMs).toISOString(),
-      hcpcs_codes: ["A0428"],
-      hcpcs_modifiers: ["RH"],
-      cpt_codes: ["A0428"],
-      claim_build_date: dateMinus(8 + i),
-      is_simulated: true,
-      is_test_submission: false,
-      notes: "Simulation Lab Tier 1 demo seed",
+      patientId: patient?.id ?? null,
+      total,
+      runDate,
+      pickupTime,
+      odoScene,
+      loadedMi,
+      memberId: `SIM-DEMO-${Date.now()}-${i}`,
+      payerType: i % 3 === 0 ? "medicare" : i % 3 === 1 ? "medicaid" : "commercial",
+      payerName: i % 3 === 0 ? "MEDICARE" : i % 3 === 1 ? "GA MEDICAID" : "AETNA BETTER HEALTH",
     };
   });
+
+  // Timestamps are derived from each claim's own run_date (never "today") so
+  // PCR chronological-integrity rules hold.
+  const tripRows = specs.map((s) => {
+    const at = (mins: number) => `${s.runDate}T${addMinutes(s.pickupTime, mins)}:00`;
+    return {
+      company_id: companyId,
+      patient_id: s.patientId,
+      leg_id: null,
+      run_date: s.runDate,
+      status: "ready_for_billing",
+      trip_type: "dialysis",
+      transport_category: "dialysis",
+      pcr_status: "submitted",
+      pcr_type: "nemt_dialysis",
+      pickup_location: CLEAN_CLAIM_FIELDS.origin_address,
+      destination_location: CLEAN_CLAIM_FIELDS.destination_address,
+      scheduled_pickup_time: s.pickupTime,
+      dispatch_time: at(-10),
+      at_scene_time: at(0),
+      patient_contact_time: at(3),
+      left_scene_time: at(8),
+      arrived_pickup_at: at(0),
+      loaded_at: at(6),
+      arrived_dropoff_at: at(35),
+      dropped_at: at(38),
+      in_service_time: at(75),
+      odometer_at_scene: s.odoScene,
+      odometer_at_destination: s.odoScene + Math.round(s.loadedMi),
+      loaded_miles: s.loadedMi,
+      icd10_codes: CLEAN_CLAIM_FIELDS.icd10_codes,
+      origin_type: CLEAN_CLAIM_FIELDS.origin_type,
+      destination_type: CLEAN_CLAIM_FIELDS.destination_type,
+      primary_payer: s.payerType,
+      member_id: s.memberId,
+      service_level: "BLS",
+      patient_mobility: "Bedbound",
+      stretcher_placement: "Draw Sheet",
+      patient_position: "Semi-Fowlers (30°)",
+      level_of_consciousness: "alert_ox4",
+      skin_condition: "normal",
+      bed_confined: true,
+      chief_complaint: "ESRD — Scheduled Dialysis Transport",
+      primary_impression: "ESRD on Dialysis",
+      medical_necessity_reason: "Bed-confined, requires stretcher transport",
+      narrative: "Patient transported by stretcher per medical necessity. Crew monitored throughout. (Synthetic seed.)",
+      signatures_json: [{
+        type: "crew_primary", signed_at: at(8), signed_by_name: "Sim Crew",
+        signature_data_url: "data:image/svg+xml;base64,PHN2Zy8+",
+      }],
+      signature_obtained: true,
+      pcs_attached: true,
+      documentation_complete: true,
+      claim_ready: true,
+      is_simulated: true,
+      simulation_run_id: poolRunId,
+    };
+  });
+
+  const { data: trips, error: tripErr } = await admin
+    .from("trip_records")
+    .insert(tripRows)
+    .select("id");
+  if (tripErr) return { ok: false, error: `Demo trip creation failed: ${tripErr.message}` };
+
+  const claimRows = specs.map((s, i) => ({
+    ...CLEAN_CLAIM_FIELDS,
+    company_id: companyId,
+    patient_id: s.patientId,
+    trip_id: trips?.[i]?.id ?? null,
+    run_date: s.runDate,
+    payer_type: s.payerType,
+    payer_name: s.payerName,
+    member_id: s.memberId,
+    base_charge: 250,
+    mileage_charge: s.total - 250,
+    extras_charge: 0,
+    total_charge: s.total,
+    expected_revenue: s.total,
+    status: "submitted",
+    submitted_at: new Date(now - (8 + i) * dayMs).toISOString(),
+    hcpcs_codes: ["A0428"],
+    hcpcs_modifiers: ["RH"],
+    cpt_codes: ["A0428"],
+    claim_build_date: dateMinus(8 + i),
+    is_simulated: true,
+    is_test_submission: false,
+    notes: "Simulation Lab Tier 1 demo seed",
+  }));
 
   const { data, error } = await admin
     .from("claim_records")
     .insert(claimRows)
-    .select("id, patient_id, total_charge, payer_type, payer_name, run_date, status");
+    .select("id, patient_id, trip_id, total_charge, payer_type, payer_name, run_date, status");
 
   if (error) return { ok: false, error: `Demo claim pool creation failed: ${error.message}` };
   return { ok: true, pool: data ?? [] };

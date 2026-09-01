@@ -245,15 +245,22 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
   const [blockers, setBlockers] = useState<ReadinessIssue[]>([]);
   const [blockersLoading, setBlockersLoading] = useState(false);
   const [blockerRefreshedAt, setBlockerRefreshedAt] = useState<number>(0);
+  const [blockerReadFailed, setBlockerReadFailed] = useState(false);
 
   const refreshBlockers = useCallback(async () => {
     if (!claim.id) return;
     setBlockersLoading(true);
-    const { blockers: found } = await fetchClaimBlockerSnapshot(claim.id);
-    setBlockers(found);
-    setBlockerRefreshedAt(Date.now());
+    const { blockers: found, ok } = await fetchClaimBlockerSnapshot(claim.id);
+    if (ok) {
+      // Only a verified read may change what we show — a failed read keeps the
+      // previous list rather than rendering the green all-clear.
+      setBlockers(found);
+      setBlockerRefreshedAt(Date.now());
+    }
+    setBlockerReadFailed(!ok);
     setBlockersLoading(false);
   }, [claim.id]);
+
 
   useEffect(() => {
     if (open) void refreshBlockers();
@@ -367,16 +374,26 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
     // seconds ago in another tab counts, and a stale clean read can't slip a
     // broken claim back out to the payer.
     setSaving(true);
-    const { blockers: fresh } = await fetchClaimBlockerSnapshot(claim.id);
-    setBlockers(fresh);
-    setBlockerRefreshedAt(Date.now());
+    const { blockers: fresh, ok } = await fetchClaimBlockerSnapshot(claim.id);
+    if (ok) {
+      setBlockers(fresh);
+      setBlockerRefreshedAt(Date.now());
+    }
+    setBlockerReadFailed(!ok);
     setSaving(false);
+    if (!ok) {
+      // Could not verify — refuse to promote. Nothing is written; the claim
+      // stays denied.
+      toast.error("Couldn't verify this claim's blockers — nothing was changed. Try again.");
+      return;
+    }
     if (fresh.length > 0) {
       toast.error(
         `${fresh.length} claim blocker${fresh.length === 1 ? "" : "s"} still open — fix ${fresh.length === 1 ? "it" : "them"} before resubmitting, or this claim will just be denied again.`,
       );
       return;
     }
+
     if (!correctionNotes.trim()) {
       toast.error("Correction notes are required before resubmission");
       return;
@@ -528,8 +545,18 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
               tick off. Resubmission stays locked until this list is empty.
             </p>
 
+            {blockerReadFailed && (
+              <p className="text-xs text-destructive">
+                Couldn't verify this claim — check your connection and re-check before resubmitting.
+              </p>
+            )}
+
             {blockersLoading && blockers.length === 0 ? (
               <p className="text-xs text-muted-foreground">Checking claim…</p>
+            ) : blockerReadFailed && blockers.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Blocker status unknown — re-check to verify this claim.
+              </p>
             ) : blockers.length === 0 ? (
               <div className="rounded-md border border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5 p-3 flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-[hsl(var(--status-green))] shrink-0" />

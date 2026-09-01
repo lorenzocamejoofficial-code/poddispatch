@@ -65,15 +65,18 @@ export function detectClaimBlockers(claim: any): ReadinessIssue[] {
  */
 export async function fetchClaimBlockerSnapshot(
   claimId: string,
-): Promise<{ claim: any | null; blockers: ReadinessIssue[] }> {
-  const { data: claimRow } = await supabase
+): Promise<{ claim: any | null; blockers: ReadinessIssue[]; ok: boolean }> {
+  const { data: claimRow, error: claimErr } = await supabase
     .from("claim_records" as any)
     .select("*")
     .eq("id", claimId)
     .maybeSingle();
 
-  if (!claimRow) return { claim: null, blockers: [] };
+  // An empty blocker list is the signal for "clean" — so a read we could not
+  // complete (RLS denial, network blip, row gone) must NOT look clean.
+  if (claimErr || !claimRow) return { claim: null, blockers: [], ok: false };
   const c: any = claimRow;
+
 
   const [{ data: pat }, { data: trip }] = await Promise.all([
     c.patient_id
@@ -129,5 +132,5 @@ export async function fetchClaimBlockerSnapshot(
     patient_terminal_illness_icd: p?.terminal_illness_icd ?? null,
   };
 
-  return { claim: enriched, blockers: detectClaimBlockers(enriched) };
+  return { claim: enriched, blockers: detectClaimBlockers(enriched), ok: true };
 }
