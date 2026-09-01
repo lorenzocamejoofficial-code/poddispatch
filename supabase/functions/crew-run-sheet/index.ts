@@ -15,8 +15,6 @@ const supabaseAdmin = createClient(
 );
 
 async function validateToken(token: string) {
-  // Don't filter by server UTC date — just check token is active.
-  // The token's valid_from is the authoritative schedule date.
   const { data: tokenRow, error } = await supabaseAdmin
     .from("crew_share_tokens")
     .select("truck_id, valid_from, valid_until, company_id")
@@ -24,8 +22,18 @@ async function validateToken(token: string) {
     .eq("active", true)
     .maybeSingle();
   if (error || !tokenRow) return null;
+  // Enforce the link's validity window — expired links stop working.
+  if (tokenRow.valid_until) {
+    const until = new Date(tokenRow.valid_until as string);
+    // Date-only values (YYYY-MM-DD) expire at the end of that day.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(tokenRow.valid_until))) {
+      until.setUTCHours(23, 59, 59, 999);
+    }
+    if (!Number.isNaN(until.getTime()) && until.getTime() < Date.now()) return null;
+  }
   return tokenRow;
 }
+
 
 function getScheduleDate(tokenRow: { valid_from: string }) {
   // Use the date stored on the token record — never recalculate from server UTC
