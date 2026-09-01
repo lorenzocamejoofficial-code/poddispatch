@@ -2072,7 +2072,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const typeByTripId = new Map((tripTypeRows ?? []).map((t: any) => [t.id, t.trip_type]));
     for (const c of pool ?? []) {
       const t = c.trip_id ? typeByTripId.get(c.trip_id) : null;
-      if (t) tripTypeByClaimId.set(c.id, t);
+      if (t) tripTypeByClaimId.set(c.id, String(t));
     }
   }
   const profileFor = (c: any) => profileForTripType(tripTypeByClaimId.get(c.id));
