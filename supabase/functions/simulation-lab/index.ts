@@ -57,6 +57,12 @@ function timeToMin(time: string): number {
 }
 function rand(min: number, max: number): number { return min + Math.floor(Math.random() * (max - min + 1)); }
 function coinFlip(prob = 0.5): boolean { return Math.random() < prob; }
+/** Shift an ISO yyyy-mm-dd date by N days (negative = earlier). */
+function shiftDate(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 // Valid enum values from database
 const VALID_CERT_LEVELS = ["EMR", "EMT-B", "EMT-A", "EMT-P"] as const;
@@ -642,6 +648,14 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         // Override transport/payer when scenario mix demands it; keep template defaults otherwise
         transport_type: normalizeTransportType(desiredTrip),
         primary_payer: desiredPayer,
+        // PCS dates are re-based on the seed date. Template charts carry
+        // whatever date they were created with, and a stale signature made
+        // EVERY seeded claim show an "expired PCS" hard blocker regardless of
+        // which bucket it was meant to demo. Gaps are injected deliberately
+        // (missingPcs set), never as a side effect of template age.
+        pcs_on_file: true,
+        pcs_signed_date: shiftDate(today, -10),
+        pcs_expiration_date: shiftDate(today, 50),
         company_id: companyId,
         is_template: false,
         is_simulated: true,
@@ -792,7 +806,9 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         : tripType === "outpatient" ? "outpatient_specialty"
         : "other";
 
-      const destinationType = tripType === "dialysis" ? "Dialysis Center"
+      // "Freestanding" is required: a bare "Dialysis Center" resolves to
+      // modifier D, which the readiness gate hard-blocks for dialysis legs.
+      const destinationType = tripType === "dialysis" ? "Freestanding Dialysis Center"
         : tripType === "wound_care" ? "Wound Care Clinic"
         : tripType === "psych_transport" ? "Behavioral Health Facility"
         : tripType === "discharge" ? "Skilled Nursing Facility"
@@ -1684,13 +1700,30 @@ const RECOVERABLE_CARCS = [
 const CLEAN_CLAIM_FIELDS = {
   icd10_codes: ["N18.6", "Z99.2"],
   origin_type: "Residence",
-  destination_type: "Dialysis Facility",
+  // Must be "Freestanding" — a generic dialysis type resolves to modifier D,
+  // which the readiness gate hard-blocks for a dialysis leg.
+  destination_type: "Freestanding Dialysis Facility",
   origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
   origin_zip: "30309",
   destination_address: "550 Peachtree St NE, Atlanta, GA 30308",
   destination_zip: "30308",
   pcs_document_on_file: false,
 };
+
+/**
+ * Clean fields for one claim, with the PCS certification date re-based on that
+ * claim's own date of service (15 days before DOS, inside the CMS 60-day
+ * window). Without this, a bucket whose run_date is shifted (timely filing,
+ * aging) inherits a signature that is expired for its DOS and the demo claim
+ * shows a PCS blocker it was never meant to have.
+ */
+function cleanClaimFieldsFor(runDate?: string | null) {
+  const dos = typeof runDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(runDate) ? runDate : null;
+  return {
+    ...CLEAN_CLAIM_FIELDS,
+    ...(dos ? { pcs_certification_date: shiftDate(dos, -15) } : {}),
+  };
+}
 
 async function createDenialsRemitsClaimPool(admin: any, companyId: string, needed: number) {
 
@@ -1811,7 +1844,7 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
   if (tripErr) return { ok: false, error: `Demo trip creation failed: ${tripErr.message}` };
 
   const claimRows = specs.map((s, i) => ({
-    ...CLEAN_CLAIM_FIELDS,
+    ...cleanClaimFieldsFor(s.runDate),
     company_id: companyId,
     patient_id: s.patientId,
     trip_id: trips?.[i]?.id ?? null,
@@ -1899,7 +1932,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const c = deniedSlice[i];
     const carc = RECOVERABLE_CARCS[i % RECOVERABLE_CARCS.length];
     const { error } = await admin.from("claim_records").update({
-      ...CLEAN_CLAIM_FIELDS,
+      ...cleanClaimFieldsFor(c.run_date),
       status: "denied",
       denial_code: carc.code,
       denial_reason: carc.reason,
@@ -1923,7 +1956,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const pr = Math.round(total * 0.20 * 100) / 100;
 
     const { error: cerr } = await admin.from("claim_records").update({
-      ...CLEAN_CLAIM_FIELDS,
+      ...cleanClaimFieldsFor(c.run_date),
       status: "paid",
       amount_paid: paid,
       patient_responsibility_amount: pr,
@@ -1956,7 +1989,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
   for (let i = 0; i < agingSlice.length; i++) {
     const c = agingSlice[i];
     const { error } = await admin.from("claim_records").update({
-      ...CLEAN_CLAIM_FIELDS,
+      ...cleanClaimFieldsFor(c.run_date),
       status: "submitted",
       submitted_at: isoMinus(60),
       is_simulated: false,
@@ -1983,7 +2016,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const c = tfSlice[i];
     const cfg = tfConfigs[i];
     const { error } = await admin.from("claim_records").update({
-      ...CLEAN_CLAIM_FIELDS,
+      ...cleanClaimFieldsFor(cfg.runDate),
       status: cfg.status,
       run_date: cfg.runDate,
       payer_type: "medicare",
@@ -2016,7 +2049,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const owed = Math.round((allowed - pr) * 100) / 100;
     const paid = Math.round(owed * cfg.paidPctOfOwed * 100) / 100;
     const { error } = await admin.from("claim_records").update({
-      ...CLEAN_CLAIM_FIELDS,
+      ...cleanClaimFieldsFor(c.run_date),
       status: "paid",
       allowed_amount: allowed,
       amount_paid: paid,

@@ -1767,7 +1767,13 @@ export default function BillingAndClaims() {
                               {(claim as any).acknowledgment_status === "forwarded_to_payer" && (
                                 <Badge variant="secondary" className="text-[9px] px-1 py-0">Forwarded</Badge>
                               )}
-                              {claim.submitted_at && !(claim as any).acknowledgment_status && (
+                              {/* "Ack pending" only means something while the
+                                  claim is still in flight. Once the payer has
+                                  adjudicated (paid / denied) or the claim came
+                                  back for correction, a missing 999 is history,
+                                  not a pending state. */}
+                              {claim.submitted_at && !(claim as any).acknowledgment_status &&
+                                ["submitted", "pending", "forwarded"].includes(String(claim.status)) && (
                                 <Badge variant="outline" className="text-[9px] px-1 py-0 text-muted-foreground" title="Waiting on 999 from clearinghouse">Ack pending</Badge>
                               )}
                               {/* Fix 3: Rate Missing badge for $0 claims */}
@@ -1821,12 +1827,35 @@ export default function BillingAndClaims() {
                           {claim.hcpcs_codes?.length ? (
                             <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{claim.hcpcs_codes.join(", ")}</p>
                           ) : null}
+                          {/* What the PAYER / clearinghouse said. On a denied or
+                              rejected claim this is the headline — the reason it
+                              came back — and it belongs above any of our own
+                              pre-submission readiness notes. */}
+                          {(claim.status === "denied" || claim.status === "needs_correction") &&
+                            (claim.denial_code || claim.denial_reason || (claim as any).rejection_reason) && (
+                            <p className="mt-1.5 text-[10px] text-destructive flex items-start gap-1">
+                              <AlertTriangle className="h-2.5 w-2.5 shrink-0 mt-[2px]" />
+                              <span className="line-clamp-2">
+                                {claim.denial_code ? <span className="font-mono font-semibold">{claim.denial_code} </span> : null}
+                                {claim.denial_reason ?? (claim as any).rejection_reason}
+                              </span>
+                            </p>
+                          )}
                           {(() => {
                             // Inline readiness — only "block" severity surfaces
                             // here. Soft warnings stay out of the biller queue
                             // and only fire at the export gate. Shared with the
                             // Denial Recovery Engine via detectClaimBlockers so
                             // both surfaces tell the same story.
+                            //
+                            // Only shown where the biller can still act on them
+                            // (pre-submission or rework). On a submitted or paid
+                            // claim these are noise: the claim already left the
+                            // building, and rendering the same amber list in
+                            // every tab made the board look like nothing was
+                            // being categorized.
+                            const ACTIONABLE = ["ready_to_bill", "needs_review", "needs_correction", "denied", "blocked_payer_mapping"];
+                            if (!ACTIONABLE.includes(String(claim.status))) return null;
                             const issues = detectClaimBlockers(claim);
                             if (!issues.length) return null;
                             return (
