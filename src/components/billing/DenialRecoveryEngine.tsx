@@ -545,8 +545,18 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
               tick off. Resubmission stays locked until this list is empty.
             </p>
 
+            {blockerReadFailed && (
+              <p className="text-xs text-destructive">
+                Couldn't verify this claim — check your connection and re-check before resubmitting.
+              </p>
+            )}
+
             {blockersLoading && blockers.length === 0 ? (
               <p className="text-xs text-muted-foreground">Checking claim…</p>
+            ) : blockerReadFailed && blockers.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Blocker status unknown — re-check to verify this claim.
+              </p>
             ) : blockers.length === 0 ? (
               <div className="rounded-md border border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5 p-3 flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-[hsl(var(--status-green))] shrink-0" />
