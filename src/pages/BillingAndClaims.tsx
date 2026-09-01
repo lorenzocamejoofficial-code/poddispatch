@@ -1753,11 +1753,21 @@ export default function BillingAndClaims() {
                   </div>
 
                   {/* What this bucket means */}
-                  <div className="flex items-start gap-1.5 rounded-md border bg-muted/40 px-3 py-2">
+                  <div className="flex flex-wrap items-start gap-1.5 rounded-md border bg-muted/40 px-3 py-2">
                     <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{activeCol.label}</span>
                     <InfoTip align="left" text={activeCol.help} />
                     <span className="text-xs text-muted-foreground">{activeCol.help.split(". ")[0]}.</span>
+                    {statusTab === "ready_to_bill" && (readyCount > 0 || readyBlockedCount > 0) && (
+                      <span className="text-xs font-medium w-full">
+                        <span className="text-[hsl(var(--status-green))]">{readyCount} clean and submittable</span>
+                        {" · "}
+                        <span className={readyBlockedCount > 0 ? "text-destructive" : "text-muted-foreground"}>
+                          {readyBlockedCount} blocked — held back until fixed
+                        </span>
+                      </span>
+                    )}
                   </div>
+
 
                   {/* List */}
                   <div className={`rounded-lg border p-3 ${activeCol.color}`}>
