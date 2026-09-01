@@ -1668,7 +1668,30 @@ const RECOVERABLE_CARCS = [
   { code: "CO-167", reason: "This (these) diagnosis(es) is (are) not covered" },
 ];
 
+/**
+ * Billing-complete data every seeded claim carries.
+ *
+ * Honest-status rule: a demo claim may only sit in a "clean" bucket
+ * (ready_to_bill / submitted / paid) when it would actually pass the
+ * readiness gate. These are the fields the gate hard-blocks on
+ * (src/lib/claim-readiness.ts): ICD-10, origin/destination type,
+ * origin/destination address + ZIP. Buckets 6 and 7 deliberately overwrite
+ * some of these to create honest gaps for the Needs Review / Needs
+ * Correction demos.
+ */
+const CLEAN_CLAIM_FIELDS = {
+  icd10_codes: ["N18.6", "Z99.2"],
+  origin_type: "Residence",
+  destination_type: "Dialysis Facility",
+  origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
+  origin_zip: "30309",
+  destination_address: "550 Peachtree St NE, Atlanta, GA 30308",
+  destination_zip: "30308",
+  pcs_document_on_file: false,
+};
+
 async function createDenialsRemitsClaimPool(admin: any, companyId: string, needed: number) {
+
   let { data: patients, error: patientErr } = await admin
     .from("patients")
     .select("id")
