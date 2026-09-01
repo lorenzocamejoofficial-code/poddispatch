@@ -1975,27 +1975,13 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
   if (tripErr) return { ok: false, error: `Demo trip creation failed: ${tripErr.message}` };
 
   const claimRows = specs.map((s, i) => ({
-    ...cleanClaimFieldsFor(s.runDate),
-    company_id: companyId,
-    patient_id: s.patientId,
-    trip_id: trips?.[i]?.id ?? null,
-    run_date: s.runDate,
-    payer_type: s.payerType,
-    payer_name: s.payerName,
-    member_id: s.memberId,
-    base_charge: 250,
-    mileage_charge: s.total - 250,
-    extras_charge: 0,
-    total_charge: s.total,
-    expected_revenue: s.total,
-    status: "submitted",
-    submitted_at: new Date(now - (8 + i) * dayMs).toISOString(),
-    hcpcs_codes: ["A0428"],
-    hcpcs_modifiers: ["RH"],
-    cpt_codes: ["A0428"],
+    ...cleanClaimFieldsFor(s.runDate, s.profile),
+...
     claim_build_date: dateMinus(8 + i),
     is_simulated: true,
-    is_test_submission: false,
+    // Flagged as a test submission so pool claims never pollute the revenue
+    // or denial-rate metrics (which exclude is_test_submission).
+    is_test_submission: true,
     notes: "Simulation Lab Tier 1 demo seed",
   }));
 
