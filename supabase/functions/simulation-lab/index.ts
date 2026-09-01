@@ -1885,16 +1885,19 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
   // 380d back → 15d past due. Use medicare so payer rule is unambiguous.
   const tfSlice = pool.slice(15, 18);
   const tfConfigs = [
-    { runDate: dateMinus(357), label: "near deadline" },
-    { runDate: dateMinus(360), label: "near deadline" },
-    { runDate: dateMinus(380), label: "past due" },
+    { runDate: dateMinus(357), label: "near deadline", status: "ready_to_bill" },
+    { runDate: dateMinus(360), label: "near deadline", status: "ready_to_bill" },
+    // Past due is a HARD blocker in the readiness gate, so it must not sit in
+    // Ready to Bill. It stays visible in the Timely Filing strip, which also
+    // scans needs_review.
+    { runDate: dateMinus(380), label: "past due", status: "needs_review" },
   ];
   for (let i = 0; i < tfSlice.length && i < tfConfigs.length; i++) {
     const c = tfSlice[i];
     const cfg = tfConfigs[i];
     const { error } = await admin.from("claim_records").update({
       ...CLEAN_CLAIM_FIELDS,
-      status: "ready_to_bill",
+      status: cfg.status,
       run_date: cfg.runDate,
       payer_type: "medicare",
       payer_name: "MEDICARE",
