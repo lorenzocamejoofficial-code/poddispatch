@@ -1460,7 +1460,8 @@ export default function BillingAndClaims() {
         </div>
 
         {/* 2. NEEDS YOUR ACTION — task rows wired to existing handlers */}
-        {(readyCount > 0 || deniedCount > 0 || secondaryOpportunities > 0) && (
+        {(readyCount > 0 || readyBlockedCount > 0 || deniedCount > 0 || secondaryOpportunities > 0) && (
+
           <div className="rounded-lg border bg-card divide-y">
             <div className="px-4 py-2 text-xs uppercase tracking-wider text-muted-foreground font-medium">
               Needs your action
