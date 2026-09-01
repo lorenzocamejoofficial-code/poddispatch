@@ -1976,7 +1976,20 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
 
   const claimRows = specs.map((s, i) => ({
     ...cleanClaimFieldsFor(s.runDate, s.profile),
-...
+    company_id: companyId,
+    patient_id: s.patientId,
+    trip_id: trips?.[i]?.id ?? null,
+    run_date: s.runDate,
+    payer_type: s.payerType,
+    payer_name: s.payerName,
+    member_id: s.memberId,
+    base_charge: 250,
+    mileage_charge: s.total - 250,
+    extras_charge: 0,
+    total_charge: s.total,
+    expected_revenue: s.total,
+    status: "submitted",
+    submitted_at: new Date(now - (8 + i) * dayMs).toISOString(),
     claim_build_date: dateMinus(8 + i),
     is_simulated: true,
     // Flagged as a test submission so pool claims never pollute the revenue
