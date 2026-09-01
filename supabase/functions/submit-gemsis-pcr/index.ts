@@ -54,11 +54,15 @@ Deno.serve(async (req) => {
   }
   const test_mode = body.test_mode !== false; // default true until vendor cert lands
 
-  // JWT check — caller must be authenticated.
+  // JWT check — caller must be authenticated (validated, not just present).
   const auth = req.headers.get("Authorization");
   if (!auth?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+  const { data: userData, error: userErr } = await supabase.auth.getUser(auth.replace("Bearer ", ""));
+  const caller = userData?.user;
+  if (userErr || !caller) return json({ error: "Unauthorized" }, 401);
 
   // Load trip + patient + company context
   const { data: trip, error: tripErr } = await supabase
@@ -67,6 +71,16 @@ Deno.serve(async (req) => {
     .eq("id", trip_id)
     .maybeSingle();
   if (tripErr || !trip) return json({ error: "Trip not found" }, 404);
+
+  // Tenant check — caller must belong to the trip's company.
+  const { data: membership } = await supabase
+    .from("company_memberships")
+    .select("id")
+    .eq("user_id", caller.id)
+    .eq("company_id", trip.company_id)
+    .maybeSingle();
+  if (!membership) return json({ error: "Forbidden" }, 403);
+
 
   const company = trip.companies as { id: string; name: string; npi: string | null; state_ems_agency_number: string | null; state_ems_license_state: string | null } | null;
   if (!company) return json({ error: "Company not resolvable" }, 400);
