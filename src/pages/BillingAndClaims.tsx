@@ -1472,9 +1472,11 @@ export default function BillingAndClaims() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">Ready to submit</p>
                   <p className="text-xs text-muted-foreground">
-                    {readyCount} claim{readyCount === 1 ? "" : "s"} · {fmtMoney(readyTotal)}
+                    {readyCount} clean claim{readyCount === 1 ? "" : "s"} · {fmtMoney(readyTotal)}
+                    {readyBlockedCount > 0 ? ` — ${readyBlockedCount} blocked claim${readyBlockedCount === 1 ? "" : "s"} will be held back` : ""}
                   </p>
                 </div>
+
                 {clearinghouseConfigured ? (
                   <ConfirmActionDialog
                     trigger={
