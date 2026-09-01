@@ -1700,13 +1700,30 @@ const RECOVERABLE_CARCS = [
 const CLEAN_CLAIM_FIELDS = {
   icd10_codes: ["N18.6", "Z99.2"],
   origin_type: "Residence",
-  destination_type: "Dialysis Facility",
+  // Must be "Freestanding" — a generic dialysis type resolves to modifier D,
+  // which the readiness gate hard-blocks for a dialysis leg.
+  destination_type: "Freestanding Dialysis Facility",
   origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
   origin_zip: "30309",
   destination_address: "550 Peachtree St NE, Atlanta, GA 30308",
   destination_zip: "30308",
   pcs_document_on_file: false,
 };
+
+/**
+ * Clean fields for one claim, with the PCS certification date re-based on that
+ * claim's own date of service (15 days before DOS, inside the CMS 60-day
+ * window). Without this, a bucket whose run_date is shifted (timely filing,
+ * aging) inherits a signature that is expired for its DOS and the demo claim
+ * shows a PCS blocker it was never meant to have.
+ */
+function cleanClaimFieldsFor(runDate?: string | null) {
+  const dos = typeof runDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(runDate) ? runDate : null;
+  return {
+    ...CLEAN_CLAIM_FIELDS,
+    ...(dos ? { pcs_certification_date: shiftDate(dos, -15) } : {}),
+  };
+}
 
 async function createDenialsRemitsClaimPool(admin: any, companyId: string, needed: number) {
 
