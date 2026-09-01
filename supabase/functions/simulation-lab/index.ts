@@ -642,6 +642,14 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         // Override transport/payer when scenario mix demands it; keep template defaults otherwise
         transport_type: normalizeTransportType(desiredTrip),
         primary_payer: desiredPayer,
+        // PCS dates are re-based on the seed date. Template charts carry
+        // whatever date they were created with, and a stale signature made
+        // EVERY seeded claim show an "expired PCS" hard blocker regardless of
+        // which bucket it was meant to demo. Gaps are injected deliberately
+        // (missingPcs set), never as a side effect of template age.
+        pcs_on_file: true,
+        pcs_signed_date: shiftDate(today, -10),
+        pcs_expiration_date: shiftDate(today, 50),
         company_id: companyId,
         is_template: false,
         is_simulated: true,
