@@ -89,7 +89,7 @@ import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
 import { PAYER_KEYS, normalizePayerKey, payerLabel } from "@/lib/payer-vocabulary";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
-import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
+import { useSimulationCompanyState } from "@/hooks/useIsSimulationCompany";
 import { SecondaryClaimPanel } from "@/components/billing/SecondaryClaimPanel";
 import { RevenueCycleTab } from "@/components/billing/RevenueCycleTab";
 import { EmergencyEventPanel } from "@/components/billing/EmergencyEventPanel";
