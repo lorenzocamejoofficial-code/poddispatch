@@ -406,7 +406,7 @@ export function useMissingMoneyScan() {
       setScanError(err?.message ?? "Missing money scan failed");
     }
     setLoading(false);
-  }, [activeCompanyId, isSimulationCompany, simulationRunId]);
+  }, [activeCompanyId, isSimulationCompany, simulationRunId, simFlagResolved]);
 
   useEffect(() => {
     runScan();
