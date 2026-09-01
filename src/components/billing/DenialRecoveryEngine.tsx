@@ -304,14 +304,15 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
   // Re-validate when the biller comes back from a fix page / another tab.
   useEffect(() => {
     if (!open) return;
-    const onFocus = () => { void refreshBlockers(); };
+    const onFocus = () => { void refreshBlockers(); void loadTrip(); };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);
     return () => {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
     };
-  }, [open, refreshBlockers]);
+  }, [open, refreshBlockers, loadTrip]);
+
 
   const getProfileName = async () => {
     if (!user) return "Unknown";
