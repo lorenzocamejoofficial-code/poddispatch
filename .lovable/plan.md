@@ -1,93 +1,151 @@
-# Audit — Denial Rework Loop: environment + workflow readiness
+# Audit — Unrecognized denials → creator escalation
 
-Read-only. Nothing was changed. Evidence = file:line and live queries against the creator test tenant `f53311c3…7789`.
-
-## Live state right now (blocks any test until you seed)
-
-- `claim_records` in the test tenant: **1 row, status `ready_to_bill`**. **Zero `denied` claims exist anywhere** (query on `claim_records where status='denied'` returned 0 rows).
-- Last `simulation_runs` row: `Sandbox Reset`, 2026-09-01 01:56 UTC. `claim_records with simulation_run_id not null` = 0 — the reset swept cleanly.
-- Patients: 9 (8 templates), all 9 have dob, sex and pickup_address — so injected denials will not be polluted by missing-demographic blockers.
+Read-only. Nothing changed. Evidence = file:line + live DB reads.
 
 ---
 
-## LAYER 1 — Test environment readiness
+## PART A — How an unknown denial code behaves today
 
-| # | Item | Verdict | Evidence |
+### A1. End-to-end path for a code not in the reference table
+
+The table has **43 codes** (`src/lib/denial-code-translations.ts`, CO-4…CO-204, PR-*, OA-*), mirrored for edge functions at `supabase/functions/_shared/denial-code-translations.ts`. Lookup is a plain map read that returns `null` on a miss (`denial-code-translations.ts:354-356`).
+
+What the biller sees, by surface:
+
+| Surface | Behaviour on unknown code | Evidence |
+|---|---|---|
+| Claim card / work queue | `classifyDenial` finds no CARC → verdict `"Unrecognized denial code"`, recoverable `"maybe"`, CTA `"Review"` | `src/lib/classify-denial.ts:53-61`, `:205-212` |
+| Denial Recovery Engine header | Shows the **raw code** verbatim (`claim.denial_code ?? "Unknown Denial"`), then `translation?.plain_english_explanation ?? claim.denial_reason ?? "No details available"` | `DenialRecoveryEngine.tsx:492-502` |
+| Engine checklist | Falls to the `default:` branch — since `translation` is null there is no `action_required`, so the biller gets **one generic item**: "Review the denial reason and determine next steps" | `DenialRecoveryEngine.tsx:100-121` |
+| Field-correction editor | `FIELDS_FOR_DENIAL` has no entry → the editor never renders | `DenialRecoveryEngine.tsx:126-133`, `:620` |
+| Missing Money / Owner dashboard / Revenue Cycle | `getDenialTranslation` returns null and the row degrades to raw code only | `useMissingMoneyScan.ts:313`, `OwnerDashboard.tsx:162,175,209`, `RevenueCycleTab.tsx:274` |
+| Helper text | `getActionRequired` returns "Unrecognized denial code. Review the remittance advice for details." — but no UI surface calls it on this path | `denial-code-translations.ts:371-376` |
+
+**Net:** the biller is not lied to, but is handed a dead end — raw code, payer's own reason string, one generic checklist line, no fix fields, no escalation.
+
+### A2. Is the raw payer data preserved? — YES, fully
+
+`claim_records` carries 12 denial/rejection columns (live `information_schema` read):
+`denial_code`, `denial_reason`, `denial_category`, `adjustment_codes`, `rejection_codes`, `rejection_reason`, `last_rejection_raw`, `last_rejection_segment`, `last_rejection_loop`, `last_rejection_byte`, `last_rejection_recorded_at`, `last_rejection_recorded_by`.
+
+The 835 parser keeps every CAS pair as `groupCode-reasonCode` in `raw_denial_codes` (`src/lib/edi-835-parser.ts:265`, deduped `:338`) and the poster writes `denial_code = primaryDenial.code` plus the **full array** into `adjustment_codes` (`src/lib/remittance-post.ts:86-88`, mirrored in `supabase/functions/_shared/remittance-post.ts:71-88`). `denial_reason` is the payer's own text, not a lookup, so it survives translation misses. Ack rejections additionally store the raw segment/loop/byte via the `last_rejection_*` columns.
+
+### A3. Is an unknown code logged anywhere? — NO
+
+`rg` across `src/` and `supabase/functions/` for the translation helpers finds only render-time call sites; there is no counter, no insert, no telemetry, no audit event, no notification fired when `getDenialTranslation` returns null (`denial-code-translations.ts:354`, `:371`; all call sites listed in A1). Nothing distinguishes "code we don't know" from "code we know" anywhere in the data. **Unknowns are invisible to you today** — they only exist on the claim row a biller happens to open.
+
+---
+
+## PART B — Existing creator-side review machinery
+
+Everything lives on **one page**: `src/pages/CreatorConsole.tsx:834-889` — 12 tabs.
+
+### B1. Remittance Quarantine (closest existing pattern)
+
+- Table `public.remittance_quarantine`, 23 columns (live `\d`): `importing_company_id` + `matched_company_id` (both FK → `companies`), `remittance_file_id`, `posted_to_claim_id`, `patient_control_number`, `payer_claim_control_number`, `billing_npi_in_file`/`expected_billing_npi`, `raw_clp_segment`, `quarantine_reason` (free text, NOT NULL), `status` (default `pending_review`), `file_type` CHECK in `('835','999','277ca')`, `reviewed_by`/`reviewed_at`/`resolution_notes`.
+- UI: `src/components/creator/RemittanceQuarantinePanel.tsx`, mounted at `CreatorConsole.tsx:846,874`.
+- **Company categorisation:** not grouped, but per-row attributed — company IDs are resolved to names client-side (`RemittanceQuarantinePanel.tsx:86-101`) and both filters are status/file-type, not company (`:57-58`).
+- Creator actions: `resolved_posted`, `resolved_ignored`, `resolved_reassigned`, `resolved_routed` (`:41-47`). Routing is the only one with real plumbing — it calls the `route-quarantined-remittance` edge function, which hands the money to the target tenant so **they see it in their own Remittance History** (`:126-152`). Others just stamp status + notes (`:155-176`).
+- Writers: `retrieve-remittance-officeally`, `ingest-acks-officeally`, `RemittanceImport.tsx`, `manage-company`.
+- Live: 5 rows, all `999 … could not be matched to a submitted batch`.
+- **Verdict:** the *shape* is right (creator-only queue, company attribution, review → resolve → push result back to the tenant) but the *meaning* is "inbound file line that was never posted to anyone's books." An escalated denial is the opposite: a claim that IS posted, in a known company, that the biller can't work. The `file_type` CHECK constraint and the NPI/CLP columns would all be dead weight. **Reuse the pattern, not the table.**
+
+### B2. Every creator queue that exists
+
+| Queue | Table | Company-scoped? | Extendable pattern? |
 |---|---|---|---|
-| 1.1 | Injector creates 6 denials with real CARCs: CO-16, CO-50, CO-197, CO-29, CO-11, CO-167 — each sets `status='denied'`, `denial_code`, human `denial_reason`, `denial_category='payer'`, `adjustment_codes`, `submitted_at = now-12d` | PRESENT | `supabase/functions/simulation-lab/index.ts:1662-1669`, `:1809-1828` |
-| 1.2 | Denied claims are billing-complete enough to work: `CLEAN_CLAIM_FIELDS` spreads ICD-10, origin/destination type, addresses, ZIPs onto every denied row | PRESENT | `index.ts:1682-1691`, spread at `:1815` |
-| 1.3 | Injected claims are visible to the billing board: flipped `is_simulated=false`, `is_test_submission=false`; board query excludes `is_simulated=true` and metrics exclude `is_test_submission` | PRESENT (matched) | `index.ts:1822-1823`; `src/pages/BillingAndClaims.tsx:230`, `:1360` |
-| 1.4 | **The pool the injector transforms has no trip** — with the tenant this empty, `createDenialsRemitsClaimPool` synthesises 25 claim rows that set no `trip_id` | **DEGRADES (major)** | `index.ts:1723-1749` (no `trip_id` key), `:1779-1790` |
-| 1.5 | Reset exists and is thorough: deletes sim trips/legs/slots/claims, then `claim_records` tagged `simulation_run_id not null`, plus `claim_payments`, `remittance_files`, `plb_adjustments`, clears `SIM_INJECT` secondary-payer fields, deletes cloned patients and all `simulation_runs` | PRESENT | `index.ts:1522-1612`; UI button `src/pages/SimulationLab.tsx:301-316`, `:840-842` |
-| 1.6 | Dates are current-relative — all buckets use `isoMinus`/`dateMinus` from `Date.now()`; denied `run_date` = today−10…−16 | PRESENT | `index.ts:1801-1804`, `:1730` |
-| 1.7 | **CO-29 ("time limit for filing has expired") is stamped on a 10-day-old claim** — the readiness gate will find no timely-filing blocker, so that denial is trivially "resolvable" and proves nothing | DEGRADES | `index.ts:1730` vs `:1666`; gate at `src/lib/claim-readiness.ts:455` |
-| 1.8 | Injector reachable in UI with success/count reporting: creator Simulation Lab card, auto-seeds `billing_risk` when the pool is thin, toasts counts, console-logs each call | PRESENT | `src/pages/SimulationLab.tsx:604-641`, `:198-255` |
+| Pending approvals / Active / Awaiting payment / Suspended / Rejected / Archived | `companies` (+`company_verifications`) | is the company | No — company lifecycle, not work items |
+| Company verification (NPI/Medicare/OIG) | `company_verifications` | yes, FK | No |
+| Remittance Quarantine | `remittance_quarantine` | yes, two FKs | Yes — best structural template (B1) |
+| Reconciliation | `ReconciliationReportPanel.tsx` over remittance tables | yes | Reporting only, no work state |
+| Acknowledgments | `legal_acceptances` | yes | No |
+| **Support** | `support_tickets` | yes, `company_id` NOT NULL FK | **Yes — closest behavioural match** |
+| Load Test / System Health / Announcements | ops panels | n/a | No |
+| Mission Control counters | counts urgent + open `support_tickets` and `pending_review` quarantine | yes | Yes — the badge surface to reuse |
+
+Evidence: `CreatorConsole.tsx:29-38`, `:834-889`; `MissionControlPanel.tsx:77-96`.
+
+### B3. Existing tenant → creator escalation — YES, exactly one
+
+`support_tickets` is a full working loop:
+
+- Tenant creates: `src/components/BugReportDialog.tsx:106-111` (company_id, user_id, page_path, subject, severity, category, client_context) with a `ticket_number` auto-assigned by the `assign_support_ticket_number` trigger.
+- Creator reviews: `SupportTicketsPanel.tsx` — severity ranking (urgent/high/normal/low, `:43`), status filter, per-company enrichment via `fetchRealCompanyIds`, status writes (`:144`), `creator_notes` writes (`:154`), and a **reply that reaches the customer** through the `reply-support-ticket` edge function (`:165`).
+- Tenant sees it back: their ticket history + status in `BugReportDialog.tsx:80-85`; `useNotificationFeed` surfaces ticket rows.
+- RLS: `Creator can read all tickets` / `Creator can update tickets` via `is_system_creator()` (live `\d support_tickets`).
+
+No other tenant-side event creates a creator-side review item.
 
 ---
 
-## LAYER 2 — Plumbing (denial → classify → work → re-stage → resubmit)
+## PART C — Minimum build for company-categorised denial escalation
 
-| Link | Verdict | Evidence |
-|---|---|---|
-| Denial lands in the Denied tab with code + $ + blocker list | WORKS | `BillingAndClaims.tsx:168`, `:1381-1383`, `:1426-1428`, `:1492-1501` |
-| Card exposes a working "Recover" action | WORKS | `BillingAndClaims.tsx:1871-1878` → `setRecoveryClaimId` → `:2238-2243` |
-| Engine shows plain-English reason; all 6 injected codes exist in the translation table (incl. CO-167) | WORKS | `DenialRecoveryEngine.tsx:492-502`; `src/lib/denial-code-translations.ts:189` (43 codes) |
-| Per-code checklist renders | PARTIAL — CO-16, CO-11, CO-50, CO-197, CO-29 have real checklists; **CO-167 falls to the generic default** (one line from `action_required`) | `DenialRecoveryEngine.tsx:30-123` (no `CO-167` case) |
-| Live blocker list re-reads the DB, re-checks on window focus, has a manual Re-check button and deep-link fixes | WORKS | `DenialRecoveryEngine.tsx:249-272`, `:506-583`; `src/lib/claim-blockers.ts:66-133` |
-| Fields needed to resolve are editable | **PARTIAL/BROKEN for the injector** — the editor only renders when `tripData` loads and only for CO-16/4/5/11/55/56; injected claims have `trip_id = null`, so the trip fetch never runs and **the Claim Field Corrections block never appears**; `saveFieldCorrections` early-returns | `DenialRecoveryEngine.tsx:126-133`, `:195-214`, `:280-283`, `:620` |
-| Mark-resolved passes the hard blocker gate → `ready_to_bill` | WORKS | `DenialRecoveryEngine.tsx:365-443` (re-fetch, notes required, status write, `resubmission_count++`, `[RESUBMIT]` note, `biller_tasks` auto-complete, audit log, toast) |
-| Resolved claim reappears in Ready to Bill | WORKS | status maps 1:1 in `src/lib/claim-status-tabs.ts:41-50` |
-| Demotion safety net re-checks promoted claims | NOT EXERCISED by sim data — `demoteBlockedReadyToBill` only considers claims with a `trip_id` | `BillingAndClaims.tsx:899-903` |
-| Submit to Office Ally boundary | NOT VERIFIED in this audit |
+### C1. Host: a new small table, not quarantine, not raw tickets
 
-### 2.6 Where the sim path diverges from a real 835
+`remittance_quarantine` is semantically wrong (B1) and constrained by `file_type`. `support_tickets` is behaviourally right but has no claim linkage, no denial code, and mixes "the app is broken" with "this claim is weird" in one queue you'd have to triage by hand.
 
-The injector writes denial fields **directly onto `claim_records`**. It therefore never exercises, and will never prove:
+Smallest honest design — **one table, modelled on `remittance_quarantine`'s columns and `support_tickets`' loop**:
 
-- `src/lib/edi-835-parser.ts` — CLP/CAS/SVC/PLB segment parsing and line-level vs claim-level adjustment split
-- `src/lib/remittance-match.ts` — matching CLP01 to a claim, NPI verification, and the **remittance quarantine** path
-- `remittance_files` / `claim_payments` / `plb_adjustments` row creation and the `recompute_claim_from_payments` trigger (paid/allowed/PR math, underpayment "paid short")
-- `src/lib/classify-denial.ts` categorisation from a parsed CAS group code (the injector hardcodes `denial_category='payer'`)
-- Partial denials (paid + denied lines on one claim) and multi-CARC denials — every injected claim has exactly one code
-- The automated Office Ally retrieval function end-to-end
+```
+escalated_denials
+  id                uuid pk
+  company_id        uuid not null  -> companies(id)      -- categorisation key
+  claim_id          uuid not null  -> claim_records(id)
+  denial_code       text                                  -- raw, as received
+  raw_reason        text                                  -- payer text verbatim
+  adjustment_codes  text[]                                -- full CAS set
+  trigger           text  -- 'unknown_code' | 'biller_flagged'
+  biller_note       text
+  status            text default 'pending_review'
+      -- pending_review | creator_working | resolved_guidance | resolved_no_action
+  creator_notes     text
+  resolution        text  -- what the biller should do, shown in their claim
+  reviewed_by uuid, reviewed_at timestamptz
+  created_by  uuid, created_at timestamptz default now()
+```
+Plus grants + RLS: creator full via `is_system_creator()`; tenant `SELECT`/`INSERT` scoped to `get_my_company_id()` (mirrors the ticket policies).
 
-Only a real or uploaded 835 proves those. The injector proves the **downstream** half: Denied tab → recovery UI → blocker gate → re-stage.
+Two writers:
+1. **Automatic** — in the remittance poster (`src/lib/remittance-post.ts:69-88` and the `_shared` twin), when `getDenialTranslation(primaryDenial.code)` returns null on a denied claim, insert one row. This is the single place every denial (manual upload *and* Office Ally auto-retrieve) already funnels through, so one insert covers both paths.
+2. **Manual** — an "I don't know how to resolve this — escalate" button in the Denial Recovery Engine, next to Save Progress (`DenialRecoveryEngine.tsx:347-363` is the existing pattern to copy).
+
+### C2. Claim flow — stays visible, never disappears
+
+The claim keeps `status='denied'` and **stays in the customer's Denied tab**. No new `claim_status` enum value, so nothing in `claim-status-tabs.ts`, the readiness gate, or the 837 path changes. The card and the engine simply render an "Escalated to support — awaiting review" badge when an open `escalated_denials` row exists (same query shape as the existing blocker snapshot in `src/lib/claim-blockers.ts:66`). The biller is never stuck waiting on an empty screen and can still work the claim if they figure it out first.
+
+### C3. Resolution back to the customer
+
+Creator writes `resolution` + sets status `resolved_guidance`. Then, reusing what already exists:
+- the badge on the claim flips to "Support responded" and the engine shows the `resolution` text inline;
+- write the resolution as an `ar_followup_notes` row on the claim (already rendered in the engine's history, `DenialRecoveryEngine.tsx:672-684`) so it lands in the claim timeline permanently;
+- optional and free: reuse `reply-support-ticket`-style email only if you want out-of-app notification — not required for v1.
+
+No new notification plumbing, no ticket thread, no attachments, no SLA.
+
+### C4. Creator UI — one tab, copied from the quarantine panel
+
+A `Denial Escalations` tab beside `Remittance Quarantine` (`CreatorConsole.tsx:846`), rendering the same table/dialog structure as `RemittanceQuarantinePanel.tsx`: rows with company name (resolved the same way, `:86-101`), denial code, raw reason, claim link, days waiting; filters by status and **by company**; a review dialog that writes `creator_notes` + `resolution` + status. Add the pending count to `MissionControlPanel.tsx:77-96` next to the existing quarantine and urgent-ticket counters so it shows up on your overview without a new page.
+
+That is the whole minimum: one table, one auto-insert, one button, one tab, one counter.
+
+### C5. Learn-from-traffic (do this in v1 — it's nearly free)
+
+Yes, flag it. Without it you are personally in the loop for every odd code forever. Because every escalation row stores `denial_code` + `company_id`, the graduation loop is a `group by denial_code` read over the same table:
+
+- Add a small "Unknown code frequency" summary to the same tab: code, occurrence count, distinct companies affected, total dollars, first/last seen. No extra table.
+- Rule of thumb: any code seen 3+ times, or across 2+ companies, gets promoted into `denial-code-translations.ts` (both copies — `src/lib/` and `supabase/functions/_shared/`, kept in sync by `scripts/sync-billing-to-edge.sh`) plus a checklist case in `DenialRecoveryEngine.tsx:30-123` and, where a field fix applies, an entry in `FIELDS_FOR_DENIAL:126-133`.
+- Each promotion permanently removes that code from your inbox. The manual queue then drains toward genuinely rare/odd denials only.
+
+One caveat worth designing around now: the auto-insert must dedupe. Keyed on `(claim_id)` for open rows, or a payer sending an unknown code across a 40-claim remittance file creates 40 escalations. Group by code within a file, or insert one row per claim but let the creator resolve in bulk by code.
 
 ---
 
-## LAYER 3 — Visual / UX completeness
+## Punch list
 
-| # | Finding | Evidence |
-|---|---|---|
-| 3.1 | Blockers with no `fixPath` render the dead-end text "no direct fix link" — no action for the biller | `DenialRecoveryEngine.tsx:569-573` |
-| 3.2 | Filing-deadline badge is hardcoded to **365 days** in the engine, ignoring the payer directory (GA Medicaid = 180) — a Medicaid denial shows an optimistic countdown | `DenialRecoveryEngine.tsx:136-140`, `:479-482` |
-| 3.3 | `fetchClaimBlockerSnapshot` returns `{blockers: []}` when the claim row can't be read (RLS/network) — a failed read looks *clean* and would let `handleMarkReady` pass | `claim-blockers.ts:74-75` |
-| 3.4 | `handleSaveProgress` toasts "Progress saved" without checking the insert error | `DenialRecoveryEngine.tsx:347-363` |
-| 3.5 | Unknown/unmapped denial code → generic explanation + a single "Review the denial reason" checklist item, no guidance, no fix path | `DenialRecoveryEngine.tsx:100-121`; `denial-code-translations.ts:371-376` |
-| 3.6 | Denial with a blank `denial_reason` and unknown code renders "No details available" | `DenialRecoveryEngine.tsx:497` |
-| 3.7 | Present and good: tab empty state, blocker loading state, green "structurally clean" confirmation, last-checked timestamp, resubmission history, claim Timeline drawer trigger | `BillingAndClaims.tsx:1718-1719`; `DenialRecoveryEngine.tsx:531-582`, `:467`, `:672-684` |
+**Present today:** raw code, raw payer reason, full CAS array and rejection segment/loop/byte are all persisted on `claim_records` — no data is lost. An honest "Unrecognized denial code / Review" verdict exists. A proven creator review pattern exists twice over (quarantine: company-attributed queue with routing back to the tenant; support tickets: tenant-initiated escalation with creator notes and a reply that reaches the customer).
 
----
+**Missing:** zero logging or counting of unknown codes anywhere — you cannot currently answer "which codes are we blind to, and for whom." No escalation path from a denial. No creator queue that knows about claims. The unknown-code checklist is a single generic line with no fix fields and no way out.
 
-## Punch list, ranked
-
-**BLOCKS a trustworthy test**
-1. Environment is empty — 0 denied claims. Run Reset → seed → Inject Denials & Remits before testing (Layer 1 live query).
-2. Injected denials carry no `trip_id`, so the Claim Field Corrections editor — the actual fix surface for CO-16 and CO-11 — never renders. The "work the denial by editing data" link of the loop cannot be tested with injector data as-is (1.4, Layer 2 row 6).
-
-**DEGRADES the test**
-3. CO-29 timely-filing denial dated 10 days ago is self-contradictory and resolves without any real work (1.7).
-4. CO-167 has no dedicated checklist — generic fallback (Layer 2 row 4).
-5. Every injected denial is single-CARC, claim-level, `denial_category='payer'` — no partial denial, no line-level CAS, no unknown-code case in the seed set (2.6).
-6. The `demoteBlockedReadyToBill` safety net is skipped for trip-less claims, so the re-stage guard goes unverified (Layer 2 row 9).
-7. Silent-clean failure mode in `fetchClaimBlockerSnapshot` (3.3) — a network blip during the test would read as "clean to resubmit".
-
-**POLISH**
-8. Engine filing countdown should use the payer directory instead of a hardcoded 365 (3.2).
-9. "no direct fix link" dead-end text (3.1).
-10. `handleSaveProgress` unchecked error (3.4).
-11. Blank-reason / unknown-code rendering (3.5, 3.6).
-
-**Untested by the injector regardless of the above** — 835 parsing, claim matching, quarantine, payment posting/variance math, PLB, and denial classification. Those need a real or uploaded 835 file (2.6).
+**Recommendation:** new `escalated_denials` table (structure copied from `remittance_quarantine`, loop copied from `support_tickets`), claim stays in the Denied tab with an escalated badge, resolution returns as an `ar_followup_notes` entry, one creator tab plus one Mission Control counter, and a frequency rollup from day one so common unknowns graduate into the automated table instead of staying manual.
 
 No changes were made.
