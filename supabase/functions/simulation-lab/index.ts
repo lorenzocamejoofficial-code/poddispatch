@@ -1999,7 +1999,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
   // already touched in a previous inject (simulation_run_id IS NOT NULL).
   let { data: pool, error: poolErr } = await admin
     .from("claim_records")
-    .select("id, patient_id, total_charge, payer_type, payer_name, run_date, status")
+    .select("id, patient_id, trip_id, total_charge, payer_type, payer_name, run_date, status")
     .eq("company_id", companyId)
     .eq("is_simulated", true)
     .is("simulation_run_id", null)
