@@ -374,16 +374,26 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
     // seconds ago in another tab counts, and a stale clean read can't slip a
     // broken claim back out to the payer.
     setSaving(true);
-    const { blockers: fresh } = await fetchClaimBlockerSnapshot(claim.id);
-    setBlockers(fresh);
-    setBlockerRefreshedAt(Date.now());
+    const { blockers: fresh, ok } = await fetchClaimBlockerSnapshot(claim.id);
+    if (ok) {
+      setBlockers(fresh);
+      setBlockerRefreshedAt(Date.now());
+    }
+    setBlockerReadFailed(!ok);
     setSaving(false);
+    if (!ok) {
+      // Could not verify — refuse to promote. Nothing is written; the claim
+      // stays denied.
+      toast.error("Couldn't verify this claim's blockers — nothing was changed. Try again.");
+      return;
+    }
     if (fresh.length > 0) {
       toast.error(
         `${fresh.length} claim blocker${fresh.length === 1 ? "" : "s"} still open — fix ${fresh.length === 1 ? "it" : "them"} before resubmitting, or this claim will just be denied again.`,
       );
       return;
     }
+
     if (!correctionNotes.trim()) {
       toast.error("Correction notes are required before resubmission");
       return;
