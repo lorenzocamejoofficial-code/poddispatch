@@ -1,45 +1,93 @@
-# Diagnosis: blocked claims in Ready to Bill
+# Audit — Denial Rework Loop: environment + workflow readiness
 
-## What the data says (read-only evidence)
+Read-only. Nothing was changed. Evidence = file:line and live queries against the creator test tenant `f53311c3…7789`.
 
-Actual `claim_records.status` for the named patients (queried just now):
+## Live state right now (blocks any test until you seed)
 
-| Patient | Run date | Status | icd10 | origin_type | dest_type |
-|---|---|---|---|---|---|
-| Margaret Davis | 2025-09-09 | `ready_to_bill` | null | null | null |
-| Patricia Williams | 2025-09-06 | `ready_to_bill` | null | null | null |
-| Robert Henderson | 2025-08-17 | `ready_to_bill` | null | null | null |
-| Margaret Whitfield | 2026-05-30 | `ready_to_bill` | N18.6, Z99.2 | Residence | Dialysis Facility |
-| (other Davis/Williams/Whitfield/Henderson rows) | 2026-07/08 | paid / denied / needs_correction | — | — | — |
+- `claim_records` in the test tenant: **1 row, status `ready_to_bill`**. **Zero `denied` claims exist anywhere** (query on `claim_records where status='denied'` returned 0 rows).
+- Last `simulation_runs` row: `Sandbox Reset`, 2026-09-01 01:56 UTC. `claim_records with simulation_run_id not null` = 0 — the reset swept cleanly.
+- Patients: 9 (8 templates), all 9 have dob, sex and pickup_address — so injected denials will not be polluted by missing-demographic blockers.
 
-So this is **case 4a**: their status genuinely IS `ready_to_bill`, the tab mapping is correct, and the red BLOCKED badge is honest render-time detection. Whitfield's 2026-05-30 claim is complete and legitimately belongs in the tab — that is the 4th card.
+---
 
-## Root cause: the Simulation Lab seeder, not the trigger and not auto-promotion
+## LAYER 1 — Test environment readiness
 
-1. **Trigger is correct.** The live body of `auto_create_claim_on_pcr_submit` inserts `'needs_review'::claim_status` (line 123 of the live function definition). It is not the source. The "3 new claims just arrived" banner is the just-arrived ribbon reacting to the seed run, not to a trigger insert with a bad status.
-2. **Auto-promotion is not over-promoting.** `src/pages/BillingAndClaims.tsx:845-881` only reads `needs_review` rows and only writes when `gateResult.level === "clean" && !addressIssue`. These three rows were never `needs_review`.
-3. **The seeder writes `ready_to_bill` directly.** `supabase/functions/simulation-lab/index.ts` Bucket 4 ("timely filing", lines ~1863-1880) force-stamps `status: "ready_to_bill"` with `run_date` 357/360/380 days back and `payer_type: medicare` — while leaving the underlying pool rows with **no ICD-10, no origin_type, no destination_type**. All three rows were created and updated in the same seed run (created 01:34:58, updated 01:35:02).
+| # | Item | Verdict | Evidence |
+|---|---|---|---|
+| 1.1 | Injector creates 6 denials with real CARCs: CO-16, CO-50, CO-197, CO-29, CO-11, CO-167 — each sets `status='denied'`, `denial_code`, human `denial_reason`, `denial_category='payer'`, `adjustment_codes`, `submitted_at = now-12d` | PRESENT | `supabase/functions/simulation-lab/index.ts:1662-1669`, `:1809-1828` |
+| 1.2 | Denied claims are billing-complete enough to work: `CLEAN_CLAIM_FIELDS` spreads ICD-10, origin/destination type, addresses, ZIPs onto every denied row | PRESENT | `index.ts:1682-1691`, spread at `:1815` |
+| 1.3 | Injected claims are visible to the billing board: flipped `is_simulated=false`, `is_test_submission=false`; board query excludes `is_simulated=true` and metrics exclude `is_test_submission` | PRESENT (matched) | `index.ts:1822-1823`; `src/pages/BillingAndClaims.tsx:230`, `:1360` |
+| 1.4 | **The pool the injector transforms has no trip** — with the tenant this empty, `createDenialsRemitsClaimPool` synthesises 25 claim rows that set no `trip_id` | **DEGRADES (major)** | `index.ts:1723-1749` (no `trip_id` key), `:1779-1790` |
+| 1.5 | Reset exists and is thorough: deletes sim trips/legs/slots/claims, then `claim_records` tagged `simulation_run_id not null`, plus `claim_payments`, `remittance_files`, `plb_adjustments`, clears `SIM_INJECT` secondary-payer fields, deletes cloned patients and all `simulation_runs` | PRESENT | `index.ts:1522-1612`; UI button `src/pages/SimulationLab.tsx:301-316`, `:840-842` |
+| 1.6 | Dates are current-relative — all buckets use `isoMinus`/`dateMinus` from `Date.now()`; denied `run_date` = today−10…−16 | PRESENT | `index.ts:1801-1804`, `:1730` |
+| 1.7 | **CO-29 ("time limit for filing has expired") is stamped on a 10-day-old claim** — the readiness gate will find no timely-filing blocker, so that denial is trivially "resolvable" and proves nothing | DEGRADES | `index.ts:1730` vs `:1666`; gate at `src/lib/claim-readiness.ts:455` |
+| 1.8 | Injector reachable in UI with success/count reporting: creator Simulation Lab card, auto-seeds `billing_risk` when the pool is thin, toasts counts, console-logs each call | PRESENT | `src/pages/SimulationLab.tsx:604-641`, `:198-255` |
 
-Result: the seeder bypasses the readiness gate that every other writer now respects, so blocked claims land in Ready to Bill.
+---
 
-## Fix
+## LAYER 2 — Plumbing (denial → classify → work → re-stage → resubmit)
 
-**Part 1 — seeder writes honest, complete demo data (the actual cause)**
+| Link | Verdict | Evidence |
+|---|---|---|
+| Denial lands in the Denied tab with code + $ + blocker list | WORKS | `BillingAndClaims.tsx:168`, `:1381-1383`, `:1426-1428`, `:1492-1501` |
+| Card exposes a working "Recover" action | WORKS | `BillingAndClaims.tsx:1871-1878` → `setRecoveryClaimId` → `:2238-2243` |
+| Engine shows plain-English reason; all 6 injected codes exist in the translation table (incl. CO-167) | WORKS | `DenialRecoveryEngine.tsx:492-502`; `src/lib/denial-code-translations.ts:189` (43 codes) |
+| Per-code checklist renders | PARTIAL — CO-16, CO-11, CO-50, CO-197, CO-29 have real checklists; **CO-167 falls to the generic default** (one line from `action_required`) | `DenialRecoveryEngine.tsx:30-123` (no `CO-167` case) |
+| Live blocker list re-reads the DB, re-checks on window focus, has a manual Re-check button and deep-link fixes | WORKS | `DenialRecoveryEngine.tsx:249-272`, `:506-583`; `src/lib/claim-blockers.ts:66-133` |
+| Fields needed to resolve are editable | **PARTIAL/BROKEN for the injector** — the editor only renders when `tripData` loads and only for CO-16/4/5/11/55/56; injected claims have `trip_id = null`, so the trip fetch never runs and **the Claim Field Corrections block never appears**; `saveFieldCorrections` early-returns | `DenialRecoveryEngine.tsx:126-133`, `:195-214`, `:280-283`, `:620` |
+| Mark-resolved passes the hard blocker gate → `ready_to_bill` | WORKS | `DenialRecoveryEngine.tsx:365-443` (re-fetch, notes required, status write, `resubmission_count++`, `[RESUBMIT]` note, `biller_tasks` auto-complete, audit log, toast) |
+| Resolved claim reappears in Ready to Bill | WORKS | status maps 1:1 in `src/lib/claim-status-tabs.ts:41-50` |
+| Demotion safety net re-checks promoted claims | NOT EXERCISED by sim data — `demoteBlockedReadyToBill` only considers claims with a `trip_id` | `BillingAndClaims.tsx:899-903` |
+| Submit to Office Ally boundary | NOT VERIFIED in this audit |
 
-In `supabase/functions/simulation-lab/index.ts`, Bucket 4 (timely filing): before stamping `ready_to_bill`, fill in the fields a clean Medicare claim requires — `icd10_codes` (dialysis-appropriate, e.g. N18.6 / Z99.2 matching the trip), `origin_type`, `destination_type`, origin/destination address + ZIP, and `member_id` — so the claims are genuinely clean claims that happen to be near/past the filing deadline. That is what the bucket is meant to demo. The 380-day "past due" claim stays `ready_to_bill` (timely filing is a warning surfaced by the filing strip, not a hard blocker), and its remaining data is complete.
+### 2.6 Where the sim path diverges from a real 835
 
-Same audit pass over the other buckets that stamp `ready_to_bill` or `submitted` on incomplete pool rows, so no seeded claim sits in a bucket its data contradicts. Buckets 6/7 (needs_review / needs_correction) keep their intentional gaps — those are honest.
+The injector writes denial fields **directly onto `claim_records`**. It therefore never exercises, and will never prove:
 
-**Part 2 — symmetric demotion guard (safety net, one source of truth)**
+- `src/lib/edi-835-parser.ts` — CLP/CAS/SVC/PLB segment parsing and line-level vs claim-level adjustment split
+- `src/lib/remittance-match.ts` — matching CLP01 to a claim, NPI verification, and the **remittance quarantine** path
+- `remittance_files` / `claim_payments` / `plb_adjustments` row creation and the `recompute_claim_from_payments` trigger (paid/allowed/PR math, underpayment "paid short")
+- `src/lib/classify-denial.ts` categorisation from a parsed CAS group code (the injector hardcodes `denial_category='payer'`)
+- Partial denials (paid + denied lines on one claim) and multi-CARC denials — every injected claim has exactly one code
+- The automated Office Ally retrieval function end-to-end
 
-Add a `demoteBlockedReadyToBill` pass next to `autoPromoteNeedsReview` in `src/pages/BillingAndClaims.tsx`, reusing the **same** `buildClaimFromTrip` gate — no duplicated blocker logic. It reads only `ready_to_bill` rows, and when the gate returns a hard-blocked result it writes `status: "needs_review"` (guarded by `.eq("status", "ready_to_bill")`). One-directional, status field only. This makes any future writer that stamps `ready_to_bill` dishonestly self-correct instead of surfacing a BLOCKED card in Ready to Bill.
+Only a real or uploaded 835 proves those. The injector proves the **downstream** half: Denied tab → recovery UI → blocker gate → re-stage.
 
-## Out of scope / untouched
+---
 
-Pricing, 837 export, the submit path, denial recovery, the `needs_correction` fix, and `claim-status-tabs.ts` (mapping verified correct).
+## LAYER 3 — Visual / UX completeness
 
-## Verification
+| # | Finding | Evidence |
+|---|---|---|
+| 3.1 | Blockers with no `fixPath` render the dead-end text "no direct fix link" — no action for the biller | `DenialRecoveryEngine.tsx:569-573` |
+| 3.2 | Filing-deadline badge is hardcoded to **365 days** in the engine, ignoring the payer directory (GA Medicaid = 180) — a Medicaid denial shows an optimistic countdown | `DenialRecoveryEngine.tsx:136-140`, `:479-482` |
+| 3.3 | `fetchClaimBlockerSnapshot` returns `{blockers: []}` when the claim row can't be read (RLS/network) — a failed read looks *clean* and would let `handleMarkReady` pass | `claim-blockers.ts:74-75` |
+| 3.4 | `handleSaveProgress` toasts "Progress saved" without checking the insert error | `DenialRecoveryEngine.tsx:347-363` |
+| 3.5 | Unknown/unmapped denial code → generic explanation + a single "Review the denial reason" checklist item, no guidance, no fix path | `DenialRecoveryEngine.tsx:100-121`; `denial-code-translations.ts:371-376` |
+| 3.6 | Denial with a blank `denial_reason` and unknown code renders "No details available" | `DenialRecoveryEngine.tsx:497` |
+| 3.7 | Present and good: tab empty state, blocker loading state, green "structurally clean" confirmation, last-checked timestamp, resubmission history, claim Timeline drawer trigger | `BillingAndClaims.tsx:1718-1719`; `DenialRecoveryEngine.tsx:531-582`, `:467`, `:672-684` |
 
-- Re-run the full test suite; parity tests must stay green.
-- Re-seed the sim company, then query the four named claims and report before/after status.
-- Query that every `ready_to_bill` claim in the tenant has ICD-10, origin_type and destination_type populated.
+---
+
+## Punch list, ranked
+
+**BLOCKS a trustworthy test**
+1. Environment is empty — 0 denied claims. Run Reset → seed → Inject Denials & Remits before testing (Layer 1 live query).
+2. Injected denials carry no `trip_id`, so the Claim Field Corrections editor — the actual fix surface for CO-16 and CO-11 — never renders. The "work the denial by editing data" link of the loop cannot be tested with injector data as-is (1.4, Layer 2 row 6).
+
+**DEGRADES the test**
+3. CO-29 timely-filing denial dated 10 days ago is self-contradictory and resolves without any real work (1.7).
+4. CO-167 has no dedicated checklist — generic fallback (Layer 2 row 4).
+5. Every injected denial is single-CARC, claim-level, `denial_category='payer'` — no partial denial, no line-level CAS, no unknown-code case in the seed set (2.6).
+6. The `demoteBlockedReadyToBill` safety net is skipped for trip-less claims, so the re-stage guard goes unverified (Layer 2 row 9).
+7. Silent-clean failure mode in `fetchClaimBlockerSnapshot` (3.3) — a network blip during the test would read as "clean to resubmit".
+
+**POLISH**
+8. Engine filing countdown should use the payer directory instead of a hardcoded 365 (3.2).
+9. "no direct fix link" dead-end text (3.1).
+10. `handleSaveProgress` unchecked error (3.4).
+11. Blank-reason / unknown-code rendering (3.5, 3.6).
+
+**Untested by the injector regardless of the above** — 835 parsing, claim matching, quarantine, payment posting/variance math, PLB, and denial classification. Those need a real or uploaded 835 file (2.6).
+
+No changes were made.
