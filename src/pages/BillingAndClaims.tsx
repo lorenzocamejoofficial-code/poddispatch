@@ -1767,7 +1767,13 @@ export default function BillingAndClaims() {
                               {(claim as any).acknowledgment_status === "forwarded_to_payer" && (
                                 <Badge variant="secondary" className="text-[9px] px-1 py-0">Forwarded</Badge>
                               )}
-                              {claim.submitted_at && !(claim as any).acknowledgment_status && (
+                              {/* "Ack pending" only means something while the
+                                  claim is still in flight. Once the payer has
+                                  adjudicated (paid / denied) or the claim came
+                                  back for correction, a missing 999 is history,
+                                  not a pending state. */}
+                              {claim.submitted_at && !(claim as any).acknowledgment_status &&
+                                ["submitted", "pending", "forwarded"].includes(String(claim.status)) && (
                                 <Badge variant="outline" className="text-[9px] px-1 py-0 text-muted-foreground" title="Waiting on 999 from clearinghouse">Ack pending</Badge>
                               )}
                               {/* Fix 3: Rate Missing badge for $0 claims */}
