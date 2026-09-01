@@ -201,7 +201,15 @@ const LOCATION_TYPES = ["residence", "dialysis_facility", "hospital", "snf", "as
 export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, onOpenPcsPanel }: DenialRecoveryEngineProps) {
   const { user, activeCompanyId } = useAuth();
   const translation = claim.denial_code ? getDenialTranslation(claim.denial_code) : null;
-  const checklist = useMemo(() => getChecklistForDenial(claim.denial_code ?? "", translation), [claim.denial_code, translation]);
+  const checklist = useMemo(
+    () =>
+      getChecklistForDenial(claim.denial_code ?? "", translation, {
+        tripId: claim.trip_id ?? null,
+        patientId: (claim as any).patient_id ?? null,
+        claimId: claim.id,
+      }),
+    [claim.denial_code, translation, claim.trip_id, claim.id, (claim as any).patient_id],
+  );
 
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [correctionNotes, setCorrectionNotes] = useState("");
@@ -209,32 +217,36 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
   const [tripData, setTripData] = useState<Record<string, any> | null>(null);
   const [editFields, setEditFields] = useState<Record<string, string>>({});
   const [resubHistory, setResubHistory] = useState<any[]>([]);
+  const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [flashField, setFlashField] = useState<string | null>(null);
 
   // Timely filing
   const deadline = getTimelyFilingDeadline(claim.run_date);
   const daysRemaining = Math.max(0, Math.floor((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
 
-  // Load trip data for editable fields
-  useEffect(() => {
-    if (!open || !claim.trip_id) return;
-    supabase
+  // Load trip data for editable fields (re-runs when the biller returns from a fix page)
+  const loadTrip = useCallback(async () => {
+    if (!claim.trip_id) return;
+    const { data } = await supabase
       .from("trip_records" as any)
       .select("*")
       .eq("id", claim.trip_id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setTripData(data as any);
-          const fields: Record<string, string> = {};
-          const editableFields = FIELDS_FOR_DENIAL[claim.denial_code ?? ""] ?? [];
-          for (const f of editableFields) {
-            const val = (data as any)[f];
-            fields[f] = Array.isArray(val) ? val.join(", ") : (val?.toString() ?? "");
-          }
-          setEditFields(fields);
-        }
-      });
-  }, [open, claim.trip_id, claim.denial_code]);
+      .maybeSingle();
+    if (!data) return;
+    setTripData(data as any);
+    const fields: Record<string, string> = {};
+    const editableFields = FIELDS_FOR_DENIAL[claim.denial_code ?? ""] ?? [];
+    for (const f of editableFields) {
+      const val = (data as any)[f];
+      fields[f] = Array.isArray(val) ? val.join(", ") : (val?.toString() ?? "");
+    }
+    setEditFields(fields);
+  }, [claim.trip_id, claim.denial_code]);
+
+  useEffect(() => {
+    if (open) void loadTrip();
+  }, [open, loadTrip]);
+
 
   // Load resubmission history
   useEffect(() => {
