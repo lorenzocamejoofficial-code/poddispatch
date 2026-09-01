@@ -698,9 +698,6 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
                         onClick={() => {
                           const target = inEditor[0];
                           fieldRefs.current[target]?.scrollIntoView({ behavior: "smooth", block: "center" });
-                          fieldRefs.current[target]?.querySelector("input,button")?.dispatchEvent(
-                            new MouseEvent("focus"),
-                          );
                           (fieldRefs.current[target]?.querySelector("input") as HTMLInputElement | null)?.focus();
                           setFlashField(target);
                           window.setTimeout(() => setFlashField(null), 2000);
