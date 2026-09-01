@@ -1697,18 +1697,151 @@ const RECOVERABLE_CARCS = [
  * some of these to create honest gaps for the Needs Review / Needs
  * Correction demos.
  */
-const CLEAN_CLAIM_FIELDS = {
-  icd10_codes: ["N18.6", "Z99.2"],
-  origin_type: "Residence",
-  // Must be "Freestanding" — a generic dialysis type resolves to modifier D,
-  // which the readiness gate hard-blocks for a dialysis leg.
-  destination_type: "Freestanding Dialysis Facility",
-  origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
-  origin_zip: "30309",
-  destination_address: "550 Peachtree St NE, Atlanta, GA 30308",
-  destination_zip: "30308",
-  pcs_document_on_file: false,
+/**
+ * Transport-type profiles for the denials/remits pool. The denial-rework loop
+ * must be exercised across every transport type the software bills — each has
+ * its own HCPCS/modifier pair, ICD-10 pattern, and PCS expectations, and a
+ * payer denial on a discharge claim fixes differently than one on dialysis.
+ *
+ * The dialysis profile MUST stay byte-identical to the original
+ * CLEAN_CLAIM_FIELDS values (origin/destination type strings, addresses) —
+ * downstream readiness rules key off them.
+ */
+type ClaimTripProfile = {
+  trip_type: string;
+  transport_category: string;
+  pcr_type: string;
+  origin_type: string;
+  destination_type: string;
+  origin_address: string;
+  origin_zip: string;
+  destination_address: string;
+  destination_zip: string;
+  icd10: string[];
+  hcpcs: string;
+  modifiers: string[];
+  chief_complaint: string;
+  primary_impression: string;
+  medical_necessity_reason: string;
+  narrative: string;
 };
+
+const CLAIM_TRIP_PROFILES: ClaimTripProfile[] = [
+  {
+    trip_type: "dialysis",
+    transport_category: "dialysis",
+    pcr_type: "nemt_dialysis",
+    origin_type: "Residence",
+    // Must be "Freestanding" — a generic dialysis type resolves to modifier D,
+    // which the readiness gate hard-blocks for a dialysis leg.
+    destination_type: "Freestanding Dialysis Facility",
+    origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
+    origin_zip: "30309",
+    destination_address: "550 Peachtree St NE, Atlanta, GA 30308",
+    destination_zip: "30308",
+    icd10: ["N18.6", "Z99.2"],
+    hcpcs: "A0428",
+    modifiers: ["RH"],
+    chief_complaint: "ESRD — Scheduled Dialysis Transport",
+    primary_impression: "ESRD on Dialysis",
+    medical_necessity_reason: "Bed-confined, requires stretcher transport",
+    narrative: "Patient transported by stretcher per medical necessity. Crew monitored throughout. (Synthetic seed.)",
+  },
+  {
+    trip_type: "discharge",
+    transport_category: "routine_transport",
+    pcr_type: "ift_discharge",
+    origin_type: "Hospital",
+    destination_type: "Residence",
+    origin_address: "80 Jesse Hill Jr Dr SE, Atlanta, GA 30303",
+    origin_zip: "30303",
+    destination_address: "1420 Peachtree St NE, Atlanta, GA 30309",
+    destination_zip: "30309",
+    icd10: ["I50.9"],
+    hcpcs: "A0428",
+    modifiers: ["HR"],
+    chief_complaint: "Hospital Discharge — Return to Residence",
+    primary_impression: "CHF exacerbation, stable at discharge",
+    medical_necessity_reason: "Post-discharge deconditioning, unable to ambulate safely",
+    narrative: "Patient discharged from inpatient stay, transported home by stretcher per medical necessity. (Synthetic seed.)",
+  },
+  {
+    trip_type: "ift",
+    transport_category: "interfacility_non_emergency",
+    pcr_type: "ift_general",
+    origin_type: "Hospital",
+    destination_type: "Hospital",
+    origin_address: "80 Jesse Hill Jr Dr SE, Atlanta, GA 30303",
+    origin_zip: "30303",
+    destination_address: "1364 Clifton Rd NE, Atlanta, GA 30322",
+    destination_zip: "30322",
+    icd10: ["I63.9"],
+    hcpcs: "A0428",
+    modifiers: ["HH"],
+    chief_complaint: "Interfacility Transfer — Higher Level of Care",
+    primary_impression: "Cerebral infarction, requires neuro capability",
+    medical_necessity_reason: "Requires monitoring and stretcher transport between facilities",
+    narrative: "Non-emergency interfacility transfer by stretcher with crew monitoring en route. (Synthetic seed.)",
+  },
+  {
+    trip_type: "outpatient",
+    transport_category: "routine_transport",
+    pcr_type: "ift_general",
+    origin_type: "Residence",
+    destination_type: "Hospital Outpatient Clinic",
+    origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
+    origin_zip: "30309",
+    destination_address: "1365 Clifton Rd NE, Atlanta, GA 30322",
+    destination_zip: "30322",
+    icd10: ["M17.9"],
+    hcpcs: "A0428",
+    modifiers: ["RH"],
+    chief_complaint: "Outpatient Clinic Appointment Transport",
+    primary_impression: "Osteoarthritis, mobility-limited",
+    medical_necessity_reason: "Bed-confined, requires stretcher transport",
+    narrative: "Patient transported by stretcher to scheduled outpatient appointment per medical necessity. (Synthetic seed.)",
+  },
+  {
+    trip_type: "wound_care",
+    transport_category: "routine_transport",
+    pcr_type: "ift_wound_care",
+    origin_type: "Residence",
+    destination_type: "Wound Care Center (therapeutic site)",
+    origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
+    origin_zip: "30309",
+    destination_address: "1718 Peachtree St NW, Atlanta, GA 30309",
+    destination_zip: "30309",
+    icd10: ["L97.429"],
+    hcpcs: "A0428",
+    modifiers: ["RD"],
+    chief_complaint: "Scheduled Wound Care Treatment Transport",
+    primary_impression: "Non-healing chronic ulcer",
+    medical_necessity_reason: "Bed-confined, requires stretcher transport",
+    narrative: "Patient transported by stretcher to wound care center for scheduled treatment. (Synthetic seed.)",
+  },
+  {
+    trip_type: "psych_transport",
+    transport_category: "routine_transport",
+    pcr_type: "ift_general",
+    origin_type: "Residence",
+    destination_type: "Psychiatric Hospital",
+    origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
+    origin_zip: "30309",
+    destination_address: "3995 S Cobb Dr SE, Smyrna, GA 30080",
+    destination_zip: "30080",
+    icd10: ["F20.9"],
+    hcpcs: "A0428",
+    modifiers: ["RH"],
+    chief_complaint: "Scheduled Behavioral Health Facility Transport",
+    primary_impression: "Schizophrenia, stable for transfer",
+    medical_necessity_reason: "Requires supervised stretcher transport for safety",
+    narrative: "Patient transported by stretcher to behavioral health facility under crew supervision. (Synthetic seed.)",
+  },
+];
+
+function profileForTripType(tripType: string | null | undefined): ClaimTripProfile {
+  return CLAIM_TRIP_PROFILES.find((p) => p.trip_type === tripType) ?? CLAIM_TRIP_PROFILES[0];
+}
 
 /**
  * Clean fields for one claim, with the PCS certification date re-based on that
@@ -1716,11 +1849,26 @@ const CLEAN_CLAIM_FIELDS = {
  * window). Without this, a bucket whose run_date is shifted (timely filing,
  * aging) inherits a signature that is expired for its DOS and the demo claim
  * shows a PCS blocker it was never meant to have.
+ *
+ * Profile-aware: origin/destination types, addresses, ICD-10, and HCPCS come
+ * from the claim's own transport profile so a discharge claim never inherits
+ * dialysis coding.
  */
-function cleanClaimFieldsFor(runDate?: string | null) {
+function cleanClaimFieldsFor(runDate?: string | null, profile?: ClaimTripProfile) {
+  const p = profile ?? CLAIM_TRIP_PROFILES[0];
   const dos = typeof runDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(runDate) ? runDate : null;
   return {
-    ...CLEAN_CLAIM_FIELDS,
+    icd10_codes: p.icd10,
+    origin_type: p.origin_type,
+    destination_type: p.destination_type,
+    origin_address: p.origin_address,
+    origin_zip: p.origin_zip,
+    destination_address: p.destination_address,
+    destination_zip: p.destination_zip,
+    hcpcs_codes: [p.hcpcs],
+    hcpcs_modifiers: p.modifiers,
+    cpt_codes: [p.hcpcs],
+    pcs_document_on_file: false,
     ...(dos ? { pcs_certification_date: shiftDate(dos, -15) } : {}),
   };
 }
@@ -1776,6 +1924,9 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
       memberId: `SIM-DEMO-${Date.now()}-${i}`,
       payerType: i % 3 === 0 ? "medicare" : i % 3 === 1 ? "medicaid" : "commercial",
       payerName: i % 3 === 0 ? "MEDICARE" : i % 3 === 1 ? "GA MEDICAID" : "AETNA BETTER HEALTH",
+      // Rotate transport types so the denial-rework loop is exercised against
+      // every kind of run the software bills, not just dialysis.
+      profile: CLAIM_TRIP_PROFILES[i % CLAIM_TRIP_PROFILES.length],
     };
   });
 
@@ -1789,12 +1940,12 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
       leg_id: null,
       run_date: s.runDate,
       status: "ready_for_billing",
-      trip_type: "dialysis",
-      transport_category: "dialysis",
+      trip_type: s.profile.trip_type,
+      transport_category: s.profile.transport_category,
       pcr_status: "submitted",
-      pcr_type: "nemt_dialysis",
-      pickup_location: CLEAN_CLAIM_FIELDS.origin_address,
-      destination_location: CLEAN_CLAIM_FIELDS.destination_address,
+      pcr_type: s.profile.pcr_type,
+      pickup_location: s.profile.origin_address,
+      destination_location: s.profile.destination_address,
       scheduled_pickup_time: s.pickupTime,
       dispatch_time: at(-10),
       at_scene_time: at(0),
@@ -1808,9 +1959,9 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
       odometer_at_scene: s.odoScene,
       odometer_at_destination: s.odoScene + Math.round(s.loadedMi),
       loaded_miles: s.loadedMi,
-      icd10_codes: CLEAN_CLAIM_FIELDS.icd10_codes,
-      origin_type: CLEAN_CLAIM_FIELDS.origin_type,
-      destination_type: CLEAN_CLAIM_FIELDS.destination_type,
+      icd10_codes: s.profile.icd10,
+      origin_type: s.profile.origin_type,
+      destination_type: s.profile.destination_type,
       primary_payer: s.payerType,
       member_id: s.memberId,
       service_level: "BLS",
@@ -1820,10 +1971,10 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
       level_of_consciousness: "alert_ox4",
       skin_condition: "normal",
       bed_confined: true,
-      chief_complaint: "ESRD — Scheduled Dialysis Transport",
-      primary_impression: "ESRD on Dialysis",
-      medical_necessity_reason: "Bed-confined, requires stretcher transport",
-      narrative: "Patient transported by stretcher per medical necessity. Crew monitored throughout. (Synthetic seed.)",
+      chief_complaint: s.profile.chief_complaint,
+      primary_impression: s.profile.primary_impression,
+      medical_necessity_reason: s.profile.medical_necessity_reason,
+      narrative: s.profile.narrative,
       signatures_json: [{
         type: "crew_primary", signed_at: at(8), signed_by_name: "Sim Crew",
         signature_data_url: "data:image/svg+xml;base64,PHN2Zy8+",
@@ -1844,7 +1995,7 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
   if (tripErr) return { ok: false, error: `Demo trip creation failed: ${tripErr.message}` };
 
   const claimRows = specs.map((s, i) => ({
-    ...cleanClaimFieldsFor(s.runDate),
+    ...cleanClaimFieldsFor(s.runDate, s.profile),
     company_id: companyId,
     patient_id: s.patientId,
     trip_id: trips?.[i]?.id ?? null,
@@ -1859,12 +2010,11 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
     expected_revenue: s.total,
     status: "submitted",
     submitted_at: new Date(now - (8 + i) * dayMs).toISOString(),
-    hcpcs_codes: ["A0428"],
-    hcpcs_modifiers: ["RH"],
-    cpt_codes: ["A0428"],
     claim_build_date: dateMinus(8 + i),
     is_simulated: true,
-    is_test_submission: false,
+    // Flagged as a test submission so pool claims never pollute the revenue
+    // or denial-rate metrics (which exclude is_test_submission).
+    is_test_submission: true,
     notes: "Simulation Lab Tier 1 demo seed",
   }));
 
@@ -1882,7 +2032,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
   // already touched in a previous inject (simulation_run_id IS NOT NULL).
   let { data: pool, error: poolErr } = await admin
     .from("claim_records")
-    .select("id, patient_id, total_charge, payer_type, payer_name, run_date, status")
+    .select("id, patient_id, trip_id, total_charge, payer_type, payer_name, run_date, status")
     .eq("company_id", companyId)
     .eq("is_simulated", true)
     .is("simulation_run_id", null)
@@ -1909,6 +2059,24 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     pool = [...(pool ?? []), ...generated.pool];
   }
 
+  // Resolve each pooled claim's transport-type profile from its backing trip,
+  // so bucket transforms never stamp dialysis coding onto a discharge/IFT/etc.
+  // claim. Falls back to the dialysis profile when the trip is missing.
+  const poolTripIds = [...new Set((pool ?? []).map((c: any) => c.trip_id).filter(Boolean))];
+  const tripTypeByClaimId = new Map<string, string>();
+  if (poolTripIds.length) {
+    const { data: tripTypeRows } = await admin
+      .from("trip_records")
+      .select("id, trip_type")
+      .in("id", poolTripIds);
+    const typeByTripId = new Map((tripTypeRows ?? []).map((t: any) => [t.id, t.trip_type]));
+    for (const c of pool ?? []) {
+      const t = c.trip_id ? typeByTripId.get(c.trip_id) : null;
+      if (t) tripTypeByClaimId.set(c.id, String(t));
+    }
+  }
+  const profileFor = (c: any) => profileForTripType(tripTypeByClaimId.get(c.id));
+
   // Record the inject as its own simulation_run for traceability + reset.
   const runId = crypto.randomUUID();
   await admin.from("simulation_runs").insert({
@@ -1932,7 +2100,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const c = deniedSlice[i];
     const carc = RECOVERABLE_CARCS[i % RECOVERABLE_CARCS.length];
     const { error } = await admin.from("claim_records").update({
-      ...cleanClaimFieldsFor(c.run_date),
+      ...cleanClaimFieldsFor(c.run_date, profileFor(c)),
       status: "denied",
       denial_code: carc.code,
       denial_reason: carc.reason,
@@ -1940,7 +2108,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
       adjustment_codes: [carc.code],
       submitted_at: isoMinus(12),
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
     }).eq("id", c.id);
     if (error) { counts.errors++; errorLog.push(`denied[${i}]: ${error.message}`); }
@@ -1956,7 +2124,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const pr = Math.round(total * 0.20 * 100) / 100;
 
     const { error: cerr } = await admin.from("claim_records").update({
-      ...cleanClaimFieldsFor(c.run_date),
+      ...cleanClaimFieldsFor(c.run_date, profileFor(c)),
       status: "paid",
       amount_paid: paid,
       patient_responsibility_amount: pr,
@@ -1966,7 +2134,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
       secondary_claim_generated: false,
       submitted_at: isoMinus(20),
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
     }).eq("id", c.id);
     if (cerr) { counts.errors++; errorLog.push(`paid[${i}]: ${cerr.message}`); continue; }
@@ -1989,11 +2157,11 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
   for (let i = 0; i < agingSlice.length; i++) {
     const c = agingSlice[i];
     const { error } = await admin.from("claim_records").update({
-      ...cleanClaimFieldsFor(c.run_date),
+      ...cleanClaimFieldsFor(c.run_date, profileFor(c)),
       status: "submitted",
       submitted_at: isoMinus(60),
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
     }).eq("id", c.id);
     if (error) { counts.errors++; errorLog.push(`aging[${i}]: ${error.message}`); }
@@ -2016,14 +2184,14 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const c = tfSlice[i];
     const cfg = tfConfigs[i];
     const { error } = await admin.from("claim_records").update({
-      ...cleanClaimFieldsFor(cfg.runDate),
+      ...cleanClaimFieldsFor(cfg.runDate, profileFor(c)),
       status: cfg.status,
       run_date: cfg.runDate,
       payer_type: "medicare",
       payer_name: "MEDICARE",
       submitted_at: null,
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
     }).eq("id", c.id);
     if (error) { counts.errors++; errorLog.push(`tf[${i}]: ${error.message}`); }
@@ -2049,7 +2217,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const owed = Math.round((allowed - pr) * 100) / 100;
     const paid = Math.round(owed * cfg.paidPctOfOwed * 100) / 100;
     const { error } = await admin.from("claim_records").update({
-      ...cleanClaimFieldsFor(c.run_date),
+      ...cleanClaimFieldsFor(c.run_date, profileFor(c)),
       status: "paid",
       allowed_amount: allowed,
       amount_paid: paid,
@@ -2061,7 +2229,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
       secondary_claim_generated: true,
       submitted_at: isoMinus(25),
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
     }).eq("id", c.id);
     if (error) { counts.errors++; errorLog.push(`paid_short[${i}]: ${error.message}`); }
@@ -2084,7 +2252,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
       submitted_at: null,
       paid_at: null,
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
       ...reviewConfigs[i],
     }).eq("id", c.id);
@@ -2106,7 +2274,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
       submitted_at: isoMinus(9),
       paid_at: null,
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
       ...correctionConfigs[i],
     }).eq("id", c.id);
