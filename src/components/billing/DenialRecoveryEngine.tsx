@@ -490,6 +490,13 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
         </DialogHeader>
 
         <div className="space-y-5 py-2">
+          <Alert className="border-blue-300/50 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-700/40">
+            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <AlertDescription className="text-xs text-blue-900 dark:text-blue-200">
+              This is the guided denial repair workflow. It checks what is actually missing on the claim right now, shows the payer-specific steps for this denial code, and lets you correct fields. When all blockers are cleared, click <strong>Mark Ready to Resubmit</strong> to send it back to the billing queue. To edit the claim status or notes manually, use the claim editor popup instead.
+            </AlertDescription>
+          </Alert>
+
           {/* Claim header */}
           <div className="rounded-md border bg-muted/30 p-3 space-y-2">
             <div className="flex items-center justify-between">
