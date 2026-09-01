@@ -26,76 +26,97 @@ import { RefreshCw, ArrowRight } from "lucide-react";
 interface ChecklistItem {
   id: string;
   label: string;
+  /** Fields living in the in-dialog "Claim Field Corrections" editor. When all
+   *  of them hold a value the step crosses itself off. */
+  fields?: string[];
+  /** Deep link into the page that actually fixes this step. */
+  fixPath?: string;
+  fixLabel?: string;
 }
 
-function getChecklistForDenial(code: string, translation: DenialTranslation | null): ChecklistItem[] {
+export interface ChecklistFixContext {
+  tripId: string | null;
+  patientId: string | null;
+  claimId: string;
+}
+
+function getChecklistForDenial(
+  code: string,
+  translation: DenialTranslation | null,
+  ctx: ChecklistFixContext,
+): ChecklistItem[] {
+  const pcr = (focus: string) =>
+    ctx.tripId ? `/pcr?tripId=${ctx.tripId}&mode=qa-fix&focus=${focus}` : undefined;
+  const patient = (focus: string) =>
+    ctx.patientId ? `/patients?patientId=${ctx.patientId}&focus=${focus}` : `/patients?focus=${focus}`;
+
   switch (code) {
     case "CO-16":
       return [
-        { id: "icd10", label: "Verify ICD-10 codes are present on the trip record" },
-        { id: "member_id", label: "Verify member ID matches the insurance card" },
-        { id: "timestamps", label: "Verify all required timestamps are present (dispatch, scene, left scene, arrived, in service)" },
-        { id: "origin_dest", label: "Verify origin and destination types are set" },
-        { id: "med_necessity", label: "Verify medical necessity is documented" },
+        { id: "icd10", label: "Verify ICD-10 codes are present on the trip record", fields: ["icd10_codes"], fixPath: pcr("icd10"), fixLabel: "Open PCR" },
+        { id: "member_id", label: "Verify member ID matches the insurance card", fields: ["member_id"], fixPath: patient("member_id"), fixLabel: "Open patient chart" },
+        { id: "timestamps", label: "Verify all required timestamps are present (dispatch, scene, left scene, arrived, in service)", fields: ["dispatch_time", "at_scene_time", "left_scene_time", "arrived_dropoff_at", "in_service_time"], fixPath: pcr("times"), fixLabel: "Open PCR" },
+        { id: "origin_dest", label: "Verify origin and destination types are set", fixPath: pcr("origin_type"), fixLabel: "Open PCR" },
+        { id: "med_necessity", label: "Verify medical necessity is documented", fixPath: pcr("narrative"), fixLabel: "Open PCR" },
       ];
     case "CO-4":
       return [
-        { id: "transport_type", label: "Verify the transport type matches what was billed" },
-        { id: "hcpcs", label: "Verify the HCPCS code is correct for the transport" },
+        { id: "transport_type", label: "Verify the transport type matches what was billed", fields: ["service_level"], fixPath: pcr("transport"), fixLabel: "Open PCR" },
+        { id: "hcpcs", label: "Verify the HCPCS code is correct for the transport", fields: ["hcpcs_codes"], fixPath: `/billing?claimId=${ctx.claimId}&focus=hcpcs`, fixLabel: "Open claim" },
         { id: "pos", label: "Verify the place of service code is 41 for ambulance" },
       ];
     case "CO-5":
       return [
-        { id: "origin_code", label: "Verify origin modifier matches the pickup location type" },
-        { id: "dest_code", label: "Verify destination modifier matches the dropoff location type" },
+        { id: "origin_code", label: "Verify origin modifier matches the pickup location type", fields: ["origin_type"], fixPath: pcr("origin_type"), fixLabel: "Open PCR" },
+        { id: "dest_code", label: "Verify destination modifier matches the dropoff location type", fields: ["destination_type"], fixPath: pcr("destination_type"), fixLabel: "Open PCR" },
         { id: "pos", label: "Verify the place of service code is 41 for ambulance" },
       ];
     case "CO-97":
       return [
-        { id: "dup_check", label: "Check whether this claim was already paid under a different claim number" },
+        { id: "dup_check", label: "Check whether this claim was already paid under a different claim number", fixPath: "/billing?tab=claims", fixLabel: "Open claims board" },
         { id: "verify_dup", label: "Verify the claim is not a duplicate" },
       ];
     case "CO-29":
       return [
-        { id: "orig_submit", label: "Verify the original submission date" },
+        { id: "orig_submit", label: "Verify the original submission date", fixPath: `/billing?claimId=${ctx.claimId}`, fixLabel: "Open claim" },
         { id: "exception", label: "Check whether a timely filing exception applies (COB delay, eligibility issue)" },
         { id: "doc_exception", label: "Document the exception reason" },
       ];
     case "PR-1":
       return [
-        { id: "deductible", label: "Verify deductible amount with payer" },
-        { id: "secondary", label: "Check whether patient has secondary insurance that covers deductible" },
-        { id: "gen_secondary", label: "Generate secondary claim if applicable" },
+        { id: "deductible", label: "Verify deductible amount with payer", fixPath: "/billing-settings?tab=payer-directory", fixLabel: "Payer directory" },
+        { id: "secondary", label: "Check whether patient has secondary insurance that covers deductible", fixPath: patient("secondary_payer"), fixLabel: "Open patient chart" },
+        { id: "gen_secondary", label: "Generate secondary claim if applicable", fixPath: `/billing?claimId=${ctx.claimId}&focus=secondary`, fixLabel: "Open claim" },
       ];
     case "PR-2":
       return [
-        { id: "coinsurance", label: "Verify coinsurance percentage with payer" },
-        { id: "secondary", label: "Check whether patient has secondary insurance" },
+        { id: "coinsurance", label: "Verify coinsurance percentage with payer", fixPath: "/billing-settings?tab=payer-directory", fixLabel: "Payer directory" },
+        { id: "secondary", label: "Check whether patient has secondary insurance", fixPath: patient("secondary_payer"), fixLabel: "Open patient chart" },
         { id: "bill_patient", label: "Generate patient responsibility statement if no secondary" },
       ];
     case "PR-3":
       return [
-        { id: "copay", label: "Verify copayment amount with payer" },
-        { id: "secondary", label: "Check whether patient has secondary insurance" },
+        { id: "copay", label: "Verify copayment amount with payer", fixPath: "/billing-settings?tab=payer-directory", fixLabel: "Payer directory" },
+        { id: "secondary", label: "Check whether patient has secondary insurance", fixPath: patient("secondary_payer"), fixLabel: "Open patient chart" },
         { id: "bill_patient", label: "Generate patient responsibility statement if no secondary" },
       ];
     case "CO-15":
     case "CO-197":
       return [
-        { id: "auth_number", label: "Obtain a valid prior authorization number" },
-        { id: "verify_auth", label: "Verify authorization covers the date of service" },
-        { id: "attach_auth", label: "Add authorization number to the claim record" },
+        { id: "auth_number", label: "Obtain a valid prior authorization number", fixPath: patient("rsnat"), fixLabel: "Open patient chart" },
+        { id: "verify_auth", label: "Verify authorization covers the date of service", fixPath: patient("rsnat"), fixLabel: "Open patient chart" },
+        { id: "attach_auth", label: "Add authorization number to the claim record", fixPath: `/billing?claimId=${ctx.claimId}`, fixLabel: "Open claim" },
       ];
     case "CO-11":
       return [
-        { id: "icd10_review", label: "Review ICD-10 codes against the transport type" },
-        { id: "hcpcs_match", label: "Verify HCPCS code matches the diagnosis" },
+        { id: "icd10_review", label: "Review ICD-10 codes against the transport type", fields: ["icd10_codes"], fixPath: pcr("icd10"), fixLabel: "Open PCR" },
+        { id: "hcpcs_match", label: "Verify HCPCS code matches the diagnosis", fields: ["hcpcs_codes"], fixPath: `/billing?claimId=${ctx.claimId}&focus=hcpcs`, fixLabel: "Open claim" },
         { id: "update_codes", label: "Update codes if incorrect" },
       ];
     case "CO-50":
       return [
-        { id: "med_nec", label: "Review medical necessity documentation" },
-        { id: "add_docs", label: "Add supporting clinical documentation" },
+        { id: "med_nec", label: "Review medical necessity documentation", fixPath: pcr("narrative"), fixLabel: "Open PCR" },
+        { id: "add_docs", label: "Add supporting clinical documentation", fixPath: pcr("narrative"), fixLabel: "Open PCR" },
         { id: "appeal_prep", label: "Prepare appeal letter with medical justification" },
       ];
     default: {
@@ -105,16 +126,16 @@ function getChecklistForDenial(code: string, translation: DenialTranslation | nu
         items.push({ id: "action", label: translation.action_required });
       }
       if (translation?.typical_resolution === "fix_and_resubmit") {
-        items.push({ id: "review_data", label: "Review all claim data for accuracy" });
+        items.push({ id: "review_data", label: "Review all claim data for accuracy", fixPath: pcr("overview"), fixLabel: "Open PCR" });
         items.push({ id: "fix_issue", label: "Correct the identified issue" });
       } else if (translation?.typical_resolution === "appeal") {
-        items.push({ id: "gather_docs", label: "Gather supporting documentation for appeal" });
+        items.push({ id: "gather_docs", label: "Gather supporting documentation for appeal", fixPath: pcr("narrative"), fixLabel: "Open PCR" });
         items.push({ id: "submit_appeal", label: "Submit appeal within required timeframe" });
       } else if (translation?.typical_resolution === "bill_patient") {
-        items.push({ id: "check_secondary", label: "Check for secondary insurance coverage" });
+        items.push({ id: "check_secondary", label: "Check for secondary insurance coverage", fixPath: patient("secondary_payer"), fixLabel: "Open patient chart" });
         items.push({ id: "patient_stmt", label: "Generate patient responsibility statement" });
       } else if (translation?.typical_resolution === "bill_secondary") {
-        items.push({ id: "bill_sec", label: "Submit claim to secondary payer" });
+        items.push({ id: "bill_sec", label: "Submit claim to secondary payer", fixPath: `/billing?claimId=${ctx.claimId}&focus=secondary`, fixLabel: "Open claim" });
       } else {
         items.push({ id: "review", label: "Review the denial reason and determine next steps" });
       }
@@ -122,6 +143,7 @@ function getChecklistForDenial(code: string, translation: DenialTranslation | nu
     }
   }
 }
+
 
 /* ---------- editable field configs per denial ---------- */
 const FIELDS_FOR_DENIAL: Record<string, string[]> = {
