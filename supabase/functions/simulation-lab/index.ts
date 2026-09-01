@@ -1697,18 +1697,151 @@ const RECOVERABLE_CARCS = [
  * some of these to create honest gaps for the Needs Review / Needs
  * Correction demos.
  */
-const CLEAN_CLAIM_FIELDS = {
-  icd10_codes: ["N18.6", "Z99.2"],
-  origin_type: "Residence",
-  // Must be "Freestanding" — a generic dialysis type resolves to modifier D,
-  // which the readiness gate hard-blocks for a dialysis leg.
-  destination_type: "Freestanding Dialysis Facility",
-  origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
-  origin_zip: "30309",
-  destination_address: "550 Peachtree St NE, Atlanta, GA 30308",
-  destination_zip: "30308",
-  pcs_document_on_file: false,
+/**
+ * Transport-type profiles for the denials/remits pool. The denial-rework loop
+ * must be exercised across every transport type the software bills — each has
+ * its own HCPCS/modifier pair, ICD-10 pattern, and PCS expectations, and a
+ * payer denial on a discharge claim fixes differently than one on dialysis.
+ *
+ * The dialysis profile MUST stay byte-identical to the original
+ * CLEAN_CLAIM_FIELDS values (origin/destination type strings, addresses) —
+ * downstream readiness rules key off them.
+ */
+type ClaimTripProfile = {
+  trip_type: string;
+  transport_category: string;
+  pcr_type: string;
+  origin_type: string;
+  destination_type: string;
+  origin_address: string;
+  origin_zip: string;
+  destination_address: string;
+  destination_zip: string;
+  icd10: string[];
+  hcpcs: string;
+  modifiers: string[];
+  chief_complaint: string;
+  primary_impression: string;
+  medical_necessity_reason: string;
+  narrative: string;
 };
+
+const CLAIM_TRIP_PROFILES: ClaimTripProfile[] = [
+  {
+    trip_type: "dialysis",
+    transport_category: "dialysis",
+    pcr_type: "nemt_dialysis",
+    origin_type: "Residence",
+    // Must be "Freestanding" — a generic dialysis type resolves to modifier D,
+    // which the readiness gate hard-blocks for a dialysis leg.
+    destination_type: "Freestanding Dialysis Facility",
+    origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
+    origin_zip: "30309",
+    destination_address: "550 Peachtree St NE, Atlanta, GA 30308",
+    destination_zip: "30308",
+    icd10: ["N18.6", "Z99.2"],
+    hcpcs: "A0428",
+    modifiers: ["RH"],
+    chief_complaint: "ESRD — Scheduled Dialysis Transport",
+    primary_impression: "ESRD on Dialysis",
+    medical_necessity_reason: "Bed-confined, requires stretcher transport",
+    narrative: "Patient transported by stretcher per medical necessity. Crew monitored throughout. (Synthetic seed.)",
+  },
+  {
+    trip_type: "discharge",
+    transport_category: "routine_transport",
+    pcr_type: "ift_discharge",
+    origin_type: "Hospital",
+    destination_type: "Residence",
+    origin_address: "80 Jesse Hill Jr Dr SE, Atlanta, GA 30303",
+    origin_zip: "30303",
+    destination_address: "1420 Peachtree St NE, Atlanta, GA 30309",
+    destination_zip: "30309",
+    icd10: ["I50.9"],
+    hcpcs: "A0428",
+    modifiers: ["HR"],
+    chief_complaint: "Hospital Discharge — Return to Residence",
+    primary_impression: "CHF exacerbation, stable at discharge",
+    medical_necessity_reason: "Post-discharge deconditioning, unable to ambulate safely",
+    narrative: "Patient discharged from inpatient stay, transported home by stretcher per medical necessity. (Synthetic seed.)",
+  },
+  {
+    trip_type: "ift",
+    transport_category: "interfacility_non_emergency",
+    pcr_type: "ift_general",
+    origin_type: "Hospital",
+    destination_type: "Hospital",
+    origin_address: "80 Jesse Hill Jr Dr SE, Atlanta, GA 30303",
+    origin_zip: "30303",
+    destination_address: "1364 Clifton Rd NE, Atlanta, GA 30322",
+    destination_zip: "30322",
+    icd10: ["I63.9"],
+    hcpcs: "A0428",
+    modifiers: ["HH"],
+    chief_complaint: "Interfacility Transfer — Higher Level of Care",
+    primary_impression: "Cerebral infarction, requires neuro capability",
+    medical_necessity_reason: "Requires monitoring and stretcher transport between facilities",
+    narrative: "Non-emergency interfacility transfer by stretcher with crew monitoring en route. (Synthetic seed.)",
+  },
+  {
+    trip_type: "outpatient",
+    transport_category: "routine_transport",
+    pcr_type: "ift_general",
+    origin_type: "Residence",
+    destination_type: "Hospital Outpatient Clinic",
+    origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
+    origin_zip: "30309",
+    destination_address: "1365 Clifton Rd NE, Atlanta, GA 30322",
+    destination_zip: "30322",
+    icd10: ["M17.9"],
+    hcpcs: "A0428",
+    modifiers: ["RH"],
+    chief_complaint: "Outpatient Clinic Appointment Transport",
+    primary_impression: "Osteoarthritis, mobility-limited",
+    medical_necessity_reason: "Bed-confined, requires stretcher transport",
+    narrative: "Patient transported by stretcher to scheduled outpatient appointment per medical necessity. (Synthetic seed.)",
+  },
+  {
+    trip_type: "wound_care",
+    transport_category: "routine_transport",
+    pcr_type: "ift_wound_care",
+    origin_type: "Residence",
+    destination_type: "Wound Care Center (therapeutic site)",
+    origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
+    origin_zip: "30309",
+    destination_address: "1718 Peachtree St NW, Atlanta, GA 30309",
+    destination_zip: "30309",
+    icd10: ["L97.429"],
+    hcpcs: "A0428",
+    modifiers: ["RD"],
+    chief_complaint: "Scheduled Wound Care Treatment Transport",
+    primary_impression: "Non-healing chronic ulcer",
+    medical_necessity_reason: "Bed-confined, requires stretcher transport",
+    narrative: "Patient transported by stretcher to wound care center for scheduled treatment. (Synthetic seed.)",
+  },
+  {
+    trip_type: "psych_transport",
+    transport_category: "routine_transport",
+    pcr_type: "ift_general",
+    origin_type: "Residence",
+    destination_type: "Psychiatric Hospital",
+    origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
+    origin_zip: "30309",
+    destination_address: "3995 S Cobb Dr SE, Smyrna, GA 30080",
+    destination_zip: "30080",
+    icd10: ["F20.9"],
+    hcpcs: "A0428",
+    modifiers: ["RH"],
+    chief_complaint: "Scheduled Behavioral Health Facility Transport",
+    primary_impression: "Schizophrenia, stable for transfer",
+    medical_necessity_reason: "Requires supervised stretcher transport for safety",
+    narrative: "Patient transported by stretcher to behavioral health facility under crew supervision. (Synthetic seed.)",
+  },
+];
+
+function profileForTripType(tripType: string | null | undefined): ClaimTripProfile {
+  return CLAIM_TRIP_PROFILES.find((p) => p.trip_type === tripType) ?? CLAIM_TRIP_PROFILES[0];
+}
 
 /**
  * Clean fields for one claim, with the PCS certification date re-based on that
@@ -1716,11 +1849,26 @@ const CLEAN_CLAIM_FIELDS = {
  * window). Without this, a bucket whose run_date is shifted (timely filing,
  * aging) inherits a signature that is expired for its DOS and the demo claim
  * shows a PCS blocker it was never meant to have.
+ *
+ * Profile-aware: origin/destination types, addresses, ICD-10, and HCPCS come
+ * from the claim's own transport profile so a discharge claim never inherits
+ * dialysis coding.
  */
-function cleanClaimFieldsFor(runDate?: string | null) {
+function cleanClaimFieldsFor(runDate?: string | null, profile?: ClaimTripProfile) {
+  const p = profile ?? CLAIM_TRIP_PROFILES[0];
   const dos = typeof runDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(runDate) ? runDate : null;
   return {
-    ...CLEAN_CLAIM_FIELDS,
+    icd10_codes: p.icd10,
+    origin_type: p.origin_type,
+    destination_type: p.destination_type,
+    origin_address: p.origin_address,
+    origin_zip: p.origin_zip,
+    destination_address: p.destination_address,
+    destination_zip: p.destination_zip,
+    hcpcs_codes: [p.hcpcs],
+    hcpcs_modifiers: p.modifiers,
+    cpt_codes: [p.hcpcs],
+    pcs_document_on_file: false,
     ...(dos ? { pcs_certification_date: shiftDate(dos, -15) } : {}),
   };
 }
