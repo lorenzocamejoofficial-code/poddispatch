@@ -1709,8 +1709,16 @@ export default function BillingAndClaims() {
                     })}
                   </div>
 
+                  {/* What this bucket means */}
+                  <div className="flex items-start gap-1.5 rounded-md border bg-muted/40 px-3 py-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{activeCol.label}</span>
+                    <InfoTip align="left" text={activeCol.help} />
+                    <span className="text-xs text-muted-foreground">{activeCol.help.split(". ")[0]}.</span>
+                  </div>
+
                   {/* List */}
                   <div className={`rounded-lg border p-3 ${activeCol.color}`}>
+
                     {statusTab === "ready_to_bill" && (
                       <div className="mb-3">
                         <JustArrivedRibbon claims={filteredAll as any} />
