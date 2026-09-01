@@ -1428,12 +1428,20 @@ export default function BillingAndClaims() {
         {/* 1. MONEY AT A GLANCE — reused metrics, no new queries */}
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border bg-card p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Ready to submit</p>
+            <div className="flex items-center gap-1 mb-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">Ready to submit</p>
+              <InfoTip
+                align="left"
+                text="Only the claims in Ready to Bill that pass every hard billing check right now — these are the ones that will actually go out. Claims sitting in Ready to Bill with a red BLOCKED badge are counted separately below under 'Fix before submitting'."
+              />
+            </div>
             <p className="text-2xl font-bold text-foreground">{fmtMoney(readyTotal)}</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {readyCount} claim{readyCount === 1 ? "" : "s"} · passes billing checks
+              {readyCount} clean claim{readyCount === 1 ? "" : "s"}
+              {readyBlockedCount > 0 ? ` · ${readyBlockedCount} blocked` : " · passes billing checks"}
             </p>
           </div>
+
           <div className="rounded-lg border bg-card p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Awaiting payer</p>
             <p className="text-2xl font-bold text-foreground">{fmtMoney(submittedTotal)}</p>
