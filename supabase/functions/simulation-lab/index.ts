@@ -2026,6 +2026,24 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     pool = [...(pool ?? []), ...generated.pool];
   }
 
+  // Resolve each pooled claim's transport-type profile from its backing trip,
+  // so bucket transforms never stamp dialysis coding onto a discharge/IFT/etc.
+  // claim. Falls back to the dialysis profile when the trip is missing.
+  const poolTripIds = [...new Set((pool ?? []).map((c: any) => c.trip_id).filter(Boolean))];
+  const tripTypeByClaimId = new Map<string, string>();
+  if (poolTripIds.length) {
+    const { data: tripTypeRows } = await admin
+      .from("trip_records")
+      .select("id, trip_type")
+      .in("id", poolTripIds);
+    const typeByTripId = new Map((tripTypeRows ?? []).map((t: any) => [t.id, t.trip_type]));
+    for (const c of pool ?? []) {
+      const t = c.trip_id ? typeByTripId.get(c.trip_id) : null;
+      if (t) tripTypeByClaimId.set(c.id, t);
+    }
+  }
+  const profileFor = (c: any) => profileForTripType(tripTypeByClaimId.get(c.id));
+
   // Record the inject as its own simulation_run for traceability + reset.
   const runId = crypto.randomUUID();
   await admin.from("simulation_runs").insert({
