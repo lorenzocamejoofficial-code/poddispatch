@@ -1924,6 +1924,9 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
       memberId: `SIM-DEMO-${Date.now()}-${i}`,
       payerType: i % 3 === 0 ? "medicare" : i % 3 === 1 ? "medicaid" : "commercial",
       payerName: i % 3 === 0 ? "MEDICARE" : i % 3 === 1 ? "GA MEDICAID" : "AETNA BETTER HEALTH",
+      // Rotate transport types so the denial-rework loop is exercised against
+      // every kind of run the software bills, not just dialysis.
+      profile: CLAIM_TRIP_PROFILES[i % CLAIM_TRIP_PROFILES.length],
     };
   });
 
