@@ -880,6 +880,61 @@ export default function BillingAndClaims() {
 
   useEffect(() => { autoPromoteNeedsReview(); }, [autoPromoteNeedsReview]);
 
+  /**
+   * Demotion pass — the mirror image of the promoter, same gate.
+   *
+   * Any writer that stamps `ready_to_bill` on a claim that is actually
+   * hard-blocked would surface a red BLOCKED card inside Ready to Bill. This
+   * pass re-runs the SAME `buildClaimFromTrip` gate (no duplicated blocker
+   * logic) over `ready_to_bill` claims and sends the hard-blocked ones back to
+   * `needs_review`.
+   *
+   * Strictly one-directional and status-only: it reads only `ready_to_bill`
+   * rows, writes only `needs_review`, and the write is guarded by
+   * `.eq("status", "ready_to_bill")` so no other bucket can be touched.
+   */
+  const autoDemotedRef = useRef<Set<string>>(new Set());
+
+  const demoteBlockedReadyToBill = useCallback(async () => {
+    if (chargeMaster.length === 0) return;
+
+    const candidates = claims.filter(
+      c => c.status === "ready_to_bill" && c.trip_id && !autoDemotedRef.current.has(c.id),
+    );
+    if (candidates.length === 0) return;
+    for (const c of candidates) autoDemotedRef.current.add(c.id);
+
+    const { data: trips } = await supabase
+      .from("trip_records" as any)
+      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_utn, pickup_address), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen, oneoff_pickup_address)")
+      .in("id", candidates.map(c => c.trip_id));
+
+    if (!trips?.length) return;
+    const tripMap = new Map((trips as any[]).map((t: any) => [t.id, t]));
+
+    const demoteIds: string[] = [];
+    for (const c of candidates) {
+      const t = tripMap.get(c.trip_id);
+      if (!t) continue;
+      const { gateResult } = buildClaimFromTrip(t);
+      if (gateResult.level === "blocked") demoteIds.push(c.id);
+    }
+
+    if (demoteIds.length === 0) return;
+
+    const { error } = await supabase
+      .from("claim_records" as any)
+      .update({ status: "needs_review" } as any)
+      .in("id", demoteIds)
+      .eq("status", "ready_to_bill"); // belt-and-braces: never touch another bucket
+
+    if (!error) fetchData();
+  }, [claims, chargeMaster, payerRulesMap, fetchData]);
+
+  useEffect(() => { demoteBlockedReadyToBill(); }, [demoteBlockedReadyToBill]);
+
+
+
 
 
   const syncClaimsFromTrips = async () => {

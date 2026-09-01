@@ -1668,7 +1668,30 @@ const RECOVERABLE_CARCS = [
   { code: "CO-167", reason: "This (these) diagnosis(es) is (are) not covered" },
 ];
 
+/**
+ * Billing-complete data every seeded claim carries.
+ *
+ * Honest-status rule: a demo claim may only sit in a "clean" bucket
+ * (ready_to_bill / submitted / paid) when it would actually pass the
+ * readiness gate. These are the fields the gate hard-blocks on
+ * (src/lib/claim-readiness.ts): ICD-10, origin/destination type,
+ * origin/destination address + ZIP. Buckets 6 and 7 deliberately overwrite
+ * some of these to create honest gaps for the Needs Review / Needs
+ * Correction demos.
+ */
+const CLEAN_CLAIM_FIELDS = {
+  icd10_codes: ["N18.6", "Z99.2"],
+  origin_type: "Residence",
+  destination_type: "Dialysis Facility",
+  origin_address: "1420 Peachtree St NE, Atlanta, GA 30309",
+  origin_zip: "30309",
+  destination_address: "550 Peachtree St NE, Atlanta, GA 30308",
+  destination_zip: "30308",
+  pcs_document_on_file: false,
+};
+
 async function createDenialsRemitsClaimPool(admin: any, companyId: string, needed: number) {
+
   let { data: patients, error: patientErr } = await admin
     .from("patients")
     .select("id")
@@ -1701,6 +1724,7 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
     const patient = source[i % source.length];
     const total = 340 + (i % 6) * 42;
     return {
+      ...CLEAN_CLAIM_FIELDS,
       company_id: companyId,
       patient_id: patient?.id ?? null,
       run_date: dateMinus(10 + i),
@@ -1788,6 +1812,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const c = deniedSlice[i];
     const carc = RECOVERABLE_CARCS[i % RECOVERABLE_CARCS.length];
     const { error } = await admin.from("claim_records").update({
+      ...CLEAN_CLAIM_FIELDS,
       status: "denied",
       denial_code: carc.code,
       denial_reason: carc.reason,
@@ -1811,6 +1836,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const pr = Math.round(total * 0.20 * 100) / 100;
 
     const { error: cerr } = await admin.from("claim_records").update({
+      ...CLEAN_CLAIM_FIELDS,
       status: "paid",
       amount_paid: paid,
       patient_responsibility_amount: pr,
@@ -1843,6 +1869,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
   for (let i = 0; i < agingSlice.length; i++) {
     const c = agingSlice[i];
     const { error } = await admin.from("claim_records").update({
+      ...CLEAN_CLAIM_FIELDS,
       status: "submitted",
       submitted_at: isoMinus(60),
       is_simulated: false,
@@ -1858,15 +1885,19 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
   // 380d back → 15d past due. Use medicare so payer rule is unambiguous.
   const tfSlice = pool.slice(15, 18);
   const tfConfigs = [
-    { runDate: dateMinus(357), label: "near deadline" },
-    { runDate: dateMinus(360), label: "near deadline" },
-    { runDate: dateMinus(380), label: "past due" },
+    { runDate: dateMinus(357), label: "near deadline", status: "ready_to_bill" },
+    { runDate: dateMinus(360), label: "near deadline", status: "ready_to_bill" },
+    // Past due is a HARD blocker in the readiness gate, so it must not sit in
+    // Ready to Bill. It stays visible in the Timely Filing strip, which also
+    // scans needs_review.
+    { runDate: dateMinus(380), label: "past due", status: "needs_review" },
   ];
   for (let i = 0; i < tfSlice.length && i < tfConfigs.length; i++) {
     const c = tfSlice[i];
     const cfg = tfConfigs[i];
     const { error } = await admin.from("claim_records").update({
-      status: "ready_to_bill",
+      ...CLEAN_CLAIM_FIELDS,
+      status: cfg.status,
       run_date: cfg.runDate,
       payer_type: "medicare",
       payer_name: "MEDICARE",
@@ -1898,6 +1929,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const owed = Math.round((allowed - pr) * 100) / 100;
     const paid = Math.round(owed * cfg.paidPctOfOwed * 100) / 100;
     const { error } = await admin.from("claim_records").update({
+      ...CLEAN_CLAIM_FIELDS,
       status: "paid",
       allowed_amount: allowed,
       amount_paid: paid,
