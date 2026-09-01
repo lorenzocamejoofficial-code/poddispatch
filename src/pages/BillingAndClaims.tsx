@@ -227,6 +227,7 @@ export default function BillingAndClaims() {
   const [pcsCheckTarget, setPcsCheckTarget] = useState<{ tripId: string; patientId: string | null } | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (!simFlagResolved) return; // scope not known yet — avoid a wrong-scope read
     setLoading(true);
 
     let claimsQuery = supabase.from("claim_records" as any).select("*").order("run_date", { ascending: false }).limit(1000);
@@ -337,9 +338,10 @@ export default function BillingAndClaims() {
       .then(({ data }) => {
         setReversalClaimIds(new Set(((data as any[]) ?? []).map((r: any) => r.claim_record_id)));
       });
-  }, [simulationRunId, isSimulationCompany]);
+  }, [simulationRunId, isSimulationCompany, simFlagResolved]);
 
   const fetchQueueTrips = useCallback(async () => {
+    if (!simFlagResolved) return;
     setQueueLoading(true);
     let tripQuery = supabase
       .from("trip_records" as any)
@@ -386,7 +388,7 @@ export default function BillingAndClaims() {
       })
     );
     setQueueLoading(false);
-  }, [dateFilter, simulationRunId, isSimulationCompany]);
+  }, [dateFilter, simulationRunId, isSimulationCompany, simFlagResolved]);
 
   const fetchOverrideLogs = useCallback(async () => {
     const tripScope = simulationRunId
