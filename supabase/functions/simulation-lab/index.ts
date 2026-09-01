@@ -2067,7 +2067,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const c = deniedSlice[i];
     const carc = RECOVERABLE_CARCS[i % RECOVERABLE_CARCS.length];
     const { error } = await admin.from("claim_records").update({
-      ...cleanClaimFieldsFor(c.run_date),
+      ...cleanClaimFieldsFor(c.run_date, profileFor(c)),
       status: "denied",
       denial_code: carc.code,
       denial_reason: carc.reason,
@@ -2075,7 +2075,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
       adjustment_codes: [carc.code],
       submitted_at: isoMinus(12),
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
     }).eq("id", c.id);
     if (error) { counts.errors++; errorLog.push(`denied[${i}]: ${error.message}`); }
@@ -2091,7 +2091,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const pr = Math.round(total * 0.20 * 100) / 100;
 
     const { error: cerr } = await admin.from("claim_records").update({
-      ...cleanClaimFieldsFor(c.run_date),
+      ...cleanClaimFieldsFor(c.run_date, profileFor(c)),
       status: "paid",
       amount_paid: paid,
       patient_responsibility_amount: pr,
@@ -2101,7 +2101,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
       secondary_claim_generated: false,
       submitted_at: isoMinus(20),
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
     }).eq("id", c.id);
     if (cerr) { counts.errors++; errorLog.push(`paid[${i}]: ${cerr.message}`); continue; }
@@ -2124,11 +2124,11 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
   for (let i = 0; i < agingSlice.length; i++) {
     const c = agingSlice[i];
     const { error } = await admin.from("claim_records").update({
-      ...cleanClaimFieldsFor(c.run_date),
+      ...cleanClaimFieldsFor(c.run_date, profileFor(c)),
       status: "submitted",
       submitted_at: isoMinus(60),
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
     }).eq("id", c.id);
     if (error) { counts.errors++; errorLog.push(`aging[${i}]: ${error.message}`); }
@@ -2151,14 +2151,14 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const c = tfSlice[i];
     const cfg = tfConfigs[i];
     const { error } = await admin.from("claim_records").update({
-      ...cleanClaimFieldsFor(cfg.runDate),
+      ...cleanClaimFieldsFor(cfg.runDate, profileFor(c)),
       status: cfg.status,
       run_date: cfg.runDate,
       payer_type: "medicare",
       payer_name: "MEDICARE",
       submitted_at: null,
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
     }).eq("id", c.id);
     if (error) { counts.errors++; errorLog.push(`tf[${i}]: ${error.message}`); }
@@ -2184,7 +2184,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     const owed = Math.round((allowed - pr) * 100) / 100;
     const paid = Math.round(owed * cfg.paidPctOfOwed * 100) / 100;
     const { error } = await admin.from("claim_records").update({
-      ...cleanClaimFieldsFor(c.run_date),
+      ...cleanClaimFieldsFor(c.run_date, profileFor(c)),
       status: "paid",
       allowed_amount: allowed,
       amount_paid: paid,
@@ -2196,7 +2196,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
       secondary_claim_generated: true,
       submitted_at: isoMinus(25),
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
     }).eq("id", c.id);
     if (error) { counts.errors++; errorLog.push(`paid_short[${i}]: ${error.message}`); }
@@ -2219,7 +2219,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
       submitted_at: null,
       paid_at: null,
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
       ...reviewConfigs[i],
     }).eq("id", c.id);
@@ -2241,7 +2241,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
       submitted_at: isoMinus(9),
       paid_at: null,
       is_simulated: false,
-      is_test_submission: false,
+      is_test_submission: true,
       simulation_run_id: runId,
       ...correctionConfigs[i],
     }).eq("id", c.id);
