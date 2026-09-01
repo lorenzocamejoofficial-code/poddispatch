@@ -214,7 +214,10 @@ export default function BillingAndClaims() {
   const [statusPage, setStatusPage] = useState(1);
   const STATUS_PAGE_SIZE = 25;
   const { simulationRunId, refreshToken } = useSimulationSession();
-  const isSimulationCompany = useIsSimulationCompany();
+  // `resolved` matters: until we know whether this tenant is the sandbox, the
+  // claim query would run with the wrong scope and the counts would flicker
+  // (e.g. Ready to Bill 6 → 7) as the flag settles. Hold the fetch instead.
+  const { isSim: isSimulationCompany, resolved: simFlagResolved } = useSimulationCompanyState();
   const [clearinghouseConfigured, setClearinghouseConfigured] = useState(false);
   const [oaSending, setOaSending] = useState(false);
   const [oaReceiving, setOaReceiving] = useState(false);
