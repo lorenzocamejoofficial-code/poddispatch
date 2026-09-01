@@ -661,29 +661,76 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
               Payer reason &amp; recovery steps
             </h3>
             <p className="text-xs text-muted-foreground">
-              Judgment calls tied to the payer's denial reason (medical necessity, appeals,
-              documentation). These are notes for you — ticking them does not unlock resubmission.
+              Each step links straight to the screen that fixes it. Steps tied to a field below
+              cross themselves off once that field has a value; the rest are judgment calls you
+              tick yourself. Ticking a step does not unlock resubmission — the blocker list above
+              does that.
             </p>
             <div className="space-y-2">
-              {checklist.map(item => (
-                <label
-                  key={item.id}
-                  className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/30 transition-colors"
-                >
-                  <Checkbox
-                    checked={!!checked[item.id]}
-                    onCheckedChange={v => setChecked(prev => ({ ...prev, [item.id]: !!v }))}
-                    className="mt-0.5"
-                  />
-                  <span className={`text-sm ${checked[item.id] ? "line-through text-muted-foreground" : ""}`}>
-                    {item.label}
-                  </span>
-                </label>
-              ))}
+              {checklist.map(item => {
+                const inEditor = (item.fields ?? []).filter(f => editableFields.includes(f));
+                const autoDone =
+                  inEditor.length > 0 && inEditor.every(f => (editFields[f] ?? "").trim() !== "");
+                const done = autoDone || !!checked[item.id];
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-start gap-3 rounded-md border p-3 hover:bg-muted/30 transition-colors"
+                  >
+                    <Checkbox
+                      checked={done}
+                      disabled={autoDone}
+                      onCheckedChange={v => setChecked(prev => ({ ...prev, [item.id]: !!v }))}
+                      className="mt-0.5"
+                    />
+                    <span className={`flex-1 min-w-0 text-sm ${done ? "line-through text-muted-foreground" : ""}`}>
+                      {item.label}
+                      {autoDone && (
+                        <span className="ml-2 text-[10px] uppercase tracking-wide text-[hsl(var(--status-green))]">
+                          filled in
+                        </span>
+                      )}
+                    </span>
+                    {inEditor.length > 0 ? (
+                      <button
+                        type="button"
+                        className="shrink-0 inline-flex items-center gap-1 text-xs text-primary underline hover:no-underline"
+                        onClick={() => {
+                          const target = inEditor[0];
+                          fieldRefs.current[target]?.scrollIntoView({ behavior: "smooth", block: "center" });
+                          fieldRefs.current[target]?.querySelector("input,button")?.dispatchEvent(
+                            new MouseEvent("focus"),
+                          );
+                          (fieldRefs.current[target]?.querySelector("input") as HTMLInputElement | null)?.focus();
+                          setFlashField(target);
+                          window.setTimeout(() => setFlashField(null), 2000);
+                        }}
+                      >
+                        Fix here
+                        <ArrowRight className="h-3 w-3" />
+                      </button>
+                    ) : item.fixPath ? (
+                      <Link
+                        to={item.fixPath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 inline-flex items-center gap-1 text-xs text-primary underline hover:no-underline"
+                      >
+                        {item.fixLabel ?? "Fix"}
+                        <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
             <p className="text-xs text-muted-foreground">
-              {Object.values(checked).filter(Boolean).length}/{checklist.length} completed
+              {checklist.filter(item => {
+                const inEditor = (item.fields ?? []).filter(f => editableFields.includes(f));
+                return (inEditor.length > 0 && inEditor.every(f => (editFields[f] ?? "").trim() !== "")) || !!checked[item.id];
+              }).length}/{checklist.length} completed
             </p>
+
           </div>
 
           {/* Editable claim fields */}
