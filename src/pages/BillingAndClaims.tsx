@@ -1517,6 +1517,22 @@ export default function BillingAndClaims() {
                 )}
               </div>
             )}
+            {readyBlockedCount > 0 && (
+              <div className="flex items-center gap-3 px-4 py-3 border-l-2 border-l-destructive">
+                <ShieldAlert className="h-4 w-4 text-destructive shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Fix before submitting</p>
+                  <p className="text-xs text-muted-foreground">
+                    {readyBlockedCount} claim{readyBlockedCount === 1 ? "" : "s"} in Ready to Bill · {fmtMoney(readyBlockedTotal)} · blocked by a missing piece (PCS, ICD-10, signature, mileage)
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={goReadyToBill} className="gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Fix blockers
+                </Button>
+              </div>
+            )}
+
             {deniedCount > 0 && (
               <div className="flex items-center gap-3 px-4 py-3">
                 <XCircle className="h-4 w-4 text-destructive shrink-0" />
