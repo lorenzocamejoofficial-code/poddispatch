@@ -161,14 +161,15 @@ interface ChargeMaster {
   needs_review?: boolean;
 }
 
-const CLAIM_COLUMNS: { status: ClaimTab; label: string; icon: React.ReactNode; color: string }[] = [
-  { status: "ready_to_bill", label: "Ready to Bill", icon: <DollarSign className="h-4 w-4" />, color: "border-primary/30 bg-primary/5" },
-  { status: "submitted", label: "Submitted", icon: <RefreshCw className="h-4 w-4" />, color: "border-[hsl(var(--status-yellow))]/30 bg-[hsl(var(--status-yellow-bg))]" },
-  { status: "paid", label: "Paid", icon: <CheckCircle className="h-4 w-4" />, color: "border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5" },
-  { status: "denied", label: "Denied", icon: <XCircle className="h-4 w-4" />, color: "border-destructive/30 bg-destructive/5" },
-  { status: "needs_correction", label: "Needs Correction", icon: <AlertTriangle className="h-4 w-4" />, color: "border-orange-400/30 bg-orange-50 dark:bg-orange-950/20" },
-  { status: "needs_review", label: "Needs Review", icon: <ShieldAlert className="h-4 w-4" />, color: "border-amber-500/30 bg-amber-50 dark:bg-amber-950/20" },
+const CLAIM_COLUMNS: { status: ClaimTab; label: string; icon: React.ReactNode; color: string; help: string }[] = [
+  { status: "ready_to_bill", label: "Ready to Bill", icon: <DollarSign className="h-4 w-4" />, color: "border-primary/30 bg-primary/5", help: "Claims staged to go out on the next submission. This bucket is where a claim waits — it is NOT a promise that it's clean. Any card showing a red BLOCKED badge still has a missing piece (PCS, ICD-10, signature, mileage) and will be held back until you fix it. Fix the blockers, then submit." },
+  { status: "submitted", label: "Submitted", icon: <RefreshCw className="h-4 w-4" />, color: "border-[hsl(var(--status-yellow))]/30 bg-[hsl(var(--status-yellow-bg))]", help: "Sent to the clearinghouse and waiting on the payer. Nothing to do here unless an acknowledgment comes back rejected — then the claim moves itself to Needs Correction." },
+  { status: "paid", label: "Paid", icon: <CheckCircle className="h-4 w-4" />, color: "border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5", help: "The payer sent money and the remittance posted. Check the paid amount against the expected amount — short payments show up in Missing Money as 'Paid Short'." },
+  { status: "denied", label: "Denied", icon: <XCircle className="h-4 w-4" />, color: "border-destructive/30 bg-destructive/5", help: "The payer processed the claim and refused to pay it, with a CARC reason code. Use Recover to work the denial: the engine tells you what caused it and what to fix before resubmitting." },
+  { status: "needs_correction", label: "Needs Correction", icon: <AlertTriangle className="h-4 w-4" />, color: "border-orange-400/30 bg-orange-50 dark:bg-orange-950/20", help: "The claim never reached the payer — the clearinghouse or a front-end edit (999 / 277CA) kicked it back for a format or data problem. Fix the flagged field and it re-stages to Ready to Bill." },
+  { status: "needs_review", label: "Needs Review", icon: <ShieldAlert className="h-4 w-4" />, color: "border-amber-500/30 bg-amber-50 dark:bg-amber-950/20", help: "New or uncertain claims the app will not stage on its own — missing documentation, an unmapped payer, or a rule it can't judge. A human decides here. Once the gaps clear, the claim promotes to Ready to Bill automatically." },
 ];
+
 
 const PAYER_TYPES = PAYER_KEYS;
 
@@ -1708,8 +1709,16 @@ export default function BillingAndClaims() {
                     })}
                   </div>
 
+                  {/* What this bucket means */}
+                  <div className="flex items-start gap-1.5 rounded-md border bg-muted/40 px-3 py-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{activeCol.label}</span>
+                    <InfoTip align="left" text={activeCol.help} />
+                    <span className="text-xs text-muted-foreground">{activeCol.help.split(". ")[0]}.</span>
+                  </div>
+
                   {/* List */}
                   <div className={`rounded-lg border p-3 ${activeCol.color}`}>
+
                     {statusTab === "ready_to_bill" && (
                       <div className="mb-3">
                         <JustArrivedRibbon claims={filteredAll as any} />
