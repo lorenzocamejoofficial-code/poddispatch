@@ -245,15 +245,22 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
   const [blockers, setBlockers] = useState<ReadinessIssue[]>([]);
   const [blockersLoading, setBlockersLoading] = useState(false);
   const [blockerRefreshedAt, setBlockerRefreshedAt] = useState<number>(0);
+  const [blockerReadFailed, setBlockerReadFailed] = useState(false);
 
   const refreshBlockers = useCallback(async () => {
     if (!claim.id) return;
     setBlockersLoading(true);
-    const { blockers: found } = await fetchClaimBlockerSnapshot(claim.id);
-    setBlockers(found);
-    setBlockerRefreshedAt(Date.now());
+    const { blockers: found, ok } = await fetchClaimBlockerSnapshot(claim.id);
+    if (ok) {
+      // Only a verified read may change what we show — a failed read keeps the
+      // previous list rather than rendering the green all-clear.
+      setBlockers(found);
+      setBlockerRefreshedAt(Date.now());
+    }
+    setBlockerReadFailed(!ok);
     setBlockersLoading(false);
   }, [claim.id]);
+
 
   useEffect(() => {
     if (open) void refreshBlockers();
