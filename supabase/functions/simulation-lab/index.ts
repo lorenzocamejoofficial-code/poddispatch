@@ -57,6 +57,12 @@ function timeToMin(time: string): number {
 }
 function rand(min: number, max: number): number { return min + Math.floor(Math.random() * (max - min + 1)); }
 function coinFlip(prob = 0.5): boolean { return Math.random() < prob; }
+/** Shift an ISO yyyy-mm-dd date by N days (negative = earlier). */
+function shiftDate(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 // Valid enum values from database
 const VALID_CERT_LEVELS = ["EMR", "EMT-B", "EMT-A", "EMT-P"] as const;
