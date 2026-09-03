@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
@@ -367,6 +368,37 @@ export default function TripsAndClinical() {
       icd10_codes: Array.isArray(trip.icd10_codes) ? trip.icd10_codes : [],
     });
   };
+
+  // Deep link support: /trips?tripId=<id> opens that trip's record directly
+  // (used by the Denial Recovery Engine "Open trip record" steps).
+  const [searchParams] = useSearchParams();
+  const deepLinkTripId = searchParams.get("tripId");
+  const handledDeepLink = useRef<string | null>(null);
+  useEffect(() => {
+    if (!deepLinkTripId || handledDeepLink.current === deepLinkTripId) return;
+    const match = trips.find(t => t.id === deepLinkTripId);
+    if (match) {
+      handledDeepLink.current = deepLinkTripId;
+      openTrip(match);
+      return;
+    }
+    if (loading) return;
+    // Trip isn't on the currently selected date — jump the date filter to it.
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("trip_records" as any)
+        .select("run_date")
+        .eq("id", deepLinkTripId)
+        .maybeSingle();
+      if (cancelled) return;
+      const rd = (data as any)?.run_date;
+      if (rd && rd !== dateFilter) setDateFilter(rd);
+      else handledDeepLink.current = deepLinkTripId;
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkTripId, trips, loading, dateFilter]);
 
   const advanceStatus = async (trip: TripRecord) => {
     const idx = STATUS_PIPELINE.indexOf(trip.status);

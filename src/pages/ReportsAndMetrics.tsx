@@ -91,7 +91,7 @@ export default function ReportsAndMetrics() {
         supabase.from("trucks").select("id, name").eq("company_id", scopedCompanyId).eq("is_simulated", false),
         // All claims for AR aging + Revenue Cycle tab (not date filtered).
         // Revenue Cycle needs the richer field set, so we pull it once here.
-        supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, submitted_at, paid_at, denial_code, denial_reason, payer_type, payer_name, adjustment_codes, patient_secondary_payer, secondary_claim_generated, patient_responsibility_amount, run_date").eq("is_simulated", false),
+        supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, submitted_at, paid_at, denial_code, denial_reason, payer_type, payer_name, adjustment_codes, patient_id, secondary_claim_generated, patient_responsibility_amount, run_date").eq("is_simulated", false),
         // Daily truck metrics for OTP/risk
         supabase.from("daily_truck_metrics" as any).select("*").gte("run_date", start).lte("run_date", end).is("simulation_run_id", null),
       ]);
