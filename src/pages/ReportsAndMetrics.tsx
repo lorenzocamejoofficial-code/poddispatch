@@ -100,6 +100,22 @@ export default function ReportsAndMetrics() {
       const claimList = (claims ?? []) as any[];
       const allClaimsList = (allClaimsData ?? []) as any[];
 
+      // Secondary payer lives on the patient record, not on claim_records —
+      // derive it so the Revenue Cycle secondary-opportunity bucket works.
+      const claimPatientIds = [...new Set(allClaimsList.map(c => c.patient_id).filter(Boolean))] as string[];
+      const secondaryByPatient = new Map<string, string | null>();
+      for (let i = 0; i < claimPatientIds.length; i += 200) {
+        const { data: pats } = await supabase
+          .from("patients")
+          .select("id, secondary_payer")
+          .in("id", claimPatientIds.slice(i, i + 200));
+        for (const p of (pats ?? []) as any[]) secondaryByPatient.set(p.id, p.secondary_payer ?? null);
+      }
+      for (const c of allClaimsList) {
+        c.patient_secondary_payer = c.patient_id ? secondaryByPatient.get(c.patient_id) ?? null : null;
+      }
+
+
       // Truck metrics
       const truckMap = new Map((trucks ?? []).map((t: any) => [t.id, t.name]));
       const truckTrips = new Map<string, number>();
