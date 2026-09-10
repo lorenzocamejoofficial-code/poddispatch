@@ -1363,7 +1363,10 @@ export default function BillingAndClaims() {
 
   // Top-line revenue/AR/denial metrics ALWAYS exclude sandbox test submissions
   // — they're not real money and would skew operational decisions.
-  const realClaims = claims.filter(c => !c.is_test_submission);
+  // Inside a simulation/sandbox tenant, injected demo claims are flagged as test
+  // submissions but are the only data there — keep them visible in the money and
+  // action panels. Real tenants still exclude test submissions.
+  const realClaims = isSimulationCompany ? claims : claims.filter(c => !c.is_test_submission);
   const totalRevenue = realClaims.filter(c => c.status === "paid").reduce((sum, c) => sum + (c.amount_paid ?? 0), 0);
   const totalPending = realClaims.filter(c => c.status === "ready_to_bill" || c.status === "submitted")
     .reduce((sum, c) => sum + c.total_charge, 0);
