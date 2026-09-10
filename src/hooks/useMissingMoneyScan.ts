@@ -67,6 +67,11 @@ export function useMissingMoneyScan() {
       return;
     }
 
+    // In simulation tenants injected demo claims are flagged as test submissions,
+    // so the scanner must include them; real tenants keep excluding them.
+    const excludeTestClaims = (query: any) =>
+      isSimulationCompany ? query : query.not("is_test_submission", "is", true);
+
     const applyScope = (query: any) => {
       let scoped = query.eq("company_id", activeCompanyId);
       if (!isSimulationCompany) {
