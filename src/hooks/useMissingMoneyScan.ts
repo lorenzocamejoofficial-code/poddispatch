@@ -83,6 +83,9 @@ export function useMissingMoneyScan() {
       return scoped;
     };
 
+    const applyClaimScope = (query: any) => excludeTestClaims(applyScope(query));
+
+
     const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
     const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000).toISOString();
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
