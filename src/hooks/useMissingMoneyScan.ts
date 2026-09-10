@@ -128,34 +128,31 @@ export function useMissingMoneyScan() {
       if (pcrSubmittedError) throw pcrSubmittedError;
 
       // ---- CHECK 3: Claims past 45 days no follow-up ----
-      const agingQuery = applyScope(supabase
+      const agingQuery = applyClaimScope(supabase
         .from("claim_records" as any)
         .select("id, patient_id, payer_name, payer_type, total_charge, submitted_at, run_date, status")
         .eq("status", "submitted")
         .lt("submitted_at", fortyFiveDaysAgo)
-        .not("is_test_submission", "is", true)
         .limit(500));
       const { data: agingClaims, error: agingError } = await agingQuery;
       if (agingError) throw agingError;
 
       // ---- CHECK 4: Secondary not billed ----
-      const secondaryQuery = applyScope(supabase
+      const secondaryQuery = applyClaimScope(supabase
         .from("claim_records" as any)
         .select("id, patient_id, payer_name, patient_responsibility_amount, run_date, status, secondary_claim_generated")
         .eq("status", "paid")
         .eq("secondary_claim_generated", false)
         .gt("patient_responsibility_amount", 0)
-        .not("is_test_submission", "is", true)
         .limit(500));
       const { data: secondaryClaims, error: secondaryError } = await secondaryQuery;
       if (secondaryError) throw secondaryError;
 
       // ---- CHECK 5: Denied recoverable no action ----
-      const deniedQuery = applyScope(supabase
+      const deniedQuery = applyClaimScope(supabase
         .from("claim_records" as any)
         .select("id, patient_id, payer_name, total_charge, denial_code, run_date, status")
         .eq("status", "denied")
-        .not("is_test_submission", "is", true)
         .limit(500));
       const { data: deniedClaims, error: deniedError } = await deniedQuery;
       if (deniedError) throw deniedError;
@@ -163,12 +160,11 @@ export function useMissingMoneyScan() {
       // ---- CHECK 6: Paid short (underpayment) ----
       // "Paid" is not the same as "paid correctly". Compare what the payer
       // allowed (or what we expected) against what actually arrived.
-      const paidShortQuery = applyScope(supabase
+      const paidShortQuery = applyClaimScope(supabase
         .from("claim_records" as any)
         .select("id, patient_id, payer_name, payer_type, run_date, status, total_charge, expected_revenue, allowed_amount, amount_paid, patient_responsibility_amount, write_off_amount, adjustment_codes")
         .eq("status", "paid")
         .gte("run_date", ninetyDaysAgo)
-        .not("is_test_submission", "is", true)
         .limit(500));
       const { data: paidClaims, error: paidShortError } = await paidShortQuery;
       if (paidShortError) throw paidShortError;
