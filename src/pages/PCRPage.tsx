@@ -1389,7 +1389,14 @@ export default function PCRPage() {
     }
     setSubmitting(true);
     try {
-      await supabase.from("trip_records").update({
+      if (unsavedFieldCount > 0) {
+        toast.error("Some entries haven't saved yet", {
+          description: "Tap Retry on the unsaved-changes banner, then submit again.",
+        });
+        setSubmitting(false);
+        return;
+      }
+      const { error: submitError } = await supabase.from("trip_records").update({
         pcr_status: "submitted",
         pcr_completed_at: new Date().toISOString(),
         pcr_submitted_by: profileId,
@@ -1404,6 +1411,15 @@ export default function PCRPage() {
         updated_at: new Date().toISOString(),
         updated_by: profileId,
       } as any).eq("id", trip.id);
+
+      if (submitError) {
+        console.error("PCR submit error:", submitError);
+        toast.error("Couldn't submit this PCR", {
+          description: `${submitError.message}. Nothing was submitted — your chart is still here, try again.`,
+        });
+        setSubmitting(false);
+        return;
+      }
 
       // If QA fix mode, resolve the associated QA review
       if (isQaFixMode && qaReviewId) {
