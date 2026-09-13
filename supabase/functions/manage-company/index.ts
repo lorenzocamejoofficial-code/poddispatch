@@ -790,6 +790,86 @@ Deno.serve(async (req) => {
       return json({ success: true, restored: true });
     }
 
+    // ── FOUNDING STATUS (read remaining slots) ───────────────
+    if (action === "founding_status") {
+      const { data: counter } = await supabaseAdmin
+        .from("founding_counter")
+        .select("paid_count")
+        .eq("id", 1)
+        .maybeSingle();
+      const claimed = Number((counter as any)?.paid_count ?? 0);
+      return json({ success: true, slots_total: 5, slots_remaining: Math.max(0, 5 - claimed) });
+    }
+
+    // ── GRANT FOUNDING RATE (creator-closed customer) ────────
+    if (action === "grant_founding") {
+      const { data: subRec, error: subErr } = await supabaseAdmin
+        .from("subscription_records")
+        .select("id, is_founding")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (subErr) return json({ error: subErr.message }, 500);
+      if (!subRec) {
+        return json({
+          error: "This company has no subscription record yet. Approve the company first.",
+          code: "NO_SUBSCRIPTION_RECORD",
+        }, 400);
+      }
+
+      const remaining = async () => {
+        const { data: c } = await supabaseAdmin
+          .from("founding_counter").select("paid_count").eq("id", 1).maybeSingle();
+        return Math.max(0, 5 - Number((c as any)?.paid_count ?? 0));
+      };
+
+      // Idempotent: already founding → no slot consumed, nothing written.
+      if ((subRec as any).is_founding === true) {
+        return json({
+          success: true,
+          already_founding: true,
+          granted: false,
+          slots_remaining: await remaining(),
+        });
+      }
+
+      // Same atomic claim path self-serve checkout uses.
+      const { data: claimed, error: claimErr } = await supabaseAdmin.rpc("try_claim_founding_slot");
+      if (claimErr) return json({ error: claimErr.message }, 500);
+      if (claimed !== true) {
+        return json({
+          error: "0 founding slots remaining — all 5 founding rates have been claimed.",
+          code: "NO_FOUNDING_SLOTS",
+          slots_remaining: 0,
+        }, 409);
+      }
+
+      const { error: updErr } = await supabaseAdmin
+        .from("subscription_records")
+        .update({
+          is_founding: true,
+          plan_id: "founding",
+          monthly_amount_cents: 79900,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("company_id", companyId);
+      if (updErr) return json({ error: updErr.message }, 500);
+
+      await supabaseAdmin.from("admin_actions").insert({
+        actor_user_id: user.id,
+        actor_email: user.email,
+        action: "grant_founding_rate",
+        company_id: companyId,
+        reason: reason || "Creator-granted founding rate ($799/mo lifetime lock).",
+      });
+
+      return json({
+        success: true,
+        granted: true,
+        already_founding: false,
+        slots_remaining: await remaining(),
+      });
+    }
+
     return json({ error: "Invalid action" }, 400);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal server error";

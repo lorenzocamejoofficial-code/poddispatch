@@ -104,8 +104,24 @@ serve(async (req) => {
         : (cycle === "yearly" ? starterAnnual : starterPrice);
     let isFounding = false;
 
+    // Creator-granted founding: the slot was already consumed when the creator
+    // granted it, so we must NOT claim another. We simply honor the existing
+    // flag and charge the founding price.
+    const { data: existingSub } = await admin
+      .from("subscription_records")
+      .select("is_founding")
+      .eq("company_id", String(company_id))
+      .maybeSingle();
+    const preGrantedFounding = (existingSub as any)?.is_founding === true;
+
+    if (preGrantedFounding) {
+      chosenPlan = "founding";
+      priceId = foundingPrice;
+      isFounding = true;
+    }
+
     // Founding lifetime lock is monthly-only — never swap on yearly checkouts.
-    if (requestedPlan === "starter" && cycle === "monthly") {
+    if (!preGrantedFounding && requestedPlan === "starter" && cycle === "monthly") {
       const { data: claimed, error: claimErr } = await admin.rpc("try_claim_founding_slot");
       if (claimErr) console.error("founding claim err", claimErr);
       if (claimed === true) {
