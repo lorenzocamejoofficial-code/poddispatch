@@ -618,8 +618,8 @@ export default function Employees() {
                 onClick={() => setBulkDeleteOpen(true)}
                 className="gap-1.5"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete {selected.size} selected
+                <Archive className="h-3.5 w-3.5" />
+                Archive {selected.size} selected
               </Button>
             )}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -1021,7 +1021,7 @@ export default function Employees() {
               onClick={handleBulkDelete}
               disabled={bulkDeleting}
             >
-              {bulkDeleting ? "Deleting..." : `Delete ${selected.size} Employee${selected.size > 1 ? "s" : ""}`}
+              {bulkDeleting ? "Archiving..." : `Archive ${selected.size} Employee${selected.size > 1 ? "s" : ""}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
