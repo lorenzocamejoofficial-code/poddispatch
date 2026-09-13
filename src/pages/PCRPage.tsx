@@ -1580,6 +1580,7 @@ export default function PCRPage() {
   return (
     <Layout>
       <div className={cn("p-4 pb-24 min-h-screen", isQaFixMode ? "max-w-3xl mx-auto" : "")}>
+        {unsavedBanner}
         {/* QA Fix mode banner */}
         {isQaFixMode && (
           <div className="mb-4 rounded-lg border-2 border-primary bg-primary/5 p-4">
