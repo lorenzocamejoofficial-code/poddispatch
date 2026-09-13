@@ -4231,6 +4231,9 @@ export type Database = {
         Row: {
           active: boolean
           active_company_id: string | null
+          archived_at: string | null
+          archived_by: string | null
+          archived_role: string | null
           bariatric_trained: boolean
           cert_level: Database["public"]["Enums"]["cert_level"]
           company_id: string | null
@@ -4256,6 +4259,9 @@ export type Database = {
         Insert: {
           active?: boolean
           active_company_id?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          archived_role?: string | null
           bariatric_trained?: boolean
           cert_level?: Database["public"]["Enums"]["cert_level"]
           company_id?: string | null
@@ -4281,6 +4287,9 @@ export type Database = {
         Update: {
           active?: boolean
           active_company_id?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          archived_role?: string | null
           bariatric_trained?: boolean
           cert_level?: Database["public"]["Enums"]["cert_level"]
           company_id?: string | null

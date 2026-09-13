@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Pencil, Trash2, Copy, KeyRound, MoreHorizontal, Send, ShieldCheck } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Copy, KeyRound, MoreHorizontal, Send, ShieldCheck, Archive, RotateCcw } from "lucide-react";
 import { CrewCertificationsDialog } from "@/components/crew/CrewCertificationsDialog";
 import { toast } from "sonner";
 import { TablePagination } from "@/components/ui/table-pagination";
@@ -37,7 +37,8 @@ interface Employee {
   active: boolean;
   role?: string;
   employment_type?: string;
-  invitation_status?: "active" | "invited" | "pending_invite" | "deactivated";
+  invitation_status?: "active" | "invited" | "pending_invite" | "inactive";
+  archived_at?: string | null;
   pending_role?: string | null;
   invite_token?: string | null;
   stair_chair_trained?: boolean;
@@ -65,9 +66,11 @@ export default function Employees() {
   // Selection state
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Single-delete state
+  // Single-archive state
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Upcoming-shift count shown in the archive warning (null = still checking)
+  const [upcomingShifts, setUpcomingShifts] = useState<number | null>(null);
 
   // Bulk-delete state
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -152,6 +155,7 @@ export default function Employees() {
         bariatric_trained: p.bariatric_trained ?? false,
         oxygen_handling_trained: p.oxygen_handling_trained ?? false,
         lift_assist_ok: p.lift_assist_ok ?? false,
+        archived_at: p.archived_at ?? null,
       };
     });
 
@@ -465,15 +469,25 @@ export default function Employees() {
     setSaving(false);
   };
 
-  // ── Single delete ──
+  // ── Single archive ──
+  // Archiving never deletes the profile or the login account: it revokes company
+  // access, blocks sign-in, and leaves every historical record attributed.
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    const { error } = await supabase.from("profiles").delete().eq("id", deleteTarget.id);
-    if (error) {
-      toast.error("Failed to delete employee");
+    const { data, error } = await supabase.functions.invoke("manage-employee", {
+      body: { action: "archive", profile_id: deleteTarget.id },
+    });
+    const errMsg = (data as any)?.error || error?.message;
+    if (errMsg || !(data as any)?.ok) {
+      toast.error("Couldn't archive this employee", { description: errMsg || "Nothing was changed — try again." });
     } else {
-      toast.success(`${deleteTarget.full_name} deleted`);
+      const cleared = (data as any)?.clearedShifts ?? 0;
+      toast.success(`${deleteTarget.full_name} archived`, {
+        description: cleared > 0
+          ? `${cleared} upcoming shift${cleared > 1 ? "s" : ""} cleared. Past records are unchanged.`
+          : "They can no longer sign in. Past records are unchanged.",
+      });
       setDeleteTarget(null);
       setSelected((prev) => { const n = new Set(prev); n.delete(deleteTarget.id); return n; });
       fetchEmployees();
@@ -481,15 +495,44 @@ export default function Employees() {
     setDeleting(false);
   };
 
-  // ── Bulk delete ──
+  // ── Reactivate (owner/creator only, enforced server-side) ──
+  const handleReactivate = async (emp: Employee) => {
+    const { data, error } = await supabase.functions.invoke("manage-employee", {
+      body: { action: "unarchive", profile_id: emp.id },
+    });
+    const errMsg = (data as any)?.error || error?.message;
+    if (errMsg || !(data as any)?.ok) {
+      toast.error("Couldn't reactivate this employee", { description: errMsg || "Nothing was changed — try again." });
+      return;
+    }
+    toast.success(`${emp.full_name} reactivated`, {
+      description: "Their access is back. Upcoming shifts must be re-assigned.",
+    });
+    fetchEmployees();
+  };
+
+  // ── Bulk archive ──
   const handleBulkDelete = async () => {
     setBulkDeleting(true);
     const ids = Array.from(selected);
-    const { error } = await supabase.from("profiles").delete().in("id", ids);
-    if (error) {
-      toast.error("Failed to delete employees");
+    const { data, error } = await supabase.functions.invoke("manage-employee", {
+      body: { action: "archive_bulk", profile_ids: ids },
+    });
+    const errMsg = (data as any)?.error || error?.message;
+    if (errMsg && !(data as any)?.results) {
+      toast.error("Couldn't archive these employees", { description: errMsg });
     } else {
-      toast.success(`${ids.length} employee${ids.length > 1 ? "s" : ""} deleted`);
+      const results = ((data as any)?.results ?? []) as any[];
+      const okCount = results.filter((r) => r.ok).length;
+      const failed = results.filter((r) => !r.ok);
+      if (okCount > 0) {
+        toast.success(`${okCount} employee${okCount > 1 ? "s" : ""} archived`);
+      }
+      if (failed.length > 0) {
+        toast.error(`${failed.length} couldn't be archived`, {
+          description: failed.map((f) => f.error).slice(0, 3).join(" · "),
+        });
+      }
       setSelected(new Set());
       setBulkDeleteOpen(false);
       fetchEmployees();
@@ -539,7 +582,21 @@ export default function Employees() {
   };
 
   const isAdmin = userRole === "owner" || userRole === "creator" || userRole === "manager";
+  // Reactivating restores access, so it's owner/creator only (also enforced server-side).
+  const canReactivate = userRole === "owner" || userRole === "creator";
+
+  // Opens the archive confirmation and asks the server how many upcoming shifts
+  // this person is on, so the warning shows a real count before anything changes.
+  const openArchive = (e: Employee) => {
+    setDeleteTarget(e);
+    setUpcomingShifts(null);
+    supabase.functions
+      .invoke("manage-employee", { body: { action: "preview", profile_id: e.id } })
+      .then(({ data }) => setUpcomingShifts(((data as any)?.upcoming_shifts ?? 0) as number))
+      .catch(() => setUpcomingShifts(0));
+  };
   const statusBadge = (e: Employee) => {
+    if (e.archived_at) return { label: "Archived", cls: "bg-muted text-muted-foreground" };
     if (e.invitation_status === "invited") return { label: "Invited", cls: "bg-[hsl(var(--status-amber-bg))] text-[hsl(var(--status-amber))]" };
     if (e.invitation_status === "pending_invite") return { label: "Pending", cls: "bg-muted text-muted-foreground" };
     return e.active
@@ -577,8 +634,8 @@ export default function Employees() {
                 onClick={() => setBulkDeleteOpen(true)}
                 className="gap-1.5"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete {selected.size} selected
+                <Archive className="h-3.5 w-3.5" />
+                Archive {selected.size} selected
               </Button>
             )}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -798,13 +855,18 @@ export default function Employees() {
                                 <ShieldCheck className="mr-2 h-3.5 w-3.5" />Certifications
                               </DropdownMenuItem>
                             )}
-                            {e.role !== "Owner" && (
+                            {e.role !== "Owner" && e.archived_at && canReactivate && (
+                              <DropdownMenuItem onClick={() => handleReactivate(e)}>
+                                <RotateCcw className="mr-2 h-3.5 w-3.5" />Reactivate
+                              </DropdownMenuItem>
+                            )}
+                            {e.role !== "Owner" && !e.archived_at && (
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
-                                onClick={() => setDeleteTarget(e)}
+                                onClick={() => openArchive(e)}
                               >
-                                <Trash2 className="mr-2 h-3.5 w-3.5" />
-                                {e.invitation_status === "invited" || e.invitation_status === "pending_invite" ? "Revoke invite" : "Delete"}
+                                <Archive className="mr-2 h-3.5 w-3.5" />
+                                {e.invitation_status === "invited" || e.invitation_status === "pending_invite" ? "Revoke invite" : "Archive"}
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
@@ -928,13 +990,20 @@ export default function Employees() {
         </Dialog>
       </div>
 
-      {/* Single delete confirmation */}
+      {/* Single archive confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Employee?</AlertDialogTitle>
+            <AlertDialogTitle>Archive Employee?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{deleteTarget?.full_name}</strong> and their profile. Consider deactivating instead to preserve scheduling history. This cannot be undone.
+              <strong>{deleteTarget?.full_name}</strong> will no longer be able to sign in and will disappear from active lists and crew pickers.
+              Their record, signed charts and past shifts stay exactly as they are.
+              {upcomingShifts === null
+                ? " Checking upcoming shifts..."
+                : upcomingShifts > 0
+                  ? ` They are on ${upcomingShifts} upcoming shift${upcomingShifts > 1 ? "s" : ""} — archiving removes them from ${upcomingShifts > 1 ? "those" : "it"}; any truck left short will show as an incomplete shift on the board.`
+                  : " They have no upcoming shifts."}
+              {" "}An owner can reactivate them later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -944,19 +1013,21 @@ export default function Employees() {
               onClick={handleDelete}
               disabled={deleting}
             >
-              {deleting ? "Deleting..." : "Delete Employee"}
+              {deleting ? "Archiving..." : "Archive Employee"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Bulk delete confirmation */}
+      {/* Bulk archive confirmation */}
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selected.size} Employee{selected.size > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogTitle>Archive {selected.size} Employee{selected.size > 1 ? "s" : ""}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{selected.size}</strong> employee{selected.size > 1 ? "s" : ""} and their profiles. Consider deactivating instead to preserve scheduling history. This cannot be undone.
+              These <strong>{selected.size}</strong> people will no longer be able to sign in and will drop off active lists and crew pickers.
+              Upcoming shifts they are on are cleared; past shifts, signed charts and every historical record stay attributed to them.
+              An owner can reactivate anyone later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -966,7 +1037,7 @@ export default function Employees() {
               onClick={handleBulkDelete}
               disabled={bulkDeleting}
             >
-              {bulkDeleting ? "Deleting..." : `Delete ${selected.size} Employee${selected.size > 1 ? "s" : ""}`}
+              {bulkDeleting ? "Archiving..." : `Archive ${selected.size} Employee${selected.size > 1 ? "s" : ""}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
