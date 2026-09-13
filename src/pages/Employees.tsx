@@ -839,13 +839,18 @@ export default function Employees() {
                                 <ShieldCheck className="mr-2 h-3.5 w-3.5" />Certifications
                               </DropdownMenuItem>
                             )}
-                            {e.role !== "Owner" && (
+                            {e.role !== "Owner" && e.archived_at && canReactivate && (
+                              <DropdownMenuItem onClick={() => handleReactivate(e)}>
+                                <RotateCcw className="mr-2 h-3.5 w-3.5" />Reactivate
+                              </DropdownMenuItem>
+                            )}
+                            {e.role !== "Owner" && !e.archived_at && (
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
-                                onClick={() => setDeleteTarget(e)}
+                                onClick={() => openArchive(e)}
                               >
-                                <Trash2 className="mr-2 h-3.5 w-3.5" />
-                                {e.invitation_status === "invited" || e.invitation_status === "pending_invite" ? "Revoke invite" : "Delete"}
+                                <Archive className="mr-2 h-3.5 w-3.5" />
+                                {e.invitation_status === "invited" || e.invitation_status === "pending_invite" ? "Revoke invite" : "Archive"}
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
@@ -969,13 +974,20 @@ export default function Employees() {
         </Dialog>
       </div>
 
-      {/* Single delete confirmation */}
+      {/* Single archive confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Employee?</AlertDialogTitle>
+            <AlertDialogTitle>Archive Employee?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{deleteTarget?.full_name}</strong> and their profile. Consider deactivating instead to preserve scheduling history. This cannot be undone.
+              <strong>{deleteTarget?.full_name}</strong> will no longer be able to sign in and will disappear from active lists and crew pickers.
+              Their record, signed charts and past shifts stay exactly as they are.
+              {upcomingShifts === null
+                ? " Checking upcoming shifts..."
+                : upcomingShifts > 0
+                  ? ` They are on ${upcomingShifts} upcoming shift${upcomingShifts > 1 ? "s" : ""} — archiving removes them from ${upcomingShifts > 1 ? "those" : "it"}; any truck left short will show as an incomplete shift on the board.`
+                  : " They have no upcoming shifts."}
+              {" "}An owner can reactivate them later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -985,19 +997,21 @@ export default function Employees() {
               onClick={handleDelete}
               disabled={deleting}
             >
-              {deleting ? "Deleting..." : "Delete Employee"}
+              {deleting ? "Archiving..." : "Archive Employee"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Bulk delete confirmation */}
+      {/* Bulk archive confirmation */}
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selected.size} Employee{selected.size > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogTitle>Archive {selected.size} Employee{selected.size > 1 ? "s" : ""}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{selected.size}</strong> employee{selected.size > 1 ? "s" : ""} and their profiles. Consider deactivating instead to preserve scheduling history. This cannot be undone.
+              These <strong>{selected.size}</strong> people will no longer be able to sign in and will drop off active lists and crew pickers.
+              Upcoming shifts they are on are cleared; past shifts, signed charts and every historical record stay attributed to them.
+              An owner can reactivate anyone later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
