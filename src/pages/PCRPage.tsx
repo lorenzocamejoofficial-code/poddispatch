@@ -908,7 +908,7 @@ export default function PCRPage() {
     setTimeout(() => navigate("/crew-dashboard"), 2000);
   }, [navigate]);
 
-  const { trip, loading, saving, accessDeniedByRLS, updateField, updateMultipleFields, recordTime, refetch, markAccessRevoked } =
+  const { trip, loading, saving, accessDeniedByRLS, unsavedFieldCount, retryFailedSaves, updateField, updateMultipleFields, recordTime, refetch, markAccessRevoked } =
     usePCRData(tripId, handleTruckOrCrewChanged, handleRunCancelled);
   const refetchRef = useRef(refetch);
   useEffect(() => { refetchRef.current = refetch; }, [refetch]);
