@@ -1,66 +1,74 @@
-# Batching recommendation for the punch list
+# Pass B — Archive an employee instead of half-deleting them
 
-This is a planning answer, not a build. I re-read all seven spots in the live code before writing it.
+Plan only. Nothing built yet.
 
-## 1. Capacity — the honest number
+## What's actually there now
 
-Three passes. Not one, not seven.
+- An employee is one `profiles` row (holds name, cert level, contact, `active` boolean, `invitation_status`, `company_id`, `user_id`), plus a `company_memberships` row (their role in the company), plus `user_roles` rows (what the access rules check), plus their login account.
+- Today "Delete" on the Employees page removes only the `profiles` row. The login, the membership and the role stay behind.
+- Good news: a status column already exists — `profiles.active` (boolean) and `invitation_status` (which already has an `inactive` value). No new table is needed; only a few small columns.
+- Signed charts, trips, certifications and audit entries point at the profile row, so keeping that row is exactly what preserves attribution.
 
-Five of the seven items are the same defect ("a write failed and the screen said it worked") in five unrelated files with no shared state, no schema change, and no shared test. Those are genuinely safe together — the risk of one masking another is near zero because none of them import each other.
+## The mechanism: soft-archive on the profile, hard-revoke the grants
 
-The two that must stand alone are employee deletion (it needs new server-side code with elevated privileges and touches login accounts) and the clearinghouse toggles (the real issue there isn't a silent failure — see below).
+Archiving does four things, all server-side:
 
-## 2. Natural batches
+1. `profiles.active = false`, `invitation_status = 'inactive'` — the person stays in the system with their name and history.
+2. Their `company_memberships` row and `user_roles` rows are removed. These are permissions, not history — nothing in the clinical record points at them.
+3. Their login account is disabled (banned), not deleted. They can't sign in; the account still exists so every signed chart keeps resolving to a real person.
+4. An audit entry is written (who archived whom, when, why).
 
-### Pass A — "failed write must not report success" (5 items, one pass)
+To make it reversible, three small columns are added to `profiles`: `archived_at`, `archived_by`, `archived_role` (the role they held, so reactivating restores exactly what they had).
 
-| Item | What's actually there now | Fix |
-| --- | --- | --- |
-| ePCR field saves (`src/hooks/usePCRData.ts:344-412`) | Debounced save; on error only `console.error`. Applies to `updateField`, `updateMultipleFields`, and `recordTime`. | Show a visible failure, roll the on-screen value back or mark it unsaved, and offer retry. |
-| PCR submit (`src/pages/PCRPage.tsx:1391-1406`) | Update result is never read; success is assumed. | Read the result, stop and show the real reason on failure. |
-| Board drag-reorder (`src/pages/Scheduling.tsx:1006-1016`) | `Promise.all` of slot updates, results discarded — comment literally says "fire and forget". | Check each result; on failure revert the optimistic order and say so. |
-| Inspection alerts (`src/components/inspection/CrewInspectionChecklist.tsx:161-181`) | Alert-row and dispatch-alert inserts unchecked, then unconditional "Inspection submitted successfully". | Check inserts; if the dispatcher alert didn't post, say the inspection saved but dispatch wasn't notified. |
-| Payer rule save (`src/pages/ComplianceAndQA.tsx:60-75`) | Insert/update result discarded, always toasts "Rule saved", closes dialog. | Check result; on failure keep the dialog open with the typed values and show why. |
+Row removal alone was rejected: deleting the membership hides them from lists but leaves them able to sign in, and deleting the profile is what caused this bug. The flag plus grant-revocation gets both halves right.
 
-Why these group cleanly: identical shape of change (capture the result, branch on error, keep the user's data), five separate files, no schema work, no shared component. Grouping also keeps the wording and behaviour consistent instead of five slightly different error styles.
+## Where the archive happens (new server function)
 
-Two internal notes that keep this honest: the ePCR one is the largest because the save is debounced and per-field — a failure arrives after the user has moved on, so it needs an "unsaved" marker, not just a toast. And the inspection one has two writes with different consequences (the record vs. the dispatcher notification), so its message has to distinguish them.
+New `manage-employee` edge function with three actions — `archive`, `unarchive`, `archive_bulk` — following the exact pattern of the existing `delete-pending-crew-member` function: caller must be owner/creator/manager of the same company, target must belong to that company, owners and creators can't be archived, you can't archive yourself. Bulk runs the same single-employee path per person and reports per-person results, so one failure doesn't silently skip the rest.
 
-### Pass B — employee deletion (stands alone)
+## Active-list read sites that must exclude archived people
 
-`src/pages/Employees.tsx:469-498` (single) and `:499-...` (bulk) delete only the `profiles` row. There is no `manage-employee` server function today — the closest existing ones are `delete-pending-crew-member`, `update-crew-member`, `create-user`. So this pass means writing new privileged server code that removes the login account, company membership, and role together, decides archive-vs-hard-delete, and handles what happens to that person's past trips and signed charts.
+Already filter correctly (they check `active`):
+- Trucks & Crews crew picker (`src/pages/TrucksCrews.tsx:404`)
+- Crew Schedule admin (`src/pages/CrewScheduleAdmin.tsx:93-105`)
+- Employees list (has a "show inactive" toggle — archived people appear only when it's on, with an "Archived" badge)
 
-Why it can't ride along with Pass A: new server code, elevated privileges, access-rule implications, a real destructive-action decision (deleting a crew member who signed charts is not the same as removing a typo account), and it needs its own confirmation gate. Mixing a destructive identity change into a five-file feedback pass is how a bad delete slips through review.
+To be checked and filtered as part of this pass:
+- Run reassignment crew picker (`src/components/scheduling/RunReassignmentDialog.tsx:206`)
+- Scheduling / dispatch crew selectors that read crew profiles
+- Attending-medic picker (`src/components/pcr/MedicSelector.tsx`) — it's fed by the crew assigned to the run, so it's correct once assignments are handled, but an archived person already on a past run must still be selectable in that historical chart
+- Crew invite / certification review queues
 
-### Pass C — clearinghouse toggles (stands alone, and needs a decision first)
+Anywhere a name is *displayed* for a historical record (chart signatures, trip timeline, audit log, override monitor) keeps showing the archived person — those are lookups by id, not active lists, and are deliberately left alone.
 
-`src/components/settings/ClearinghouseSettings.tsx:412-463` — the two switches set local state only; there **is** a "Save Settings" button below them that does persist both. So this isn't a dead button or a silent failure; it's a flip-that-looks-live-but-isn't until you scroll and press Save. Two possible fixes, and I want your call rather than a guess:
+## Future assignments
 
-- make the switches save immediately (and revert visibly if the save fails), or
-- keep the Save button and make the pending state obvious ("unsaved changes").
+Recommended: **auto-unassign future only, with an up-front warning.**
 
-Also this one governs whether real claims auto-transmit to Office Ally, so it deserves its own verification rather than being buried in a five-item batch.
+Before archiving, the server counts the person's crew assignments dated today or later. The confirmation dialog says plainly, e.g. "Jane is assigned to 4 upcoming shifts. Archiving removes her from those; past shifts and completed trips are unchanged." On confirm, future crew seats are cleared; anything dated before today is untouched.
 
-## 3. Recommended order
+Blocking until manually unassigned was rejected — it makes a same-day termination impossible. Warning without acting was rejected — it leaves a person who can't log in still on tomorrow's board.
 
-1. **Pass A** — biggest customer-visible risk (lost charting, a run order that silently reverts), no schema work.
-2. **Pass B** — employee deletion, after we settle archive vs. delete and what happens to their historical records.
-3. **Pass C** — clearinghouse toggles, after you pick the behaviour.
+If clearing a future seat would leave a truck below minimum crew, that shift is left flagged on the board as incomplete rather than silently deleted, so a dispatcher sees the hole.
 
-## 4. What you'd click to verify
+## Unarchive
 
-**Pass A** — the reliable way to prove a failure path is to go offline (browser dev tools → Network → Offline) or turn off wifi for a few seconds, because none of these fail on a healthy connection.
+Creator/owner-only "Reactivate" action on an archived employee row: lifts the login ban, restores the membership and role from `archived_role`, sets `active = true` and `invitation_status = 'active'`, clears the archive columns, writes an audit entry. Future shifts are not restored — they're re-assigned deliberately.
 
-- ePCR: open a chart, type into a vitals field, kill the connection, type another field. Expect a visible failure and an unsaved marker — not a clean-looking form. Reconnect and confirm it recovers or lets you retry.
-- PCR submit: complete a chart in the sandbox and submit normally (should still work), then submit with the connection killed — expect a clear error, and the chart must NOT show as submitted.
-- Board reorder: drag two runs on one truck to reorder, offline. Expect the order to snap back with a message. Then do it online and reload the page to confirm the new order stuck.
-- Inspection: run a pre-trip check in the crew app with one item marked missing — confirm the red alert lands on the dispatch board. Repeat offline and expect an honest failure message.
-- Payer rule: edit a payer rule, save offline — expect the dialog to stay open with your typing intact and a real error. Save online and confirm the row changed after a reload.
+## Historical attribution — confirmed
 
-**Pass B** — create a throwaway employee, delete them, then confirm: they're gone from the employee list, they can no longer log in, they no longer appear in crew assignment dropdowns, and any trip they previously touched still shows their name in history. Also test bulk delete with two throwaway accounts.
+Signed PCRs, trip records, certification history, incident reports, inspections and audit entries all reference the profile (or user) id, which is never removed. Archiving changes no clinical or billing data; every historical record keeps the correct name.
 
-**Pass C** — flip both switches, leave the page without saving, come back: state should match whatever behaviour we choose. Then set them deliberately, reload, and confirm they held.
+## Technical notes
 
-## 5. What I would not touch in these passes
+- Migration: add `archived_at timestamptz`, `archived_by uuid`, `archived_role text` to `public.profiles`. No table creation, no policy rewrites, no change to `get_my_company_id`, `is_admin`, `is_dispatcher` or any tenant-isolation rule.
+- Access revocation relies on the existing model: `user_roles` drives `is_admin/is_dispatcher/is_billing`, `company_memberships` drives company access, and the login ban is the hard stop.
+- Client changes limited to `src/pages/Employees.tsx` (Archive / Archive selected / Reactivate, new confirmation copy using the existing `ConfirmActionDialog` gate) plus the read-site filters listed above.
+- Untouched: claims/837, denial recovery, trial timers, Stripe, Pass C, and all tenant-isolation policies. No auth user or profile is ever hard-deleted.
 
-Claims/837 generation, denial recovery, trial timers, tenant access rules, and Stripe prices. None of the seven items requires going near them.
+## What you'd click to verify
+
+1. Create a throwaway employee, assign them to a shift tomorrow, archive them — expect the upcoming-shift warning, then: gone from the employee list (unless "show inactive" is on), gone from crew pickers and the medic picker, gone from tomorrow's board, still named on anything they previously touched.
+2. Try signing in as them — expect a refusal.
+3. Reactivate them — expect them back in the lists with their old role, and still able to sign in.
+4. Archive two throwaway employees at once and confirm both behave the same.
