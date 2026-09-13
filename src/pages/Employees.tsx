@@ -582,6 +582,19 @@ export default function Employees() {
   };
 
   const isAdmin = userRole === "owner" || userRole === "creator" || userRole === "manager";
+  // Reactivating restores access, so it's owner/creator only (also enforced server-side).
+  const canReactivate = userRole === "owner" || userRole === "creator";
+
+  // Opens the archive confirmation and asks the server how many upcoming shifts
+  // this person is on, so the warning shows a real count before anything changes.
+  const openArchive = (e: Employee) => {
+    setDeleteTarget(e);
+    setUpcomingShifts(null);
+    supabase.functions
+      .invoke("manage-employee", { body: { action: "preview", profile_id: e.id } })
+      .then(({ data }) => setUpcomingShifts(((data as any)?.upcoming_shifts ?? 0) as number))
+      .catch(() => setUpcomingShifts(0));
+  };
   const statusBadge = (e: Employee) => {
     if (e.invitation_status === "invited") return { label: "Invited", cls: "bg-[hsl(var(--status-amber-bg))] text-[hsl(var(--status-amber))]" };
     if (e.invitation_status === "pending_invite") return { label: "Pending", cls: "bg-muted text-muted-foreground" };
