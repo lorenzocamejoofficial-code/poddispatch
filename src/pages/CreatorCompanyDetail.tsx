@@ -11,6 +11,7 @@ import {
   LifeBuoy, ShieldCheck, AlertTriangle, Activity, ExternalLink,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
+import { toast } from "sonner";
 
 interface Company {
   id: string; name: string; onboarding_status: string;
