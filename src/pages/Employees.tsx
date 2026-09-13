@@ -66,9 +66,11 @@ export default function Employees() {
   // Selection state
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Single-delete state
+  // Single-archive state
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Upcoming-shift count shown in the archive warning (null = still checking)
+  const [upcomingShifts, setUpcomingShifts] = useState<number | null>(null);
 
   // Bulk-delete state
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
