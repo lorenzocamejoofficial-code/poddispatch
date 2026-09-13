@@ -108,6 +108,9 @@ export function usePCRData(
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [accessDeniedByRLS, setAccessDeniedByRLS] = useState(false);
+  // Saves that failed and are still unsaved — key -> payload to retry.
+  const [failedSaves, setFailedSaves] = useState<Map<string, Record<string, any>>>(new Map());
+  const failedSavesRef = useRef<Map<string, Record<string, any>>>(new Map());
   const tripRef = useRef<PCRTripData | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const onChangeRef = useRef(onTruckOrCrewChanged);
