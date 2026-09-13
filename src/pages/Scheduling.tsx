@@ -1019,7 +1019,7 @@ export default function Scheduling() {
         toast.error("Couldn't save the new run order", {
           description: `${reorderError.message}. The board has been put back the way it was — try again.`,
         });
-        await refetchLegs();
+        await refresh();
       }
       return;
     }
