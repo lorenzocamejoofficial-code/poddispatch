@@ -1502,6 +1502,27 @@ export default function PCRPage() {
     setSubmitting(false);
   };
 
+  // Unsaved-changes banner — shown whenever a background save failed. The typed
+  // value stays on screen, but the crew must never believe it was saved.
+  const unsavedBanner = unsavedFieldCount > 0 && !isReadOnly ? (
+    <div className="mb-3 rounded-lg border-2 border-destructive bg-destructive/10 p-3">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <p className="text-xs font-bold text-destructive">
+            {unsavedFieldCount} change{unsavedFieldCount > 1 ? "s" : ""} not saved
+          </p>
+          <p className="text-[11px] text-destructive/80 mt-0.5">
+            Your entries are still on screen but haven't reached the server. Check your connection and retry.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={retryFailedSaves} disabled={saving}>
+          {saving ? "Retrying..." : "Retry"}
+        </Button>
+      </div>
+    </div>
+  ) : null;
+
   // If a card is open, show its content
   if (activeCard) {
     const cardConfig = cards.find(c => c.type === activeCard);
