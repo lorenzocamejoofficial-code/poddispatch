@@ -320,6 +320,28 @@ export function usePCRData(
     };
   }, [tripId]);
 
+  // Persist a write and track failures so the UI can never show a failed save as saved.
+  // The user's typed value stays in local state; the payload is kept for retry.
+  const persist = useCallback(async (key: string, payload: Record<string, any>) => {
+    const { error } = await supabase
+      .from("trip_records")
+      .update(payload)
+      .eq("id", tripId!);
+    if (error) {
+      console.error("PCR auto-save error:", error);
+      failedSavesRef.current.set(key, payload);
+      setFailedSaves(new Map(failedSavesRef.current));
+      toast.error("Couldn't save your change", {
+        description: "Your entry is still on screen but not saved yet. Check your connection and tap Retry.",
+      });
+      return false;
+    }
+    if (failedSavesRef.current.delete(key)) {
+      setFailedSaves(new Map(failedSavesRef.current));
+    }
+    return true;
+  }, [tripId]);
+
   const updateField = useCallback(async (field: string, value: any) => {
     if (!tripId || !trip) return;
     if (isAccessRevokedRef.current) {
@@ -343,18 +365,18 @@ export function usePCRData(
     setSaving(true);
     const timer = setTimeout(async () => {
       fieldSaveTimers.delete(field);
-      const { error } = await supabase
-        .from("trip_records")
-        .update({ [field]: value, updated_at: new Date().toISOString(), ...extraFields })
-        .eq("id", tripId);
+      await persist(field, { [field]: value, updated_at: new Date().toISOString(), ...extraFields });
       if (fieldSaveTimers.size === 0) setSaving(false);
-      if (error) console.error("PCR auto-save error:", error);
     }, 500);
     fieldSaveTimers.set(field, timer);
-  }, [tripId, trip]);
+  }, [tripId, trip, persist]);
 
   const updateMultipleFields = useCallback(async (fields: Record<string, any>) => {
     if (!tripId || !trip) return;
+    if (isAccessRevokedRef.current) {
+      toast.error("Your access to this PCR has been revoked, changes cannot be saved");
+      return;
+    }
 
     setTrip(prev => prev ? { ...prev, ...fields } : prev);
 
@@ -371,15 +393,11 @@ export function usePCRData(
     setSaving(true);
     const timer = setTimeout(async () => {
       fieldSaveTimers.delete(compositeKey);
-      const { error } = await supabase
-        .from("trip_records")
-        .update({ ...fields, updated_at: new Date().toISOString(), ...extraFields })
-        .eq("id", tripId);
+      await persist(compositeKey, { ...fields, updated_at: new Date().toISOString(), ...extraFields });
       if (fieldSaveTimers.size === 0) setSaving(false);
-      if (error) console.error("PCR auto-save error:", error);
     }, 500);
     fieldSaveTimers.set(compositeKey, timer);
-  }, [tripId, trip]);
+  }, [tripId, trip, persist]);
 
   // Record a time event and also push status to trip_records for realtime dispatch
   // Idempotency guard: if field already has a value, do not overwrite (prevents double-taps)
@@ -405,16 +423,36 @@ export function usePCRData(
 
     setTrip(prev => prev ? { ...prev, [timeField]: now, ...(statusUpdate ? { status: statusUpdate } : {}), pcr_status: prev.pcr_status === "not_started" ? "in_progress" : prev.pcr_status } : prev);
 
-    const { error } = await supabase
-      .from("trip_records")
-      .update(updates)
-      .eq("id", tripId);
-    if (error) console.error("Time record error:", error);
-  }, [tripId, trip]);
+    const ok = await persist(timeField, updates);
+    if (!ok) {
+      // Roll the timestamp back so the crew doesn't believe the time was recorded.
+      setTrip(prev => prev ? { ...prev, [timeField]: null } as PCRTripData : prev);
+      failedSavesRef.current.delete(timeField);
+      setFailedSaves(new Map(failedSavesRef.current));
+    }
+  }, [tripId, trip, persist]);
+
+  // Retry every save that previously failed. Used by the "unsaved changes" banner.
+  const retryFailedSaves = useCallback(async () => {
+    if (!tripId) return;
+    const entries = Array.from(failedSavesRef.current.entries());
+    if (entries.length === 0) return;
+    setSaving(true);
+    let allOk = true;
+    for (const [key, payload] of entries) {
+      const ok = await persist(key, { ...payload, updated_at: new Date().toISOString() });
+      if (!ok) allOk = false;
+    }
+    setSaving(false);
+    if (allOk) toast.success("All changes saved");
+  }, [tripId, persist]);
 
   const markAccessRevoked = useCallback(() => {
     isAccessRevokedRef.current = true;
   }, []);
 
-  return { trip, loading, saving, accessDeniedByRLS, updateField, updateMultipleFields, recordTime, refetch: fetchTrip, markAccessRevoked };
+  const unsavedFieldCount = failedSaves.size;
+
+  return { trip, loading, saving, accessDeniedByRLS, unsavedFieldCount, retryFailedSaves, updateField, updateMultipleFields, recordTime, refetch: fetchTrip, markAccessRevoked };
 }
+
