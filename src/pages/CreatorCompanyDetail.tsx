@@ -11,6 +11,7 @@ import {
   LifeBuoy, ShieldCheck, AlertTriangle, Activity, ExternalLink,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
+import { toast } from "sonner";
 
 interface Company {
   id: string; name: string; onboarding_status: string;
@@ -56,6 +57,44 @@ export default function CreatorCompanyDetail() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [counts, setCounts] = useState({ trips: 0, claims: 0, employees: 0 });
+  const [foundingSlots, setFoundingSlots] = useState<number | null>(null);
+  const [granting, setGranting] = useState(false);
+
+  useEffect(() => {
+    if (!companyId) return;
+    (async () => {
+      const { data } = await supabase.functions.invoke("manage-company", {
+        body: { companyId, action: "founding_status" },
+      });
+      if (typeof (data as any)?.slots_remaining === "number") {
+        setFoundingSlots((data as any).slots_remaining);
+      }
+    })();
+  }, [companyId]);
+
+  const grantFounding = async () => {
+    if (!companyId) return;
+    setGranting(true);
+    const { data, error } = await supabase.functions.invoke("manage-company", {
+      body: { companyId, action: "grant_founding" },
+    });
+    setGranting(false);
+    const payload = data as any;
+    if (error || !payload?.success) {
+      toast.error(payload?.error ?? error?.message ?? "Could not grant the founding rate.");
+      if (typeof payload?.slots_remaining === "number") setFoundingSlots(payload.slots_remaining);
+      return;
+    }
+    if (typeof payload.slots_remaining === "number") setFoundingSlots(payload.slots_remaining);
+    if (payload.already_founding) {
+      toast.info("This company already has the founding rate. Nothing changed.");
+    } else {
+      toast.success("Founding rate granted — locked at $799/mo.");
+    }
+    const { data: subR } = await supabase
+      .from("subscription_records").select("*").eq("company_id", companyId).maybeSingle();
+    if (subR) setSubscription(subR as any);
+  };
 
   useEffect(() => {
     if (!companyId) return;
@@ -236,7 +275,32 @@ export default function CreatorCompanyDetail() {
                   <Row label="Trial ends" value={subscription.trial_ends_at ? format(new Date(subscription.trial_ends_at), "PPP") : "—"} />
                   <Row label="Period ends" value={subscription.current_period_end ? format(new Date(subscription.current_period_end), "PPP") : "—"} />
                   <Row label="Last payment" value={subscription.last_payment_at ? `${format(new Date(subscription.last_payment_at), "PPP")} (${subscription.last_payment_status})` : "Never"} />
-                  {subscription.is_founding && <Badge variant="outline">Founding Member</Badge>}
+                  <div className="flex flex-wrap items-center gap-3 pt-2 border-t mt-2">
+                    {subscription.is_founding ? (
+                      <>
+                        <Badge variant="outline">Founding Member</Badge>
+                        <span className="text-xs text-muted-foreground">
+                          Locked at $799/mo — charged at the founding price at checkout.
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={granting || foundingSlots === 0}
+                          onClick={grantFounding}
+                        >
+                          {granting ? "Granting…" : "Grant founding rate ($799/mo)"}
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          {foundingSlots === null
+                            ? "Checking founding slots…"
+                            : `${foundingSlots} of 5 founding slots remaining`}
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </>
               ) : (
                 <div className="rounded-md border border-dashed bg-muted/30 p-4">
