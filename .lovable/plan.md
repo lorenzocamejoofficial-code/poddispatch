@@ -1,47 +1,66 @@
-# Creator-granted Founding + plan name fix
+# Batching recommendation for the punch list
 
-Two changes: let you hand a founding rate to a customer you close yourself, and stop paying customers from being wrongly limited to 5 trucks.
+This is a planning answer, not a build. I re-read all seven spots in the live code before writing it.
 
-## Change 1 — Grant Founding from the Company Console
+## 1. Capacity — the honest number
 
-**Where:** the company detail page where the approval controls and the "Founding Member" badge already live (`src/pages/CreatorCompanyDetail.tsx`, subscription card around line 231-240).
+Three passes. Not one, not seven.
 
-**What you see:** a "Founding rate" row showing either the Founding Member badge or a "Grant founding rate" button, plus a live "X of 5 founding slots remaining" line. The button opens a short confirm dialog naming the company and the locked price.
+Five of the seven items are the same defect ("a write failed and the screen said it worked") in five unrelated files with no shared state, no schema change, and no shared test. Those are genuinely safe together — the risk of one masking another is near zero because none of them import each other.
 
-**Rules enforced server-side** (new `grant_founding` action inside the existing creator-only `manage-company` function, so the existing creator check and audit logging are reused):
-- Already founding → returns success, changes nothing, no slot consumed (idempotent).
-- Not founding → calls the same `try_claim_founding_slot()` used by self-serve checkout. The counter is the only source of truth, so the 5-slot cap can never be exceeded.
-- Slot claim returns false → refuses with "0 founding slots remaining" and nothing is written.
-- On success: sets `is_founding = true` and writes the real founding amount into `monthly_amount_cents` (79900) so your MRR figures stop reporting the stale $599 default.
-- Every grant is written to `admin_actions` like other creator actions.
+The two that must stand alone are employee deletion (it needs new server-side code with elevated privileges and touches login accounts) and the clearinghouse toggles (the real issue there isn't a silent failure — see below).
 
-**How the $799 actually sticks:** no new Stripe price, and no new locked-rate field. The customer still goes through normal checkout; `create-checkout-session` gains one check before its founding logic — if the company's `subscription_records.is_founding` is already true, it uses `STRIPE_PRICE_FOUNDING` directly and does **not** claim another slot (their slot was already consumed at grant time). The founding price is what Stripe charges, so the rate is real, not cosmetic. The current auto-swap for the first five self-serve monthly Starter checkouts stays exactly as-is.
+## 2. Natural batches
 
-This is the cleanest path: one flag drives the badge, the truck cap, and the price, and the slot counter stays the single atomic gate.
+### Pass A — "failed write must not report success" (5 items, one pass)
 
-## Change 2 — Plan names the truck cap understands
+| Item | What's actually there now | Fix |
+| --- | --- | --- |
+| ePCR field saves (`src/hooks/usePCRData.ts:344-412`) | Debounced save; on error only `console.error`. Applies to `updateField`, `updateMultipleFields`, and `recordTime`. | Show a visible failure, roll the on-screen value back or mark it unsaved, and offer retry. |
+| PCR submit (`src/pages/PCRPage.tsx:1391-1406`) | Update result is never read; success is assumed. | Read the result, stop and show the real reason on failure. |
+| Board drag-reorder (`src/pages/Scheduling.tsx:1006-1016`) | `Promise.all` of slot updates, results discarded — comment literally says "fire and forget". | Check each result; on failure revert the optimistic order and say so. |
+| Inspection alerts (`src/components/inspection/CrewInspectionChecklist.tsx:161-181`) | Alert-row and dispatch-alert inserts unchecked, then unconditional "Inspection submitted successfully". | Check inserts; if the dispatcher alert didn't post, say the inspection saved but dispatch wasn't notified. |
+| Payer rule save (`src/pages/ComplianceAndQA.tsx:60-75`) | Insert/update result discarded, always toasts "Rule saved", closes dialog. | Check result; on failure keep the dialog open with the typed values and show why. |
 
-Current writers:
-- `company-signup` stamps every new company `plan_id: "poddispatch_standard"` — a value the cap rule does not recognise, so it falls into the unknown branch and caps at 5 trucks.
-- `create-checkout-session` puts `starter` / `pro` / `founding` in the Stripe metadata; `stripe-webhook` copies that onto the row after payment. Those are already correct.
+Why these group cleanly: identical shape of change (capture the result, branch on error, keep the user's data), five separate files, no schema work, no shared component. Grouping also keeps the wording and behaviour consistent instead of five slightly different error styles.
 
-Canonical set: `trial`, `starter`, `pro`, `founding`.
+Two internal notes that keep this honest: the ePCR one is the largest because the save is debounced and per-field — a failure arrives after the user has moved on, so it needs an "unsaved" marker, not just a toast. And the inspection one has two writes with different consequences (the record vs. the dispatcher notification), so its message has to distinguish them.
 
-- Signup writes `trial` instead of `poddispatch_standard`. Same cap behaviour as today for unpaid companies (5 trucks) but now by design rather than by accident.
-- The cap rule is extended to treat `founding` as unlimited by name as well as by flag, so a founding row is never capped whichever path set it.
-- After payment the webhook lands `pro` for a Pro customer, which the rule already treats as unlimited. So a paying Pro customer is no longer stuck at 5.
-- Sandbox and creator-test companies keep their existing exemptions; simulated trucks still skip the rule entirely.
+### Pass B — employee deletion (stands alone)
 
-**Existing data (report only, no change made):** two subscription rows exist, both stamped `poddispatch_standard` — one cancelled, one on trial. Neither is a paying Pro customer, so neither is being wrongly capped today. A one-time rename to `trial` would be tidy; tell me if you want it and I'll include it.
+`src/pages/Employees.tsx:469-498` (single) and `:499-...` (bulk) delete only the `profiles` row. There is no `manage-employee` server function today — the closest existing ones are `delete-pending-crew-member`, `update-crew-member`, `create-user`. So this pass means writing new privileged server code that removes the login account, company membership, and role together, decides archive-vs-hard-delete, and handles what happens to that person's past trips and signed charts.
 
-## Not touched
+Why it can't ride along with Pass A: new server code, elevated privileges, access-rule implications, a real destructive-action decision (deleting a crew member who signed charts is not the same as removing a typo account), and it needs its own confirmation gate. Mixing a destructive identity change into a five-file feedback pass is how a bad delete slips through review.
 
-Trial length and timers, claims/837, denial recovery, tenant isolation and RLS policies, and live Stripe price objects. The only Stripe change is which existing price ID is selected at checkout.
+### Pass C — clearinghouse toggles (stands alone, and needs a decision first)
 
-## Technical notes
+`src/components/settings/ClearinghouseSettings.tsx:412-463` — the two switches set local state only; there **is** a "Save Settings" button below them that does persist both. So this isn't a dead button or a silent failure; it's a flip-that-looks-live-but-isn't until you scroll and press Save. Two possible fixes, and I want your call rather than a guess:
 
-- `manage-company/index.ts`: new `grant_founding` action after the creator gate; calls `try_claim_founding_slot()` via the service client; returns `{ granted, slots_remaining, already_founding }`.
-- New read used by the UI: remaining slots from `founding_counter` (creator-only).
-- `create-checkout-session/index.ts`: pre-set `is_founding` short-circuits the slot claim and forces `STRIPE_PRICE_FOUNDING`.
-- Migration: replace `enforce_truck_plan_cap()` body to add `'founding'` to the unlimited branch. No table or policy changes.
-- `company-signup/index.ts`: `plan_id: "trial"`.
+- make the switches save immediately (and revert visibly if the save fails), or
+- keep the Save button and make the pending state obvious ("unsaved changes").
+
+Also this one governs whether real claims auto-transmit to Office Ally, so it deserves its own verification rather than being buried in a five-item batch.
+
+## 3. Recommended order
+
+1. **Pass A** — biggest customer-visible risk (lost charting, a run order that silently reverts), no schema work.
+2. **Pass B** — employee deletion, after we settle archive vs. delete and what happens to their historical records.
+3. **Pass C** — clearinghouse toggles, after you pick the behaviour.
+
+## 4. What you'd click to verify
+
+**Pass A** — the reliable way to prove a failure path is to go offline (browser dev tools → Network → Offline) or turn off wifi for a few seconds, because none of these fail on a healthy connection.
+
+- ePCR: open a chart, type into a vitals field, kill the connection, type another field. Expect a visible failure and an unsaved marker — not a clean-looking form. Reconnect and confirm it recovers or lets you retry.
+- PCR submit: complete a chart in the sandbox and submit normally (should still work), then submit with the connection killed — expect a clear error, and the chart must NOT show as submitted.
+- Board reorder: drag two runs on one truck to reorder, offline. Expect the order to snap back with a message. Then do it online and reload the page to confirm the new order stuck.
+- Inspection: run a pre-trip check in the crew app with one item marked missing — confirm the red alert lands on the dispatch board. Repeat offline and expect an honest failure message.
+- Payer rule: edit a payer rule, save offline — expect the dialog to stay open with your typing intact and a real error. Save online and confirm the row changed after a reload.
+
+**Pass B** — create a throwaway employee, delete them, then confirm: they're gone from the employee list, they can no longer log in, they no longer appear in crew assignment dropdowns, and any trip they previously touched still shows their name in history. Also test bulk delete with two throwaway accounts.
+
+**Pass C** — flip both switches, leave the page without saving, come back: state should match whatever behaviour we choose. Then set them deliberately, reload, and confirm they held.
+
+## 5. What I would not touch in these passes
+
+Claims/837 generation, denial recovery, trial timers, tenant access rules, and Stripe prices. None of the seven items requires going near them.
