@@ -596,6 +596,7 @@ export default function Employees() {
       .catch(() => setUpcomingShifts(0));
   };
   const statusBadge = (e: Employee) => {
+    if (e.archived_at) return { label: "Archived", cls: "bg-muted text-muted-foreground" };
     if (e.invitation_status === "invited") return { label: "Invited", cls: "bg-[hsl(var(--status-amber-bg))] text-[hsl(var(--status-amber))]" };
     if (e.invitation_status === "pending_invite") return { label: "Pending", cls: "bg-muted text-muted-foreground" };
     return e.active
