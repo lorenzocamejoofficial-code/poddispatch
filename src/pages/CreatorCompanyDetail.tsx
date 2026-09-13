@@ -56,6 +56,44 @@ export default function CreatorCompanyDetail() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [counts, setCounts] = useState({ trips: 0, claims: 0, employees: 0 });
+  const [foundingSlots, setFoundingSlots] = useState<number | null>(null);
+  const [granting, setGranting] = useState(false);
+
+  useEffect(() => {
+    if (!companyId) return;
+    (async () => {
+      const { data } = await supabase.functions.invoke("manage-company", {
+        body: { companyId, action: "founding_status" },
+      });
+      if (typeof (data as any)?.slots_remaining === "number") {
+        setFoundingSlots((data as any).slots_remaining);
+      }
+    })();
+  }, [companyId]);
+
+  const grantFounding = async () => {
+    if (!companyId) return;
+    setGranting(true);
+    const { data, error } = await supabase.functions.invoke("manage-company", {
+      body: { companyId, action: "grant_founding" },
+    });
+    setGranting(false);
+    const payload = data as any;
+    if (error || !payload?.success) {
+      toast.error(payload?.error ?? error?.message ?? "Could not grant the founding rate.");
+      if (typeof payload?.slots_remaining === "number") setFoundingSlots(payload.slots_remaining);
+      return;
+    }
+    if (typeof payload.slots_remaining === "number") setFoundingSlots(payload.slots_remaining);
+    if (payload.already_founding) {
+      toast.info("This company already has the founding rate. Nothing changed.");
+    } else {
+      toast.success("Founding rate granted — locked at $799/mo.");
+    }
+    const { data: subR } = await supabase
+      .from("subscription_records").select("*").eq("company_id", companyId).maybeSingle();
+    if (subR) setSubscription(subR as any);
+  };
 
   useEffect(() => {
     if (!companyId) return;
