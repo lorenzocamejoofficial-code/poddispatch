@@ -236,7 +236,32 @@ export default function CreatorCompanyDetail() {
                   <Row label="Trial ends" value={subscription.trial_ends_at ? format(new Date(subscription.trial_ends_at), "PPP") : "—"} />
                   <Row label="Period ends" value={subscription.current_period_end ? format(new Date(subscription.current_period_end), "PPP") : "—"} />
                   <Row label="Last payment" value={subscription.last_payment_at ? `${format(new Date(subscription.last_payment_at), "PPP")} (${subscription.last_payment_status})` : "Never"} />
-                  {subscription.is_founding && <Badge variant="outline">Founding Member</Badge>}
+                  <div className="flex flex-wrap items-center gap-3 pt-2 border-t mt-2">
+                    {subscription.is_founding ? (
+                      <>
+                        <Badge variant="outline">Founding Member</Badge>
+                        <span className="text-xs text-muted-foreground">
+                          Locked at $799/mo — charged at the founding price at checkout.
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={granting || foundingSlots === 0}
+                          onClick={grantFounding}
+                        >
+                          {granting ? "Granting…" : "Grant founding rate ($799/mo)"}
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          {foundingSlots === null
+                            ? "Checking founding slots…"
+                            : `${foundingSlots} of 5 founding slots remaining`}
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </>
               ) : (
                 <div className="rounded-md border border-dashed bg-muted/30 p-4">
