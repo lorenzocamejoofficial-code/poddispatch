@@ -216,7 +216,7 @@ serve(async (req) => {
     // either on first login OR approval + 7d, whichever is first).
     await supabaseAdmin.from("subscription_records").insert({
       company_id: companyId, provider: "none",
-      subscription_status: "pending_approval", plan_id: "poddispatch_standard",
+      subscription_status: "pending_approval", plan_id: "trial",
     });
 
     // 8. Create migration_settings for onboarding tracking
