@@ -1003,8 +1003,8 @@ export default function Scheduling() {
         );
       });
 
-      // DB write (fire and forget, realtime will reconcile if needed)
-      await Promise.all(
+      // DB write — never assume it worked; revert the board if it didn't.
+      const results = await Promise.all(
         reordered.map((leg, idx) =>
           supabase.from("truck_run_slots")
             .update({ slot_order: idx } as any)
@@ -1013,6 +1013,14 @@ export default function Scheduling() {
             .eq("truck_id", targetTruckId)
         )
       );
+      const reorderError = results.find(r => r.error)?.error;
+      if (reorderError) {
+        console.error("Run reorder save error:", reorderError);
+        toast.error("Couldn't save the new run order", {
+          description: `${reorderError.message}. The board has been put back the way it was — try again.`,
+        });
+        await refetchLegs();
+      }
       return;
     }
 
