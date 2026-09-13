@@ -467,15 +467,25 @@ export default function Employees() {
     setSaving(false);
   };
 
-  // ── Single delete ──
+  // ── Single archive ──
+  // Archiving never deletes the profile or the login account: it revokes company
+  // access, blocks sign-in, and leaves every historical record attributed.
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    const { error } = await supabase.from("profiles").delete().eq("id", deleteTarget.id);
-    if (error) {
-      toast.error("Failed to delete employee");
+    const { data, error } = await supabase.functions.invoke("manage-employee", {
+      body: { action: "archive", profile_id: deleteTarget.id },
+    });
+    const errMsg = (data as any)?.error || error?.message;
+    if (errMsg || !(data as any)?.ok) {
+      toast.error("Couldn't archive this employee", { description: errMsg || "Nothing was changed — try again." });
     } else {
-      toast.success(`${deleteTarget.full_name} deleted`);
+      const cleared = (data as any)?.clearedShifts ?? 0;
+      toast.success(`${deleteTarget.full_name} archived`, {
+        description: cleared > 0
+          ? `${cleared} upcoming shift${cleared > 1 ? "s" : ""} cleared. Past records are unchanged.`
+          : "They can no longer sign in. Past records are unchanged.",
+      });
       setDeleteTarget(null);
       setSelected((prev) => { const n = new Set(prev); n.delete(deleteTarget.id); return n; });
       fetchEmployees();
@@ -483,15 +493,44 @@ export default function Employees() {
     setDeleting(false);
   };
 
-  // ── Bulk delete ──
+  // ── Reactivate (owner/creator only, enforced server-side) ──
+  const handleReactivate = async (emp: Employee) => {
+    const { data, error } = await supabase.functions.invoke("manage-employee", {
+      body: { action: "unarchive", profile_id: emp.id },
+    });
+    const errMsg = (data as any)?.error || error?.message;
+    if (errMsg || !(data as any)?.ok) {
+      toast.error("Couldn't reactivate this employee", { description: errMsg || "Nothing was changed — try again." });
+      return;
+    }
+    toast.success(`${emp.full_name} reactivated`, {
+      description: "Their access is back. Upcoming shifts must be re-assigned.",
+    });
+    fetchEmployees();
+  };
+
+  // ── Bulk archive ──
   const handleBulkDelete = async () => {
     setBulkDeleting(true);
     const ids = Array.from(selected);
-    const { error } = await supabase.from("profiles").delete().in("id", ids);
-    if (error) {
-      toast.error("Failed to delete employees");
+    const { data, error } = await supabase.functions.invoke("manage-employee", {
+      body: { action: "archive_bulk", profile_ids: ids },
+    });
+    const errMsg = (data as any)?.error || error?.message;
+    if (errMsg && !(data as any)?.results) {
+      toast.error("Couldn't archive these employees", { description: errMsg });
     } else {
-      toast.success(`${ids.length} employee${ids.length > 1 ? "s" : ""} deleted`);
+      const results = ((data as any)?.results ?? []) as any[];
+      const okCount = results.filter((r) => r.ok).length;
+      const failed = results.filter((r) => !r.ok);
+      if (okCount > 0) {
+        toast.success(`${okCount} employee${okCount > 1 ? "s" : ""} archived`);
+      }
+      if (failed.length > 0) {
+        toast.error(`${failed.length} couldn't be archived`, {
+          description: failed.map((f) => f.error).slice(0, 3).join(" · "),
+        });
+      }
       setSelected(new Set());
       setBulkDeleteOpen(false);
       fetchEmployees();
