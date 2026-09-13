@@ -37,7 +37,8 @@ interface Employee {
   active: boolean;
   role?: string;
   employment_type?: string;
-  invitation_status?: "active" | "invited" | "pending_invite" | "deactivated";
+  invitation_status?: "active" | "invited" | "pending_invite" | "inactive";
+  archived_at?: string | null;
   pending_role?: string | null;
   invite_token?: string | null;
   stair_chair_trained?: boolean;
@@ -152,6 +153,7 @@ export default function Employees() {
         bariatric_trained: p.bariatric_trained ?? false,
         oxygen_handling_trained: p.oxygen_handling_trained ?? false,
         lift_assist_ok: p.lift_assist_ok ?? false,
+        archived_at: p.archived_at ?? null,
       };
     });
 
