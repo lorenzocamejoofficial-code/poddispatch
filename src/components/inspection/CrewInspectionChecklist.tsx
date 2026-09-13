@@ -145,6 +145,11 @@ export default function CrewInspectionChecklist() {
       notes: `Pre-trip inspection submitted for ${truckName}. ${checkedItems.length} items checked, ${missingCount} flagged missing.`,
     });
 
+    // The inspection record itself is saved at this point. The dispatcher
+    // notification is a separate write — if it fails we must say so rather than
+    // claim full success.
+    let dispatchNotified = true;
+
     // Create alerts for missing items
     if (missingCount > 0) {
       const missingItems = checkedItems.filter(i => i.status === "missing");
@@ -158,15 +163,23 @@ export default function CrewInspectionChecklist() {
         crew_note: item.crew_note,
       }));
 
-      await supabase.from("vehicle_inspection_alerts" as any).insert(alertRows);
+      const { error: itemAlertError } = await supabase.from("vehicle_inspection_alerts" as any).insert(alertRows);
+      if (itemAlertError) {
+        console.error("Inspection item alert insert error:", itemAlertError);
+        dispatchNotified = false;
+      }
 
       // Create dispatch alert
-      await supabase.from("alerts").insert({
+      const { error: dispatchAlertError } = await supabase.from("alerts").insert({
         message: `Unit ${truckName} pre-trip inspection flagged ${missingCount} missing item(s), ${profileName}. Dispatcher acknowledgment required.`,
         severity: "red",
         truck_id: truckId,
         company_id: companyId,
       });
+      if (dispatchAlertError) {
+        console.error("Inspection dispatch alert insert error:", dispatchAlertError);
+        dispatchNotified = false;
+      }
 
       // Audit each flagged item
       for (const item of missingItems) {
@@ -178,15 +191,31 @@ export default function CrewInspectionChecklist() {
       }
     } else {
       // Green alert — auto-dismiss after 2h
-      await supabase.from("alerts").insert({
+      const { error: greenAlertError } = await supabase.from("alerts").insert({
         message: `Unit ${truckName} pre-trip inspection complete, ${profileName}. ${checkedItems.length} items checked, all present.`,
         severity: "green",
         truck_id: truckId,
         company_id: companyId,
       });
+      if (greenAlertError) {
+        console.error("Inspection green alert insert error:", greenAlertError);
+        dispatchNotified = false;
+      }
     }
 
-    toast.success("Inspection submitted successfully");
+    if (dispatchNotified) {
+      toast.success("Inspection submitted successfully");
+    } else if (missingCount > 0) {
+      toast.error("Inspection saved, but dispatch wasn't notified", {
+        description: "Your inspection is recorded. Contact dispatch directly about the missing items.",
+        duration: 12000,
+      });
+    } else {
+      toast.warning("Inspection saved, but dispatch wasn't notified", {
+        description: "Your inspection is recorded. Dispatch may not see it on their board.",
+        duration: 10000,
+      });
+    }
     setSubmittedInspection(inspection);
     setSubmitting(false);
   };

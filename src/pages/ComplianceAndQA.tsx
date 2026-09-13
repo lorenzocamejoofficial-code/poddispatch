@@ -62,11 +62,20 @@ export default function ComplianceAndQA() {
     const { data: companyId } = await supabase.rpc("get_my_company_id");
     const payload = { ...ruleForm, company_id: companyId };
 
-    if (editingRule) {
-      await supabase.from("payer_billing_rules" as any).update(payload).eq("id", editingRule.id);
-    } else {
-      await supabase.from("payer_billing_rules" as any).insert(payload);
+    const { error } = editingRule
+      ? await supabase.from("payer_billing_rules" as any).update(payload).eq("id", editingRule.id)
+      : await supabase.from("payer_billing_rules" as any).insert(payload);
+
+    if (error) {
+      console.error("Payer rule save error:", error);
+      // Keep the dialog open with everything the user typed still in place.
+      toast.error("Couldn't save this rule", {
+        description: `${error.message}. Your entries are still here — fix the issue and try again.`,
+      });
+      setSavingRule(false);
+      return;
     }
+
     toast.success("Rule saved");
     setEditingRule(null);
     setAddingRule(false);

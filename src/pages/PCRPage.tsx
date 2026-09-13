@@ -908,7 +908,7 @@ export default function PCRPage() {
     setTimeout(() => navigate("/crew-dashboard"), 2000);
   }, [navigate]);
 
-  const { trip, loading, saving, accessDeniedByRLS, updateField, updateMultipleFields, recordTime, refetch, markAccessRevoked } =
+  const { trip, loading, saving, accessDeniedByRLS, unsavedFieldCount, retryFailedSaves, updateField, updateMultipleFields, recordTime, refetch, markAccessRevoked } =
     usePCRData(tripId, handleTruckOrCrewChanged, handleRunCancelled);
   const refetchRef = useRef(refetch);
   useEffect(() => { refetchRef.current = refetch; }, [refetch]);
@@ -1389,7 +1389,14 @@ export default function PCRPage() {
     }
     setSubmitting(true);
     try {
-      await supabase.from("trip_records").update({
+      if (unsavedFieldCount > 0) {
+        toast.error("Some entries haven't saved yet", {
+          description: "Tap Retry on the unsaved-changes banner, then submit again.",
+        });
+        setSubmitting(false);
+        return;
+      }
+      const { error: submitError } = await supabase.from("trip_records").update({
         pcr_status: "submitted",
         pcr_completed_at: new Date().toISOString(),
         pcr_submitted_by: profileId,
@@ -1404,6 +1411,15 @@ export default function PCRPage() {
         updated_at: new Date().toISOString(),
         updated_by: profileId,
       } as any).eq("id", trip.id);
+
+      if (submitError) {
+        console.error("PCR submit error:", submitError);
+        toast.error("Couldn't submit this PCR", {
+          description: `${submitError.message}. Nothing was submitted — your chart is still here, try again.`,
+        });
+        setSubmitting(false);
+        return;
+      }
 
       // If QA fix mode, resolve the associated QA review
       if (isQaFixMode && qaReviewId) {
@@ -1486,6 +1502,27 @@ export default function PCRPage() {
     setSubmitting(false);
   };
 
+  // Unsaved-changes banner — shown whenever a background save failed. The typed
+  // value stays on screen, but the crew must never believe it was saved.
+  const unsavedBanner = unsavedFieldCount > 0 && !isReadOnly ? (
+    <div className="mb-3 rounded-lg border-2 border-destructive bg-destructive/10 p-3">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <p className="text-xs font-bold text-destructive">
+            {unsavedFieldCount} change{unsavedFieldCount > 1 ? "s" : ""} not saved
+          </p>
+          <p className="text-[11px] text-destructive/80 mt-0.5">
+            Your entries are still on screen but haven't reached the server. Check your connection and retry.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={retryFailedSaves} disabled={saving}>
+          {saving ? "Retrying..." : "Retry"}
+        </Button>
+      </div>
+    </div>
+  ) : null;
+
   // If a card is open, show its content
   if (activeCard) {
     const cardConfig = cards.find(c => c.type === activeCard);
@@ -1503,6 +1540,7 @@ export default function PCRPage() {
             </div>
           )}
           <h2 className="text-lg font-bold text-foreground mb-4">{cardConfig?.label}</h2>
+          {unsavedBanner}
           {saving && !isReadOnly && <p className="text-xs text-muted-foreground mb-2">Saving...</p>}
           <fieldset disabled={isReadOnly} className={isReadOnly ? "pointer-events-none opacity-80" : ""}>
             {renderCard(activeCard)}
@@ -1542,6 +1580,7 @@ export default function PCRPage() {
   return (
     <Layout>
       <div className={cn("p-4 pb-24 min-h-screen", isQaFixMode ? "max-w-3xl mx-auto" : "")}>
+        {unsavedBanner}
         {/* QA Fix mode banner */}
         {isQaFixMode && (
           <div className="mb-4 rounded-lg border-2 border-primary bg-primary/5 p-4">
