@@ -188,7 +188,7 @@ async function unarchiveOne(
   if (targetUserId) {
     const { error: mErr } = await admin.from("company_memberships").upsert(
       { user_id: targetUserId, company_id: companyId, role: restoredRole } as any,
-      { onConflict: "user_id,company_id" },
+      { onConflict: "company_id,user_id" },
     );
     if (mErr) return { ok: false, error: `Couldn't restore company access: ${mErr.message}` };
 
