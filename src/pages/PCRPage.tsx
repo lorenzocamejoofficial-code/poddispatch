@@ -1519,6 +1519,7 @@ export default function PCRPage() {
             </div>
           )}
           <h2 className="text-lg font-bold text-foreground mb-4">{cardConfig?.label}</h2>
+          {unsavedBanner}
           {saving && !isReadOnly && <p className="text-xs text-muted-foreground mb-2">Saving...</p>}
           <fieldset disabled={isReadOnly} className={isReadOnly ? "pointer-events-none opacity-80" : ""}>
             {renderCard(activeCard)}
