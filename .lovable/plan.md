@@ -1,76 +1,47 @@
-# Plan — Make the denial rework loop testable
+# Creator-granted Founding + plan name fix
 
-Two fixes only. The `escalated_denials` escalation feature is parked and not part of this.
+Two changes: let you hand a founding rate to a customer you close yourself, and stop paying customers from being wrongly limited to 5 trucks.
 
----
+## Change 1 — Grant Founding from the Company Console
 
-## FIX 1 — Injected denial claims get a real trip behind them
+**Where:** the company detail page where the approval controls and the "Founding Member" badge already live (`src/pages/CreatorCompanyDetail.tsx`, subscription card around line 231-240).
 
-### Why
-`createDenialsRemitsClaimPool` (`supabase/functions/simulation-lab/index.ts:1723-1749`) inserts `claim_records` with no `trip_id`. The Denial Recovery Engine loads trip data only when `claim.trip_id` is set (`DenialRecoveryEngine.tsx:195-214`), and the Claim Field Corrections editor renders only when `tripData` is non-null (`:620`); `saveFieldCorrections` early-returns without it (`:280-283`). So the one surface where a biller actually *works* a CO-16 / CO-11 denial never appears on injected data.
+**What you see:** a "Founding rate" row showing either the Founding Member badge or a "Grant founding rate" button, plus a live "X of 5 founding slots remaining" line. The button opens a short confirm dialog naming the company and the locked price.
 
-### What changes
-Inside `createDenialsRemitsClaimPool`, before inserting claims, create one `trip_records` row per pooled claim and set `claim_records.trip_id` to it.
+**Rules enforced server-side** (new `grant_founding` action inside the existing creator-only `manage-company` function, so the existing creator check and audit logging are reused):
+- Already founding → returns success, changes nothing, no slot consumed (idempotent).
+- Not founding → calls the same `try_claim_founding_slot()` used by self-serve checkout. The counter is the only source of truth, so the 5-slot cap can never be exceeded.
+- Slot claim returns false → refuses with "0 founding slots remaining" and nothing is written.
+- On success: sets `is_founding = true` and writes the real founding amount into `monthly_amount_cents` (79900) so your MRR figures stop reporting the stale $599 default.
+- Every grant is written to `admin_actions` like other creator actions.
 
-Applies to **every** pooled claim, not just the field-editable codes. Rationale: it is the same loop of code either way, and a trip-backed claim also makes the paid / aging / timely-filing buckets behave like real claims (the `demoteBlockedReadyToBill` safety net in `BillingAndClaims.tsx:899-903` skips trip-less claims today, so trip-backing quietly restores that check too). Carving out CO-16/CO-11 only would add branching for no saving.
+**How the $799 actually sticks:** no new Stripe price, and no new locked-rate field. The customer still goes through normal checkout; `create-checkout-session` gains one check before its founding logic — if the company's `subscription_records.is_founding` is already true, it uses `STRIPE_PRICE_FOUNDING` directly and does **not** claim another slot (their slot was already consumed at grant time). The founding price is what Stripe charges, so the rate is real, not cosmetic. The current auto-swap for the first five self-serve monthly Starter checkouts stays exactly as-is.
 
-**Trip fields carried** (mirroring what the main seeder already writes at `index.ts:806-848`, so nothing new is invented):
+This is the cleanest path: one flag drives the badge, the truck cap, and the price, and the slot counter stays the single atomic gate.
 
-- Identity/scope: `company_id`, `patient_id` (same patient the claim uses), `run_date` (matches the claim's `run_date`), `status: 'ready_for_billing'`, `trip_type: 'dialysis'`, `transport_category` (NOT NULL — set `'dialysis'`), `pcr_status: 'submitted'`
-- The fields `FIELDS_FOR_DENIAL` edits (`DenialRecoveryEngine.tsx:126-133`): `icd10_codes`, `member_id`, `dispatch_time`, `at_scene_time`, `left_scene_time`, `arrived_dropoff_at`, `in_service_time`, `origin_type`, `destination_type`, plus `service_level` for the CO-4 case
-- Fields the readiness gate reads through `fetchClaimBlockerSnapshot` (`claim-blockers.ts:89-98`): `loaded_miles`, `signature_obtained`, `pcs_attached`, `loaded_at`/`dropped_at`, `patient_mobility`, `stretcher_placement`, `odometer_at_destination`
-- Payer linkage: `primary_payer`, `member_id` matching the claim row
-- Chronological timestamps derived from the claim's own `run_date` (not today), so PCR timestamp-integrity rules hold
+## Change 2 — Plan names the truck cap understands
 
-`leg_id` stays **null** — nullable in the schema, no `scheduling_legs` row needed. The blocker snapshot's leg join is a left join and already handles null (`claim-blockers.ts:93`, `:106`).
+Current writers:
+- `company-signup` stamps every new company `plan_id: "poddispatch_standard"` — a value the cap rule does not recognise, so it falls into the unknown branch and caps at 5 trucks.
+- `create-checkout-session` puts `starter` / `pro` / `founding` in the Stripe metadata; `stripe-webhook` copies that onto the row after payment. Those are already correct.
 
-Values stay consistent with `CLEAN_CLAIM_FIELDS` (`index.ts:1682-1691`) so a denied claim is otherwise complete and the denial is genuinely the only thing to work.
+Canonical set: `trial`, `starter`, `pro`, `founding`.
 
-### Guards
-Every new trip row carries `is_simulated: true` and `simulation_run_id: runId`, same as the seeder. The claim rows keep their existing treatment (`is_simulated` flipped to false at bucket time so the Missing Money scanner and billing board see them, `index.ts:1822`, tagged with `simulation_run_id`). `is_test_submission` stays false, unchanged.
+- Signup writes `trial` instead of `poddispatch_standard`. Same cap behaviour as today for unpaid companies (5 trucks) but now by design rather than by accident.
+- The cap rule is extended to treat `founding` as unlimited by name as well as by flag, so a founding row is never capped whichever path set it.
+- After payment the webhook lands `pro` for a Pro customer, which the rule already treats as unlimited. So a paying Pro customer is no longer stuck at 5.
+- Sandbox and creator-test companies keep their existing exemptions; simulated trucks still skip the rule entirely.
 
-### Reset coverage — needs widening (bug found)
-`resetSandbox` (`index.ts:1522-1612`) deletes `trip_records` where `is_simulated = true` inside the table loop (`:1538-1557`), so the new trips *are* swept. But the ordering is wrong for the claims that point at them: injected claims are `is_simulated = false`, so they are missed by the loop and only deleted afterwards at `:1563-1568` — i.e. **after** `trip_records` has already been deleted. Today that's harmless because injected claims have no `trip_id`; once they do, the trip delete will hit the `claim_records.trip_id` foreign key and the reset will fail or silently leave rows behind.
+**Existing data (report only, no change made):** two subscription rows exist, both stamped `poddispatch_standard` — one cancelled, one on trial. Neither is a paying Pro customer, so neither is being wrongly capped today. A one-time rename to `trial` would be tidy; tell me if you want it and I'll include it.
 
-The fix: move the tagged-claim sweep (`:1563-1568`) to run **before** the `tables` loop, so claims go first and trips second. No other reset change is needed.
+## Not touched
 
-### Verification after build
-Reset → Inject → confirm each denied claim has a non-null `trip_id`, open one CO-16 denial and confirm the Claim Field Corrections editor renders with populated values, edit a field, save, confirm the write lands on `trip_records` and a `billing_overrides` row is logged. Then Reset again and confirm zero orphan trips/claims remain.
+Trial length and timers, claims/837, denial recovery, tenant isolation and RLS policies, and live Stripe price objects. The only Stripe change is which existing price ID is selected at checkout.
 
----
+## Technical notes
 
-## FIX 2 — A failed blocker read must not read as "clean"
-
-### Why
-`fetchClaimBlockerSnapshot` (`src/lib/claim-blockers.ts:66-133`) discards the query error and returns `{ claim: null, blockers: [] }` when the claim row can't be read (`:69-75`). An empty blocker list is the exact signal for "clean", so an RLS denial or a network blip currently reads as "safe to resubmit" — and `handleMarkReady` would promote the claim to `ready_to_bill` on that false-clean.
-
-### The change
-Add a third field to the return so error and clean are distinguishable:
-
-```ts
-{ claim: any | null; blockers: ReadinessIssue[]; ok: boolean }
-```
-
-`ok: false` when the claim query returns an error **or** no row (both mean "could not verify"). `ok: true` only when a row was genuinely read and the rules ran. The patient/trip enrichment reads stay best-effort as today — they already degrade gracefully via `??` fallbacks and a missing patient row is not the same as a missing claim.
-
-No change to `detectClaimBlockers` or `evaluateClaimReadiness` — one source of truth for the rules stays exactly where it is.
-
-### Consumers — all of them (verified by search, there are only two)
-
-Both live in `src/components/billing/DenialRecoveryEngine.tsx`; nothing else in the codebase imports this function.
-
-1. **`refreshBlockers` (`:249-256`)** — the live blocker list. On `ok: false`, keep the previous blocker list rather than blanking it to the green "structurally clean" panel (`:533-539`), and show a small "Couldn't verify — check your connection and re-check" line next to the Re-check button. It must never render the green all-clear off a failed read.
-2. **`handleMarkReady` (`:365-443`)** — the resubmission gate. On `ok: false`, toast an error ("Couldn't verify this claim's blockers — nothing was changed. Try again."), leave the claim `denied`, and return before any write. Only an `ok: true` result with zero blockers may proceed to the status promotion at `:393-397`.
-
-### Scope guard
-No change to pricing, 837 export, the submit path, `claim-status-tabs.ts`, the `needs_correction` behaviour, or the honest-status trigger.
-
----
-
-## Files touched
-
-- `supabase/functions/simulation-lab/index.ts` — trip creation in `createDenialsRemitsClaimPool`, claim-sweep ordering in `resetSandbox`
-- `src/lib/claim-blockers.ts` — `ok` flag on the snapshot return
-- `src/components/billing/DenialRecoveryEngine.tsx` — both consumers honour `ok`
-
-Test suite (including the parity tests) re-run before reporting done.
+- `manage-company/index.ts`: new `grant_founding` action after the creator gate; calls `try_claim_founding_slot()` via the service client; returns `{ granted, slots_remaining, already_founding }`.
+- New read used by the UI: remaining slots from `founding_counter` (creator-only).
+- `create-checkout-session/index.ts`: pre-set `is_founding` short-circuits the slot claim and forces `STRIPE_PRICE_FOUNDING`.
+- Migration: replace `enforce_truck_plan_cap()` body to add `'founding'` to the unlimited branch. No table or policy changes.
+- `company-signup/index.ts`: `plan_id: "trial"`.
