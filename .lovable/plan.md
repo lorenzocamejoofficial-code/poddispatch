@@ -1,74 +1,100 @@
-# Pass B — Archive an employee instead of half-deleting them
+# Review & Release Submission + Hard Live/Test Separation
 
-Plan only. Nothing built yet.
+## Part B first: what decides live vs test (findings)
 
-## What's actually there now
+**The authoritative flag is on the company row.** `companies.is_sandbox` and
+`companies.creator_test_tenant` are both `boolean NOT NULL DEFAULT false`, so they can
+never be null or ambiguous. A company created through signup/approval
+(`create-company`, `company-signup`) never sets either one, so every real customer is
+`false/false` by construction. Only creator-side sandbox/simulation creation sets them.
+Today there are exactly two companies: Lorenzo Test Company (both true) and Test
+Ambulance LLC (both false). This is a trustworthy single source of truth. I will treat
+**`is_sandbox OR creator_test_tenant` = TEST company; everything else = LIVE company**,
+matching the definition already used by `useIsSimulationCompany` and `fetchRealCompanyIds`.
 
-- An employee is one `profiles` row (holds name, cert level, contact, `active` boolean, `invitation_status`, `company_id`, `user_id`), plus a `company_memberships` row (their role in the company), plus `user_roles` rows (what the access rules check), plus their login account.
-- Today "Delete" on the Employees page removes only the `profiles` row. The login, the membership and the role stay behind.
-- Good news: a status column already exists — `profiles.active` (boolean) and `invitation_status` (which already has an `inactive` value). No new table is needed; only a few small columns.
-- Signed charts, trips, certifications and audit entries point at the profile row, so keeping that row is exactly what preserves attribution.
+**Today's rule (`src/lib/queue-claims-for-submission.ts:89-106`):**
 
-## The mechanism: soft-archive on the profile, hard-revoke the grants
+```
+const isSandboxCompany = !!(company as any)?.is_sandbox;
+let hasSimulatedClaim = false;                       // probes claim_records.is_simulated
+...
+const forcedTest = isSandboxCompany || hasSimulatedClaim;
+const testMode = opts.testMode ?? (forcedTest || !!(vendor as any)?.test_mode);
+```
 
-Archiving does four things, all server-side:
+Three problems:
+1. Batch-content blending — one simulated claim flips the whole envelope to T.
+2. `creator_test_tenant` is not consulted, only `is_sandbox`.
+3. **The live bug:** `vendor_clearinghouse_settings.test_mode` is currently `true` (single
+   global row). So *a real customer submitting today would go out as ISA15=T* — Office
+   Ally would validate but never pay. This is the most dangerous finding in the audit.
 
-1. `profiles.active = false`, `invitation_status = 'inactive'` — the person stays in the system with their name and history.
-2. Their `company_memberships` row and `user_roles` rows are removed. These are permissions, not history — nothing in the clinical record points at them.
-3. Their login account is disabled (banned), not deleted. They can't sign in; the account still exists so every signed chart keeps resolving to a real person.
-4. An audit entry is written (who archived whom, when, why).
+**New rule — company type decides, nothing else:**
 
-To make it reversible, three small columns are added to `profiles`: `archived_at`, `archived_by`, `archived_role` (the role they held, so reactivating restores exactly what they had).
+```
+const isTestCompany = !!company.is_sandbox || !!company.creator_test_tenant;
+const testMode = isTestCompany;      // real => false (ISA15=P), always
+```
 
-Row removal alone was rejected: deleting the membership hides them from lists but leaves them able to sign in, and deleting the profile is what caused this bug. The flag plus grant-revocation gets both halves right.
+- `opts.testMode` is no longer honoured for real companies; for a test company it cannot
+  turn test *off*. The global vendor `test_mode` no longer influences a real tenant.
+- The "any simulated claim forces test" probe is removed.
+- **Safety net instead of blending:** in a real company, any claim with
+  `is_simulated = true` is *blocked* with a readiness issue ("Simulated claim cannot be
+  submitted from a live company") and excluded from the file — the rest still go live.
+  Confirmed today this can't normally happen: a query for simulated claims inside
+  non-sandbox, non-creator-test companies returns **0 rows**, and simulation seeding
+  always targets sandbox tenants. The block is a guard, not a routine path.
 
-## Where the archive happens (new server function)
+**Is any test path reachable by a real tenant?** No, and it stays that way.
+`EDIExport.tsx:294-308` already forces `usage_indicator = "P"` and only enables the test
+toggle when `isSystemCreator`; the "Submit Single OATEST Claim" button and the TEST/LIVE
+badge are behind `isSystemCreator` (:1450, :1507). The tenant Clearinghouse tab was
+already removed. The one remaining leak is the vendor `test_mode` flag reaching real
+tenants through `queueClaimsForSubmission` — closed by the change above. No new toggle
+is added anywhere in the tenant UI.
 
-New `manage-employee` edge function with three actions — `archive`, `unarchive`, `archive_bulk` — following the exact pattern of the existing `delete-pending-crew-member` function: caller must be owner/creator/manager of the same company, target must belong to that company, owners and creators can't be archived, you can't archive yourself. Bulk runs the same single-employee path per person and reports per-person results, so one failure doesn't silently skip the rest.
+**Truthful labeling.** `BillingAndClaims.tsx:1510` hardcodes "Office Ally (live)". The
+review dialog will read the company type once and show either a green **LIVE — real
+claims to payers** line or an amber **TEST (OATEST) — sandbox company, nothing is
+billed** line, both in the summary block and in the dialog title/description.
 
-## Active-list read sites that must exclude archived people
+## Part A: review and release
 
-Already filter correctly (they check `active`):
-- Trucks & Crews crew picker (`src/pages/TrucksCrews.tsx:404`)
-- Crew Schedule admin (`src/pages/CrewScheduleAdmin.tsx:93-105`)
-- Employees list (has a "show inactive" toggle — archived people appear only when it's on, with an "Archived" badge)
+Replace the one-press batch at `BillingAndClaims.tsx:1488-1525`.
 
-To be checked and filtered as part of this pass:
-- Run reassignment crew picker (`src/components/scheduling/RunReassignmentDialog.tsx:206`)
-- Scheduling / dispatch crew selectors that read crew profiles
-- Attending-medic picker (`src/components/pcr/MedicSelector.tsx`) — it's fed by the crew assigned to the run, so it's correct once assignments are handled, but an archived person already on a past run must still be selectable in that historical chart
-- Crew invite / certification review queues
-
-Anywhere a name is *displayed* for a historical record (chart signatures, trip timeline, audit log, override monitor) keeps showing the archived person — those are lookups by id, not active lists, and are deliberately left alone.
-
-## Future assignments
-
-Recommended: **auto-unassign future only, with an up-front warning.**
-
-Before archiving, the server counts the person's crew assignments dated today or later. The confirmation dialog says plainly, e.g. "Jane is assigned to 4 upcoming shifts. Archiving removes her from those; past shifts and completed trips are unchanged." On confirm, future crew seats are cleared; anything dated before today is untouched.
-
-Blocking until manually unassigned was rejected — it makes a same-day termination impossible. Warning without acting was rejected — it leaves a person who can't log in still on tomorrow's board.
-
-If clearing a future seat would leave a truck below minimum crew, that shift is left flagged on the board as incomplete rather than silently deleted, so a dispatcher sees the hole.
-
-## Unarchive
-
-Creator/owner-only "Reactivate" action on an archived employee row: lifts the login ban, restores the membership and role from `archived_role`, sets `active = true` and `invitation_status = 'active'`, clears the archive columns, writes an audit entry. Future shifts are not restored — they're re-assigned deliberately.
-
-## Historical attribution — confirmed
-
-Signed PCRs, trip records, certification history, incident reports, inspections and audit entries all reference the profile (or user) id, which is never removed. Archiving changes no clinical or billing data; every historical record keeps the correct name.
+- "Submit Claims to Payers" opens a **release review dialog** listing every
+  `ready_to_bill` claim plus every `blocked_payer_mapping` / validation-blocked claim.
+- Each releasable row: checkbox (checked by default), patient, payer, run date, amount,
+  and any warning chip.
+- Blocked rows appear in the same list, greyed, not selectable, with their plain-English
+  reason and a "Fix" link that opens that claim's drawer — no silent skipped count.
+- Sticky summary bar: "X of Y selected · $total · N payers", plus the LIVE/TEST banner.
+- One **Release Selected** action using the existing `ConfirmActionDialog` (type
+  `SUBMIT`) — for a live company the copy says claims go to payers and cannot be unsent.
+- The single-claim button in the drawer (`:2241`) drops `window.confirm` and uses the
+  same `ConfirmActionDialog` with the same LIVE/TEST line.
+- **Honest post-state:** success copy becomes "N claims queued for upload (file X) — the
+  clearinghouse worker uploads within a few minutes" rather than implying it already
+  left. The claim board keeps its existing `submitted` transition, but the drawer/row
+  shows "Queued — awaiting upload" until the queue row flips off `pending`, read from
+  `claim_submission_queue.status`.
 
 ## Technical notes
 
-- Migration: add `archived_at timestamptz`, `archived_by uuid`, `archived_role text` to `public.profiles`. No table creation, no policy rewrites, no change to `get_my_company_id`, `is_admin`, `is_dispatcher` or any tenant-isolation rule.
-- Access revocation relies on the existing model: `user_roles` drives `is_admin/is_dispatcher/is_billing`, `company_memberships` drives company access, and the login ban is the hard stop.
-- Client changes limited to `src/pages/Employees.tsx` (Archive / Archive selected / Reactivate, new confirmation copy using the existing `ConfirmActionDialog` gate) plus the read-site filters listed above.
-- Untouched: claims/837, denial recovery, trial timers, Stripe, Pass C, and all tenant-isolation policies. No auth user or profile is ever hard-deleted.
+- `queue-claims-for-submission.ts`: replace lines 89-106 with the company-type rule
+  (select `creator_test_tenant` alongside `is_sandbox`), add the simulated-claim block
+  inside the per-claim loop, and keep everything else — generator call, queue insert,
+  `is_test` / `is_test_submission` stamping, audit note — unchanged.
+- New component `src/components/billing/ReleaseReviewDialog.tsx`; `handleSendViaOA`
+  becomes `releaseClaims(selectedIds)` and is called from it.
+- New tiny helper `src/lib/submission-mode.ts` exposing
+  `fetchSubmissionMode(companyId) -> { isTest: boolean }` so the dialog label and the
+  queue function agree on one definition.
+- Not touched: 837P generation, the SFTP worker, denial recovery, trial, Stripe,
+  RLS/tenant isolation, pricing and claim math.
 
-## What you'd click to verify
+## Verification
 
-1. Create a throwaway employee, assign them to a shift tomorrow, archive them — expect the upcoming-shift warning, then: gone from the employee list (unless "show inactive" is on), gone from crew pickers and the medic picker, gone from tomorrow's board, still named on anything they previously touched.
-2. Try signing in as them — expect a refusal.
-3. Reactivate them — expect them back in the lists with their old role, and still able to sign in.
-4. Archive two throwaway employees at once and confirm both behave the same.
+Typecheck, full test run, plus a claim-parity check that a real-company file still
+carries `ISA15=P` and a sandbox file `ISA15=T`.
