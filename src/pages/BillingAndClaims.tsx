@@ -475,19 +475,15 @@ export default function BillingAndClaims() {
   // This is the SAME path the Pre-Submit Checklist single-submit uses, so
   // every customer's claim ends up looking like the OATEST file Office
   // Ally already accepted clean.
-  const handleSendViaOA = async () => {
+  const handleSendViaOA = async (claimIds: string[]) => {
     if (!activeCompanyId) return;
-    const ready = claims.filter(c => c.status === "ready_to_bill");
-    if (!ready.length) {
-      toast.info("No claims in Ready to Bill");
+    if (!claimIds.length) {
+      toast.info("No claims selected");
       return;
     }
     setOaSending(true);
     try {
-      const result = await queueClaimsForSubmission(
-        ready.map(c => c.id),
-        activeCompanyId,
-      );
+      const result = await queueClaimsForSubmission(claimIds, activeCompanyId);
       if (!result.ok) {
         if (result.setupErrors.length) {
           toast.error(`Submission blocked, ${result.setupErrors[0]}`, { duration: 8000 });
@@ -497,8 +493,9 @@ export default function BillingAndClaims() {
       } else {
         const skipped = result.blocked.length;
         toast.success(
-          `${result.queuedCount} claim(s) queued for Office Ally (${result.filename})${skipped ? ` · ${skipped} skipped by validation` : ""}`,
-          { duration: 8000 },
+          `${result.queuedCount} claim(s) queued for upload (${result.filename}) — the clearinghouse worker uploads within a few minutes` +
+            (skipped ? ` · ${skipped} held back by validation` : ""),
+          { duration: 9000 },
         );
       }
       fetchData();
