@@ -66,12 +66,12 @@ export async function queueClaimsForSubmission(
   const [{ data: company }, { data: vendor }] = await Promise.all([
     supabase
       .from("companies")
-      .select("name, npi_number, ein_number, state_of_operation, address_street, address_city, address_state, address_zip, is_sandbox")
+      .select("name, npi_number, ein_number, state_of_operation, address_street, address_city, address_state, address_zip, is_sandbox, creator_test_tenant")
       .eq("id", companyId)
       .maybeSingle(),
     supabase
       .from("vendor_clearinghouse_settings" as any)
-      .select("submitter_id, submitter_name, contact_name, contact_phone, receiver_id, receiver_name, test_mode")
+      .select("submitter_id, submitter_name, contact_name, contact_phone, receiver_id, receiver_name")
       .limit(1)
       .maybeSingle(),
   ]);
@@ -86,24 +86,13 @@ export async function queueClaimsForSubmission(
     zip: (company as any)?.address_zip ?? "",
     phone: "",
   };
-  // Sandbox tenants and any simulation-seeded claims must ALWAYS go out as
-  // OATEST (ISA15=T) so they hit Office Ally's test endpoint and never touch
-  // production AR. We probe the claim rows here so a single simulated claim
-  // in the batch forces the whole envelope to T.
-  const isSandboxCompany = !!(company as any)?.is_sandbox;
-  let hasSimulatedClaim = false;
-  if (!isSandboxCompany && opts.testMode === undefined) {
-    const { data: simProbe } = await supabase
-      .from("claim_records" as any)
-      .select("id")
-      .in("id", claimIds)
-      .eq("company_id", companyId)
-      .eq("is_simulated", true)
-      .limit(1);
-    hasSimulatedClaim = !!(simProbe && simProbe.length);
-  }
-  const forcedTest = isSandboxCompany || hasSimulatedClaim;
-  const testMode = opts.testMode ?? (forcedTest || !!(vendor as any)?.test_mode);
+  // ── Live vs test is decided SOLELY by company type. ────────────────────
+  // Real company (not sandbox, not creator_test_tenant) => ALWAYS live
+  // (ISA15=P). Sandbox / creator-test company => ALWAYS OATEST (ISA15=T).
+  // Neither opts.testMode nor the global vendor test_mode can flip a real
+  // company into a test envelope, and no batch content is inspected.
+  const isTestCompany = isTestCompanyRow(company);
+  const testMode = isTestCompany;
   const submitterInfo: SubmitterInfo = {
     submitter_id: (vendor as any)?.submitter_id ?? "",
     submitter_name: (vendor as any)?.submitter_name ?? "",
