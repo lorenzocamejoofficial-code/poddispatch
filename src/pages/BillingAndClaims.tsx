@@ -2111,6 +2111,40 @@ export default function BillingAndClaims() {
       </Tabs>
 
       {/* Claim edit dialog */}
+      {/* Human review-and-release step: per-claim hold, inline blocker
+          reasons, and a truthful LIVE/TEST label before anything leaves. */}
+      <ReleaseReviewDialog
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        isTest={submissionIsTest}
+        sending={oaSending}
+        releasable={readyClaims.map(c => ({
+          id: c.id,
+          patient_name: c.patient_name,
+          payer_name: c.payer_name,
+          payer_type: c.payer_type,
+          run_date: c.run_date,
+          total_charge: c.total_charge,
+        }))}
+        blocked={readyBlockedClaims.map(c => ({
+          id: c.id,
+          patient_name: c.patient_name,
+          payer_name: c.payer_name,
+          payer_type: c.payer_type,
+          run_date: c.run_date,
+          total_charge: c.total_charge,
+          reasons: detectClaimBlockers(c).map(i => i.message),
+        }))}
+        onFix={(claimId) => {
+          const target = claims.find(c => c.id === claimId);
+          if (target) {
+            setReviewOpen(false);
+            setSelectedClaim(target);
+          }
+        }}
+        onRelease={handleSendViaOA}
+      />
+
       <Dialog open={!!selectedClaim} onOpenChange={o => { if (!o) setSelectedClaim(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
