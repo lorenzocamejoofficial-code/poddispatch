@@ -94,6 +94,8 @@ import { SecondaryClaimPanel } from "@/components/billing/SecondaryClaimPanel";
 import { RevenueCycleTab } from "@/components/billing/RevenueCycleTab";
 import { EmergencyEventPanel } from "@/components/billing/EmergencyEventPanel";
 import { queueClaimsForSubmission } from "@/lib/queue-claims-for-submission";
+import { fetchSubmissionMode } from "@/lib/submission-mode";
+import { ReleaseReviewDialog } from "@/components/billing/ReleaseReviewDialog";
 import { PreSubmitChecklist } from "@/components/billing/PreSubmitChecklist";
 
 import {
@@ -225,6 +227,22 @@ export default function BillingAndClaims() {
   const [reversalClaimIds, setReversalClaimIds] = useState<Set<string>>(new Set());
   // PCS quick-fix dialog — opened from a claim card's "Open PCS panel" link.
   const [pcsCheckTarget, setPcsCheckTarget] = useState<{ tripId: string; patientId: string | null } | null>(null);
+  // Review-and-release: the human step in front of every submission.
+  const [reviewOpen, setReviewOpen] = useState(false);
+  // Live vs test is decided SOLELY by company type (see src/lib/submission-mode.ts).
+  const [submissionIsTest, setSubmissionIsTest] = useState(false);
+  // Claims sitting in claim_submission_queue with status 'pending' — queued by
+  // us but not yet uploaded by the SFTP worker.
+  const [pendingUploadIds, setPendingUploadIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!activeCompanyId) return;
+    let cancelled = false;
+    fetchSubmissionMode(activeCompanyId).then(mode => {
+      if (!cancelled) setSubmissionIsTest(mode.isTest);
+    });
+    return () => { cancelled = true; };
+  }, [activeCompanyId]);
 
   const fetchData = useCallback(async () => {
     if (!simFlagResolved) return; // scope not known yet — avoid a wrong-scope read
@@ -241,11 +259,19 @@ export default function BillingAndClaims() {
       claimsQuery = claimsQuery.eq("simulation_run_id", simulationRunId);
     }
 
-    const [{ data: claimRows }, { data: rateRows }, { data: payerRules }] = await Promise.all([
+    const [{ data: claimRows }, { data: rateRows }, { data: payerRules }, { data: pendingQueueRows }] = await Promise.all([
       claimsQuery,
       supabase.from("charge_master" as any).select("*").order("payer_type"),
       supabase.from("payer_billing_rules" as any).select("*"),
+      supabase.from("claim_submission_queue" as any).select("claim_ids").eq("status", "pending"),
     ]);
+
+    // "Queued" is not "uploaded": these claims are waiting on the SFTP worker.
+    const pendingIds = new Set<string>();
+    ((pendingQueueRows ?? []) as any[]).forEach((r: any) =>
+      (r.claim_ids ?? []).forEach((id: string) => pendingIds.add(id)),
+    );
+    setPendingUploadIds(pendingIds);
 
     const prMap = new Map<string, any>();
     (payerRules ?? []).forEach((r: any) => prMap.set(r.payer_type, r));
@@ -475,19 +501,15 @@ export default function BillingAndClaims() {
   // This is the SAME path the Pre-Submit Checklist single-submit uses, so
   // every customer's claim ends up looking like the OATEST file Office
   // Ally already accepted clean.
-  const handleSendViaOA = async () => {
+  const handleSendViaOA = async (claimIds: string[]) => {
     if (!activeCompanyId) return;
-    const ready = claims.filter(c => c.status === "ready_to_bill");
-    if (!ready.length) {
-      toast.info("No claims in Ready to Bill");
+    if (!claimIds.length) {
+      toast.info("No claims selected");
       return;
     }
     setOaSending(true);
     try {
-      const result = await queueClaimsForSubmission(
-        ready.map(c => c.id),
-        activeCompanyId,
-      );
+      const result = await queueClaimsForSubmission(claimIds, activeCompanyId);
       if (!result.ok) {
         if (result.setupErrors.length) {
           toast.error(`Submission blocked, ${result.setupErrors[0]}`, { duration: 8000 });
@@ -497,8 +519,9 @@ export default function BillingAndClaims() {
       } else {
         const skipped = result.blocked.length;
         toast.success(
-          `${result.queuedCount} claim(s) queued for Office Ally (${result.filename})${skipped ? ` · ${skipped} skipped by validation` : ""}`,
-          { duration: 8000 },
+          `${result.queuedCount} claim(s) queued for upload (${result.filename}) — the clearinghouse worker uploads within a few minutes` +
+            (skipped ? ` · ${skipped} held back by validation` : ""),
+          { duration: 9000 },
         );
       }
       fetchData();
@@ -1486,35 +1509,10 @@ export default function BillingAndClaims() {
                 </div>
 
                 {clearinghouseConfigured ? (
-                  <ConfirmActionDialog
-                    trigger={
-                      <Button size="sm" disabled={oaSending} className="gap-1.5">
-                        {oaSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                        {oaSending ? "Sending…" : "Submit Claims to Payers"}
-                      </Button>
-                    }
-                    title="Submit claims to Office Ally?"
-                    description="This sends your Ready-to-Bill claims to Office Ally for live processing by the payer. Once submitted, claims cannot be unsent, they move to the Submitted column and you'll wait for the payer's 835 remittance response (days to weeks)."
-                    summary={
-                      <div className="rounded-md border bg-muted/30 p-3 space-y-1">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Claims to submit</span>
-                          <span className="font-medium">{readyCount}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Total billed</span>
-                          <span className="font-mono font-medium">{fmtMoney(readyTotal)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Destination</span>
-                          <span className="font-medium">Office Ally (live)</span>
-                        </div>
-                      </div>
-                    }
-                    confirmWord="SUBMIT"
-                    destructive={false}
-                    onConfirm={handleSendViaOA}
-                  />
+                  <Button size="sm" disabled={oaSending} className="gap-1.5" onClick={() => setReviewOpen(true)}>
+                    {oaSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    {oaSending ? "Sending…" : "Submit Claims to Payers"}
+                  </Button>
                 ) : (
                   <a href="/edi-export">
                     <Button size="sm" className="gap-1.5">
@@ -1894,6 +1892,13 @@ export default function BillingAndClaims() {
                               {subLabelForStatus(claim.status)}
                             </Badge>
                           )}
+                          {/* Honest state: the claim is only in our outbound
+                              queue until the SFTP worker actually uploads it. */}
+                          {pendingUploadIds.has(claim.id) && (
+                            <Badge variant="outline" className="mt-1 ml-1 text-[9px] px-1 py-0 border-amber-400 text-amber-700">
+                              Queued — awaiting upload
+                            </Badge>
+                          )}
                           {claim.hcpcs_codes?.length ? (
                             <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{claim.hcpcs_codes.join(", ")}</p>
                           ) : null}
@@ -2106,6 +2111,40 @@ export default function BillingAndClaims() {
       </Tabs>
 
       {/* Claim edit dialog */}
+      {/* Human review-and-release step: per-claim hold, inline blocker
+          reasons, and a truthful LIVE/TEST label before anything leaves. */}
+      <ReleaseReviewDialog
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        isTest={submissionIsTest}
+        sending={oaSending}
+        releasable={readyClaims.map(c => ({
+          id: c.id,
+          patient_name: c.patient_name,
+          payer_name: c.payer_name,
+          payer_type: c.payer_type,
+          run_date: c.run_date,
+          total_charge: c.total_charge,
+        }))}
+        blocked={readyBlockedClaims.map(c => ({
+          id: c.id,
+          patient_name: c.patient_name,
+          payer_name: c.payer_name,
+          payer_type: c.payer_type,
+          run_date: c.run_date,
+          total_charge: c.total_charge,
+          reasons: detectClaimBlockers(c).map(i => i.message),
+        }))}
+        onFix={(claimId) => {
+          const target = claims.find(c => c.id === claimId);
+          if (target) {
+            setReviewOpen(false);
+            setSelectedClaim(target);
+          }
+        }}
+        onRelease={handleSendViaOA}
+      />
+
       <Dialog open={!!selectedClaim} onOpenChange={o => { if (!o) setSelectedClaim(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -2232,13 +2271,41 @@ export default function BillingAndClaims() {
                 {savingClaim ? "Saving…" : "Save Claim"}
               </Button>
               {selectedClaim && selectedClaim.status === "ready_to_bill" && (
-                <Button
-                  className="w-full gap-2"
-                  variant="default"
-                  disabled={oaSending}
-                  onClick={async () => {
+                <ConfirmActionDialog
+                  trigger={
+                    <Button className="w-full gap-2" variant="default" disabled={oaSending}>
+                      {oaSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      {oaSending ? "Submitting…" : "Submit to Office Ally"}
+                    </Button>
+                  }
+                  title={submissionIsTest ? "Release to Office Ally TEST (OATEST)?" : "Release this claim to the payer?"}
+                  description={
+                    submissionIsTest
+                      ? "This sandbox company always submits with the OATEST envelope. Office Ally validates the file format only — no payer sees it, nothing is billed."
+                      : "This claim goes out live to Office Ally and on to the payer. Once released it cannot be unsent; you'll wait for the payer's remittance response (days to weeks)."
+                  }
+                  summary={
+                    <div className="rounded-md border bg-muted/30 p-3 space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Patient</span>
+                        <span className="font-medium">{selectedClaim.patient_name ?? "—"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total billed</span>
+                        <span className="font-mono font-medium">{fmtMoney(selectedClaim.total_charge ?? 0)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Destination</span>
+                        <span className="font-medium">
+                          {submissionIsTest ? "Office Ally TEST (OATEST)" : "Office Ally — LIVE"}
+                        </span>
+                      </div>
+                    </div>
+                  }
+                  confirmWord="SUBMIT"
+                  destructive={false}
+                  onConfirm={async () => {
                     if (!activeCompanyId || !selectedClaim) return;
-                    if (!window.confirm(`Submit this claim to Office Ally?`)) return;
                     setOaSending(true);
                     try {
                       const result = await queueClaimsForSubmission([selectedClaim.id], activeCompanyId);
@@ -2251,7 +2318,10 @@ export default function BillingAndClaims() {
                           toast.error(result.error ?? "Failed to queue claim");
                         }
                       } else {
-                        toast.success(`Claim queued for Office Ally (${result.filename})`, { duration: 6000 });
+                        toast.success(
+                          `Claim queued for upload (${result.filename}) — the clearinghouse worker uploads it within a few minutes.`,
+                          { duration: 8000 },
+                        );
                         setSelectedClaim(null);
                         fetchData();
                       }
@@ -2260,10 +2330,7 @@ export default function BillingAndClaims() {
                     }
                     setOaSending(false);
                   }}
-                >
-                  {oaSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {oaSending ? "Submitting…" : "Submit to Office Ally"}
-                </Button>
+                />
               )}
             </div>
           </div>
