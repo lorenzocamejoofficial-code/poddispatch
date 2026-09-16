@@ -225,6 +225,22 @@ export default function BillingAndClaims() {
   const [reversalClaimIds, setReversalClaimIds] = useState<Set<string>>(new Set());
   // PCS quick-fix dialog — opened from a claim card's "Open PCS panel" link.
   const [pcsCheckTarget, setPcsCheckTarget] = useState<{ tripId: string; patientId: string | null } | null>(null);
+  // Review-and-release: the human step in front of every submission.
+  const [reviewOpen, setReviewOpen] = useState(false);
+  // Live vs test is decided SOLELY by company type (see src/lib/submission-mode.ts).
+  const [submissionIsTest, setSubmissionIsTest] = useState(false);
+  // Claims sitting in claim_submission_queue with status 'pending' — queued by
+  // us but not yet uploaded by the SFTP worker.
+  const [pendingUploadIds, setPendingUploadIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!activeCompanyId) return;
+    let cancelled = false;
+    fetchSubmissionMode(activeCompanyId).then(mode => {
+      if (!cancelled) setSubmissionIsTest(mode.isTest);
+    });
+    return () => { cancelled = true; };
+  }, [activeCompanyId]);
 
   const fetchData = useCallback(async () => {
     if (!simFlagResolved) return; // scope not known yet — avoid a wrong-scope read
