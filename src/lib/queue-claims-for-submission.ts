@@ -31,6 +31,7 @@ import { evaluateClaimReadiness, type ReadinessIssue } from "@/lib/claim-readine
 import { logAuditEvent } from "@/lib/audit-logger";
 import { resolvePayerForClaim, type PayerResolution } from "@/lib/payer-directory-lookup";
 import { isNonInsurancePayer } from "@/lib/payer-vocabulary";
+import { isTestCompanyRow } from "@/lib/submission-mode";
 
 export interface QueueResult {
   ok: boolean;
@@ -44,7 +45,11 @@ export interface QueueResult {
 }
 
 export interface QueueOptions {
-  /** Force OATEST envelope (ISA15=T). When omitted, reads vendor_clearinghouse_settings.test_mode. */
+  /**
+   * @deprecated IGNORED. The envelope is decided solely by company type:
+   * sandbox / creator-test company => OATEST (ISA15=T), any real company =>
+   * live (ISA15=P). Nothing can override that.
+   */
   testMode?: boolean;
 }
 
