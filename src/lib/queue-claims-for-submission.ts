@@ -474,6 +474,17 @@ export async function queueClaimsForSubmission(
         message: "Self-pay / private-pay claims are billed directly to the patient and are not submitted to insurance.",
       } as ReadinessIssue);
     }
+
+    // A simulated (practice) claim must never ride out in a live company's
+    // file. We block the individual claim instead of flipping the whole
+    // batch to a test envelope — the rest of the batch still goes live.
+    if (!isTestCompany && c.is_simulated === true) {
+      issues.push({
+        field: "is_simulated",
+        severity: "block",
+        message: "This is a practice/simulated claim and cannot be submitted from a live company. Delete it or move it to the sandbox company.",
+      } as ReadinessIssue);
+    }
     if (issues.length) {
       blocked.push({ claimId: c.id, issues });
       if (payerResolution.ok === false) {
