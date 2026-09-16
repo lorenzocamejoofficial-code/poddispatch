@@ -259,11 +259,19 @@ export default function BillingAndClaims() {
       claimsQuery = claimsQuery.eq("simulation_run_id", simulationRunId);
     }
 
-    const [{ data: claimRows }, { data: rateRows }, { data: payerRules }] = await Promise.all([
+    const [{ data: claimRows }, { data: rateRows }, { data: payerRules }, { data: pendingQueueRows }] = await Promise.all([
       claimsQuery,
       supabase.from("charge_master" as any).select("*").order("payer_type"),
       supabase.from("payer_billing_rules" as any).select("*"),
+      supabase.from("claim_submission_queue" as any).select("claim_ids").eq("status", "pending"),
     ]);
+
+    // "Queued" is not "uploaded": these claims are waiting on the SFTP worker.
+    const pendingIds = new Set<string>();
+    ((pendingQueueRows ?? []) as any[]).forEach((r: any) =>
+      (r.claim_ids ?? []).forEach((id: string) => pendingIds.add(id)),
+    );
+    setPendingUploadIds(pendingIds);
 
     const prMap = new Map<string, any>();
     (payerRules ?? []).forEach((r: any) => prMap.set(r.payer_type, r));
