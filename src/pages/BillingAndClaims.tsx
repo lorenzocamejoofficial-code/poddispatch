@@ -2232,13 +2232,41 @@ export default function BillingAndClaims() {
                 {savingClaim ? "Saving…" : "Save Claim"}
               </Button>
               {selectedClaim && selectedClaim.status === "ready_to_bill" && (
-                <Button
-                  className="w-full gap-2"
-                  variant="default"
-                  disabled={oaSending}
-                  onClick={async () => {
+                <ConfirmActionDialog
+                  trigger={
+                    <Button className="w-full gap-2" variant="default" disabled={oaSending}>
+                      {oaSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      {oaSending ? "Submitting…" : "Submit to Office Ally"}
+                    </Button>
+                  }
+                  title={submissionIsTest ? "Release to Office Ally TEST (OATEST)?" : "Release this claim to the payer?"}
+                  description={
+                    submissionIsTest
+                      ? "This sandbox company always submits with the OATEST envelope. Office Ally validates the file format only — no payer sees it, nothing is billed."
+                      : "This claim goes out live to Office Ally and on to the payer. Once released it cannot be unsent; you'll wait for the payer's remittance response (days to weeks)."
+                  }
+                  summary={
+                    <div className="rounded-md border bg-muted/30 p-3 space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Patient</span>
+                        <span className="font-medium">{selectedClaim.patient_name ?? "—"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total billed</span>
+                        <span className="font-mono font-medium">{fmtMoney(selectedClaim.total_charge ?? 0)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Destination</span>
+                        <span className="font-medium">
+                          {submissionIsTest ? "Office Ally TEST (OATEST)" : "Office Ally — LIVE"}
+                        </span>
+                      </div>
+                    </div>
+                  }
+                  confirmWord="SUBMIT"
+                  destructive={false}
+                  onConfirm={async () => {
                     if (!activeCompanyId || !selectedClaim) return;
-                    if (!window.confirm(`Submit this claim to Office Ally?`)) return;
                     setOaSending(true);
                     try {
                       const result = await queueClaimsForSubmission([selectedClaim.id], activeCompanyId);
@@ -2251,7 +2279,10 @@ export default function BillingAndClaims() {
                           toast.error(result.error ?? "Failed to queue claim");
                         }
                       } else {
-                        toast.success(`Claim queued for Office Ally (${result.filename})`, { duration: 6000 });
+                        toast.success(
+                          `Claim queued for upload (${result.filename}) — the clearinghouse worker uploads it within a few minutes.`,
+                          { duration: 8000 },
+                        );
                         setSelectedClaim(null);
                         fetchData();
                       }
@@ -2260,10 +2291,7 @@ export default function BillingAndClaims() {
                     }
                     setOaSending(false);
                   }}
-                >
-                  {oaSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {oaSending ? "Submitting…" : "Submit to Office Ally"}
-                </Button>
+                />
               )}
             </div>
           </div>
