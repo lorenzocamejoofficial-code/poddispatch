@@ -1894,6 +1894,13 @@ export default function BillingAndClaims() {
                               {subLabelForStatus(claim.status)}
                             </Badge>
                           )}
+                          {/* Honest state: the claim is only in our outbound
+                              queue until the SFTP worker actually uploads it. */}
+                          {pendingUploadIds.has(claim.id) && (
+                            <Badge variant="outline" className="mt-1 ml-1 text-[9px] px-1 py-0 border-amber-400 text-amber-700">
+                              Queued — awaiting upload
+                            </Badge>
+                          )}
                           {claim.hcpcs_codes?.length ? (
                             <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{claim.hcpcs_codes.join(", ")}</p>
                           ) : null}
