@@ -9,6 +9,7 @@ import { JustArrivedRibbon } from "@/components/billing/JustArrivedRibbon";
 import { TimelyFilingStrip } from "@/components/billing/TimelyFilingStrip";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -180,6 +181,7 @@ export default function BillingAndClaims() {
   const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [chargeMaster, setChargeMaster] = useState<ChargeMaster[]>([]);
   const [loading, setLoading] = useState(true);
+  const [claimsTruncated, setClaimsTruncated] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<ClaimRecord | null>(null);
   const [editForm, setEditForm] = useState({
     status: "ready_to_bill" as ClaimStatus,
