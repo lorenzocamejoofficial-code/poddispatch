@@ -17,18 +17,14 @@ type Row = {
   approval_grace_deadline: string | null;
 };
 
-function dayDiff(target: Date, from: Date = new Date()) {
-  return Math.ceil((target.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
-}
-
 function describe(row: Row): { label: string; tone: "green" | "yellow" | "red" | "muted"; daysLeft: number | null } {
   if (row.trial_skipped) return { label: "Skipped trial — awaiting payment", tone: "muted", daysLeft: null };
   if (row.subscription_status === "active") return { label: "Paid · Active", tone: "green", daysLeft: null };
   if (row.subscription_status === "cancelled") return { label: "Cancelled", tone: "muted", daysLeft: null };
 
-  if (row.trial_started_at) {
-    const end = new Date(new Date(row.trial_started_at).getTime() + 30 * 86_400_000);
-    const left = dayDiff(end);
+  // Shared trial window helper so this panel and the company health table can never disagree.
+  const left = trialDaysLeft(row);
+  if (left !== null) {
     if (left <= 0) return { label: "Expired", tone: "red", daysLeft: 0 };
     if (left <= 7) return { label: `${left} day${left === 1 ? "" : "s"} left`, tone: "yellow", daysLeft: left };
     return { label: `${left} days left`, tone: "green", daysLeft: left };
