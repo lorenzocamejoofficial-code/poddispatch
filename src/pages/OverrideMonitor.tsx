@@ -81,8 +81,11 @@ export default function OverrideMonitor() {
       if (dateFrom) safetyQuery = safetyQuery.gte("overridden_at", dateFrom);
       if (dateTo) safetyQuery = safetyQuery.lte("overridden_at", dateTo + "T23:59:59");
 
-      // Fetch billing overrides
+      // Fetch billing overrides (same explicit company filter as safety overrides —
+      // billing_overrides carries a creator-wide read policy, so without this a
+      // creator viewing this tenant page would see every company's overrides).
       let billingQuery = supabase.from("billing_overrides").select("*").order("overridden_at", { ascending: false }).limit(200);
+      if (companyId) billingQuery = billingQuery.eq("company_id", companyId);
       if (dateFrom) billingQuery = billingQuery.gte("overridden_at", dateFrom);
       if (dateTo) billingQuery = billingQuery.lte("overridden_at", dateTo + "T23:59:59");
 
@@ -96,12 +99,17 @@ export default function OverrideMonitor() {
       const uids = [...userIds];
       let profileMap = new Map<string, { email: string; role: string }>();
       if (uids.length > 0) {
-        const { data: memberships } = await supabase.from("company_memberships")
+        let membershipQuery = supabase.from("company_memberships")
           .select("user_id, role")
           .in("user_id", uids);
-        const { data: profiles } = await supabase.from("profiles")
+        let profileQuery = supabase.from("profiles")
           .select("user_id, full_name")
           .in("user_id", uids);
+        if (companyId) {
+          membershipQuery = membershipQuery.eq("company_id", companyId);
+          profileQuery = profileQuery.eq("company_id", companyId);
+        }
+        const [{ data: memberships }, { data: profiles }] = await Promise.all([membershipQuery, profileQuery]);
         for (const uid of uids) {
           const membership = (memberships ?? []).find((m: any) => m.user_id === uid);
           const profile = (profiles ?? []).find((p: any) => p.user_id === uid);

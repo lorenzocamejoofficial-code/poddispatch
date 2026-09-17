@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,19 +72,25 @@ export function ComplianceVaultTab() {
   const [history, setHistory] = useState<AuditExportRow[]>([]);
   const [earliestRunDate, setEarliestRunDate] = useState<string | null>(null);
 
+  // Both reads hit tables a system creator can read across tenants, so scope
+  // them explicitly — this is a tenant page, not a creator console.
   const loadHistory = useCallback(async () => {
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data } = await supabase
       .from("audit_exports" as any)
       .select("*")
+      .eq("company_id", scopedCompanyId)
       .order("generated_at", { ascending: false })
       .limit(50);
     setHistory((data as any[]) ?? []);
   }, []);
 
   const loadEarliest = useCallback(async () => {
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data } = await supabase
       .from("trip_records")
       .select("run_date")
+      .eq("company_id", scopedCompanyId)
       .order("run_date", { ascending: true })
       .limit(1);
     setEarliestRunDate(data?.[0]?.run_date ?? null);

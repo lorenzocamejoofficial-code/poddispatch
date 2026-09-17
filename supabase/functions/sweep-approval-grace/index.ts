@@ -12,9 +12,25 @@ const corsHeaders = {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  // This sweep writes trial timers for EVERY company, so only the scheduler
+  // (service role, or the cron shared secret) may run it. A signed-in user's
+  // JWT — or the public anon key — must not be able to trigger global writes.
+  const auth = req.headers.get("Authorization");
+  const cronSecret = Deno.env.get("CRON_SHARED_SECRET");
+  const authorized =
+    auth === `Bearer ${serviceRoleKey}` ||
+    (!!cronSecret && req.headers.get("x-cron-secret") === cronSecret);
+  if (!authorized) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const supabaseAdmin = createClient(
     Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    serviceRoleKey,
   );
 
   const nowIso = new Date().toISOString();

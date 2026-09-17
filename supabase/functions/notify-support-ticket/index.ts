@@ -52,6 +52,29 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Any signed-in user could previously pass someone else's ticket UUID and
+    // have this function read + email another company's ticket contents.
+    // The caller must be the ticket's author or a member of its company.
+    const callerId = (claims.claims as any).sub as string | undefined;
+    if (!callerId) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (ticket.user_id !== callerId) {
+      const { data: membership } = await admin
+        .from("company_memberships")
+        .select("id")
+        .eq("company_id", ticket.company_id)
+        .eq("user_id", callerId)
+        .maybeSingle();
+      if (!membership) {
+        return new Response(JSON.stringify({ error: "Ticket not found" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const [{ data: company }, { data: profile }] = await Promise.all([
       admin.from("companies").select("name").eq("id", ticket.company_id).maybeSingle(),
       admin.from("profiles").select("full_name, email").eq("id", ticket.user_id).maybeSingle(),

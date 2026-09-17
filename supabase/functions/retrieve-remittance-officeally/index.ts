@@ -32,6 +32,20 @@ Deno.serve(async (req) => {
       // No body — process all active companies
     }
 
+    // The all-companies sweep (no company_id in the body) touches every tenant's
+    // data and echoes company ids back in its error list, so it is service-role
+    // only. Previously this branch was skipped entirely when the body was empty,
+    // leaving an unauthenticated cross-tenant surface.
+    if (!targetCompanyId) {
+      const sweepAuth = req.headers.get("Authorization");
+      if (sweepAuth !== `Bearer ${serviceRoleKey}`) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Unauthorized" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // If called with a specific company, verify auth
     if (targetCompanyId) {
       const authHeader = req.headers.get("Authorization");

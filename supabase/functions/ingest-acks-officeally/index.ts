@@ -238,6 +238,30 @@ async function matchAndApply(
     const parsed = parse277(content);
     summary.parsed = { payer: parsed.payer_name, claims: parsed.claims.length, traces: parsed.trace_numbers };
 
+    // Resolve which company submitted this batch, the same way the 999 branch
+    // does. Control numbers are payer-assigned and are NOT guaranteed unique
+    // across tenants, so every claim lookup below is constrained to this company;
+    // when it cannot be resolved, an ambiguous match is quarantined instead of
+    // being applied to whichever company's claim happened to come back first.
+    let ackCompanyId: string | null = null;
+    if (submitted) {
+      const candidates = [submitted, `${submitted}.837`, `${submitted}.txt`];
+      const inList = candidates.map((c) => `"${c}"`).join(",");
+      const { data: q } = await supabase.from("claim_submission_queue")
+        .select("company_id")
+        .filter("filename", "in", `(${inList})`)
+        .limit(1).maybeSingle();
+      ackCompanyId = (q?.company_id as string) ?? null;
+      if (!ackCompanyId) {
+        const { data: a } = await supabase.from("claim_submission_artifacts")
+          .select("company_id")
+          .filter("filename", "in", `(${inList})`)
+          .order("generated_at", { ascending: false })
+          .limit(1).maybeSingle();
+        ackCompanyId = (a?.company_id as string) ?? null;
+      }
+    }
+
     for (const c of parsed.claims) {
       const pcn = c.patient_control_number;
       if (!pcn) {
@@ -255,18 +279,42 @@ async function matchAndApply(
       }
       const parts = parsePCN(pcn);
       let claim: { id: string; company_id: string | null } | null = null;
+      let ambiguous = false;
       if (parts) {
-        const { data: rows } = await supabase
+        let q = supabase
           .from("claim_records")
           .select("id, company_id")
           .eq("run_date", parts.runDate)
           .ilike("id", `${parts.idPrefix}%`)
-          .limit(1);
-        if (rows && rows.length) claim = rows[0] as any;
+          .limit(2);
+        if (ackCompanyId) q = q.eq("company_id", ackCompanyId);
+        const { data: rows } = await q;
+        if (rows && rows.length === 1) claim = rows[0] as any;
+        else if (rows && rows.length > 1) ambiguous = true;
       }
-      if (!claim && c.payer_claim_control_number) {
-        const { data: byPayer } = await supabase.from("claim_records").select("id, company_id").eq("payer_claim_control_number", c.payer_claim_control_number).limit(1);
-        if (byPayer && byPayer.length) claim = byPayer[0] as any;
+      if (!claim && !ambiguous && c.payer_claim_control_number) {
+        let q = supabase.from("claim_records").select("id, company_id")
+          .eq("payer_claim_control_number", c.payer_claim_control_number)
+          .limit(2);
+        if (ackCompanyId) q = q.eq("company_id", ackCompanyId);
+        const { data: byPayer } = await q;
+        if (byPayer && byPayer.length === 1) claim = byPayer[0] as any;
+        else if (byPayer && byPayer.length > 1) ambiguous = true;
+      }
+      // A control number that resolves to more than one company's claim is never
+      // applied — a wrong-tenant posting is worse than a manual review.
+      if (ambiguous) {
+        unmatched++;
+        await supabase.from("remittance_quarantine").insert({
+          file_name: filename, file_type: "277ca",
+          patient_control_number: pcn,
+          payer_claim_control_number: c.payer_claim_control_number || null,
+          claim_status_code: `${c.status_category_code}:${c.status_code}`,
+          quarantine_reason: `277CA control number ${pcn} matched more than one claim — not applied automatically to avoid posting to the wrong company`,
+          raw_clp_segment: c.raw_segment,
+          status: "pending_review",
+        });
+        continue;
       }
       if (!claim) {
         unmatched++;
