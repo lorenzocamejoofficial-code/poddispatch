@@ -82,10 +82,11 @@ export function SubmissionQueueErrorsPanel({ companyId }: Props) {
         <CardTitle className="text-base flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-destructive" />
           Submission Queue Errors
-          <Badge variant="destructive" className="ml-1">{rows.length}</Badge>
+          <Badge variant="destructive" className="ml-1">{totalCount}</Badge>
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           Claim batches the SFTP worker could not deliver. Force a retry, or cancel permanently.
+          {totalCount > rows.length && <> Showing the {rows.length} most recent of {totalCount}.</>}
         </p>
       </CardHeader>
       <CardContent className="p-0">
