@@ -1774,6 +1774,14 @@ export default function BillingAndClaims() {
                     })}
                   </div>
 
+                  {claimsTruncated && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      Showing the {CLAIM_PAGE_LIMIT.toLocaleString()} most recent claims. These counts cover
+                      only what is loaded — use the date filter to narrow down and see older claims.
+                    </p>
+                  )}
+
                   {/* What this bucket means */}
                   <div className="flex flex-wrap items-start gap-1.5 rounded-md border bg-muted/40 px-3 py-2">
                     <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{activeCol.label}</span>
