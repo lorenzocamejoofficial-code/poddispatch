@@ -9,6 +9,20 @@ Deno.serve(async (req) => {
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  // Runs across every company's certifications and sends notifications, so it
+  // is scheduler-only: service role key or the cron shared secret.
+  const auth = req.headers.get("Authorization");
+  const cronSecret = Deno.env.get("CRON_SHARED_SECRET");
+  const authorized =
+    auth === `Bearer ${SERVICE_KEY}` ||
+    (!!cronSecret && req.headers.get("x-cron-secret") === cronSecret);
+  if (!authorized) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const sb = createClient(SUPABASE_URL, SERVICE_KEY);
 
   const CERT_LABEL: Record<string, string> = {
