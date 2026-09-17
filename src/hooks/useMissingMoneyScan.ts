@@ -54,11 +54,14 @@ export function useMissingMoneyScan() {
   const [totalAmount, setTotalAmount] = useState(0);
   const [lastScanAt, setLastScanAt] = useState<Date | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  /** True when any check hit its row cap, so the totals below are a floor, not the whole picture. */
+  const [scanTruncated, setScanTruncated] = useState(false);
 
   const runScan = useCallback(async () => {
     if (!simFlagResolved) return;
     setLoading(true);
     setScanError(null);
+    setScanTruncated(false);
     if (!activeCompanyId) {
       setCategories([]);
       setTotalAmount(0);
