@@ -28,6 +28,9 @@ interface BillerTask {
   payer_name?: string;
 }
 
+/** How many tasks we render at once. The badge uses a true count, not this page. */
+const TASK_PAGE_SIZE = 200;
+
 const PRIORITY_CONFIG: Record<number, { label: string; variant: string; icon: React.ReactNode }> = {
   1: { label: "Critical", variant: "destructive", icon: <AlertTriangle className="h-3 w-3" /> },
   2: { label: "Urgent", variant: "warning", icon: <Clock className="h-3 w-3" /> },
