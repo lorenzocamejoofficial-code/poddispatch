@@ -31,7 +31,7 @@ const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2,
 
 /** Compact version for Owner Command Center */
 export function MissingMoneySummary() {
-  const { loading, categories, totalAmount, lastScanAt, hasIssues, scanError } = useMissingMoneyScan();
+  const { loading, categories, totalAmount, lastScanAt, hasIssues, scanError, scanTruncated } = useMissingMoneyScan();
   const navigate = useNavigate();
 
   if (loading) {
@@ -83,7 +83,7 @@ export function MissingMoneySummary() {
             <DollarSign className="h-5 w-5 text-destructive" />
             <p className="text-sm font-semibold">Missing Money Detected</p>
             <Badge variant="outline" className="border-destructive/40 text-destructive text-xs">
-              ${fmt(totalAmount)} at risk
+              {scanTruncated ? "at least " : ""}${fmt(totalAmount)} at risk
             </Badge>
           </div>
           {lastScanAt && (
