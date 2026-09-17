@@ -179,6 +179,14 @@ export function useMissingMoneyScan() {
       const allTrips = [...(noPcrTrips ?? []) as any[], ...(pcrSubmittedTrips ?? []) as any[]];
       const allClaims = [...(agingClaims ?? []) as any[], ...(secondaryClaims ?? []) as any[], ...(deniedClaims ?? []) as any[], ...(paidClaims ?? []) as any[]];
 
+      // Each check reads at most SCAN_ROW_CAP rows. If any came back full, the
+      // dollar totals below are a floor — say so rather than implying completeness.
+      const SCAN_ROW_CAP = 500;
+      setScanTruncated(
+        [noPcrTrips, pcrSubmittedTrips, agingClaims, secondaryClaims, deniedClaims, paidClaims]
+          .some((rows) => ((rows ?? []) as any[]).length >= SCAN_ROW_CAP),
+      );
+
 
       const patientIds = [...new Set([
         ...allTrips.map((t: any) => t.patient_id),
