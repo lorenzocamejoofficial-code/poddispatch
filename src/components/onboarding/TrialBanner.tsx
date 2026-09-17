@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
-import { differenceInDays } from "date-fns";
+import { trialDaysLeft } from "@/lib/trial-window";
 
 const TRIAL_STATUSES = new Set(["trial", "trial_active", "trial_pending_start", "TEST_ACTIVE"]);
 
@@ -19,14 +19,9 @@ export function TrialBanner() {
       .then(({ data }) => {
         if (!data) return;
         setStatus(data.subscription_status);
-        const startedAt = (data as any).trial_started_at;
-        const legacyEnd = (data as any).trial_ends_at;
-        const endDate = startedAt
-          ? new Date(new Date(startedAt).getTime() + 30 * 24 * 60 * 60 * 1000)
-          : legacyEnd ? new Date(legacyEnd) : null;
-        if (endDate) {
-          setDaysLeft(Math.max(0, differenceInDays(endDate, new Date())));
-        }
+        // Shared trial window helper — same clock the creator panels use.
+        const left = trialDaysLeft(data as any);
+        if (left !== null) setDaysLeft(Math.max(0, left));
       });
   }, [activeCompanyId, isOwnerOrCreator]);
 

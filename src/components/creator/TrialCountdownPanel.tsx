@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
+import { trialDaysLeft } from "@/lib/trial-window";
 
 type Row = {
   company_id: string;
@@ -15,6 +16,7 @@ type Row = {
   trial_skipped: boolean;
   trial_started_at: string | null;
   approval_grace_deadline: string | null;
+  trial_ends_at?: string | null;
 };
 
 function describe(row: Row): { label: string; tone: "green" | "yellow" | "red" | "muted"; daysLeft: number | null } {

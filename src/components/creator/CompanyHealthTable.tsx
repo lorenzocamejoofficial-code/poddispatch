@@ -52,7 +52,7 @@ export function CompanyHealthTable() {
     const monthStartStr = monthStart.toISOString().split("T")[0];
 
     const [{ data: subs }, { data: migrations }, { data: trucks }, { data: patients }, { data: trips }] = await Promise.all([
-      supabase.from("subscription_records").select("company_id, subscription_status, trial_ends_at").in("company_id", companyIds),
+      supabase.from("subscription_records").select("company_id, subscription_status, trial_ends_at, trial_started_at").in("company_id", companyIds),
       supabase.from("migration_settings").select("company_id, step_rates_verified, step_trucks_added, step_patients_added, step_team_invited, step_first_trip").in("company_id", companyIds),
       supabase.from("trucks").select("company_id").in("company_id", companyIds).eq("is_simulated", false),
       supabase.from("patients").select("company_id").in("company_id", companyIds).eq("is_simulated", false),
@@ -82,10 +82,10 @@ export function CompanyHealthTable() {
       const mig = migMap.get(c.id) as any;
       const td = tripData.get(c.id);
 
-      let trialDaysLeft: number | null = null;
-      if (sub && (sub as any).trial_ends_at) {
-        trialDaysLeft = Math.max(0, differenceInDays(new Date((sub as any).trial_ends_at), new Date()));
-      }
+      // Shared trial window helper — falls back to trial_started_at + 30d when
+      // trial_ends_at was never written, so this matches the creator countdown panel.
+      const left = trialDaysLeft(sub as any);
+      const trialDays: number | null = left === null ? null : Math.max(0, left);
 
       const steps = mig
         ? [mig.step_rates_verified, mig.step_trucks_added, mig.step_patients_added, mig.step_team_invited, mig.step_first_trip].filter(Boolean).length
