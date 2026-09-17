@@ -75,7 +75,8 @@ export default function ReportsAndMetrics() {
     if (!start || !end) return;
     setLoading(true);
     try {
-      // Creators have cross-tenant read on trucks; scope explicitly to the active company.
+      // Creators have cross-tenant read on trip_records/claim_records; scope EVERY query
+      // explicitly to the active company or these tiles silently sum all tenants together.
       const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
       const [
         { data: trips },
@@ -85,15 +86,15 @@ export default function ReportsAndMetrics() {
         { data: allClaimsData },
         { data: dtmData },
       ] = await Promise.all([
-        supabase.from("trip_records" as any).select("id, status, truck_id, pcr_status, at_scene_time, leg_id, run_date").gte("run_date", start).lte("run_date", end).eq("is_simulated", false),
-        supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, denial_reason, submitted_at, paid_at, trip_id").gte("run_date", start).lte("run_date", end).eq("is_simulated", false),
-        supabase.from("operational_alerts" as any).select("id").gte("run_date", start).lte("run_date", end).eq("status", "open"),
+        supabase.from("trip_records" as any).select("id, status, truck_id, pcr_status, at_scene_time, leg_id, run_date").eq("company_id", scopedCompanyId).gte("run_date", start).lte("run_date", end).eq("is_simulated", false),
+        supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, denial_reason, submitted_at, paid_at, trip_id").eq("company_id", scopedCompanyId).gte("run_date", start).lte("run_date", end).eq("is_simulated", false),
+        supabase.from("operational_alerts" as any).select("id").eq("company_id", scopedCompanyId).gte("run_date", start).lte("run_date", end).eq("status", "open"),
         supabase.from("trucks").select("id, name").eq("company_id", scopedCompanyId).eq("is_simulated", false),
         // All claims for AR aging + Revenue Cycle tab (not date filtered).
         // Revenue Cycle needs the richer field set, so we pull it once here.
-        supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, submitted_at, paid_at, denial_code, denial_reason, payer_type, payer_name, adjustment_codes, patient_id, secondary_claim_generated, patient_responsibility_amount, run_date").eq("is_simulated", false),
+        supabase.from("claim_records" as any).select("id, status, total_charge, amount_paid, submitted_at, paid_at, denial_code, denial_reason, payer_type, payer_name, adjustment_codes, patient_id, secondary_claim_generated, patient_responsibility_amount, run_date").eq("company_id", scopedCompanyId).eq("is_simulated", false),
         // Daily truck metrics for OTP/risk
-        supabase.from("daily_truck_metrics" as any).select("*").gte("run_date", start).lte("run_date", end).is("simulation_run_id", null),
+        supabase.from("daily_truck_metrics" as any).select("*").eq("company_id", scopedCompanyId).gte("run_date", start).lte("run_date", end).is("simulation_run_id", null),
       ]);
 
       const tripList = (trips ?? []) as any[];

@@ -41,7 +41,7 @@ export default function OwnerDashboard() {
         // Fix 3: Exclude simulated trips
         supabase.from("trip_records" as any).select("id, status, run_date, pcr_status, blockers, patient_id, leg_id").eq("company_id", scopedCompanyId).gte("run_date", weekAgo).or("is_simulated.eq.false,is_simulated.is.null").limit(1000),
         supabase.from("trucks" as any).select("id, name, active").eq("company_id", scopedCompanyId),
-        supabase.from("vehicle_inspections" as any).select("id, truck_id, run_date").eq("run_date", today),
+        supabase.from("vehicle_inspections" as any).select("id, truck_id, run_date").eq("company_id", scopedCompanyId).eq("run_date", today),
       ]);
 
       const rawClaims = (claimRes.data ?? []) as any[];

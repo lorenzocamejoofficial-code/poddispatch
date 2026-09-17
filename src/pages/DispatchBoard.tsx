@@ -154,7 +154,7 @@ export default function DispatchBoard() {
         .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, leg_type, patient_id, trip_type, destination_location, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, pcs_on_file, auth_required, auth_expiration, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric))")
         .eq("run_date", selectedDate)
         .order("slot_order"),
-      supabase.from("alerts").select("*").eq("dismissed", false).order("created_at", { ascending: false }),
+      supabase.from("alerts").select("*").eq("company_id", scopedCompanyId).eq("dismissed", false).order("created_at", { ascending: false }),
       supabase.from("truck_availability" as any).select("*").lte("start_date", selectedDate).gte("end_date", selectedDate),
       supabase.from("trip_records" as any).select("*").eq("run_date", selectedDate),
       supabase.from("payer_billing_rules" as any).select("*"),
