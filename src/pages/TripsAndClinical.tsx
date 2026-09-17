@@ -149,7 +149,9 @@ export default function TripsAndClinical() {
   const fetchTrips = useCallback(async () => {
     setLoading(true);
     try {
-      let tripQuery = supabase.from("trip_records" as any).select("*").eq("run_date", dateFilter).order("scheduled_pickup_time", { ascending: true });
+      // Creators have cross-tenant read on trip_records; scope explicitly to the active company.
+      const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+      let tripQuery = supabase.from("trip_records" as any).select("*").eq("company_id", scopedCompanyId).eq("run_date", dateFilter).order("scheduled_pickup_time", { ascending: true });
       if (simulationRunId) {
         tripQuery = tripQuery.eq("simulation_run_id", simulationRunId);
       }
@@ -157,6 +159,7 @@ export default function TripsAndClinical() {
       // Fix 4: Also fetch past incomplete PCRs (not_started or in_progress before today)
       const todayDate = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
       let pastIncompleteQuery = supabase.from("trip_records" as any).select("*")
+        .eq("company_id", scopedCompanyId)
         .in("pcr_status", ["not_started", "in_progress"])
         .lt("run_date", todayDate)
         .not("status", "in", '("cancelled","no_show")');
