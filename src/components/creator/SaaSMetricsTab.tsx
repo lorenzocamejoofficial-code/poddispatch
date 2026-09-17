@@ -166,6 +166,13 @@ export function SaaSMetricsTab() {
           <MetricCard icon={TrendingUp} label="ARR" value={fmt(data.arr)} sub="Annualized Run Rate" color="text-emerald-500" />
           <MetricCard icon={Activity} label="ARPA" value={fmtDec(data.arpa)} sub="Avg Revenue Per Account" color="text-emerald-500" />
         </div>
+        {data.unpricedCount > 0 && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 flex items-center gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {data.unpricedCount} subscription{data.unpricedCount === 1 ? " has" : "s have"} no recorded price and
+            {" "}{data.unpricedCount === 1 ? "is" : "are"} excluded from these totals — real revenue is higher.
+          </p>
+        )}
       </div>
 
       {/* Customer Metrics */}
