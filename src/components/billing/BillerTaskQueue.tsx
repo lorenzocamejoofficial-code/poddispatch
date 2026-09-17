@@ -52,14 +52,23 @@ export function BillerTaskQueue() {
       ? ["pending", "in_progress", "completed", "dismissed"]
       : ["pending", "in_progress"];
 
-    const { data } = await supabase
-      .from("biller_tasks")
-      .select("*")
-      .eq("company_id", activeCompanyId)
-      .in("status", statuses)
-      .order("priority", { ascending: true })
-      .order("due_date", { ascending: true })
-      .limit(200);
+    // The badge must be a true count, not the length of the capped page below.
+    const [{ data }, { count: trueActiveCount }] = await Promise.all([
+      supabase
+        .from("biller_tasks")
+        .select("*")
+        .eq("company_id", activeCompanyId)
+        .in("status", statuses)
+        .order("priority", { ascending: true })
+        .order("due_date", { ascending: true })
+        .limit(TASK_PAGE_SIZE),
+      supabase
+        .from("biller_tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", activeCompanyId)
+        .in("status", ["pending", "in_progress"]),
+    ]);
+    setActiveTaskCount(trueActiveCount ?? 0);
 
     if (!data?.length) { setTasks([]); setLoading(false); return; }
 
