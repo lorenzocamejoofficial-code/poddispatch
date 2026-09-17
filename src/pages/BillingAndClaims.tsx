@@ -248,7 +248,10 @@ export default function BillingAndClaims() {
     if (!simFlagResolved) return; // scope not known yet — avoid a wrong-scope read
     setLoading(true);
 
-    let claimsQuery = supabase.from("claim_records" as any).select("*").order("run_date", { ascending: false }).limit(1000);
+    // Creators have cross-tenant read on claim_records — scope explicitly, never rely on RLS alone.
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+
+    let claimsQuery = supabase.from("claim_records" as any).select("*").eq("company_id", scopedCompanyId).order("run_date", { ascending: false }).limit(CLAIM_PAGE_LIMIT);
     if (!isSimulationCompany) {
       claimsQuery = claimsQuery.or("is_simulated.eq.false,is_simulated.is.null");
     }
@@ -259,12 +262,20 @@ export default function BillingAndClaims() {
       claimsQuery = claimsQuery.eq("simulation_run_id", simulationRunId);
     }
 
-    const [{ data: claimRows }, { data: rateRows }, { data: payerRules }, { data: pendingQueueRows }] = await Promise.all([
+    // True total, so the tab counts can tell the truth when the page above is capped.
+    const totalClaimsQuery = supabase
+      .from("claim_records" as any)
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", scopedCompanyId);
+
+    const [{ data: claimRows }, { count: totalClaimCount }, { data: rateRows }, { data: payerRules }, { data: pendingQueueRows }] = await Promise.all([
       claimsQuery,
+      totalClaimsQuery,
       supabase.from("charge_master" as any).select("*").order("payer_type"),
       supabase.from("payer_billing_rules" as any).select("*"),
-      supabase.from("claim_submission_queue" as any).select("claim_ids").eq("status", "pending"),
+      supabase.from("claim_submission_queue" as any).select("claim_ids").eq("company_id", scopedCompanyId).eq("status", "pending"),
     ]);
+    setClaimsTruncated((totalClaimCount ?? 0) > ((claimRows ?? []) as any[]).length);
 
     // "Queued" is not "uploaded": these claims are waiting on the SFTP worker.
     const pendingIds = new Set<string>();
