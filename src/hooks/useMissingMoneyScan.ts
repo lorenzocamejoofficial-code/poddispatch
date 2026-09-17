@@ -429,5 +429,5 @@ export function useMissingMoneyScan() {
 
   const hasIssues = categories.some((c) => c.count > 0);
 
-  return { loading, categories, totalAmount, lastScanAt, hasIssues, scanError, runScan };
+  return { loading, categories, totalAmount, lastScanAt, hasIssues, scanError, scanTruncated, runScan };
 }
