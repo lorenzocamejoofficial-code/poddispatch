@@ -163,8 +163,8 @@ export function BillerTaskQueue() {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           My Tasks
-          {activeTasks.length > 0 && (
-            <Badge variant="destructive" className="text-xs">{activeTasks.length}</Badge>
+          {activeTaskCount > 0 && (
+            <Badge variant="destructive" className="text-xs">{activeTaskCount}</Badge>
           )}
         </h2>
         <div className="flex items-center gap-2">
@@ -174,6 +174,9 @@ export function BillerTaskQueue() {
       </div>
       <p className="text-xs text-muted-foreground">
         These tasks were auto-generated based on claim activity. Working a claim in Today's Work does not automatically complete its task — mark tasks complete after you have taken action.
+        {activeTaskCount > activeTasks.length && (
+          <> Showing the {activeTasks.length} highest-priority of {activeTaskCount} open tasks.</>
+        )}
       </p>
 
       <div className="grid gap-2">
