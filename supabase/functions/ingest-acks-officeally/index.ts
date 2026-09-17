@@ -238,6 +238,30 @@ async function matchAndApply(
     const parsed = parse277(content);
     summary.parsed = { payer: parsed.payer_name, claims: parsed.claims.length, traces: parsed.trace_numbers };
 
+    // Resolve which company submitted this batch, the same way the 999 branch
+    // does. Control numbers are payer-assigned and are NOT guaranteed unique
+    // across tenants, so every claim lookup below is constrained to this company;
+    // when it cannot be resolved, an ambiguous match is quarantined instead of
+    // being applied to whichever company's claim happened to come back first.
+    let ackCompanyId: string | null = null;
+    if (submitted) {
+      const candidates = [submitted, `${submitted}.837`, `${submitted}.txt`];
+      const inList = candidates.map((c) => `"${c}"`).join(",");
+      const { data: q } = await supabase.from("claim_submission_queue")
+        .select("company_id")
+        .filter("filename", "in", `(${inList})`)
+        .limit(1).maybeSingle();
+      ackCompanyId = (q?.company_id as string) ?? null;
+      if (!ackCompanyId) {
+        const { data: a } = await supabase.from("claim_submission_artifacts")
+          .select("company_id")
+          .filter("filename", "in", `(${inList})`)
+          .order("generated_at", { ascending: false })
+          .limit(1).maybeSingle();
+        ackCompanyId = (a?.company_id as string) ?? null;
+      }
+    }
+
     for (const c of parsed.claims) {
       const pcn = c.patient_control_number;
       if (!pcn) {
