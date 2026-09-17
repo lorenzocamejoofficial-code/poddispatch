@@ -176,6 +176,9 @@ const CLAIM_COLUMNS: { status: ClaimTab; label: string; icon: React.ReactNode; c
 
 const PAYER_TYPES = PAYER_KEYS;
 
+/** Most recent claims loaded into the board. Tab counts warn when more exist. */
+const CLAIM_PAGE_LIMIT = 1000;
+
 export default function BillingAndClaims() {
   const { activeCompanyId } = useAuth();
   const [claims, setClaims] = useState<ClaimRecord[]>([]);
