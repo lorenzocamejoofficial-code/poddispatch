@@ -102,6 +102,45 @@ export default function ChoosePlan() {
     }
   };
 
+  if (checkingFounding) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isFounding) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <div className="mx-auto max-w-lg space-y-6 pt-16">
+          <Card className="border-primary shadow-md">
+            <CardContent className="pt-8 pb-8 space-y-4 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                <Award className="h-6 w-6 text-primary" />
+              </div>
+              <h1 className="text-2xl font-bold text-foreground">You're on the Founding rate</h1>
+              <p className="text-sm text-muted-foreground">
+                Unlimited trucks · $799/mo locked for life. No plan change needed.
+              </p>
+              <Button onClick={() => navigate("/")} className="w-full" size="lg">
+                Back to PodDispatch
+              </Button>
+            </CardContent>
+          </Card>
+          <p className="text-center text-xs text-muted-foreground">
+            Questions? <span className="font-medium text-foreground">support@thepoddispatch.com</span>
+          </p>
+          <div className="flex justify-center">
+            <Button variant="ghost" size="sm" onClick={async () => { await signOut(); navigate("/login"); }} className="gap-2 text-muted-foreground">
+              <LogOut className="h-3.5 w-3.5" /> Sign Out
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="mx-auto max-w-4xl space-y-8">
