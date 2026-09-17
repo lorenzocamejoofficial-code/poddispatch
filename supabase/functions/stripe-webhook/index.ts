@@ -172,7 +172,28 @@ serve(async (req) => {
         }
         if (planId) update.plan_id = planId;
         if (sub.metadata?.is_founding !== undefined) update.is_founding = isFounding;
-        const query = supabase.from("subscription_records").update(update);
+
+        // Read before write: founding is one-way here.
+        const readQuery = supabase.from("subscription_records").select("is_founding, plan_id");
+        const { data: existing } = companyId
+          ? await readQuery.eq("company_id", companyId).maybeSingle()
+          : await readQuery.eq("stripe_subscription_id", sub.id).maybeSingle();
+
+        const effectiveFounding = existing?.is_founding === true || isFounding;
+        const monthly = monthlyAmountCentsFromPrice(
+          (sub.items?.data?.[0]?.price ?? null) as never,
+          effectiveFounding,
+        );
+        if (monthly !== null) update.monthly_amount_cents = monthly;
+
+        const { update: guarded, ignoredStaleMetadata } = applyFoundingGuard(update, existing);
+        if (ignoredStaleMetadata) {
+          console.warn(
+            `Founding protection: ignored stale non-founding metadata for subscription ${sub.id} (customer.subscription.updated)`,
+          );
+        }
+
+        const query = supabase.from("subscription_records").update(guarded);
         const { error } = companyId
           ? await query.eq("company_id", companyId)
           : await query.eq("stripe_subscription_id", sub.id);
