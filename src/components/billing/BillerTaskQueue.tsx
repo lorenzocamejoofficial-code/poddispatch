@@ -39,6 +39,7 @@ const PRIORITY_CONFIG: Record<number, { label: string; variant: string; icon: Re
 export function BillerTaskQueue() {
   const { activeCompanyId, user } = useAuth();
   const [tasks, setTasks] = useState<BillerTask[]>([]);
+  const [activeTaskCount, setActiveTaskCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showResolved, setShowResolved] = useState(false);
   const [dismissOpen, setDismissOpen] = useState(false);
