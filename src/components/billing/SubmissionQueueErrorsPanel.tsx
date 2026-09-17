@@ -20,6 +20,7 @@ interface Props { companyId: string | null; }
 
 export function SubmissionQueueErrorsPanel({ companyId }: Props) {
   const [rows, setRows] = useState<QueueRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
