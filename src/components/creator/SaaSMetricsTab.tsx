@@ -67,13 +67,17 @@ export function SaaSMetricsTab() {
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      // Active & trial
+      // Active & trial. Trial status is written as trial / trial_active / trial_pending_start
+      // depending on the path the company came in through — count all of them.
       const active = records.filter((r) => r.subscription_status === "active");
-      const trials = records.filter((r) => r.subscription_status === "trial");
+      const trials = records.filter((r) =>
+        ["trial", "trial_active", "trial_pending_start"].includes(r.subscription_status)
+      );
 
-      // MRR from active + trial
+      // MRR from active + trial. Real stored amount, then published plan price;
+      // rows with neither are reported as unpriced instead of defaulting to a stale figure.
       const payingRecords = [...active, ...trials];
-      const mrr = payingRecords.reduce((sum, r) => sum + ((r as any).monthly_amount_cents ?? 59900), 0) / 100;
+      const { dollars: mrr, unpriced: unpricedActive } = sumMonthlyDollars(payingRecords);
       const arr = mrr * 12;
       const payingCount = active.length || 1;
       const arpa = active.length > 0 ? mrr / payingCount : 0;
