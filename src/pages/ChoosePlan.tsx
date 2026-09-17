@@ -57,6 +57,30 @@ export default function ChoosePlan() {
   const navigate = useNavigate();
   const [loadingPlan, setLoadingPlan] = useState<Plan | null>(null);
   const [cycle, setCycle] = useState<Cycle>("monthly");
+  const [isFounding, setIsFounding] = useState(false);
+  const [checkingFounding, setCheckingFounding] = useState(true);
+
+  // Founding companies are already at the locked lifetime rate with unlimited
+  // trucks — they must never be shown a checkout or pushed to change plans.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!activeCompanyId) {
+        if (!cancelled) setCheckingFounding(false);
+        return;
+      }
+      const { data } = await supabase
+        .from("subscription_records")
+        .select("is_founding")
+        .eq("company_id", activeCompanyId)
+        .maybeSingle();
+      if (cancelled) return;
+      setIsFounding(data?.is_founding === true);
+      setCheckingFounding(false);
+    })();
+    return () => { cancelled = true; };
+  }, [activeCompanyId]);
+
 
   const startCheckout = async (plan: Plan) => {
     if (!user?.id || !activeCompanyId) {
