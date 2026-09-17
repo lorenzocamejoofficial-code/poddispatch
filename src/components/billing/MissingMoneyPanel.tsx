@@ -127,7 +127,7 @@ export function MissingMoneySummary() {
 
 /** Full detail version for Billing & Claims Missing Money tab */
 export function MissingMoneyDetail() {
-  const { loading, categories, totalAmount, lastScanAt, hasIssues, scanError } = useMissingMoneyScan();
+  const { loading, categories, totalAmount, lastScanAt, hasIssues, scanError, scanTruncated } = useMissingMoneyScan();
   const navigate = useNavigate();
 
   if (loading) {
