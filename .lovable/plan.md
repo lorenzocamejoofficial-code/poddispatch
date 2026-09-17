@@ -1,100 +1,56 @@
-# Review & Release Submission + Hard Live/Test Separation
+# Founding-Rate Protection (Guards 1 + 2 only)
 
-## Part B first: what decides live vs test (findings)
+Make founding one-way: a founding customer can never lose founding status or the $799/mo lifetime rate via any Stripe event or UI path. Only the creator grant/revoke in manage-company can change it. The double-subscription / stripe.subscriptions.update / customer-reuse rework is explicitly NOT in this pass.
 
-**The authoritative flag is on the company row.** `companies.is_sandbox` and
-`companies.creator_test_tenant` are both `boolean NOT NULL DEFAULT false`, so they can
-never be null or ambiguous. A company created through signup/approval
-(`create-company`, `company-signup`) never sets either one, so every real customer is
-`false/false` by construction. Only creator-side sandbox/simulation creation sets them.
-Today there are exactly two companies: Lorenzo Test Company (both true) and Test
-Ambulance LLC (both false). This is a trustworthy single source of truth. I will treat
-**`is_sandbox OR creator_test_tenant` = TEST company; everything else = LIVE company**,
-matching the definition already used by `useIsSimulationCompany` and `fetchRealCompanyIds`.
+## Guard 1 — Founding customers never see upgrade checkout
 
-**Today's rule (`src/lib/queue-claims-for-submission.ts:89-106`):**
+**`src/pages/ChoosePlan.tsx`**
+- On load, fetch `subscription_records.is_founding` for `activeCompanyId` (select on company_id, maybeSingle).
+- If `is_founding === true`: render a locked state instead of the plan cards and cycle toggle:
+  - Heading: "You're on the Founding rate"
+  - Body: "Unlimited trucks · $799/mo locked for life. No plan change needed."
+  - No checkout buttons, no plan cards, no "Continue with Starter/Pro."
+  - Keep the Sign Out button.
+- While the flag loads, show a small loading state (prevents a founding user catching a flash of checkout buttons).
 
-```
-const isSandboxCompany = !!(company as any)?.is_sandbox;
-let hasSimulatedClaim = false;                       // probes claim_records.is_simulated
-...
-const forcedTest = isSandboxCompany || hasSimulatedClaim;
-const testMode = opts.testMode ?? (forcedTest || !!(vendor as any)?.test_mode);
-```
+**`src/pages/TrucksCrews.tsx`** — no change. Confirmed unreachable for founding: the truck-cap trigger (`supabase/migrations/20260913190741_...sql:26-27`) returns early when `is_founding` is true or plan is `pro`/`founding`, so `TRUCK_CAP_EXCEEDED` can never fire for a founding company, so the "Upgrade to Pro" toast at line 489-494 can never appear.
 
-Three problems:
-1. Batch-content blending — one simulated claim flips the whole envelope to T.
-2. `creator_test_tenant` is not consulted, only `is_sandbox`.
-3. **The live bug:** `vendor_clearinghouse_settings.test_mode` is currently `true` (single
-   global row). So *a real customer submitting today would go out as ISA15=T* — Office
-   Ally would validate but never pay. This is the most dangerous finding in the audit.
+## Guard 2 — Webhook can never strip founding
 
-**New rule — company type decides, nothing else:**
+**`supabase/functions/stripe-webhook/index.ts`**
 
-```
-const isTestCompany = !!company.is_sandbox || !!company.creator_test_tenant;
-const testMode = isTestCompany;      // real => false (ISA15=P), always
-```
+Both `checkout.session.completed` (lines 69-128) and `customer.subscription.updated` (lines 130-160) get read-before-write protection:
 
-- `opts.testMode` is no longer honoured for real companies; for a test company it cannot
-  turn test *off*. The global vendor `test_mode` no longer influences a real tenant.
-- The "any simulated claim forces test" probe is removed.
-- **Safety net instead of blending:** in a real company, any claim with
-  `is_simulated = true` is *blocked* with a readiness issue ("Simulated claim cannot be
-  submitted from a live company") and excluded from the file — the rest still go live.
-  Confirmed today this can't normally happen: a query for simulated claims inside
-  non-sandbox, non-creator-test companies returns **0 rows**, and simulation seeding
-  always targets sandbox tenants. The block is a guard, not a routine path.
+1. **Read first.** Before updating, select the existing row: `select is_founding, plan_id from subscription_records` keyed by `company_id` (fall back to `stripe_subscription_id` for the updated event when metadata lacks company_id — same as today).
+2. **Never strip founding.** If the existing row has `is_founding = true`:
+   - Do not write `is_founding` at all (leave it true) — regardless of what the event metadata says.
+   - Do not write `plan_id` — it stays `'founding'`.
+   - Log `console.warn` noting stale non-founding metadata was ignored for a founding company.
+3. **If the existing row is not founding**, behavior is unchanged (metadata drives `is_founding` / `plan_id` as today).
+4. All other fields in both updates (status, stripe IDs, period end, trial-clearing fields, cancel flags) are written exactly as today.
 
-**Is any test path reachable by a real tenant?** No, and it stays that way.
-`EDIExport.tsx:294-308` already forces `usage_indicator = "P"` and only enables the test
-toggle when `isSystemCreator`; the "Submit Single OATEST Claim" button and the TEST/LIVE
-badge are behind `isSystemCreator` (:1450, :1507). The tenant Clearinghouse tab was
-already removed. The one remaining leak is the vendor `test_mode` flag reaching real
-tenants through `queueClaimsForSubmission` — closed by the change above. No new toggle
-is added anywhere in the tenant UI.
+Founding therefore becomes one-way in this function: only manage-company's grant/revoke can ever change `is_founding`.
 
-**Truthful labeling.** `BillingAndClaims.tsx:1510` hardcodes "Office Ally (live)". The
-review dialog will read the company type once and show either a green **LIVE — real
-claims to payers** line or an amber **TEST (OATEST) — sandbox company, nothing is
-billed** line, both in the summary block and in the dialog title/description.
+**Minimal addition — write `monthly_amount_cents`:**
+- Computed from the actual Stripe subscription price (already retrieved on checkout.session.completed; available on `sub.items.data[0].price` for subscription.updated), as a monthly-equivalent: `unit_amount / interval months` (month=1, year=12). This writes 79900 for the founding price and keeps yearly plans accurate (e.g. Starter yearly 799000/12).
+- For a founding row, this yields 79900 because the founding checkout already uses the founding price — no special-casing needed beyond a comment.
+- Fallback if the price can't be read: founding row → 79900; otherwise leave the field untouched (never zero it out).
+- This is the only billing-adjacent write; no subscription creation/cancellation/proration logic is touched.
 
-## Part A: review and release
+`customer.subscription.deleted` and `invoice.payment_failed` handlers: unchanged (neither writes `is_founding` or `plan_id`).
 
-Replace the one-press batch at `BillingAndClaims.tsx:1488-1525`.
+## Scope — NOT in
 
-- "Submit Claims to Payers" opens a **release review dialog** listing every
-  `ready_to_bill` claim plus every `blocked_payer_mapping` / validation-blocked claim.
-- Each releasable row: checkbox (checked by default), patient, payer, run date, amount,
-  and any warning chip.
-- Blocked rows appear in the same list, greyed, not selectable, with their plain-English
-  reason and a "Fix" link that opens that claim's drawer — no silent skipped count.
-- Sticky summary bar: "X of Y selected · $total · N payers", plus the LIVE/TEST banner.
-- One **Release Selected** action using the existing `ConfirmActionDialog` (type
-  `SUBMIT`) — for a live company the copy says claims go to payers and cannot be unsent.
-- The single-claim button in the drawer (`:2241`) drops `window.confirm` and uses the
-  same `ConfirmActionDialog` with the same LIVE/TEST line.
-- **Honest post-state:** success copy becomes "N claims queued for upload (file X) — the
-  clearinghouse worker uploads within a few minutes" rather than implying it already
-  left. The claim board keeps its existing `submitted` transition, but the drawer/row
-  shows "Queued — awaiting upload" until the queue row flips off `pending`, read from
-  `claim_submission_queue.status`.
+No `stripe.subscriptions.update`, no customer reuse, no cancel-old-subscription logic, no proration, no billing portal. No changes to pricing math, 837/claims, denial recovery, trial timers, RLS/tenant isolation, or manage-company's grant/revoke path.
 
 ## Technical notes
 
-- `queue-claims-for-submission.ts`: replace lines 89-106 with the company-type rule
-  (select `creator_test_tenant` alongside `is_sandbox`), add the simulated-claim block
-  inside the per-claim loop, and keep everything else — generator call, queue insert,
-  `is_test` / `is_test_submission` stamping, audit note — unchanged.
-- New component `src/components/billing/ReleaseReviewDialog.tsx`; `handleSendViaOA`
-  becomes `releaseClaims(selectedIds)` and is called from it.
-- New tiny helper `src/lib/submission-mode.ts` exposing
-  `fetchSubmissionMode(companyId) -> { isTest: boolean }` so the dialog label and the
-  queue function agree on one definition.
-- Not touched: 837P generation, the SFTP worker, denial recovery, trial, Stripe,
-  RLS/tenant isolation, pricing and claim math.
+- Files: `src/pages/ChoosePlan.tsx`, `supabase/functions/stripe-webhook/index.ts` only.
+- Founding amount constant: 79900 cents ($799/mo), matching manage-company/index.ts:851.
+- `subscription_records.monthly_amount_cents` feeds CreatorCompanyDetail MRR (line 151) and SaaSMetricsTab — writing real values removes the stale-$599 fallback there.
 
 ## Verification
 
-Typecheck, full test run, plus a claim-parity check that a real-company file still
-carries `ISA15=P` and a sandbox file `ISA15=T`.
+- Typecheck (`npx tsgo --noEmit -p tsconfig.app.json`), full test run (`bunx vitest run`), build.
+- New webhook unit test (pure logic extracted or via handler simulation): founding row + non-founding checkout metadata → `is_founding` stays true, `plan_id` stays `founding`, `monthly_amount_cents` = 79900; non-founding row → unchanged behavior.
+- Deploy the webhook edge function after build passes.
