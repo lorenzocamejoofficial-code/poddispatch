@@ -85,7 +85,7 @@ export function CompanyHealthTable() {
 
       // Shared trial window helper — falls back to trial_started_at + 30d when
       // trial_ends_at was never written, so this matches the creator countdown panel.
-      const left = trialDaysLeft(sub as any);
+      const left = computeTrialDaysLeft(sub as any);
       const trialDays: number | null = left === null ? null : Math.max(0, left);
 
       const steps = mig
@@ -97,7 +97,7 @@ export function CompanyHealthTable() {
         id: c.id,
         name: c.name,
         approved_at: c.approved_at,
-        trialDaysLeft,
+        trialDaysLeft: trialDays,
         subscriptionStatus: sub?.subscription_status ?? null,
         onboardingSteps: steps,
         hasMigrationRow,
@@ -148,7 +148,7 @@ export function CompanyHealthTable() {
                   {c.approved_at ? format(new Date(c.approved_at), "MMM d") : "—"}
                 </td>
                 <td className="py-2 pr-3">
-                  {c.subscriptionStatus === "trial" && c.trialDaysLeft !== null ? (
+                  {(c.subscriptionStatus === "trial" || c.subscriptionStatus === "trial_active" || c.subscriptionStatus === "trial_pending_start") && c.trialDaysLeft !== null ? (
                     <Badge variant={c.trialDaysLeft <= 7 ? "destructive" : "outline"} className="text-[10px]">
                       {c.trialDaysLeft}d left
                     </Badge>
