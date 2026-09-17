@@ -3,8 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Building2 } from "lucide-react";
-import { differenceInDays, format } from "date-fns";
+import { format } from "date-fns";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { trialDaysLeft as computeTrialDaysLeft } from "@/lib/trial-window";
 
 interface CompanyHealth {
   id: string;
