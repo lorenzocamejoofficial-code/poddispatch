@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { applyFoundingGuard, monthlyAmountCentsFromPrice } from "./founding-guard.ts";
 
 // NOTE: STRIPE_WEBHOOK_SECRET is read from Deno.env. After deploying this
 // function, register its public URL as a webhook endpoint in the Stripe
