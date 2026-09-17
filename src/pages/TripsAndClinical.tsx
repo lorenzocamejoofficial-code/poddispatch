@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useAuth } from "@/hooks/useAuth";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { downloadCSV } from "@/lib/csv-export";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
