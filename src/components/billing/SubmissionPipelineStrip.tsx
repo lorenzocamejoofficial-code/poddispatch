@@ -34,21 +34,42 @@ export function SubmissionPipelineStrip({ companyId }: Props) {
   const refresh = useCallback(async () => {
     if (!companyId) return;
     const todayIso = new Date(); todayIso.setHours(0, 0, 0, 0);
-    const { data } = await supabase
-      .from("claim_submission_queue" as any)
-      .select("status, claim_ids, filename, updated_at, created_at")
-      .eq("company_id", companyId)
-      .order("updated_at", { ascending: false })
-      .limit(100);
-    const rows = (data ?? []) as any[];
-    const pending = rows.filter(r => r.status === "pending").length;
-    const failed = rows.filter(r => r.status === "failed").length;
-    const submittedToday = rows
-      .filter(r => r.status === "submitted" && new Date(r.updated_at) >= todayIso)
+
+    // Queued / failed are TRUE counts — counting a capped page of recent rows
+    // under-reported exactly when the queue was busiest.
+    const [{ count: pending }, { count: failed }, { data: sentToday }, { data: lastSentRows }] = await Promise.all([
+      supabase
+        .from("claim_submission_queue" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("status", "pending"),
+      supabase
+        .from("claim_submission_queue" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("status", "failed"),
+      supabase
+        .from("claim_submission_queue" as any)
+        .select("claim_ids")
+        .eq("company_id", companyId)
+        .eq("status", "submitted")
+        .gte("updated_at", todayIso.toISOString()),
+      supabase
+        .from("claim_submission_queue" as any)
+        .select("claim_ids, filename, updated_at")
+        .eq("company_id", companyId)
+        .eq("status", "submitted")
+        .order("updated_at", { ascending: false })
+        .limit(1),
+    ]);
+
+    const submittedToday = ((sentToday ?? []) as any[])
       .reduce((sum, r) => sum + (r.claim_ids?.length ?? 0), 0);
-    const lastSent = rows.find(r => r.status === "submitted");
+    const lastSent = ((lastSentRows ?? []) as any[])[0];
     setStats({
-      pending, submittedToday, failed,
+      pending: pending ?? 0,
+      submittedToday,
+      failed: failed ?? 0,
       lastSentAt: lastSent?.updated_at ?? null,
       lastSentFilename: lastSent?.filename ?? null,
       lastSentCount: lastSent?.claim_ids?.length ?? 0,

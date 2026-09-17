@@ -3,8 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Building2 } from "lucide-react";
-import { differenceInDays, format } from "date-fns";
+import { format } from "date-fns";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { trialDaysLeft as computeTrialDaysLeft } from "@/lib/trial-window";
 
 interface CompanyHealth {
   id: string;
@@ -52,7 +53,7 @@ export function CompanyHealthTable() {
     const monthStartStr = monthStart.toISOString().split("T")[0];
 
     const [{ data: subs }, { data: migrations }, { data: trucks }, { data: patients }, { data: trips }] = await Promise.all([
-      supabase.from("subscription_records").select("company_id, subscription_status, trial_ends_at").in("company_id", companyIds),
+      supabase.from("subscription_records").select("company_id, subscription_status, trial_ends_at, trial_started_at").in("company_id", companyIds),
       supabase.from("migration_settings").select("company_id, step_rates_verified, step_trucks_added, step_patients_added, step_team_invited, step_first_trip").in("company_id", companyIds),
       supabase.from("trucks").select("company_id").in("company_id", companyIds).eq("is_simulated", false),
       supabase.from("patients").select("company_id").in("company_id", companyIds).eq("is_simulated", false),
@@ -82,10 +83,10 @@ export function CompanyHealthTable() {
       const mig = migMap.get(c.id) as any;
       const td = tripData.get(c.id);
 
-      let trialDaysLeft: number | null = null;
-      if (sub && (sub as any).trial_ends_at) {
-        trialDaysLeft = Math.max(0, differenceInDays(new Date((sub as any).trial_ends_at), new Date()));
-      }
+      // Shared trial window helper — falls back to trial_started_at + 30d when
+      // trial_ends_at was never written, so this matches the creator countdown panel.
+      const left = computeTrialDaysLeft(sub as any);
+      const trialDays: number | null = left === null ? null : Math.max(0, left);
 
       const steps = mig
         ? [mig.step_rates_verified, mig.step_trucks_added, mig.step_patients_added, mig.step_team_invited, mig.step_first_trip].filter(Boolean).length
@@ -96,7 +97,7 @@ export function CompanyHealthTable() {
         id: c.id,
         name: c.name,
         approved_at: c.approved_at,
-        trialDaysLeft,
+        trialDaysLeft: trialDays,
         subscriptionStatus: sub?.subscription_status ?? null,
         onboardingSteps: steps,
         hasMigrationRow,
@@ -147,7 +148,7 @@ export function CompanyHealthTable() {
                   {c.approved_at ? format(new Date(c.approved_at), "MMM d") : "—"}
                 </td>
                 <td className="py-2 pr-3">
-                  {c.subscriptionStatus === "trial" && c.trialDaysLeft !== null ? (
+                  {(c.subscriptionStatus === "trial" || c.subscriptionStatus === "trial_active" || c.subscriptionStatus === "trial_pending_start") && c.trialDaysLeft !== null ? (
                     <Badge variant={c.trialDaysLeft <= 7 ? "destructive" : "outline"} className="text-[10px]">
                       {c.trialDaysLeft}d left
                     </Badge>

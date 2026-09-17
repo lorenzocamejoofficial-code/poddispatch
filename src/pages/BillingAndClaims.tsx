@@ -9,6 +9,7 @@ import { JustArrivedRibbon } from "@/components/billing/JustArrivedRibbon";
 import { TimelyFilingStrip } from "@/components/billing/TimelyFilingStrip";
 import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -175,11 +176,15 @@ const CLAIM_COLUMNS: { status: ClaimTab; label: string; icon: React.ReactNode; c
 
 const PAYER_TYPES = PAYER_KEYS;
 
+/** Most recent claims loaded into the board. Tab counts warn when more exist. */
+const CLAIM_PAGE_LIMIT = 1000;
+
 export default function BillingAndClaims() {
   const { activeCompanyId } = useAuth();
   const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [chargeMaster, setChargeMaster] = useState<ChargeMaster[]>([]);
   const [loading, setLoading] = useState(true);
+  const [claimsTruncated, setClaimsTruncated] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<ClaimRecord | null>(null);
   const [editForm, setEditForm] = useState({
     status: "ready_to_bill" as ClaimStatus,
@@ -248,7 +253,10 @@ export default function BillingAndClaims() {
     if (!simFlagResolved) return; // scope not known yet — avoid a wrong-scope read
     setLoading(true);
 
-    let claimsQuery = supabase.from("claim_records" as any).select("*").order("run_date", { ascending: false }).limit(1000);
+    // Creators have cross-tenant read on claim_records — scope explicitly, never rely on RLS alone.
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+
+    let claimsQuery = supabase.from("claim_records" as any).select("*").eq("company_id", scopedCompanyId).order("run_date", { ascending: false }).limit(CLAIM_PAGE_LIMIT);
     if (!isSimulationCompany) {
       claimsQuery = claimsQuery.or("is_simulated.eq.false,is_simulated.is.null");
     }
@@ -259,12 +267,20 @@ export default function BillingAndClaims() {
       claimsQuery = claimsQuery.eq("simulation_run_id", simulationRunId);
     }
 
-    const [{ data: claimRows }, { data: rateRows }, { data: payerRules }, { data: pendingQueueRows }] = await Promise.all([
+    // True total, so the tab counts can tell the truth when the page above is capped.
+    const totalClaimsQuery = supabase
+      .from("claim_records" as any)
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", scopedCompanyId);
+
+    const [{ data: claimRows }, { count: totalClaimCount }, { data: rateRows }, { data: payerRules }, { data: pendingQueueRows }] = await Promise.all([
       claimsQuery,
+      totalClaimsQuery,
       supabase.from("charge_master" as any).select("*").order("payer_type"),
       supabase.from("payer_billing_rules" as any).select("*"),
-      supabase.from("claim_submission_queue" as any).select("claim_ids").eq("status", "pending"),
+      supabase.from("claim_submission_queue" as any).select("claim_ids").eq("company_id", scopedCompanyId).eq("status", "pending"),
     ]);
+    setClaimsTruncated((totalClaimCount ?? 0) > ((claimRows ?? []) as any[]).length);
 
     // "Queued" is not "uploaded": these claims are waiting on the SFTP worker.
     const pendingIds = new Set<string>();
@@ -1757,6 +1773,14 @@ export default function BillingAndClaims() {
                       );
                     })}
                   </div>
+
+                  {claimsTruncated && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      Showing the {CLAIM_PAGE_LIMIT.toLocaleString()} most recent claims. These counts cover
+                      only what is loaded — use the date filter to narrow down and see older claims.
+                    </p>
+                  )}
 
                   {/* What this bucket means */}
                   <div className="flex flex-wrap items-start gap-1.5 rounded-md border bg-muted/40 px-3 py-2">

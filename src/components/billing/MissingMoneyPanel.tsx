@@ -31,7 +31,7 @@ const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2,
 
 /** Compact version for Owner Command Center */
 export function MissingMoneySummary() {
-  const { loading, categories, totalAmount, lastScanAt, hasIssues, scanError } = useMissingMoneyScan();
+  const { loading, categories, totalAmount, lastScanAt, hasIssues, scanError, scanTruncated } = useMissingMoneyScan();
   const navigate = useNavigate();
 
   if (loading) {
@@ -83,7 +83,7 @@ export function MissingMoneySummary() {
             <DollarSign className="h-5 w-5 text-destructive" />
             <p className="text-sm font-semibold">Missing Money Detected</p>
             <Badge variant="outline" className="border-destructive/40 text-destructive text-xs">
-              ${fmt(totalAmount)} at risk
+              {scanTruncated ? "at least " : ""}${fmt(totalAmount)} at risk
             </Badge>
           </div>
           {lastScanAt && (
@@ -127,7 +127,7 @@ export function MissingMoneySummary() {
 
 /** Full detail version for Billing & Claims Missing Money tab */
 export function MissingMoneyDetail() {
-  const { loading, categories, totalAmount, lastScanAt, hasIssues, scanError } = useMissingMoneyScan();
+  const { loading, categories, totalAmount, lastScanAt, hasIssues, scanError, scanTruncated } = useMissingMoneyScan();
   const navigate = useNavigate();
 
   if (loading) {
@@ -170,7 +170,15 @@ export function MissingMoneyDetail() {
           <DollarSign className="h-5 w-5 text-destructive" />
           <div>
             <p className="text-sm font-semibold">Total Missing Money</p>
-            <p className="text-2xl font-bold text-destructive">${fmt(totalAmount)}</p>
+            <p className="text-2xl font-bold text-destructive">
+              {scanTruncated && <span className="text-base font-semibold mr-1">at least</span>}
+              ${fmt(totalAmount)}
+            </p>
+            {scanTruncated && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                One or more checks hit their row limit — the real figure is higher. Work these down and rescan.
+              </p>
+            )}
           </div>
         </div>
         {lastScanAt && (

@@ -28,6 +28,9 @@ interface BillerTask {
   payer_name?: string;
 }
 
+/** How many tasks we render at once. The badge uses a true count, not this page. */
+const TASK_PAGE_SIZE = 200;
+
 const PRIORITY_CONFIG: Record<number, { label: string; variant: string; icon: React.ReactNode }> = {
   1: { label: "Critical", variant: "destructive", icon: <AlertTriangle className="h-3 w-3" /> },
   2: { label: "Urgent", variant: "warning", icon: <Clock className="h-3 w-3" /> },
@@ -39,6 +42,7 @@ const PRIORITY_CONFIG: Record<number, { label: string; variant: string; icon: Re
 export function BillerTaskQueue() {
   const { activeCompanyId, user } = useAuth();
   const [tasks, setTasks] = useState<BillerTask[]>([]);
+  const [activeTaskCount, setActiveTaskCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showResolved, setShowResolved] = useState(false);
   const [dismissOpen, setDismissOpen] = useState(false);
@@ -52,14 +56,23 @@ export function BillerTaskQueue() {
       ? ["pending", "in_progress", "completed", "dismissed"]
       : ["pending", "in_progress"];
 
-    const { data } = await supabase
-      .from("biller_tasks")
-      .select("*")
-      .eq("company_id", activeCompanyId)
-      .in("status", statuses)
-      .order("priority", { ascending: true })
-      .order("due_date", { ascending: true })
-      .limit(200);
+    // The badge must be a true count, not the length of the capped page below.
+    const [{ data }, { count: trueActiveCount }] = await Promise.all([
+      supabase
+        .from("biller_tasks")
+        .select("*")
+        .eq("company_id", activeCompanyId)
+        .in("status", statuses)
+        .order("priority", { ascending: true })
+        .order("due_date", { ascending: true })
+        .limit(TASK_PAGE_SIZE),
+      supabase
+        .from("biller_tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", activeCompanyId)
+        .in("status", ["pending", "in_progress"]),
+    ]);
+    setActiveTaskCount(trueActiveCount ?? 0);
 
     if (!data?.length) { setTasks([]); setLoading(false); return; }
 
@@ -150,8 +163,8 @@ export function BillerTaskQueue() {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           My Tasks
-          {activeTasks.length > 0 && (
-            <Badge variant="destructive" className="text-xs">{activeTasks.length}</Badge>
+          {activeTaskCount > 0 && (
+            <Badge variant="destructive" className="text-xs">{activeTaskCount}</Badge>
           )}
         </h2>
         <div className="flex items-center gap-2">
@@ -161,6 +174,9 @@ export function BillerTaskQueue() {
       </div>
       <p className="text-xs text-muted-foreground">
         These tasks were auto-generated based on claim activity. Working a claim in Today's Work does not automatically complete its task — mark tasks complete after you have taken action.
+        {activeTaskCount > activeTasks.length && (
+          <> Showing the {activeTasks.length} highest-priority of {activeTaskCount} open tasks.</>
+        )}
       </p>
 
       <div className="grid gap-2">

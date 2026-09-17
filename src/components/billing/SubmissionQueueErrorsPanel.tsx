@@ -20,22 +20,33 @@ interface Props { companyId: string | null; }
 
 export function SubmissionQueueErrorsPanel({ companyId }: Props) {
   const [rows, setRows] = useState<QueueRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const fetchRows = useCallback(async () => {
     if (!companyId) return;
     setLoading(true);
-    // Surface rows that are failed OR pending with attempts >= 3 (worker has retried)
-    const { data, error } = await supabase
-      .from("claim_submission_queue" as any)
-      .select("id, filename, claim_ids, status, attempts, error_message, updated_at")
-      .eq("company_id", companyId)
-      .or("status.eq.failed,and(status.eq.pending,attempts.gte.3)")
-      .order("updated_at", { ascending: false })
-      .limit(50);
+    // Surface rows that are failed OR pending with attempts >= 3 (worker has retried).
+    // The badge uses a true count — this panel exists to catch mass failures, so it must
+    // not under-report them by counting only the page it renders.
+    const [{ data, error }, { count }] = await Promise.all([
+      supabase
+        .from("claim_submission_queue" as any)
+        .select("id, filename, claim_ids, status, attempts, error_message, updated_at")
+        .eq("company_id", companyId)
+        .or("status.eq.failed,and(status.eq.pending,attempts.gte.3)")
+        .order("updated_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("claim_submission_queue" as any)
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .or("status.eq.failed,and(status.eq.pending,attempts.gte.3)"),
+    ]);
     if (error) console.error(error);
     setRows((data ?? []) as any);
+    setTotalCount(count ?? (data ?? []).length);
     setLoading(false);
   }, [companyId]);
 
@@ -71,10 +82,11 @@ export function SubmissionQueueErrorsPanel({ companyId }: Props) {
         <CardTitle className="text-base flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-destructive" />
           Submission Queue Errors
-          <Badge variant="destructive" className="ml-1">{rows.length}</Badge>
+          <Badge variant="destructive" className="ml-1">{totalCount}</Badge>
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           Claim batches the SFTP worker could not deliver. Force a retry, or cancel permanently.
+          {totalCount > rows.length && <> Showing the {rows.length} most recent of {totalCount}.</>}
         </p>
       </CardHeader>
       <CardContent className="p-0">

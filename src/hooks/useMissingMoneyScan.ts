@@ -54,11 +54,14 @@ export function useMissingMoneyScan() {
   const [totalAmount, setTotalAmount] = useState(0);
   const [lastScanAt, setLastScanAt] = useState<Date | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  /** True when any check hit its row cap, so the totals below are a floor, not the whole picture. */
+  const [scanTruncated, setScanTruncated] = useState(false);
 
   const runScan = useCallback(async () => {
     if (!simFlagResolved) return;
     setLoading(true);
     setScanError(null);
+    setScanTruncated(false);
     if (!activeCompanyId) {
       setCategories([]);
       setTotalAmount(0);
@@ -175,6 +178,14 @@ export function useMissingMoneyScan() {
       // Gather all patient and truck IDs for enrichment
       const allTrips = [...(noPcrTrips ?? []) as any[], ...(pcrSubmittedTrips ?? []) as any[]];
       const allClaims = [...(agingClaims ?? []) as any[], ...(secondaryClaims ?? []) as any[], ...(deniedClaims ?? []) as any[], ...(paidClaims ?? []) as any[]];
+
+      // Each check reads at most SCAN_ROW_CAP rows. If any came back full, the
+      // dollar totals below are a floor — say so rather than implying completeness.
+      const SCAN_ROW_CAP = 500;
+      setScanTruncated(
+        [noPcrTrips, pcrSubmittedTrips, agingClaims, secondaryClaims, deniedClaims, paidClaims]
+          .some((rows) => ((rows ?? []) as any[]).length >= SCAN_ROW_CAP),
+      );
 
 
       const patientIds = [...new Set([
@@ -429,5 +440,5 @@ export function useMissingMoneyScan() {
 
   const hasIssues = categories.some((c) => c.count > 0);
 
-  return { loading, categories, totalAmount, lastScanAt, hasIssues, scanError, runScan };
+  return { loading, categories, totalAmount, lastScanAt, hasIssues, scanError, scanTruncated, runScan };
 }

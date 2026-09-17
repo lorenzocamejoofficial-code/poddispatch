@@ -41,7 +41,7 @@ export default function OwnerDashboard() {
         // Fix 3: Exclude simulated trips
         supabase.from("trip_records" as any).select("id, status, run_date, pcr_status, blockers, patient_id, leg_id").eq("company_id", scopedCompanyId).gte("run_date", weekAgo).or("is_simulated.eq.false,is_simulated.is.null").limit(1000),
         supabase.from("trucks" as any).select("id, name, active").eq("company_id", scopedCompanyId),
-        supabase.from("vehicle_inspections" as any).select("id, truck_id, run_date").eq("run_date", today),
+        supabase.from("vehicle_inspections" as any).select("id, truck_id, run_date").eq("company_id", scopedCompanyId).eq("run_date", today),
       ]);
 
       const rawClaims = (claimRes.data ?? []) as any[];
@@ -137,6 +137,8 @@ export default function OwnerDashboard() {
   const weekClaims = claims.filter(c => c.run_date >= weekAgo);
 
   // Card 1 — This Week (all scoped to 7 days)
+  // Labelled "Trips Finished": a trip that reached ready_for_billing is finished in the
+  // field even though its status has already moved on to billing, so both count.
   const weekTripsCompleted = trips.filter(t => t.status === "completed" || t.status === "ready_for_billing").length;
   const claimsReadyToSubmit = weekClaims.filter(c => c.status === "ready_to_bill").length;
   const claimsSubmitted = weekClaims.filter(c => c.status === "submitted").length;
@@ -279,7 +281,7 @@ export default function OwnerDashboard() {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
                   <p className="text-xl font-bold text-foreground">{weekTripsCompleted}</p>
-                  <p className="text-[10px] text-muted-foreground">Trips Done</p>
+                  <p className="text-[10px] text-muted-foreground">Trips Finished</p>
                 </div>
                 <div>
                   <p className="text-xl font-bold text-foreground">{claimsReadyToSubmit}</p>
@@ -303,7 +305,7 @@ export default function OwnerDashboard() {
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between items-baseline">
-                  <p className="text-xs text-muted-foreground">Pending payment</p>
+                  <p className="text-xs text-muted-foreground">Pending payment (last 90 days)</p>
                   <p className="text-lg font-bold text-foreground">${fmt(pendingPayment)}</p>
                 </div>
                 <div className="flex justify-between items-baseline">
