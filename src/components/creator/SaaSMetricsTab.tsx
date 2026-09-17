@@ -7,6 +7,7 @@ import {
   DollarSign, Users, TrendingUp, TrendingDown, Activity,
   AlertTriangle, RefreshCw, ArrowUpRight, ArrowDownRight,
 } from "lucide-react";
+import { sumMonthlyDollars } from "@/lib/plan-pricing";
 
 interface SaaSData {
   mrr: number;
@@ -24,6 +25,8 @@ interface SaaSData {
   churnMrr: number;
   reactivationMrr: number;
   netMrrChange: number;
+  /** Subscription rows whose monthly price could not be established; excluded from totals. */
+  unpricedCount: number;
 }
 
 export function SaaSMetricsTab() {
@@ -117,19 +120,21 @@ export function SaaSMetricsTab() {
         const updatedAt = new Date(r.updated_at);
         return updatedAt >= monthStart;
       });
-      const newBizMrr = newBiz.length * 599; // $599/mo standard plan
+      // Real per-company price, not a flat assumed rate.
+      const { dollars: newBizMrr, unpriced: unpricedNew } = sumMonthlyDollars(newBiz);
 
-      const churnMrr = churned.reduce((sum, r) => sum + (((r as any).monthly_amount_cents ?? 59900) / 100), 0);
+      const { dollars: churnMrr, unpriced: unpricedChurn } = sumMonthlyDollars(churned);
 
       // Reactivation MRR: companies whose subscription went from expired/suspended back to active this calendar month.
       // Sourced from subscription_status_history. De-dupe per company (one reactivation per company per month).
       const seenCompanies = new Set<string>();
-      let reactivationMrr = 0;
+      const reactivationRows: any[] = [];
       for (const row of reactivations) {
         if (!row.company_id || seenCompanies.has(row.company_id)) continue;
         seenCompanies.add(row.company_id);
-        reactivationMrr += (row.monthly_amount_cents ?? 59900) / 100;
+        reactivationRows.push(row);
       }
+      const { dollars: reactivationMrr, unpriced: unpricedReact } = sumMonthlyDollars(reactivationRows);
 
       const netMrrChange = newBizMrr - churnMrr + reactivationMrr;
 
@@ -137,6 +142,7 @@ export function SaaSMetricsTab() {
         mrr, arr, arpa, activeCount: active.length, trialCount: trials.length,
         trialAvgDaysLeft, churnedThisMonth: churned.length, churnRate,
         grr, ltv, cac, newBizMrr, churnMrr, reactivationMrr, netMrrChange,
+        unpricedCount: unpricedActive + unpricedNew + unpricedChurn + unpricedReact,
       });
     } catch (err) {
       console.error("Failed to load SaaS metrics:", err);
