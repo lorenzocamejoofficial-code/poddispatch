@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Check, Loader2, LogOut, Truck } from "lucide-react";
+import { Check, Loader2, LogOut, Truck, Award } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 type Plan = "starter" | "pro";
@@ -57,6 +57,30 @@ export default function ChoosePlan() {
   const navigate = useNavigate();
   const [loadingPlan, setLoadingPlan] = useState<Plan | null>(null);
   const [cycle, setCycle] = useState<Cycle>("monthly");
+  const [isFounding, setIsFounding] = useState(false);
+  const [checkingFounding, setCheckingFounding] = useState(true);
+
+  // Founding companies are already at the locked lifetime rate with unlimited
+  // trucks — they must never be shown a checkout or pushed to change plans.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!activeCompanyId) {
+        if (!cancelled) setCheckingFounding(false);
+        return;
+      }
+      const { data } = await supabase
+        .from("subscription_records")
+        .select("is_founding")
+        .eq("company_id", activeCompanyId)
+        .maybeSingle();
+      if (cancelled) return;
+      setIsFounding(data?.is_founding === true);
+      setCheckingFounding(false);
+    })();
+    return () => { cancelled = true; };
+  }, [activeCompanyId]);
+
 
   const startCheckout = async (plan: Plan) => {
     if (!user?.id || !activeCompanyId) {
@@ -77,6 +101,45 @@ export default function ChoosePlan() {
       setLoadingPlan(null);
     }
   };
+
+  if (checkingFounding) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isFounding) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <div className="mx-auto max-w-lg space-y-6 pt-16">
+          <Card className="border-primary shadow-md">
+            <CardContent className="pt-8 pb-8 space-y-4 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                <Award className="h-6 w-6 text-primary" />
+              </div>
+              <h1 className="text-2xl font-bold text-foreground">You're on the Founding rate</h1>
+              <p className="text-sm text-muted-foreground">
+                Unlimited trucks · $799/mo locked for life. No plan change needed.
+              </p>
+              <Button onClick={() => navigate("/")} className="w-full" size="lg">
+                Back to PodDispatch
+              </Button>
+            </CardContent>
+          </Card>
+          <p className="text-center text-xs text-muted-foreground">
+            Questions? <span className="font-medium text-foreground">support@thepoddispatch.com</span>
+          </p>
+          <div className="flex justify-center">
+            <Button variant="ghost" size="sm" onClick={async () => { await signOut(); navigate("/login"); }} className="gap-2 text-muted-foreground">
+              <LogOut className="h-3.5 w-3.5" /> Sign Out
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-6">

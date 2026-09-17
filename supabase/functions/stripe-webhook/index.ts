@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { applyFoundingGuard, monthlyAmountCentsFromPrice } from "./founding-guard.ts";
 
 // NOTE: STRIPE_WEBHOOK_SECRET is read from Deno.env. After deploying this
 // function, register its public URL as a webhook endpoint in the Stripe
@@ -75,35 +76,58 @@ serve(async (req) => {
         const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
 
         let currentPeriodEnd: string | null = null;
+        let price: unknown = null;
         if (subscriptionId) {
           try {
             const sub = await stripe.subscriptions.retrieve(subscriptionId);
             currentPeriodEnd = new Date((sub.current_period_end ?? 0) * 1000).toISOString();
+            price = sub.items?.data?.[0]?.price ?? null;
           } catch (subErr) {
             console.error("Failed to retrieve subscription:", subErr);
           }
         }
 
         if (companyId) {
+          // Read before write: founding is one-way here.
+          const { data: existing } = await supabase
+            .from("subscription_records")
+            .select("is_founding, plan_id")
+            .eq("company_id", companyId)
+            .maybeSingle();
+
+          const effectiveFounding = existing?.is_founding === true || isFounding;
+          const monthly = monthlyAmountCentsFromPrice(price as never, effectiveFounding);
+
+          const baseUpdate: Record<string, unknown> = {
+            subscription_status: "active",
+            plan_id: planId,
+            is_founding: isFounding,
+            stripe_customer_id: customerId ?? null,
+            stripe_subscription_id: subscriptionId ?? null,
+            current_period_end: currentPeriodEnd,
+            // Payment resolves the trial — clear timer + skip flag so
+            // useAuth's effective-status logic stops gating the user.
+            trial_skipped: false,
+            trial_started_at: null,
+            trial_ends_at: null,
+            approval_grace_deadline: null,
+            updated_at: new Date().toISOString(),
+          };
+          if (monthly !== null) baseUpdate.monthly_amount_cents = monthly;
+
+          const { update: guarded, ignoredStaleMetadata } = applyFoundingGuard(baseUpdate, existing);
+          if (ignoredStaleMetadata) {
+            console.warn(
+              `Founding protection: ignored stale non-founding metadata for company ${companyId} (checkout.session.completed)`,
+            );
+          }
+
           const { error } = await supabase
             .from("subscription_records")
-            .update({
-              subscription_status: "active",
-              plan_id: planId,
-              is_founding: isFounding,
-              stripe_customer_id: customerId ?? null,
-              stripe_subscription_id: subscriptionId ?? null,
-              current_period_end: currentPeriodEnd,
-              // Payment resolves the trial — clear timer + skip flag so
-              // useAuth's effective-status logic stops gating the user.
-              trial_skipped: false,
-              trial_started_at: null,
-              trial_ends_at: null,
-              approval_grace_deadline: null,
-              updated_at: new Date().toISOString(),
-            })
+            .update(guarded)
             .eq("company_id", companyId);
           if (error) console.error("subscription_records update failed:", error);
+
 
           // Flip the company gate to active so the user can access the app.
           const { error: companyErr } = await supabase
@@ -148,7 +172,28 @@ serve(async (req) => {
         }
         if (planId) update.plan_id = planId;
         if (sub.metadata?.is_founding !== undefined) update.is_founding = isFounding;
-        const query = supabase.from("subscription_records").update(update);
+
+        // Read before write: founding is one-way here.
+        const readQuery = supabase.from("subscription_records").select("is_founding, plan_id");
+        const { data: existing } = companyId
+          ? await readQuery.eq("company_id", companyId).maybeSingle()
+          : await readQuery.eq("stripe_subscription_id", sub.id).maybeSingle();
+
+        const effectiveFounding = existing?.is_founding === true || isFounding;
+        const monthly = monthlyAmountCentsFromPrice(
+          (sub.items?.data?.[0]?.price ?? null) as never,
+          effectiveFounding,
+        );
+        if (monthly !== null) update.monthly_amount_cents = monthly;
+
+        const { update: guarded, ignoredStaleMetadata } = applyFoundingGuard(update, existing);
+        if (ignoredStaleMetadata) {
+          console.warn(
+            `Founding protection: ignored stale non-founding metadata for subscription ${sub.id} (customer.subscription.updated)`,
+          );
+        }
+
+        const query = supabase.from("subscription_records").update(guarded);
         const { error } = companyId
           ? await query.eq("company_id", companyId)
           : await query.eq("stripe_subscription_id", sub.id);
