@@ -145,35 +145,50 @@ export default function DispatchBoard() {
       { data: crewCapRows },
       { data: overrideRows },
       { data: holdTimerRows },
-      { data: exceptionRows },
       { data: opAlertRows },
     ] = await Promise.all([
       supabase.from("trucks").select("*").eq("company_id", scopedCompanyId).eq("active", true).order("name"),
       supabase
         .from("truck_run_slots")
         .select("id, truck_id, leg_id, slot_order, status, leg:scheduling_legs!truck_run_slots_leg_id_fkey(id, pickup_time, leg_type, patient_id, trip_type, destination_location, is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, primary_payer, pcs_on_file, auth_required, auth_expiration, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric))")
+        .eq("company_id", scopedCompanyId)
         .eq("run_date", selectedDate)
         .order("slot_order"),
       supabase.from("alerts").select("*").eq("company_id", scopedCompanyId).eq("dismissed", false).order("created_at", { ascending: false }),
-      supabase.from("truck_availability" as any).select("*").lte("start_date", selectedDate).gte("end_date", selectedDate),
-      supabase.from("trip_records" as any).select("*").eq("run_date", selectedDate),
-      supabase.from("payer_billing_rules" as any).select("*"),
+      supabase.from("truck_availability" as any).select("*").eq("company_id", scopedCompanyId).lte("start_date", selectedDate).gte("end_date", selectedDate),
+      supabase.from("trip_records" as any).select("*").eq("company_id", scopedCompanyId).eq("run_date", selectedDate),
+      supabase.from("payer_billing_rules" as any).select("*").eq("company_id", scopedCompanyId),
       supabase.from("crews")
         .select("*, member1:profiles!crews_member1_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member3:profiles!crews_member3_id_fkey(id, full_name, sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
+        .eq("company_id", scopedCompanyId)
         .eq("active_date", selectedDate),
+
       supabase.from("safety_overrides").select("leg_id").eq("company_id", scopedCompanyId).not("leg_id", "is", null),
       supabase.from("hold_timers").select("*").eq("company_id", scopedCompanyId).eq("is_active", true),
-      supabase.from("leg_exceptions" as any).select("*").eq("run_date", selectedDate),
-      supabase.from("operational_alerts").select("*").eq("run_date", selectedDate).eq("status", "open"),
+      supabase.from("operational_alerts").select("*").eq("company_id", scopedCompanyId).eq("run_date", selectedDate).eq("status", "open"),
     ]);
 
     // Issue 8: If aborted, bail out
+    if (controller.signal.aborted) return;
+
+    // leg_exceptions has no company_id column — scope it through its parent
+    // scheduling legs, i.e. only the legs on this company's slots for the date.
+    const scopedLegIds = [...new Set(((slotRows ?? []) as any[]).map((s: any) => s.leg_id).filter(Boolean))];
+    const { data: exceptionRows } = scopedLegIds.length
+      ? await supabase
+          .from("leg_exceptions" as any)
+          .select("*")
+          .eq("run_date", selectedDate)
+          .in("scheduling_leg_id", scopedLegIds)
+      : { data: [] as any[] };
+
     if (controller.signal.aborted) return;
 
     // Build exception map by scheduling_leg_id
     const exceptionMap = new Map<string, any>(
       ((exceptionRows ?? []) as any[]).map((e: any) => [e.scheduling_leg_id, e])
     );
+
 
     const overriddenIds = new Set<string>(
       ((overrideRows ?? []) as any[]).map((r: any) => r.leg_id).filter(Boolean)

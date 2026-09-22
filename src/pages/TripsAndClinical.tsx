@@ -254,26 +254,41 @@ export default function TripsAndClinical() {
   }, [refreshToken, fetchTrips]);
 
   useEffect(() => {
-    const ch = supabase
-      .channel("trips-clinical-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, fetchTrips)
-      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => {
-        syncSlotsToTrips(dateFilter);
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const companyId = await getActiveCompanyId();
+      const companyFilter = companyId ? `company_id=eq.${companyId}` : undefined;
+      ch = supabase
+        .channel("trips-clinical-rt")
+        .on("postgres_changes", { event: "*", schema: "public", table: "trip_records", filter: companyFilter }, fetchTrips)
+        .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots", filter: companyFilter }, () => {
+          syncSlotsToTrips(dateFilter);
+        })
+        .subscribe();
+    })();
+    return () => { if (ch) supabase.removeChannel(ch); };
   }, [fetchTrips, dateFilter]);
 
+
   const syncSlotsToTrips = async (runDate: string) => {
-    const { data: slots } = await supabase
+    // Scope every read and write to the company the user is working in.
+    const activeCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+    if (activeCompanyId === NO_COMPANY) return;
+
+    const { data: slotRows } = await supabase
       .from("truck_run_slots")
       .select("id, leg_id, truck_id, run_date, company_id, leg:scheduling_legs!truck_run_slots_leg_id_fkey(patient_id, pickup_time, pickup_location, destination_location, trip_type, origin_type, destination_type, service_level, is_unscheduled)")
+      .eq("company_id", activeCompanyId)
       .eq("run_date", runDate);
-    if (!slots?.length) return;
+    // Defensive: never derive a trip from a slot outside the active company.
+    const slots = ((slotRows ?? []) as any[]).filter((s: any) => s.company_id === activeCompanyId);
+    if (!slots.length) return;
 
     // Fetch existing trip records — check both slot_id and leg_id for dedup
     const { data: existing } = await supabase
-      .from("trip_records" as any).select("id, slot_id, leg_id").eq("run_date", runDate);
+      .from("trip_records" as any).select("id, slot_id, leg_id")
+      .eq("company_id", activeCompanyId)
+      .eq("run_date", runDate);
     const existingSlotIds = new Set((existing ?? []).map((e: any) => e.slot_id).filter(Boolean));
     const existingByLegId = new Map<string, string>();
     for (const e of (existing ?? []) as any[]) {
@@ -283,8 +298,9 @@ export default function TripsAndClinical() {
     // Look up crew assignments for the trucks on this date
     const truckIds = [...new Set((slots as any[]).map(s => s.truck_id).filter(Boolean))];
     const { data: crewRows } = truckIds.length > 0
-      ? await supabase.from("crews").select("id, truck_id").eq("active_date", runDate).in("truck_id", truckIds)
+      ? await supabase.from("crews").select("id, truck_id").eq("company_id", activeCompanyId).eq("active_date", runDate).in("truck_id", truckIds)
       : { data: [] };
+
     const crewByTruckId = new Map<string, string>();
     for (const c of (crewRows ?? []) as any[]) {
       crewByTruckId.set(c.truck_id, c.id);
@@ -307,6 +323,8 @@ export default function TripsAndClinical() {
           supabase.from("trip_records" as any)
             .update(backfill)
             .eq("id", existingTripId)
+            .eq("company_id", activeCompanyId)
+
             .then()
         );
         continue;
@@ -325,7 +343,7 @@ export default function TripsAndClinical() {
         truck_id: s.truck_id,
         crew_id: crewId,
         run_date: s.run_date,
-        company_id: s.company_id,
+        company_id: activeCompanyId,
         status: "assigned",
         scheduled_pickup_time: s.leg?.pickup_time ?? null,
         pickup_location: s.leg?.pickup_location ?? null,
