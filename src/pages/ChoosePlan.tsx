@@ -111,6 +111,10 @@ export default function ChoosePlan() {
   }
 
   if (isFounding) {
+    // Founding companies are never shown other plans — but they must always
+    // have a working way to pay, or an expired founding trial is a dead end.
+    // The server forces the founding price for any founding company, so this
+    // button can only ever create the $799 founding subscription.
     return (
       <div className="min-h-screen bg-background p-6">
         <div className="mx-auto max-w-lg space-y-6 pt-16">
@@ -121,9 +125,21 @@ export default function ChoosePlan() {
               </div>
               <h1 className="text-2xl font-bold text-foreground">You're on the Founding rate</h1>
               <p className="text-sm text-muted-foreground">
-                Unlimited trucks · $799/mo locked for life. No plan change needed.
+                Unlimited trucks · $799/mo locked for life. This rate never changes.
               </p>
-              <Button onClick={() => navigate("/")} className="w-full" size="lg">
+              <Button
+                onClick={() => startCheckout("starter")}
+                disabled={loadingPlan !== null}
+                className="w-full"
+                size="lg"
+              >
+                {loadingPlan ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Starting checkout…</>
+                ) : (
+                  "Continue at $799/mo (Founding)"
+                )}
+              </Button>
+              <Button variant="outline" onClick={() => navigate("/")} className="w-full">
                 Back to PodDispatch
               </Button>
             </CardContent>
@@ -140,6 +156,7 @@ export default function ChoosePlan() {
       </div>
     );
   }
+
 
   return (
     <div className="min-h-screen bg-background p-6">
