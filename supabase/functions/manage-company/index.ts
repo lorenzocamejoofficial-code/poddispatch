@@ -291,21 +291,27 @@ Deno.serve(async (req) => {
             subscription_status: "approved_pending_payment",
             trial_skipped: true,
             trial_started_at: null,
+            trial_ends_at: null,
+            trial_expired_at: null,
             approval_grace_deadline: null,
           })
           .eq("company_id", companyId);
       } else {
         // Trial begins on first login (or via sweep after grace deadline).
+        // trial_ends_at is written at that moment, never guessed later.
         await supabaseAdmin
           .from("subscription_records")
           .update({
             subscription_status: "trial_pending_start",
             trial_skipped: false,
             trial_started_at: null,
+            trial_ends_at: null,
+            trial_expired_at: null,
             approval_grace_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           })
           .eq("company_id", companyId);
       }
+
 
       await supabaseAdmin.from("onboarding_events").insert({
         company_id: companyId,
