@@ -357,7 +357,59 @@ export default function CreatorCompanyDetail() {
                       </>
                     )}
                   </div>
+
+                  {/* Lifecycle levers — creator only, reason required, audit-logged.
+                      Neither action touches founding status, price or truck caps. */}
+                  <div className="pt-3 border-t mt-2 space-y-2">
+                    <p className="text-xs font-medium text-foreground uppercase tracking-wide">Lifecycle</p>
+                    <Input
+                      value={lifecycleReason}
+                      onChange={(e) => setLifecycleReason(e.target.value)}
+                      placeholder="Reason (required — recorded in the audit log)"
+                      className="h-8 text-xs"
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={extendDays}
+                        onChange={(e) => setExtendDays(e.target.value)}
+                        className="h-8 w-20 text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={lifecycleBusy}
+                        onClick={() => runLifecycle("extend_trial")}
+                      >
+                        Extend trial
+                      </Button>
+                      {subscription.is_comped ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={lifecycleBusy}
+                          onClick={() => runLifecycle("revert_comp")}
+                        >
+                          Revert comp
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          disabled={lifecycleBusy}
+                          onClick={() => runLifecycle("comp_activate")}
+                        >
+                          Activate (comp — no Stripe)
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Comping turns the company on without creating any Stripe customer, subscription or charge.
+                    </p>
+                  </div>
                 </>
+
               ) : (
                 <div className="rounded-md border border-dashed bg-muted/30 p-4">
                   <p className="font-medium text-foreground">No billing yet — pending approval</p>
