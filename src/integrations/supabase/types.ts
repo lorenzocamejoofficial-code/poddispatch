@@ -5114,9 +5114,13 @@ export type Database = {
           cancel_reason: string | null
           canceled_at: string | null
           company_id: string
+          comped_at: string | null
+          comped_by: string | null
+          comped_reason: string | null
           created_at: string
           current_period_end: string | null
           id: string
+          is_comped: boolean
           is_founding: boolean
           last_payment_at: string | null
           last_payment_status: string | null
@@ -5130,6 +5134,7 @@ export type Database = {
           stripe_subscription_id: string | null
           subscription_status: string
           trial_ends_at: string | null
+          trial_expired_at: string | null
           trial_skipped: boolean
           trial_started_at: string | null
           updated_at: string
@@ -5141,9 +5146,13 @@ export type Database = {
           cancel_reason?: string | null
           canceled_at?: string | null
           company_id: string
+          comped_at?: string | null
+          comped_by?: string | null
+          comped_reason?: string | null
           created_at?: string
           current_period_end?: string | null
           id?: string
+          is_comped?: boolean
           is_founding?: boolean
           last_payment_at?: string | null
           last_payment_status?: string | null
@@ -5157,6 +5166,7 @@ export type Database = {
           stripe_subscription_id?: string | null
           subscription_status?: string
           trial_ends_at?: string | null
+          trial_expired_at?: string | null
           trial_skipped?: boolean
           trial_started_at?: string | null
           updated_at?: string
@@ -5168,9 +5178,13 @@ export type Database = {
           cancel_reason?: string | null
           canceled_at?: string | null
           company_id?: string
+          comped_at?: string | null
+          comped_by?: string | null
+          comped_reason?: string | null
           created_at?: string
           current_period_end?: string | null
           id?: string
+          is_comped?: boolean
           is_founding?: boolean
           last_payment_at?: string | null
           last_payment_status?: string | null
@@ -5184,6 +5198,7 @@ export type Database = {
           stripe_subscription_id?: string | null
           subscription_status?: string
           trial_ends_at?: string | null
+          trial_expired_at?: string | null
           trial_skipped?: boolean
           trial_started_at?: string | null
           updated_at?: string
