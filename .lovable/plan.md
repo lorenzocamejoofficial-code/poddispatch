@@ -1,56 +1,46 @@
-# Founding-Rate Protection (Guards 1 + 2 only)
+# Close two tenant-scoping gaps (Dispatch Board + Trips sync)
 
-Make founding one-way: a founding customer can never lose founding status or the $799/mo lifetime rate via any Stripe event or UI path. Only the creator grant/revoke in manage-company can change it. The double-subscription / stripe.subscriptions.update / customer-reuse rework is explicitly NOT in this pass.
+Goal: every read and write on these two screens is limited to the company the user is currently working in. Same-company users keep seeing all of their own data. No access rules (RLS) or creator policies are touched.
 
-## Guard 1 — Founding customers never see upgrade checkout
+## Item A — Dispatch Board secondary queries
 
-**`src/pages/ChoosePlan.tsx`**
-- On load, fetch `subscription_records.is_founding` for `activeCompanyId` (select on company_id, maybeSingle).
-- If `is_founding === true`: render a locked state instead of the plan cards and cycle toggle:
-  - Heading: "You're on the Founding rate"
-  - Body: "Unlimited trucks · $799/mo locked for life. No plan change needed."
-  - No checkout buttons, no plan cards, no "Continue with Starter/Pro."
-  - Keep the Sign Out button.
-- While the flag loads, show a small loading state (prevents a founding user catching a flash of checkout buttons).
+The page already resolves `scopedCompanyId` (via `getActiveCompanyId()`, falling back to the `NO_COMPANY` sentinel) and uses it on trucks, alerts, safety_overrides and hold_timers. These siblings in the same `Promise.all` are missing it:
 
-**`src/pages/TrucksCrews.tsx`** — no change. Confirmed unreachable for founding: the truck-cap trigger (`supabase/migrations/20260913190741_...sql:26-27`) returns early when `is_founding` is true or plan is `pro`/`founding`, so `TRUCK_CAP_EXCEEDED` can never fire for a founding company, so the "Upgrade to Pro" toast at line 489-494 can never appear.
+| Query | Has own `company_id`? | How it gets scoped |
+| --- | --- | --- |
+| `truck_run_slots` | Yes | `.eq("company_id", scopedCompanyId)` |
+| `truck_availability` | Yes | `.eq("company_id", scopedCompanyId)` |
+| `trip_records` | Yes | `.eq("company_id", scopedCompanyId)` |
+| `payer_billing_rules` | Yes | `.eq("company_id", scopedCompanyId)` |
+| `crews` | Yes | `.eq("company_id", scopedCompanyId)` |
+| `operational_alerts` | Yes | `.eq("company_id", scopedCompanyId)` |
+| `leg_exceptions` | **No column** | Scope through its parent: filter on `scheduling_leg_id` in the set of leg ids already loaded from this company's `truck_run_slots` for the selected date. If that set is empty, skip the query and use an empty exception map. |
 
-## Guard 2 — Webhook can never strip founding
+Verified against the live database: `leg_exceptions` has only `id, scheduling_leg_id, run_date, pickup_time, pickup_location, destination_location, notes, created_at` — no company column — so it is the only one that must go through a parent.
 
-**`supabase/functions/stripe-webhook/index.ts`**
+Because `leg_exceptions` now depends on the slot ids, the fetch is split into two steps: the scoped batch first, then the exceptions lookup keyed off the returned legs. Everything downstream (exception map, run building) is unchanged.
 
-Both `checkout.session.completed` (lines 69-128) and `customer.subscription.updated` (lines 130-160) get read-before-write protection:
+Realtime: all nine subscriptions on this page already carry `filter: companyFilter`. No change needed.
 
-1. **Read first.** Before updating, select the existing row: `select is_founding, plan_id from subscription_records` keyed by `company_id` (fall back to `stripe_subscription_id` for the updated event when metadata lacks company_id — same as today).
-2. **Never strip founding.** If the existing row has `is_founding = true`:
-   - Do not write `is_founding` at all (leave it true) — regardless of what the event metadata says.
-   - Do not write `plan_id` — it stays `'founding'`.
-   - Log `console.warn` noting stale non-founding metadata was ignored for a founding company.
-3. **If the existing row is not founding**, behavior is unchanged (metadata drives `is_founding` / `plan_id` as today).
-4. All other fields in both updates (status, stripe IDs, period end, trial-clearing fields, cancel flags) are written exactly as today.
+## Item B — Trips & Clinical slot sync (read then write)
 
-Founding therefore becomes one-way in this function: only manage-company's grant/revoke can ever change `is_founding`.
+`syncSlotsToTrips` currently reads `truck_run_slots` and `trip_records` by date only, then inserts derived trip rows using `company_id` copied from the slot. Fix:
 
-**Minimal addition — write `monthly_amount_cents`:**
-- Computed from the actual Stripe subscription price (already retrieved on checkout.session.completed; available on `sub.items.data[0].price` for subscription.updated), as a monthly-equivalent: `unit_amount / interval months` (month=1, year=12). This writes 79900 for the founding price and keeps yearly plans accurate (e.g. Starter yearly 799000/12).
-- For a founding row, this yields 79900 because the founding checkout already uses the founding price — no special-casing needed beyond a comment.
-- Fallback if the price can't be read: founding row → 79900; otherwise leave the field untouched (never zero it out).
-- This is the only billing-adjacent write; no subscription creation/cancellation/proration logic is touched.
+1. Resolve the active company once at the top (`getActiveCompanyId()` with the `NO_COMPANY` fallback, matching the pattern already used elsewhere in this file).
+2. Scope the slot read with `.eq("company_id", activeCompanyId)`.
+3. Scope the existing-trip read the same way, so dedup compares against this company's trips only.
+4. Scope the crew lookup the same way.
+5. Defensively skip any slot whose `company_id` is not the active company, and set the new trip's `company_id` to the active company id rather than copying it from the slot.
+6. Backfill updates (`slot_id`/`crew_id` on existing trips) also get `.eq("company_id", activeCompanyId)` so a write can never land on another company's trip row.
+7. Bail out early when the active company resolves to the sentinel — no rows read, none written.
 
-`customer.subscription.deleted` and `invoice.payment_failed` handlers: unchanged (neither writes `is_founding` or `plan_id`).
+Also noted while reading: the Trips & Clinical realtime channel subscribes to `trip_records` and `truck_run_slots` without a company filter. It only triggers refetches that are themselves scoped, so no foreign data is shown; adding the same `company_id=eq.` filter used on the Dispatch Board is a one-line change per subscription and will be included.
 
-## Scope — NOT in
+## Guarantees
 
-No `stripe.subscriptions.update`, no customer reuse, no cancel-old-subscription logic, no proration, no billing portal. No changes to pricing math, 837/claims, denial recovery, trial timers, RLS/tenant isolation, or manage-company's grant/revoke path.
+- No same-company data is hidden: every filter matches the company the user is already working in, which is what their access rules allow anyway.
+- No access-rule (RLS) change, no creator cross-tenant policy change, no billing math, no claims generation, no files outside `src/pages/DispatchBoard.tsx` and `src/pages/TripsAndClinical.tsx`.
 
-## Technical notes
+## After building
 
-- Files: `src/pages/ChoosePlan.tsx`, `supabase/functions/stripe-webhook/index.ts` only.
-- Founding amount constant: 79900 cents ($799/mo), matching manage-company/index.ts:851.
-- `subscription_records.monthly_amount_cents` feeds CreatorCompanyDetail MRR (line 151) and SaaSMetricsTab — writing real values removes the stale-$599 fallback there.
-
-## Verification
-
-- Typecheck (`npx tsgo --noEmit -p tsconfig.app.json`), full test run (`bunx vitest run`), build.
-- New webhook unit test (pure logic extracted or via handler simulation): founding row + non-founding checkout metadata → `is_founding` stays true, `plan_id` stays `founding`, `monthly_amount_cents` = 79900; non-founding row → unchanged behavior.
-- Deploy the webhook edge function after build passes.
+Type check, full test run, and a Dispatch Board + Trips page load to confirm the same runs, crews and alerts still appear.
