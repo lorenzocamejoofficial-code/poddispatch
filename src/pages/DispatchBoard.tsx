@@ -145,7 +145,6 @@ export default function DispatchBoard() {
       { data: crewCapRows },
       { data: overrideRows },
       { data: holdTimerRows },
-      { data: exceptionRows },
       { data: opAlertRows },
     ] = await Promise.all([
       supabase.from("trucks").select("*").eq("company_id", scopedCompanyId).eq("active", true).order("name"),
