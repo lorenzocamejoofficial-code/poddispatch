@@ -102,4 +102,8 @@ verify_jwt = false
 [functions.check-signup-availability]
 verify_jwt = false
 
+[functions.sweep-trial-expiry]
+verify_jwt = false
+
+
 

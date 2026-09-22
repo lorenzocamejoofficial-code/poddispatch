@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, createContext, useContext, ReactNode, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { isTrialExpired } from "@/lib/trial-window";
+
 
 // HIPAA: Session automatically expires after this many milliseconds of inactivity.
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
@@ -231,18 +233,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         effectiveStatus = "trial_active";
       }
 
-      // Compute expiry from trial_started_at + 30 days (new model), with
-      // backward-compat fallback to trial_ends_at for legacy rows.
-      const startedAt = sub.trial_started_at ? new Date(sub.trial_started_at).getTime() : null;
-      const legacyEnd = sub.trial_ends_at ? new Date(sub.trial_ends_at).getTime() : null;
-      const effectiveEnd =
-        startedAt != null ? startedAt + 30 * 24 * 60 * 60 * 1000 : legacyEnd;
+      // Expiry comes from the ONE shared helper (src/lib/trial-window.ts) that
+      // every display surface uses, so the login gate, the owner countdown and
+      // the persisted status written by sweep-trial-expiry can never disagree.
       if (
         (effectiveStatus === "trial" || effectiveStatus === "trial_active" || effectiveStatus === "TEST_ACTIVE") &&
-        effectiveEnd != null && effectiveEnd <= Date.now()
+        isTrialExpired(sub) === true
       ) {
         effectiveStatus = "trial_expired";
       }
+
       setSubscriptionStatus(effectiveStatus);
       setWizardCompleted(migData ? (migData as any).wizard_completed : null);
     } else {

@@ -6,12 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+
 import {
   ArrowLeft, Building2, Mail, Calendar, Users, CreditCard,
   LifeBuoy, ShieldCheck, AlertTriangle, Activity, ExternalLink,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
+import { trialDaysLeft, resolveTrialEnd } from "@/lib/trial-window";
 import { toast } from "sonner";
+
 
 interface Company {
   id: string; name: string; onboarding_status: string;
@@ -27,9 +31,12 @@ interface Company {
 interface Subscription {
   plan_id: string; subscription_status: string;
   monthly_amount_cents: number; trial_ends_at: string | null;
+  trial_started_at: string | null; trial_expired_at: string | null;
+  is_comped: boolean | null; comped_reason: string | null;
   current_period_end: string | null; last_payment_at: string | null;
   last_payment_status: string | null; is_founding: boolean;
 }
+
 
 interface Ticket {
   id: string; ticket_number: string | null; subject: string | null;
@@ -59,6 +66,51 @@ export default function CreatorCompanyDetail() {
   const [counts, setCounts] = useState({ trips: 0, claims: 0, employees: 0 });
   const [foundingSlots, setFoundingSlots] = useState<number | null>(null);
   const [granting, setGranting] = useState(false);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  const [extendDays, setExtendDays] = useState("14");
+  const [lifecycleReason, setLifecycleReason] = useState("");
+
+  const refreshSubscription = async () => {
+    if (!companyId) return;
+    const { data } = await supabase
+      .from("subscription_records").select("*").eq("company_id", companyId).maybeSingle();
+    setSubscription((data as any) ?? null);
+  };
+
+  // Creator lifecycle levers. Both require a reason and are audit-logged
+  // server-side; neither can change founding status, price or truck caps.
+  const runLifecycle = async (action: "extend_trial" | "comp_activate" | "revert_comp") => {
+    if (!companyId) return;
+    if (!lifecycleReason.trim()) {
+      toast.error("Enter a reason first — these actions are audit-logged.");
+      return;
+    }
+    if (action === "comp_activate" &&
+      !window.confirm("Activate this company with no Stripe subscription and no charge?")) return;
+    setLifecycleBusy(true);
+    const { data, error } = await supabase.functions.invoke("manage-company", {
+      body: {
+        companyId,
+        action,
+        reason: lifecycleReason.trim(),
+        ...(action === "extend_trial" ? { days: Number(extendDays) } : {}),
+      },
+    });
+    setLifecycleBusy(false);
+    const payload = data as any;
+    if (error || !payload?.success) {
+      toast.error(payload?.error ?? error?.message ?? "Action failed — nothing changed.");
+      return;
+    }
+    toast.success(
+      action === "extend_trial" ? `Trial extended by ${extendDays} days.`
+        : action === "comp_activate" ? "Company activated — comped, no Stripe subscription created."
+        : "Comp reverted.",
+    );
+    setLifecycleReason("");
+    await refreshSubscription();
+  };
+
 
   useEffect(() => {
     if (!companyId) return;
@@ -149,9 +201,10 @@ export default function CreatorCompanyDetail() {
   }
 
   const mrr = subscription ? (subscription.monthly_amount_cents / 100).toFixed(2) : "0.00";
-  const trialDaysLeft = subscription?.trial_ends_at
-    ? Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-    : null;
+  // Same shared clock as the owner banner and the creator countdown panel.
+  const daysLeft = trialDaysLeft(subscription as any);
+  const trialEnd = resolveTrialEnd(subscription as any);
+
   const openTickets = tickets.filter(t => t.status !== "resolved" && t.status !== "closed").length;
   // Pre-approval statuses have no real billing relationship yet, even if a
   // trial subscription_records row was seeded at signup. Treat those as "no
@@ -226,10 +279,11 @@ export default function CreatorCompanyDetail() {
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide"><Calendar className="h-3 w-3" /> Trial</div>
                   <p className="text-2xl font-bold mt-1">
-                    {trialDaysLeft === null ? "—" : trialDaysLeft <= 0 ? "Ended" : `${trialDaysLeft}d`}
+                    {daysLeft === null ? "—" : daysLeft <= 0 ? "Ended" : `${daysLeft}d`}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {subscription?.trial_ends_at ? format(new Date(subscription.trial_ends_at), "MMM d") : "No trial"}
+                    {trialEnd ? format(trialEnd, "MMM d") : "No trial"}
+
                   </p>
                 </CardContent>
               </Card>
@@ -272,7 +326,11 @@ export default function CreatorCompanyDetail() {
                   <Row label="Plan" value={subscription.plan_id} />
                   <Row label="Status" value={<Badge variant={statusVariant(subscription.subscription_status)}>{subscription.subscription_status}</Badge>} />
                   <Row label="Monthly" value={`$${mrr}`} />
-                  <Row label="Trial ends" value={subscription.trial_ends_at ? format(new Date(subscription.trial_ends_at), "PPP") : "—"} />
+                  <Row label="Trial ends" value={trialEnd ? format(trialEnd, "PPP") : "—"} />
+                  {subscription.is_comped && (
+                    <Row label="Billing" value={<Badge variant="outline">Comped (no Stripe)</Badge>} />
+                  )}
+
                   <Row label="Period ends" value={subscription.current_period_end ? format(new Date(subscription.current_period_end), "PPP") : "—"} />
                   <Row label="Last payment" value={subscription.last_payment_at ? `${format(new Date(subscription.last_payment_at), "PPP")} (${subscription.last_payment_status})` : "Never"} />
                   <div className="flex flex-wrap items-center gap-3 pt-2 border-t mt-2">
@@ -301,7 +359,59 @@ export default function CreatorCompanyDetail() {
                       </>
                     )}
                   </div>
+
+                  {/* Lifecycle levers — creator only, reason required, audit-logged.
+                      Neither action touches founding status, price or truck caps. */}
+                  <div className="pt-3 border-t mt-2 space-y-2">
+                    <p className="text-xs font-medium text-foreground uppercase tracking-wide">Lifecycle</p>
+                    <Input
+                      value={lifecycleReason}
+                      onChange={(e) => setLifecycleReason(e.target.value)}
+                      placeholder="Reason (required — recorded in the audit log)"
+                      className="h-8 text-xs"
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={extendDays}
+                        onChange={(e) => setExtendDays(e.target.value)}
+                        className="h-8 w-20 text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={lifecycleBusy}
+                        onClick={() => runLifecycle("extend_trial")}
+                      >
+                        Extend trial
+                      </Button>
+                      {subscription.is_comped ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={lifecycleBusy}
+                          onClick={() => runLifecycle("revert_comp")}
+                        >
+                          Revert comp
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          disabled={lifecycleBusy}
+                          onClick={() => runLifecycle("comp_activate")}
+                        >
+                          Activate (comp — no Stripe)
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Comping turns the company on without creating any Stripe customer, subscription or charge.
+                    </p>
+                  </div>
                 </>
+
               ) : (
                 <div className="rounded-md border border-dashed bg-muted/30 p-4">
                   <p className="font-medium text-foreground">No billing yet — pending approval</p>

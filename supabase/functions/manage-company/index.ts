@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     } = await supabaseAdmin.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) return json({ error: "Unauthorized" }, 401);
 
-    const { companyId, action, reason, patch, verification, manualNotes, skip_trial } = await req.json();
+    const { companyId, action, reason, patch, verification, manualNotes, skip_trial, days } = await req.json();
     if (!companyId || !action) return json({ error: "companyId and action required" }, 400);
 
     // ── RESUBMIT (rejected owner only — does NOT require system_creator) ──
@@ -291,21 +291,27 @@ Deno.serve(async (req) => {
             subscription_status: "approved_pending_payment",
             trial_skipped: true,
             trial_started_at: null,
+            trial_ends_at: null,
+            trial_expired_at: null,
             approval_grace_deadline: null,
           })
           .eq("company_id", companyId);
       } else {
         // Trial begins on first login (or via sweep after grace deadline).
+        // trial_ends_at is written at that moment, never guessed later.
         await supabaseAdmin
           .from("subscription_records")
           .update({
             subscription_status: "trial_pending_start",
             trial_skipped: false,
             trial_started_at: null,
+            trial_ends_at: null,
+            trial_expired_at: null,
             approval_grace_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           })
           .eq("company_id", companyId);
       }
+
 
       await supabaseAdmin.from("onboarding_events").insert({
         company_id: companyId,
@@ -870,7 +876,188 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── EXTEND / RESET TRIAL (creator only) ──────────────────
+    // Pushes the stored trial end date out and puts the company back on an
+    // active trial. Never touches founding status, price or truck caps.
+    if (action === "extend_trial") {
+      const addDays = Number(days);
+      if (!Number.isFinite(addDays) || addDays < 1 || addDays > 365) {
+        return json({ error: "days must be a number between 1 and 365", code: "INVALID_DAYS" }, 400);
+      }
+      if (!reason || typeof reason !== "string" || !reason.trim()) {
+        return json({ error: "A reason is required to extend a trial.", code: "REASON_REQUIRED" }, 400);
+      }
+
+      const { data: sub, error: sErr } = await supabaseAdmin
+        .from("subscription_records")
+        .select("id, subscription_status, trial_started_at, trial_ends_at")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (sErr) return json({ error: sErr.message }, 500);
+      if (!sub) return json({ error: "This company has no subscription record yet.", code: "NO_SUBSCRIPTION_RECORD" }, 400);
+
+      const s = sub as any;
+      const nowMs = Date.now();
+      // Extend from the current end date when it's still in the future,
+      // otherwise from now (a re-start after expiry).
+      const currentEnd = s.trial_ends_at
+        ? new Date(s.trial_ends_at).getTime()
+        : s.trial_started_at
+          ? new Date(s.trial_started_at).getTime() + 30 * 24 * 60 * 60 * 1000
+          : nowMs;
+      const base = currentEnd > nowMs ? currentEnd : nowMs;
+      const newEnd = new Date(base + addDays * 24 * 60 * 60 * 1000).toISOString();
+      const nowIso = new Date().toISOString();
+
+      const { error: upErr } = await supabaseAdmin
+        .from("subscription_records")
+        .update({
+          trial_ends_at: newEnd,
+          trial_expired_at: null,
+          trial_started_at: s.trial_started_at ?? nowIso,
+          trial_skipped: false,
+          // Status only — pricing, plan_id and is_founding are untouched.
+          subscription_status: "trial_active",
+          updated_at: nowIso,
+        })
+        .eq("id", s.id);
+      if (upErr) return json({ error: upErr.message }, 500);
+
+      // subscription_status_history is written by the DB trigger on status change.
+      await supabaseAdmin.from("admin_actions").insert({
+        actor_user_id: user.id,
+        actor_email: user.email,
+        action: "extend_trial",
+        company_id: companyId,
+        reason: reason.trim(),
+        before_snapshot: { subscription_status: s.subscription_status, trial_ends_at: s.trial_ends_at },
+      });
+      await supabaseAdmin.from("onboarding_events").insert({
+        company_id: companyId,
+        event_type: "trial_extended",
+        actor_user_id: user.id,
+        actor_email: user.email,
+        details: { days: addDays, new_trial_ends_at: newEnd, reason: reason.trim() },
+      });
+
+      return json({ success: true, trial_ends_at: newEnd, days: addDays });
+    }
+
+    // ── COMP / ACTIVATE WITHOUT STRIPE (creator only) ────────
+    // Turns a company on without any Stripe object or charge. No customer,
+    // no subscription, no fake ids — it is flagged is_comped so revenue
+    // surfaces can label it "Comped (no Stripe)".
+    if (action === "comp_activate") {
+      if (!reason || typeof reason !== "string" || !reason.trim()) {
+        return json({ error: "A reason is required to comp a company.", code: "REASON_REQUIRED" }, 400);
+      }
+      const { data: sub, error: sErr } = await supabaseAdmin
+        .from("subscription_records")
+        .select("id, subscription_status, is_comped, is_founding, plan_id, monthly_amount_cents")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (sErr) return json({ error: sErr.message }, 500);
+      if (!sub) return json({ error: "This company has no subscription record yet.", code: "NO_SUBSCRIPTION_RECORD" }, 400);
+      const s = sub as any;
+
+      const nowIso = new Date().toISOString();
+      const { error: upErr } = await supabaseAdmin
+        .from("subscription_records")
+        .update({
+          subscription_status: "active",
+          is_comped: true,
+          comped_at: nowIso,
+          comped_by: user.id,
+          comped_reason: reason.trim(),
+          trial_expired_at: null,
+          updated_at: nowIso,
+          // Deliberately NOT written: is_founding, plan_id, monthly_amount_cents,
+          // stripe_customer_id, stripe_subscription_id, provider_* ids.
+        })
+        .eq("id", s.id);
+      if (upErr) return json({ error: upErr.message }, 500);
+
+      // Unblock the app for the owner regardless of onboarding gate state.
+      await supabaseAdmin
+        .from("companies")
+        .update({ onboarding_status: "active" })
+        .eq("id", companyId);
+
+      await supabaseAdmin.from("admin_actions").insert({
+        actor_user_id: user.id,
+        actor_email: user.email,
+        action: "comp_activate",
+        company_id: companyId,
+        reason: reason.trim(),
+        before_snapshot: { subscription_status: s.subscription_status, is_comped: s.is_comped },
+      });
+      await supabaseAdmin.from("onboarding_events").insert({
+        company_id: companyId,
+        event_type: "company_comped",
+        actor_user_id: user.id,
+        actor_email: user.email,
+        details: { reason: reason.trim(), stripe: "none" },
+      });
+
+      return json({ success: true, status: "active", comped: true });
+    }
+
+    // ── REVERT A COMP (creator only) ─────────────────────────
+    if (action === "revert_comp") {
+      if (!reason || typeof reason !== "string" || !reason.trim()) {
+        return json({ error: "A reason is required to revert a comp.", code: "REASON_REQUIRED" }, 400);
+      }
+      const { data: sub, error: sErr } = await supabaseAdmin
+        .from("subscription_records")
+        .select("id, subscription_status, is_comped, stripe_subscription_id, trial_ends_at, trial_started_at")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (sErr) return json({ error: sErr.message }, 500);
+      if (!sub) return json({ error: "This company has no subscription record yet.", code: "NO_SUBSCRIPTION_RECORD" }, 400);
+      const s = sub as any;
+      if (!s.is_comped) {
+        return json({ error: "This company is not comped.", code: "NOT_COMPED" }, 400);
+      }
+      if (s.stripe_subscription_id) {
+        return json({ error: "This company now has a real Stripe subscription — reverting the comp is not needed.", code: "HAS_STRIPE" }, 400);
+      }
+
+      const nowIso = new Date().toISOString();
+      const endMs = s.trial_ends_at
+        ? new Date(s.trial_ends_at).getTime()
+        : s.trial_started_at
+          ? new Date(s.trial_started_at).getTime() + 30 * 24 * 60 * 60 * 1000
+          : null;
+      const backTo = endMs != null && endMs <= Date.now() ? "trial_expired" : "trial_active";
+
+      const { error: upErr } = await supabaseAdmin
+        .from("subscription_records")
+        .update({
+          subscription_status: backTo,
+          is_comped: false,
+          comped_at: null,
+          comped_by: null,
+          comped_reason: null,
+          trial_expired_at: backTo === "trial_expired" ? nowIso : null,
+          updated_at: nowIso,
+        })
+        .eq("id", s.id);
+      if (upErr) return json({ error: upErr.message }, 500);
+
+      await supabaseAdmin.from("admin_actions").insert({
+        actor_user_id: user.id,
+        actor_email: user.email,
+        action: "revert_comp",
+        company_id: companyId,
+        reason: reason.trim(),
+        before_snapshot: { subscription_status: s.subscription_status },
+      });
+
+      return json({ success: true, status: backTo });
+    }
+
     return json({ error: "Invalid action" }, 400);
+
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal server error";
     console.error("manage-company error:", err);

@@ -74,14 +74,19 @@ serve(async (req) => {
     }
 
     const now = new Date().toISOString();
+    // Store the real end date at start time so no surface has to guess it.
+    const endsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     await supabaseAdmin
       .from("subscription_records")
       .update({
         trial_started_at: now,
+        trial_ends_at: endsAt,
+        trial_expired_at: null,
         subscription_status: "trial_active",
         updated_at: now,
       })
       .eq("id", sub.id);
+
 
     await supabaseAdmin.from("onboarding_events").insert({
       company_id, event_type: "trial_started",

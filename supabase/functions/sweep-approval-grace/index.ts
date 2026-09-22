@@ -52,10 +52,13 @@ serve(async (req) => {
   let started = 0;
   for (const r of rows ?? []) {
     const startAt = (r as any).approval_grace_deadline as string;
+    const endsAt = new Date(new Date(startAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
     await supabaseAdmin
       .from("subscription_records")
       .update({
         trial_started_at: startAt,
+        trial_ends_at: endsAt,
+        trial_expired_at: null,
         subscription_status: "trial_active",
         updated_at: nowIso,
       })
@@ -63,10 +66,11 @@ serve(async (req) => {
     await supabaseAdmin.from("onboarding_events").insert({
       company_id: (r as any).company_id,
       event_type: "trial_started",
-      details: { trigger: "grace_deadline_sweep", grace_deadline: startAt },
+      details: { trigger: "grace_deadline_sweep", grace_deadline: startAt, trial_ends_at: endsAt },
     });
     started++;
   }
+
 
   return new Response(JSON.stringify({ swept: started }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
