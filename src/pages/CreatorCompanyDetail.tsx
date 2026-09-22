@@ -64,6 +64,51 @@ export default function CreatorCompanyDetail() {
   const [counts, setCounts] = useState({ trips: 0, claims: 0, employees: 0 });
   const [foundingSlots, setFoundingSlots] = useState<number | null>(null);
   const [granting, setGranting] = useState(false);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  const [extendDays, setExtendDays] = useState("14");
+  const [lifecycleReason, setLifecycleReason] = useState("");
+
+  const refreshSubscription = async () => {
+    if (!companyId) return;
+    const { data } = await supabase
+      .from("subscription_records").select("*").eq("company_id", companyId).maybeSingle();
+    setSubscription((data as any) ?? null);
+  };
+
+  // Creator lifecycle levers. Both require a reason and are audit-logged
+  // server-side; neither can change founding status, price or truck caps.
+  const runLifecycle = async (action: "extend_trial" | "comp_activate" | "revert_comp") => {
+    if (!companyId) return;
+    if (!lifecycleReason.trim()) {
+      toast.error("Enter a reason first — these actions are audit-logged.");
+      return;
+    }
+    if (action === "comp_activate" &&
+      !window.confirm("Activate this company with no Stripe subscription and no charge?")) return;
+    setLifecycleBusy(true);
+    const { data, error } = await supabase.functions.invoke("manage-company", {
+      body: {
+        companyId,
+        action,
+        reason: lifecycleReason.trim(),
+        ...(action === "extend_trial" ? { days: Number(extendDays) } : {}),
+      },
+    });
+    setLifecycleBusy(false);
+    const payload = data as any;
+    if (error || !payload?.success) {
+      toast.error(payload?.error ?? error?.message ?? "Action failed — nothing changed.");
+      return;
+    }
+    toast.success(
+      action === "extend_trial" ? `Trial extended by ${extendDays} days.`
+        : action === "comp_activate" ? "Company activated — comped, no Stripe subscription created."
+        : "Comp reverted.",
+    );
+    setLifecycleReason("");
+    await refreshSubscription();
+  };
+
 
   useEffect(() => {
     if (!companyId) return;
