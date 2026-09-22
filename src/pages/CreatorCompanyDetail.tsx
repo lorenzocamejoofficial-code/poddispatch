@@ -11,7 +11,9 @@ import {
   LifeBuoy, ShieldCheck, AlertTriangle, Activity, ExternalLink,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
+import { trialDaysLeft, resolveTrialEnd } from "@/lib/trial-window";
 import { toast } from "sonner";
+
 
 interface Company {
   id: string; name: string; onboarding_status: string;
@@ -27,9 +29,12 @@ interface Company {
 interface Subscription {
   plan_id: string; subscription_status: string;
   monthly_amount_cents: number; trial_ends_at: string | null;
+  trial_started_at: string | null; trial_expired_at: string | null;
+  is_comped: boolean | null; comped_reason: string | null;
   current_period_end: string | null; last_payment_at: string | null;
   last_payment_status: string | null; is_founding: boolean;
 }
+
 
 interface Ticket {
   id: string; ticket_number: string | null; subject: string | null;
@@ -149,9 +154,10 @@ export default function CreatorCompanyDetail() {
   }
 
   const mrr = subscription ? (subscription.monthly_amount_cents / 100).toFixed(2) : "0.00";
-  const trialDaysLeft = subscription?.trial_ends_at
-    ? Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-    : null;
+  // Same shared clock as the owner banner and the creator countdown panel.
+  const daysLeft = trialDaysLeft(subscription as any);
+  const trialEnd = resolveTrialEnd(subscription as any);
+
   const openTickets = tickets.filter(t => t.status !== "resolved" && t.status !== "closed").length;
   // Pre-approval statuses have no real billing relationship yet, even if a
   // trial subscription_records row was seeded at signup. Treat those as "no

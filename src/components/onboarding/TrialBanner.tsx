@@ -19,15 +19,17 @@ export function TrialBanner() {
       .then(({ data }) => {
         if (!data) return;
         setStatus(data.subscription_status);
-        // Shared trial window helper — same clock the creator panels use.
-        const left = trialDaysLeft(data as any);
-        if (left !== null) setDaysLeft(Math.max(0, left));
+        // Shared trial window helper — same clock the creator panels and the
+        // login gate use. No clamping: past the end date this reads negative
+        // and the banner shows a real expired state.
+        setDaysLeft(trialDaysLeft(data as any));
       });
   }, [activeCompanyId, isOwnerOrCreator]);
 
   if (!isOwnerOrCreator || !status) return null;
   if (!TRIAL_STATUSES.has(status) || daysLeft === null) return null;
 
+  const expired = daysLeft <= 0;
   const urgent = daysLeft <= 7;
 
   return (
@@ -35,10 +37,14 @@ export function TrialBanner() {
       urgent ? "border-destructive/30 bg-destructive/5" : "border-primary/20 bg-primary/5"
     }`}>
       <p className={`text-sm ${urgent ? "text-destructive" : "text-foreground"}`}>
-        <span className="font-medium">Trial Period:</span> {daysLeft} day{daysLeft !== 1 ? "s" : ""} remaining
+        {expired ? (
+          <><span className="font-medium">Trial ended.</span> Choose a plan to keep full access.</>
+        ) : (
+          <><span className="font-medium">Trial Period:</span> {daysLeft} day{daysLeft !== 1 ? "s" : ""} remaining</>
+        )}
       </p>
       <Badge variant={urgent ? "destructive" : "outline"} className="text-xs">
-        {urgent ? "Expiring Soon" : "Active Trial"}
+        {expired ? "Trial Ended" : urgent ? "Expiring Soon" : "Active Trial"}
       </Badge>
     </div>
   );
