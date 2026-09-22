@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     } = await supabaseAdmin.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) return json({ error: "Unauthorized" }, 401);
 
-    const { companyId, action, reason, patch, verification, manualNotes, skip_trial } = await req.json();
+    const { companyId, action, reason, patch, verification, manualNotes, skip_trial, days } = await req.json();
     if (!companyId || !action) return json({ error: "companyId and action required" }, 400);
 
     // ── RESUBMIT (rejected owner only — does NOT require system_creator) ──
