@@ -254,15 +254,21 @@ export default function TripsAndClinical() {
   }, [refreshToken, fetchTrips]);
 
   useEffect(() => {
-    const ch = supabase
-      .channel("trips-clinical-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "trip_records" }, fetchTrips)
-      .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots" }, () => {
-        syncSlotsToTrips(dateFilter);
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const companyId = await getActiveCompanyId();
+      const companyFilter = companyId ? `company_id=eq.${companyId}` : undefined;
+      ch = supabase
+        .channel("trips-clinical-rt")
+        .on("postgres_changes", { event: "*", schema: "public", table: "trip_records", filter: companyFilter }, fetchTrips)
+        .on("postgres_changes", { event: "*", schema: "public", table: "truck_run_slots", filter: companyFilter }, () => {
+          syncSlotsToTrips(dateFilter);
+        })
+        .subscribe();
+    })();
+    return () => { if (ch) supabase.removeChannel(ch); };
   }, [fetchTrips, dateFilter]);
+
 
   const syncSlotsToTrips = async (runDate: string) => {
     // Scope every read and write to the company the user is working in.
