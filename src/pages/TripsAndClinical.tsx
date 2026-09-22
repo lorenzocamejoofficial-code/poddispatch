@@ -265,15 +265,24 @@ export default function TripsAndClinical() {
   }, [fetchTrips, dateFilter]);
 
   const syncSlotsToTrips = async (runDate: string) => {
-    const { data: slots } = await supabase
+    // Scope every read and write to the company the user is working in.
+    const activeCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+    if (activeCompanyId === NO_COMPANY) return;
+
+    const { data: slotRows } = await supabase
       .from("truck_run_slots")
       .select("id, leg_id, truck_id, run_date, company_id, leg:scheduling_legs!truck_run_slots_leg_id_fkey(patient_id, pickup_time, pickup_location, destination_location, trip_type, origin_type, destination_type, service_level, is_unscheduled)")
+      .eq("company_id", activeCompanyId)
       .eq("run_date", runDate);
-    if (!slots?.length) return;
+    // Defensive: never derive a trip from a slot outside the active company.
+    const slots = ((slotRows ?? []) as any[]).filter((s: any) => s.company_id === activeCompanyId);
+    if (!slots.length) return;
 
     // Fetch existing trip records — check both slot_id and leg_id for dedup
     const { data: existing } = await supabase
-      .from("trip_records" as any).select("id, slot_id, leg_id").eq("run_date", runDate);
+      .from("trip_records" as any).select("id, slot_id, leg_id")
+      .eq("company_id", activeCompanyId)
+      .eq("run_date", runDate);
     const existingSlotIds = new Set((existing ?? []).map((e: any) => e.slot_id).filter(Boolean));
     const existingByLegId = new Map<string, string>();
     for (const e of (existing ?? []) as any[]) {
@@ -283,8 +292,9 @@ export default function TripsAndClinical() {
     // Look up crew assignments for the trucks on this date
     const truckIds = [...new Set((slots as any[]).map(s => s.truck_id).filter(Boolean))];
     const { data: crewRows } = truckIds.length > 0
-      ? await supabase.from("crews").select("id, truck_id").eq("active_date", runDate).in("truck_id", truckIds)
+      ? await supabase.from("crews").select("id, truck_id").eq("company_id", activeCompanyId).eq("active_date", runDate).in("truck_id", truckIds)
       : { data: [] };
+
     const crewByTruckId = new Map<string, string>();
     for (const c of (crewRows ?? []) as any[]) {
       crewByTruckId.set(c.truck_id, c.id);
