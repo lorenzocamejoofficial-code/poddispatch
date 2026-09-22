@@ -163,17 +163,30 @@ export default function DispatchBoard() {
         .eq("active_date", selectedDate),
       supabase.from("safety_overrides").select("leg_id").eq("company_id", scopedCompanyId).not("leg_id", "is", null),
       supabase.from("hold_timers").select("*").eq("company_id", scopedCompanyId).eq("is_active", true),
-      supabase.from("leg_exceptions" as any).select("*").eq("run_date", selectedDate),
-      supabase.from("operational_alerts").select("*").eq("run_date", selectedDate).eq("status", "open"),
+      supabase.from("operational_alerts").select("*").eq("company_id", scopedCompanyId).eq("run_date", selectedDate).eq("status", "open"),
     ]);
 
     // Issue 8: If aborted, bail out
+    if (controller.signal.aborted) return;
+
+    // leg_exceptions has no company_id column — scope it through its parent
+    // scheduling legs, i.e. only the legs on this company's slots for the date.
+    const scopedLegIds = [...new Set(((slotRows ?? []) as any[]).map((s: any) => s.leg_id).filter(Boolean))];
+    const { data: exceptionRows } = scopedLegIds.length
+      ? await supabase
+          .from("leg_exceptions" as any)
+          .select("*")
+          .eq("run_date", selectedDate)
+          .in("scheduling_leg_id", scopedLegIds)
+      : { data: [] as any[] };
+
     if (controller.signal.aborted) return;
 
     // Build exception map by scheduling_leg_id
     const exceptionMap = new Map<string, any>(
       ((exceptionRows ?? []) as any[]).map((e: any) => [e.scheduling_leg_id, e])
     );
+
 
     const overriddenIds = new Set<string>(
       ((overrideRows ?? []) as any[]).map((r: any) => r.leg_id).filter(Boolean)
