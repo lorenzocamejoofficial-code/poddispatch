@@ -317,6 +317,8 @@ export default function TripsAndClinical() {
           supabase.from("trip_records" as any)
             .update(backfill)
             .eq("id", existingTripId)
+            .eq("company_id", activeCompanyId)
+
             .then()
         );
         continue;
@@ -335,7 +337,7 @@ export default function TripsAndClinical() {
         truck_id: s.truck_id,
         crew_id: crewId,
         run_date: s.run_date,
-        company_id: s.company_id,
+        company_id: activeCompanyId,
         status: "assigned",
         scheduled_pickup_time: s.leg?.pickup_time ?? null,
         pickup_location: s.leg?.pickup_location ?? null,
