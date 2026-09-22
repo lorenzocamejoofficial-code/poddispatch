@@ -232,10 +232,11 @@ export default function CreatorCompanyDetail() {
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide"><Calendar className="h-3 w-3" /> Trial</div>
                   <p className="text-2xl font-bold mt-1">
-                    {trialDaysLeft === null ? "—" : trialDaysLeft <= 0 ? "Ended" : `${trialDaysLeft}d`}
+                    {daysLeft === null ? "—" : daysLeft <= 0 ? "Ended" : `${daysLeft}d`}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {subscription?.trial_ends_at ? format(new Date(subscription.trial_ends_at), "MMM d") : "No trial"}
+                    {trialEnd ? format(trialEnd, "MMM d") : "No trial"}
+
                   </p>
                 </CardContent>
               </Card>
@@ -278,7 +279,11 @@ export default function CreatorCompanyDetail() {
                   <Row label="Plan" value={subscription.plan_id} />
                   <Row label="Status" value={<Badge variant={statusVariant(subscription.subscription_status)}>{subscription.subscription_status}</Badge>} />
                   <Row label="Monthly" value={`$${mrr}`} />
-                  <Row label="Trial ends" value={subscription.trial_ends_at ? format(new Date(subscription.trial_ends_at), "PPP") : "—"} />
+                  <Row label="Trial ends" value={trialEnd ? format(trialEnd, "PPP") : "—"} />
+                  {subscription.is_comped && (
+                    <Row label="Billing" value={<Badge variant="outline">Comped (no Stripe)</Badge>} />
+                  )}
+
                   <Row label="Period ends" value={subscription.current_period_end ? format(new Date(subscription.current_period_end), "PPP") : "—"} />
                   <Row label="Last payment" value={subscription.last_payment_at ? `${format(new Date(subscription.last_payment_at), "PPP")} (${subscription.last_payment_status})` : "Never"} />
                   <div className="flex flex-wrap items-center gap-3 pt-2 border-t mt-2">
