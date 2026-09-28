@@ -1,72 +1,61 @@
-# Company lifecycle fix: one trial clock, real expiry, creator levers, no founding dead end
+# NEMSIS Submission Path Audit (read-only, nothing changed)
 
-Goal: the trial date stored in the database, the countdown the owner sees, and the screen they get at login all agree — and you (the creator) can extend a trial or switch a company on without Stripe. A founding customer can never end up locked out with no way forward.
+## Bottom line
+Getting a test case into the CTA sandbox is a **real build, not a wiring job**. The software can make EMS XML from real trips. It has **no** SOAP envelope, **no** CTA address, **no** place for the pod_dispatch login, **no** way to hold test-case data, and only a thin DEM (agency) file.
 
-## Recommended order (4 passes)
+## 1. The exporter — PARTIAL
+- `src/lib/nemsis/exporter.ts` (778 lines). An edge copy lives at `supabase/functions/_shared/nemsis/exporter.ts` and is synced by `scripts/sync-nemsis-to-edge.sh`.
+- `buildEmsDataSet` (`:758-769`) builds EMSDataSet → Header → DemographicGroup → PatientCareReport, filled from a `trip_records` row. Sections are listed at `:695-716`. Georgia custom fields come from `states/ga.ts`, and those IDs are placeholders such as "GA-LoadedMiles" (`ga.ts:33-36`).
+- `buildDemDataSet` (`:741-752`) is a skeleton. It has only dRecord, dAgency.01-04, dPersonnel and dVehicle (`:638-679`). Other DEM sections that DEM 1 needs (contacts, configuration, locations, facilities and more) are not there. It has never been checked against the DEM schema, and nothing calls it.
+- `scripts/nemsis-validate.ts` checks one made-up EMS record against the XSD using xmllint (`:90-94`). It does not check DEM, and it does not use CTA test-case values.
+- `el()` (`xml-utils.ts:40-43`) adds `xsi:nil NV="7701003"` to every empty element. The schema rejects that on elements that don't allow NV, so it's a likely source of validation errors.
+- **Test cases: DOESN'T EXIST.** The exporter only accepts a real trip and patient. Nothing in the repo mentions DEM 1 or EMS 1-5.
 
-Order is driven by coupling: the stored end date must exist before anything can trust it; the shared clock must exist before the gate and the panels use it; only then is it safe to add levers and remove the dead end.
+## 2. Endpoint and transport — DOESN'T EXIST
+- `supabase/functions/submit-gemsis-pcr/index.ts:35-37`:
+  `GA: { prod: null, test: null }, // populated after GA DPH vendor onboarding`
+- `:176-188`: with no endpoint, the row stays `queued` and only the XML is saved.
+- There is no CTA or nemsis.org submission address anywhere in `src/` or `supabase/`.
+- The only POST code is a plain `fetch(endpoint, {Content-Type: application/xml, body: payloadXml})` (`:195-199`). It sends raw XML, not SOAP, and is never reached.
+- `test_mode` defaults to true (`:55`), but it just picks the same null slot.
 
-### Pass 1 — Make the stored trial date real (database + scheduled job)
+## 3. VSA login — DOESN'T EXIST
+- No secret name, settings field or database column exists for the NEMSIS username or password. A search for VSA or NEMSIS user/pass finds nothing.
+- The POST at `:195-199` sends no login at all.
 
-1. Migration on `subscription_records`: add `trial_expired_at timestamptz`, and a trigger/`updated_at` touch if not already present. No column drops.
-2. Backfill: for every row with `trial_started_at` set and `trial_ends_at` NULL, set `trial_ends_at = trial_started_at + 30 days`. Fixes Test Ambulance's permanently blank date.
-3. Every place that starts a trial now writes both dates together:
-   - `start-trial-timer-if-needed` (first login)
-   - `sweep-approval-grace` (grace deadline force-start)
-   - the approve path in `manage-company`
-4. New scheduled function `sweep-trial-expiry` (hourly): any row with a trial status whose `trial_ends_at` is in the past gets `subscription_status = 'trial_expired'`, `trial_expired_at = now()`, plus a `subscription_status_history` row and an `onboarding_events` entry. Idempotent — it only touches rows not already expired. Founding rows are expired the same way (status only; founding flag, price and truck cap untouched).
-5. Fix the two 401 crons: jobs 4 and 5 currently post with only the public API key, which those functions reject. Reschedule them (via run_sql, since the URL/keys are project-specific) to also send `x-cron-secret: <CRON_SHARED_SECRET>`, and schedule the new expiry sweep the same way. If that secret isn't set yet I'll generate it and bind it.
+## 4. SOAP and login format — DOESN'T EXIST
+- There is no SOAP envelope and no SubmitData request with username, password, organization "PodDispatch", data-schema code or schema version.
+- Nothing builds or reads a SOAP response or fault.
+- The "accepted" check is a guess: a regex on `<Nack|<Error` (`:201`), not the real NEMSIS status codes.
 
-Verify: open the creator console — Test Ambulance shows a real trial end date instead of "No trial", and after the sweep runs its status reads expired rather than `trial_active`.
+## 5. Results and status — PARTIAL, mostly out of scope
+- The `nemsis_submissions` table (migration `20260712162915`) has status, payload_xml, ack_xml, endpoint_url, retry_count and error_message. Signed-in users can read it (`:24-30`).
+- Nothing ever writes a real NEMSIS response, and there is no status check or results page. The retry job is only noted as "to be scheduled" in memory.
+- CTA results and the comparison view live only in the CTA website. Pass/fail tracking is done there, not in the software.
 
-### Pass 2 — One clock everywhere (UI only)
+## 6. The gap: real build
+Missing pieces for DEM 1 end to end:
+1. **Test-case data:** a way to hold the exact DEM 1 values from the CTA packet (hand-built fixtures or an entry screen).
+2. **Full DEM exporter:** every section DEM 1 fills, in the correct order, with the right not-recorded rules. It must validate against `DEMDataSet_v3.xsd` and the NEMSIS rule checks.
+3. **Nil/NV fix:** only emit NV where the schema allows it.
+4. **Login storage:** the NEMSIS username and password stored as server-side secrets that the submit function reads.
+5. **SOAP builder:** a SubmitData envelope with the login, organization "PodDispatch", request type, submit type, data-schema code (DEM vs EMS), schema version 3.5.1 and the XML payload.
+6. **CTA address:** the CTA web-service URL, taken from the CTA test-packet docs (not confirmed in the repo).
+7. **Response handling:** read the SOAP response code, status and message, save it to `nemsis_submissions`, and treat faults as errors.
+8. **A trigger:** a creator-only "Submit test case" action. Today the function runs only after a PCR is finalized, needs a trip ID (`:51-54`) and checks company membership (`:76-82`). That doesn't fit a DEM test case.
+9. **Schema version:** confirm the version CTA 2026 expects. The code points at 3.5.1.251001CP2 (`exporter.ts:766`).
 
-`src/hooks/useAuth.tsx` currently computes expiry inline with the opposite precedence to `src/lib/trial-window.ts`, and `CreatorCompanyDetail` uses neither.
+EMS 1-5 need the same pieces, plus a record matching each case's scenario, which is more than the trip mapping handles today.
 
-- `useAuth` drops its inline math and calls `isTrialExpired()` from `trial-window.ts`. Same helper, same precedence (`trial_ends_at` first, then `trial_started_at + 30`), everywhere.
-- `CreatorCompanyDetail` uses `trialDaysLeft()` / `resolveTrialEnd()` instead of reading the column raw.
-- The login gate keeps computing too, so it stays correct between hourly sweeps — but since both read the same stored end date, computed and persisted can no longer disagree: the sweep only persists what the shared helper already says.
-- `TrialBanner`: stop clamping at 0 and stop saying "Active Trial" past the end — expired shows an expired state with the action to take.
+## 7. How test cases would be driven — DOESN'T EXIST
+No fixtures, table or screen exists for test-case data. The practical approach: store each CTA case as a fixed input file (DEM context plus EMS trip/patient). Run it through the exporter, validate it locally with xmllint, then submit it from a creator-only screen that shows the saved response. Real trips and billing are never touched.
 
-Verify: a company's days-left reads identically on the owner banner, the creator Trial Countdown panel, the company health table, and the company detail page.
+## Suggested next step (only if approved)
+Plan a creator-only "NEMSIS CTA Test Harness" in this order:
+1. Add the NEMSIS username and password as secrets.
+2. Build the SOAP client and the CTA address.
+3. Build the full DEM exporter and the DEM 1 fixture, validated with xmllint.
+4. Submit DEM 1 and save the response.
+5. Then do EMS 1-5.
 
-### Pass 3 — Creator levers (edge function + creator UI)
-
-Two new creator-only actions in `manage-company` (same `requireSystemCreator` gate every other action uses), each writing an `admin_actions`/audit row and a `subscription_status_history` row:
-
-- **Extend trial** — creator picks days; pushes `trial_ends_at` out, clears `trial_expired_at`, restores status to `trial_active`. Reason required.
-- **Activate (comp)** — sets `subscription_status = 'active'` with a `comped` marker and the creator's reason. It does **not** create a Stripe customer, subscription, or charge, and writes no fake Stripe ids. Comped companies are visibly labelled "Comped (no Stripe)" in the creator console and metrics so revenue numbers stay honest.
-- Optional counterpart **Revert comp** back to trial/expired so it isn't one-way.
-
-Founding stays untouched by both: neither action can set or clear founding, change the $799 rate, or alter the truck cap — only the existing grant/revoke does that.
-
-Verify: on Test Ambulance, click Extend trial 14 days → banner and creator panels show 14 days and the owner is no longer redirected. Click Activate (comp) → owner lands in the app normally, creator console shows Comped, and no Stripe object exists.
-
-### Pass 4 — Close the founding dead end (UI)
-
-Today an expired founding company is redirected to `/trial-expired` → "Choose a Plan" → ChoosePlan hides checkout for founding → nowhere to go.
-
-Fix, belt and braces:
-
-1. ChoosePlan stops being a dead end for founding: instead of hiding everything, founding companies see their locked $799 founding rate and a working checkout that can only ever create the founding-priced subscription. The existing server-side override that forces founding pricing stays exactly as is — so this cannot become a way to lose the founding rate.
-2. `/trial-expired` renders a founding-specific state: their locked rate, the founding checkout button, and a direct "contact the team" path.
-3. Pass 3's comp action gives you a manual unlock for any customer, founding or not.
-
-Guarantee: after this, an expired founding company has at least two exits (own checkout at founding price, creator comp) and the screen never shows an action that leads nowhere. I'll verify by putting a founding test company past expiry and walking the path.
-
-## What changes where
-
-| Pass | Database | Edge functions | UI |
-| --- | --- | --- | --- |
-| 1 | new column, backfill, cron rescheduling | start-trial-timer, sweep-approval-grace, manage-company approve, new sweep-trial-expiry | — |
-| 2 | — | — | useAuth, trial-window consumers, TrialBanner, CreatorCompanyDetail |
-| 3 | history rows only | manage-company (2–3 actions) | CreatorCompanyDetail controls |
-| 4 | — | — | ChoosePlan, TrialExpired |
-
-## Not touched
-
-Founding grant/revoke logic and pricing, claims/837, denial recovery, RLS and tenant isolation, Stripe price objects, subscription-update/customer-reuse rework.
-
-## After each pass
-
-Typecheck, full test run (plus new tests for the shared clock and the sweep's idempotency), and the click-throughs listed under each pass.
+Nothing is built until you approve.
