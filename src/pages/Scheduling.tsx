@@ -107,7 +107,7 @@ export default function Scheduling() {
 
   // Dispatcher cancel dialog state
   const [dispatcherCancelData, setDispatcherCancelData] = useState<{
-    legId: string; patientName: string; truckId: string; truckName: string; companyId: string | null; tripId: string | null;
+    legId: string; patientName: string; truckId: string; truckName: string; companyId: string | null; tripId: string | null; linkedLegId?: string | null;
   } | null>(null);
 
   const [generating, setGenerating] = useState(false);
@@ -1353,6 +1353,10 @@ export default function Scheduling() {
                   truckName,
                   companyId,
                   tripId: (tripRow as any)?.id ?? null,
+                  // Pickup-leg cancel cascades to the paired return leg (same reason).
+                  linkedLegId: leg.leg_type === "A"
+                    ? (legs.find(l => l.patient_id === leg.patient_id && l.leg_type === "B" && l.assigned_truck_id && (l as any).slot_status !== "cancelled" && (l as any).slot_status !== "completed")?.id ?? null)
+                    : null,
                 });
               }}
             />
@@ -1949,6 +1953,8 @@ export default function Scheduling() {
           selectedDate={selectedDate}
           companyId={dispatcherCancelData?.companyId ?? null}
           tripId={dispatcherCancelData?.tripId ?? null}
+          source="dispatcher"
+          linkedLegId={dispatcherCancelData?.linkedLegId ?? null}
           onCancelled={() => { setDispatcherCancelData(null); refresh(); }}
         />
 

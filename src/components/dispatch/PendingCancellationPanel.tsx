@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { cancelTrip, describeCancelResult } from "@/lib/cancel-trip";
 
 export interface PendingCancellation {
   tripId: string;
@@ -17,6 +18,7 @@ export interface PendingCancellation {
   legId: string | null;
   slotId: string | null;
   companyId: string | null;
+  runDate?: string | null;
   crewMemberIds: string[]; // profile IDs for notification
 }
 
@@ -37,40 +39,23 @@ export function PendingCancellationPanel({ cancellations, onResolved }: PendingC
     if (!note) return;
     setLoading(`confirm-${c.tripId}`);
     try {
-      // Update trip_records
-      await supabase.from("trip_records").update({
-        status: "cancelled" as any,
-        cancellation_verified_by: profileId,
-        cancellation_verified_at: new Date().toISOString(),
-        cancellation_dispatcher_note: note,
-        cancellation_disputed: false,
-        updated_by: profileId,
-      } as any).eq("id", c.tripId);
-
-      // Update truck_run_slots status
-      if (c.legId) {
-        await supabase.from("truck_run_slots")
-          .update({ status: "cancelled" } as any)
-          .eq("leg_id", c.legId)
-          .eq("truck_id", c.truckId);
-      }
-
-      // Notify crew members
-      for (const crewId of c.crewMemberIds) {
-        // Get user_id from profile
-        const { data: profile } = await supabase.from("profiles").select("user_id").eq("id", crewId).maybeSingle();
-        if (profile?.user_id) {
-          await supabase.from("notifications").insert({
-            user_id: profile.user_id,
-            message: `Your cancellation for ${c.patientName} has been confirmed`,
-            acknowledged: false,
-            notification_type: "cancellation",
-          });
-        }
-      }
+      // Shared guarded cancel: PCR documentation rule, slot, claim handling,
+      // crew + office notifications, alert resolution, audit.
+      const result = await cancelTrip({
+        source: "crew_confirmed",
+        reason: c.cancellationReason || "Crew cancellation",
+        patientName: c.patientName,
+        companyId: c.companyId,
+        runDate: c.runDate ?? "",
+        tripId: c.tripId,
+        legId: c.legId,
+        truckId: c.truckId || null,
+        truckName: c.truckName,
+        verification: { verifiedBy: profileId ?? null, dispatcherNote: note },
+      });
 
       // Insert billing_overrides record
-      await supabase.from("billing_overrides").insert({
+      const { error: boErr } = await supabase.from("billing_overrides").insert({
         trip_id: c.tripId,
         company_id: c.companyId as string,
         override_reason: `Dispatcher confirmed crew cancellation: ${note}`,
@@ -87,13 +72,9 @@ export function PendingCancellationPanel({ cancellations, onResolved }: PendingC
         previous_blockers: [],
       });
 
-      // Dismiss related alert
-      await supabase.from("alerts")
-        .update({ dismissed: true })
-        .eq("run_id", c.tripId)
-        .eq("dismissed", false);
+      if (boErr) throw new Error(`Cancelled, but override log failed: ${boErr.message}`);
 
-      toast.success("Cancellation confirmed");
+      toast.success(describeCancelResult(c.patientName, result));
       onResolved();
     } catch (err: any) {
       toast.error(err.message ?? "Failed to confirm cancellation");

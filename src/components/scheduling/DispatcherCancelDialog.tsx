@@ -6,8 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { logAuditEvent } from "@/lib/audit-logger";
+import { cancelTrip, describeCancelResult, type CancelSource } from "@/lib/cancel-trip";
 import { toast } from "sonner";
 
 const CANCEL_REASONS = [
@@ -29,12 +28,16 @@ interface DispatcherCancelDialogProps {
   selectedDate: string;
   companyId: string | null;
   tripId?: string | null;
+  /** Which screen opened the dialog — recorded as cancellation_source. */
+  source?: CancelSource;
+  /** Paired return leg to auto-cancel with the same reason (pickup-leg cancels). */
+  linkedLegId?: string | null;
   onCancelled: () => void;
 }
 
 export function DispatcherCancelDialog({
   open, onOpenChange, legId, patientName, truckId, truckName,
-  selectedDate, companyId, tripId, onCancelled,
+  selectedDate, companyId, tripId, source = "dispatcher", linkedLegId, onCancelled,
 }: DispatcherCancelDialogProps) {
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
@@ -44,142 +47,22 @@ export function DispatcherCancelDialog({
   const handleSubmit = async () => {
     if (!reason) { toast.error("Select a cancellation reason"); return; }
     setSubmitting(true);
-
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id;
-      const now = new Date().toISOString();
-
-      // Determine pcr_status to set
-      let newPcrStatus = "not_started";
-      let existingTripId = tripId;
-
-      // Check for existing trip record by leg_id if no tripId provided
-      if (!existingTripId && legId) {
-        const { data: existingByLeg } = await supabase
-          .from("trip_records" as any)
-          .select("id, pcr_status")
-          .eq("leg_id", legId)
-          .maybeSingle();
-        if (existingByLeg) {
-          existingTripId = (existingByLeg as any).id;
-        }
-      }
-
-      if (existingTripId) {
-        // Check if PCR was started
-        const { data: trip } = await supabase
-          .from("trip_records" as any)
-          .select("pcr_status")
-          .eq("id", existingTripId)
-          .maybeSingle();
-        const pcrStatus = (trip as any)?.pcr_status;
-        if (pcrStatus === "in_progress" || pcrStatus === "submitted") {
-          newPcrStatus = "cancelled_with_pcr";
-        }
-
-        // Update the trip record
-        await supabase.from("trip_records" as any).update({
-          status: "cancelled",
-          cancellation_reason: `${reason}${notes ? ` — ${notes}` : ""}`,
-          cancelled_by: userId,
-          cancelled_at: now,
-          cancellation_source: "dispatcher",
-          pcr_status: newPcrStatus,
-        } as any).eq("id", existingTripId);
-      } else {
-        // Create a trip record in cancelled state
-        const { data: newTrip } = await supabase.from("trip_records" as any).insert({
-          leg_id: legId,
-          truck_id: truckId,
-          company_id: companyId,
-          run_date: selectedDate,
-          status: "cancelled",
-          cancellation_reason: `${reason}${notes ? ` — ${notes}` : ""}`,
-          cancelled_by: userId,
-          cancelled_at: now,
-          cancellation_source: "dispatcher",
-          pcr_status: "not_started",
-          trip_type: "dialysis",
-        } as any).select("id").single();
-        existingTripId = (newTrip as any)?.id;
-      }
-
-      // Update truck_run_slots status to cancelled
-      await supabase.from("truck_run_slots" as any)
-        .update({ status: "cancelled" } as any)
-        .eq("leg_id", legId)
-        .eq("run_date", selectedDate);
-
-      // Send notifications to crew members on this truck
-      if (companyId) {
-        const { data: crewRow } = await supabase
-          .from("crews")
-          .select("member1_id, member2_id, member3_id")
-          .eq("truck_id", truckId)
-          .eq("active_date", selectedDate)
-          .maybeSingle();
-
-        if (crewRow) {
-          // Get user_ids from profile_ids
-          const profileIds = [crewRow.member1_id, crewRow.member2_id, (crewRow as any).member3_id].filter(Boolean);
-          if (profileIds.length > 0) {
-            const { data: profiles } = await supabase
-              .from("profiles" as any)
-              .select("user_id")
-              .in("id", profileIds);
-            const crewUserIds = (profiles ?? []).map((p: any) => p.user_id).filter(Boolean);
-            if (crewUserIds.length > 0) {
-              await supabase.from("notifications").insert(
-                crewUserIds.map((uid: string) => ({
-                  user_id: uid,
-                  message: `Run cancelled by dispatch, ${patientName}, ${reason}`,
-                  notification_type: "cancellation",
-                }))
-              );
-            }
-          }
-        }
-
-        // Notify other dispatchers and owners
-        const { data: admins } = await supabase
-          .from("company_memberships")
-          .select("user_id")
-          .eq("company_id", companyId)
-          .in("role", ["dispatcher", "owner"] as any);
-        const adminUserIds = (admins ?? [])
-          .map((a: any) => a.user_id)
-          .filter((uid: string) => uid !== userId);
-        if (adminUserIds.length > 0) {
-          await supabase.from("notifications").insert(
-            adminUserIds.map((uid: string) => ({
-              user_id: uid,
-              message: `Run cancelled by dispatch, ${patientName} on ${truckName}, ${reason}${notes ? ` — ${notes}` : ""}`,
-              notification_type: "cancellation",
-            }))
-          );
-        }
-
-        // Insert alert for dispatch board
-        await supabase.from("alerts").insert({
-          message: `Run cancelled by dispatch: ${patientName}, ${reason}`,
-          severity: "yellow",
-          truck_id: truckId,
-          run_id: existingTripId,
-          company_id: companyId,
-          dismissed: false,
-        });
-      }
-
-      // Audit log
-      logAuditEvent({
-        action: "dispatcher_cancellation",
-        tableName: "trip_records",
-        recordId: existingTripId ?? legId,
-        notes: `Dispatcher cancelled run for ${patientName}. Reason: ${reason}${notes ? ` — Notes: ${notes}` : ""}${crewNotified ? ". Crew notified externally" : ""}`,
+      const result = await cancelTrip({
+        source, reason, notes, patientName, companyId, runDate: selectedDate,
+        tripId: tripId ?? null, legId: legId || null, truckId: truckId || null, truckName,
+        crewNotifiedExternally: crewNotified,
       });
-
-      toast.success(`Run cancelled — ${patientName}`);
+      let msg = describeCancelResult(patientName, result);
+      if (linkedLegId) {
+        const linked = await cancelTrip({
+          source, reason, notes: `${notes ? `${notes} — ` : ""}auto-cancelled with linked pickup leg`,
+          patientName, companyId, runDate: selectedDate, legId: linkedLegId, truckName,
+        });
+        msg += " · linked return leg also cancelled";
+        if (linked.documentationRequired) msg += " (return leg needs cancellation form)";
+      }
+      toast.success(msg);
       onOpenChange(false);
       setReason("");
       setNotes("");

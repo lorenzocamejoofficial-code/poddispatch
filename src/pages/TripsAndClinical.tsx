@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
 import { derivePreTripReadiness } from "@/lib/pre-trip-readiness";
+import { DispatcherCancelDialog } from "@/components/scheduling/DispatcherCancelDialog";
 import { TripStatusTimeline } from "@/components/billing/TripStatusTimeline";
 import { LocationTypeSelect } from "@/components/billing/LocationTypeSelect";
 import { ICD10Picker } from "@/components/pcr/ICD10Picker";
@@ -133,6 +134,9 @@ export default function TripsAndClinical() {
   const dateFilter = sharedDate;
   const setDateFilter = setSharedDate;
   const [selectedTrip, setSelectedTrip] = useState<TripRecord | null>(null);
+  const [cancelTrip, setCancelTrip] = useState<{
+    tripId: string; legId: string | null; truckId: string; runDate: string; patientName: string; companyId: string | null;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [facilityMap, setFacilityMap] = useState<Map<string, string>>(new Map());
   const [payerRulesMap, setPayerRulesMap] = useState<Map<string, any>>(new Map());
@@ -468,12 +472,22 @@ export default function TripsAndClinical() {
       toast.error(`Cannot change a ${STATUS_LABELS[trip.status]} trip to ${STATUS_LABELS[status]}`);
       return;
     }
-    // Guard: don't allow reverting billed trips
-    if (trip.status === "ready_for_billing" && status === "cancelled") {
-      // Allow cancellation but warn
-      toast.warning("Cancelling a trip that was ready for billing, any associated claims should be reviewed.");
+    // Cancel always goes through the shared guarded flow (reason, notify,
+    // slot, PCR documentation rule, claim handling) — never a silent flip.
+    if (status === "cancelled") {
+      const cid = await getActiveCompanyId();
+      setCancelTrip({
+        tripId: trip.id,
+        legId: trip.leg_id,
+        truckId: trip.truck_id ?? "",
+        runDate: trip.run_date,
+        patientName: trip.patient_name ?? "Patient",
+        companyId: cid && cid !== NO_COMPANY ? cid : null,
+      });
+      return;
     }
-    await supabase.from("trip_records" as any).update({ status, updated_by: user?.id ?? null }).eq("id", trip.id);
+    const { error: flagErr } = await supabase.from("trip_records" as any).update({ status, updated_by: user?.id ?? null }).eq("id", trip.id);
+    if (flagErr) { toast.error(`Could not update status: ${flagErr.message}`); return; }
     toast.success(`Status → ${STATUS_LABELS[status]}`);
     fetchTrips();
   };
@@ -1007,6 +1021,19 @@ export default function TripsAndClinical() {
           </div>
         </DialogContent>
       </Dialog>
+      <DispatcherCancelDialog
+        open={!!cancelTrip}
+        onOpenChange={(o) => { if (!o) setCancelTrip(null); }}
+        legId={cancelTrip?.legId ?? ""}
+        patientName={cancelTrip?.patientName ?? ""}
+        truckId={cancelTrip?.truckId ?? ""}
+        truckName=""
+        selectedDate={cancelTrip?.runDate ?? ""}
+        companyId={cancelTrip?.companyId ?? null}
+        tripId={cancelTrip?.tripId ?? null}
+        source="trips_clinical"
+        onCancelled={() => { setCancelTrip(null); fetchTrips(); }}
+      />
     </AdminLayout>
   );
 }

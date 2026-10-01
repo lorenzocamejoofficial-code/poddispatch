@@ -480,6 +480,7 @@ export default function DispatchBoard() {
         legId: t.leg_id ?? null,
         slotId: t.slot_id ?? null,
         companyId: t.company_id ?? null,
+        runDate: t.run_date ?? null,
         crewMemberIds,
       };
     });
