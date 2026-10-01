@@ -226,14 +226,15 @@ export async function cancelTrip(p: CancelTripParams): Promise<CancelTripResult>
       if (error) throw new Error(`Trip cancelled but office not notified: ${error.message}`);
     }
     if (p.verification) {
+      // Crew request already raised a board alert — resolve it.
       await supabase.from("alerts").update({ dismissed: true }).eq("run_id", tripId!).eq("dismissed", false);
+    } else {
+      const { error: aErr } = await supabase.from("alerts").insert({
+        message: `Run cancelled: ${p.patientName}, ${p.reason}`,
+        severity: "yellow", truck_id: truckId, run_id: tripId, company_id: companyId, dismissed: false,
+      });
+      if (aErr) throw new Error(`Trip cancelled but board alert failed: ${aErr.message}`);
     }
-    const { error: aErr } = await supabase.from("alerts").insert({
-      message: `Run cancelled: ${p.patientName}, ${p.reason}`,
-      severity: "yellow", truck_id: truckId, run_id: tripId, company_id: companyId,
-      dismissed: p.verification ? true : false,
-    });
-    if (aErr) throw new Error(`Trip cancelled but board alert failed: ${aErr.message}`);
   }
 
   await logAuditEvent({
