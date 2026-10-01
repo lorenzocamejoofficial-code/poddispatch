@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { voidClaimsForCancelledTrip } from "@/lib/cancel-trip";
 import { useSearchParams, Link } from "react-router-dom";
 import { PageLoader } from "@/components/ui/page-loader";
 import { AdminLayout } from "@/components/layout/AdminLayout";
@@ -1218,20 +1219,27 @@ export default function BillingAndClaims() {
       .eq("status", "cancelled");
     if (cancelledTrips?.length) {
       const cancelledIds = (cancelledTrips as any[]).map((t: any) => t.id);
-      const { data: claimsToVoid } = await supabase
+      const { data: openClaims } = await supabase
         .from("claim_records" as any)
-        .select("id")
+        .select("trip_id")
         .in("trip_id", cancelledIds)
-        .not("status", "eq", "voided");
-      if (claimsToVoid?.length) {
-        for (const c of claimsToVoid as any[]) {
-          await supabase.from("claim_records" as any).update({
-            status: "voided",
-            notes: "Trip was cancelled, claim voided automatically",
-          } as any).eq("id", c.id);
+        .neq("status", "voided");
+      // Same shared helper cancelTrip() uses: voids only unsent claims,
+      // flags sent claims to billers.
+      let voidedTotal = 0;
+      let flaggedTotal = 0;
+      const tripIdsWithClaims = Array.from(new Set(((openClaims ?? []) as any[]).map((c: any) => c.trip_id)));
+      for (const tid of tripIdsWithClaims) {
+        try {
+          const r = await voidClaimsForCancelledTrip(tid as string);
+          voidedTotal += r.voided;
+          flaggedTotal += r.flagged;
+        } catch (e: any) {
+          toast.error(e.message ?? "Failed to void claim for cancelled trip");
         }
-        parts.push(`${claimsToVoid.length} claim(s) voided for cancelled trips`);
       }
+      if (voidedTotal) parts.push(`${voidedTotal} claim(s) voided for cancelled trips`);
+      if (flaggedTotal) parts.push(`${flaggedTotal} sent claim(s) on cancelled trips flagged for review`);
     }
 
     if (blockedTrips.length > 0) {
