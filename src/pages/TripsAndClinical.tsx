@@ -134,6 +134,9 @@ export default function TripsAndClinical() {
   const dateFilter = sharedDate;
   const setDateFilter = setSharedDate;
   const [selectedTrip, setSelectedTrip] = useState<TripRecord | null>(null);
+  const [cancelTrip, setCancelTrip] = useState<{
+    tripId: string; legId: string | null; truckId: string; runDate: string; patientName: string; companyId: string | null;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [facilityMap, setFacilityMap] = useState<Map<string, string>>(new Map());
   const [payerRulesMap, setPayerRulesMap] = useState<Map<string, any>>(new Map());
@@ -478,7 +481,7 @@ export default function TripsAndClinical() {
         legId: trip.leg_id,
         truckId: trip.truck_id ?? "",
         runDate: trip.run_date,
-        patientName: (trip as any).patient_name ?? ((trip as any).patients ? `${(trip as any).patients.first_name ?? ""} ${(trip as any).patients.last_name ?? ""}`.trim() : "Patient"),
+        patientName: trip.patient_name ?? "Patient",
         companyId: cid && cid !== NO_COMPANY ? cid : null,
       });
       return;
@@ -1018,6 +1021,19 @@ export default function TripsAndClinical() {
           </div>
         </DialogContent>
       </Dialog>
+      <DispatcherCancelDialog
+        open={!!cancelTrip}
+        onOpenChange={(o) => { if (!o) setCancelTrip(null); }}
+        legId={cancelTrip?.legId ?? ""}
+        patientName={cancelTrip?.patientName ?? ""}
+        truckId={cancelTrip?.truckId ?? ""}
+        truckName=""
+        selectedDate={cancelTrip?.runDate ?? ""}
+        companyId={cancelTrip?.companyId ?? null}
+        tripId={cancelTrip?.tripId ?? null}
+        source="trips_clinical"
+        onCancelled={() => { setCancelTrip(null); fetchTrips(); }}
+      />
     </AdminLayout>
   );
 }
