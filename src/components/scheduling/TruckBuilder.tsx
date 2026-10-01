@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle, Clock, Link2, AlertCircle, XCircle, ShieldX, ShieldAlert, ArrowRight } from "lucide-react";
 import { TruckRiskBadge } from "@/components/dispatch/TruckRiskBadge";
+import { DispatcherCancelDialog } from "@/components/scheduling/DispatcherCancelDialog";
 import { HoldTimerIndicator } from "@/components/dispatch/HoldTimerIndicator";
 import { SafetyClassificationBadge } from "@/components/scheduling/SafetyClassificationBadge";
 import { evaluateSafetyRules, hasCompletePatientNeeds, type PatientNeeds, type CrewCapability, type TruckEquipment } from "@/lib/safety-rules";
@@ -481,6 +482,13 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     onRefresh();
   }, [selectedDate, onRefresh, legs]);
 
+  // Fallback cancel (when no onDispatcherCancel is passed): opens the SAME
+  // guarded DispatcherCancelDialog → cancelTrip(). Never a silent slot flip.
+  const [cancelTarget, setCancelTarget] = useState<{
+    legId: string; patientName: string; truckId: string; truckName: string;
+    companyId: string | null; linkedLegId: string | null;
+  } | null>(null);
+
   const cancelLeg = useCallback(async (legId: string) => {
     const leg = legs.find(l => l.id === legId);
     if (!leg) return;
@@ -488,59 +496,20 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       toast.error("Cannot cancel a completed run");
       return;
     }
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // Set slot status to 'cancelled' instead of deleting
-    await supabase.from("truck_run_slots")
-      .update({ status: "cancelled" } as any)
-      .eq("leg_id", legId)
-      .eq("run_date", selectedDate);
-
-    // Log cancellation to audit
-    await supabase.from("audit_logs").insert({
-      action: "run_cancelled",
-      actor_user_id: user?.id,
-      actor_email: user?.email,
-      table_name: "scheduling_legs",
-      record_id: legId,
-      notes: `Cancelled ${leg.leg_type}-Leg for ${leg.patient_name} on ${selectedDate}`,
-      new_data: { leg_type: leg.leg_type, patient_name: leg.patient_name, run_date: selectedDate },
-    } as any);
-
-    // If A-leg, auto-cancel linked B-leg
-    if (leg.leg_type === "A") {
-      const linkedB = legs.find(l => l.patient_id === leg.patient_id && l.leg_type === "B" && l.assigned_truck_id);
-      if (linkedB) {
-        await supabase.from("truck_run_slots")
-          .update({ status: "cancelled" } as any)
-          .eq("leg_id", linkedB.id)
-          .eq("run_date", selectedDate);
-        await supabase.from("audit_logs").insert({
-          action: "run_cancelled",
-          actor_user_id: user?.id,
-          actor_email: user?.email,
-          table_name: "scheduling_legs",
-          record_id: linkedB.id,
-          notes: `Auto-cancelled B-Leg (linked A-Leg cancelled) for ${linkedB.patient_name} on ${selectedDate}`,
-          new_data: { leg_type: "B", patient_name: linkedB.patient_name, run_date: selectedDate, auto_cancelled: true },
-        } as any);
-        toast.success("A-Leg cancelled, linked B-Leg also cancelled");
-      } else {
-        toast.success("Run cancelled");
-      }
-    } else {
-      toast.success("Run cancelled");
-    }
-    if (onLogChange) {
-      onLogChange({
-        change_type: "run_cancelled",
-        change_summary: `Run cancelled for ${leg.patient_name}`,
-        truck_id: leg.assigned_truck_id ?? null,
-        leg_id: legId,
-      });
-    }
-    onRefresh();
-  }, [legs, selectedDate, onRefresh]);
+    const cid = await getActiveCompanyId();
+    const truckId = leg.assigned_truck_id ?? "";
+    const linkedB = leg.leg_type === "A"
+      ? legs.find(l => l.patient_id === leg.patient_id && l.leg_type === "B" && l.assigned_truck_id && l.slot_status !== "cancelled" && l.slot_status !== "completed")
+      : undefined;
+    setCancelTarget({
+      legId,
+      patientName: leg.patient_name,
+      truckId,
+      truckName: trucks.find(t => t.id === truckId)?.name ?? "Unknown",
+      companyId: cid && cid !== NO_COMPANY ? cid : null,
+      linkedLegId: linkedB?.id ?? null,
+    });
+  }, [legs, trucks]);
 
   const restoreLeg = useCallback(async (legId: string) => {
     const leg = legs.find(l => l.id === legId);
@@ -698,6 +667,31 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
           </div>
         </DialogContent>
       </Dialog>
+
+      <DispatcherCancelDialog
+        open={!!cancelTarget}
+        onOpenChange={(o) => { if (!o) setCancelTarget(null); }}
+        legId={cancelTarget?.legId ?? ""}
+        patientName={cancelTarget?.patientName ?? ""}
+        truckId={cancelTarget?.truckId ?? ""}
+        truckName={cancelTarget?.truckName ?? ""}
+        selectedDate={selectedDate}
+        companyId={cancelTarget?.companyId ?? null}
+        source="truck_builder"
+        linkedLegId={cancelTarget?.linkedLegId ?? null}
+        onCancelled={() => {
+          if (onLogChange && cancelTarget) {
+            onLogChange({
+              change_type: "run_cancelled",
+              change_summary: `Run cancelled for ${cancelTarget.patientName}`,
+              truck_id: cancelTarget.truckId || null,
+              leg_id: cancelTarget.legId,
+            });
+          }
+          setCancelTarget(null);
+          onRefresh();
+        }}
+      />
     </section>
   );
 }
