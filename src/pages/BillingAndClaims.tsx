@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { voidClaimsForCancelledTrip } from "@/lib/cancel-trip";
+import { voidClaimsForCancelledTrip, VOIDABLE_CLAIM_STATUSES } from "@/lib/cancel-trip";
 import { useSearchParams, Link } from "react-router-dom";
 import { PageLoader } from "@/components/ui/page-loader";
 import { AdminLayout } from "@/components/layout/AdminLayout";
@@ -1223,23 +1223,21 @@ export default function BillingAndClaims() {
         .from("claim_records" as any)
         .select("trip_id")
         .in("trip_id", cancelledIds)
-        .neq("status", "voided");
-      // Same shared helper cancelTrip() uses: voids only unsent claims,
-      // flags sent claims to billers.
+        .in("status", VOIDABLE_CLAIM_STATUSES as unknown as string[]);
+      // Same shared helper cancelTrip() uses. The scan only voids unsent
+      // claims; sent claims were already flagged at cancel time, so the
+      // repeating scan does not re-notify billers.
       let voidedTotal = 0;
-      let flaggedTotal = 0;
       const tripIdsWithClaims = Array.from(new Set(((openClaims ?? []) as any[]).map((c: any) => c.trip_id)));
       for (const tid of tripIdsWithClaims) {
         try {
-          const r = await voidClaimsForCancelledTrip(tid as string);
+          const r = await voidClaimsForCancelledTrip(tid as string, { flagSent: false });
           voidedTotal += r.voided;
-          flaggedTotal += r.flagged;
         } catch (e: any) {
           toast.error(e.message ?? "Failed to void claim for cancelled trip");
         }
       }
       if (voidedTotal) parts.push(`${voidedTotal} claim(s) voided for cancelled trips`);
-      if (flaggedTotal) parts.push(`${flaggedTotal} sent claim(s) on cancelled trips flagged for review`);
     }
 
     if (blockedTrips.length > 0) {

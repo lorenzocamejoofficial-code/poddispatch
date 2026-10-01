@@ -53,7 +53,7 @@ export interface ClaimCancelResult { voided: number; flagged: number }
 /** Shared void helper — used by cancelTrip() AND the Billing scan. */
 export async function voidClaimsForCancelledTrip(
   tripId: string,
-  opts: { companyId?: string | null; patientName?: string } = {},
+  opts: { companyId?: string | null; patientName?: string; flagSent?: boolean } = {},
 ): Promise<ClaimCancelResult> {
   const { data: claims, error } = await supabase
     .from("claim_records" as any)
@@ -70,7 +70,7 @@ export async function voidClaimsForCancelledTrip(
     if (vErr) throw new Error(`Could not void claim: ${vErr.message}`);
   }
 
-  if (toFlag.length > 0) {
+  if (toFlag.length > 0 && opts.flagSent !== false) {
     const companyId = opts.companyId ?? (toFlag[0] as any).company_id ?? null;
     if (companyId) {
       const { data: billers } = await supabase
