@@ -6895,6 +6895,7 @@ export type Database = {
         | "reversal"
         | "forwarded"
         | "blocked_payer_mapping"
+        | "voided"
       crew_cert_level: "EMR" | "EMT-B" | "EMT-A" | "EMT-P"
       crew_cert_status: "pending_review" | "approved" | "rejected" | "expired"
       crew_cert_type: "medic_number" | "cpr" | "drivers_license"
@@ -7128,6 +7129,7 @@ export const Constants = {
         "reversal",
         "forwarded",
         "blocked_payer_mapping",
+        "voided",
       ],
       crew_cert_level: ["EMR", "EMT-B", "EMT-A", "EMT-P"],
       crew_cert_status: ["pending_review", "approved", "rejected", "expired"],
