@@ -107,6 +107,7 @@ export interface CancelTripParams {
   truckId?: string | null;
   truckName?: string;
   crewNotifiedExternally?: boolean;
+  /** Empty string allowed when tripId is given — read from the trip. */
   /** For crew_confirmed: dispatcher verification instead of a new cancel stamp. */
   verification?: { verifiedBy: string | null; dispatcherNote: string };
 }
@@ -130,8 +131,9 @@ export async function cancelTrip(p: CancelTripParams): Promise<CancelTripResult>
   let currentPcr: string | null = null;
   let legId = p.legId ?? null;
   let truckId = p.truckId ?? null;
+  let runDate = p.runDate;
   if (!tripId && legId) {
-    let q = supabase.from("trip_records" as any).select("id").eq("leg_id", legId).eq("run_date", p.runDate);
+    let q = supabase.from("trip_records" as any).select("id").eq("leg_id", legId).eq("run_date", runDate);
     if (p.companyId) q = q.eq("company_id", p.companyId);
     const { data, error } = await q.maybeSingle();
     if (error) throw new Error(`Could not look up trip: ${error.message}`);
@@ -142,13 +144,14 @@ export async function cancelTrip(p: CancelTripParams): Promise<CancelTripResult>
   if (tripId) {
     const { data: trip, error } = await supabase
       .from("trip_records" as any)
-      .select("pcr_status, leg_id, truck_id")
+      .select("pcr_status, leg_id, truck_id, run_date")
       .eq("id", tripId)
       .maybeSingle();
     if (error || !trip) throw new Error(`Could not load trip: ${error?.message ?? "not found"}`);
     currentPcr = (trip as any).pcr_status ?? null;
     legId = legId ?? (trip as any).leg_id ?? null;
     truckId = truckId ?? (trip as any).truck_id ?? null;
+    runDate = runDate || (trip as any).run_date || "";
   }
 
   // 2. PCR documentation rule
@@ -173,7 +176,7 @@ export async function cancelTrip(p: CancelTripParams): Promise<CancelTripResult>
   } else {
     if (!legId || !companyId) throw new Error("Cannot cancel: no trip or leg found");
     const { data: newTrip, error } = await supabase.from("trip_records" as any).insert({
-      leg_id: legId, truck_id: truckId, company_id: companyId, run_date: p.runDate,
+      leg_id: legId, truck_id: truckId, company_id: companyId, run_date: runDate,
       status: "cancelled", cancellation_reason: fullReason, cancelled_by: userId,
       cancelled_at: now, cancellation_source: p.source, pcr_status: "not_started", trip_type: "dialysis",
     } as any).select("id").single();
@@ -182,10 +185,10 @@ export async function cancelTrip(p: CancelTripParams): Promise<CancelTripResult>
   }
 
   // 4. Slot for that day only (standing schedule untouched)
-  if (legId) {
+  if (legId && runDate) {
     const { error } = await supabase.from("truck_run_slots" as any)
       .update({ status: "cancelled" } as any)
-      .eq("leg_id", legId).eq("run_date", p.runDate);
+      .eq("leg_id", legId).eq("run_date", runDate);
     if (error) throw new Error(`Trip cancelled but slot not updated: ${error.message}`);
   }
 
@@ -194,10 +197,10 @@ export async function cancelTrip(p: CancelTripParams): Promise<CancelTripResult>
 
   // 6. Notifications, alert, audit
   if (companyId) {
-    if (truckId) {
+    if (truckId && runDate) {
       const { data: crewRow } = await supabase.from("crews")
         .select("member1_id, member2_id, member3_id")
-        .eq("truck_id", truckId).eq("active_date", p.runDate).maybeSingle();
+        .eq("truck_id", truckId).eq("active_date", runDate).maybeSingle();
       const profileIds = crewRow ? [crewRow.member1_id, crewRow.member2_id, (crewRow as any).member3_id].filter(Boolean) : [];
       if (profileIds.length) {
         const { data: profiles } = await supabase.from("profiles" as any).select("user_id").in("id", profileIds);
