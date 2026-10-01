@@ -1,0 +1,1 @@
+- All office-side trip cancels go through `cancelTrip()` in src/lib/cancel-trip.ts — why: one place enforces the report-documentation rule, claim voiding, notifications and audit, so cancel behavior cannot drift.
