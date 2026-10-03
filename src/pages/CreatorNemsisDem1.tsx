@@ -42,6 +42,26 @@ export default function CreatorNemsisDem1() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Generated DEM XML</CardTitle>
+                <CardDescription>
+                  Canonical DEM 1 submission payload, committed verbatim. The timestamp is a placeholder; the send path sets the real one at submission time.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={copyXml}>
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <pre className="max-h-[600px] overflow-auto rounded-md border border-border bg-muted p-3 font-mono text-xs whitespace-pre">{DEM1_SUBMISSION_XML}</pre>
+          </CardContent>
+        </Card>
+
         {DEM1_SECTIONS.map((sec) => (
           <Card key={sec.name}>
             <CardHeader><CardTitle className="text-base">{sec.name} <span className="text-muted-foreground font-normal">({sec.entities.length})</span></CardTitle></CardHeader>

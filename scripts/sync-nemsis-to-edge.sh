@@ -6,6 +6,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p supabase/functions/_shared/nemsis/states
+mkdir -p supabase/functions/_shared/nemsis/fixtures
+cp src/lib/nemsis/fixtures/dem1-submission.xml supabase/functions/_shared/nemsis/fixtures/dem1-submission.xml
 cp src/lib/nemsis-code-sets.ts        supabase/functions/_shared/nemsis-code-sets.ts
 cp src/lib/nemsis-translate.ts        supabase/functions/_shared/nemsis-translate.ts
 cp src/lib/nemsis/xml-utils.ts        supabase/functions/_shared/nemsis/xml-utils.ts
