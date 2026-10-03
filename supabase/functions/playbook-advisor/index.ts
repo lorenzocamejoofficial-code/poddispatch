@@ -25,9 +25,18 @@ Deno.serve(async (req) => {
     const { data: isCreator } = await supabase.rpc("is_system_creator");
     if (!isCreator) return json({ error: "Forbidden" }, 403);
 
-    const { messages } = await req.json();
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return json({ error: "messages required" }, 400);
+    const rawBody = await req.json().catch(() => null);
+    const rawMessages = rawBody?.messages;
+    if (!Array.isArray(rawMessages) || rawMessages.length === 0 || rawMessages.length > 50) {
+      return json({ error: "messages required (1-50)" }, 400);
+    }
+    // Only user/assistant turns with plain text; the system prompt is server-owned.
+    const messages: { role: "user" | "assistant"; content: string }[] = [];
+    for (const m of rawMessages) {
+      if (!m || (m.role !== "user" && m.role !== "assistant") || typeof m.content !== "string" || m.content.length > 8000) {
+        return json({ error: "Invalid message: role must be user or assistant with text content" }, 400);
+      }
+      messages.push({ role: m.role, content: m.content });
     }
 
     // Load playbook index for grounding

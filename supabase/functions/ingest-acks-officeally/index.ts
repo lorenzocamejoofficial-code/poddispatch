@@ -244,18 +244,18 @@ async function matchAndApply(
     // when it cannot be resolved, an ambiguous match is quarantined instead of
     // being applied to whichever company's claim happened to come back first.
     let ackCompanyId: string | null = null;
-    if (submitted) {
+    // Only plain file names are accepted; anything else cannot resolve a company.
+    if (submitted && /^[A-Za-z0-9._-]{1,200}$/.test(submitted)) {
       const candidates = [submitted, `${submitted}.837`, `${submitted}.txt`];
-      const inList = candidates.map((c) => `"${c}"`).join(",");
       const { data: q } = await supabase.from("claim_submission_queue")
         .select("company_id")
-        .filter("filename", "in", `(${inList})`)
+        .in("filename", candidates)
         .limit(1).maybeSingle();
       ackCompanyId = (q?.company_id as string) ?? null;
       if (!ackCompanyId) {
         const { data: a } = await supabase.from("claim_submission_artifacts")
           .select("company_id")
-          .filter("filename", "in", `(${inList})`)
+          .in("filename", candidates)
           .order("generated_at", { ascending: false })
           .limit(1).maybeSingle();
         ackCompanyId = (a?.company_id as string) ?? null;

@@ -98,11 +98,10 @@ serve(async (req) => {
         if (liveCompanies && liveCompanies.length > 0) {
           return new Response(
             JSON.stringify({
-              error:
-                "You have a pending crew invite. Please check your email for the invite link and accept it instead — your account will be attached to the company that invited you.",
-              code: "pending_invite_exists",
+              error: GENERIC_EMAIL_UNAVAILABLE,
+              code: "email_exists",
             }),
-            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
       }
@@ -120,7 +119,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: isExisting
-            ? "An account with this email already exists. Please sign in instead."
+            ? GENERIC_EMAIL_UNAVAILABLE
             : authError.message,
           code: isExisting ? "email_exists" : "auth_error",
         }),

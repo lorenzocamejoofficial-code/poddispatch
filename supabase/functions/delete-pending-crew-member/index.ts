@@ -46,7 +46,8 @@ Deno.serve(async (req) => {
     let body: any;
     try { body = await req.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
     const target_user_id: string | undefined = body?.target_user_id;
-    const target_email: string | undefined = body?.target_email;
+    // target_email from the request is NOT trusted; the email is derived from
+    // the verified target account below.
     if (!target_user_id) return json({ error: "target_user_id required" }, 400);
 
     if (target_user_id === callerUser.id) {
@@ -68,6 +69,9 @@ Deno.serve(async (req) => {
       return json({ error: "Cannot delete an owner or creator" }, 400);
     }
 
+    const { data: targetAuth } = await admin.auth.admin.getUserById(target_user_id);
+    const target_email: string | undefined = targetAuth?.user?.email ?? undefined;
+
     // Delete profile, membership, user_roles, invites — explicit cleanup
     await admin.from("profiles").delete().eq("user_id", target_user_id);
     await admin.from("company_memberships").delete().eq("user_id", target_user_id);
@@ -79,7 +83,8 @@ Deno.serve(async (req) => {
         .from("profiles")
         .select("id")
         .eq("company_id", company_id)
-        .ilike("email", target_email.trim());
+        .is("user_id", null) // only unclaimed pending-invite rows
+        .eq("email", target_email.trim().toLowerCase());
       const ids = (pendingProfiles ?? []).map((p: any) => p.id);
       if (ids.length > 0) {
         // FK on company_invites.profile_id is ON DELETE CASCADE.

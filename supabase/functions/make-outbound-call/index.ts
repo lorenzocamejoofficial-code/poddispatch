@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
   // Verify caller is dispatcher/admin/owner in the company that owns the comms_event
   const { data: ev } = await admin
     .from("comms_events")
-    .select("company_id")
+    .select("company_id, message_text")
     .eq("id", comms_event_id)
     .maybeSingle();
   const eventCompanyId = (ev as { company_id?: string } | null)?.company_id ?? null;
@@ -126,6 +126,32 @@ Deno.serve(async (req) => {
   if (!membership || !allowedRoles.includes(String((membership as { role?: string }).role))) {
     return new Response(JSON.stringify({ error: "Not authorized to place calls for this company" }), {
       status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Recipient must be a phone number on file for this company (a facility or
+  // patient). Compared on the last 10 digits so formatting differences match.
+  const last10 = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "").slice(-10);
+  const target10 = last10(to_number);
+  const [{ data: facPhones }, { data: patPhones }] = await Promise.all([
+    admin.from("facilities").select("phone").eq("company_id", eventCompanyId).not("phone", "is", null),
+    admin.from("patients").select("phone").eq("company_id", eventCompanyId).not("phone", "is", null),
+  ]);
+  const onFile = [...(facPhones ?? []), ...(patPhones ?? [])]
+    .some((r: { phone?: string | null }) => target10.length === 10 && last10(r.phone) === target10);
+  if (!onFile) {
+    await admin.from("comms_events")
+      .update({ status: "failed", error_message: "Number is not on file for a facility or patient in this company" })
+      .eq("id", comms_event_id);
+    return new Response(JSON.stringify({ error: "Calls can only be placed to a facility or patient phone number on file" }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  // The spoken script must be the one recorded on the call event (no free-form override).
+  const storedScript = (ev as { message_text?: string | null }).message_text ?? "";
+  if (!storedScript || storedScript !== script || storedScript.length > 1500) {
+    return new Response(JSON.stringify({ error: "Script must match the recorded call message (max 1500 characters)" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
