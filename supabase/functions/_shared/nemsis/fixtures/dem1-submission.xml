@@ -1,0 +1,650 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DEMDataSet xmlns="http://www.nemsis.org" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <DemographicReport timeStamp="2026-01-15T08:00:00-05:00">
+    <dRecord>
+      <dRecord.SoftwareApplicationGroup>
+        <dRecord.01>PodDispatch</dRecord.01>
+        <dRecord.02>PodDispatch</dRecord.02>
+        <dRecord.03>1.0</dRecord.03>
+      </dRecord.SoftwareApplicationGroup>
+    </dRecord>
+    <dAgency>
+      <dAgency.01>04568</dAgency.01>
+      <dAgency.02>351-073-92</dAgency.02>
+      <dAgency.03>Savannah Hartwell EMS</dAgency.03>
+      <dAgency.04>13</dAgency.04>
+      <dAgency.AgencyServiceGroup>
+        <dAgency.05>13</dAgency.05>
+        <dAgency.06>13105</dAgency.06>
+        <dAgency.07>13105000100</dAgency.07>
+        <dAgency.08>30516</dAgency.08>
+      </dAgency.AgencyServiceGroup>
+      <dAgency.AgencyServiceGroup>
+        <dAgency.05>45</dAgency.05>
+        <dAgency.06>45007</dAgency.06>
+        <dAgency.07>45007010900</dAgency.07>
+        <dAgency.08>29625</dAgency.08>
+      </dAgency.AgencyServiceGroup>
+      <dAgency.09>9920001</dAgency.09>
+      <dAgency.10>9920007</dAgency.10>
+      <dAgency.11>9917007</dAgency.11>
+      <dAgency.12>1016001</dAgency.12>
+      <dAgency.13>9912007</dAgency.13>
+      <dAgency.14>1018005</dAgency.14>
+      <dAgency.AgencyYearGroup>
+        <dAgency.15>2023</dAgency.15>
+        <dAgency.16>659</dAgency.16>
+        <dAgency.17>52774</dAgency.17>
+        <dAgency.18>8451</dAgency.18>
+        <dAgency.19>6905</dAgency.19>
+        <dAgency.20>5009</dAgency.20>
+        <dAgency.21>5501</dAgency.21>
+        <dAgency.22>5866</dAgency.22>
+      </dAgency.AgencyYearGroup>
+      <dAgency.AgencyYearGroup>
+        <dAgency.15>2024</dAgency.15>
+        <dAgency.16>841</dAgency.16>
+        <dAgency.17>67349</dAgency.17>
+        <dAgency.18>10887</dAgency.18>
+        <dAgency.19>8468</dAgency.19>
+        <dAgency.20>6401</dAgency.20>
+        <dAgency.21>7277</dAgency.21>
+        <dAgency.22>7309</dAgency.22>
+      </dAgency.AgencyYearGroup>
+      <dAgency.23>1027005</dAgency.23>
+      <dAgency.24>9923003</dAgency.24>
+      <dAgency.25>1465644320</dAgency.25>
+      <dAgency.26 xsi:nil="true" NV="7701001"/>
+      <dAgency.27>9923003</dAgency.27>
+    </dAgency>
+    <dContact>
+      <dContact.ContactInfoGroup>
+        <dContact.01>1101003</dContact.01>
+        <dContact.02>Runolfsson</dContact.02>
+        <dContact.03>Arvilla</dContact.03>
+        <dContact.04>Juliet</dContact.04>
+        <dContact.05>41 Benson Street</dContact.05>
+        <dContact.06>Hartwell</dContact.06>
+        <dContact.07>13</dContact.07>
+        <dContact.08>30643</dContact.08>
+        <dContact.09>US</dContact.09>
+        <dContact.10 PhoneNumberType="9913009">706-376-0010</dContact.10>
+        <dContact.11 EmailAddressType="9904003">director@s-h-ems.example.org</dContact.11>
+        <dContact.12>https://s-h-ems.example.org/</dContact.12>
+      </dContact.ContactInfoGroup>
+      <dContact.ContactInfoGroup>
+        <dContact.01>1101011</dContact.01>
+        <dContact.02>Friesen</dContact.02>
+        <dContact.03>Preston</dContact.03>
+        <dContact.04>Michael</dContact.04>
+        <dContact.05>605 E Franklin Street</dContact.05>
+        <dContact.06>Hartwell</dContact.06>
+        <dContact.07>13</dContact.07>
+        <dContact.08>30643</dContact.08>
+        <dContact.09>US</dContact.09>
+        <dContact.10 PhoneNumberType="9913007">706-349-4187</dContact.10>
+        <dContact.11 EmailAddressType="9904003">pmfriesen@s-h-ems.example.org</dContact.11>
+        <dContact.EMSMedicalDirectorGroup>
+          <dContact.13>1113003</dContact.13>
+          <dContact.14>1114019</dContact.14>
+          <dContact.15>1115001</dContact.15>
+          <dContact.16>9923001</dContact.16>
+        </dContact.EMSMedicalDirectorGroup>
+      </dContact.ContactInfoGroup>
+      <dContact.ContactInfoGroup>
+        <dContact.01>1101015</dContact.01>
+        <dContact.02>Boyle</dContact.02>
+        <dContact.03>Duncan</dContact.03>
+        <dContact.05 StreetAddress2='"PO Box 120" '>159 Gin Avenue</dContact.05>
+        <dContact.06>Bowersville</dContact.06>
+        <dContact.07>13</dContact.07>
+        <dContact.08>30516-0120</dContact.08>
+        <dContact.09>US</dContact.09>
+      </dContact.ContactInfoGroup>
+    </dContact>
+    <dConfiguration>
+      <dConfiguration.ConfigurationGroup>
+        <dConfiguration.01>13</dConfiguration.01>
+        <dConfiguration.ProcedureGroup>
+          <dConfiguration.06>9917002</dConfiguration.06>
+          <dConfiguration.07>128968000</dConfiguration.07>
+        </dConfiguration.ProcedureGroup>
+        <dConfiguration.ProcedureGroup>
+          <dConfiguration.06>9917005</dConfiguration.06>
+          <dConfiguration.07>128968000</dConfiguration.07>
+        </dConfiguration.ProcedureGroup>
+        <dConfiguration.ProcedureGroup>
+          <dConfiguration.06>9917007</dConfiguration.06>
+          <dConfiguration.07>103744005</dConfiguration.07>
+        </dConfiguration.ProcedureGroup>
+        <dConfiguration.ProcedureGroup>
+          <dConfiguration.06>9917023</dConfiguration.06>
+          <dConfiguration.07>128968000</dConfiguration.07>
+        </dConfiguration.ProcedureGroup>
+        <dConfiguration.MedicationGroup>
+          <dConfiguration.08>9917002</dConfiguration.08>
+          <dConfiguration.09 CodeType="9924003">10368</dConfiguration.09>
+        </dConfiguration.MedicationGroup>
+        <dConfiguration.MedicationGroup>
+          <dConfiguration.08>9917005</dConfiguration.08>
+          <dConfiguration.09 CodeType="9924003">1191</dConfiguration.09>
+        </dConfiguration.MedicationGroup>
+        <dConfiguration.MedicationGroup>
+          <dConfiguration.08>9917007</dConfiguration.08>
+          <dConfiguration.09 CodeType="9924003">1008377</dConfiguration.09>
+        </dConfiguration.MedicationGroup>
+        <dConfiguration.MedicationGroup>
+          <dConfiguration.08>9917023</dConfiguration.08>
+          <dConfiguration.09 CodeType="9924003">10368</dConfiguration.09>
+        </dConfiguration.MedicationGroup>
+        <dConfiguration.10>9914001</dConfiguration.10>
+        <dConfiguration.11>1211005</dConfiguration.11>
+        <dConfiguration.12>9923003</dConfiguration.12>
+        <dConfiguration.13>1213005</dConfiguration.13>
+        <dConfiguration.14>King EMD</dConfiguration.14>
+        <dConfiguration.15>1215003</dConfiguration.15>
+        <dConfiguration.16>Ambulance-11</dConfiguration.16>
+        <dConfiguration.17>Elbert County Dispatch Center</dConfiguration.17>
+      </dConfiguration.ConfigurationGroup>
+      <dConfiguration.ConfigurationGroup>
+        <dConfiguration.01>45</dConfiguration.01>
+        <dConfiguration.ProcedureGroup>
+          <dConfiguration.06>9917002</dConfiguration.06>
+          <dConfiguration.07>128968000</dConfiguration.07>
+        </dConfiguration.ProcedureGroup>
+        <dConfiguration.ProcedureGroup>
+          <dConfiguration.06>9917005</dConfiguration.06>
+          <dConfiguration.07>128968000</dConfiguration.07>
+        </dConfiguration.ProcedureGroup>
+        <dConfiguration.ProcedureGroup>
+          <dConfiguration.06>9917007</dConfiguration.06>
+          <dConfiguration.07>103744005</dConfiguration.07>
+        </dConfiguration.ProcedureGroup>
+        <dConfiguration.MedicationGroup>
+          <dConfiguration.08>9917002</dConfiguration.08>
+          <dConfiguration.09 CodeType="9924003">10368</dConfiguration.09>
+        </dConfiguration.MedicationGroup>
+        <dConfiguration.MedicationGroup>
+          <dConfiguration.08>9917005</dConfiguration.08>
+          <dConfiguration.09 CodeType="9924003">1191</dConfiguration.09>
+        </dConfiguration.MedicationGroup>
+        <dConfiguration.MedicationGroup>
+          <dConfiguration.08>9917007</dConfiguration.08>
+          <dConfiguration.09 CodeType="9924003">1008377</dConfiguration.09>
+        </dConfiguration.MedicationGroup>
+        <dConfiguration.10>9914001</dConfiguration.10>
+        <dConfiguration.11>1211011</dConfiguration.11>
+        <dConfiguration.12>9923003</dConfiguration.12>
+        <dConfiguration.13>1213001</dConfiguration.13>
+        <dConfiguration.14>Berge LLC</dConfiguration.14>
+        <dConfiguration.15>1215003</dConfiguration.15>
+        <dConfiguration.16>Ambulance-11</dConfiguration.16>
+        <dConfiguration.17>Oconee County Sheriff's Dispatch</dConfiguration.17>
+      </dConfiguration.ConfigurationGroup>
+    </dConfiguration>
+    <dLocation>
+      <dLocation.LocationGroup>
+        <dLocation.01>1301001</dLocation.01>
+        <dLocation.02>Hartwell Main Station</dLocation.02>
+        <dLocation.03>SH01</dLocation.03>
+        <dLocation.04>34.351,-82.932</dLocation.04>
+        <dLocation.05>17SLU2230902766</dLocation.05>
+        <dLocation.06>41 Benson Street</dLocation.06>
+        <dLocation.07>Hartwell</dLocation.07>
+        <dLocation.08>13</dLocation.08>
+        <dLocation.09>30643</dLocation.09>
+        <dLocation.10>13147</dLocation.10>
+        <dLocation.11>US</dLocation.11>
+        <dLocation.12 PhoneNumberType="9913009">706-376-0010</dLocation.12>
+      </dLocation.LocationGroup>
+      <dLocation.LocationGroup>
+        <dLocation.01>1301003</dLocation.01>
+        <dLocation.02>Junction 77</dLocation.02>
+        <dLocation.03>SH91</dLocation.03>
+        <dLocation.04>34.411,-83.024</dLocation.04>
+        <dLocation.05>17SLU1397909586</dLocation.05>
+        <dLocation.06>2183 Junction 77 Road</dLocation.06>
+        <dLocation.07>Hartwell</dLocation.07>
+        <dLocation.08>13</dLocation.08>
+        <dLocation.09>30643</dLocation.09>
+        <dLocation.10>13147</dLocation.10>
+        <dLocation.11>US</dLocation.11>
+      </dLocation.LocationGroup>
+      <dLocation.LocationGroup>
+        <dLocation.01>1301005</dLocation.01>
+        <dLocation.02>Elberton Station</dLocation.02>
+        <dLocation.03>SH02</dLocation.03>
+        <dLocation.04>34.094,-82.847</dLocation.04>
+        <dLocation.05>17SLT2961174118</dLocation.05>
+        <dLocation.06>924 Elbert St</dLocation.06>
+        <dLocation.07>Elberton</dLocation.07>
+        <dLocation.08>13</dLocation.08>
+        <dLocation.09>30635</dLocation.09>
+        <dLocation.10>13105</dLocation.10>
+        <dLocation.11>US</dLocation.11>
+        <dLocation.12 PhoneNumberType="9913009">864-392-7714</dLocation.12>
+      </dLocation.LocationGroup>
+    </dLocation>
+    <dVehicle>
+      <dVehicle.VehicleGroup>
+        <dVehicle.01>ASR3471</dVehicle.01>
+        <dVehicle.02>1GDC4E1977F420160</dVehicle.02>
+        <dVehicle.03>Ambulance-18</dVehicle.03>
+        <dVehicle.04>1404001</dVehicle.04>
+        <dVehicle.VehicleCertificationLevelsGroup>
+          <dVehicle.05>9917005</dVehicle.05>
+          <dVehicle.06>1</dVehicle.06>
+          <dVehicle.08>1</dVehicle.08>
+        </dVehicle.VehicleCertificationLevelsGroup>
+        <dVehicle.VehicleCertificationLevelsGroup>
+          <dVehicle.05>9917007</dVehicle.05>
+          <dVehicle.06>1</dVehicle.06>
+          <dVehicle.08>1</dVehicle.08>
+        </dVehicle.VehicleCertificationLevelsGroup>
+        <dVehicle.10>2007</dVehicle.10>
+      </dVehicle.VehicleGroup>
+      <dVehicle.VehicleGroup>
+        <dVehicle.01>GA-6866-GF</dVehicle.01>
+        <dVehicle.03>Water-22</dVehicle.03>
+        <dVehicle.04>1404025</dVehicle.04>
+        <dVehicle.09>23900</dVehicle.09>
+        <dVehicle.10>1999</dVehicle.10>
+        <dVehicle.YearGroup>
+          <dVehicle.11>2023</dVehicle.11>
+          <dVehicle.12>52</dVehicle.12>
+        </dVehicle.YearGroup>
+        <dVehicle.YearGroup>
+          <dVehicle.11>2023</dVehicle.11>
+          <dVehicle.12>61</dVehicle.12>
+        </dVehicle.YearGroup>
+      </dVehicle.VehicleGroup>
+      <dVehicle.VehicleGroup>
+        <dVehicle.01>LSP4322</dVehicle.01>
+        <dVehicle.02>1FMJU1FTXGEF36883</dVehicle.02>
+        <dVehicle.03>Chief-1</dVehicle.03>
+        <dVehicle.04>1404015</dVehicle.04>
+        <dVehicle.10>2016</dVehicle.10>
+      </dVehicle.VehicleGroup>
+      <dVehicle.VehicleGroup>
+        <dVehicle.01>MSP1633</dVehicle.01>
+        <dVehicle.02>3D73Y4CL0BG623030</dVehicle.02>
+        <dVehicle.03>Ambulance-11</dVehicle.03>
+        <dVehicle.04>1404001</dVehicle.04>
+        <dVehicle.VehicleCertificationLevelsGroup>
+          <dVehicle.05>9917007</dVehicle.05>
+          <dVehicle.06>2</dVehicle.06>
+          <dVehicle.08>2</dVehicle.08>
+        </dVehicle.VehicleCertificationLevelsGroup>
+        <dVehicle.09>98500</dVehicle.09>
+        <dVehicle.10>2011</dVehicle.10>
+        <dVehicle.YearGroup>
+          <dVehicle.11>2023</dVehicle.11>
+          <dVehicle.13 DistanceUnit="9929003">22099</dVehicle.13>
+        </dVehicle.YearGroup>
+        <dVehicle.YearGroup>
+          <dVehicle.11>2024</dVehicle.11>
+          <dVehicle.13 DistanceUnit="9929003">24780</dVehicle.13>
+        </dVehicle.YearGroup>
+      </dVehicle.VehicleGroup>
+      <dVehicle.VehicleGroup>
+        <dVehicle.01>MSP5331</dVehicle.01>
+        <dVehicle.02>1FM5K8AB9LGB43096</dVehicle.02>
+        <dVehicle.03>Mobile-32</dVehicle.03>
+        <dVehicle.04>1404013</dVehicle.04>
+        <dVehicle.09>45010</dVehicle.09>
+        <dVehicle.10>2020</dVehicle.10>
+      </dVehicle.VehicleGroup>
+    </dVehicle>
+    <dPersonnel>
+      <dPersonnel.PersonnelGroup>
+        <dPersonnel.NameGroup>
+          <dPersonnel.01>Hartmann</dPersonnel.01>
+          <dPersonnel.02>Aliza</dPersonnel.02>
+          <dPersonnel.03>Tava</dPersonnel.03>
+        </dPersonnel.NameGroup>
+        <dPersonnel.AddressGroup>
+          <dPersonnel.04>104 Cr-5-1-141</dPersonnel.04>
+          <dPersonnel.05>Calhoun Falls</dPersonnel.05>
+          <dPersonnel.06>45</dPersonnel.06>
+          <dPersonnel.07>45001</dPersonnel.07>
+          <dPersonnel.08>US</dPersonnel.08>
+        </dPersonnel.AddressGroup>
+        <dPersonnel.09 PhoneNumberType="9913005">864-447-1344</dPersonnel.09>
+        <dPersonnel.10 EmailAddressType="9904003">athartmann@s-h-ems.example.org</dPersonnel.10>
+        <dPersonnel.11>1981-12-18</dPersonnel.11>
+        <dPersonnel.12 xsi:nil="true" NV="7701003"/>
+        <dPersonnel.13>1513005</dPersonnel.13>
+        <dPersonnel.14>CA</dPersonnel.14>
+        <dPersonnel.15>1515025</dPersonnel.15>
+        <dPersonnel.16>1516007</dPersonnel.16>
+        <dPersonnel.17>1517013</dPersonnel.17>
+        <dPersonnel.20>Persian</dPersonnel.20>
+        <dPersonnel.21>sh-12-322</dPersonnel.21>
+        <dPersonnel.LicensureGroup>
+          <dPersonnel.22>13</dPersonnel.22>
+          <dPersonnel.23>P149752</dPersonnel.23>
+          <dPersonnel.24>9925007</dPersonnel.24>
+          <dPersonnel.25>2025-02-11</dPersonnel.25>
+          <dPersonnel.26>2005-06-14</dPersonnel.26>
+          <dPersonnel.27>2027-03-31</dPersonnel.27>
+        </dPersonnel.LicensureGroup>
+        <dPersonnel.LicensureGroup>
+          <dPersonnel.22>45</dPersonnel.22>
+          <dPersonnel.23>SC165478</dPersonnel.23>
+          <dPersonnel.24>9925007</dPersonnel.24>
+        </dPersonnel.LicensureGroup>
+        <dPersonnel.28>P4746774</dPersonnel.28>
+        <dPersonnel.29>1529007</dPersonnel.29>
+        <dPersonnel.30>2027-03-31</dPersonnel.30>
+        <dPersonnel.31>1531001</dPersonnel.31>
+        <dPersonnel.32>2013-07-01</dPersonnel.32>
+        <dPersonnel.33>2012-03-18</dPersonnel.33>
+        <dPersonnel.34>1534015</dPersonnel.34>
+        <dPersonnel.36>13</dPersonnel.36>
+        <dPersonnel.37>2025-03-31</dPersonnel.37>
+        <dPersonnel.CertificationLevelGroup>
+          <dPersonnel.38>9925007</dPersonnel.38>
+          <dPersonnel.39>2012-03-18</dPersonnel.39>
+        </dPersonnel.CertificationLevelGroup>
+        <dPersonnel.40>9919001</dPersonnel.40>
+      </dPersonnel.PersonnelGroup>
+      <dPersonnel.PersonnelGroup>
+        <dPersonnel.NameGroup>
+          <dPersonnel.01>Kassulke</dPersonnel.01>
+          <dPersonnel.02>Elinor</dPersonnel.02>
+          <dPersonnel.03>Daugherty</dPersonnel.03>
+        </dPersonnel.NameGroup>
+        <dPersonnel.AddressGroup>
+          <dPersonnel.04>200 Bo Hill Estate</dPersonnel.04>
+          <dPersonnel.05>Hartwell</dPersonnel.05>
+          <dPersonnel.06>13</dPersonnel.06>
+          <dPersonnel.07>30643</dPersonnel.07>
+          <dPersonnel.08>US</dPersonnel.08>
+        </dPersonnel.AddressGroup>
+        <dPersonnel.09 PhoneNumberType="9913005">706-367-8410</dPersonnel.09>
+        <dPersonnel.10 EmailAddressType="9904003">edkassulke@s-h-ems.example.org</dPersonnel.10>
+        <dPersonnel.11>2000-02-29</dPersonnel.11>
+        <dPersonnel.12 xsi:nil="true" NV="7701003"/>
+        <dPersonnel.13>1513011</dPersonnel.13>
+        <dPersonnel.14>US</dPersonnel.14>
+        <dPersonnel.15>1515019</dPersonnel.15>
+        <dPersonnel.17>1517013</dPersonnel.17>
+        <dPersonnel.21>sh-18-012</dPersonnel.21>
+        <dPersonnel.LicensureGroup>
+          <dPersonnel.22>13</dPersonnel.22>
+          <dPersonnel.23>I325541</dPersonnel.23>
+          <dPersonnel.24>9925002</dPersonnel.24>
+          <dPersonnel.25>2025-02-24</dPersonnel.25>
+          <dPersonnel.26>2021-01-09</dPersonnel.26>
+          <dPersonnel.27>2027-03-31</dPersonnel.27>
+        </dPersonnel.LicensureGroup>
+        <dPersonnel.31>1531001</dPersonnel.31>
+        <dPersonnel.32>2019-08-19</dPersonnel.32>
+        <dPersonnel.33>2018-08-01</dPersonnel.33>
+        <dPersonnel.34>1534015</dPersonnel.34>
+        <dPersonnel.35>1534003</dPersonnel.35>
+        <dPersonnel.36>7</dPersonnel.36>
+        <dPersonnel.37>2025-08-01</dPersonnel.37>
+        <dPersonnel.CertificationLevelGroup>
+          <dPersonnel.38>9925002</dPersonnel.38>
+          <dPersonnel.39>2021-02-02</dPersonnel.39>
+        </dPersonnel.CertificationLevelGroup>
+        <dPersonnel.CertificationLevelGroup>
+          <dPersonnel.38>9925005</dPersonnel.38>
+          <dPersonnel.39>2019-08-19</dPersonnel.39>
+        </dPersonnel.CertificationLevelGroup>
+        <dPersonnel.40>9919001</dPersonnel.40>
+      </dPersonnel.PersonnelGroup>
+      <dPersonnel.PersonnelGroup>
+        <dPersonnel.NameGroup>
+          <dPersonnel.01>McCullough</dPersonnel.01>
+          <dPersonnel.02>William</dPersonnel.02>
+        </dPersonnel.NameGroup>
+        <dPersonnel.11>1968-05-16</dPersonnel.11>
+        <dPersonnel.12 xsi:nil="true" NV="7701003"/>
+        <dPersonnel.17>1517009</dPersonnel.17>
+        <dPersonnel.ImmunizationsGroup>
+          <dPersonnel.18>9910053</dPersonnel.18>
+        </dPersonnel.ImmunizationsGroup>
+        <dPersonnel.21>sh-07-401</dPersonnel.21>
+        <dPersonnel.LicensureGroup>
+          <dPersonnel.22>13</dPersonnel.22>
+          <dPersonnel.23>E014925</dPersonnel.23>
+          <dPersonnel.24>9925005</dPersonnel.24>
+          <dPersonnel.25>2025-02-18</dPersonnel.25>
+          <dPersonnel.27>2027-03-31</dPersonnel.27>
+        </dPersonnel.LicensureGroup>
+        <dPersonnel.LicensureGroup>
+          <dPersonnel.22>45</dPersonnel.22>
+          <dPersonnel.23>SC056908</dPersonnel.23>
+          <dPersonnel.24>9925005</dPersonnel.24>
+        </dPersonnel.LicensureGroup>
+        <dPersonnel.28>E1690651</dPersonnel.28>
+        <dPersonnel.29>1529005</dPersonnel.29>
+        <dPersonnel.30>2027-03-31</dPersonnel.30>
+        <dPersonnel.31>1531001</dPersonnel.31>
+        <dPersonnel.33>2007-12-03</dPersonnel.33>
+        <dPersonnel.34>1534013</dPersonnel.34>
+        <dPersonnel.35>1534003</dPersonnel.35>
+        <dPersonnel.CertificationLevelGroup>
+          <dPersonnel.38>9925005</dPersonnel.38>
+        </dPersonnel.CertificationLevelGroup>
+        <dPersonnel.40>9919003</dPersonnel.40>
+      </dPersonnel.PersonnelGroup>
+      <dPersonnel.PersonnelGroup>
+        <dPersonnel.NameGroup>
+          <dPersonnel.01>Roob</dPersonnel.01>
+          <dPersonnel.02>André</dPersonnel.02>
+        </dPersonnel.NameGroup>
+        <dPersonnel.AddressGroup>
+          <dPersonnel.04 StreetAddress2='"Apt 32" '>396 N Broad Street</dPersonnel.04>
+          <dPersonnel.05>Bowman</dPersonnel.05>
+          <dPersonnel.06>13</dPersonnel.06>
+          <dPersonnel.07>30624</dPersonnel.07>
+          <dPersonnel.08>US</dPersonnel.08>
+        </dPersonnel.AddressGroup>
+        <dPersonnel.09 PhoneNumberType="9913009">706-376-0081</dPersonnel.09>
+        <dPersonnel.10 EmailAddressType="9904003">aroob@s-h-ems.example.org</dPersonnel.10>
+        <dPersonnel.11>1999-08-07</dPersonnel.11>
+        <dPersonnel.12 xsi:nil="true" NV="7701003"/>
+        <dPersonnel.13>1513011</dPersonnel.13>
+        <dPersonnel.14>US</dPersonnel.14>
+        <dPersonnel.15>1515023</dPersonnel.15>
+        <dPersonnel.17>1517013</dPersonnel.17>
+        <dPersonnel.21>sh-25-231</dPersonnel.21>
+        <dPersonnel.LicensureGroup>
+          <dPersonnel.22>13</dPersonnel.22>
+          <dPersonnel.23>P355418</dPersonnel.23>
+          <dPersonnel.24>9925007</dPersonnel.24>
+          <dPersonnel.25>2025-10-19</dPersonnel.25>
+          <dPersonnel.26>2025-10-19</dPersonnel.26>
+          <dPersonnel.27>2027-03-31</dPersonnel.27>
+        </dPersonnel.LicensureGroup>
+        <dPersonnel.LicensureGroup>
+          <dPersonnel.22>45</dPersonnel.22>
+          <dPersonnel.23>SC288908</dPersonnel.23>
+          <dPersonnel.24>9925007</dPersonnel.24>
+        </dPersonnel.LicensureGroup>
+        <dPersonnel.28>P7809225</dPersonnel.28>
+        <dPersonnel.29>1529007</dPersonnel.29>
+        <dPersonnel.30>2027-09-30</dPersonnel.30>
+        <dPersonnel.31>1531001</dPersonnel.31>
+        <dPersonnel.32>2025-10-29</dPersonnel.32>
+        <dPersonnel.33>2025-10-29</dPersonnel.33>
+        <dPersonnel.34>1534015</dPersonnel.34>
+        <dPersonnel.36>0</dPersonnel.36>
+        <dPersonnel.37>2025-10-29</dPersonnel.37>
+        <dPersonnel.CertificationLevelGroup>
+          <dPersonnel.38>9925007</dPersonnel.38>
+          <dPersonnel.39>2025-10-30</dPersonnel.39>
+        </dPersonnel.CertificationLevelGroup>
+        <dPersonnel.CertificationLevelGroup>
+          <dPersonnel.38>9925035</dPersonnel.38>
+          <dPersonnel.39>2025-10-30</dPersonnel.39>
+        </dPersonnel.CertificationLevelGroup>
+        <dPersonnel.40>9919003</dPersonnel.40>
+      </dPersonnel.PersonnelGroup>
+      <dPersonnel.PersonnelGroup>
+        <dPersonnel.NameGroup>
+          <dPersonnel.01>Ward</dPersonnel.01>
+          <dPersonnel.02>Audrey</dPersonnel.02>
+          <dPersonnel.03>C</dPersonnel.03>
+        </dPersonnel.NameGroup>
+        <dPersonnel.09>706-345-5225</dPersonnel.09>
+        <dPersonnel.10>acward@s-h-ems.example.org</dPersonnel.10>
+        <dPersonnel.12 xsi:nil="true" NV="7701003"/>
+        <dPersonnel.15>1515027</dPersonnel.15>
+        <dPersonnel.16>1516033</dPersonnel.16>
+        <dPersonnel.ImmunizationsGroup>
+          <dPersonnel.18>9910011</dPersonnel.18>
+          <dPersonnel.19>2018</dPersonnel.19>
+        </dPersonnel.ImmunizationsGroup>
+        <dPersonnel.ImmunizationsGroup>
+          <dPersonnel.18>9910049</dPersonnel.18>
+          <dPersonnel.19>2023</dPersonnel.19>
+        </dPersonnel.ImmunizationsGroup>
+        <dPersonnel.20>Spanish</dPersonnel.20>
+        <dPersonnel.21>sh-25-243</dPersonnel.21>
+        <dPersonnel.LicensureGroup>
+          <dPersonnel.22>13</dPersonnel.22>
+          <dPersonnel.23>P480510</dPersonnel.23>
+          <dPersonnel.24>9925007</dPersonnel.24>
+        </dPersonnel.LicensureGroup>
+        <dPersonnel.28>P6145648</dPersonnel.28>
+        <dPersonnel.29>1529007</dPersonnel.29>
+        <dPersonnel.30>2027-06-30</dPersonnel.30>
+        <dPersonnel.31>1531007</dPersonnel.31>
+        <dPersonnel.33>2025-01-25</dPersonnel.33>
+        <dPersonnel.34>1534015</dPersonnel.34>
+        <dPersonnel.35>1534001</dPersonnel.35>
+        <dPersonnel.CertificationLevelGroup>
+          <dPersonnel.38>9925035</dPersonnel.38>
+          <dPersonnel.39>2025-01-29</dPersonnel.39>
+        </dPersonnel.CertificationLevelGroup>
+        <dPersonnel.40>9919001</dPersonnel.40>
+      </dPersonnel.PersonnelGroup>
+    </dPersonnel>
+    <dDevice>
+      <dDevice.DeviceGroup>
+        <dDevice.01>DI42095</dDevice.01>
+        <dDevice.02>Blood Cooler A</dDevice.02>
+        <dDevice.03>1603023</dDevice.03>
+        <dDevice.04>Delta Development Team</dDevice.04>
+        <dDevice.05>Delta ICE 2L Smart Blood Cooler</dDevice.05>
+        <dDevice.06>2023-12-08</dDevice.06>
+      </dDevice.DeviceGroup>
+      <dDevice.DeviceGroup>
+        <dDevice.01>G20-45493</dDevice.01>
+        <dDevice.02>Glucometer A</dDevice.02>
+        <dDevice.03>1603007</dDevice.03>
+        <dDevice.04>Links Medical Products, Inc.</dDevice.04>
+        <dDevice.05>Fora G20</dDevice.05>
+      </dDevice.DeviceGroup>
+      <dDevice.DeviceGroup>
+        <dDevice.01>LF-2F541</dDevice.01>
+        <dDevice.02>Infusion A</dDevice.02>
+        <dDevice.03>1603021</dDevice.03>
+        <dDevice.04>LifeFlow</dDevice.04>
+        <dDevice.05>LifeFlow PLUS</dDevice.05>
+        <dDevice.06>2023-10-22</dDevice.06>
+      </dDevice.DeviceGroup>
+      <dDevice.DeviceGroup>
+        <dDevice.01>M500.23561</dDevice.01>
+        <dDevice.02>EKG B</dDevice.02>
+        <dDevice.03>1603019</dDevice.03>
+        <dDevice.04>Weber Medical Technologies, Inc.</dDevice.04>
+        <dDevice.05>MoniTech 500</dDevice.05>
+      </dDevice.DeviceGroup>
+      <dDevice.DeviceGroup>
+        <dDevice.01>W2.30321E</dDevice.01>
+        <dDevice.02>eCPR C</dDevice.02>
+        <dDevice.03>1603011</dDevice.03>
+        <dDevice.04>Walsh</dDevice.04>
+        <dDevice.05>eCPR</dDevice.05>
+        <dDevice.06>2023-07-11</dDevice.06>
+      </dDevice.DeviceGroup>
+    </dDevice>
+    <dFacility>
+      <dFacilityGroup>
+        <dFacility.01>1701001</dFacility.01>
+        <dFacility.FacilityGroup>
+          <dFacility.02>Hart Care Center</dFacility.02>
+          <dFacility.03>LTC10731132</dFacility.03>
+          <dFacility.05>1124386917</dFacility.05>
+          <dFacility.07>261 Fairview Avenue</dFacility.07>
+          <dFacility.08>331924</dFacility.08>
+          <dFacility.09>13</dFacility.09>
+          <dFacility.10>30643</dFacility.10>
+          <dFacility.11>13147</dFacility.11>
+          <dFacility.12>US</dFacility.12>
+          <dFacility.15 PhoneNumberType="9913009">706-376-7121</dFacility.15>
+        </dFacility.FacilityGroup>
+      </dFacilityGroup>
+      <dFacilityGroup>
+        <dFacility.01>1701005</dFacility.01>
+        <dFacility.FacilityGroup>
+          <dFacility.02>AnMed Health Medical Center</dFacility.02>
+          <dFacility.03>F00035711</dFacility.03>
+          <dFacility.04>9908005</dFacility.04>
+          <dFacility.04>9908007</dFacility.04>
+          <dFacility.05>1295755536</dFacility.05>
+          <dFacility.05>1417919531</dFacility.05>
+          <dFacility.05>1649290982</dFacility.05>
+          <dFacility.07>800 North Fant Street</dFacility.07>
+          <dFacility.08>1244878</dFacility.08>
+          <dFacility.09>45</dFacility.09>
+          <dFacility.10>29621</dFacility.10>
+          <dFacility.11>45007</dFacility.11>
+          <dFacility.12>US</dFacility.12>
+          <dFacility.13>34.512,-82.646</dFacility.13>
+          <dFacility.14>17SLU4890620158</dFacility.14>
+          <dFacility.15>864-512-1000</dFacility.15>
+        </dFacility.FacilityGroup>
+        <dFacility.FacilityGroup>
+          <dFacility.02>Northeast Georgia Medical Center Gainesville</dFacility.02>
+          <dFacility.03>HOSPA0025</dFacility.03>
+          <dFacility.04>9908001</dFacility.04>
+          <dFacility.04>9908021</dFacility.04>
+          <dFacility.04>9908033</dFacility.04>
+          <dFacility.04>9908043</dFacility.04>
+          <dFacility.05>1427055821</dFacility.05>
+          <dFacility.05>1437185261</dFacility.05>
+          <dFacility.05>1720015993</dFacility.05>
+          <dFacility.07>743 Spring Street NE</dFacility.07>
+          <dFacility.08>355972</dFacility.08>
+          <dFacility.09>13</dFacility.09>
+          <dFacility.10>30501</dFacility.10>
+          <dFacility.11>13139</dFacility.11>
+          <dFacility.12>US</dFacility.12>
+          <dFacility.13>34.304,-83.817</dFacility.13>
+          <dFacility.14>17SKT4074899457</dFacility.14>
+          <dFacility.15 PhoneNumberType="9913001">770-219-6206</dFacility.15>
+          <dFacility.15 PhoneNumberType="9913009">770-219-9000</dFacility.15>
+        </dFacility.FacilityGroup>
+      </dFacilityGroup>
+      <dFacilityGroup>
+        <dFacility.01>1701027</dFacility.01>
+        <dFacility.FacilityGroup>
+          <dFacility.02>Air Evac EMS</dFacility.02>
+          <dFacility.03>148A01</dFacility.03>
+        </dFacility.FacilityGroup>
+      </dFacilityGroup>
+      <dFacilityGroup>
+        <dFacility.01>1701035</dFacility.01>
+        <dFacility.FacilityGroup>
+          <dFacility.02>Brookdale Hartwell</dFacility.02>
+          <dFacility.03>PCH007787</dFacility.03>
+          <dFacility.07>45 Walnut Street</dFacility.07>
+          <dFacility.08>331924</dFacility.08>
+          <dFacility.09>13</dFacility.09>
+          <dFacility.10>30643</dFacility.10>
+          <dFacility.11>13147</dFacility.11>
+          <dFacility.12>US</dFacility.12>
+          <dFacility.13>34.355,-82.918</dFacility.13>
+          <dFacility.14>17SLU23600318</dFacility.14>
+          <dFacility.15 PhoneNumberType="9913009">706-376-6166</dFacility.15>
+        </dFacility.FacilityGroup>
+      </dFacilityGroup>
+    </dFacility>
+  </DemographicReport>
+</DEMDataSet>
