@@ -11,3 +11,7 @@
 - [x] Scheduling, Truck Builder, Trips & Clinical flag, crew Confirm Cancel all routed through it
 - [x] Billing scan reuses shared void helper
 - [x] Tests + build
+
+# Roadmap — NEMSIS CTA test harness
+- [ ] Pass 1: transport (secrets, SOAP client, nemsis_cta_submissions, nemsis-cta-submit, creator screen, tests)
+- [ ] Pass 2-5: fixtures, NV fix + DEM exporter, DEM 1, EMS 1-5 (await approval)
