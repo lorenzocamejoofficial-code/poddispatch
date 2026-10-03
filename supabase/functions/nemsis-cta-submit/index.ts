@@ -18,14 +18,19 @@ import {
   parseCtaResponse,
   redactPassword,
   type CtaCredentials,
+  stampDemographicReportTimeStamp,
+  nemsisNow,
+  parseTotalErrorCount,
+  extractCtaValidationErrors,
 } from "../_shared/nemsis/cta-soap.ts";
+import { DEM1_SUBMISSION_XML } from "../_shared/nemsis/fixtures/dem1-submission.ts";
 
 const SCHEMA_VERSION = "3.5.1";
 
 const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("ping") }),
   // Pass 1: only the transport probe is allowed. DEM1/EMS1-5 unlock in later passes.
-  z.object({ action: z.literal("submit"), test_case: z.literal("TRANSPORT_PROBE") }),
+  z.object({ action: z.literal("submit"), test_case: z.enum(["TRANSPORT_PROBE", "DEM1"]) }),
   z.object({ action: z.literal("status"), request_handle: z.string().min(1).max(200) }),
 ]);
 
@@ -74,6 +79,7 @@ Deno.serve(async (req) => {
   let envelopeXml: string;
   let dataSchema: number | null = null;
   let schemaVersion: string | null = null;
+  let sentTimestamp: string | null = null;
 
   if (body.action === "ping") {
     operation = "QueryLimit"; testCase = "PING";
@@ -81,7 +87,14 @@ Deno.serve(async (req) => {
   } else if (body.action === "submit") {
     operation = "SubmitData"; testCase = body.test_case;
     dataSchema = DATA_SCHEMA.DEM; schemaVersion = SCHEMA_VERSION;
-    envelopeXml = buildSubmitDataEnvelope(creds, buildTransportProbeXml(), dataSchema, schemaVersion, "PodDispatch transport probe");
+    if (body.test_case === "DEM1") {
+      // Only runtime mutation: stamp the real send time on DemographicReport.
+      sentTimestamp = nemsisNow();
+      const payload = stampDemographicReportTimeStamp(DEM1_SUBMISSION_XML, sentTimestamp);
+      envelopeXml = buildSubmitDataEnvelope(creds, payload, dataSchema, schemaVersion, "PodDispatch 2026 DEM 1");
+    } else {
+      envelopeXml = buildSubmitDataEnvelope(creds, buildTransportProbeXml(), dataSchema, schemaVersion, "PodDispatch transport probe");
+    }
   } else {
     operation = "RetrieveStatus"; testCase = "STATUS";
     envelopeXml = buildRetrieveStatusEnvelope(creds, body.request_handle);
@@ -122,6 +135,9 @@ Deno.serve(async (req) => {
     request_handle: p?.requestHandle ?? null,
     limit_value: p?.limit ?? null,
     error_message: errorMessage ? errorMessage.replaceAll(password, "********") : null,
+    total_error_count: responseXml ? parseTotalErrorCount(responseXml) : null,
+    validation_errors: responseXml ? extractCtaValidationErrors(responseXml) : [],
+    sent_timestamp: sentTimestamp,
     created_by: createdBy,
   };
   const { data: saved, error: insErr } = await admin
@@ -139,5 +155,8 @@ Deno.serve(async (req) => {
     limit: row.limit_value,
     report_summary: p?.reportSummary ?? null,
     error: row.error_message,
+    total_error_count: row.total_error_count,
+    validation_errors: row.validation_errors,
+    sent_timestamp: sentTimestamp,
   });
 });

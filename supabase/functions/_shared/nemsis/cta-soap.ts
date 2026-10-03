@@ -169,3 +169,83 @@ export function buildTransportProbeXml(): string {
     `</DEMDataSet>`
   );
 }
+
+/** Replaces only the DemographicReport timeStamp attribute value. Nothing else changes. */
+export function stampDemographicReportTimeStamp(xml: string, iso: string): string {
+  const re = /(<DemographicReport\b[^>]*\btimeStamp=")[^"]*(")/;
+  if (!re.test(xml)) throw new Error("DemographicReport timeStamp attribute not found");
+  return xml.replace(re, `$1${iso}$2`);
+}
+
+/** ISO-8601 with local offset, seconds precision (NEMSIS dateTime format). */
+export function nemsisNow(d = new Date(), offsetMinutes = 0): string {
+  const t = new Date(d.getTime() + offsetMinutes * 60_000);
+  const p = (n: number) => String(Math.abs(n)).padStart(2, "0");
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  return `${t.getUTCFullYear()}-${p(t.getUTCMonth() + 1)}-${p(t.getUTCDate())}T${p(t.getUTCHours())}:${p(t.getUTCMinutes())}:${p(t.getUTCSeconds())}` +
+    `${sign}${p(Math.trunc(offsetMinutes / 60))}:${p(offsetMinutes % 60)}`;
+}
+
+export interface CtaValidationError {
+  kind: "schema" | "rule" | "server";
+  level: string | null;
+  path: string | null;
+  message: string;
+  line: number | null;
+  rule: string | null;
+}
+
+function decode(s: string): string {
+  return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]+>/g, " ")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ").trim();
+}
+function attr(open: string, name: string): string | null {
+  const m = open.match(new RegExp(`\\b${name}="([^"]*)"`));
+  return m ? decode(m[1]) : null;
+}
+function child(block: string, names: string[]): string | null {
+  for (const n of names) { const v = tag(block, n); if (v) return decode(v); }
+  return null;
+}
+
+/** totalErrorCount from the CTA report, if present. */
+export function parseTotalErrorCount(xml: string): number | null {
+  const v = tag(xml, "totalErrorCount");
+  return v !== null && /^\d+$/.test(v) ? Number(v) : null;
+}
+
+/** Extracts element-level XSD and Schematron errors the CTA reports. Tolerant of namespaces/escaping. */
+export function extractCtaValidationErrors(rawXml: string): CtaValidationError[] {
+  // Reports sometimes come back entity-escaped inside a text node — unescape once if so.
+  const xml = /&lt;(?:[\w-]+:)?(?:xmlError|failed-assert|failedAssert)\b/.test(rawXml)
+    ? rawXml.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&")
+    : rawXml;
+  const out: CtaValidationError[] = [];
+  for (const m of xml.matchAll(/<(?:[\w-]+:)?xmlError\b([^>]*)>([\s\S]*?)<\/(?:[\w-]+:)?xmlError>/g)) {
+    const body = m[2];
+    const line = child(body, ["lineNumber", "line"]) ?? attr(m[1], "lineNumber");
+    out.push({
+      kind: "schema",
+      level: child(body, ["level", "severity"]) ?? "error",
+      path: child(body, ["xpath", "location", "elementPath", "path"]) ?? attr(m[1], "location"),
+      message: child(body, ["desc", "description", "message", "text"]) ?? decode(body),
+      line: line && /^\d+$/.test(line) ? Number(line) : null,
+      rule: null,
+    });
+  }
+  for (const m of xml.matchAll(/<(?:[\w-]+:)?(?:failed-assert|failedAssert|successful-report)\b([^>]*)>([\s\S]*?)<\/(?:[\w-]+:)?(?:failed-assert|failedAssert|successful-report)>/g)) {
+    const body = m[2];
+    out.push({
+      kind: "rule",
+      level: attr(m[1], "role") ?? attr(m[1], "flag"),
+      path: attr(m[1], "location"),
+      message: child(body, ["text"]) ?? decode(body),
+      line: null,
+      rule: attr(m[1], "id") ?? attr(m[1], "test"),
+    });
+  }
+  const server = tag(xml, "serverErrorMessage");
+  if (server) out.push({ kind: "server", level: "error", path: null, message: decode(server), line: null, rule: null });
+  return out.slice(0, 500);
+}

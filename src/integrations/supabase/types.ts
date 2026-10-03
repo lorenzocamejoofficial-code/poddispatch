@@ -3326,9 +3326,12 @@ export type Database = {
           request_xml_redacted: string | null
           response_xml: string | null
           schema_version: string | null
+          sent_timestamp: string | null
           status_code: number | null
           status_label: string | null
           test_case: string
+          total_error_count: number | null
+          validation_errors: Json | null
         }
         Insert: {
           created_at?: string
@@ -3343,9 +3346,12 @@ export type Database = {
           request_xml_redacted?: string | null
           response_xml?: string | null
           schema_version?: string | null
+          sent_timestamp?: string | null
           status_code?: number | null
           status_label?: string | null
           test_case: string
+          total_error_count?: number | null
+          validation_errors?: Json | null
         }
         Update: {
           created_at?: string
@@ -3360,9 +3366,12 @@ export type Database = {
           request_xml_redacted?: string | null
           response_xml?: string | null
           schema_version?: string | null
+          sent_timestamp?: string | null
           status_code?: number | null
           status_label?: string | null
           test_case?: string
+          total_error_count?: number | null
+          validation_errors?: Json | null
         }
         Relationships: []
       }
