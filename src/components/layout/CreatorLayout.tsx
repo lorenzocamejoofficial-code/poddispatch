@@ -27,6 +27,7 @@ const creatorNavItems: NavItem[] = [
   { path: "/creator-console", label: "Company Console", icon: Settings2 },
   { path: "/creator-playbook", label: "Ops Playbook", icon: BookOpen },
   { path: "/creator-nemsis-cta", label: "NEMSIS CTA", icon: ShieldCheck },
+  { path: "/creator-nemsis-dem1", label: "DEM 1 Fixture", icon: BookOpen },
   { path: "/crew-preview", label: "Crew UI Preview", icon: Users },
   { path: "/creator-settings", label: "Settings", icon: Settings },
 ];
