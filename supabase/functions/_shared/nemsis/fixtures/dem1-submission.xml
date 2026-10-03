@@ -318,7 +318,7 @@
         <dPersonnel.15>1515025</dPersonnel.15>
         <dPersonnel.16>1516007</dPersonnel.16>
         <dPersonnel.17>1517013</dPersonnel.17>
-        <dPersonnel.20>Persian</dPersonnel.20>
+        <dPersonnel.20>per</dPersonnel.20>
         <dPersonnel.21>sh-12-322</dPersonnel.21>
         <dPersonnel.LicensureGroup UUID="ccdc33b4-de88-4cbd-a4d4-aa88544edc3e">
           <dPersonnel.22>13</dPersonnel.22>
@@ -503,7 +503,7 @@
           <dPersonnel.18>9910049</dPersonnel.18>
           <dPersonnel.19>2023</dPersonnel.19>
         </dPersonnel.ImmunizationsGroup>
-        <dPersonnel.20>Spanish</dPersonnel.20>
+        <dPersonnel.20>spa</dPersonnel.20>
         <dPersonnel.21>sh-25-243</dPersonnel.21>
         <dPersonnel.LicensureGroup UUID="9a64d1f6-5062-498e-93b1-4a13f04f8c30">
           <dPersonnel.22>13</dPersonnel.22>
