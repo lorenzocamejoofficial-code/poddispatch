@@ -5,7 +5,7 @@
  */
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.23.8";
-import { requireSystemCreator } from "../_shared/creator-gate.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   CTA_ENDPOINT,
   DATA_SCHEMA,
@@ -40,9 +40,16 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const gate = await requireSystemCreator(req);
-  if (gate.error) return json({ error: gate.error }, gate.status);
-  const admin = gate.admin!;
+  // Creator-only gate: validated JWT + system_creators membership.
+  const auth = req.headers.get("Authorization");
+  if (!auth?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const { data: u, error: uErr } = await admin.auth.getUser(auth.replace("Bearer ", ""));
+  if (uErr || !u?.user) return json({ error: "Unauthorized" }, 401);
+  const createdBy = u.user.id;
+  const { data: sc, error: scErr } = await admin.from("system_creators").select("user_id").eq("user_id", createdBy).maybeSingle();
+  if (scErr) return json({ error: "Creator check failed" }, 500);
+  if (!sc) return json({ error: "Forbidden — system creators only" }, 403);
 
   let raw: unknown;
   try { raw = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
@@ -61,10 +68,6 @@ Deno.serve(async (req) => {
     organization: Deno.env.get("NEMSIS_CTA_ORGANIZATION") || "PodDispatch",
   };
 
-  // Caller id for the log row.
-  const token = req.headers.get("Authorization")!.replace("Bearer ", "");
-  const { data: u } = await admin.auth.getUser(token);
-  const createdBy = u?.user?.id ?? null;
 
   let operation: "QueryLimit" | "SubmitData" | "RetrieveStatus";
   let testCase: string;
