@@ -38,7 +38,17 @@ Deno.serve(async (req) => {
     // leaving an unauthenticated cross-tenant surface.
     if (!targetCompanyId) {
       const sweepAuth = req.headers.get("Authorization");
-      if (sweepAuth !== `Bearer ${serviceRoleKey}`) {
+      let allowed = sweepAuth === `Bearer ${serviceRoleKey}`;
+      // System creators (creator console "Poll Office Ally") may also run the sweep.
+      if (!allowed && sweepAuth?.startsWith("Bearer ")) {
+        const { data: u } = await supabase.auth.getUser(sweepAuth.slice(7));
+        if (u?.user?.id) {
+          const { data: sc } = await supabase
+            .from("system_creators").select("user_id").eq("user_id", u.user.id).maybeSingle();
+          allowed = !!sc;
+        }
+      }
+      if (!allowed) {
         return new Response(
           JSON.stringify({ success: false, error: "Unauthorized" }),
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }

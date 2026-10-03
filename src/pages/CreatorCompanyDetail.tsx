@@ -382,7 +382,8 @@ export default function CreatorCompanyDetail() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={lifecycleBusy}
+                        disabled={lifecycleBusy || !!(subscription as any).stripe_subscription_id || !!subscription.is_comped || ["active", "past_due"].includes(subscription.subscription_status)}
+                        title="Only companies on (or past) a trial can be extended"
                         onClick={() => runLifecycle("extend_trial")}
                       >
                         Extend trial

@@ -890,13 +890,17 @@ Deno.serve(async (req) => {
 
       const { data: sub, error: sErr } = await supabaseAdmin
         .from("subscription_records")
-        .select("id, subscription_status, trial_started_at, trial_ends_at")
+        .select("id, subscription_status, trial_started_at, trial_ends_at, stripe_subscription_id, is_comped")
         .eq("company_id", companyId)
         .maybeSingle();
       if (sErr) return json({ error: sErr.message }, 500);
       if (!sub) return json({ error: "This company has no subscription record yet.", code: "NO_SUBSCRIPTION_RECORD" }, 400);
 
       const s = sub as any;
+      // Never push a paying or comped customer back onto a trial.
+      if (s.stripe_subscription_id || s.is_comped || ["active", "past_due"].includes(s.subscription_status)) {
+        return json({ error: "This company is paying or comped — a trial can't be extended.", code: "NOT_ON_TRIAL" }, 400);
+      }
       const nowMs = Date.now();
       // Extend from the current end date when it's still in the future,
       // otherwise from now (a re-start after expiry).
