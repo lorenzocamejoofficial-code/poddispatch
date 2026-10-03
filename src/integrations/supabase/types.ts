@@ -3312,6 +3312,60 @@ export type Database = {
           },
         ]
       }
+      nemsis_cta_submissions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data_schema: number | null
+          error_message: string | null
+          http_status: number | null
+          id: string
+          limit_value: number | null
+          operation: string
+          request_handle: string | null
+          request_xml_redacted: string | null
+          response_xml: string | null
+          schema_version: string | null
+          status_code: number | null
+          status_label: string | null
+          test_case: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data_schema?: number | null
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          limit_value?: number | null
+          operation: string
+          request_handle?: string | null
+          request_xml_redacted?: string | null
+          response_xml?: string | null
+          schema_version?: string | null
+          status_code?: number | null
+          status_label?: string | null
+          test_case: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data_schema?: number | null
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          limit_value?: number | null
+          operation?: string
+          request_handle?: string | null
+          request_xml_redacted?: string | null
+          response_xml?: string | null
+          schema_version?: string | null
+          status_code?: number | null
+          status_label?: string | null
+          test_case?: string
+        }
+        Relationships: []
+      }
       nemsis_submissions: {
         Row: {
           ack_xml: string | null
