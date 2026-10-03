@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Truck, Plus, Trash2, Zap, Users, GripVertical, GitBranch, Pencil, WrenchIcon, AlertTriangle, Clock, Link2, AlertCircle, XCircle, ShieldX, ShieldAlert, ArrowRight } from "lucide-react";
 import { TruckRiskBadge } from "@/components/dispatch/TruckRiskBadge";
 import { DispatcherCancelDialog } from "@/components/scheduling/DispatcherCancelDialog";
+import { restoreCancelledTrip } from "@/lib/cancel-trip";
 import { HoldTimerIndicator } from "@/components/dispatch/HoldTimerIndicator";
 import { SafetyClassificationBadge } from "@/components/scheduling/SafetyClassificationBadge";
 import { evaluateSafetyRules, hasCompletePatientNeeds, type PatientNeeds, type CrewCapability, type TruckEquipment } from "@/lib/safety-rules";
@@ -513,11 +514,22 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
 
   const restoreLeg = useCallback(async (legId: string) => {
     const leg = legs.find(l => l.id === legId);
-    await supabase.from("truck_run_slots")
-      .update({ status: "pending" } as any)
-      .eq("leg_id", legId)
-      .eq("run_date", selectedDate);
-    toast.success("Run restored");
+    try {
+      const r = await restoreCancelledTrip(legId, selectedDate);
+      const { error: sErr } = await supabase.from("truck_run_slots")
+        .update({ status: "pending" } as any)
+        .eq("leg_id", legId)
+        .eq("run_date", selectedDate);
+      if (sErr) throw new Error(sErr.message);
+      const extra = [
+        r.claimsRestored ? `${r.claimsRestored} claim(s) sent back to billing review` : "",
+        r.documentedPcr ? "cancellation form already filed — check the report" : "",
+      ].filter(Boolean).join("; ");
+      toast.success(extra ? `Run restored — ${extra}` : "Run restored");
+    } catch (e: any) {
+      toast.error(`Restore failed: ${e?.message ?? "unknown error"}`);
+      return;
+    }
     if (onLogChange && leg) {
       onLogChange({
         change_type: "run_restored",

@@ -84,7 +84,11 @@ export function AcknowledgmentsPanel() {
   const pollOA = async () => {
     setPolling(true);
     try {
-      await supabase.functions.invoke("retrieve-remittance-officeally", { body: { fetch_acks: true } });
+      const { error } = await supabase.functions.invoke("retrieve-remittance-officeally", { body: { fetch_acks: true } });
+      if (error) {
+        const { toast } = await import("sonner");
+        toast.error(`Office Ally poll failed: ${error.message}`);
+      }
       await new Promise(r => setTimeout(r, 1500));
       await load();
     } finally {
