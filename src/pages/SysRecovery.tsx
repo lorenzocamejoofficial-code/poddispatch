@@ -19,27 +19,16 @@ export default function SysRecovery() {
   const { slug = "" } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const [passphrase, setPassphrase] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!passphrase || !newPassword) {
-      toast.error("Passphrase and new password are required");
+    if (!passphrase) {
+      toast.error("Passphrase is required");
       return;
     }
-    if (newPassword.length < 10) {
-      toast.error("New password must be at least 10 characters");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-
     setLoading(true);
     try {
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
@@ -48,11 +37,7 @@ export default function SysRecovery() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            slug,
-            passphrase,
-            new_password: newPassword,
-          }),
+          body: JSON.stringify({ slug, passphrase }),
         }
       );
       const data = await res.json();
@@ -61,22 +46,8 @@ export default function SysRecovery() {
         setLoading(false);
         return;
       }
-
-      // Auto sign-in with the new password
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: newPassword,
-      });
-
-      if (signInErr) {
-        toast.success("Password reset. Please sign in manually.");
-        setSuccess(true);
-        setTimeout(() => navigate("/login"), 2000);
-      } else {
-        toast.success("Recovered. Redirecting…");
-        setSuccess(true);
-        setTimeout(() => navigate("/system"), 1000);
-      }
+      toast.success("Recovery link sent to your registered email.");
+      setSuccess(true);
     } catch (err: any) {
       toast.error(err?.message || "Network error");
       setLoading(false);
@@ -95,7 +66,7 @@ export default function SysRecovery() {
           </div>
           <CardTitle>System Recovery</CardTitle>
           <CardDescription>
-            Enter your recovery passphrase and a new password.
+            Enter your recovery passphrase. A one-time link to set a new password will be emailed to your registered creator address.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -103,7 +74,7 @@ export default function SysRecovery() {
             <Alert>
               <CheckCircle2 className="h-4 w-4" />
               <AlertDescription>
-                Password reset successful. Redirecting…
+                Passphrase verified. Check your registered email for a link to set a new password.
               </AlertDescription>
             </Alert>
           ) : (
@@ -133,39 +104,13 @@ export default function SysRecovery() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="new-password">New Password</Label>
-                <Input
-                  id="new-password"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  autoComplete="new-password"
-                  minLength={10}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">Min 10 characters.</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm New Password</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  autoComplete="new-password"
-                  required
-                />
-              </div>
-
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying…
                   </>
                 ) : (
-                  "Reset Password & Sign In"
+                  "Send Recovery Link"
                 )}
               </Button>
 
