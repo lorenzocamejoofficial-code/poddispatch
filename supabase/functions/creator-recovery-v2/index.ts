@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import bcrypt from "npm:bcryptjs@2.4.3";
+import { sendViaResend, renderActionEmail, buildAppRecoveryUrl } from "../_shared/send-via-resend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,8 +33,8 @@ function getClientIp(req: Request): string {
 /**
  * Two-phase Creator Recovery
  *
- * Phase 1 — verify (sets new password, returns email so frontend can sign in):
- *   POST { slug, passphrase, new_password }
+ * Verify slug + passphrase, then email a single-use reset link to the creator:
+ *   POST { slug, passphrase }
  *
  * Both slug and passphrase must match what was stored via setup-creator-recovery.
  * Rate limit: max 5 attempts per IP per hour. Each attempt logged to creator_recovery_attempts.
@@ -90,15 +91,10 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => null);
     const slug = typeof body?.slug === "string" ? body.slug.trim() : "";
     const passphrase = typeof body?.passphrase === "string" ? body.passphrase : "";
-    const newPassword = typeof body?.new_password === "string" ? body.new_password : "";
 
-    if (!slug || !passphrase || !newPassword) {
+    if (!slug || !passphrase) {
       await logAttempt("error", null, "missing_fields");
-      return jsonResponse({ error: "slug, passphrase, and new_password are required" }, 400);
-    }
-    if (newPassword.length < 10) {
-      await logAttempt("error", null, "weak_password");
-      return jsonResponse({ error: "New password must be at least 10 characters" }, 400);
+      return jsonResponse({ error: "slug and passphrase are required" }, 400);
     }
 
     const slugHash = await sha256Hex(slug);
@@ -137,12 +133,44 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Creator user not found" }, 500);
     }
 
-    const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(creator.user_id, {
-      password: newPassword,
+    // Both factors verified — DO NOT set the password here. Email a single-use
+    // reset link to the creator's registered address; possession of that inbox
+    // is the final proof before any credential changes.
+    const creatorEmail = userRes.user.email;
+    if (!creatorEmail) {
+      await logAttempt("error", slugHash, "creator_has_no_email");
+      return jsonResponse({ error: "Recovery unavailable" }, 500);
+    }
+    const appOrigin = (Deno.env.get("APP_URL") || "https://app.thepoddispatch.com").replace(/\/$/, "");
+    const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
+      type: "recovery",
+      email: creatorEmail,
+      options: { redirectTo: `${appOrigin}/reset-password` },
     });
-    if (updErr) {
-      await logAttempt("error", slugHash, `update_failed: ${updErr.message}`);
-      return jsonResponse({ error: updErr.message }, 500);
+    const hashedToken = (linkData as any)?.properties?.hashed_token ?? null;
+    if (linkErr || !hashedToken) {
+      await logAttempt("error", slugHash, `link_failed: ${linkErr?.message ?? "no token"}`);
+      return jsonResponse({ error: "Could not create recovery link" }, 500);
+    }
+    const actionUrl = buildAppRecoveryUrl({ appOrigin, hashedToken, email: creatorEmail });
+    const { html, text } = renderActionEmail({
+      heading: "System creator recovery",
+      intro: "Your recovery passphrase was just verified. Use the button below to set a new password. If this wasn't you, change your recovery passphrase immediately.",
+      actionLabel: "Set new password",
+      actionUrl,
+      footer: "This link can be used once and expires soon.",
+    });
+    const sent = await sendViaResend({
+      to: creatorEmail,
+      subject: "PodDispatch system creator recovery link",
+      html,
+      text,
+      email_type: "password_reset",
+      recipient_user_id: creator.user_id,
+    });
+    if (!sent.ok) {
+      await logAttempt("error", slugHash, `email_failed: ${sent.error ?? ""}`);
+      return jsonResponse({ error: "Could not send recovery email" }, 502);
     }
 
     await logAttempt("success", slugHash);
@@ -163,11 +191,10 @@ Deno.serve(async (req) => {
 
     return jsonResponse({
       ok: true,
-      email: userRes.user.email,
-      message: "Password reset successful. You can now sign in.",
+      message: "Recovery link sent to the registered creator email.",
     });
   } catch (err: any) {
     console.error("creator-recovery-v2 error:", err);
-    return jsonResponse({ error: err?.message || "Internal error" }, 500);
+    return jsonResponse({ error: "Internal error" }, 500);
   }
 });
