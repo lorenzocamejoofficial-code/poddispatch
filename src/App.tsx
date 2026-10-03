@@ -78,6 +78,7 @@ const FleetMap = lazyRoute(() => import("./pages/FleetMap"));
 const SelectCompany = lazyRoute(() => import("./pages/SelectCompany"));
 const CrewInspectionChecklist = lazyRoute(() => import("./components/inspection/CrewInspectionChecklist"));
 const CreatorPlaybook = lazyRoute(() => import("./pages/CreatorPlaybook"));
+const CreatorNemsisCta = lazyRoute(() => import("./pages/CreatorNemsisCta"));
 
 /**
  * Warm route chunks gently after the app is fully idle. We only download
@@ -393,6 +394,7 @@ function AppRoutes() {
           <Route path="/creator-console/:companyId" element={<CreatorCompanyDetail />} />
           <Route path="/creator-settings" element={<CreatorSettings />} />
           <Route path="/creator-playbook" element={<CreatorPlaybook />} />
+          <Route path="/creator-nemsis-cta" element={<CreatorNemsisCta />} />
           <Route path="/simulation-lab" element={<SimulationLab />} />
           <Route path="/crew-preview" element={<CrewUIPreview />} />
           <Route path="/override-monitor" element={<OverrideMonitor />} />
