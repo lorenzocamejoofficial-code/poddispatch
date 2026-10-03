@@ -258,3 +258,37 @@ export function describeCancelResult(patientName: string, r: CancelTripResult): 
   if (r.claims.flagged) parts.push(`${r.claims.flagged} sent claim(s) flagged to billing`);
   return parts.join(" · ");
 }
+
+/**
+ * Undo an office-side cancel (Truck Builder "Restore"). Reverses what
+ * cancelTrip() changed on that leg+date: trip back to assigned, cancel stamps
+ * cleared, a PCR flagged cancelled_with_pcr returns to in_progress, and claims
+ * auto-voided by the cancel return to needs_review for a biller to re-check.
+ * A PCR already cancelled_documented is left as-is (paperwork exists).
+ */
+export async function restoreCancelledTrip(legId: string, runDate: string): Promise<{ tripRestored: boolean; claimsRestored: number; documentedPcr: boolean }> {
+  const { data: trip, error } = await supabase
+    .from("trip_records" as any)
+    .select("id, status, pcr_status")
+    .eq("leg_id", legId)
+    .eq("run_date", runDate)
+    .eq("status", "cancelled")
+    .maybeSingle();
+  if (error) throw new Error(`Could not read trip: ${error.message}`);
+  if (!trip) return { tripRestored: false, claimsRestored: 0, documentedPcr: false };
+  const t = trip as any;
+  const update: Record<string, unknown> = {
+    status: "assigned", cancellation_reason: null, cancelled_by: null,
+    cancelled_at: null, cancellation_source: null,
+  };
+  if (t.pcr_status === "cancelled_with_pcr") update.pcr_status = "in_progress";
+  const { error: uErr } = await supabase.from("trip_records" as any).update(update as any).eq("id", t.id);
+  if (uErr) throw new Error(`Could not restore trip: ${uErr.message}`);
+  const { data: claims, error: cErr } = await supabase
+    .from("claim_records" as any)
+    .update({ status: "needs_review", notes: "Trip restored after cancel — review before billing" } as any)
+    .eq("trip_id", t.id).eq("status", "voided").eq("notes", CLAIM_VOID_NOTE)
+    .select("id");
+  if (cErr) throw new Error(`Could not restore claims: ${cErr.message}`);
+  return { tripRestored: true, claimsRestored: (claims as any[] | null)?.length ?? 0, documentedPcr: t.pcr_status === "cancelled_documented" };
+}
