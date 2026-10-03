@@ -168,6 +168,16 @@ export async function sendViaResend(input: SendEmailInput): Promise<SendEmailRes
   }
 }
 
+/** Escapes text for safe inclusion in HTML email bodies. */
+export function escapeHtml(v: string): string {
+  return String(v)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // Minimal branded HTML wrapper so all auth/invite emails look consistent.
 export function renderActionEmail(opts: {
   heading: string;

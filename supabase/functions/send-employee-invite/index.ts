@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendViaResend, renderActionEmail } from "../_shared/send-via-resend.ts";
+import { sendViaResend, renderActionEmail, escapeHtml } from "../_shared/send-via-resend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,13 +75,14 @@ Deno.serve(async (req) => {
       .from("companies").select("name").eq("id", profile.company_id).maybeSingle();
     const tenantName = (companyRow?.name as string | undefined) ?? undefined;
 
+    const safeTenant = tenantName ? escapeHtml(tenantName) : undefined;
     const appOrigin = Deno.env.get("APP_URL") || "https://app.thepoddispatch.com";
     const actionUrl = `${appOrigin.replace(/\/$/, "")}/invite?token=${token}`;
 
     const { html, text } = renderActionEmail({
-      heading: `You've been invited to ${tenantName ?? "PodDispatch"}`,
+      heading: `You've been invited to ${safeTenant ?? "PodDispatch"}`,
       intro:
-        `You've been invited to join ${tenantName ?? "the team"} on PodDispatch as ${profile.pending_role ?? "a team member"}. Click the button below to set your password and finish setting up your account.`,
+        `You've been invited to join ${safeTenant ?? "the team"} on PodDispatch as ${escapeHtml(String(profile.pending_role ?? "a team member"))}. Click the button below to set your password and finish setting up your account.`,
       actionLabel: "Accept invite",
       actionUrl,
       footer: "If you weren't expecting this invite, you can safely ignore this email.",

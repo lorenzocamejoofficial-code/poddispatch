@@ -7,7 +7,10 @@ export function downloadCSV(rows: Record<string, any>[], filename: string) {
       headers.map(h => {
         const val = row[h];
         if (val === null || val === undefined) return "";
-        const str = String(val).replace(/"/g, '""');
+        let raw = String(val);
+        // Neutralize spreadsheet formulas (=, +, -, @, tab, CR at start).
+        if (/^[=+\-@\t\r]/.test(raw)) raw = `'${raw}`;
+        const str = raw.replace(/"/g, '""');
         return str.includes(",") || str.includes('"') || str.includes("\n") ? `"${str}"` : str;
       }).join(",")
     ),

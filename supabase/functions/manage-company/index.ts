@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendViaResend, renderActionEmail, buildAppRecoveryUrl } from "../_shared/send-via-resend.ts";
+import { sendViaResend, renderActionEmail, buildAppRecoveryUrl, escapeHtml } from "../_shared/send-via-resend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -336,8 +336,8 @@ Deno.serve(async (req) => {
         const { html, text } = renderActionEmail({
           heading: "You're approved 🎉",
           intro: skipTrial
-            ? `Good news — ${approveContact.companyName ?? "your company"} has been approved on PodDispatch. The last step is choosing a plan and adding a card to unlock the app.`
-            : `Good news — ${approveContact.companyName ?? "your company"} has been approved on PodDispatch. Sign in to start your <strong>30-day free trial</strong> — no card required. Your trial timer starts the first time you log in (or automatically 7 days after approval).`,
+            ? `Good news — ${approveContact.companyName ? escapeHtml(approveContact.companyName) : "your company"} has been approved on PodDispatch. The last step is choosing a plan and adding a card to unlock the app.`
+            : `Good news — ${approveContact.companyName ? escapeHtml(approveContact.companyName) : "your company"} has been approved on PodDispatch. Sign in to start your <strong>30-day free trial</strong> — no card required. Your trial timer starts the first time you log in (or automatically 7 days after approval).`,
           actionLabel: skipTrial ? "Choose your plan" : "Sign in & start trial",
           actionUrl: skipTrial ? planUrl : `${appOrigin()}/login`,
           footer: "PodDispatch · Secure dispatch & billing for NEMT operators.",
@@ -399,7 +399,7 @@ Deno.serve(async (req) => {
           .replace(/>/g, "&gt;");
         const { html, text } = renderActionEmail({
           heading: "Your PodDispatch application needs changes",
-          intro: `Thanks for applying to PodDispatch. After review, ${rejectContact.companyName ?? "your application"} was not approved at this time.<br/><br/><strong>Reason from our team:</strong><br/>${safeReason}<br/><br/>You can sign in to review the details and resubmit your application with corrections.`,
+          intro: `Thanks for applying to PodDispatch. After review, ${rejectContact.companyName ? escapeHtml(rejectContact.companyName) : "your application"} was not approved at this time.<br/><br/><strong>Reason from our team:</strong><br/>${safeReason}<br/><br/>You can sign in to review the details and resubmit your application with corrections.`,
           actionLabel: "Sign in to resubmit",
           actionUrl: loginUrl,
           footer: "Questions? Reply to this email or contact support@thepoddispatch.com.",
