@@ -50,6 +50,21 @@ Deno.serve(async (req) => {
       return json({ error: "Forbidden" }, 403);
     }
 
+    // Recipient must be an employee email on file in the caller's company.
+    const { data: recipientProfile } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("company_id", actorMembership.company_id)
+      .eq("email", to.trim().toLowerCase())
+      .limit(1)
+      .maybeSingle();
+    if (!recipientProfile) {
+      return json({ error: "Recipient must be an employee of your company with this email on file" }, 403);
+    }
+    if (subject.length > 200 || message.length > 20000) {
+      return json({ error: "Subject or message too long" }, 400);
+    }
+
     // Look up tenant company name so the From: header is operator-branded
     // ("{Company} via PodDispatch" instead of plain "PodDispatch").
     const { data: companyRow } = await admin
