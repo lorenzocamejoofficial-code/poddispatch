@@ -1,1 +1,2 @@
 - All office-side trip cancels go through `cancelTrip()` in src/lib/cancel-trip.ts — why: one place enforces the report-documentation rule, claim voiding, notifications and audit, so cancel behavior cannot drift.
+- NEMSIS CTA testing goes only through the creator-only nemsis-cta-submit function, which sends built-in fixtures to one hardcoded CTA address — why: real tenant PHI can never reach the sandbox.
