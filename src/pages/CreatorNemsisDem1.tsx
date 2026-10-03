@@ -1,11 +1,15 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { Check, Copy } from "lucide-react";
 import { CreatorLayout } from "@/components/layout/CreatorLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DEM1_META, DEM1_SECTIONS, DEM1_STATE_RESOLUTIONS, SOFTWARE_IDENTITY_CODES, STATE_PLACEHOLDER,
   resolveFacilityField, type FixtureEntity,
 } from "@/lib/nemsis/fixtures/dem1";
+import { DEM1_SUBMISSION_XML } from "@/lib/nemsis/fixtures/dem1-submission";
 
 /** Facility rows grouped by the state id (dFacility.03) that precedes them. */
 function facilityStateIdAt(entity: FixtureEntity, index: number): string | undefined {
@@ -14,6 +18,12 @@ function facilityStateIdAt(entity: FixtureEntity, index: number): string | undef
 }
 
 export default function CreatorNemsisDem1() {
+  const [copied, setCopied] = useState(false);
+  const copyXml = async () => {
+    await navigator.clipboard.writeText(DEM1_SUBMISSION_XML);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
   return (
     <CreatorLayout title="DEM 1 Fixture">
       <div className="space-y-6">
