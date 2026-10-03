@@ -1,11 +1,15 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { Check, Copy } from "lucide-react";
 import { CreatorLayout } from "@/components/layout/CreatorLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DEM1_META, DEM1_SECTIONS, DEM1_STATE_RESOLUTIONS, SOFTWARE_IDENTITY_CODES, STATE_PLACEHOLDER,
   resolveFacilityField, type FixtureEntity,
 } from "@/lib/nemsis/fixtures/dem1";
+import { DEM1_SUBMISSION_XML } from "@/lib/nemsis/fixtures/dem1-submission";
 
 /** Facility rows grouped by the state id (dFacility.03) that precedes them. */
 function facilityStateIdAt(entity: FixtureEntity, index: number): string | undefined {
@@ -14,6 +18,12 @@ function facilityStateIdAt(entity: FixtureEntity, index: number): string | undef
 }
 
 export default function CreatorNemsisDem1() {
+  const [copied, setCopied] = useState(false);
+  const copyXml = async () => {
+    await navigator.clipboard.writeText(DEM1_SUBMISSION_XML);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
   return (
     <CreatorLayout title="DEM 1 Fixture">
       <div className="space-y-6">
@@ -29,6 +39,26 @@ export default function CreatorNemsisDem1() {
             <Badge variant="secondary">PodDispatch identity — filled in by us</Badge>
             <Badge variant="destructive">From GA state registry</Badge>
             <Badge variant="outline">→ resolved value</Badge>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Generated DEM XML</CardTitle>
+                <CardDescription>
+                  Canonical DEM 1 submission payload, committed verbatim. The timestamp is a placeholder; the send path sets the real one at submission time.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={copyXml}>
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <pre className="max-h-[600px] overflow-auto rounded-md border border-border bg-muted p-3 font-mono text-xs whitespace-pre">{DEM1_SUBMISSION_XML}</pre>
           </CardContent>
         </Card>
 
