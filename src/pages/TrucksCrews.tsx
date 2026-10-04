@@ -972,25 +972,32 @@ export default function TrucksCrews() {
                 <div className="flex items-center gap-2">
                   <Truck className={`h-4 w-4 shrink-0 ${t.active ? "text-primary" : "text-muted-foreground"}`} />
                   {editingTruckId === t.id ? (
-                    <div className="flex items-center gap-2 flex-1">
-                      <Input className="h-7 text-sm flex-1" value={editingTruckName}
-                        onChange={(e) => setEditingTruckName(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") saveTruckEdit(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
-                        placeholder="Truck name"
-                        autoFocus />
-                      <Input className="h-7 text-sm w-24" value={editingTruckVehicleId}
-                        onChange={(e) => setEditingTruckVehicleId(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") saveTruckEdit(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
-                        placeholder="Unit #" />
-                      <Select value={editingTruckServiceLevel} onValueChange={(v) => setEditingTruckServiceLevel(v as "BLS" | "ALS")}>
-                        <SelectTrigger className="h-7 w-[72px] text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="BLS">BLS</SelectItem>
-                          <SelectItem value="ALS">ALS</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveTruckEdit(t.id)}><Check className="h-3 w-3 text-[hsl(var(--status-green))]" /></Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingTruckId(null)}><X className="h-3 w-3" /></Button>
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Input className={`h-7 text-sm flex-1 ${editTruckNameError ? "border-destructive focus-visible:ring-destructive" : ""}`} value={editingTruckName}
+                          onChange={(e) => { setEditingTruckName(e.target.value); if (editTruckNameError) setEditTruckNameError(null); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveTruckEdit(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
+                          placeholder="Truck name"
+                          aria-invalid={!!editTruckNameError}
+                          autoFocus />
+                        <Input className={`h-7 text-sm w-24 ${editTruckUnitError ? "border-destructive focus-visible:ring-destructive" : ""}`} value={editingTruckVehicleId}
+                          onChange={(e) => { setEditingTruckVehicleId(e.target.value); if (editTruckUnitError) setEditTruckUnitError(null); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveTruckEdit(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
+                          placeholder="Unit #"
+                          aria-invalid={!!editTruckUnitError} />
+                        <Select value={editingTruckServiceLevel} onValueChange={(v) => setEditingTruckServiceLevel(v as "BLS" | "ALS")}>
+                          <SelectTrigger className="h-7 w-[72px] text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="BLS">BLS</SelectItem>
+                            <SelectItem value="ALS">ALS</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveTruckEdit(t.id)}><Check className="h-3 w-3 text-[hsl(var(--status-green))]" /></Button>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setEditingTruckId(null); setEditTruckNameError(null); setEditTruckUnitError(null); }}><X className="h-3 w-3" /></Button>
+                      </div>
+                      {(editTruckNameError || editTruckUnitError) && (
+                        <p className="text-xs text-destructive pl-1">{editTruckNameError ?? editTruckUnitError}</p>
+                      )}
                     </div>
                   ) : (
                     <>
