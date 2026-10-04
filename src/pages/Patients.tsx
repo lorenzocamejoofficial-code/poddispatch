@@ -1974,6 +1974,14 @@ export default function Patients() {
                     </div>
                   )}
 
+                  {dupWarning && !editing && (
+                    <div className="flex items-start gap-2 rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] px-3 py-2">
+                      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-[hsl(var(--status-yellow))]" />
+                      <p className="text-xs text-foreground">
+                        A patient named <strong>'{dupWarning}'</strong> with this date of birth already exists — continue? Click "Add Patient" again to proceed anyway.
+                      </p>
+                    </div>
+                  )}
                   <Button onClick={handleSave} disabled={saving}>
                     {saving ? (editing ? "Saving..." : "Adding...") : (editing ? "Save Changes" : "Add Patient")}
                   </Button>
