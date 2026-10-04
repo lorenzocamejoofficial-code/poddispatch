@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { findFacilityDuplicate, type FacilityDuplicate } from "@/lib/facility-duplicates";
+import { findFacilityNameDuplicate } from "@/lib/facility-duplicates";
 
 interface FacilityDropdownProps {
   value: string;
@@ -21,7 +21,7 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
   const [newAddress, setNewAddress] = useState("");
   const [newSubtype, setNewSubtype] = useState<"" | "freestanding" | "hospital_based">("");
   const [saving, setSaving] = useState(false);
-  const [dupWarning, setDupWarning] = useState<FacilityDuplicate | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const fetchFacilities = useCallback(async () => {
     const { data } = await supabase
@@ -42,16 +42,13 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
     }
     setSaving(true);
     const { data: companyId } = await supabase.rpc("get_my_company_id");
-    // Patients link by facility_id (a real FK), so a duplicate name is a
-    // warning, not a block. First click warns; a second click with
-    // unchanged fields proceeds.
-    if (!dupWarning) {
-      const dup = await findFacilityDuplicate(companyId, newName, newAddress);
-      if (dup) {
-        setDupWarning(dup);
-        setSaving(false);
-        return;
-      }
+    // Dispatchers pick dropoffs by name, so an exact-name duplicate is
+    // blocked outright — address does not factor into the decision.
+    const existingName = await findFacilityNameDuplicate(companyId, newName);
+    if (existingName) {
+      setNameError(existingName);
+      setSaving(false);
+      return;
     }
     const { error } = await supabase.from("facilities" as any).insert({
       name: newName.trim(),
