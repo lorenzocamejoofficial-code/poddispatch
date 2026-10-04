@@ -113,6 +113,9 @@ export default function CreatorNemsisCta() {
             <Button onClick={() => call("ems3", { action: "submit", test_case: "EMS3" })} disabled={!!busy}>
               {busy === "ems3" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Submit EMS 3
             </Button>
+            <Button onClick={() => call("ems4", { action: "submit", test_case: "EMS4" })} disabled={!!busy}>
+              {busy === "ems4" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Submit EMS 4
+            </Button>
             <Button variant="ghost" onClick={load} disabled={!!busy}><RefreshCw className="h-4 w-4" /> Refresh</Button>
           </CardContent>
         </Card>

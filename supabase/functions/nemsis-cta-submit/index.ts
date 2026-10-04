@@ -99,6 +99,9 @@ Deno.serve(async (req) => {
     } else if (body.test_case === "EMS3") {
       // EMS: no envelope timestamp — sent exactly as committed.
       envelopeXml = buildSubmitDataEnvelope(creds, EMS3_SUBMISSION_XML, dataSchema, schemaVersion, "PodDispatch 2026 EMS 3");
+    } else if (body.test_case === "EMS4") {
+      // EMS: no envelope timestamp — sent exactly as committed.
+      envelopeXml = buildSubmitDataEnvelope(creds, EMS4_SUBMISSION_XML, dataSchema, schemaVersion, "PodDispatch 2026 EMS 4");
     } else if (body.test_case === "DEM1") {
       // Only runtime mutation: stamp the real send time on DemographicReport.
       sentTimestamp = nemsisNow();
