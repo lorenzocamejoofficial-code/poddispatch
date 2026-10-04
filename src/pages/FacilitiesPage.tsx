@@ -14,6 +14,7 @@ import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 import { Building2, Plus, Search, Users, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { normalizePhone } from "@/lib/phone";
+import { facilityNameExists } from "@/lib/facility-duplicates";
 
 interface Facility {
   id: string;
@@ -56,6 +57,7 @@ export default function FacilitiesPage() {
     contract_payer_type: "", rate_type: "medicare", invoice_preference: "per_trip",
   });
   const [saving, setSaving] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -74,6 +76,7 @@ export default function FacilitiesPage() {
   const resetForm = () => {
     setForm({ name: "", facility_type: "dialysis", dialysis_subtype: "", address: "", phone: "", contact_name: "", notes: "", active: true, contract_payer_type: "", rate_type: "medicare", invoice_preference: "per_trip" });
     setEditing(null);
+    setNameError(null);
   };
 
   const openEdit = (f: Facility) => {
@@ -99,6 +102,13 @@ export default function FacilitiesPage() {
     setSaving(true);
     try {
       const { data: companyId } = await supabase.rpc("get_my_company_id");
+      // Dropoff matching is by facility name — a duplicate name silently breaks
+      // that linkage, so block it here (trimmed, case-insensitive, per company).
+      if (await facilityNameExists(companyId, form.name, editing?.id)) {
+        setNameError(`A facility named '${form.name.trim()}' already exists`);
+        setSaving(false);
+        return;
+      }
       const payload = {
         name: form.name.trim(), facility_type: form.facility_type, address: form.address || null,
         dialysis_subtype: form.facility_type === "dialysis" ? (form.dialysis_subtype || null) : null,
@@ -199,7 +209,13 @@ export default function FacilitiesPage() {
           <div className="space-y-3 py-2">
             <div>
               <Label>Facility Name *</Label>
-              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+              <Input
+                value={form.name}
+                onChange={e => { setForm({ ...form, name: e.target.value }); if (nameError) setNameError(null); }}
+                aria-invalid={!!nameError}
+                className={nameError ? "border-destructive focus-visible:ring-destructive" : ""}
+              />
+              {nameError && <p className="text-xs text-destructive mt-1">{nameError}</p>}
             </div>
             <div>
               <Label>Type</Label>
