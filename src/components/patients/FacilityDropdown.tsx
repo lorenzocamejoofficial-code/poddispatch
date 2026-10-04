@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { facilityNameExists } from "@/lib/facility-duplicates";
+import { findFacilityDuplicate, type FacilityDuplicate } from "@/lib/facility-duplicates";
 
 interface FacilityDropdownProps {
   value: string;
@@ -21,7 +21,7 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
   const [newAddress, setNewAddress] = useState("");
   const [newSubtype, setNewSubtype] = useState<"" | "freestanding" | "hospital_based">("");
   const [saving, setSaving] = useState(false);
-  const [nameError, setNameError] = useState<string | null>(null);
+  const [dupWarning, setDupWarning] = useState<FacilityDuplicate | null>(null);
 
   const fetchFacilities = useCallback(async () => {
     const { data } = await supabase
@@ -42,12 +42,16 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
     }
     setSaving(true);
     const { data: companyId } = await supabase.rpc("get_my_company_id");
-    // Dropoff matching is by facility name — block duplicates (trimmed,
-    // case-insensitive, per company) before inserting.
-    if (await facilityNameExists(companyId, newName)) {
-      setNameError(`A facility named '${newName.trim()}' already exists`);
-      setSaving(false);
-      return;
+    // Patients link by facility_id (a real FK), so a duplicate name is a
+    // warning, not a block. First click warns; a second click with
+    // unchanged fields proceeds.
+    if (!dupWarning) {
+      const dup = await findFacilityDuplicate(companyId, newName, newAddress);
+      if (dup) {
+        setDupWarning(dup);
+        setSaving(false);
+        return;
+      }
     }
     const { error } = await supabase.from("facilities" as any).insert({
       name: newName.trim(),
@@ -63,7 +67,7 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
     setNewName("");
     setNewAddress("");
     setNewSubtype("");
-    setNameError(null);
+    setDupWarning(null);
     setSaving(false);
     fetchFacilities();
   };
@@ -102,7 +106,7 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
         </SelectContent>
       </Select>
 
-      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setNameError(null); }}>
+      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setDupWarning(null); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Quick Add Facility</DialogTitle>
@@ -113,12 +117,9 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
               <Label>Facility Name *</Label>
               <Input
                 value={newName}
-                onChange={(e) => { setNewName(e.target.value); if (nameError) setNameError(null); }}
+                onChange={(e) => { setNewName(e.target.value); if (dupWarning) setDupWarning(null); }}
                 placeholder="e.g. DaVita North"
-                aria-invalid={!!nameError}
-                className={nameError ? "border-destructive focus-visible:ring-destructive" : ""}
               />
-              {nameError && <p className="text-xs text-destructive mt-1">{nameError}</p>}
             </div>
             <div>
               <Label>Dialysis Subtype *</Label>
@@ -132,8 +133,19 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
             </div>
             <div>
               <Label>Address</Label>
-              <Input value={newAddress} onChange={(e) => setNewAddress(e.target.value)} placeholder="Optional" />
+              <Input value={newAddress} onChange={(e) => { setNewAddress(e.target.value); if (dupWarning) setDupWarning(null); }} placeholder="Optional" />
             </div>
+            {dupWarning && (
+              <div className="flex items-start gap-2 rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] px-3 py-2">
+                <span className="text-xs text-[hsl(var(--status-yellow))]">
+                  {dupWarning.sameAddress ? (
+                    <>A facility named <strong>'{dupWarning.name}'</strong> with this address already exists — this looks like a duplicate. Add anyway? Click "Create & Select" again to proceed.</>
+                  ) : (
+                    <>A facility named <strong>'{dupWarning.name}'</strong> already exists (different or no address on file). Add anyway? Click "Create & Select" again to proceed.</>
+                  )}
+                </span>
+              </div>
+            )}
             <Button className="w-full" onClick={handleCreate} disabled={saving}>
               {saving ? "Creating…" : "Create & Select"}
             </Button>
