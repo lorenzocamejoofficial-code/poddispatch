@@ -102,18 +102,15 @@ export default function FacilitiesPage() {
     setSaving(true);
     try {
       const { data: companyId } = await supabase.rpc("get_my_company_id");
-      // Patients link by facility_id (a real FK), so a duplicate name is a
-      // warning, not a block — two genuinely different facilities can share
-      // a name. First click warns; a second click with unchanged fields
-      // proceeds. Editing name or address clears the warning so the check
-      // re-runs.
-      if (!dupWarning) {
-        const dup = await findFacilityDuplicate(companyId, form.name, form.address, editing?.id);
-        if (dup) {
-          setDupWarning(dup);
-          setSaving(false);
-          return;
-        }
+      // Dispatchers pick dropoffs by name in the dropdown, so an exact-name
+      // duplicate can send a run to the wrong address. Blocked outright —
+      // address does not factor into the decision. Applied on edit-rename
+      // too, excluding the row being edited.
+      const existingName = await findFacilityNameDuplicate(companyId, form.name, editing?.id);
+      if (existingName) {
+        setNameError(existingName);
+        setSaving(false);
+        return;
       }
       const payload = {
         name: form.name.trim(), facility_type: form.facility_type, address: form.address || null,
