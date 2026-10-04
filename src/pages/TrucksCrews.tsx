@@ -25,6 +25,7 @@ import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import type { CertLevel } from "@/lib/cert-levels";
 import { evaluateCrewComposition, deriveUnitCapability } from "@/lib/crew-composition";
 import { MEMBER3_ROLES, MEMBER3_ROLE_LABELS, member3RoleLabel } from "@/lib/crew-roles";
+import { findTruckDuplicate } from "@/lib/truck-duplicates";
 import type { Tables } from "@/integrations/supabase/types";
 
 type TruckRow = Tables<"trucks">;
@@ -479,12 +480,26 @@ export default function TrucksCrews() {
 
   const goToToday = () => setCurrentWeekRef(today);
 
+  const [truckNameError, setTruckNameError] = useState<string | null>(null);
+  const [truckUnitError, setTruckUnitError] = useState<string | null>(null);
+  const [editTruckNameError, setEditTruckNameError] = useState<string | null>(null);
+  const [editTruckUnitError, setEditTruckUnitError] = useState<string | null>(null);
+
   // Truck CRUD
   const addTruck = async () => {
     if (!truckName.trim() || savingTruck) return;
     setSavingTruck(true);
     try {
       const { data: companyData } = await supabase.rpc("get_my_company_id");
+      // Duplicate truck names/unit numbers confuse dispatch board identity —
+      // block them (trimmed, case-insensitive, per company).
+      const dup = await findTruckDuplicate(companyData, truckName, truckVehicleId);
+      if (dup.nameConflict || dup.unitConflict) {
+        if (dup.nameConflict) setTruckNameError(`A truck named '${dup.nameConflict}' already exists`);
+        if (dup.unitConflict) setTruckUnitError(`Unit number '${dup.unitConflict}' is already in use`);
+        setSavingTruck(false);
+        return;
+      }
       const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData, vehicle_id: truckVehicleId.trim() || null, service_level: truckServiceLevel } as any);
       if (error) {
         if ((error.message ?? "").includes("TRUCK_CAP_EXCEEDED")) {
@@ -497,6 +512,7 @@ export default function TrucksCrews() {
         return;
       }
       setTruckName(""); setTruckVehicleId(""); setTruckServiceLevel("BLS"); setTruckDialog(false);
+      setTruckNameError(null); setTruckUnitError(null);
       toast.success("Truck added"); fetchAll(); refreshTrucks();
     } finally {
       setSavingTruck(false);
@@ -506,9 +522,18 @@ export default function TrucksCrews() {
   const saveTruckEdit = async (id: string) => {
     const trimmed = editingTruckName.trim();
     if (!trimmed) { toast.error("Name cannot be empty"); return; }
+    // Same duplicate guard on rename/unit change, excluding this row.
+    const { data: companyData } = await supabase.rpc("get_my_company_id");
+    const dup = await findTruckDuplicate(companyData, trimmed, editingTruckVehicleId, id);
+    if (dup.nameConflict || dup.unitConflict) {
+      if (dup.nameConflict) setEditTruckNameError(`A truck named '${dup.nameConflict}' already exists`);
+      if (dup.unitConflict) setEditTruckUnitError(`Unit number '${dup.unitConflict}' is already in use`);
+      return;
+    }
     const { error } = await supabase.from("trucks").update({ name: trimmed, vehicle_id: editingTruckVehicleId.trim() || null, service_level: editingTruckServiceLevel } as any).eq("id", id);
     if (error) { toast.error("Failed to update truck"); return; }
     setEditingTruckId(null);
+    setEditTruckNameError(null); setEditTruckUnitError(null);
     toast.success("Truck updated"); fetchAll(); refreshTrucks();
   };
 
@@ -898,7 +923,7 @@ export default function TrucksCrews() {
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Fleet</h3>
-            <Dialog open={truckDialog} onOpenChange={setTruckDialog}>
+            <Dialog open={truckDialog} onOpenChange={(o) => { setTruckDialog(o); if (!o) { setTruckNameError(null); setTruckUnitError(null); } }}>
               <DialogTrigger asChild>
                 <Button size="sm"><Plus className="mr-1.5 h-3.5 w-3.5" /> Add Truck</Button>
               </DialogTrigger>
@@ -906,10 +931,16 @@ export default function TrucksCrews() {
                 <DialogHeader><DialogTitle>Add Truck</DialogTitle><DialogDescription>Add a new truck to your fleet.</DialogDescription></DialogHeader>
                 <div className="space-y-3 py-2">
                   <div><Label>Truck Name/Number<PCRTooltip text={ADMIN_TOOLTIPS.truck_name} /></Label>
-                    <Input value={truckName} onChange={(e) => setTruckName(e.target.value)} placeholder="e.g. Truck 1" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
+                    <Input value={truckName} onChange={(e) => { setTruckName(e.target.value); if (truckNameError) setTruckNameError(null); }} placeholder="e.g. Truck 1" onKeyDown={(e) => e.key === "Enter" && addTruck()}
+                      aria-invalid={!!truckNameError}
+                      className={truckNameError ? "border-destructive focus-visible:ring-destructive" : ""} />
+                    {truckNameError && <p className="text-xs text-destructive mt-1">{truckNameError}</p>}
                   </div>
                   <div><Label>Vehicle ID / Unit #<PCRTooltip text={ADMIN_TOOLTIPS.vehicle_id} /></Label>
-                    <Input value={truckVehicleId} onChange={(e) => setTruckVehicleId(e.target.value)} placeholder="e.g. G7T-101" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
+                    <Input value={truckVehicleId} onChange={(e) => { setTruckVehicleId(e.target.value); if (truckUnitError) setTruckUnitError(null); }} placeholder="e.g. G7T-101" onKeyDown={(e) => e.key === "Enter" && addTruck()}
+                      aria-invalid={!!truckUnitError}
+                      className={truckUnitError ? "border-destructive focus-visible:ring-destructive" : ""} />
+                    {truckUnitError && <p className="text-xs text-destructive mt-1">{truckUnitError}</p>}
                   </div>
                   <div>
                     <Label>Service Level</Label>
@@ -941,25 +972,32 @@ export default function TrucksCrews() {
                 <div className="flex items-center gap-2">
                   <Truck className={`h-4 w-4 shrink-0 ${t.active ? "text-primary" : "text-muted-foreground"}`} />
                   {editingTruckId === t.id ? (
-                    <div className="flex items-center gap-2 flex-1">
-                      <Input className="h-7 text-sm flex-1" value={editingTruckName}
-                        onChange={(e) => setEditingTruckName(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") saveTruckEdit(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
-                        placeholder="Truck name"
-                        autoFocus />
-                      <Input className="h-7 text-sm w-24" value={editingTruckVehicleId}
-                        onChange={(e) => setEditingTruckVehicleId(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") saveTruckEdit(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
-                        placeholder="Unit #" />
-                      <Select value={editingTruckServiceLevel} onValueChange={(v) => setEditingTruckServiceLevel(v as "BLS" | "ALS")}>
-                        <SelectTrigger className="h-7 w-[72px] text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="BLS">BLS</SelectItem>
-                          <SelectItem value="ALS">ALS</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveTruckEdit(t.id)}><Check className="h-3 w-3 text-[hsl(var(--status-green))]" /></Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingTruckId(null)}><X className="h-3 w-3" /></Button>
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Input className={`h-7 text-sm flex-1 ${editTruckNameError ? "border-destructive focus-visible:ring-destructive" : ""}`} value={editingTruckName}
+                          onChange={(e) => { setEditingTruckName(e.target.value); if (editTruckNameError) setEditTruckNameError(null); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveTruckEdit(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
+                          placeholder="Truck name"
+                          aria-invalid={!!editTruckNameError}
+                          autoFocus />
+                        <Input className={`h-7 text-sm w-24 ${editTruckUnitError ? "border-destructive focus-visible:ring-destructive" : ""}`} value={editingTruckVehicleId}
+                          onChange={(e) => { setEditingTruckVehicleId(e.target.value); if (editTruckUnitError) setEditTruckUnitError(null); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveTruckEdit(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
+                          placeholder="Unit #"
+                          aria-invalid={!!editTruckUnitError} />
+                        <Select value={editingTruckServiceLevel} onValueChange={(v) => setEditingTruckServiceLevel(v as "BLS" | "ALS")}>
+                          <SelectTrigger className="h-7 w-[72px] text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="BLS">BLS</SelectItem>
+                            <SelectItem value="ALS">ALS</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveTruckEdit(t.id)}><Check className="h-3 w-3 text-[hsl(var(--status-green))]" /></Button>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setEditingTruckId(null); setEditTruckNameError(null); setEditTruckUnitError(null); }}><X className="h-3 w-3" /></Button>
+                      </div>
+                      {(editTruckNameError || editTruckUnitError) && (
+                        <p className="text-xs text-destructive pl-1">{editTruckNameError ?? editTruckUnitError}</p>
+                      )}
                     </div>
                   ) : (
                     <>
@@ -972,7 +1010,7 @@ export default function TrucksCrews() {
                       </Badge>
                       {!t.active && <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground">Inactive</Badge>}
                       {(t as any).vehicle_id && <span className="text-[10px] text-muted-foreground shrink-0">#{(t as any).vehicle_id}</span>}
-                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); setEditingTruckServiceLevel(((t as any).service_level ?? "BLS") as "BLS" | "ALS"); }}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); setEditingTruckServiceLevel(((t as any).service_level ?? "BLS") as "BLS" | "ALS"); setEditTruckNameError(null); setEditTruckUnitError(null); }}>
                         <Pencil className="h-3 w-3" />
                       </Button>
                       {t.active ? (

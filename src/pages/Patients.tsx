@@ -35,6 +35,7 @@ import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { UpstreamReadinessPanel } from "@/components/billing/UpstreamReadinessPanel";
 import { downloadCSV } from "@/lib/csv-export";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { findPatientDuplicate } from "@/lib/patient-duplicates";
 import { useCompanyName } from "@/hooks/useCompanyName";
 import { PatientViewDialog } from "@/components/patients/PatientViewDialog";
 import { InsuranceToolsHeader, type PrefillPayload } from "@/components/patients/InsuranceToolsHeader";
@@ -107,6 +108,7 @@ export default function Patients() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [templatesView, setTemplatesView] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [dupWarning, setDupWarning] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -264,6 +266,7 @@ export default function Patients() {
   };
 
   const resetForm = () => {
+    setDupWarning(null);
     setForm({
       first_name: "", last_name: "", dob: "", phone: "", sex: "",
       race: "", ethnicity: "",
@@ -483,6 +486,18 @@ export default function Patients() {
     }
     setSaving(true);
     try {
+    // Duplicate WARN (create only, never blocks): two real people can share a
+    // name and birthday, so the first save attempt shows a warning near the
+    // submit button and the second click (warning already showing, fields
+    // unchanged) proceeds.
+    if (!editing && !dupWarning) {
+      const dupName = await findPatientDuplicate(activeCompanyId, form.first_name, form.last_name, form.dob || null);
+      if (dupName) {
+        setDupWarning(dupName);
+        setSaving(false);
+        return;
+      }
+    }
     const payload: any = {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
@@ -1127,11 +1142,11 @@ export default function Patients() {
 
                   {/* Basic Info */}
                    <div className="grid grid-cols-2 gap-3" data-focus="name">
-                     <div><Label>First Name *<PCRTooltip text={ADMIN_TOOLTIPS.first_name} /></Label><Input className={ringIfMissing("first_name")} value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
-                    <div><Label>Last Name *<PCRTooltip text={ADMIN_TOOLTIPS.last_name} /></Label><Input className={ringIfMissing("last_name")} value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                     <div data-focus="dob"><Label>DOB<PCRTooltip text={ADMIN_TOOLTIPS.dob} /></Label><Input className={ringIfMissing("dob")} type="date" max={new Date().toISOString().slice(0, 10)} value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></div>
+                      <div><Label>First Name *<PCRTooltip text={ADMIN_TOOLTIPS.first_name} /></Label><Input className={ringIfMissing("first_name")} value={form.first_name} onChange={(e) => { setForm({ ...form, first_name: e.target.value }); if (dupWarning) setDupWarning(null); }} /></div>
+                     <div><Label>Last Name *<PCRTooltip text={ADMIN_TOOLTIPS.last_name} /></Label><Input className={ringIfMissing("last_name")} value={form.last_name} onChange={(e) => { setForm({ ...form, last_name: e.target.value }); if (dupWarning) setDupWarning(null); }} /></div>
+                   </div>
+                   <div className="grid grid-cols-2 gap-3">
+                      <div data-focus="dob"><Label>DOB<PCRTooltip text={ADMIN_TOOLTIPS.dob} /></Label><Input className={ringIfMissing("dob")} type="date" max={new Date().toISOString().slice(0, 10)} value={form.dob} onChange={(e) => { setForm({ ...form, dob: e.target.value }); if (dupWarning) setDupWarning(null); }} /></div>
                     <div><Label>Phone<PCRTooltip text={ADMIN_TOOLTIPS.phone} /></Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
                   </div>
                    <div data-focus="sex">
@@ -1959,6 +1974,14 @@ export default function Patients() {
                     </div>
                   )}
 
+                  {dupWarning && !editing && (
+                    <div className="flex items-start gap-2 rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] px-3 py-2">
+                      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-[hsl(var(--status-yellow))]" />
+                      <p className="text-xs text-foreground">
+                        A patient named <strong>'{dupWarning}'</strong> with this date of birth already exists — continue? Click "Add Patient" again to proceed anyway.
+                      </p>
+                    </div>
+                  )}
                   <Button onClick={handleSave} disabled={saving}>
                     {saving ? (editing ? "Saving..." : "Adding...") : (editing ? "Save Changes" : "Add Patient")}
                   </Button>
