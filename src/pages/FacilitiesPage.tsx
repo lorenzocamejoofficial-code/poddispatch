@@ -57,7 +57,7 @@ export default function FacilitiesPage() {
     contract_payer_type: "", rate_type: "medicare", invoice_preference: "per_trip",
   });
   const [saving, setSaving] = useState(false);
-  const [dupWarning, setDupWarning] = useState<FacilityDuplicate | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
