@@ -28,12 +28,13 @@ import { EMS1_SUBMISSION_XML } from "../_shared/nemsis/fixtures/ems1-submission.
 import { EMS2_SUBMISSION_XML } from "../_shared/nemsis/fixtures/ems2-submission.ts";
 import { EMS3_SUBMISSION_XML } from "../_shared/nemsis/fixtures/ems3-submission.ts";
 import { EMS4_SUBMISSION_XML } from "../_shared/nemsis/fixtures/ems4-submission.ts";
+import { EMS5_SUBMISSION_XML } from "../_shared/nemsis/fixtures/ems5-submission.ts";
 
 const SCHEMA_VERSION = "3.5.1";
 
 const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("ping") }),
-  z.object({ action: z.literal("submit"), test_case: z.enum(["TRANSPORT_PROBE", "DEM1", "EMS1", "EMS2", "EMS3", "EMS4"]) }),
+  z.object({ action: z.literal("submit"), test_case: z.enum(["TRANSPORT_PROBE", "DEM1", "EMS1", "EMS2", "EMS3", "EMS4", "EMS5"]) }),
   z.object({ action: z.literal("status"), request_handle: z.string().min(1).max(200) }),
 ]);
 
@@ -89,7 +90,7 @@ Deno.serve(async (req) => {
     envelopeXml = buildQueryLimitEnvelope(creds);
   } else if (body.action === "submit") {
     operation = "SubmitData"; testCase = body.test_case;
-    dataSchema = (body.test_case === "EMS1" || body.test_case === "EMS2" || body.test_case === "EMS3" || body.test_case === "EMS4") ? DATA_SCHEMA.EMS : DATA_SCHEMA.DEM;
+    dataSchema = (body.test_case === "EMS1" || body.test_case === "EMS2" || body.test_case === "EMS3" || body.test_case === "EMS4" || body.test_case === "EMS5") ? DATA_SCHEMA.EMS : DATA_SCHEMA.DEM;
     schemaVersion = SCHEMA_VERSION;
     if (body.test_case === "EMS1") {
       // EMS: no envelope timestamp — sent exactly as committed.
@@ -103,6 +104,9 @@ Deno.serve(async (req) => {
     } else if (body.test_case === "EMS4") {
       // EMS: no envelope timestamp — sent exactly as committed.
       envelopeXml = buildSubmitDataEnvelope(creds, EMS4_SUBMISSION_XML, dataSchema, schemaVersion, "PodDispatch 2026 EMS 4");
+    } else if (body.test_case === "EMS5") {
+      // EMS: no envelope timestamp — sent exactly as committed.
+      envelopeXml = buildSubmitDataEnvelope(creds, EMS5_SUBMISSION_XML, dataSchema, schemaVersion, "PodDispatch 2026 EMS 5");
     } else if (body.test_case === "DEM1") {
       // Only runtime mutation: stamp the real send time on DemographicReport.
       sentTimestamp = nemsisNow();
