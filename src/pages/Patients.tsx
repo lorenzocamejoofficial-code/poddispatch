@@ -35,6 +35,7 @@ import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { UpstreamReadinessPanel } from "@/components/billing/UpstreamReadinessPanel";
 import { downloadCSV } from "@/lib/csv-export";
 import { logAuditEvent } from "@/lib/audit-logger";
+import { findPatientDuplicate } from "@/lib/patient-duplicates";
 import { useCompanyName } from "@/hooks/useCompanyName";
 import { PatientViewDialog } from "@/components/patients/PatientViewDialog";
 import { InsuranceToolsHeader, type PrefillPayload } from "@/components/patients/InsuranceToolsHeader";
@@ -483,6 +484,18 @@ export default function Patients() {
     }
     setSaving(true);
     try {
+    // Duplicate WARN (create only, never blocks): two real people can share a
+    // name and birthday, so the first save attempt shows a warning near the
+    // submit button and the second click (warning already showing, fields
+    // unchanged) proceeds.
+    if (!editing && !dupWarning) {
+      const dupName = await findPatientDuplicate(activeCompanyId, form.first_name, form.last_name, form.dob || null);
+      if (dupName) {
+        setDupWarning(dupName);
+        setSaving(false);
+        return;
+      }
+    }
     const payload: any = {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
