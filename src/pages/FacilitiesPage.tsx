@@ -14,7 +14,7 @@ import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 import { Building2, Plus, Search, Users, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { normalizePhone } from "@/lib/phone";
-import { facilityNameExists } from "@/lib/facility-duplicates";
+import { findFacilityDuplicate, type FacilityDuplicate } from "@/lib/facility-duplicates";
 
 interface Facility {
   id: string;
@@ -57,7 +57,7 @@ export default function FacilitiesPage() {
     contract_payer_type: "", rate_type: "medicare", invoice_preference: "per_trip",
   });
   const [saving, setSaving] = useState(false);
-  const [nameError, setNameError] = useState<string | null>(null);
+  const [dupWarning, setDupWarning] = useState<FacilityDuplicate | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -76,7 +76,7 @@ export default function FacilitiesPage() {
   const resetForm = () => {
     setForm({ name: "", facility_type: "dialysis", dialysis_subtype: "", address: "", phone: "", contact_name: "", notes: "", active: true, contract_payer_type: "", rate_type: "medicare", invoice_preference: "per_trip" });
     setEditing(null);
-    setNameError(null);
+    setDupWarning(null);
   };
 
   const openEdit = (f: Facility) => {
@@ -102,12 +102,18 @@ export default function FacilitiesPage() {
     setSaving(true);
     try {
       const { data: companyId } = await supabase.rpc("get_my_company_id");
-      // Dropoff matching is by facility name — a duplicate name silently breaks
-      // that linkage, so block it here (trimmed, case-insensitive, per company).
-      if (await facilityNameExists(companyId, form.name, editing?.id)) {
-        setNameError(`A facility named '${form.name.trim()}' already exists`);
-        setSaving(false);
-        return;
+      // Patients link by facility_id (a real FK), so a duplicate name is a
+      // warning, not a block — two genuinely different facilities can share
+      // a name. First click warns; a second click with unchanged fields
+      // proceeds. Editing name or address clears the warning so the check
+      // re-runs.
+      if (!dupWarning) {
+        const dup = await findFacilityDuplicate(companyId, form.name, form.address, editing?.id);
+        if (dup) {
+          setDupWarning(dup);
+          setSaving(false);
+          return;
+        }
       }
       const payload = {
         name: form.name.trim(), facility_type: form.facility_type, address: form.address || null,
@@ -211,11 +217,8 @@ export default function FacilitiesPage() {
               <Label>Facility Name *</Label>
               <Input
                 value={form.name}
-                onChange={e => { setForm({ ...form, name: e.target.value }); if (nameError) setNameError(null); }}
-                aria-invalid={!!nameError}
-                className={nameError ? "border-destructive focus-visible:ring-destructive" : ""}
+                onChange={e => { setForm({ ...form, name: e.target.value }); if (dupWarning) setDupWarning(null); }}
               />
-              {nameError && <p className="text-xs text-destructive mt-1">{nameError}</p>}
             </div>
             <div>
               <Label>Type</Label>
@@ -251,7 +254,7 @@ export default function FacilitiesPage() {
             )}
             <div>
               <Label>Address</Label>
-              <Input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
+              <Input value={form.address} onChange={e => { setForm({ ...form, address: e.target.value }); if (dupWarning) setDupWarning(null); }} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
@@ -307,6 +310,17 @@ export default function FacilitiesPage() {
               <Label>Active</Label>
               <input type="checkbox" checked={form.active} onChange={e => setForm({ ...form, active: e.target.checked })} className="h-4 w-4 accent-primary" />
             </div>
+            {dupWarning && (
+              <div className="flex items-start gap-2 rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] px-3 py-2">
+                <span className="text-xs text-[hsl(var(--status-yellow))]">
+                  {dupWarning.sameAddress ? (
+                    <>A facility named <strong>'{dupWarning.name}'</strong> with this address already exists — this looks like a duplicate. {editing ? "Save" : "Add"} anyway? Click "{editing ? "Save Changes" : "Add Facility"}" again to proceed.</>
+                  ) : (
+                    <>A facility named <strong>'{dupWarning.name}'</strong> already exists (different or no address on file). {editing ? "Save" : "Add"} anyway? Click "{editing ? "Save Changes" : "Add Facility"}" again to proceed.</>
+                  )}
+                </span>
+              </div>
+            )}
             <Button className="w-full" onClick={handleSave} disabled={saving}>
               {saving ? "Saving…" : editing ? "Save Changes" : "Add Facility"}
             </Button>
