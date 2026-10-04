@@ -314,17 +314,6 @@ export default function FacilitiesPage() {
               <Label>Active</Label>
               <input type="checkbox" checked={form.active} onChange={e => setForm({ ...form, active: e.target.checked })} className="h-4 w-4 accent-primary" />
             </div>
-            {dupWarning && (
-              <div className="flex items-start gap-2 rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] px-3 py-2">
-                <span className="text-xs text-[hsl(var(--status-yellow))]">
-                  {dupWarning.sameAddress ? (
-                    <>A facility named <strong>'{dupWarning.name}'</strong> with this address already exists — this looks like a duplicate. {editing ? "Save" : "Add"} anyway? Click "{editing ? "Save Changes" : "Add Facility"}" again to proceed.</>
-                  ) : (
-                    <>A facility named <strong>'{dupWarning.name}'</strong> already exists (different or no address on file). {editing ? "Save" : "Add"} anyway? Click "{editing ? "Save Changes" : "Add Facility"}" again to proceed.</>
-                  )}
-                </span>
-              </div>
-            )}
             <Button className="w-full" onClick={handleSave} disabled={saving}>
               {saving ? "Saving…" : editing ? "Save Changes" : "Add Facility"}
             </Button>
