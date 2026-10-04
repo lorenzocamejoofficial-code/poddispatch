@@ -24,13 +24,13 @@ import {
   extractCtaValidationErrors,
 } from "../_shared/nemsis/cta-soap.ts";
 import { DEM1_SUBMISSION_XML } from "../_shared/nemsis/fixtures/dem1-submission.ts";
+import { EMS1_SUBMISSION_XML } from "../_shared/nemsis/fixtures/ems1-submission.ts";
 
 const SCHEMA_VERSION = "3.5.1";
 
 const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("ping") }),
-  // Pass 1: only the transport probe is allowed. DEM1/EMS1-5 unlock in later passes.
-  z.object({ action: z.literal("submit"), test_case: z.enum(["TRANSPORT_PROBE", "DEM1"]) }),
+  z.object({ action: z.literal("submit"), test_case: z.enum(["TRANSPORT_PROBE", "DEM1", "EMS1"]) }),
   z.object({ action: z.literal("status"), request_handle: z.string().min(1).max(200) }),
 ]);
 
@@ -86,8 +86,12 @@ Deno.serve(async (req) => {
     envelopeXml = buildQueryLimitEnvelope(creds);
   } else if (body.action === "submit") {
     operation = "SubmitData"; testCase = body.test_case;
-    dataSchema = DATA_SCHEMA.DEM; schemaVersion = SCHEMA_VERSION;
-    if (body.test_case === "DEM1") {
+    dataSchema = body.test_case === "EMS1" ? DATA_SCHEMA.EMS : DATA_SCHEMA.DEM;
+    schemaVersion = SCHEMA_VERSION;
+    if (body.test_case === "EMS1") {
+      // EMS: no envelope timestamp — sent exactly as committed.
+      envelopeXml = buildSubmitDataEnvelope(creds, EMS1_SUBMISSION_XML, dataSchema, schemaVersion, "PodDispatch 2026 EMS 1");
+    } else if (body.test_case === "DEM1") {
       // Only runtime mutation: stamp the real send time on DemographicReport.
       sentTimestamp = nemsisNow();
       const payload = stampDemographicReportTimeStamp(DEM1_SUBMISSION_XML, sentTimestamp);

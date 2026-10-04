@@ -75,7 +75,7 @@ export default function CreatorNemsisCta() {
         toast.error(msg);
       } else {
         const d = data as { status_code: number | null; status_label: string; limit: number | null };
-        if (body.test_case === "DEM1") setLastDem({ ...(data as Row), test_case: "DEM1", operation: "SubmitData", limit_value: null, response_xml: null, created_at: new Date().toISOString(), error_message: (data as { error: string | null }).error });
+        if (body.test_case === "DEM1" || body.test_case === "EMS1") setLastDem({ ...(data as Row), test_case: body.test_case as string, operation: "SubmitData", limit_value: null, response_xml: null, created_at: new Date().toISOString(), error_message: (data as { error: string | null }).error });
         toast.message(`CTA: ${d.status_label}${d.status_code !== null ? ` (code ${d.status_code})` : ""}${d.limit !== null ? ` — limit ${d.limit}` : ""}`);
       }
     } finally {
@@ -104,14 +104,17 @@ export default function CreatorNemsisCta() {
             <Button onClick={() => call("dem1", { action: "submit", test_case: "DEM1" })} disabled={!!busy}>
               {busy === "dem1" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Submit DEM 1
             </Button>
+            <Button onClick={() => call("ems1", { action: "submit", test_case: "EMS1" })} disabled={!!busy}>
+              {busy === "ems1" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Submit EMS 1
+            </Button>
             <Button variant="ghost" onClick={load} disabled={!!busy}><RefreshCw className="h-4 w-4" /> Refresh</Button>
           </CardContent>
         </Card>
 
         {lastDem && (
           <Card>
-            <CardHeader><CardTitle>DEM 1 result</CardTitle>
-              <CardDescription>Sent with timeStamp {lastDem.sent_timestamp ?? "—"}</CardDescription></CardHeader>
+            <CardHeader><CardTitle>{lastDem.test_case === "EMS1" ? "EMS 1 result" : "DEM 1 result"}</CardTitle>
+              <CardDescription>{lastDem.test_case === "EMS1" ? "Sent as committed (EMS schema 61, no timestamp change)" : `Sent with timeStamp ${lastDem.sent_timestamp ?? "—"}`}</CardDescription></CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={variant(lastDem.status_code, "SubmitData")}>
