@@ -102,7 +102,7 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
         </SelectContent>
       </Select>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setNameError(null); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Quick Add Facility</DialogTitle>
