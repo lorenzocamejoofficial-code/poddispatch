@@ -108,6 +108,7 @@ export default function Patients() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [templatesView, setTemplatesView] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [dupWarning, setDupWarning] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
