@@ -75,7 +75,7 @@ export default function CreatorNemsisCta() {
         toast.error(msg);
       } else {
         const d = data as { status_code: number | null; status_label: string; limit: number | null };
-        if (body.test_case === "DEM1" || body.test_case === "EMS1" || body.test_case === "EMS2" || body.test_case === "EMS3") setLastDem({ ...(data as Row), test_case: body.test_case as string, operation: "SubmitData", limit_value: null, response_xml: null, created_at: new Date().toISOString(), error_message: (data as { error: string | null }).error });
+        if (body.test_case === "DEM1" || body.test_case === "EMS1" || body.test_case === "EMS2" || body.test_case === "EMS3" || body.test_case === "EMS4") setLastDem({ ...(data as Row), test_case: body.test_case as string, operation: "SubmitData", limit_value: null, response_xml: null, created_at: new Date().toISOString(), error_message: (data as { error: string | null }).error });
         toast.message(`CTA: ${d.status_label}${d.status_code !== null ? ` (code ${d.status_code})` : ""}${d.limit !== null ? ` — limit ${d.limit}` : ""}`);
       }
     } finally {
@@ -122,7 +122,7 @@ export default function CreatorNemsisCta() {
 
         {lastDem && (
           <Card>
-            <CardHeader><CardTitle>{lastDem.test_case === "EMS1" ? "EMS 1 result" : lastDem.test_case === "EMS2" ? "EMS 2 result" : lastDem.test_case === "EMS3" ? "EMS 3 result" : "DEM 1 result"}</CardTitle>
+            <CardHeader><CardTitle>{lastDem.test_case === "EMS1" ? "EMS 1 result" : lastDem.test_case === "EMS2" ? "EMS 2 result" : lastDem.test_case === "EMS3" ? "EMS 3 result" : lastDem.test_case === "EMS4" ? "EMS 4 result" : "DEM 1 result"}</CardTitle>
               <CardDescription>{lastDem.test_case.startsWith("EMS") ? "Sent as committed (EMS schema 61, no timestamp change)" : `Sent with timeStamp ${lastDem.sent_timestamp ?? "—"}`}</CardDescription></CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div className="flex flex-wrap items-center gap-2">
