@@ -1,34 +1,26 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export interface FacilityDuplicate {
-  /** Display name of the existing facility that matched. */
-  name: string;
-  /** True only when both addresses are non-empty and match (trimmed, case-insensitive). */
-  sameAddress: boolean;
-}
-
 /**
- * Finds an existing facility in the given company with the same name
- * (trimmed, case-insensitive), and reports whether it also shares the
- * given address. Patients link to facilities by facility_id (a real FK),
- * so a duplicate name is a warning, not a block — two genuinely different
- * facilities can share a name.
+ * Returns the display name of an existing facility in the given company whose
+ * name matches (trimmed, case-insensitive), or null when none exists. The
+ * address is irrelevant: dispatchers pick dropoffs by name in the dropdown,
+ * so an exact-name duplicate can send a run to the wrong address and is
+ * always blocked.
  *
  * Compares in JS rather than SQL ilike so names containing % or _ cannot
  * over-match. `excludeId` lets an edit rename check ignore the row itself.
  * Fails open (null) on read errors so a transient failure can't block saves.
  */
-export async function findFacilityDuplicate(
+export async function findFacilityNameDuplicate(
   companyId: string | null | undefined,
   name: string,
-  address?: string | null,
   excludeId?: string,
-): Promise<FacilityDuplicate | null> {
+): Promise<string | null> {
   const trimmed = name.trim().toLowerCase();
   if (!trimmed || !companyId) return null;
   const { data, error } = await supabase
     .from("facilities" as any)
-    .select("id, name, address")
+    .select("id, name")
     .eq("company_id", companyId);
   if (error) {
     // Fail open on read errors — the insert error path still protects the user.
@@ -38,11 +30,5 @@ export async function findFacilityDuplicate(
   const match = ((data ?? []) as any[]).find(
     (f) => f.id !== excludeId && String(f.name).trim().toLowerCase() === trimmed,
   );
-  if (!match) return null;
-  const newAddr = (address ?? "").trim().toLowerCase();
-  const existingAddr = String(match.address ?? "").trim().toLowerCase();
-  return {
-    name: String(match.name),
-    sameAddress: !!newAddr && !!existingAddr && newAddr === existingAddr,
-  };
+  return match ? String(match.name) : null;
 }
