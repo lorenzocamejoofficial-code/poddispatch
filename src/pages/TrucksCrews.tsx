@@ -1010,7 +1010,7 @@ export default function TrucksCrews() {
                       </Badge>
                       {!t.active && <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground">Inactive</Badge>}
                       {(t as any).vehicle_id && <span className="text-[10px] text-muted-foreground shrink-0">#{(t as any).vehicle_id}</span>}
-                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); setEditingTruckServiceLevel(((t as any).service_level ?? "BLS") as "BLS" | "ALS"); }}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); setEditingTruckServiceLevel(((t as any).service_level ?? "BLS") as "BLS" | "ALS"); setEditTruckNameError(null); setEditTruckUnitError(null); }}>
                         <Pencil className="h-3 w-3" />
                       </Button>
                       {t.active ? (
