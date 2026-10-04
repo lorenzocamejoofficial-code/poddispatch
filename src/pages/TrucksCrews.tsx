@@ -931,10 +931,16 @@ export default function TrucksCrews() {
                 <DialogHeader><DialogTitle>Add Truck</DialogTitle><DialogDescription>Add a new truck to your fleet.</DialogDescription></DialogHeader>
                 <div className="space-y-3 py-2">
                   <div><Label>Truck Name/Number<PCRTooltip text={ADMIN_TOOLTIPS.truck_name} /></Label>
-                    <Input value={truckName} onChange={(e) => setTruckName(e.target.value)} placeholder="e.g. Truck 1" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
+                    <Input value={truckName} onChange={(e) => { setTruckName(e.target.value); if (truckNameError) setTruckNameError(null); }} placeholder="e.g. Truck 1" onKeyDown={(e) => e.key === "Enter" && addTruck()}
+                      aria-invalid={!!truckNameError}
+                      className={truckNameError ? "border-destructive focus-visible:ring-destructive" : ""} />
+                    {truckNameError && <p className="text-xs text-destructive mt-1">{truckNameError}</p>}
                   </div>
                   <div><Label>Vehicle ID / Unit #<PCRTooltip text={ADMIN_TOOLTIPS.vehicle_id} /></Label>
-                    <Input value={truckVehicleId} onChange={(e) => setTruckVehicleId(e.target.value)} placeholder="e.g. G7T-101" onKeyDown={(e) => e.key === "Enter" && addTruck()} />
+                    <Input value={truckVehicleId} onChange={(e) => { setTruckVehicleId(e.target.value); if (truckUnitError) setTruckUnitError(null); }} placeholder="e.g. G7T-101" onKeyDown={(e) => e.key === "Enter" && addTruck()}
+                      aria-invalid={!!truckUnitError}
+                      className={truckUnitError ? "border-destructive focus-visible:ring-destructive" : ""} />
+                    {truckUnitError && <p className="text-xs text-destructive mt-1">{truckUnitError}</p>}
                   </div>
                   <div>
                     <Label>Service Level</Label>
