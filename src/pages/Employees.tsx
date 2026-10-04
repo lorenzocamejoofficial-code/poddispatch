@@ -78,6 +78,9 @@ export default function Employees() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [createEmailError, setCreateEmailError] = useState(false);
+  const [createEmailRequiredError, setCreateEmailRequiredError] = useState(false);
+  const [createNameRequiredError, setCreateNameRequiredError] = useState(false);
+  const [createPasswordError, setCreatePasswordError] = useState<string | null>(null);
   const [form, setForm] = useState({
     full_name: "", email: "", password: "", role: "crew" as "manager" | "dispatcher" | "crew" | "biller",
     sex: "M" as "M" | "F", cert_level: "EMT-B", phone_number: "",
@@ -194,10 +197,14 @@ export default function Employees() {
   const handleCreate = async () => {
     if (addMode === "invite") return handleInvite();
     if (!form.full_name.trim() || !form.email.trim() || !form.password.trim()) {
+      setCreateNameRequiredError(!form.full_name.trim());
+      setCreateEmailRequiredError(!form.email.trim());
+      setCreatePasswordError(!form.password.trim() ? "Temporary password is required." : null);
       toast.error("Please fill in all required fields");
       return;
     }
     if (form.password.length < 8) {
+      setCreatePasswordError("Password must be at least 8 characters.");
       toast.error("Password must be at least 8 characters");
       return;
     }
@@ -257,6 +264,9 @@ export default function Employees() {
       toast.success(`${form.full_name} created successfully`);
       setDialogOpen(false);
       setCreateEmailError(false);
+      setCreateEmailRequiredError(false);
+      setCreateNameRequiredError(false);
+      setCreatePasswordError(null);
       const createdEmail = form.email.trim().toLowerCase();
       const createdName = form.full_name.trim();
       setForm({ full_name: "", email: "", password: "", role: "crew" as "manager" | "dispatcher" | "crew" | "biller", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time" as "full_time" | "part_time" | "prn", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
@@ -277,6 +287,7 @@ export default function Employees() {
   // ── Invite handler — creates a pending_invite profile row, then sends ──
   const handleInvite = async () => {
     if (!form.email.trim() || !activeCompanyId) {
+      if (!form.email.trim()) setCreateEmailRequiredError(true);
       toast.error("Email is required");
       return;
     }
@@ -311,6 +322,7 @@ export default function Employees() {
     }
     await sendInviteFor(profileRow.id, emailLower);
     setDialogOpen(false);
+    setCreateEmailRequiredError(false);
     setForm({ full_name: "", email: "", password: "", role: "crew", sex: "M", cert_level: "EMT-B", phone_number: "", employment_type: "full_time", stair_chair_trained: false, bariatric_trained: false, oxygen_handling_trained: false, lift_assist_ok: false, active: true });
     await fetchEmployees();
     setCreating(false);
@@ -638,7 +650,15 @@ export default function Employees() {
                 Archive {selected.size} selected
               </Button>
             )}
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog open={dialogOpen} onOpenChange={(open) => {
+              setDialogOpen(open);
+              if (!open) {
+                setCreateEmailError(false);
+                setCreateEmailRequiredError(false);
+                setCreateNameRequiredError(false);
+                setCreatePasswordError(null);
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button><Plus className="mr-1.5 h-4 w-4" /> Add Employee</Button>
               </DialogTrigger>
@@ -666,18 +686,49 @@ export default function Employees() {
                   </button>
                 </div>
                 <div className="grid gap-3 py-2">
-                  <div><Label>Full Name *</Label><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></div>
+                  <div>
+                    <Label>Full Name *</Label>
+                    <Input
+                      value={form.full_name}
+                      onChange={(e) => { setForm({ ...form, full_name: e.target.value }); if (createNameRequiredError) setCreateNameRequiredError(false); }}
+                      aria-invalid={createNameRequiredError}
+                      className={createNameRequiredError ? "border-destructive focus-visible:ring-destructive" : undefined}
+                    />
+                    {createNameRequiredError && <p className="text-xs text-destructive mt-1">Full name is required.</p>}
+                  </div>
                   <div><Label>Phone Number</Label><Input type="tel" value={form.phone_number} onChange={(e) => setForm({ ...form, phone_number: e.target.value })} placeholder="(555) 123-4567" /></div>
-                  <div><Label>Email * <span className="text-xs text-muted-foreground">(for login)</span></Label><Input type="email" value={form.email} onChange={(e) => { setForm({ ...form, email: e.target.value }); if (createEmailError) setCreateEmailError(false); }} aria-invalid={createEmailError} className={createEmailError ? "border-destructive focus-visible:ring-destructive" : ""} /></div>
+                  <div>
+                    <Label>Email * <span className="text-xs text-muted-foreground">(for login)</span></Label>
+                    <Input
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => {
+                        setForm({ ...form, email: e.target.value });
+                        if (createEmailError) setCreateEmailError(false);
+                        if (createEmailRequiredError) setCreateEmailRequiredError(false);
+                      }}
+                      aria-invalid={createEmailRequiredError || createEmailError}
+                      className={createEmailRequiredError || createEmailError ? "border-destructive focus-visible:ring-destructive" : undefined}
+                    />
+                    {createEmailRequiredError && <p className="text-xs text-destructive mt-1">Email is required.</p>}
+                  </div>
                   {addMode === "credentials" && (
                   <div>
                     <Label>Temporary Password *</Label>
                     <div className="relative">
-                      <Input type={showPassword ? "text" : "password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 8 characters" />
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        value={form.password}
+                        onChange={(e) => { setForm({ ...form, password: e.target.value }); if (createPasswordError) setCreatePasswordError(null); }}
+                        placeholder="Min 8 characters"
+                        aria-invalid={!!createPasswordError}
+                        className={createPasswordError ? "border-destructive focus-visible:ring-destructive pr-14" : "pr-14"}
+                      />
                       <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(p => !p)}>
                         {showPassword ? "Hide" : "Show"}
                       </button>
                     </div>
+                    {createPasswordError && <p className="text-xs text-destructive mt-1">{createPasswordError}</p>}
                   </div>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
