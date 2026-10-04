@@ -15,6 +15,7 @@ import { Building2, Plus, Search, Users, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { normalizePhone } from "@/lib/phone";
 import { findFacilityNameDuplicate } from "@/lib/facility-duplicates";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 
 interface Facility {
   id: string;
@@ -61,7 +62,12 @@ export default function FacilitiesPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data: facilityRows } = await supabase.from("facilities" as any).select("*").order("name");
+    // Scope to the active tenant (honors simulation) like DispatchBoard and
+    // TrucksCrews do: creators have a cross-company SELECT policy on facilities,
+    // so RLS alone would list every company's facilities. NO_COMPANY sentinel
+    // guarantees zero rows instead of all rows when no tenant resolves.
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+    const { data: facilityRows } = await supabase.from("facilities" as any).select("*").eq("company_id", scopedCompanyId).order("name");
     const { data: patients } = await supabase.from("patients").select("dropoff_facility");
     const countMap = new Map<string, number>();
     (patients ?? []).forEach((p: any) => {
