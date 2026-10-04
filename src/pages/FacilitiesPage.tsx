@@ -76,7 +76,7 @@ export default function FacilitiesPage() {
   const resetForm = () => {
     setForm({ name: "", facility_type: "dialysis", dialysis_subtype: "", address: "", phone: "", contact_name: "", notes: "", active: true, contract_payer_type: "", rate_type: "medicare", invoice_preference: "per_trip" });
     setEditing(null);
-    setDupWarning(null);
+    setNameError(null);
   };
 
   const openEdit = (f: Facility) => {
