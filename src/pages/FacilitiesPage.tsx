@@ -258,7 +258,7 @@ export default function FacilitiesPage() {
             )}
             <div>
               <Label>Address</Label>
-              <Input value={form.address} onChange={e => { setForm({ ...form, address: e.target.value }); if (dupWarning) setDupWarning(null); }} />
+              <Input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
