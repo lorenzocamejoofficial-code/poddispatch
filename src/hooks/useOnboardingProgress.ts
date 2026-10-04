@@ -106,7 +106,9 @@ export function useOnboardingProgress() {
     const stepTrucks = (settings as any).step_trucks_added || trucksExist;
     const stepPatients = (settings as any).step_patients_added || patientsExist;
     const stepInvited = (settings as any).step_team_invited || teamPresent;
-    const stepFacility = (settings as any).step_facility_added || facilitiesExist;
+    // step_facility_added has no migration_settings column — the facility step
+    // is derived from the live facility count only. Never write this flag.
+    const stepFacility = facilitiesExist;
     // step_first_trip is no longer part of the wizard. We keep the column for
     // analytics but never auto-derive it from trip_records — the column is
     // owned by whoever triggers it manually.
@@ -141,12 +143,14 @@ export function useOnboardingProgress() {
     if (stepPatients && !(settings as any).step_patients_added) updates.step_patients_added = true;
     if (stepInvited && !(settings as any).step_team_invited) updates.step_team_invited = true;
     if (stepClearinghouse && !(settings as any).step_clearinghouse_connected) updates.step_clearinghouse_connected = true;
-    if (stepFacility && !(settings as any).step_facility_added) updates.step_facility_added = true;
     if (ratesValid && !(settings as any).step_rates_verified) updates.step_rates_verified = true;
     if (allComplete && !(settings as any).wizard_completed) updates.wizard_completed = true;
 
     if (Object.keys(updates).length > 0) {
-      await supabase.from("migration_settings").update(updates as any).eq("company_id", activeCompanyId);
+      const { error } = await supabase.from("migration_settings").update(updates as any).eq("company_id", activeCompanyId);
+      if (error) {
+        console.error("[onboarding] Failed to persist progress flags:", error.message, updates);
+      }
     }
   }, [activeCompanyId]);
 
@@ -154,7 +158,14 @@ export function useOnboardingProgress() {
 
   const markStep = useCallback(async (step: string, value: boolean) => {
     if (!activeCompanyId) return;
-    await supabase.from("migration_settings").update({ [step]: value } as any).eq("company_id", activeCompanyId);
+    // step_facility_added has no column — it is derived from the live facility
+    // count. Skip the write rather than letting it fail (and surface) every time.
+    if (step !== "step_facility_added") {
+      const { error } = await supabase.from("migration_settings").update({ [step]: value } as any).eq("company_id", activeCompanyId);
+      if (error) {
+        console.error("[onboarding] Failed to persist step flag:", step, error.message);
+      }
+    }
     await load();
   }, [activeCompanyId, load]);
 
