@@ -923,7 +923,7 @@ export default function TrucksCrews() {
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Fleet</h3>
-            <Dialog open={truckDialog} onOpenChange={setTruckDialog}>
+            <Dialog open={truckDialog} onOpenChange={(o) => { setTruckDialog(o); if (!o) { setTruckNameError(null); setTruckUnitError(null); } }}>
               <DialogTrigger asChild>
                 <Button size="sm"><Plus className="mr-1.5 h-3.5 w-3.5" /> Add Truck</Button>
               </DialogTrigger>
