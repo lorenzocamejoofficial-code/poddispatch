@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
+import { facilityNameExists } from "@/lib/facility-duplicates";
 
 interface FacilityDropdownProps {
   value: string;
@@ -20,6 +21,7 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
   const [newAddress, setNewAddress] = useState("");
   const [newSubtype, setNewSubtype] = useState<"" | "freestanding" | "hospital_based">("");
   const [saving, setSaving] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const fetchFacilities = useCallback(async () => {
     const { data } = await supabase
@@ -40,6 +42,13 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
     }
     setSaving(true);
     const { data: companyId } = await supabase.rpc("get_my_company_id");
+    // Dropoff matching is by facility name — block duplicates (trimmed,
+    // case-insensitive, per company) before inserting.
+    if (await facilityNameExists(companyId, newName)) {
+      setNameError(`A facility named '${newName.trim()}' already exists`);
+      setSaving(false);
+      return;
+    }
     const { error } = await supabase.from("facilities" as any).insert({
       name: newName.trim(),
       facility_type: "dialysis",
@@ -54,6 +63,7 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
     setNewName("");
     setNewAddress("");
     setNewSubtype("");
+    setNameError(null);
     setSaving(false);
     fetchFacilities();
   };
@@ -92,7 +102,7 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
         </SelectContent>
       </Select>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setNameError(null); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Quick Add Facility</DialogTitle>
@@ -101,7 +111,14 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
           <div className="space-y-3 py-2">
             <div>
               <Label>Facility Name *</Label>
-              <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. DaVita North" />
+              <Input
+                value={newName}
+                onChange={(e) => { setNewName(e.target.value); if (nameError) setNameError(null); }}
+                placeholder="e.g. DaVita North"
+                aria-invalid={!!nameError}
+                className={nameError ? "border-destructive focus-visible:ring-destructive" : ""}
+              />
+              {nameError && <p className="text-xs text-destructive mt-1">{nameError}</p>}
             </div>
             <div>
               <Label>Dialysis Subtype *</Label>
