@@ -139,17 +139,6 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
               <Label>Address</Label>
               <Input value={newAddress} onChange={(e) => setNewAddress(e.target.value)} placeholder="Optional" />
             </div>
-            {dupWarning && (
-              <div className="flex items-start gap-2 rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] px-3 py-2">
-                <span className="text-xs text-[hsl(var(--status-yellow))]">
-                  {dupWarning.sameAddress ? (
-                    <>A facility named <strong>'{dupWarning.name}'</strong> with this address already exists — this looks like a duplicate. Add anyway? Click "Create & Select" again to proceed.</>
-                  ) : (
-                    <>A facility named <strong>'{dupWarning.name}'</strong> already exists (different or no address on file). Add anyway? Click "Create & Select" again to proceed.</>
-                  )}
-                </span>
-              </div>
-            )}
             <Button className="w-full" onClick={handleCreate} disabled={saving}>
               {saving ? "Creating…" : "Create & Select"}
             </Button>
