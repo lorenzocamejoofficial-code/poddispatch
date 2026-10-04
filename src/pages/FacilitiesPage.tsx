@@ -214,8 +214,15 @@ export default function FacilitiesPage() {
               <Label>Facility Name *</Label>
               <Input
                 value={form.name}
-                onChange={e => { setForm({ ...form, name: e.target.value }); if (dupWarning) setDupWarning(null); }}
+                aria-invalid={!!nameError}
+                className={nameError ? "border-destructive focus-visible:ring-destructive" : undefined}
+                onChange={e => { setForm({ ...form, name: e.target.value }); if (nameError) setNameError(null); }}
               />
+              {nameError && (
+                <p className="text-xs text-destructive mt-1">
+                  A facility named '{nameError}' already exists. Give it a distinct name (e.g. add the location) so runs aren't sent to the wrong one.
+                </p>
+              )}
             </div>
             <div>
               <Label>Type</Label>
