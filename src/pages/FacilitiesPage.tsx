@@ -14,7 +14,7 @@ import { ConfirmActionDialog } from "@/components/ConfirmActionDialog";
 import { Building2, Plus, Search, Users, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { normalizePhone } from "@/lib/phone";
-import { findFacilityDuplicate, type FacilityDuplicate } from "@/lib/facility-duplicates";
+import { findFacilityNameDuplicate } from "@/lib/facility-duplicates";
 
 interface Facility {
   id: string;
