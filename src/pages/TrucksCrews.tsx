@@ -512,6 +512,7 @@ export default function TrucksCrews() {
         return;
       }
       setTruckName(""); setTruckVehicleId(""); setTruckServiceLevel("BLS"); setTruckDialog(false);
+      setTruckNameError(null); setTruckUnitError(null);
       toast.success("Truck added"); fetchAll(); refreshTrucks();
     } finally {
       setSavingTruck(false);
@@ -521,9 +522,18 @@ export default function TrucksCrews() {
   const saveTruckEdit = async (id: string) => {
     const trimmed = editingTruckName.trim();
     if (!trimmed) { toast.error("Name cannot be empty"); return; }
+    // Same duplicate guard on rename/unit change, excluding this row.
+    const { data: companyData } = await supabase.rpc("get_my_company_id");
+    const dup = await findTruckDuplicate(companyData, trimmed, editingTruckVehicleId, id);
+    if (dup.nameConflict || dup.unitConflict) {
+      if (dup.nameConflict) setEditTruckNameError(`A truck named '${dup.nameConflict}' already exists`);
+      if (dup.unitConflict) setEditTruckUnitError(`Unit number '${dup.unitConflict}' is already in use`);
+      return;
+    }
     const { error } = await supabase.from("trucks").update({ name: trimmed, vehicle_id: editingTruckVehicleId.trim() || null, service_level: editingTruckServiceLevel } as any).eq("id", id);
     if (error) { toast.error("Failed to update truck"); return; }
     setEditingTruckId(null);
+    setEditTruckNameError(null); setEditTruckUnitError(null);
     toast.success("Truck updated"); fetchAll(); refreshTrucks();
   };
 
