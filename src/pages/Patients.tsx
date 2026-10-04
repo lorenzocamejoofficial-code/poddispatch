@@ -266,6 +266,7 @@ export default function Patients() {
   };
 
   const resetForm = () => {
+    setDupWarning(null);
     setForm({
       first_name: "", last_name: "", dob: "", phone: "", sex: "",
       race: "", ethnicity: "",
@@ -1141,11 +1142,11 @@ export default function Patients() {
 
                   {/* Basic Info */}
                    <div className="grid grid-cols-2 gap-3" data-focus="name">
-                     <div><Label>First Name *<PCRTooltip text={ADMIN_TOOLTIPS.first_name} /></Label><Input className={ringIfMissing("first_name")} value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
-                    <div><Label>Last Name *<PCRTooltip text={ADMIN_TOOLTIPS.last_name} /></Label><Input className={ringIfMissing("last_name")} value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                     <div data-focus="dob"><Label>DOB<PCRTooltip text={ADMIN_TOOLTIPS.dob} /></Label><Input className={ringIfMissing("dob")} type="date" max={new Date().toISOString().slice(0, 10)} value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></div>
+                      <div><Label>First Name *<PCRTooltip text={ADMIN_TOOLTIPS.first_name} /></Label><Input className={ringIfMissing("first_name")} value={form.first_name} onChange={(e) => { setForm({ ...form, first_name: e.target.value }); if (dupWarning) setDupWarning(null); }} /></div>
+                     <div><Label>Last Name *<PCRTooltip text={ADMIN_TOOLTIPS.last_name} /></Label><Input className={ringIfMissing("last_name")} value={form.last_name} onChange={(e) => { setForm({ ...form, last_name: e.target.value }); if (dupWarning) setDupWarning(null); }} /></div>
+                   </div>
+                   <div className="grid grid-cols-2 gap-3">
+                      <div data-focus="dob"><Label>DOB<PCRTooltip text={ADMIN_TOOLTIPS.dob} /></Label><Input className={ringIfMissing("dob")} type="date" max={new Date().toISOString().slice(0, 10)} value={form.dob} onChange={(e) => { setForm({ ...form, dob: e.target.value }); if (dupWarning) setDupWarning(null); }} /></div>
                     <div><Label>Phone<PCRTooltip text={ADMIN_TOOLTIPS.phone} /></Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
                   </div>
                    <div data-focus="sex">
