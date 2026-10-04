@@ -487,7 +487,11 @@ export default function TrucksCrews() {
 
   // Truck CRUD
   const addTruck = async () => {
-    if (!truckName.trim() || savingTruck) return;
+    if (!truckName.trim()) {
+      setTruckNameError("Truck name is required");
+      return;
+    }
+    if (savingTruck) return;
     setSavingTruck(true);
     try {
       const { data: companyData } = await supabase.rpc("get_my_company_id");

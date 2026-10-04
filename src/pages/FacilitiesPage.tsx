@@ -59,6 +59,8 @@ export default function FacilitiesPage() {
   });
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [nameRequiredError, setNameRequiredError] = useState(false);
+  const [dialysisSubtypeRequiredError, setDialysisSubtypeRequiredError] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -83,6 +85,8 @@ export default function FacilitiesPage() {
     setForm({ name: "", facility_type: "dialysis", dialysis_subtype: "", address: "", phone: "", contact_name: "", notes: "", active: true, contract_payer_type: "", rate_type: "medicare", invoice_preference: "per_trip" });
     setEditing(null);
     setNameError(null);
+    setNameRequiredError(false);
+    setDialysisSubtypeRequiredError(false);
   };
 
   const openEdit = (f: Facility) => {
@@ -97,11 +101,16 @@ export default function FacilitiesPage() {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) { toast.error("Facility name required"); return; }
+    if (!form.name.trim()) {
+      if (!editing) setNameRequiredError(true);
+      toast.error("Facility name required");
+      return;
+    }
     // Dialysis facilities MUST be classified for accurate G/J modifier
     // emission. Required on create AND edit — saving without a subtype
     // silently falls back to D and a wrong modifier reaches the payer.
     if (form.facility_type === "dialysis" && !form.dialysis_subtype) {
+      if (!editing) setDialysisSubtypeRequiredError(true);
       toast.error("Dialysis subtype is required (hospital-based or freestanding)");
       return;
     }
@@ -220,11 +229,17 @@ export default function FacilitiesPage() {
               <Label>Facility Name *</Label>
               <Input
                 value={form.name}
-                aria-invalid={!!nameError}
-                className={nameError ? "border-destructive focus-visible:ring-destructive" : undefined}
-                onChange={e => { setForm({ ...form, name: e.target.value }); if (nameError) setNameError(null); }}
+                aria-invalid={nameRequiredError || !!nameError}
+                className={nameRequiredError || nameError ? "border-destructive focus-visible:ring-destructive" : undefined}
+                onChange={e => {
+                  setForm({ ...form, name: e.target.value });
+                  if (nameRequiredError) setNameRequiredError(false);
+                  if (nameError) setNameError(null);
+                }}
               />
-              {nameError && (
+              {nameRequiredError ? (
+                <p className="text-xs text-destructive mt-1">Facility name is required.</p>
+              ) : nameError && (
                 <p className="text-xs text-destructive mt-1">
                   A facility named '{nameError}' already exists. Give it a distinct name (e.g. add the location) so runs aren't sent to the wrong one.
                 </p>
@@ -249,14 +264,18 @@ export default function FacilitiesPage() {
                 <Label>
                   Dialysis Subtype{!editing && " *"}
                 </Label>
-                <Select value={form.dialysis_subtype || ""} onValueChange={v => setForm({ ...form, dialysis_subtype: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select subtype…" /></SelectTrigger>
+                <Select value={form.dialysis_subtype || ""} onValueChange={v => { setForm({ ...form, dialysis_subtype: v }); if (dialysisSubtypeRequiredError) setDialysisSubtypeRequiredError(false); }}>
+                  <SelectTrigger
+                    aria-invalid={dialysisSubtypeRequiredError}
+                    className={dialysisSubtypeRequiredError ? "border-destructive focus-visible:ring-destructive" : undefined}
+                  ><SelectValue placeholder="Select subtype…" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="hospital_based">Hospital-based (G)</SelectItem>
                     <SelectItem value="freestanding">Freestanding (J)</SelectItem>
                     <SelectItem value="unknown">Unknown (D)</SelectItem>
                   </SelectContent>
                 </Select>
+                {dialysisSubtypeRequiredError && <p className="text-xs text-destructive mt-1">Dialysis subtype is required.</p>}
                 <p className="text-[10px] text-muted-foreground mt-1">
                   Drives the EDI 837P origin/destination modifier letter on claims.
                 </p>
