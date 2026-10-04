@@ -25,6 +25,7 @@ import { useSchedulingStore } from "@/hooks/useSchedulingStore";
 import type { CertLevel } from "@/lib/cert-levels";
 import { evaluateCrewComposition, deriveUnitCapability } from "@/lib/crew-composition";
 import { MEMBER3_ROLES, MEMBER3_ROLE_LABELS, member3RoleLabel } from "@/lib/crew-roles";
+import { findTruckDuplicate } from "@/lib/truck-duplicates";
 import type { Tables } from "@/integrations/supabase/types";
 
 type TruckRow = Tables<"trucks">;
@@ -479,12 +480,26 @@ export default function TrucksCrews() {
 
   const goToToday = () => setCurrentWeekRef(today);
 
+  const [truckNameError, setTruckNameError] = useState<string | null>(null);
+  const [truckUnitError, setTruckUnitError] = useState<string | null>(null);
+  const [editTruckNameError, setEditTruckNameError] = useState<string | null>(null);
+  const [editTruckUnitError, setEditTruckUnitError] = useState<string | null>(null);
+
   // Truck CRUD
   const addTruck = async () => {
     if (!truckName.trim() || savingTruck) return;
     setSavingTruck(true);
     try {
       const { data: companyData } = await supabase.rpc("get_my_company_id");
+      // Duplicate truck names/unit numbers confuse dispatch board identity —
+      // block them (trimmed, case-insensitive, per company).
+      const dup = await findTruckDuplicate(companyData, truckName, truckVehicleId);
+      if (dup.nameConflict || dup.unitConflict) {
+        if (dup.nameConflict) setTruckNameError(`A truck named '${dup.nameConflict}' already exists`);
+        if (dup.unitConflict) setTruckUnitError(`Unit number '${dup.unitConflict}' is already in use`);
+        setSavingTruck(false);
+        return;
+      }
       const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData, vehicle_id: truckVehicleId.trim() || null, service_level: truckServiceLevel } as any);
       if (error) {
         if ((error.message ?? "").includes("TRUCK_CAP_EXCEEDED")) {
