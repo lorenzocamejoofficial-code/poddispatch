@@ -64,7 +64,7 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
     setNewName("");
     setNewAddress("");
     setNewSubtype("");
-    setDupWarning(null);
+    setNameError(null);
     setSaving(false);
     fetchFacilities();
   };
@@ -103,7 +103,7 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
         </SelectContent>
       </Select>
 
-      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setDupWarning(null); }}>
+      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setNameError(null); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Quick Add Facility</DialogTitle>
@@ -114,9 +114,16 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
               <Label>Facility Name *</Label>
               <Input
                 value={newName}
-                onChange={(e) => { setNewName(e.target.value); if (dupWarning) setDupWarning(null); }}
+                aria-invalid={!!nameError}
+                className={nameError ? "border-destructive focus-visible:ring-destructive" : undefined}
+                onChange={(e) => { setNewName(e.target.value); if (nameError) setNameError(null); }}
                 placeholder="e.g. DaVita North"
               />
+              {nameError && (
+                <p className="text-xs text-destructive mt-1">
+                  A facility named '{nameError}' already exists. Give it a distinct name (e.g. add the location) so runs aren't sent to the wrong one.
+                </p>
+              )}
             </div>
             <div>
               <Label>Dialysis Subtype *</Label>
@@ -130,7 +137,7 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
             </div>
             <div>
               <Label>Address</Label>
-              <Input value={newAddress} onChange={(e) => { setNewAddress(e.target.value); if (dupWarning) setDupWarning(null); }} placeholder="Optional" />
+              <Input value={newAddress} onChange={(e) => setNewAddress(e.target.value)} placeholder="Optional" />
             </div>
             {dupWarning && (
               <div className="flex items-start gap-2 rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] px-3 py-2">
