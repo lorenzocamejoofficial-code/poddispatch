@@ -6902,6 +6902,14 @@ export type Database = {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
       }
+      normalize_payer_class: {
+        Args: { _v: string }
+        Returns: Database["public"]["Enums"]["payer_class"]
+      }
+      normalize_transport_kind: {
+        Args: { _v: string }
+        Returns: Database["public"]["Enums"]["transport_kind"]
+      }
       purge_old_crew_locations: { Args: never; Returns: number }
       reap_stale_loadtest_reports: { Args: never; Returns: number }
       retry_claim_creation: { Args: { p_trip_id: string }; Returns: Json }
