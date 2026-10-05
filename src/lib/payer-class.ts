@@ -49,7 +49,7 @@ export function normalizePayerClass(value: string | null | undefined): PayerClas
   if (ALIASES[raw]) return ALIASES[raw];
   if (raw.includes("medicaid")) return "medicaid";
   if (raw.includes("medicare")) return "medicare";
-  if (raw.includes("self") || raw.includes("cash")) return "self_pay";
+  if (raw.includes("self") || raw.includes("cash") || raw.includes("patient") || raw.includes("private_pay") || raw === "privatepay") return "self_pay";
   return null;
 }
 
