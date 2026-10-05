@@ -37,7 +37,7 @@ import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRC
 import { CancellationDocForm } from "@/components/crew/CancellationDocForm";
 import { checkDuplicateTrip } from "@/lib/duplicate-trip-check";
 import { evaluatePCRFieldCompletion, getRequiredFieldsForCard, normalizeTransportKey } from "@/lib/pcr-field-requirements";
-import { clinicalTransportType } from "@/lib/clinical-transport";
+import { clinicalTransportType, sectionRulesTransportType } from "@/lib/clinical-transport";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { SectionCompletionBadge } from "@/components/pcr/PCRFieldIndicator";
 import { KickbackChecklist } from "@/components/pcr/KickbackChecklist";
@@ -985,8 +985,8 @@ export default function PCRPage() {
   // Wrapper component to choose layout
   const Layout = isQaFixMode ? AdminLayout : CrewLayout;
 
-  // Central section rules driven by pcr_type
-  const sectionRules = usePCRSectionRules(trip?.pcr_type || trip?.trip_type);
+  // Central section rules: emergency upgrade, else transport_kind, else legacy
+  const sectionRules = usePCRSectionRules(sectionRulesTransportType(trip as any));
 
   // Fetch crew info for medic selection + count assigned crew
   useEffect(() => {

@@ -22,5 +22,5 @@
 - [x] Stage 2: backfill dry-run reviewed and approved
 - [x] Stage 3: backfill applied + dual-write triggers (2 no-payer trips left NULL for review)
 - [x] Stage 4: clinical readers on transport_kind (ePCR cards/fields/narrative) + parity + SQL/TS drift tests
-- [ ] Stage 4b: ePCR section rules — 17 trips differ (owner decision)
+- [x] Stage 4b: ePCR section rules on transport_kind (emergency upgrade wins)
 - [ ] Stages 5-7: billing, UI, contract (awaiting owner per stage)
