@@ -3895,6 +3895,7 @@ export type Database = {
           notes: string | null
           oxygen_lpm: number | null
           oxygen_required: boolean | null
+          payer_class: Database["public"]["Enums"]["payer_class"] | null
           pcs_expiration_date: string | null
           pcs_on_file: boolean | null
           pcs_physician_name: string | null
@@ -3932,6 +3933,7 @@ export type Database = {
           tertiary_payer: string | null
           tertiary_payer_id: string | null
           tertiary_payer_phone: string | null
+          transport_kind: Database["public"]["Enums"]["transport_kind"] | null
           transport_type: Database["public"]["Enums"]["transport_type"]
           trips_per_week_limit: number | null
           updated_at: string
@@ -3983,6 +3985,7 @@ export type Database = {
           notes?: string | null
           oxygen_lpm?: number | null
           oxygen_required?: boolean | null
+          payer_class?: Database["public"]["Enums"]["payer_class"] | null
           pcs_expiration_date?: string | null
           pcs_on_file?: boolean | null
           pcs_physician_name?: string | null
@@ -4020,6 +4023,7 @@ export type Database = {
           tertiary_payer?: string | null
           tertiary_payer_id?: string | null
           tertiary_payer_phone?: string | null
+          transport_kind?: Database["public"]["Enums"]["transport_kind"] | null
           transport_type?: Database["public"]["Enums"]["transport_type"]
           trips_per_week_limit?: number | null
           updated_at?: string
@@ -4071,6 +4075,7 @@ export type Database = {
           notes?: string | null
           oxygen_lpm?: number | null
           oxygen_required?: boolean | null
+          payer_class?: Database["public"]["Enums"]["payer_class"] | null
           pcs_expiration_date?: string | null
           pcs_on_file?: boolean | null
           pcs_physician_name?: string | null
@@ -4108,6 +4113,7 @@ export type Database = {
           tertiary_payer?: string | null
           tertiary_payer_id?: string | null
           tertiary_payer_phone?: string | null
+          transport_kind?: Database["public"]["Enums"]["transport_kind"] | null
           transport_type?: Database["public"]["Enums"]["transport_type"]
           trips_per_week_limit?: number | null
           updated_at?: string
@@ -4958,12 +4964,14 @@ export type Database = {
           oneoff_wound_type: string | null
           origin_type: string | null
           patient_id: string | null
+          payer_class: Database["public"]["Enums"]["payer_class"] | null
           pickup_location: string
           pickup_time: string | null
           run_date: string
           service_level: string | null
           simulation_run_id: string | null
           transport_category: Database["public"]["Enums"]["transport_category"]
+          transport_kind: Database["public"]["Enums"]["transport_kind"] | null
           trip_type: Database["public"]["Enums"]["trip_type"]
           updated_at: string
         }
@@ -5006,12 +5014,14 @@ export type Database = {
           oneoff_wound_type?: string | null
           origin_type?: string | null
           patient_id?: string | null
+          payer_class?: Database["public"]["Enums"]["payer_class"] | null
           pickup_location: string
           pickup_time?: string | null
           run_date?: string
           service_level?: string | null
           simulation_run_id?: string | null
           transport_category?: Database["public"]["Enums"]["transport_category"]
+          transport_kind?: Database["public"]["Enums"]["transport_kind"] | null
           trip_type?: Database["public"]["Enums"]["trip_type"]
           updated_at?: string
         }
@@ -5054,12 +5064,14 @@ export type Database = {
           oneoff_wound_type?: string | null
           origin_type?: string | null
           patient_id?: string | null
+          payer_class?: Database["public"]["Enums"]["payer_class"] | null
           pickup_location?: string
           pickup_time?: string | null
           run_date?: string
           service_level?: string | null
           simulation_run_id?: string | null
           transport_category?: Database["public"]["Enums"]["transport_category"]
+          transport_kind?: Database["public"]["Enums"]["transport_kind"] | null
           trip_type?: Database["public"]["Enums"]["trip_type"]
           updated_at?: string
         }
@@ -5748,6 +5760,7 @@ export type Database = {
           patient_name_override: string | null
           patient_position: string | null
           patient_sex_override: string | null
+          payer_class: Database["public"]["Enums"]["payer_class"] | null
           pcr_completed_at: string | null
           pcr_status: string
           pcr_submitted_by: string | null
@@ -5780,6 +5793,7 @@ export type Database = {
           stretcher_required: boolean | null
           transport_category: Database["public"]["Enums"]["transport_category"]
           transport_condition: string | null
+          transport_kind: Database["public"]["Enums"]["transport_kind"] | null
           trip_type: Database["public"]["Enums"]["trip_type"] | null
           truck_id: string | null
           unidentified_patient_json: Json | null
@@ -5927,6 +5941,7 @@ export type Database = {
           patient_name_override?: string | null
           patient_position?: string | null
           patient_sex_override?: string | null
+          payer_class?: Database["public"]["Enums"]["payer_class"] | null
           pcr_completed_at?: string | null
           pcr_status?: string
           pcr_submitted_by?: string | null
@@ -5959,6 +5974,7 @@ export type Database = {
           stretcher_required?: boolean | null
           transport_category?: Database["public"]["Enums"]["transport_category"]
           transport_condition?: string | null
+          transport_kind?: Database["public"]["Enums"]["transport_kind"] | null
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
           unidentified_patient_json?: Json | null
@@ -6106,6 +6122,7 @@ export type Database = {
           patient_name_override?: string | null
           patient_position?: string | null
           patient_sex_override?: string | null
+          payer_class?: Database["public"]["Enums"]["payer_class"] | null
           pcr_completed_at?: string | null
           pcr_status?: string
           pcr_submitted_by?: string | null
@@ -6138,6 +6155,7 @@ export type Database = {
           stretcher_required?: boolean | null
           transport_category?: Database["public"]["Enums"]["transport_category"]
           transport_condition?: string | null
+          transport_kind?: Database["public"]["Enums"]["transport_kind"] | null
           trip_type?: Database["public"]["Enums"]["trip_type"] | null
           truck_id?: string | null
           unidentified_patient_json?: Json | null
@@ -7000,6 +7018,12 @@ export type Database = {
         | "out_of_hospital"
         | "vacation"
         | "paused"
+      payer_class:
+        | "medicare"
+        | "medicaid"
+        | "commercial"
+        | "facility"
+        | "self_pay"
       run_status:
         | "pending"
         | "en_route"
@@ -7018,6 +7042,13 @@ export type Database = {
         | "dialysis"
         | "hospice"
         | "unknown"
+      transport_kind:
+        | "dialysis"
+        | "ift"
+        | "discharge"
+        | "outpatient"
+        | "wound_care"
+        | "psych"
       transport_type:
         | "dialysis"
         | "outpatient"
@@ -7234,6 +7265,13 @@ export const Constants = {
         "vacation",
         "paused",
       ],
+      payer_class: [
+        "medicare",
+        "medicaid",
+        "commercial",
+        "facility",
+        "self_pay",
+      ],
       run_status: [
         "pending",
         "en_route",
@@ -7253,6 +7291,14 @@ export const Constants = {
         "dialysis",
         "hospice",
         "unknown",
+      ],
+      transport_kind: [
+        "dialysis",
+        "ift",
+        "discharge",
+        "outpatient",
+        "wound_care",
+        "psych",
       ],
       transport_type: [
         "dialysis",
