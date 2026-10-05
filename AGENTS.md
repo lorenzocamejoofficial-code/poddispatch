@@ -1,3 +1,4 @@
 - All office-side trip cancels go through `cancelTrip()` in src/lib/cancel-trip.ts — why: one place enforces the report-documentation rule, claim voiding, notifications and audit, so cancel behavior cannot drift.
 - NEMSIS CTA testing goes only through the creator-only nemsis-cta-submit function, which sends built-in fixtures to one hardcoded CTA address — why: real tenant PHI can never reach the sandbox.
 - Trip classification is two independent axes: transport kind (`src/lib/transport-vocabulary.ts`) and payer class; normalize every legacy spelling through those modules — why: four overlapping type vocabularies caused silent dialysis/$0-rate fallbacks.
+- transport_kind/payer_class are filled by BEFORE INSERT/UPDATE triggers (normalize_transport_kind/normalize_payer_class mirror the TS modules) — why: one dual-write point covers every writer incl. imports and server functions; keep the SQL and TS mappings in sync.
