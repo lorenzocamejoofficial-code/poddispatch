@@ -1,93 +1,113 @@
-# NEMSIS CTA Test Harness: pass breakdown, plus Pass 1 in detail
+# Two-axis trip classification (Transport Type x Payer) — recommended plan
 
-Target: the 2026 Active Test Cases only (DEM 1, EMS 1–5), NEMSIS schema 3.5.1. They are submitted through the pod_dispatch account to the CTA (Compliance Testing Application) web service. Only creators can use it, and it is completely separate from real companies.
+## Recommendation in one line
+Go incremental (expand -> backfill -> migrate readers -> migrate writers -> contract), NOT one consolidating migration. The type fields are read in ~40 files plus a DB trigger and 4 server functions, and three of them already disagree on vocabulary; a single cutover would silently change which ePCR sections are required and which rate a claim is priced at.
 
-## 1. Pass breakdown (dependency order)
+## What exists today (verified)
 
-Your proposed shape holds. There are two changes: Pass 3 splits off a shared cleanup step, and test-case data comes in per case rather than all at once.
+Live data (small, which makes backfill easy to audit by hand):
 
-| Pass | What | Done when |
-|---|---|---|
-| 1 | Transport: pod_dispatch password stored as a secret, request/response handling for the CTA service, its own log table, and a creator-only screen. | A login check returns a real CTA code (for example "allowed: N submissions" or "-1 bad password"), and a test send returns a CTA response we can read. |
-| 2 | Test-case data: the exact DEM 1 values from the 2026 packet, stored as one fixed file in the code (not in the database), plus an "inspect" view. | DEM 1 values are typed in and checked against the packet. EMS 1–5 are added later, one per Pass 5 step. |
-| 3a | Empty-field fix: the shared XML helper stops marking every empty element as "not values" (xsi:nil with NV). It only does so where the schema allows. This affects real-trip EMS output too. Checked with the existing local schema check and the exporter tests. | The local check is clean and EMS output is unchanged except for the corrected empty fields. |
-| 3b | Full agency (DEM) exporter covering every section DEM 1 fills. It builds from the test-case file, not from company records. Local check against the DEM schema. | DEM 1 XML passes the local schema check. |
-| 4 | Submit DEM 1, read the CTA result and the CTA website comparison, fix, resend until it passes. | The CTA shows DEM 1 passed. |
-| 5 | EMS 1–5, one at a time: add the case data, adjust the EMS exporter to take test-case input (the real-trip path is not changed), check locally, submit, repeat until it passes. | Each case passes in the CTA. |
+```text
+patients.transport_type   dialysis 5, discharge 1, ift 1, outpatient 1, psych_transport 1, wound_care 1
+trip_records.trip_type    dialysis 8, discharge 5, ift 4, outpatient 4, psych_transport 4, wound_care 4
+trip_records.pcr_type     ift_general 12, ift_discharge 5, nemt_dialysis 5, ift_wound_care 4, dialysis 1, empty 2
+scheduling_legs.trip_type dialysis 26, wound_care 6, discharge 1
+patients.primary_payer    medicare 7, medicaid 2, self_pay 1
+trip_records.primary_payer medicare 9, medicaid 9, commercial 8, empty 3
+```
 
-The two remaining pieces (the empty-field fix and the case data) stay separate so each change can be checked on its own. That matters most because 3a also touches real-trip output.
+Findings that shape the plan:
+- No row currently stores private_pay as a transport type. The conflation is in code paths and enum lists, not data — the risky backfill case is empty today but must still be handled.
+- pcr_type is a fourth vocabulary (ift_general, nemt_dialysis, ift_wound_care...) that the code normalizes with substring matching; "emergency" is only ever set on pcr_type (emergency upgrade), never on trip_type.
+- trip_records.primary_payer still holds legacy "commercial" (canonical is "private").
+- woundcare vs wound_care: duplicate exists only as an enum value; no rows use "woundcare".
+- NEMSIS/CTA code does not read these fields by name — no frozen-path changes needed.
 
-## 2. Transport spec, confirmed from the live service description
+## Blast radius
 
-The service description was read today from cta.nemsis.org.
+```text
+WRITERS
+  Patient form            Patients.tsx (transport_type, primary_payer, oneoff none)
+  One-off runs            Scheduling.tsx (scheduling_legs.trip_type, oneoff_primary_payer)
+  Trip creation           PCRPage.createTripForRun, TripsAndClinical.syncSlotsToTrips
+                          (pcr_type := leg.trip_type), TripsAndClinical manual form
+  Emergency upgrade       useEmergencyUpgrade.tsx (pcr_type='emergency')
+  Server functions        simulation-lab, loadtest-harness, oatest-run (seed data)
 
-- **Style:** SOAP 1.1, document/literal. It goes to `https://cta.nemsis.org:443/ComplianceTestingWs/endpoints/` with SOAPAction `http://ws.nemsis.org/SubmitData`, and the namespace is `http://ws.nemsis.org/`.
-- **Login:** there is no SOAP header and no token step. Every request carries three fields in its body: `username`, `password` and `organization`. Bad credentials come back as code `-1`. Code `-2` means the account isn't allowed that action, and `-3` means it isn't allowed for that organization.
-- **SubmitDataRequest fields, in order:** the three login fields, `requestType`=SubmitData, `submitPayload/payloadOfXmlElement` (the DEM or EMS XML is placed directly inside), `requestDataSchema` (**62 = Demographics/DEM**, **61 = EMS**), `schemaVersion`, and `additionalInfo`.
-- **SubmitDataResponse:** `requestHandle`, `statusCode` and optional `reports` (server error, XML validation errors, Schematron report, custom reports).
-  - `1` = imported. `2`/`3` = imported with error or warning rules flagged.
-  - `-11` = duplicate file. `-12` = XML invalid. `-13`/`-14` = fatal or error rule violation. `-15`/`-16` = processing rules. `-30` = message too large. `-20..-22` = server error.
-  - `0` = still processing, so ask again with **RetrieveStatus** using the requestHandle.
-- **QueryLimit:** it carries only the three login fields and returns the account's submission limit plus a status code. It's a **harmless login check** that sends no data, and Pass 1 uses it first.
+READERS — clinical (Axis 1)
+  ePCR sections           usePCRSectionRules.ts (normalizePCRType, has a private_pay column)
+  ePCR field reqs         pcr-field-requirements.ts (normalizeTransportKey + PAYER_AUGMENTATIONS)
+  ePCR submit             PCRPage.getMissingItems (substring checks on trip_type/pcr_type)
+  Patient intake reqs     pcr-dropdowns.ts TRANSPORT_TYPE_CLAIM_REQUIREMENTS (has private_pay key)
+  Cards                   PatientInfoCard, MedicalNecessityCard
+  Safety / readiness      safety-rules.ts, pre-trip-readiness.ts, transport-context.ts
+  Crew + dispatch views   CrewSchedule, CrewPatients, CrewDashboard, CrewScheduleAdmin,
+                          UpcomingNonDialysisPanel
+  DB trigger              auto_flag_trip_qa (reads a type field)
 
-**What can't be confirmed without the live service (learned by trying in Pass 1/4):**
-- The exact `organization` string the account is tied to. "PodDispatch" is assumed; `-3` would tell us it's wrong.
-- The exact `schemaVersion` text: "3.5.1" or the full "3.5.1.251001CP2". We try the short form first; the exporter's root element already declares the full form.
-- **How a submission is matched to DEM 1 vs EMS 1 etc.** No field in the service names the test case. The likely answer is that the CTA matches on the data itself: the agency number and the record IDs the packet requires. So the matching happens through the case data in Pass 2/5, not a transport field. We confirm this in Pass 4 by watching where the CTA files the result; `additionalInfo` is the fallback if the CTA wants a label there.
-- Whether `0` (pending) comes back for these files, and how long RetrieveStatus takes.
+READERS — billing (Axis 2)
+  Claim trigger           auto_create_claim_on_pcr_submit (payer cascade: trip -> patient -> leg -> default)
+  Readiness / checklist   claim-readiness.ts, PreSubmitChecklist.tsx (also gates on private_pay transport)
+  Submission              queue-claims-for-submission.ts (self_pay hard block)
+  Payer helpers           payer-vocabulary.ts, payer-compliance.ts (+ generated edge copy)
+  Reports / exports       generate-audit-export, ReportsAndMetrics
+```
 
-## 3. Where the password lives
+Where a big-bang consolidation would break:
+1. Every normalizer has its own fallback — unknown values default to "dialysis" sections. A renamed value would quietly be treated as dialysis.
+2. PreSubmitChecklist and pcr-dropdowns treat transport=private_pay as "skip PCS / reduced fields". Removing it without a payer-based replacement makes self-pay trips suddenly fail readiness.
+3. The claim trigger prices from payer; if the payer column moves before the trigger reads it, claims price at the $0 default rate (the original underbilling bug).
+4. Enum value removal in Postgres is not possible in place (requires type recreation) — must be last.
 
-- Two server-only secrets: `NEMSIS_CTA_USERNAME` (value `pod_dispatch`, which I can set) and `NEMSIS_CTA_PASSWORD`.
-  - The password is a credential from NEMSIS, so **you enter it** in Project Settings → Secrets. I'll ask for it when building starts.
-  - An optional `NEMSIS_CTA_ORGANIZATION` (default "PodDispatch") makes a wrong organization a settings change rather than a code change.
-- Only the new server function reads them. They never reach the browser, never get written to the log table, and never appear in an error message. The saved copy of each request has the password masked.
+## Recommended sequence (each stage independently shippable and reversible)
 
-## 4. Safety isolation
+**Stage 0 — Single vocabulary module (code only, no schema).**
+Add `src/lib/transport-vocabulary.ts` mirroring payer-vocabulary.ts: canonical keys `dialysis | ift | discharge | outpatient | wound_care | psych | emergency`, plus `normalizeTransportKey()` that maps every legacy spelling (woundcare, ift_general, ift_wound_care, nemt_dialysis, outpatient_specialty, ift_discharge, complex, hospital) and returns `null` (not "dialysis") for private_pay/unknown. Unit tests over every value found in live data. No behavior change yet.
 
-- **Separate path:** a new server function `nemsis-cta-submit`, gated by the existing `requireSystemCreator` check (`_shared/creator-gate.ts`). Non-creators get "403".
-- **No real data can be sent:** the function takes no trip ID, patient ID or company ID. It only accepts a case name from a fixed list (`DEM1`, `EMS1`..`EMS5`, plus `PING` for the login check), and builds XML only from fixture files in the code. No query ever reads trip_records, patients, claims or companies.
-- **Separate log:** a new table `nemsis_cta_submissions`. The existing `nemsis_submissions` table, which requires a real company and trip, and `submit-gemsis-pcr` are left untouched. Creators can read the new table; only the server writes to it.
-- **Only one address:** the CTA address is a fixed value in the new function, and the function can't send anywhere else. Nothing in the existing PCR submission path calls it.
-- **Not touched:** the 837/claims pipeline, denial recovery, existing security rules and company separation, trial/lifecycle, founding, the cancel workflow, and `submit-gemsis-pcr`.
+**Stage 1 — Expand (additive migration).**
+- New enum `transport_kind` with the 7 canonical values.
+- Add nullable `transport_kind` to patients, scheduling_legs, trip_records; add `payer_class text` to trip_records and scheduling_legs (patients.primary_payer is already canonical).
+- Old columns untouched. Nothing reads the new columns yet.
 
-## 5. Pass 1 in detail (transport layer)
+**Stage 2 — Backfill (data operation, logged).**
+- Compute transport_kind from (pcr_type, trip_type, transport_type) with precedence: pcr_type='emergency' wins; else trip_type; else pcr_type mapping; else patient.transport_type.
+- payer_class from normalizePayerKey rules (commercial -> private).
+- private_pay-as-transport rows: payer_class := self_pay; transport_kind := the patient's other transport_type if set, else derived from destination facility type, else left NULL and listed in a review report (never guessed). Zero rows today, but the rule ships.
+- Write a before/after snapshot to a backfill audit table; dry-run first and report counts for review before applying.
 
-**Secrets**
-- I set `NEMSIS_CTA_USERNAME=pod_dispatch` (and `NEMSIS_CTA_ORGANIZATION=PodDispatch`).
-- You add `NEMSIS_CTA_PASSWORD`.
+**Stage 3 — Dual-write.**
+All writers set both old and new columns (patient form, one-off runs, trip creation, emergency upgrade, sim/loadtest functions). A small DB trigger keeps new columns filled from old ones if any writer is missed. Add a nightly mismatch check (old-derived vs new) surfaced to the creator.
 
-**Database (one migration)**
-- New table `nemsis_cta_submissions` with these fields:
-  - `test_case` (text; PING/DEM1/EMS1..5), `operation` (QueryLimit/SubmitData/RetrieveStatus), `data_schema` (61/62, nullable), `schema_version`
-  - `request_xml_redacted` (password masked), `response_xml`, `http_status`, `status_code` (int), `status_label` (plain English), `request_handle`, `limit_value`, `error_message`
-  - `created_by`, `created_at`
-- Access: the server role has full access. Signed-in users can read rows only when they are a system creator (`is_system_creator()`). There is no browser write access.
+**Stage 4 — Migrate readers, clinical first, behind parity checks.**
+- usePCRSectionRules / pcr-field-requirements / PCRPage submit read transport_kind via the new module.
+- Before switching each, run a parity test across all existing trips: required-section set from old path must equal new path. Any diff is reviewed, not shipped blind.
+- Replace "transport = private_pay" logic with "payer = self_pay" in pcr-dropdowns, PreSubmitChecklist, section rules (private_pay rule column becomes a payer overlay).
 
-**Code**
-- `supabase/functions/_shared/nemsis/cta-soap.ts`, pure functions:
-  - `buildQueryLimitEnvelope(creds)`, `buildSubmitDataEnvelope(creds, payloadXml, dataSchema, schemaVersion, additionalInfo)` and `buildRetrieveStatusEnvelope(creds, handle)`.
-    - All text is XML-escaped. The payload has its `<?xml?>` declaration removed and is placed directly inside `payloadOfXmlElement`.
-  - `parseCtaResponse(xml)` picks out the SOAP fault, `statusCode`, `requestHandle`, `limit`, and a short summary of the report sections.
-  - `describeCtaCode(code)` turns each code from the service description into plain English.
-  - `redactPassword(envelope)`.
-- `supabase/functions/nemsis-cta-submit/index.ts`:
-  - Runs the creator check, then reads `{ action: "ping" | "submit" | "status", test_case?, request_handle? }`, validated with zod.
-  - `ping` sends QueryLimit.
-  - `submit` in Pass 1 accepts only `test_case: "TRANSPORT_PROBE"`. That sends a small built-in DEM skeleton made from made-up fixture values, purely to prove the round trip. The CTA is expected to reject it (`-12`/`-13`), which is fine for this pass. Real DEM 1/EMS cases unlock in Passes 4/5.
-  - `status` sends RetrieveStatus.
-  - Posts with `Content-Type: text/xml; charset=utf-8` and the SOAPAction header, with a 30-second timeout.
-  - Writes one log row per call and returns the parsed result. Every log write checks its error, so there is no false success.
-- `src/lib/nemsis/cta-soap.test.ts`: tests that envelope field order matches the service description, that escaping works, that the password is masked, and that the parser handles the success, failure and fault samples.
-- A creator-only screen, **"NEMSIS CTA"**, in the creator area (next to the existing creator tools in `CreatorLayout`):
-  - "Check login" button (ping) and "Send transport probe" button.
-  - A table of recent CTA calls: time, case, operation, code, plain-English meaning, request handle, and an expandable response XML.
-  - A "Check status" button on rows that came back `0`.
+**Stage 5 — Migrate billing readers.**
+claim-readiness, queue submission, payer helpers read payer_class. Claim trigger switched last (see risks). Run claim-parity tests; existing claim totals for all trips must be unchanged on re-derivation.
 
-**How to verify Pass 1 (what you'd click)**
-1. Add `NEMSIS_CTA_PASSWORD` when asked.
-2. Go to Creator → NEMSIS CTA and click **Check login**.
-   - Pass = a row showing a submission limit with a good status.
-   - `-1` = wrong password. `-3` = wrong organization: we change one setting and retry.
-3. Click **Send transport probe**. Pass = a row with a real CTA code and response, most likely "-12 XML validation failed" with the CTA's error list visible. That proves the request reached the CTA, was understood, and that we can read its answer.
-4. I'll run the same two calls myself and run the new automated tests before reporting.
+**Stage 6 — UI.**
+Patient form and one-off run form show Transport Type (7) and Payer (4) as separate choices; Private Pay removed from transport list. Billing intake fields keyed off payer; clinical intake fields keyed off transport type.
+
+**Stage 7 — Contract (only after 2+ weeks of zero mismatches).**
+Stop writing old columns, then drop/retire them; recreate trip_type enum without woundcare/private_pay. Keep pcr_type as a deprecated read-only column for one more cycle for audit/export history.
+
+## Riskiest touch points and de-risking
+
+| Risk | Mitigation |
+|---|---|
+| Claim trigger mis-prices (payer) or wrong HCPCS | Change trigger in its own migration; read `COALESCE(new.payer_class, old cascade)`; re-run claim-parity tests; compare totals on simulation company before real tenants; keep previous function body as `_BACKUP`. |
+| ePCR required set silently changes (crew blocked or claims under-documented) | Parity test on every existing trip per stage; new normalizer returns null instead of defaulting to dialysis, and null shows a visible "transport type missing" blocker. |
+| Self-pay trips start failing readiness when private_pay transport logic is removed | Add payer-based rule before removing transport-based rule (same release). |
+| auto_flag_trip_qa trigger reads a type field | Update with dual read in Stage 4. |
+| Enum shrink is irreversible | Last stage only, after mismatch monitor is clean. |
+| Sim/loadtest/oatest functions seed old values | Update in Stage 3 so test data exercises the new path. |
+| Multi-tenant leakage in backfill reports | Report queries scoped per company (creator view lists per company). |
+
+## Out of scope
+NEMSIS/CTA path and exporter (no reads of these fields by name); HCPCS/modifier derivation logic itself; charge master structure.
+
+## Open decisions for you/owner
+1. Should "outpatient" keep a separate "specialty" flavor, or one value? (Plan assumes one.)
+2. Is emergency a transport type (Axis 1) or should it stay an upgrade flag (`is_emergency_pcr`)? Plan treats it as a transport type set by upgrade, keeping the flag for billing.
+3. Commercial vs facility-contract: one "private" payer class (current) or split later? Plan keeps one.
