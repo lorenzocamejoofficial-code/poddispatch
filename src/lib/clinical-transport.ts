@@ -34,3 +34,19 @@ export function clinicalTransportType(
   if (kind && normalizeTransportKind(trip?.trip_type) === kind) return KIND_TO_LEGACY[kind];
   return legacy;
 }
+
+/**
+ * Input for the ePCR required-sections rules (usePCRSectionRules).
+ * 1. Emergency upgrade always wins (pcr_type 'emergency'/'complex' or is_emergency_pcr).
+ * 2. Otherwise the trip's transport_kind (when trip_type is a clean kind) — this
+ *    fixes IFT/outpatient/psych trips whose pcr_type 'ift_general' used to fall
+ *    through to dialysis sections, and gives discharge trips discharge sections.
+ * 3. Otherwise the legacy expression (pcr_type || trip_type), unchanged.
+ */
+export function sectionRulesTransportType(
+  trip: { transport_kind?: string | null; trip_type?: string | null; pcr_type?: string | null; is_emergency_pcr?: boolean | null } | null | undefined,
+): string | null | undefined {
+  const pcr = String(trip?.pcr_type ?? "").toLowerCase().trim();
+  if (trip?.is_emergency_pcr || pcr === "emergency" || pcr === "complex") return "emergency";
+  return clinicalTransportType(trip, trip?.pcr_type || trip?.trip_type);
+}
