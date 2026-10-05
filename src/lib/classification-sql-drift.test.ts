@@ -22,7 +22,7 @@ const PAYER_INPUTS = [
   "facility_contract", "contract", "self_pay", "self-pay", "selfpay", "self", "cash", "private_pay",
   "private pay", "patient", "Medicare Part B", "GA Medicaid", " MEDICARE ", "", "default", "other",
   "bcbs", "aetna", "self pay", "Self Pay", "cash payment", "Cash", "private insurance", "facility contract",
-  "SELF-PAY", "self  pay", "Private Pay", "selfpay ", "patient pay", "cash_pay",
+  "SELF-PAY", "self  pay", "Private Pay", "selfpay ", "patient pay", "cash_pay", "privatepay", "Patient Responsibility",
 ];
 
 function sqlMap(fn: string, inputs: string[]): (string | null)[] {
