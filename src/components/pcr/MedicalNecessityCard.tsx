@@ -1,3 +1,4 @@
+import { clinicalTransportType } from "@/lib/clinical-transport";
 import { useEffect, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,7 +47,7 @@ interface Props {
 export function MedicalNecessityCard({ trip, updateField, updateMultipleFields, requiredFields = ["medical_necessity_reason", "necessity_checklist"] }: Props) {
   const filledRef = useRef<string | null>(null);
 
-  const transportType = trip.trip_type ?? "dialysis";
+  const transportType = clinicalTransportType(trip, trip.trip_type ?? "dialysis") ?? "dialysis";
   const isWoundCare = String(transportType).toLowerCase().includes("wound");
   const templateKey = isWoundCare ? "wound_care" : (transportType === "outpatient_specialty" ? "outpatient" : transportType);
   const template = NECESSITY_TEMPLATES[templateKey] ?? NECESSITY_TEMPLATES.dialysis;

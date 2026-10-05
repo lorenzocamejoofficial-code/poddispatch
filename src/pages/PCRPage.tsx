@@ -37,6 +37,7 @@ import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRC
 import { CancellationDocForm } from "@/components/crew/CancellationDocForm";
 import { checkDuplicateTrip } from "@/lib/duplicate-trip-check";
 import { evaluatePCRFieldCompletion, getRequiredFieldsForCard, normalizeTransportKey } from "@/lib/pcr-field-requirements";
+import { clinicalTransportType } from "@/lib/clinical-transport";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { SectionCompletionBadge } from "@/components/pcr/PCRFieldIndicator";
 import { KickbackChecklist } from "@/components/pcr/KickbackChecklist";
@@ -1164,7 +1165,7 @@ export default function PCRPage() {
     );
   }
 
-  const transportKey = getPCRTransportKey(trip.trip_type || trip.pcr_type);
+  const transportKey = getPCRTransportKey(clinicalTransportType(trip, trip.trip_type || trip.pcr_type) ?? null);
   const cards = PCR_CARDS_BY_TRANSPORT[transportKey] || PCR_CARDS_BY_TRANSPORT.dialysis;
 
   // Fix 4 — Pre-contact lock: clinical cards are locked until patient_contact_time is recorded.
@@ -1305,7 +1306,7 @@ export default function PCRPage() {
     }
     // Single source of truth: derive requiredFields from pcr-field-requirements.ts
     // based on the trip's transport type AND payer (Medicare/Medicaid add fields).
-    const tripTypeForReq = trip.trip_type || trip.pcr_type || "";
+    const tripTypeForReq = clinicalTransportType(trip, trip.trip_type || trip.pcr_type || "") || "";
     const payer = (trip as any).patient?.primary_payer ?? (trip as any).payer_type ?? null;
     const required = getRequiredFieldsForCard(tripTypeForReq, type, payer, trip);
     switch (type) {
@@ -1318,7 +1319,7 @@ export default function PCRPage() {
       case "signatures": return <SignaturesCard trip={trip} updateField={updateField} legType={activeLegType} />;
       case "narrative": return <NarrativeCard trip={trip} truckName={truckName} updateField={updateField} />;
       case "billing": return <BillingCard trip={trip} updateField={updateField} />;
-      case "sending_facility": return <SendingFacilityCard trip={trip} updateField={updateField} tripType={trip.trip_type || trip.pcr_type || ""} requiredFields={required} />;
+      case "sending_facility": return <SendingFacilityCard trip={trip} updateField={updateField} tripType={tripTypeForReq} requiredFields={required} />;
       case "assessment": case "chief_complaint": return <AssessmentCard trip={trip} updateField={updateField} requiredFields={required} />;
       case "physical_exam": return <PhysicalExamCard trip={trip} updateField={updateField} />;
       case "hospital_outcome": return <HospitalOutcomeCard trip={trip} updateField={updateField} updateMultipleFields={updateMultipleFields} requiredFields={required} />;
@@ -1364,7 +1365,7 @@ export default function PCRPage() {
     // narrative (≥150 chars) so "patient stable" one-liners don't trigger
     // Medicare clinical-review audits. Non-stretcher chair-car / wheelchair
     // transports are exempt.
-    const tType = String(trip.trip_type || trip.pcr_type || "").toLowerCase();
+    const tType = String(clinicalTransportType(trip, trip.trip_type || trip.pcr_type || "") || "").toLowerCase();
     const isAmbulanceLevel =
       !!trip.stretcher_placement ||
       tType.includes("ift") ||
