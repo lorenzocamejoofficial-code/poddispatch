@@ -14,6 +14,7 @@
  *    field names a card should treat as required (for the requiredFields prop)
  *  - isFieldRequired(tripType, fieldName, payer?) — boolean
  */
+import { clinicalTransportType } from "./clinical-transport";
 
 export interface FieldRequirement {
   field: string;
