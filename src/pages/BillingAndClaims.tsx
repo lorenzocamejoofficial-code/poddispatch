@@ -90,6 +90,7 @@ import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
 import { computeHcpcsCodes, computeCleanTripStatus } from "@/lib/billing-utils";
 import { PAYER_KEYS, normalizePayerKey, payerLabel } from "@/lib/payer-vocabulary";
+import { normalizePayerClass, selectRateForPayerClass, rateFlagMessage, type PayerClass } from "@/lib/payer-class";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 import { useSimulationCompanyState } from "@/hooks/useIsSimulationCompany";
 import { SecondaryClaimPanel } from "@/components/billing/SecondaryClaimPanel";
@@ -617,12 +618,16 @@ export default function BillingAndClaims() {
     // self_pay | default) so legacy "cash"/"facility" charts no longer fall through
     // to the $0 default rate.
     const payerType = normalizePayerKey(rawPayerType);
-    const payerRules = payerRulesMap.get(payerType) ?? payerRulesMap.get(rawPayerType) ?? null;
+    // Stage 5: payer_class drives pricing and rules (trip > patient > one-off leg).
+    const payerClass: PayerClass | null = (t.payer_class as PayerClass | null)
+      ?? normalizePayerClass(t.primary_payer) ?? normalizePayerClass(rawPayerType);
+    const rulesKey = payerClass === "commercial" || payerClass === "facility" ? "private"
+      : payerClass ?? "default";
+    const payerRules = payerRulesMap.get(rulesKey) ?? payerRulesMap.get(rawPayerType) ?? null;
     const authInfo = t.patient ? { auth_required: t.patient.auth_required, auth_expiration: t.patient.auth_expiration } : null;
     const gateResult = computeCleanTripStatus(t, payerRules, authInfo);
 
-    const rate = chargeMaster.find(r => normalizePayerKey(r.payer_type) === payerType)
-      ?? chargeMaster.find(r => normalizePayerKey(r.payer_type) === "default");
+    const { rate, flag: rateFlag } = selectRateForPayerClass(chargeMaster as any[], payerClass);
     const base = rate?.base_rate ?? 0;
     const miles = Number(t.loaded_miles ?? 0) * Number(rate?.mileage_rate ?? 0);
     const wait = Number(t.wait_time_minutes ?? 0) * Number(rate?.wait_rate_per_min ?? 0);
@@ -651,9 +656,11 @@ export default function BillingAndClaims() {
       : (t.patient?.pickup_address ?? null);
     const addressIssue = validatePatientAddress(patientAddress);
 
-    const claimStatus = (gateResult.level === "blocked" || gateResult.level === "review" || addressIssue) ? "needs_review" : "ready_to_bill";
+    const claimStatus = (gateResult.level === "blocked" || gateResult.level === "review" || addressIssue || rateFlag) ? "needs_review" : "ready_to_bill";
     const issuesList = [...gateResult.issues];
     if (addressIssue) issuesList.push(addressIssue);
+    const rateIssue = rateFlagMessage(rateFlag, payerClass);
+    if (rateIssue) issuesList.push(rateIssue);
     const claimNotes = (issuesList.length > 0) ? JSON.stringify(issuesList) : null;
 
     return {
@@ -667,6 +674,8 @@ export default function BillingAndClaims() {
         company_id: t.company_id,
         payer_type: payerType,
         payer_name: payerType,
+        payer_class: payerClass,
+        rate_flag: rateFlag ? `${rateFlag}: ${rateIssue}` : null,
         member_id: t.patient?.member_id ?? (isOneoff ? leg?.oneoff_member_id : null) ?? null,
         base_charge: base,
         mileage_charge: miles,

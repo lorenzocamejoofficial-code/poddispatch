@@ -30,7 +30,7 @@ import {
 import { evaluateClaimReadiness, type ReadinessIssue } from "@/lib/claim-readiness";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { resolvePayerForClaim, type PayerResolution } from "@/lib/payer-directory-lookup";
-import { isNonInsurancePayer } from "@/lib/payer-vocabulary";
+import { isSelfPayClass } from "@/lib/payer-class";
 import { isTestCompanyRow } from "@/lib/submission-mode";
 
 export interface QueueResult {
@@ -467,11 +467,23 @@ export async function queueClaimsForSubmission(
 
     // Self-pay / private-pay is billed directly to the patient. It is never
     // transmitted to Office Ally, Medicare or Medicaid.
-    if (isNonInsurancePayer(c.payer_type) || isNonInsurancePayer(c.payer_name)) {
+    // Reads the claim's own payer_class; the legacy text is re-normalized
+    // through the same vocabulary so a blank payer_class can never let a
+    // self-pay claim through.
+    if (isSelfPayClass(c.payer_class, c.payer_type, c.payer_name)) {
       issues.push({
         field: "payer_type",
         severity: "block",
         message: "Self-pay / private-pay claims are billed directly to the patient and are not submitted to insurance.",
+      } as ReadinessIssue);
+    }
+
+    // No charge-master rate for this payer — a $0 claim must not be sent.
+    if (typeof c.rate_flag === "string" && c.rate_flag.startsWith("missing_rate")) {
+      issues.push({
+        field: "total_charge",
+        severity: "block",
+        message: "No charge-master rate exists for this claim's payer. Add the rate in Charge Master, then re-price the claim.",
       } as ReadinessIssue);
     }
 

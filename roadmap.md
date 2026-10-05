@@ -23,5 +23,5 @@
 - [x] Stage 3: backfill applied + dual-write triggers (2 no-payer trips left NULL for review)
 - [x] Stage 4: clinical readers on transport_kind (ePCR cards/fields/narrative) + parity + SQL/TS drift tests
 - [x] Stage 4b: ePCR section rules on transport_kind (emergency upgrade wins)
-- [ ] Stage 5: billing readers — BLOCKED, payer_class cannot reproduce today's billing results (owner decision)
+- [x] Stage 5 billing readers on payer_class (hardened vocabulary, claim payer_class, commercial pricing fix)
 - [ ] Stages 6-7: UI, contract (awaiting owner per stage)

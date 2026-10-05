@@ -793,6 +793,7 @@ export type Database = {
           patient_responsibility_amount: number | null
           patient_sex: string | null
           payer_claim_control_number: string | null
+          payer_class: Database["public"]["Enums"]["payer_class"] | null
           payer_name: string | null
           payer_type: string | null
           pcs_attachment_control_number: string | null
@@ -804,6 +805,7 @@ export type Database = {
           pcs_physician_name: string | null
           pcs_physician_npi: string | null
           primary_impression: string | null
+          rate_flag: string | null
           rejection_codes: string[] | null
           rejection_reason: string | null
           remittance_date: string | null
@@ -896,6 +898,7 @@ export type Database = {
           patient_responsibility_amount?: number | null
           patient_sex?: string | null
           payer_claim_control_number?: string | null
+          payer_class?: Database["public"]["Enums"]["payer_class"] | null
           payer_name?: string | null
           payer_type?: string | null
           pcs_attachment_control_number?: string | null
@@ -907,6 +910,7 @@ export type Database = {
           pcs_physician_name?: string | null
           pcs_physician_npi?: string | null
           primary_impression?: string | null
+          rate_flag?: string | null
           rejection_codes?: string[] | null
           rejection_reason?: string | null
           remittance_date?: string | null
@@ -999,6 +1003,7 @@ export type Database = {
           patient_responsibility_amount?: number | null
           patient_sex?: string | null
           payer_claim_control_number?: string | null
+          payer_class?: Database["public"]["Enums"]["payer_class"] | null
           payer_name?: string | null
           payer_type?: string | null
           pcs_attachment_control_number?: string | null
@@ -1010,6 +1015,7 @@ export type Database = {
           pcs_physician_name?: string | null
           pcs_physician_npi?: string | null
           primary_impression?: string | null
+          rate_flag?: string | null
           rejection_codes?: string[] | null
           rejection_reason?: string | null
           remittance_date?: string | null
