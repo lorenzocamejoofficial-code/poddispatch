@@ -24,4 +24,5 @@
 - [x] Stage 4: clinical readers on transport_kind (ePCR cards/fields/narrative) + parity + SQL/TS drift tests
 - [x] Stage 4b: ePCR section rules on transport_kind (emergency upgrade wins)
 - [x] Stage 5 billing readers on payer_class (hardened vocabulary, claim payer_class, commercial pricing fix)
-- [ ] Stages 6-7: UI, contract (awaiting owner per stage)
+- [ ] Stage 6: both intake forms — top-level axes, clinical/payer visibility, visible-field validation, legacy persistence, tests and signed-in verification
+- [ ] Stage 7: source-of-truth cutover (awaiting owner review)
