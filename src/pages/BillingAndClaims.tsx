@@ -201,6 +201,7 @@ export default function BillingAndClaims() {
   });
   const [savingRate, setSavingRate] = useState(false);
   const [addingRate, setAddingRate] = useState(false);
+  const [rateErrors, setRateErrors] = useState({ base_rate: "", mileage_rate: "" });
   const [queueTrips, setQueueTrips] = useState<any[]>([]);
   const [queueLoading, setQueueLoading] = useState(true);
   const [payerRulesMap, setPayerRulesMap] = useState<Map<string, any>>(new Map());
@@ -1361,7 +1362,7 @@ export default function BillingAndClaims() {
     setSavingClaim(false);
   };
 
-  const openEditRate = (rate: ChargeMaster) => {
+  const openEditRate = (rate: ChargeMaster, showRequiredErrors = false) => {
     setEditingRate(rate);
     setRateForm({
       payer_type: rate.payer_type,
@@ -1371,6 +1372,10 @@ export default function BillingAndClaims() {
       oxygen_fee: rate.oxygen_fee.toString(),
       extra_attendant_fee: rate.extra_attendant_fee.toString(),
       bariatric_fee: rate.bariatric_fee.toString(),
+    });
+    setRateErrors({
+      base_rate: showRequiredErrors && Number(rate.base_rate) <= 0 ? "Base rate must be greater than $0." : "",
+      mileage_rate: showRequiredErrors && Number(rate.mileage_rate) <= 0 ? "Mileage rate must be greater than $0." : "",
     });
   };
 
@@ -2050,6 +2055,7 @@ export default function BillingAndClaims() {
             <Button size="sm" onClick={() => {
               setEditingRate(null);
               setRateForm({ payer_type: "default", base_rate: "", mileage_rate: "", wait_rate_per_min: "", oxygen_fee: "", extra_attendant_fee: "", bariatric_fee: "" });
+              setRateErrors({ base_rate: "", mileage_rate: "" });
               setAddingRate(true);
             }}>+ Add Rate</Button>
           </div>
@@ -2104,7 +2110,7 @@ export default function BillingAndClaims() {
                             onClick={async () => {
                               if (Number(rate.base_rate) <= 0 || Number(rate.mileage_rate) <= 0) {
                                 toast.error("Enter a rate first, base rate and $/mile must both be greater than $0.");
-                                openEditRate(rate);
+                                openEditRate(rate, true);
                                 return;
                               }
                               const { error } = await supabase.from("charge_master" as any).update({ needs_review: false }).eq("id", rate.id);
@@ -2368,7 +2374,7 @@ export default function BillingAndClaims() {
       </Dialog>
 
       {/* Rate edit dialog */}
-      <Dialog open={!!editingRate || addingRate} onOpenChange={o => { if (!o) { setEditingRate(null); setAddingRate(false); } }}>
+      <Dialog open={!!editingRate || addingRate} onOpenChange={o => { if (!o) { setEditingRate(null); setAddingRate(false); setRateErrors({ base_rate: "", mileage_rate: "" }); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editingRate ? "Edit Rate" : "Add Rate"}</DialogTitle>
@@ -2385,8 +2391,8 @@ export default function BillingAndClaims() {
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Base Rate ($)<PCRTooltip text={ADMIN_TOOLTIPS.base_rate} /></Label><Input type="number" step="0.01" value={rateForm.base_rate} onChange={e => setRateForm({ ...rateForm, base_rate: e.target.value })} /></div>
-              <div><Label>$/Mile<PCRTooltip text={ADMIN_TOOLTIPS.mileage_rate} /></Label><Input type="number" step="0.0001" value={rateForm.mileage_rate} onChange={e => setRateForm({ ...rateForm, mileage_rate: e.target.value })} /></div>
+              <div><Label>Base Rate ($)<PCRTooltip text={ADMIN_TOOLTIPS.base_rate} /></Label><Input type="number" step="0.01" aria-invalid={!!rateErrors.base_rate} className={rateErrors.base_rate ? "border-destructive focus-visible:ring-destructive" : undefined} value={rateForm.base_rate} onChange={e => { setRateForm({ ...rateForm, base_rate: e.target.value }); setRateErrors(errors => ({ ...errors, base_rate: "" })); }} />{rateErrors.base_rate && <p className="text-xs text-destructive mt-1">{rateErrors.base_rate}</p>}</div>
+              <div><Label>$/Mile<PCRTooltip text={ADMIN_TOOLTIPS.mileage_rate} /></Label><Input type="number" step="0.0001" aria-invalid={!!rateErrors.mileage_rate} className={rateErrors.mileage_rate ? "border-destructive focus-visible:ring-destructive" : undefined} value={rateForm.mileage_rate} onChange={e => { setRateForm({ ...rateForm, mileage_rate: e.target.value }); setRateErrors(errors => ({ ...errors, mileage_rate: "" })); }} />{rateErrors.mileage_rate && <p className="text-xs text-destructive mt-1">{rateErrors.mileage_rate}</p>}</div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Wait $/Min<PCRTooltip text={ADMIN_TOOLTIPS.wait_rate} /></Label><Input type="number" step="0.0001" value={rateForm.wait_rate_per_min} onChange={e => setRateForm({ ...rateForm, wait_rate_per_min: e.target.value })} /></div>

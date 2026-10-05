@@ -81,6 +81,7 @@ export default function Employees() {
   const [createEmailRequiredError, setCreateEmailRequiredError] = useState(false);
   const [createNameRequiredError, setCreateNameRequiredError] = useState(false);
   const [createPasswordError, setCreatePasswordError] = useState<string | null>(null);
+  const [editNameRequiredError, setEditNameRequiredError] = useState(false);
   const [form, setForm] = useState({
     full_name: "", email: "", password: "", role: "crew" as "manager" | "dispatcher" | "crew" | "biller",
     sex: "M" as "M" | "F", cert_level: "EMT-B", phone_number: "",
@@ -372,6 +373,7 @@ export default function Employees() {
   };
 
   const openEdit = (emp: Employee) => {
+    setEditNameRequiredError(false);
     setEditingEmployee(emp);
     setEditForm({
       full_name: emp.full_name,
@@ -394,6 +396,7 @@ export default function Employees() {
   const handleSaveEdit = async () => {
     if (!editingEmployee) return;
     if (!editForm.full_name.trim()) {
+      setEditNameRequiredError(true);
       toast.error("Name is required");
       return;
     }
@@ -943,11 +946,11 @@ export default function Employees() {
           )}
         </div>
 
-        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <Dialog open={editDialogOpen} onOpenChange={(open) => { setEditDialogOpen(open); if (!open) setEditNameRequiredError(false); }}>
           <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
             <DialogHeader><DialogTitle>Edit Employee</DialogTitle><DialogDescription>Update employee information. Deactivate instead of deleting.</DialogDescription></DialogHeader>
             <div className="grid gap-3 py-2">
-              <div><Label>Full Name *</Label><Input value={editForm.full_name} onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} /></div>
+              <div><Label>Full Name *</Label><Input aria-invalid={editNameRequiredError} className={editNameRequiredError ? "border-destructive focus-visible:ring-destructive" : undefined} value={editForm.full_name} onChange={(e) => { setEditForm({ ...editForm, full_name: e.target.value }); setEditNameRequiredError(false); }} />{editNameRequiredError && <p className="text-xs text-destructive mt-1">Full name is required.</p>}</div>
               <div>
                 <Label>Email <span className="text-xs text-muted-foreground">(login identity — changes apply immediately)</span></Label>
                 <Input
