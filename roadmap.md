@@ -15,3 +15,9 @@
 # Roadmap — NEMSIS CTA test harness
 - [x] Pass 1: transport (secrets, SOAP client, nemsis_cta_submissions, nemsis-cta-submit, creator screen, tests)
 - [ ] Pass 2-5: fixtures, NV fix + DEM exporter, DEM 1, EMS 1-5 (await approval)
+
+# Roadmap — two-axis classification (transport x payer), one stage at a time
+- [x] Stage 0: transport-vocabulary module + tests (no behavior change)
+- [x] Stage 1: additive migration (transport_kind enum, payer_class, nullable columns)
+- [ ] Stage 2: backfill — dry-run counts for review first (awaiting owner)
+- [ ] Stages 3-7: dual-write, readers, billing, UI, contract (awaiting owner per stage)
