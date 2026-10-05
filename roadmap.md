@@ -19,5 +19,6 @@
 # Roadmap — two-axis classification (transport x payer), one stage at a time
 - [x] Stage 0: transport-vocabulary module + tests (no behavior change)
 - [x] Stage 1: additive migration (transport_kind enum, payer_class, nullable columns)
-- [ ] Stage 2: backfill — dry-run counts for review first (awaiting owner)
-- [ ] Stages 3-7: dual-write, readers, billing, UI, contract (awaiting owner per stage)
+- [x] Stage 2: backfill dry-run reviewed and approved
+- [x] Stage 3: backfill applied + dual-write triggers (2 no-payer trips left NULL for review)
+- [ ] Stages 4-7: clinical readers, billing, UI, contract (awaiting owner per stage)
