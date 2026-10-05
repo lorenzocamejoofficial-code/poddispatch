@@ -88,6 +88,7 @@ export default function OnboardingWizard() {
     address_street: "", address_city: "", address_state: "", address_zip: "",
   });
   const [companySaving, setCompanySaving] = useState(false);
+  const [companyErrors, setCompanyErrors] = useState<Record<string, string>>({});
 
   // Initial load of company info
   useEffect(() => {
@@ -139,17 +140,19 @@ export default function OnboardingWizard() {
 
   // ---------- Step 1: Company ----------
   const validateCompany = (): string | null => {
-    if (!company.name.trim()) return "Company name required";
-    if (!/^\d{10}$/.test(company.npi_number)) return "NPI must be exactly 10 digits";
+    const errors: Record<string, string> = {};
+    if (!company.name.trim()) errors.name = "Company name is required.";
+    if (!/^\d{10}$/.test(company.npi_number)) errors.npi_number = "NPI must be exactly 10 digits.";
     const einDigits = company.ein_number.replace(/\D/g, "");
-    if (einDigits.length !== 9) return "EIN must be exactly 9 digits";
-    if (!company.state_of_operation) return "State required";
-    if (!company.address_street.trim()) return "Street address required";
-    if (!company.address_city.trim()) return "City required";
-    if (!company.address_state) return "Address state required";
+    if (einDigits.length !== 9) errors.ein_number = "EIN must be exactly 9 digits.";
+    if (!company.state_of_operation) errors.state_of_operation = "State of operation is required.";
+    if (!company.address_street.trim()) errors.address_street = "Street address is required.";
+    if (!company.address_city.trim()) errors.address_city = "City is required.";
+    if (!company.address_state) errors.address_state = "Address state is required.";
     const zipDigits = company.address_zip.replace(/\D/g, "");
-    if (zipDigits.length !== 5 && zipDigits.length !== 9) return "ZIP must be 5 or 9 digits";
-    return null;
+    if (zipDigits.length !== 5 && zipDigits.length !== 9) errors.address_zip = "ZIP must be 5 or 9 digits.";
+    setCompanyErrors(errors);
+    return Object.values(errors)[0] ?? null;
   };
   const saveCompany = async () => {
     const err = validateCompany();
@@ -367,47 +370,56 @@ export default function OnboardingWizard() {
                 <p className="text-sm text-muted-foreground">{step.blurb}</p>
                 <div className="space-y-1">
                   <Label>Company Name *</Label>
-                  <Input value={company.name} onChange={e => setCompany(c => ({ ...c, name: e.target.value }))} />
+                  <Input aria-invalid={!!companyErrors.name} className={companyErrors.name ? "border-destructive focus-visible:ring-destructive" : undefined} value={company.name} onChange={e => { setCompany(c => ({ ...c, name: e.target.value })); setCompanyErrors(errors => ({ ...errors, name: "" })); }} />
+                  {companyErrors.name && <p className="text-xs text-destructive">{companyErrors.name}</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label>NPI * (10 digits)</Label>
-                    <Input value={company.npi_number} onChange={e => setCompany(c => ({ ...c, npi_number: e.target.value.replace(/\D/g, "").slice(0, 10) }))} maxLength={10} placeholder="1234567890" />
+                    <Input aria-invalid={!!companyErrors.npi_number} className={companyErrors.npi_number ? "border-destructive focus-visible:ring-destructive" : undefined} value={company.npi_number} onChange={e => { setCompany(c => ({ ...c, npi_number: e.target.value.replace(/\D/g, "").slice(0, 10) })); setCompanyErrors(errors => ({ ...errors, npi_number: "" })); }} maxLength={10} placeholder="1234567890" />
+                    {companyErrors.npi_number && <p className="text-xs text-destructive">{companyErrors.npi_number}</p>}
                   </div>
                   <div className="space-y-1">
                     <Label>EIN * (XX-XXXXXXX)</Label>
-                    <Input value={company.ein_number} onChange={e => {
+                    <Input aria-invalid={!!companyErrors.ein_number} className={companyErrors.ein_number ? "border-destructive focus-visible:ring-destructive" : undefined} value={company.ein_number} onChange={e => {
                       const raw = e.target.value.replace(/\D/g, "").slice(0, 9);
                       setCompany(c => ({ ...c, ein_number: raw.length > 2 ? `${raw.slice(0, 2)}-${raw.slice(2)}` : raw }));
+                      setCompanyErrors(errors => ({ ...errors, ein_number: "" }));
                     }} maxLength={10} placeholder="12-3456789" />
+                    {companyErrors.ein_number && <p className="text-xs text-destructive">{companyErrors.ein_number}</p>}
                   </div>
                 </div>
                 <div className="space-y-1">
                   <Label>State of Operation *</Label>
-                  <Select value={company.state_of_operation} onValueChange={v => setCompany(c => ({ ...c, state_of_operation: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                  <Select value={company.state_of_operation} onValueChange={v => { setCompany(c => ({ ...c, state_of_operation: v })); setCompanyErrors(errors => ({ ...errors, state_of_operation: "" })); }}>
+                    <SelectTrigger aria-invalid={!!companyErrors.state_of_operation} className={companyErrors.state_of_operation ? "border-destructive focus-visible:ring-destructive" : undefined}><SelectValue placeholder="Select state" /></SelectTrigger>
                     <SelectContent>{US_STATES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
                   </Select>
+                  {companyErrors.state_of_operation && <p className="text-xs text-destructive">{companyErrors.state_of_operation}</p>}
                 </div>
                 <div className="space-y-1">
                   <Label>Street Address *</Label>
-                  <Input value={company.address_street} onChange={e => setCompany(c => ({ ...c, address_street: e.target.value }))} />
+                  <Input aria-invalid={!!companyErrors.address_street} className={companyErrors.address_street ? "border-destructive focus-visible:ring-destructive" : undefined} value={company.address_street} onChange={e => { setCompany(c => ({ ...c, address_street: e.target.value })); setCompanyErrors(errors => ({ ...errors, address_street: "" })); }} />
+                  {companyErrors.address_street && <p className="text-xs text-destructive">{companyErrors.address_street}</p>}
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label>City *</Label>
-                    <Input value={company.address_city} onChange={e => setCompany(c => ({ ...c, address_city: e.target.value }))} />
+                    <Input aria-invalid={!!companyErrors.address_city} className={companyErrors.address_city ? "border-destructive focus-visible:ring-destructive" : undefined} value={company.address_city} onChange={e => { setCompany(c => ({ ...c, address_city: e.target.value })); setCompanyErrors(errors => ({ ...errors, address_city: "" })); }} />
+                    {companyErrors.address_city && <p className="text-xs text-destructive">{companyErrors.address_city}</p>}
                   </div>
                   <div className="space-y-1">
                     <Label>State *</Label>
-                    <Select value={company.address_state} onValueChange={v => setCompany(c => ({ ...c, address_state: v }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select value={company.address_state} onValueChange={v => { setCompany(c => ({ ...c, address_state: v })); setCompanyErrors(errors => ({ ...errors, address_state: "" })); }}>
+                      <SelectTrigger aria-invalid={!!companyErrors.address_state} className={companyErrors.address_state ? "border-destructive focus-visible:ring-destructive" : undefined}><SelectValue /></SelectTrigger>
                       <SelectContent>{US_STATES.map(s => <SelectItem key={s.value} value={s.value}>{s.value}</SelectItem>)}</SelectContent>
                     </Select>
+                    {companyErrors.address_state && <p className="text-xs text-destructive">{companyErrors.address_state}</p>}
                   </div>
                   <div className="space-y-1">
                     <Label>ZIP *</Label>
-                    <Input value={company.address_zip} onChange={e => setCompany(c => ({ ...c, address_zip: e.target.value.replace(/\D/g, "").slice(0, 9) }))} placeholder="12345" />
+                    <Input aria-invalid={!!companyErrors.address_zip} className={companyErrors.address_zip ? "border-destructive focus-visible:ring-destructive" : undefined} value={company.address_zip} onChange={e => { setCompany(c => ({ ...c, address_zip: e.target.value.replace(/\D/g, "").slice(0, 9) })); setCompanyErrors(errors => ({ ...errors, address_zip: "" })); }} placeholder="12345" />
+                    {companyErrors.address_zip && <p className="text-xs text-destructive">{companyErrors.address_zip}</p>}
                   </div>
                 </div>
                 <Button onClick={saveCompany} disabled={companySaving}>
