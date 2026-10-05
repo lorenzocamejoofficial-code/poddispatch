@@ -675,7 +675,7 @@ export default function BillingAndClaims() {
         payer_type: payerType,
         payer_name: payerType,
         payer_class: payerClass,
-        rate_flag: rateFlag ? (rateIssue ?? rateFlag) && `${rateFlag}: ${rateIssue}` : null,
+        rate_flag: rateFlag ? `${rateFlag}: ${rateIssue}` : null,
         member_id: t.patient?.member_id ?? (isOneoff ? leg?.oneoff_member_id : null) ?? null,
         base_charge: base,
         mileage_charge: miles,
