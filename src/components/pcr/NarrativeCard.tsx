@@ -1,3 +1,4 @@
+import { clinicalTransportType } from "@/lib/clinical-transport";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RefreshCw, Trash2, Save, CheckCircle2 } from "lucide-react";
@@ -61,7 +62,7 @@ export function NarrativeCard({ trip, truckName, updateField, required = true }:
     const icd10Codes: string[] = Array.isArray(trip.icd10_codes) ? trip.icd10_codes : [];
     const text = generateNarrative({
       truckName,
-      transportType: trip.trip_type || trip.pcr_type || "dialysis",
+      transportType: clinicalTransportType(trip, trip.trip_type || trip.pcr_type || "dialysis") || "dialysis",
       patientName: patient ? `${patient.first_name} ${patient.last_name}` : "Unknown",
       patientAge: age,
       patientSex: patient?.sex || "",

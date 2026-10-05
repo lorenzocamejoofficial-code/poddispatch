@@ -21,4 +21,6 @@
 - [x] Stage 1: additive migration (transport_kind enum, payer_class, nullable columns)
 - [x] Stage 2: backfill dry-run reviewed and approved
 - [x] Stage 3: backfill applied + dual-write triggers (2 no-payer trips left NULL for review)
-- [ ] Stages 4-7: clinical readers, billing, UI, contract (awaiting owner per stage)
+- [x] Stage 4: clinical readers on transport_kind (ePCR cards/fields/narrative) + parity + SQL/TS drift tests
+- [ ] Stage 4b: ePCR section rules — 17 trips differ (owner decision)
+- [ ] Stages 5-7: billing, UI, contract (awaiting owner per stage)

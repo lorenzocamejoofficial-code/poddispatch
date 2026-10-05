@@ -1,3 +1,4 @@
+import { clinicalTransportType } from "@/lib/clinical-transport";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,7 +16,7 @@ interface ConditionCardProps {
 
 export function ConditionOnArrivalCard({ trip, updateField, requiredFields = ["level_of_consciousness", "skin_condition", "condition_at_destination"] }: ConditionCardProps) {
   const coa = trip.condition_on_arrival || {};
-  const isWoundCare = String(trip.trip_type ?? "").toLowerCase().includes("wound");
+  const isWoundCare = String(clinicalTransportType(trip, trip.trip_type ?? "") ?? "").toLowerCase().includes("wound");
 
   const updateCOA = (key: string, value: any) => {
     const updated = { ...coa, [key]: value };

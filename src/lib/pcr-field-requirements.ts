@@ -14,6 +14,7 @@
  *    field names a card should treat as required (for the requiredFields prop)
  *  - isFieldRequired(tripType, fieldName, payer?) — boolean
  */
+import { clinicalTransportType } from "./clinical-transport";
 
 export interface FieldRequirement {
   field: string;
@@ -436,7 +437,7 @@ export interface PCRCompletionResult {
 }
 
 export function evaluatePCRFieldCompletion(trip: any, payer?: string | null): PCRCompletionResult {
-  const transportType = normalizeTransportKey(trip?.trip_type || trip?.pcr_type);
+  const transportType = normalizeTransportKey(clinicalTransportType(trip, trip?.trip_type || trip?.pcr_type));
   const payerKey = normalizePayer(payer ?? trip?.patient?.primary_payer ?? trip?.payer_type);
 
   const base = REQUIREMENTS[transportType] || REQUIREMENTS.dialysis;

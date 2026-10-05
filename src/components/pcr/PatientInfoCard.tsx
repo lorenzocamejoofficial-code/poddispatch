@@ -1,3 +1,4 @@
+import { clinicalTransportType } from "@/lib/clinical-transport";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -30,7 +31,7 @@ interface PatientInfoCardProps {
 
 export function PatientInfoCard({ trip, updateField: _updateField, refetch }: PatientInfoCardProps) {
   const patient = trip.patient;
-  const transportType = trip.trip_type || trip.pcr_type || "dialysis";
+  const transportType = clinicalTransportType(trip, trip.trip_type || trip.pcr_type || "dialysis") || "dialysis";
   const transportLabel = TRANSPORT_LABELS[transportType] || transportType;
   const primaryPayer = patient?.primary_payer || null;
 
