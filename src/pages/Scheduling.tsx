@@ -1153,6 +1153,12 @@ export default function Scheduling() {
         {/* Unscheduled recurring patients banner — patients matching today's schedule with no leg yet */}
         {!weekView && (() => {
           const scheduledPatientIds = new Set(legs.map((l) => l.patient_id).filter(Boolean));
+          // Seeded runs point at cloned patient rows named "<template name> #N" (no id link back),
+          // so a template counts as scheduled when a clone of it has a run today.
+          const clonePattern = / #\d+$/;
+          const scheduledCloneSources = new Set(
+            legs.filter((l) => clonePattern.test(l.patient_name ?? "")).map((l) => l.patient_name.replace(clonePattern, "").trim().toLowerCase())
+          );
           const unscheduled = patients.filter((p) => {
             if (p.status !== "active") return false;
             if (p.transport_type === "adhoc") return false;
@@ -1160,7 +1166,8 @@ export default function Scheduling() {
             if (!matchesScheduleDay(selectedDate, p.schedule_days, p.recurrence_days)) return false;
             if (p.recurrence_start_date && selectedDate < p.recurrence_start_date) return false;
             if (p.recurrence_end_date && selectedDate > p.recurrence_end_date) return false;
-            return !scheduledPatientIds.has(p.id);
+            if (scheduledPatientIds.has(p.id)) return false;
+            return !scheduledCloneSources.has(p.name.trim().toLowerCase());
           });
           if (unscheduled.length === 0) return null;
           return (
