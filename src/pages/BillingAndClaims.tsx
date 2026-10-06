@@ -998,16 +998,18 @@ export default function BillingAndClaims() {
 
 
   const syncClaimsFromTrips = async () => {
+    const syncCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data: trips } = await supabase
       .from("trip_records" as any)
       .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_utn, pickup_address), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen, oneoff_pickup_address), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions, icd10_codes, weight_lbs")
+      .eq("company_id", syncCompanyId)
       .in("status", ["ready_for_billing", "completed"] as any)
       .not("status", "eq", "cancelled")
       .eq("pcr_status", "submitted");
 
     if (!trips?.length) { toast.info("No new trips ready for billing"); return; }
 
-    const { data: existing } = await supabase.from("claim_records" as any).select("trip_id, patient_id, run_date, status");
+    const { data: existing } = await supabase.from("claim_records" as any).select("trip_id, patient_id, run_date, status").eq("company_id", syncCompanyId);
     const existingTripIds = new Set((existing ?? []).map((e: any) => e.trip_id).filter(Boolean));
 
     // Build a set of leg_id values from existing non-voided claims (via their trip_records)
@@ -1230,6 +1232,7 @@ export default function BillingAndClaims() {
     const { data: cancelledTrips } = await supabase
       .from("trip_records" as any)
       .select("id")
+      .eq("company_id", syncCompanyId)
       .eq("status", "cancelled");
     if (cancelledTrips?.length) {
       const cancelledIds = (cancelledTrips as any[]).map((t: any) => t.id);
