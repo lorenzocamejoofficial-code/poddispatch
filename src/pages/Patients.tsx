@@ -1,3 +1,4 @@
+import { normalizePayerClass } from "@/lib/payer-class";
 import { IntakeAxes, IntakeFieldError } from "@/components/patients/IntakeAxes";
 import { intakeAxes, missingIntakeFields } from "@/lib/intake-axis-policy";
 import { normalizePayerKey } from "@/lib/payer-vocabulary";
@@ -526,7 +527,8 @@ export default function Patients() {
       // Fix 4: payer is stored canonically lowercase. Dropdown values are
       // already lowercase (medicare/medicaid/facility/cash) but we normalize
       // defensively in case a value originated from CSV import or migration.
-      primary_payer: form.primary_payer ? normalizePayerKey(form.primary_payer) : null,
+      // Facility contract is its own payer class; the legacy key would fold it into "private" (commercial).
+      primary_payer: form.primary_payer ? (normalizePayerClass(form.primary_payer) === "facility" ? "facility" : normalizePayerKey(form.primary_payer)) : null,
       secondary_payer: form.secondary_payer ? form.secondary_payer.toLowerCase().trim() : null,
       member_id: form.member_id || null,
       secondary_member_id: form.secondary_member_id || null,
