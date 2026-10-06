@@ -13,6 +13,8 @@ import {
   CalendarCheck, DollarSign, XCircle, Shield, FileText, Truck,
   ArrowRight, AlertTriangle, CheckCircle, Clock
 } from "lucide-react";
+import { useSimulationCompanyState } from "@/hooks/useIsSimulationCompany";
+import { FINISHED_TRIP_STATUSES } from "@/lib/trip-status";
 import { MissingMoneySummary } from "@/components/billing/MissingMoneyPanel";
 
 export default function OwnerDashboard() {
@@ -25,7 +27,12 @@ export default function OwnerDashboard() {
   const [inspections, setInspections] = useState<any[]>([]);
   const [monthCollectedLedger, setMonthCollectedLedger] = useState(0);
 
+  // Sandbox/test tenants show their seeded rows, matching Trips & Clinical and Billing.
+  const { isSim, resolved: simResolved } = useSimulationCompanyState();
+
   const loadData = useCallback(async () => {
+    if (!simResolved) return;
+    const notSim = (q: any) => (isSim ? q : q.or("is_simulated.eq.false,is_simulated.is.null"));
     async function load() {
       const today = new Date().toISOString().slice(0, 10);
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
@@ -35,11 +42,11 @@ export default function OwnerDashboard() {
       const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
       const [claimRes, deniedRes, tripRes, truckRes, inspRes] = await Promise.all([
         // Fix 2 & 3: 90-day window + exclude simulated
-        supabase.from("claim_records").select("*").eq("company_id", scopedCompanyId).gte("run_date", ninetyDaysAgo).or("is_simulated.eq.false,is_simulated.is.null"),
+        notSim(supabase.from("claim_records").select("*").eq("company_id", scopedCompanyId).gte("run_date", ninetyDaysAgo)),
         // Fix 2: All unresolved denials regardless of date for action items
-        supabase.from("claim_records").select("*").eq("company_id", scopedCompanyId).eq("status", "denied" as any).or("is_simulated.eq.false,is_simulated.is.null").limit(500),
+        notSim(supabase.from("claim_records").select("*").eq("company_id", scopedCompanyId).eq("status", "denied" as any)).limit(500),
         // Fix 3: Exclude simulated trips
-        supabase.from("trip_records" as any).select("id, status, run_date, pcr_status, blockers, patient_id, leg_id").eq("company_id", scopedCompanyId).gte("run_date", weekAgo).or("is_simulated.eq.false,is_simulated.is.null").limit(1000),
+        notSim(supabase.from("trip_records" as any).select("id, status, run_date, pcr_status, blockers, patient_id, leg_id").eq("company_id", scopedCompanyId).gte("run_date", weekAgo)).limit(1000),
         supabase.from("trucks" as any).select("id, name, active").eq("company_id", scopedCompanyId),
         supabase.from("vehicle_inspections" as any).select("id, truck_id, run_date").eq("company_id", scopedCompanyId).eq("run_date", today),
       ]);
@@ -139,7 +146,7 @@ export default function OwnerDashboard() {
   // Card 1 — This Week (all scoped to 7 days)
   // Labelled "Trips Finished": a trip that reached ready_for_billing is finished in the
   // field even though its status has already moved on to billing, so both count.
-  const weekTripsCompleted = trips.filter(t => t.status === "completed" || t.status === "ready_for_billing").length;
+  const weekTripsCompleted = trips.filter(t => FINISHED_TRIP_STATUSES.includes(t.status)).length;
   const claimsReadyToSubmit = weekClaims.filter(c => c.status === "ready_to_bill").length;
   const claimsSubmitted = weekClaims.filter(c => c.status === "submitted").length;
   const weekHealthy = claimsReadyToSubmit <= weekTripsCompleted * 0.3;
