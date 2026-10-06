@@ -1,3 +1,4 @@
+import { TRIP_STATUS_LABELS } from "@/lib/trip-status";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AdminLayout } from "@/components/layout/AdminLayout";
@@ -93,20 +94,7 @@ const STATUS_PIPELINE: TripStatus[] = [
   "scheduled", "assigned", "en_route", "arrived_pickup", "loaded", "arrived_dropoff", "completed", "ready_for_billing"
 ];
 
-const STATUS_LABELS: Record<TripStatus, string> = {
-  scheduled: "Scheduled",
-  assigned: "Assigned",
-  en_route: "En Route",
-  arrived_pickup: "Arrived Pickup",
-  loaded: "Loaded",
-  arrived_dropoff: "Arrived Dropoff",
-  completed: "Completed",
-  ready_for_billing: "Ready for Billing",
-  cancelled: "Cancelled",
-  no_show: "No-Show",
-  patient_not_ready: "Patient Not Ready",
-  facility_delay: "Facility Delay",
-};
+const STATUS_LABELS: Record<TripStatus, string> = TRIP_STATUS_LABELS as Record<TripStatus, string>;
 
 const STATUS_COLORS: Record<TripStatus, string> = {
   scheduled: "bg-muted text-muted-foreground",

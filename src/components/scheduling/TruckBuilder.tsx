@@ -1,3 +1,4 @@
+import { tripStatusLabel } from "@/lib/trip-status";
 import { memo, useEffect, useState, useCallback } from "react";
 import { ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -133,7 +134,7 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
       {/* Third row: badges */}
       <div className="flex flex-wrap items-center gap-1 mt-1 pl-5">
         {isCompleted && (
-          <span className="rounded-full bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))] px-1.5 py-0.5 text-[9px] font-bold shrink-0">COMPLETED</span>
+          <span className="rounded-full bg-[hsl(var(--status-green))]/15 text-[hsl(var(--status-green))] px-1.5 py-0.5 text-[9px] font-bold shrink-0">{(tripStatusLabel(leg.trip_status) ?? "Completed").toUpperCase()}</span>
         )}
         {leg.is_oneoff && (
           <span className="rounded-full bg-accent/80 text-accent-foreground px-1.5 py-0.5 text-[9px] font-bold shrink-0">ONE-OFF</span>
