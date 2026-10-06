@@ -21,6 +21,8 @@ export interface LegDisplay {
   assigned_truck_id: string | null;
   slot_order: number | null;
   slot_status: string;
+  /** trip_records.status for this leg's trip, if one exists. */
+  trip_status?: string | null;
   // exception override fields
   exception_pickup_time?: string | null;
   exception_pickup_location?: string | null;
@@ -166,6 +168,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   const resetLegForm = useCallback(() => setLegForm(emptyForm), []);
 
   const fetchLegs = useCallback(async () => {
+    const tripScopeCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const [{ data }, { data: slots }, { data: exceptions }, { data: tripRows }] = await Promise.all([
       supabase
         .from("scheduling_legs")
@@ -182,13 +185,15 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         .eq("run_date", selectedDate),
       supabase
         .from("trip_records")
-        .select("leg_id, pcr_status")
-        .eq("run_date", selectedDate)
-        .eq("pcr_status", "submitted"),
+        .select("leg_id, pcr_status, status")
+        .eq("company_id", tripScopeCompanyId)
+        .eq("run_date", selectedDate),
     ]);
 
     // A run is "completed" only when its PCR has been submitted
-    const completedLegIds = new Set((tripRows ?? []).map((t: any) => t.leg_id).filter(Boolean));
+    const completedLegIds = new Set((tripRows ?? []).filter((t: any) => t.pcr_status === "submitted").map((t: any) => t.leg_id).filter(Boolean));
+    // Real trip_records.status per leg, so the board labels match Trips & Clinical.
+    const tripStatusByLeg = new Map((tripRows ?? []).filter((t: any) => t.leg_id).map((t: any) => [t.leg_id, t.status as string]));
 
     // Auto-sync: mark any pending slots as completed if their trip is done
     const slotsToSync = (slots ?? []).filter((s: any) =>
@@ -226,6 +231,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           assigned_truck_id: slot?.truck_id ?? null,
           slot_order: slot?.slot_order ?? null,
           slot_status: slot?.status ?? "pending",
+          trip_status: tripStatusByLeg.get(l.id) ?? null,
           exception_pickup_time: exc?.pickup_time ?? null,
           exception_pickup_location: exc?.pickup_location ?? null,
           exception_destination_location: exc?.destination_location ?? null,
