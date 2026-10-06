@@ -424,6 +424,7 @@ export default function EDIExport() {
         const { data: facs } = await supabase
           .from("facilities" as any)
           .select("id, name, address, facility_type, dialysis_subtype")
+          .eq("company_id", activeCompanyId || "")
           .or(orParts.join(","));
         (facs || []).forEach((f: any) => {
           facById[f.id] = f;
@@ -830,6 +831,7 @@ export default function EDIExport() {
         const { data: facs } = await supabase
           .from("facilities" as any)
           .select("id, name, address, facility_type, dialysis_subtype")
+          .eq("company_id", activeCompanyId || "")
           .or(orParts.join(","));
         (facs || []).forEach((f: any) => {
           facById[f.id] = f;
