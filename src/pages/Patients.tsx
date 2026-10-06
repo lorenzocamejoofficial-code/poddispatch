@@ -1,3 +1,4 @@
+import { normalizePayerClass } from "@/lib/payer-class";
 import { IntakeAxes, IntakeFieldError } from "@/components/patients/IntakeAxes";
 import { intakeAxes, missingIntakeFields } from "@/lib/intake-axis-policy";
 import { normalizePayerKey } from "@/lib/payer-vocabulary";
