@@ -174,10 +174,12 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
     }
 
     setOverrideHistoryLoaded(false);
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data } = await supabase
       .from("billing_overrides" as any)
       .select("*")
       .eq("is_active", true)
+      .eq("company_id", scopedCompanyId)
       .in("trip_id", tripIds)
       .order("created_at", { ascending: false });
 

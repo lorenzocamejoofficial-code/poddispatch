@@ -31,9 +31,11 @@ export function FailedCallsBanner({ selectedDate }: FailedCallsBannerProps) {
   const fetchFailed = useCallback(async () => {
     const start = `${selectedDate}T00:00:00.000Z`;
     const end = `${selectedDate}T23:59:59.999Z`;
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data } = await supabase
       .from("comms_events" as any)
       .select("id, trip_id, truck_id, call_type, patient_name, facility_name, message_text, to_number, payload, error_message, created_at, retry_of_event_id")
+      .eq("company_id", scopedCompanyId)
       .eq("status", "failed")
       .eq("direction", "outbound")
       .gte("created_at", start)

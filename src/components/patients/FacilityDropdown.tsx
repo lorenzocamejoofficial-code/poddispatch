@@ -24,9 +24,11 @@ export function FacilityDropdown({ value, onChange }: FacilityDropdownProps) {
   const [nameError, setNameError] = useState<string | null>(null);
 
   const fetchFacilities = useCallback(async () => {
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data } = await supabase
       .from("facilities" as any)
       .select("id, name")
+      .eq("company_id", scopedCompanyId)
       .eq("active", true)
       .order("name");
     setFacilities((data ?? []) as unknown as { id: string; name: string }[]);

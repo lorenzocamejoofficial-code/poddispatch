@@ -29,9 +29,11 @@ export function CommsOutboxPanel({ selectedDate, refreshKey }: CommsOutboxPanelP
     const startOfDay = `${selectedDate}T00:00:00.000Z`;
     const endOfDay = `${selectedDate}T23:59:59.999Z`;
 
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data } = await supabase
       .from("comms_events" as any)
       .select("id, call_type, patient_name, facility_name, truck_id, queued_at, status, event_type")
+      .eq("company_id", scopedCompanyId)
       .in("event_type", ["call_patient", "call_facility"])
       .gte("created_at", startOfDay)
       .lte("created_at", endOfDay)

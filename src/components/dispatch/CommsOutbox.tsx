@@ -62,9 +62,11 @@ export function CommsOutbox({ selectedDate }: CommsOutboxProps) {
     const startOfDay = `${selectedDate}T00:00:00.000Z`;
     const endOfDay = `${selectedDate}T23:59:59.999Z`;
 
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data } = await supabase
       .from("comms_events" as any)
       .select("*")
+      .eq("company_id", scopedCompanyId)
       .gte("created_at", startOfDay)
       .lte("created_at", endOfDay)
       .order("created_at", { ascending: false })

@@ -86,7 +86,7 @@ export function IncidentsTab() {
 
     const [{ data: rows }, { data: truckRows }] = await Promise.all([
       query,
-      supabase.from("trucks").select("id, name").eq("active", true).order("name"),
+      supabase.from("trucks").select("id, name").eq("company_id", scopedCompanyId).eq("active", true).order("name"),
     ]);
 
     setIncidents(((rows ?? []) as any[]).map((r: any) => ({
