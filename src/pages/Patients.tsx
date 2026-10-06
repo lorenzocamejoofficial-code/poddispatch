@@ -1,4 +1,6 @@
-import { PATIENT_PAYER_KEYS, PAYER_LABELS, normalizePayerKey } from "@/lib/payer-vocabulary";
+import { IntakeAxes, IntakeFieldError } from "@/components/patients/IntakeAxes";
+import { intakeAxes, missingIntakeFields } from "@/lib/intake-axis-policy";
+import { normalizePayerKey } from "@/lib/payer-vocabulary";
 import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
@@ -80,15 +82,6 @@ const CUSTOM_DAY_OPTIONS = [
 
 type TransportType = "dialysis" | "outpatient" | "private_pay" | "psych_transport" | "wound_care" | "ift" | "discharge";
 
-const TRANSPORT_TYPE_OPTIONS: { value: TransportType; label: string }[] = [
-  { value: "dialysis", label: "Dialysis" },
-  { value: "outpatient", label: "Outpatient" },
-  { value: "wound_care", label: "Wound Care" },
-  { value: "ift", label: "IFT (Inter-facility)" },
-  { value: "discharge", label: "Hospital Discharge" },
-  { value: "private_pay", label: "Private Pay" },
-  { value: "psych_transport", label: "Psych / Behavioral Transport" },
-];
 
 function computeActiveWeekdays(transportType: string, scheduleDays: string, recurrenceDays: number[]): number[] {
   if (transportType === "dialysis") {
@@ -455,6 +448,13 @@ export default function Patients() {
 
   const handleSave = async () => {
     if (saving) return;
+    setIntakeAttempted(true);
+    const missing = missingIntakeFields(form, "recurring");
+    if (missing.length) {
+      setClinicalDefaultsOpen(true);
+      toast.error("Complete the highlighted required fields.");
+      return;
+    }
     // Dialysis + no ICD-10 is hard-blocked downstream when the crew tries to
     // open the PCR. Block it here instead of letting it surface in the field.
     // We never auto-fill a code — the operator must enter the real diagnosis.
@@ -590,7 +590,7 @@ export default function Patients() {
 
     // Phase 3 — Item 2: warn (don't block) on missing required fields per transport type + Medicare frequency.
     {
-      const missing = getMissingPatientRequirements(payload);
+      const missing = missingIntakeFields(payload, "recurring");
       if (missing.length > 0) {
         toast.warning(
           `Saved as draft, missing required fields: ${missing.map(m => m.label).join(", ")}`,
@@ -851,35 +851,12 @@ export default function Patients() {
   // All transport types on patient form are repetitive
   const isRepetitive = true;
 
-  // Phase 3 — Item 2: live set of missing required field names for red-border styling.
-  const missingFieldSet = useMemo(() => {
-    const projected = {
-      transport_type: form.transport_type,
-      first_name: form.first_name,
-      last_name: form.last_name,
-      dob: form.dob,
-      sex: form.sex,
-      member_id: form.member_id,
-      pickup_address: form.pickup_address,
-      primary_payer: form.primary_payer,
-      mobility: form.mobility,
-      pcs_on_file: form.pcs_on_file,
-      pcs_physician_npi: form.pcs_physician_npi,
-      icd10_codes: form.icd10_codes,
-      default_chief_complaint: form.default_chief_complaint,
-      default_primary_impression: form.default_primary_impression,
-      default_medical_necessity_reason: form.default_medical_necessity_reason,
-      default_wound_type: form.default_wound_type,
-      default_wound_location: form.default_wound_location,
-      default_wound_stage: form.default_wound_stage,
-      schedule_days: form.schedule_days,
-      recurrence_days: form.recurrence_days,
-      standing_order: form.standing_order,
-      prior_auth_utn: form.prior_auth_utn,
-    };
-    return new Set(getMissingPatientRequirements(projected).map(m => m.field));
-  }, [form]);
-  const ringIfMissing = (field: string) => missingFieldSet.has(field) ? "ring-2 ring-destructive/60 rounded-md" : "";
+  const axes = intakeAxes(form.transport_type, form.primary_payer);
+  const [intakeAttempted, setIntakeAttempted] = useState(false);
+  const intakeIssues = intakeAttempted ? missingIntakeFields(form, "recurring") : [];
+  const missingFieldSet = new Set(intakeIssues.map(i => i.field));
+  const ringIfMissing = (field: string) => missingFieldSet.has(field) ? "border-destructive focus-visible:ring-destructive" : "";
+  useEffect(() => { if (!dialogOpen) setIntakeAttempted(false); }, [dialogOpen]);
 
   // "Clinical & Billing Defaults" is collapsed by default, which hid the
   // Standing ICD-10 picker. Make it controlled so we can open it whenever the
@@ -1121,10 +1098,14 @@ export default function Patients() {
                 </DialogHeader>
                 <div className="grid gap-4 py-2">
 
+                  <IntakeAxes transport={form.transport_type} payer={form.primary_payer}
+                    onTransportChange={v => handleTransportTypeChange(v as TransportType)}
+                    onPayerChange={v => setForm({ ...form, primary_payer: v })} issues={intakeIssues} />
+
                   {/* Upstream claim-readiness preview — surfaces obvious
                       blockers (missing DOB, member ID, address, payer, PCS)
                       before any trip is created from this patient. */}
-                  <UpstreamReadinessPanel
+                  {axes.insurance && <UpstreamReadinessPanel
                     input={{
                       first_name: form.first_name,
                       last_name: form.last_name,
@@ -1138,15 +1119,15 @@ export default function Patients() {
                       transport_type: form.transport_type,
                       icd10_codes: form.icd10_codes,
                     }}
-                  />
+                  />}
 
                   {/* Basic Info */}
                    <div className="grid grid-cols-2 gap-3" data-focus="name">
-                      <div><Label>First Name *<PCRTooltip text={ADMIN_TOOLTIPS.first_name} /></Label><Input className={ringIfMissing("first_name")} value={form.first_name} onChange={(e) => { setForm({ ...form, first_name: e.target.value }); if (dupWarning) setDupWarning(null); }} /></div>
-                     <div><Label>Last Name *<PCRTooltip text={ADMIN_TOOLTIPS.last_name} /></Label><Input className={ringIfMissing("last_name")} value={form.last_name} onChange={(e) => { setForm({ ...form, last_name: e.target.value }); if (dupWarning) setDupWarning(null); }} /></div>
+                      <div><Label>First Name *<PCRTooltip text={ADMIN_TOOLTIPS.first_name} /></Label><Input aria-invalid={missingFieldSet.has("first_name")} className={ringIfMissing("first_name")} value={form.first_name} onChange={(e) => { setForm({ ...form, first_name: e.target.value }); if (dupWarning) setDupWarning(null); }} /><IntakeFieldError field="first_name" issues={intakeIssues} /></div>
+                     <div><Label>Last Name *<PCRTooltip text={ADMIN_TOOLTIPS.last_name} /></Label><Input aria-invalid={missingFieldSet.has("last_name")} className={ringIfMissing("last_name")} value={form.last_name} onChange={(e) => { setForm({ ...form, last_name: e.target.value }); if (dupWarning) setDupWarning(null); }} /><IntakeFieldError field="last_name" issues={intakeIssues} /></div>
                    </div>
                    <div className="grid grid-cols-2 gap-3">
-                      <div data-focus="dob"><Label>DOB<PCRTooltip text={ADMIN_TOOLTIPS.dob} /></Label><Input className={ringIfMissing("dob")} type="date" max={new Date().toISOString().slice(0, 10)} value={form.dob} onChange={(e) => { setForm({ ...form, dob: e.target.value }); if (dupWarning) setDupWarning(null); }} /></div>
+                      <div data-focus="dob"><Label>DOB<PCRTooltip text={ADMIN_TOOLTIPS.dob} /></Label><Input aria-invalid={missingFieldSet.has("dob")} className={ringIfMissing("dob")} type="date" max={new Date().toISOString().slice(0, 10)} value={form.dob} onChange={(e) => { setForm({ ...form, dob: e.target.value }); if (dupWarning) setDupWarning(null); }} /><IntakeFieldError field="dob" issues={intakeIssues} /></div>
                     <div><Label>Phone<PCRTooltip text={ADMIN_TOOLTIPS.phone} /></Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
                   </div>
                    <div data-focus="sex">
@@ -1190,7 +1171,7 @@ export default function Patients() {
                       </Select>
                     </div>
                   </div>
-                   <div data-focus="address"><Label>Pickup Address<PCRTooltip text={ADMIN_TOOLTIPS.pickup_address} /></Label><Input className={ringIfMissing("pickup_address")} value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} placeholder="Street, City, ST ZIP" /></div>
+                   <div data-focus="address"><Label>{axes.facilities ? "Sending Facility Address" : "Pickup Address"}<PCRTooltip text={ADMIN_TOOLTIPS.pickup_address} /></Label><Input aria-invalid={missingFieldSet.has("pickup_address")} className={ringIfMissing("pickup_address")} value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })} placeholder="Street, City, ST ZIP" /><IntakeFieldError field="pickup_address" issues={intakeIssues} /></div>
 
                   {/* Home Location Type */}
                   <div className="grid grid-cols-2 gap-3">
@@ -1217,7 +1198,7 @@ export default function Patients() {
                   </div>
 
                   <div>
-                    <Label>Dropoff Facility<PCRTooltip text={ADMIN_TOOLTIPS.dropoff_facility} /></Label>
+                    <Label>{axes.facilities ? "Receiving Facility" : "Dropoff Facility"}<PCRTooltip text={ADMIN_TOOLTIPS.dropoff_facility} /></Label>
                     <FacilityDropdown
                       value={form.dropoff_facility}
                       onChange={(v) => setForm({ ...form, dropoff_facility: v })}
@@ -1246,25 +1227,6 @@ export default function Patients() {
                   {/* Transport Type + Recurrence */}
                   <div className="border-t pt-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Transport &amp; Recurrence Profile</p>
-
-                    <div className="mb-3">
-                      <Label className="mb-1.5 block">Transport Type<PCRTooltip text={ADMIN_TOOLTIPS.transport_type} /></Label>
-                      <div className="space-y-2">
-                        {TRANSPORT_TYPE_OPTIONS.map((opt) => (
-                          <label key={opt.value} className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${form.transport_type === opt.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}>
-                            <input
-                              type="radio"
-                              name="transport_type"
-                              value={opt.value}
-                              checked={form.transport_type === opt.value}
-                              onChange={() => handleTransportTypeChange(opt.value)}
-                              className="mt-0.5 accent-primary"
-                            />
-                            <div className="text-sm font-medium text-foreground">{opt.label}</div>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
 
                     {isRepetitive && (
                       <div className="space-y-3 rounded-md border bg-muted/30 p-3">
@@ -1354,22 +1316,22 @@ export default function Patients() {
                         ) : (
                           <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-3">
-                              <div>
+                              {axes.appointment && <div>
                                 <Label>Appointment Time<PCRTooltip text={ADMIN_TOOLTIPS.appointment_time} /></Label>
                                 <Input type="time" value={form.chair_time} onChange={(e) => setForm({ ...form, chair_time: e.target.value })} />
-                              </div>
+                              </div>}
                               <div>
                                 <Label>A-Leg Pickup Time</Label>
                                 <Input type="time" value={form.a_leg_pickup_time} onChange={(e) => setForm({ ...form, a_leg_pickup_time: e.target.value })} />
                               </div>
                             </div>
-                            <div>
+                            {axes.appointment && <div>
                               <Label>Appointment Duration</Label>
                               <div className="grid grid-cols-2 gap-2 mt-1">
                                 <div>
                                   <Label className="text-[10px] text-muted-foreground">Hours</Label>
                                   <Input type="number" min={0} max={8} value={form.chair_time_duration_hours} onChange={e => setForm({ ...form, chair_time_duration_hours: e.target.value })} />
-                                </div>
+                                </div>}
                                 <div>
                                   <Label className="text-[10px] text-muted-foreground">Minutes</Label>
                                   <Input type="number" min={0} max={59} value={form.chair_time_duration_minutes} onChange={e => setForm({ ...form, chair_time_duration_minutes: e.target.value })} />
@@ -1380,7 +1342,7 @@ export default function Patients() {
                         )}
 
                         {/* Per-day chair time / duration overrides (optional) */}
-                        <PatientScheduleOverridesEditor
+                        {axes.dialysis && <PatientScheduleOverridesEditor
                           patientId={editing?.id ?? null}
                           activeWeekdays={computeActiveWeekdays(form.transport_type, form.schedule_days, form.recurrence_days)}
                           defaultChairTime={form.chair_time}
@@ -1388,7 +1350,7 @@ export default function Patients() {
                           defaultDurationMinutes={form.chair_time_duration_minutes}
                           value={scheduleOverrides}
                           onChange={setScheduleOverrides}
-                        />
+                        />}
 
                         <div className="grid grid-cols-2 gap-3">
                           <div>
@@ -1418,23 +1380,12 @@ export default function Patients() {
 
                   {/* Insurance & Transport Flags */}
                   <div className="border-t pt-3 space-y-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Insurance &amp; Transport</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Transport needs</p>
+                    {axes.insurance && <>
                     <div className="grid grid-cols-2 gap-3">
-                       <div data-focus="primary_payer">
-                        <Label>Primary Payer<PCRTooltip text={ADMIN_TOOLTIPS.primary_payer} /></Label>
-                        <Select value={form.primary_payer || "none"} onValueChange={v => setForm({ ...form, primary_payer: v === "none" ? "" : v })}>
-                          <SelectTrigger className={ringIfMissing("primary_payer")}><SelectValue placeholder="Select payer" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">— None —</SelectItem>
-                            {PATIENT_PAYER_KEYS.map(p => (
-                              <SelectItem key={p} value={p}>{PAYER_LABELS[p]}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                        <div data-focus="member_id">
+                       <div data-focus="member_id">
                         <Label>Member ID<PCRTooltip text={ADMIN_TOOLTIPS.member_id} /></Label>
-                        <Input className={ringIfMissing("member_id")} value={form.member_id} onChange={e => setForm({ ...form, member_id: e.target.value })} />
+                        <Input aria-invalid={missingFieldSet.has("member_id")} className={ringIfMissing("member_id")} value={form.member_id} onChange={e => setForm({ ...form, member_id: e.target.value })} /><IntakeFieldError field="member_id" issues={intakeIssues} />
                       </div>
                     </div>
                     <Collapsible>
@@ -1522,11 +1473,12 @@ export default function Patients() {
                         </p>
                       </CollapsibleContent>
                     </Collapsible>
+                    </>}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label>Mobility<PCRTooltip text={ADMIN_TOOLTIPS.mobility} /></Label>
                         <Select value={form.mobility} onValueChange={v => setForm({ ...form, mobility: v })}>
-                          <SelectTrigger className={ringIfMissing("mobility")}><SelectValue /></SelectTrigger>
+                          <SelectTrigger aria-invalid={missingFieldSet.has("mobility")} className={ringIfMissing("mobility")}><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="ambulatory">Ambulatory</SelectItem>
                             <SelectItem value="wheelchair">Wheelchair</SelectItem>
@@ -1535,11 +1487,11 @@ export default function Patients() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div>
+                      {axes.insurance && <div>
                         <Label>One-way Trips/Week Limit<PCRTooltip text={ADMIN_TOOLTIPS.trips_per_week_limit} /></Label>
                         <Input type="number" value={form.trips_per_week_limit} onChange={e => setForm({ ...form, trips_per_week_limit: e.target.value })} placeholder="No limit" />
                         <p className="text-[10px] text-muted-foreground mt-1">Counts each direction. A round-trip dialysis day = 2 legs.</p>
-                      </div>
+                      </div>}
                     </div>
 
                     {/* Operational Needs */}
@@ -1594,7 +1546,7 @@ export default function Patients() {
                         Oxygen Required<PCRTooltip text={ADMIN_TOOLTIPS.oxygen_required} />
                       </label>
                     </div>
-                    <div className="rounded-md border bg-muted/30 p-3 space-y-1">
+                    {axes.insurance && <div className="rounded-md border bg-muted/30 p-3 space-y-1">
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input
                           type="checkbox"
@@ -1629,7 +1581,7 @@ export default function Patients() {
                           Reminder: save the patient, then return here to upload the signed order.
                         </p>
                       )}
-                    </div>
+                    </div>}
                   </div>
 
                   {/* Clinical & Billing Defaults — pre-fills the PCR for every transport this patient takes */}
@@ -1674,7 +1626,7 @@ export default function Patients() {
                                 });
                               }}
                             >
-                              <SelectTrigger className={ringIfMissing("default_chief_complaint")}><SelectValue placeholder="Select" /></SelectTrigger>
+                              <SelectTrigger aria-invalid={missingFieldSet.has("default_chief_complaint")} className={ringIfMissing("default_chief_complaint")}><SelectValue placeholder="Select" /></SelectTrigger>
                               <SelectContent className="max-h-72">
                                 <SelectItem value="none">— None —</SelectItem>
                                 {CHIEF_COMPLAINT_GROUPS.map((g) => (
@@ -1707,7 +1659,7 @@ export default function Patients() {
                                 });
                               }}
                             >
-                              <SelectTrigger className={ringIfMissing("default_primary_impression")}><SelectValue placeholder="Select" /></SelectTrigger>
+                              <SelectTrigger aria-invalid={missingFieldSet.has("default_primary_impression")} className={ringIfMissing("default_primary_impression")}><SelectValue placeholder="Select" /></SelectTrigger>
                               <SelectContent className="max-h-72">
                                 <SelectItem value="none">— None —</SelectItem>
                                 {PRIMARY_IMPRESSION_GROUPS.map((g) => (
@@ -1731,7 +1683,7 @@ export default function Patients() {
                         <div>
                           <Label>Medical Necessity Reason<PCRTooltip text={ADMIN_TOOLTIPS.default_medical_necessity_reason} /></Label>
                           <Select value={form.default_medical_necessity_reason || "none"} onValueChange={(v) => setForm({ ...form, default_medical_necessity_reason: v === "none" ? "" : v })}>
-                            <SelectTrigger className={ringIfMissing("default_medical_necessity_reason")}><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectTrigger aria-invalid={missingFieldSet.has("default_medical_necessity_reason")} className={ringIfMissing("default_medical_necessity_reason")}><SelectValue placeholder="Select" /></SelectTrigger>
                             <SelectContent className="max-h-72">
                               <SelectItem value="none">— None —</SelectItem>
                               {MEDICAL_NECESSITY_REASONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -1754,7 +1706,7 @@ export default function Patients() {
                         </div>
 
                         {/* Behavioral Health Defaults — psych_transport only */}
-                        {form.transport_type === "psych_transport" && (
+                        {axes.psych && (
                           <div className="space-y-3 rounded-md border border-dashed p-3">
                             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Behavioral Health Defaults</p>
                             <div>
@@ -1785,13 +1737,13 @@ export default function Patients() {
                         )}
 
                         {/* Wound Care Defaults — wound_care or outpatient */}
-                        {(form.transport_type === "wound_care" || form.transport_type === "outpatient") && (
+                        {axes.wound && (
                           <div className="space-y-3 rounded-md border border-dashed p-3">
                             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Wound Care Defaults</p>
                             <div>
                               <Label>Default Wound Type<PCRTooltip text={ADMIN_TOOLTIPS.default_wound_type} /></Label>
                               <Select value={form.default_wound_type || "none"} onValueChange={(v) => setForm({ ...form, default_wound_type: v === "none" ? "" : v })}>
-                                <SelectTrigger className={ringIfMissing("default_wound_type")}><SelectValue placeholder="Select" /></SelectTrigger>
+                                <SelectTrigger aria-invalid={missingFieldSet.has("default_wound_type")} className={ringIfMissing("default_wound_type")}><SelectValue placeholder="Select" /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="none">— None —</SelectItem>
                                   {WOUND_TYPES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -1800,12 +1752,12 @@ export default function Patients() {
                             </div>
                             <div>
                               <Label>Default Wound Location<PCRTooltip text={ADMIN_TOOLTIPS.default_wound_location} /></Label>
-                              <Input className={ringIfMissing("default_wound_location")} value={form.default_wound_location} onChange={(e) => setForm({ ...form, default_wound_location: e.target.value })} placeholder="e.g. left heel, sacrum" />
+                              <Input aria-invalid={missingFieldSet.has("default_wound_location")} className={ringIfMissing("default_wound_location")} value={form.default_wound_location} onChange={(e) => setForm({ ...form, default_wound_location: e.target.value })} placeholder="e.g. left heel, sacrum" /><IntakeFieldError field="default_wound_location" issues={intakeIssues} />
                             </div>
                             <div>
                               <Label>Default Wound Stage<PCRTooltip text={ADMIN_TOOLTIPS.default_wound_stage} /></Label>
                               <Select value={form.default_wound_stage || "none"} onValueChange={(v) => setForm({ ...form, default_wound_stage: v === "none" ? "" : v })}>
-                                <SelectTrigger className={ringIfMissing("default_wound_stage")}><SelectValue placeholder="Select stage" /></SelectTrigger>
+                                <SelectTrigger aria-invalid={missingFieldSet.has("default_wound_stage")} className={ringIfMissing("default_wound_stage")}><SelectValue placeholder="Select stage" /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="none">— None —</SelectItem>
                                   {PRESSURE_ULCER_STAGES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -1819,7 +1771,7 @@ export default function Patients() {
                   </Collapsible>
 
                   {/* Compliance & Authorization — visible for ALL transport types */}
-                  <Collapsible defaultOpen={form.pcs_on_file || !!form.prior_auth_utn || form.auth_required || form.hospice_enrolled}>
+                  {axes.insurance && <Collapsible defaultOpen={form.pcs_on_file || !!form.prior_auth_utn || form.auth_required || form.hospice_enrolled}>
                     <div className="border-t pt-3">
                       <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
                         <div>
@@ -1837,12 +1789,12 @@ export default function Patients() {
                           </div>
                           <div>
                             <Label>UTN (Unique Tracking Number)<PCRTooltip text={ADMIN_TOOLTIPS.prior_auth_utn} /></Label>
-                            <Input
+                            <Input aria-invalid={missingFieldSet.has("prior_auth_utn")}
                               className={ringIfMissing("prior_auth_utn")}
                               value={form.prior_auth_utn}
                               onChange={(e) => setForm({ ...form, prior_auth_utn: e.target.value })}
                               placeholder="e.g. UTN1234567890"
-                            />
+                            /><IntakeFieldError field="prior_auth_utn" issues={intakeIssues} />
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div>
@@ -1884,13 +1836,13 @@ export default function Patients() {
                               </div>
                               <div>
                                 <Label>PCS Physician NPI<PCRTooltip text={ADMIN_TOOLTIPS.pcs_physician_npi} /></Label>
-                                <Input
+                                <Input aria-invalid={missingFieldSet.has("pcs_physician_npi")}
                                   className={ringIfMissing("pcs_physician_npi")}
                                   value={form.pcs_physician_npi}
                                   onChange={(e) => setForm({ ...form, pcs_physician_npi: e.target.value.replace(/\D/g, "").slice(0, 10) })}
                                   placeholder="10-digit NPI"
                                   inputMode="numeric"
-                                />
+                                /><IntakeFieldError field="pcs_physician_npi" issues={intakeIssues} />
                                 {form.pcs_physician_npi && !/^\d{10}$/.test(form.pcs_physician_npi) && (
                                   <p className="text-[11px] text-destructive mt-1">NPI must be exactly 10 digits.</p>
                                 )}
@@ -1959,7 +1911,7 @@ export default function Patients() {
                         </div>
                       </CollapsibleContent>
                     </div>
-                  </Collapsible>
+                  </Collapsible>}
 
                   {/* Documents section — visible only when editing */}
                   {editing && (
@@ -1974,6 +1926,7 @@ export default function Patients() {
                     </div>
                   )}
 
+                  {intakeIssues.length > 0 && <div className="space-y-1" role="alert">{intakeIssues.map(i => <p key={i.field} className="text-xs text-destructive">{i.label} is required.</p>)}</div>}
                   {dupWarning && !editing && (
                     <div className="flex items-start gap-2 rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] px-3 py-2">
                       <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-[hsl(var(--status-yellow))]" />

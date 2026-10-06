@@ -1,3 +1,5 @@
+import { IntakeAxes, IntakeFieldError } from "@/components/patients/IntakeAxes";
+import { intakeAxes, missingIntakeFields } from "@/lib/intake-axis-policy";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { getLocalToday } from "@/lib/local-date";
@@ -373,6 +375,13 @@ export default function Scheduling() {
     chair_time: "",
   });
 
+  const oneoffAxes = intakeAxes(oneoffForm.trip_type, oneoffForm.primary_payer);
+  const [oneoffAttempted, setOneoffAttempted] = useState(false);
+  const oneoffIssues = oneoffAttempted ? missingIntakeFields(oneoffForm, "oneoff") : [];
+  const oneoffInvalid = (field: string) => oneoffIssues.some(i => i.field === field);
+  const oneoffErrorClass = (field: string) => oneoffInvalid(field) ? "border-destructive focus-visible:ring-destructive" : "";
+  useEffect(() => { if (!dialogOpen) setOneoffAttempted(false); }, [dialogOpen]);
+
   // trip_type enum now natively supports `wound_care` (and `psych_transport`).
   // Identity passthrough retained so existing call sites remain unchanged.
   const normalizeTripType = (tripType: string) => tripType;
@@ -500,23 +509,9 @@ export default function Scheduling() {
 
   const handleCreate = async () => {
     if (isOneOff) {
-      if (!oneoffForm.name || !oneoffForm.pickup_location || !oneoffForm.destination_location) {
-        toast.error("Name, pickup location, and destination are required");
-        return;
-      }
-      if (!oneoffForm.dob) { toast.error("DOB is required for one-off runs"); return; }
-      if (!oneoffForm.sex) { toast.error("Sex is required for one-off runs"); return; }
-      if (!oneoffForm.member_id || !oneoffForm.member_id.trim()) { toast.error("Member ID is required for one-off runs"); return; }
-      if (!oneoffForm.primary_payer || !String(oneoffForm.primary_payer).trim()) {
-        toast.error("Primary payer is required, select Medicare, Medicaid, Commercial, Self-Pay, or Workers' Comp.");
-        return;
-      }
-      if (!oneoffForm.pickup_location_type) {
-        toast.error("Origin type is required, select from Residence, Hospital, SNF, Dialysis Facility, etc.");
-        return;
-      }
-      if (!oneoffForm.destination_type) {
-        toast.error("Destination type is required, select from Residence, Hospital, SNF, Dialysis Facility, etc.");
+      setOneoffAttempted(true);
+      if (missingIntakeFields(oneoffForm, "oneoff").length) {
+        toast.error("Complete the highlighted required fields.");
         return;
       }
       const normalizedTripType = normalizeTripType(oneoffForm.trip_type);
@@ -1435,6 +1430,9 @@ export default function Scheduling() {
             {isOneOff ? (
               /* ── ONE-OFF FORM ── */
               <div className="grid gap-3 py-2">
+                <IntakeAxes transport={oneoffForm.trip_type} payer={oneoffForm.primary_payer} transportField="trip_type"
+                  onTransportChange={v => setOneoffForm(f => ({ ...f, trip_type: v, service_level: v === "ift" ? "ALS1" : "BLS" }))}
+                  onPayerChange={v => setOneoffForm(f => ({ ...f, primary_payer: v }))} issues={oneoffIssues} />
                 {/* Copy from previous run */}
                 <Collapsible open={oneoffCopySearchOpen} onOpenChange={setOneoffCopySearchOpen}>
                   <CollapsibleTrigger className="flex items-center gap-2 text-xs text-primary hover:underline w-full">
@@ -1466,7 +1464,7 @@ export default function Scheduling() {
                 <div className="rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] px-3 py-2 text-xs text-[hsl(var(--status-yellow))]">
                   This run will NOT create a permanent patient record. It's for same-day dispatch only.
                 </div>
-                <UpstreamReadinessPanel
+                {oneoffAxes.insurance && <UpstreamReadinessPanel
                   title="Claim Readiness Preview (this run)"
                   input={{
                     full_name: oneoffForm.name,
@@ -1478,24 +1476,8 @@ export default function Scheduling() {
                     pcs_on_file: oneoffForm.pcs_obtained,
                     transport_type: oneoffForm.trip_type,
                   }}
-                />
-                <div><Label>Patient Name *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_name} /></Label><Input value={oneoffForm.name} onChange={(e) => setOneoffForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. John Smith" /></div>
-                <div>
-                  <Label>Transport Type<PCRTooltip text={ADMIN_TOOLTIPS.trip_type} /></Label>
-                  <Select value={oneoffForm.trip_type} onValueChange={(v) => setOneoffForm(f => ({ ...f, trip_type: v, service_level: (v === "ift" || v === "ift_discharge") ? "ALS1" : "BLS" }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dialysis">Dialysis</SelectItem>
-                      <SelectItem value="ift">IFT</SelectItem>
-                      <SelectItem value="discharge">Discharge</SelectItem>
-                      <SelectItem value="outpatient">Outpatient</SelectItem>
-                      <SelectItem value="wound_care">Wound Care</SelectItem>
-                      <SelectItem value="emergency">Emergency</SelectItem>
-                      <SelectItem value="psych_transport">Psych / Behavioral Transport</SelectItem>
-                      <SelectItem value="private_pay">Private Pay</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                />}
+                <div><Label>Patient Name *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_name} /></Label><Input aria-label="name" aria-invalid={oneoffInvalid("name")} className={oneoffErrorClass("name")} value={oneoffForm.name} onChange={(e) => setOneoffForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. John Smith" /><IntakeFieldError field="name" issues={oneoffIssues} /></div>
                 <div>
                   <Label>Service Level</Label>
                   <Select value={oneoffForm.service_level} onValueChange={(v) => setOneoffForm(f => ({ ...f, service_level: v }))}>
@@ -1512,7 +1494,7 @@ export default function Scheduling() {
                   <div>
                     <Label>Pickup Location Type</Label>
                     <Select value={oneoffForm.pickup_location_type || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, pickup_location_type: v === "none" ? "" : v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                      <SelectTrigger aria-label="pickup_location_type" aria-invalid={oneoffInvalid("pickup_location_type")} className={oneoffErrorClass("pickup_location_type")}><SelectValue placeholder="Select type" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">— Select —</SelectItem>
                         <SelectItem value="Residence">Residence</SelectItem>
@@ -1523,12 +1505,12 @@ export default function Scheduling() {
                         <SelectItem value="Outpatient Specialty">Outpatient Specialty</SelectItem>
                         <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
-                    </Select>
+                    </Select><IntakeFieldError field="pickup_location_type" issues={oneoffIssues} />
                   </div>
                   <div>
                     <Label>Destination Type</Label>
                     <Select value={oneoffForm.destination_type || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, destination_type: v === "none" ? "" : v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                      <SelectTrigger aria-label="destination_type" aria-invalid={oneoffInvalid("destination_type")} className={oneoffErrorClass("destination_type")}><SelectValue placeholder="Select type" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">— Select —</SelectItem>
                         <SelectItem value="Residence">Residence</SelectItem>
@@ -1539,38 +1521,37 @@ export default function Scheduling() {
                         <SelectItem value="Outpatient Specialty">Outpatient Specialty</SelectItem>
                         <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
-                    </Select>
+                    </Select><IntakeFieldError field="destination_type" issues={oneoffIssues} />
                   </div>
                 </div>
-                <div><Label>Pickup Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_pickup} /></Label><Input value={oneoffForm.pickup_location} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="123 Main St, Atlanta GA" /></div>
-                <div><Label>Destination Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_dropoff} /></Label><Input value={oneoffForm.destination_location} onChange={(e) => setOneoffForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /></div>
+                <div><Label>Pickup Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_pickup} /></Label><Input aria-label="pickup_location" aria-invalid={oneoffInvalid("pickup_location")} className={oneoffErrorClass("pickup_location")} value={oneoffForm.pickup_location} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="123 Main St, Atlanta GA" /><IntakeFieldError field="pickup_location" issues={oneoffIssues} /></div>
+                <div><Label>Destination Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_dropoff} /></Label><Input aria-label="destination_location" aria-invalid={oneoffInvalid("destination_location")} className={oneoffErrorClass("destination_location")} value={oneoffForm.destination_location} onChange={(e) => setOneoffForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /><IntakeFieldError field="destination_location" issues={oneoffIssues} /></div>
                 <div><Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label><Input type="time" value={oneoffForm.pickup_time} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
 
                 {/* Transport-type-specific fields */}
-                {(oneoffForm.trip_type === "ift" || oneoffForm.trip_type === "ift_discharge" || oneoffForm.trip_type === "discharge") && (
+                {oneoffAxes.facilities && (
                   <div className="space-y-3 rounded-md border border-dashed p-3">
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">IFT / Discharge Details</p>
-                    <div><Label>Sending Facility Name</Label><Input value={oneoffForm.sending_facility_name} onChange={(e) => setOneoffForm(f => ({ ...f, sending_facility_name: e.target.value }))} /></div>
+                    <div><Label>Sending Facility Name</Label><Input aria-label="sending_facility_name" aria-invalid={oneoffInvalid("sending_facility_name")} className={oneoffErrorClass("sending_facility_name")} value={oneoffForm.sending_facility_name} onChange={(e) => setOneoffForm(f => ({ ...f, sending_facility_name: e.target.value }))} /><IntakeFieldError field="sending_facility_name" issues={oneoffIssues} /></div>
                     <div className="grid grid-cols-2 gap-3">
                       <div><Label>Sending Physician Name</Label><Input value={oneoffForm.sending_physician_name} onChange={(e) => setOneoffForm(f => ({ ...f, sending_physician_name: e.target.value }))} /></div>
                       <div><Label>Sending Physician NPI</Label><Input value={oneoffForm.sending_physician_npi} onChange={(e) => setOneoffForm(f => ({ ...f, sending_physician_npi: e.target.value }))} /></div>
                     </div>
                     <div><Label>Discharge Reason</Label><Textarea rows={2} value={oneoffForm.discharge_reason} onChange={(e) => setOneoffForm(f => ({ ...f, discharge_reason: e.target.value }))} /></div>
-                    <div className="flex items-center gap-3"><Switch checked={oneoffForm.pcs_obtained} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, pcs_obtained: v }))} id="oneoff-pcs" /><Label htmlFor="oneoff-pcs" className="cursor-pointer text-sm">PCS Obtained</Label></div>
                   </div>
                 )}
-                {oneoffForm.trip_type === "psych_transport" && (
+                {oneoffAxes.psych && (
                   <div className="space-y-3 rounded-md border border-dashed p-3">
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Behavioral Health Details</p>
                     <div>
                       <Label>Authorization Type</Label>
                       <Select value={oneoffForm.bh_authorization_type || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, bh_authorization_type: v === "none" ? "" : v }))}>
-                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectTrigger aria-label="bh_authorization_type" aria-invalid={oneoffInvalid("bh_authorization_type")} className={oneoffErrorClass("bh_authorization_type")}><SelectValue placeholder="Select" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">— None —</SelectItem>
                           {BH_AUTHORIZATION_TYPES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                         </SelectContent>
-                      </Select>
+                      </Select><IntakeFieldError field="bh_authorization_type" issues={oneoffIssues} />
                     </div>
                     <div className="flex items-center gap-3"><Switch checked={oneoffForm.bh_1013_received} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, bh_1013_received: v }))} id="oneoff-1013" /><Label htmlFor="oneoff-1013" className="cursor-pointer text-sm">1013 Received</Label></div>
                     <div><Label>Authorizing Facility</Label><Input value={oneoffForm.bh_authorizing_facility} onChange={(e) => setOneoffForm(f => ({ ...f, bh_authorizing_facility: e.target.value }))} /></div>
@@ -1578,56 +1559,57 @@ export default function Scheduling() {
                     <div className="flex items-center gap-3"><Switch checked={oneoffForm.law_enforcement_present} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, law_enforcement_present: v }))} id="oneoff-leo" /><Label htmlFor="oneoff-leo" className="cursor-pointer text-sm">Law Enforcement Present</Label></div>
                   </div>
                 )}
-                {oneoffForm.trip_type === "wound_care" && (
+                {oneoffAxes.wound && (
                   <div className="space-y-3 rounded-md border border-dashed p-3">
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Wound Care Details</p>
                     <div>
                       <Label>Wound Type</Label>
                       <Select value={oneoffForm.wound_type || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, wound_type: v === "none" ? "" : v }))}>
-                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectTrigger aria-label="wound_type" aria-invalid={oneoffInvalid("wound_type")} className={oneoffErrorClass("wound_type")}><SelectValue placeholder="Select" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">— None —</SelectItem>
                           {WOUND_TYPES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                         </SelectContent>
-                      </Select>
+                      </Select><IntakeFieldError field="wound_type" issues={oneoffIssues} />
                     </div>
-                    <div><Label>Wound Location</Label><Input value={oneoffForm.wound_location} onChange={(e) => setOneoffForm(f => ({ ...f, wound_location: e.target.value }))} placeholder="e.g. left heel, sacrum" /></div>
+                    <div><Label>Wound Location</Label><Input aria-label="wound_location" aria-invalid={oneoffInvalid("wound_location")} className={oneoffErrorClass("wound_location")} value={oneoffForm.wound_location} onChange={(e) => setOneoffForm(f => ({ ...f, wound_location: e.target.value }))} placeholder="e.g. left heel, sacrum" /><IntakeFieldError field="wound_location" issues={oneoffIssues} /></div>
                     <div>
                       <Label>Wound Stage</Label>
                       <Select value={oneoffForm.wound_stage || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, wound_stage: v === "none" ? "" : v }))}>
-                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectTrigger aria-label="wound_stage" aria-invalid={oneoffInvalid("wound_stage")} className={oneoffErrorClass("wound_stage")}><SelectValue placeholder="Select" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">— None —</SelectItem>
                           {PRESSURE_ULCER_STAGES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                         </SelectContent>
-                      </Select>
+                      </Select><IntakeFieldError field="wound_stage" issues={oneoffIssues} />
                     </div>
                   </div>
                 )}
-                {oneoffForm.trip_type === "dialysis" && (
+                {oneoffAxes.dialysis && (
                   <div className="space-y-2 rounded-md border border-dashed p-3">
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Dialysis Details</p>
-                    <div><Label>Chair Time</Label><Input type="time" value={oneoffForm.chair_time} onChange={(e) => setOneoffForm(f => ({ ...f, chair_time: e.target.value }))} /></div>
+                    <div><Label>Chair Time</Label><Input aria-label="chair_time" aria-invalid={oneoffInvalid("chair_time")} className={oneoffErrorClass("chair_time")} type="time" value={oneoffForm.chair_time} onChange={(e) => setOneoffForm(f => ({ ...f, chair_time: e.target.value }))} /><IntakeFieldError field="chair_time" issues={oneoffIssues} /></div>
                     <p className="text-[11px] text-muted-foreground">Confirm <span className="font-mono">N18.6</span> (ESRD) or <span className="font-mono">Z99.2</span> is on the patient's standing ICD-10 codes.</p>
                   </div>
                 )}
 
+                {oneoffAxes.appointment && <div><Label>Appointment Time *</Label><Input type="time" aria-invalid={oneoffInvalid("chair_time")} className={oneoffErrorClass("chair_time")} value={oneoffForm.chair_time} onChange={e => setOneoffForm(f => ({ ...f, chair_time: e.target.value }))} /><IntakeFieldError field="chair_time" issues={oneoffIssues} /></div>}
                 {/* Patient Demographics for PCR */}
                 <div className="rounded-md border bg-muted/20 p-3 space-y-3">
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Patient Demographics (for PCR)</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Date of Birth</Label><Input type="date" value={oneoffForm.dob} onChange={(e) => setOneoffForm(f => ({ ...f, dob: e.target.value }))} /></div>
+                    <div><Label>Date of Birth</Label><Input aria-label="dob" aria-invalid={oneoffInvalid("dob")} className={oneoffErrorClass("dob")} type="date" value={oneoffForm.dob} onChange={(e) => setOneoffForm(f => ({ ...f, dob: e.target.value }))} /><IntakeFieldError field="dob" issues={oneoffIssues} /></div>
                     <div>
                       <Label>Sex</Label>
                       <Select value={oneoffForm.sex || "none"} onValueChange={(v) => setOneoffForm(f => ({ ...f, sex: v === "none" ? "" : v }))}>
-                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectTrigger aria-label="sex" aria-invalid={oneoffInvalid("sex")} className={oneoffErrorClass("sex")}><SelectValue placeholder="Select" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">— Select —</SelectItem>
                           <SelectItem value="M">Male</SelectItem>
                           <SelectItem value="F">Female</SelectItem>
                           <SelectItem value="U">Unknown</SelectItem>
                         </SelectContent>
-                      </Select>
+                      </Select><IntakeFieldError field="sex" issues={oneoffIssues} />
                     </div>
                     <div><Label>Weight (lbs)</Label><Input type="number" value={oneoffForm.weight_lbs} onChange={(e) => setOneoffForm(f => ({ ...f, weight_lbs: e.target.value }))} placeholder="lbs" /></div>
                     <div>
@@ -1646,21 +1628,11 @@ export default function Scheduling() {
                     <Switch checked={oneoffForm.oxygen} onCheckedChange={(v) => setOneoffForm(f => ({ ...f, oxygen: v }))} id="oneoff-o2" />
                     <Label htmlFor="oneoff-o2" className="cursor-pointer text-sm">Oxygen Required</Label>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>Primary Payer <span className="text-destructive">*</span></Label>
-                      <Select value={oneoffForm.primary_payer} onValueChange={(v) => setOneoffForm(f => ({ ...f, primary_payer: v }))}>
-                        <SelectTrigger><SelectValue placeholder="Select payer" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="medicare">Medicare</SelectItem>
-                          <SelectItem value="medicaid">Medicaid</SelectItem>
-                          <SelectItem value="facility">Facility</SelectItem>
-                          <SelectItem value="cash">Cash</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div><Label>Member ID <span className="text-destructive">*</span></Label><Input value={oneoffForm.member_id} onChange={(e) => setOneoffForm(f => ({ ...f, member_id: e.target.value }))} placeholder="e.g. GA2024-883341" /></div>
-                  </div>
+                  {oneoffAxes.insurance && <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground">Insurance billing</p>
+                    <div><Label>Member ID *</Label><Input aria-invalid={oneoffInvalid("member_id")} className={oneoffErrorClass("member_id")} value={oneoffForm.member_id} onChange={e => setOneoffForm(f => ({ ...f, member_id: e.target.value }))} /><IntakeFieldError field="member_id" issues={oneoffIssues} /></div>
+                    <div className="flex items-center gap-3"><Switch checked={oneoffForm.pcs_obtained} onCheckedChange={v => setOneoffForm(f => ({ ...f, pcs_obtained: v }))} id="oneoff-pcs" /><Label htmlFor="oneoff-pcs">PCS Obtained</Label></div>
+                  </div>}
                 </div>
 
                 {/* B-leg toggle */}
@@ -1682,6 +1654,7 @@ export default function Scheduling() {
                 )}
 
                 <div><Label>Notes</Label><Textarea value={oneoffForm.notes} onChange={(e) => setOneoffForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any special instructions for crew" /></div>
+                {oneoffIssues.length > 0 && <div role="alert" className="space-y-1">{oneoffIssues.map(i => <p key={i.field} className="text-xs text-destructive">{i.label} is required.</p>)}</div>}
                 <AsyncButton onClick={handleCreate} pendingLabel="Creating...">Create One-Off {pendingLegType}-Leg</AsyncButton>
               </div>
             ) : (
