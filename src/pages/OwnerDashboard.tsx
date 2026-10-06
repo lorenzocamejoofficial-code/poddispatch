@@ -113,7 +113,7 @@ export default function OwnerDashboard() {
       setLoading(false);
     }
     load();
-  }, []);
+  }, [isSim, simResolved]);
 
   // Refresh data when page regains focus (user navigated back from another page)
   useEffect(() => {
