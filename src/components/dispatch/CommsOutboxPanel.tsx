@@ -1,3 +1,4 @@
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useState, useEffect, useCallback } from "react";
 import { ChevronDown, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";

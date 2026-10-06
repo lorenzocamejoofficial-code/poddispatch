@@ -1,3 +1,4 @@
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageSquare, Phone, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
