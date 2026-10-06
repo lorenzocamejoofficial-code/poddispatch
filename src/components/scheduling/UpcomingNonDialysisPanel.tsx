@@ -76,6 +76,7 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
   const fetchLegs = useCallback(async () => {
     setLoading(true);
     try {
+      const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
       const today = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; })();
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + windowDays);
