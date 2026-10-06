@@ -111,6 +111,7 @@ export function UpcomingNonDialysisPanel({ onGoToDay }: Props) {
         supabase
           .from("trip_records")
           .select("leg_id, status")
+          .eq("company_id", scopedCompanyId)
           .in("leg_id", legIds),
       ]);
 

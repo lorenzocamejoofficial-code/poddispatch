@@ -91,7 +91,7 @@ export default function CrewScheduleAdmin() {
   const fetchEmployees = useCallback(async () => {
     const [{ data: profiles }, { data: memberships }, { data: crewRows }, emailsResp] = await Promise.all([
       supabase.from("profiles").select("id, full_name, phone_number, user_id, active, company_id").order("full_name"),
-      supabase.from("company_memberships").select("user_id, role"),
+      supabase.from("company_memberships").select("user_id, role").eq("company_id", (await getActiveCompanyId()) ?? NO_COMPANY),
       supabase.from("crews")
         .select("member1_id, member2_id, member3_id, truck_id, truck:trucks!crews_truck_id_fkey(name)")
         .eq("active_date", scheduleDate),

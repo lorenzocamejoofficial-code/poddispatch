@@ -212,10 +212,11 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
       : Promise.resolve({ data: [] as any[] });
 
     const claimFetch = tripIds.length > 0
-      ? supabase
+      ? getActiveCompanyId().then((cid) => supabase
           .from("claim_records" as any)
           .select("trip_id, pcs_physician_name, pcs_physician_npi, pcs_certification_date, pcs_diagnosis")
-          .in("trip_id", tripIds)
+          .eq("company_id", cid ?? NO_COMPANY)
+          .in("trip_id", tripIds))
       : Promise.resolve({ data: [] as any[] });
 
     Promise.all([patientFetch, claimFetch]).then(([{ data: pData }, { data: cData }]) => {

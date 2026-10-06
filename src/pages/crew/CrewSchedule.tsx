@@ -167,9 +167,11 @@ export default function CrewSchedule() {
         ? await supabase.from("patients").select("id, first_name, last_name").in("id", patientIds)
         : { data: [] };
 
+      const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
       const { data: trips } = await supabase
         .from("trip_records")
         .select("id, leg_id, pcr_status")
+        .eq("company_id", scopedCompanyId)
         .in("leg_id", legIds)
         .eq("run_date", crew.active_date);
 

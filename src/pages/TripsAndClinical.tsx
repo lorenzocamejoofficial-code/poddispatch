@@ -159,7 +159,7 @@ export default function TripsAndClinical() {
       const [{ data: tripRows, error }, { data: pastIncompleteRows }, { data: facilities }, { data: payerRules }] = await Promise.all([
         tripQuery,
         pastIncompleteQuery,
-        supabase.from("facilities" as any).select("name, facility_type"),
+        supabase.from("facilities" as any).select("name, facility_type").eq("company_id", scopedCompanyId),
         supabase.from("payer_billing_rules" as any).select("*"),
       ]);
 
