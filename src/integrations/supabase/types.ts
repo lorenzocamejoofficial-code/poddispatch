@@ -5100,6 +5100,7 @@ export type Database = {
       }
       simulation_runs: {
         Row: {
+          company_id: string | null
           config: Json | null
           created_at: string
           created_by: string
@@ -5108,6 +5109,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          company_id?: string | null
           config?: Json | null
           created_at?: string
           created_by: string
@@ -5116,6 +5118,7 @@ export type Database = {
           status?: string
         }
         Update: {
+          company_id?: string | null
           config?: Json | null
           created_at?: string
           created_by?: string
@@ -5123,7 +5126,15 @@ export type Database = {
           scenario_name?: string
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "simulation_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       simulation_snapshots: {
         Row: {
