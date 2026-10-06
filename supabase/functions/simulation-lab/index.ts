@@ -552,6 +552,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
       created_by: userId,
       status: "running",
       config,
+      company_id: companyId,
     });
     if (error) throw error;
     pushSeedLog(logs, { step: "create_simulation_run", status: "ok" });
@@ -1288,6 +1289,7 @@ async function runChecks(admin: any, companyId: string) {
   // Fetch billing overrides up-front (used in multiple checks below)
   const { data: billingOverrides } = await admin.from("billing_overrides")
     .select("id, trip_id")
+    .eq("company_id", companyId)
     .limit(100);
 
   // BILLING CHECK 1: Trips missing PCS/auth/sig cannot be billing ready UNLESS overridden
@@ -1319,6 +1321,7 @@ async function runChecks(admin: any, companyId: string) {
 
   const { data: auditOverrides } = await admin.from("audit_logs")
     .select("id")
+    .eq("company_id", companyId)
     .eq("action", "billing_override")
     .limit(100);
 
@@ -1611,7 +1614,13 @@ async function resetSandbox(admin: any, companyId: string, userId: string) {
     .select("id");
   counts["patients_cloned"] = clonedPatients?.length ?? 0;
 
-  const { data: runs } = await admin.from("simulation_runs").delete().neq("id", "00000000-0000-0000-0000-000000000000").select("id");
+  // Scope to this company only. Legacy rows (company_id IS NULL, from before
+  // the column existed) are creator-only metadata with no tenant data; the
+  // reset clears them as before, but NEVER another company's tagged runs.
+  const { data: runs } = await admin.from("simulation_runs")
+    .delete()
+    .or(`company_id.eq.${companyId},company_id.is.null`)
+    .select("id");
   counts["simulation_runs"] = runs?.length ?? 0;
 
   const simulation_run_id = crypto.randomUUID();
@@ -1620,6 +1629,7 @@ async function resetSandbox(admin: any, companyId: string, userId: string) {
     scenario_name: "Sandbox Reset",
     created_by: userId,
     status: "reset",
+    company_id: companyId,
   });
 
   return {
@@ -2084,6 +2094,7 @@ async function injectDenialsRemits(admin: any, companyId: string, userId: string
     scenario_name: "Denials & Remits Injection",
     created_by: userId,
     status: "active",
+    company_id: companyId,
   });
 
   const now = Date.now();
