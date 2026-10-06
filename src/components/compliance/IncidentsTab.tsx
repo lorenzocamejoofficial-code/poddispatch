@@ -72,6 +72,7 @@ export function IncidentsTab() {
   const canReview = role === "owner" || role === "manager" || role === "creator";
 
   const fetchData = useCallback(async () => {
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     setLoading(true);
 
     let query = supabase
