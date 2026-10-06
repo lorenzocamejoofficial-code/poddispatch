@@ -159,6 +159,7 @@ export default function EDIExport() {
       const { data: claimsData, error: claimsError } = await supabase
         .from("claim_records" as any)
         .select("*")
+        .eq("company_id", activeCompanyId || "")
         .in("status", ["ready_to_bill", "submitted"])
         .order("run_date", { ascending: false });
 
