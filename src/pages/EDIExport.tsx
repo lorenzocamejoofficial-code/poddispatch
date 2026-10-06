@@ -159,6 +159,7 @@ export default function EDIExport() {
       const { data: claimsData, error: claimsError } = await supabase
         .from("claim_records" as any)
         .select("*")
+        .eq("company_id", activeCompanyId || "")
         .in("status", ["ready_to_bill", "submitted"])
         .order("run_date", { ascending: false });
 
@@ -423,6 +424,7 @@ export default function EDIExport() {
         const { data: facs } = await supabase
           .from("facilities" as any)
           .select("id, name, address, facility_type, dialysis_subtype")
+          .eq("company_id", activeCompanyId || "")
           .or(orParts.join(","));
         (facs || []).forEach((f: any) => {
           facById[f.id] = f;
@@ -829,6 +831,7 @@ export default function EDIExport() {
         const { data: facs } = await supabase
           .from("facilities" as any)
           .select("id, name, address, facility_type, dialysis_subtype")
+          .eq("company_id", activeCompanyId || "")
           .or(orParts.join(","));
         (facs || []).forEach((f: any) => {
           facById[f.id] = f;

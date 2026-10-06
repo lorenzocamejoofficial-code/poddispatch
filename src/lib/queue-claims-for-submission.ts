@@ -291,6 +291,7 @@ export async function queueClaimsForSubmission(
     const { data: facs } = await supabase
       .from("facilities" as any)
       .select("id, name, address, facility_type, dialysis_subtype")
+      .eq("company_id", companyId)
       .or(orParts.join(","));
     (facs ?? []).forEach((f: any) => {
       facById[f.id] = f;

@@ -21,6 +21,7 @@ import { matchRemittanceClaim } from "@/lib/remittance-match";
 import { buildClaimPaymentRow } from "@/lib/remittance-post";
 import { getDenialTranslation } from "@/lib/denial-code-translations";
 import { useIsSimulationCompany } from "@/hooks/useIsSimulationCompany";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 
 
 interface MatchedItem {
@@ -82,9 +83,11 @@ export default function RemittanceImport() {
         setMatchedItems([]);
         return;
       }
+      const matchCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
       const { data: claims } = await supabase
         .from("claim_records" as any)
         .select("id, member_id, run_date, patient_id, status, hcpcs_codes, payer_type, payer_name, original_claim_id, total_charge, payer_claim_control_number")
+        .eq("company_id", matchCompanyId)
         .in("status", ["submitted", "ready_to_bill", "needs_correction", "needs_review"]);
       const { data: patients } = await supabase
         .from("patients")
