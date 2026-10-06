@@ -126,10 +126,13 @@ export function RunReassignmentDialog({
       }
 
       // 1. Stop any active hold timer on this run
+      // Creators have cross-tenant read; scope explicitly to the active company.
+      const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
       const { data: activeTimers } = await supabase
         .from("hold_timers")
         .select("id")
         .eq("is_active", true)
+        .eq("company_id", scopedCompanyId)
         .in("trip_id", await (async () => {
           const { data: trips } = await supabase
             .from("trip_records")
