@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
+import { useSimulationSession } from "@/hooks/useSimulationSession";
 import { getLocalToday } from "@/lib/local-date";
 
 /* ── Shared types ── */
@@ -166,6 +167,8 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   const [addingLeg, setAddingLeg] = useState<{ truckId: string; legId: string } | null>(null);
 
   const resetLegForm = useCallback(() => setLegForm(emptyForm), []);
+  // Seeds/bulk creates bump this token; refetch so the board shows the new runs.
+  const { refreshToken } = useSimulationSession();
 
   const fetchLegs = useCallback(async () => {
     const tripScopeCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
@@ -474,7 +477,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
       if (optionsT) clearTimeout(optionsT);
       if (channel) supabase.removeChannel(channel);
     };
-  }, [selectedDate, fetchLegs, fetchOptions, fetchCrews]);
+  }, [selectedDate, fetchLegs, fetchOptions, fetchCrews, refreshToken]);
 
   const optimisticUpdateLegs = useCallback(
     (updater: (prev: LegDisplay[]) => LegDisplay[]) => setLegs(updater),
