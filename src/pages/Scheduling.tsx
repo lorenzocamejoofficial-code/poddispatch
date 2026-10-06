@@ -130,6 +130,10 @@ export default function Scheduling() {
   const [notifyModalOpen, setNotifyModalOpen] = useState(false);
   const legsSnapshotRef = useRef<string>("");
 
+  // The store lives above the routes and only loaded when the app opened; reload
+  // the selected day's runs whenever the board itself opens.
+  useEffect(() => { refresh(); }, [refresh]);
+
   // Track schedule changes by comparing leg assignments
   useEffect(() => {
     const currentSnapshot = legs
