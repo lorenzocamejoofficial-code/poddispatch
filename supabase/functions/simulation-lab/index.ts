@@ -1397,6 +1397,7 @@ async function runChecks(admin: any, companyId: string) {
   // REGRESSION CHECK: Scenario Seeder completes successfully
   const { data: recentRuns } = await admin.from("simulation_runs")
     .select("id, scenario_name, status")
+    .or(`company_id.eq.${companyId},company_id.is.null`)
     .order("created_at", { ascending: false })
     .limit(5);
 
@@ -2439,7 +2440,7 @@ Deno.serve(async (req) => {
           admin.from("trucks").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("is_simulated", true),
           admin.from("patients").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("is_simulated", true),
           admin.from("trip_records").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("is_simulated", true),
-          admin.from("simulation_runs").select("id, scenario_name, created_at, status").order("created_at", { ascending: false }).limit(5),
+          admin.from("simulation_runs").select("id, scenario_name, created_at, status").or(`company_id.eq.${companyId},company_id.is.null`).order("created_at", { ascending: false }).limit(5),
           admin.from("crews").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("is_simulated", true),
         ]);
         result = {
