@@ -388,9 +388,11 @@ export default function BillingAndClaims() {
   const fetchQueueTrips = useCallback(async () => {
     if (!simFlagResolved) return;
     setQueueLoading(true);
+    const queueCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     let tripQuery = supabase
       .from("trip_records" as any)
       .select("*, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer)")
+      .eq("company_id", queueCompanyId)
       .eq("run_date", dateFilter)
       .or("status.in.(completed,ready_for_billing),claim_ready.eq.true")
       .order("scheduled_pickup_time");
@@ -790,9 +792,11 @@ export default function BillingAndClaims() {
   // created before recent fixes get repaired on the next Sync.
   // Skips claims where hcpcs_manually_set is true to preserve biller edits.
   const refreshExistingClaims = async () => {
+    const refreshCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data: refreshableClaims } = await supabase
       .from("claim_records" as any)
       .select("id, trip_id, status, hcpcs_codes, hcpcs_manually_set")
+      .eq("company_id", refreshCompanyId)
       .not("status", "in", "(paid,voided)");
 
     // Skip claims where the biller has manually set HCPCS — protect their edits from being overwritten.
