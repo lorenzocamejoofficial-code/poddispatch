@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, ArrowRight, Check, Clock, Truck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { toast } from "sonner";
 import type { LegDisplay, TruckOption } from "@/hooks/useSchedulingStore";
 

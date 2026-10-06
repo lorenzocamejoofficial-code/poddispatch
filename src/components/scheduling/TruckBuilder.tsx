@@ -260,14 +260,17 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   // Fetch truck risk states + crew capabilities + truck equipment
   useEffect(() => {
     const loadRisks = async () => {
-      const { data } = await supabase.from("truck_risk_state" as any).select("*");
+      // Creators have cross-tenant read; scope explicitly to the active company.
+      const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+      const { data } = await supabase.from("truck_risk_state" as any).select("*").eq("company_id", scopedCompanyId);
       if (data) {
         const map = new Map((data as any[]).map((r: any) => [r.truck_id, r]));
         setTruckRisks(map);
       }
     };
     const loadTimers = async () => {
-      const { data } = await supabase.from("hold_timers" as any).select("*").eq("is_active", true);
+      const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+      const { data } = await supabase.from("hold_timers" as any).select("*").eq("is_active", true).eq("company_id", scopedCompanyId);
       setHoldTimers((data as any[]) ?? []);
     };
     const loadCrewCaps = async () => {
@@ -281,7 +284,8 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       setCrewProfiles(map);
     };
     const loadTruckEquip = async () => {
-      const { data } = await supabase.from("trucks").select("id, has_power_stretcher, has_stair_chair, has_oxygen_mount").eq("active", true);
+      const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+      const { data } = await supabase.from("trucks").select("id, has_power_stretcher, has_stair_chair, has_oxygen_mount").eq("active", true).eq("company_id", scopedCompanyId);
       const map = new Map<string, TruckEquipment>();
       for (const t of (data ?? []) as any[]) {
         map.set(t.id, {
