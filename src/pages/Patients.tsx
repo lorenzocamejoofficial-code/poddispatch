@@ -1331,13 +1331,13 @@ export default function Patients() {
                                 <div>
                                   <Label className="text-[10px] text-muted-foreground">Hours</Label>
                                   <Input type="number" min={0} max={8} value={form.chair_time_duration_hours} onChange={e => setForm({ ...form, chair_time_duration_hours: e.target.value })} />
-                                </div>}
+                                </div>
                                 <div>
                                   <Label className="text-[10px] text-muted-foreground">Minutes</Label>
                                   <Input type="number" min={0} max={59} value={form.chair_time_duration_minutes} onChange={e => setForm({ ...form, chair_time_duration_minutes: e.target.value })} />
                                 </div>
                               </div>
-                            </div>
+                            </div>}
                           </div>
                         )}
 
