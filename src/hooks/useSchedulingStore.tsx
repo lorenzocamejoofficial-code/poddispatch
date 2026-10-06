@@ -176,11 +176,13 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
       supabase
         .from("scheduling_legs")
         .select("*, patient:patients!scheduling_legs_patient_id_fkey(first_name, last_name, weight_lbs, status, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric), is_oneoff, oneoff_name, oneoff_weight_lbs, oneoff_mobility, oneoff_oxygen, oneoff_notes")
+        .eq("company_id", tripScopeCompanyId)
         .eq("run_date", selectedDate)
         .order("pickup_time"),
       supabase
         .from("truck_run_slots")
         .select("leg_id, truck_id, slot_order, status")
+        .eq("company_id", tripScopeCompanyId)
         .eq("run_date", selectedDate),
       supabase
         .from("leg_exceptions")
@@ -258,7 +260,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     // Creators have cross-tenant read on trucks; scope explicitly to the active company.
     const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const [{ data: p }, { data: t }] = await Promise.all([
-      supabase.from("patients").select("id, first_name, last_name, weight_lbs, status, pickup_address, dropoff_facility, chair_time, run_duration_minutes, schedule_days, notes, transport_type, recurrence_start_date, recurrence_end_date, recurrence_days, chair_time_duration_hours, chair_time_duration_minutes, location_type").order("last_name"),
+      supabase.from("patients").select("id, first_name, last_name, weight_lbs, status, pickup_address, dropoff_facility, chair_time, run_duration_minutes, schedule_days, notes, transport_type, recurrence_start_date, recurrence_end_date, recurrence_days, chair_time_duration_hours, chair_time_duration_minutes, location_type").eq("company_id", scopedCompanyId).order("last_name"),
       supabase.from("trucks").select("id, name").eq("company_id", scopedCompanyId).eq("active", true).order("name"),
     ]);
     setPatients((p ?? []).map((x: any) => ({
@@ -284,9 +286,11 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchCrews = useCallback(async () => {
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data } = await supabase
       .from("crews")
       .select("id, truck_id, member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name), member3:profiles!crews_member3_id_fkey(full_name)")
+      .eq("company_id", scopedCompanyId)
       .eq("active_date", selectedDate);
     setCrews((data ?? []).map((c: any) => ({
       id: c.id,
@@ -307,8 +311,9 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   }, [fetchOptions]);
 
   const autoGenerateLegs = useCallback(async (): Promise<number> => {
-    // Resolve company_id for RLS
-    const { data: companyId } = await supabase.rpc("get_my_company_id");
+    // Resolve company_id for RLS and tenant scoping
+    const { data: companyIdRaw } = await supabase.rpc("get_my_company_id");
+    const companyId = (companyIdRaw as string | null) ?? NO_COMPANY;
 
     // Get active patients with recurring transport whose schedule matches selectedDate
     const eligible = patients.filter((p) => {
@@ -329,6 +334,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     const { data: overrideRows } = await supabase
       .from("patient_schedule_overrides" as any)
       .select("patient_id, chair_time, duration_hours, duration_minutes")
+      .eq("company_id", companyId)
       .in("patient_id", eligibleIds)
       .eq("weekday", weekday);
     const overrideMap = new Map<string, { chair_time: string | null; duration_hours: number | null; duration_minutes: number | null }>();
@@ -343,6 +349,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     const { data: existingLegs } = await supabase
       .from("scheduling_legs")
       .select("patient_id, leg_type")
+      .eq("company_id", companyId)
       .eq("run_date", selectedDate);
 
     const existingMap = new Map<string, Set<string>>();
