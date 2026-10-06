@@ -311,8 +311,9 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   }, [fetchOptions]);
 
   const autoGenerateLegs = useCallback(async (): Promise<number> => {
-    // Resolve company_id for RLS
-    const { data: companyId } = await supabase.rpc("get_my_company_id");
+    // Resolve company_id for RLS and tenant scoping
+    const { data: companyIdRaw } = await supabase.rpc("get_my_company_id");
+    const companyId = (companyIdRaw as string | null) ?? NO_COMPANY;
 
     // Get active patients with recurring transport whose schedule matches selectedDate
     const eligible = patients.filter((p) => {
@@ -333,6 +334,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     const { data: overrideRows } = await supabase
       .from("patient_schedule_overrides" as any)
       .select("patient_id, chair_time, duration_hours, duration_minutes")
+      .eq("company_id", companyId)
       .in("patient_id", eligibleIds)
       .eq("weekday", weekday);
     const overrideMap = new Map<string, { chair_time: string | null; duration_hours: number | null; duration_minutes: number | null }>();
@@ -347,6 +349,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     const { data: existingLegs } = await supabase
       .from("scheduling_legs")
       .select("patient_id, leg_type")
+      .eq("company_id", companyId)
       .eq("run_date", selectedDate);
 
     const existingMap = new Map<string, Set<string>>();
