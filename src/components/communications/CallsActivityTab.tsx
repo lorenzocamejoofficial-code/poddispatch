@@ -1,3 +1,4 @@
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,15 +76,16 @@ export function CallsActivityTab({ isCreator, companies }: CallsActivityTabProps
 
   const load = useCallback(async () => {
     setLoading(true);
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     let q = supabase
       .from("comms_events" as any)
       .select("*")
+      .eq("company_id", scopedCompanyId)
       .gte("created_at", rangeToSince(range))
       .order("created_at", { ascending: false })
       .limit(500);
     if (status !== "all") q = q.eq("status", status);
     if (direction !== "all") q = q.eq("direction", direction);
-    if (companyFilter !== "all") q = q.eq("company_id", companyFilter);
     if (phone.trim()) {
       const p = `%${phone.trim()}%`;
       q = q.or(`to_number.ilike.${p},from_number.ilike.${p}`);

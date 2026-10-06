@@ -1,3 +1,4 @@
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useEffect, useMemo, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -82,15 +83,16 @@ export default function EmailActivity() {
 
   const load = async () => {
     setLoading(true);
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     let q = supabase
       .from("email_send_log")
       .select("*")
+      .eq("company_id", scopedCompanyId)
       .gte("created_at", rangeToSinceISO(range))
       .order("created_at", { ascending: false })
       .limit(500);
 
     if (status !== "all") q = q.eq("status", status);
-    if (companyFilter !== "all") q = q.eq("company_id", companyFilter);
     if (recipient.trim()) q = q.ilike("recipient_email", `%${recipient.trim()}%`);
 
     const { data, error } = await q;

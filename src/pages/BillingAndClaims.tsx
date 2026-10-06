@@ -444,9 +444,11 @@ export default function BillingAndClaims() {
 
     const scopedTripIds = simulationRunId ? (tripScope.data ?? []).map((t: any) => t.id) : null;
 
+    const overrideCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     let overridesQuery = supabase
       .from("billing_overrides" as any)
       .select("*")
+      .eq("company_id", overrideCompanyId)
       .order("created_at", { ascending: false })
       .limit(200);
 
@@ -732,9 +734,11 @@ export default function BillingAndClaims() {
       return;
     }
 
+    const scanCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data: trips } = await supabase
       .from("trip_records" as any)
       .select("id, company_id, run_date, patient_id")
+      .eq("company_id", scanCompanyId)
       .eq("pcr_status", "submitted")
       .not("status", "eq", "cancelled");
 

@@ -1,3 +1,4 @@
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -354,7 +355,8 @@ export default function CrewDashboard() {
 
     const tripIds = cards.map(c => c.tripId).filter(Boolean) as string[];
     if (tripIds.length > 0) {
-      const { data: timers } = await supabase.from("hold_timers").select("id, trip_id, hold_type, started_at, is_active").in("trip_id", tripIds).eq("is_active", true);
+      const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+      const { data: timers } = await supabase.from("hold_timers").select("id, trip_id, hold_type, started_at, is_active").eq("company_id", scopedCompanyId).in("trip_id", tripIds).eq("is_active", true);
       setHoldTimers((timers ?? []).map(t => ({ id: t.id, tripId: t.trip_id, holdType: t.hold_type, startedAt: t.started_at, isActive: t.is_active })));
     } else {
       setHoldTimers([]);

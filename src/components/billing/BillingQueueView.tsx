@@ -1,3 +1,4 @@
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { CheckCircle, AlertTriangle, XCircle, DollarSign, ChevronRight, ShieldAlert, Clock, User, FileText, Pencil, RotateCcw, ClipboardCheck, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -174,10 +175,12 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
     }
 
     setOverrideHistoryLoaded(false);
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data } = await supabase
       .from("billing_overrides" as any)
       .select("*")
       .eq("is_active", true)
+      .eq("company_id", scopedCompanyId)
       .in("trip_id", tripIds)
       .order("created_at", { ascending: false });
 
@@ -209,10 +212,11 @@ export function BillingQueueView({ trips, payerRulesMap, onRefresh }: BillingQue
       : Promise.resolve({ data: [] as any[] });
 
     const claimFetch = tripIds.length > 0
-      ? supabase
+      ? getActiveCompanyId().then((cid) => supabase
           .from("claim_records" as any)
           .select("trip_id, pcs_physician_name, pcs_physician_npi, pcs_certification_date, pcs_diagnosis")
-          .in("trip_id", tripIds)
+          .eq("company_id", cid ?? NO_COMPANY)
+          .in("trip_id", tripIds))
       : Promise.resolve({ data: [] as any[] });
 
     Promise.all([patientFetch, claimFetch]).then(([{ data: pData }, { data: cData }]) => {

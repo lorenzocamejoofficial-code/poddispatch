@@ -1,3 +1,4 @@
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageSquare, Phone, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
@@ -62,9 +63,11 @@ export function CommsOutbox({ selectedDate }: CommsOutboxProps) {
     const startOfDay = `${selectedDate}T00:00:00.000Z`;
     const endOfDay = `${selectedDate}T23:59:59.999Z`;
 
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data } = await supabase
       .from("comms_events" as any)
       .select("*")
+      .eq("company_id", scopedCompanyId)
       .gte("created_at", startOfDay)
       .lte("created_at", endOfDay)
       .order("created_at", { ascending: false })

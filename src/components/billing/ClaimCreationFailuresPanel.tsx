@@ -1,3 +1,4 @@
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,9 +22,11 @@ export function ClaimCreationFailuresPanel() {
 
   const fetchRows = useCallback(async () => {
     setLoading(true);
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data, error } = await supabase
       .from("claim_creation_failures" as any)
       .select("id, trip_id, error_message, sqlstate, created_at")
+      .eq("company_id", scopedCompanyId)
       .is("resolved_at", null)
       .order("created_at", { ascending: false })
       .limit(200);

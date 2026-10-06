@@ -1,3 +1,4 @@
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -122,9 +123,11 @@ export function RemittanceHistoryPanel() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data, error } = await supabase
       .from("remittance_files" as any)
       .select("id, file_name, file_content, imported_at, claims_matched, claims_updated, total_paid, status, bpr_total_paid, payment_date, payer_name, eft_trace_number, reconciled, reconciliation_variance")
+      .eq("company_id", scopedCompanyId)
       .order("imported_at", { ascending: false })
       .limit(100);
     if (error) {

@@ -1,3 +1,4 @@
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useState, useEffect } from "react";
 import { PageLoader } from "@/components/ui/page-loader";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -72,8 +73,9 @@ export default function OverrideMonitor() {
     const load = async () => {
       setLoading(true);
 
-      // Fetch company ID for defense-in-depth filtering
-      const { data: companyId } = await supabase.rpc("get_my_company_id");
+      // Fetch company ID for defense-in-depth filtering (active company, so a
+      // creator operating inside a tenant sees only that tenant's overrides)
+      const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
 
       // Fetch safety overrides (with explicit company_id filter as defense in depth)
       let safetyQuery = supabase.from("safety_overrides").select("*").order("overridden_at", { ascending: false }).limit(200);

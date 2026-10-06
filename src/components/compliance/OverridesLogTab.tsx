@@ -1,3 +1,4 @@
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -20,9 +21,11 @@ export function OverridesLogTab() {
       : { data: [] as any[] };
     const scopedTripIds = simulationRunId ? (tripScope.data ?? []).map((t: any) => t.id) : null;
 
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     let q = supabase
       .from("billing_overrides" as any)
       .select("*")
+      .eq("company_id", scopedCompanyId)
       .order("created_at", { ascending: false })
       .limit(200);
 

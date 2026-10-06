@@ -1,3 +1,4 @@
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useState, useEffect, useCallback, Fragment } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -71,6 +72,7 @@ export function IncidentsTab() {
   const canReview = role === "owner" || role === "manager" || role === "creator";
 
   const fetchData = useCallback(async () => {
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     setLoading(true);
 
     let query = supabase
@@ -86,7 +88,7 @@ export function IncidentsTab() {
 
     const [{ data: rows }, { data: truckRows }] = await Promise.all([
       query,
-      supabase.from("trucks").select("id, name").eq("active", true).order("name"),
+      supabase.from("trucks").select("id, name").eq("company_id", scopedCompanyId).eq("active", true).order("name"),
     ]);
 
     setIncidents(((rows ?? []) as any[]).map((r: any) => ({
