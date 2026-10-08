@@ -454,7 +454,7 @@ export default function TrucksCrews() {
     const profileOptions: ProfileOption[] = profileRows.map((r) => {
       const have = r.user_id ? certsByUser.get(r.user_id) ?? new Set<string>() : new Set<string>();
       const missing = REQUIRED.filter((c) => !have.has(c));
-      const sandboxBypass = missing.length > 0 && isSandboxCertBypass(isSimCompany, r.email);
+      const sandboxBypass = missing.length > 0 && isSandboxCertBypass(isSimCompany);
       return {
         id: r.id,
         full_name: r.full_name,
