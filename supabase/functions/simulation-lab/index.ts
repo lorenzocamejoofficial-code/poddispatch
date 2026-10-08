@@ -1555,11 +1555,21 @@ async function resetSandbox(admin: any, companyId: string, userId: string) {
   }
 
   // Order matters — delete claim_records before trip_records (FK), and child tables first.
+  // Only these four tables have an is_simulated column.
   const tables = [
-    "comms_events", "trip_events", "hold_timers",
-    "safety_overrides", "claim_records",
+    "claim_records",
     "trip_records", "truck_run_slots", "scheduling_legs",
   ];
+
+  const simTripIds = (sandboxTripIds ?? []).map((t: any) => t.id);
+  // Simulated leg/slot ids — needed for safety_overrides, which has neither
+  // is_simulated nor simulation_run_id.
+  const { data: simLegs } = await admin.from("scheduling_legs")
+    .select("id").eq("company_id", companyId).eq("is_simulated", true);
+  const simLegIds = (simLegs ?? []).map((l: any) => l.id);
+  const { data: simSlots } = await admin.from("truck_run_slots")
+    .select("id").eq("company_id", companyId).eq("is_simulated", true);
+  const simSlotIds = (simSlots ?? []).map((s: any) => s.id);
 
   // Delete projection/risk state (PK-based, no is_simulated)
   await admin.from("trip_projection_state").delete().eq("company_id", companyId);
