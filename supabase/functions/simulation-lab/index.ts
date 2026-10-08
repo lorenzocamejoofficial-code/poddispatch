@@ -1590,21 +1590,54 @@ async function resetSandbox(admin: any, companyId: string, userId: string) {
   counts["claim_records_injected"] = injectedClaims?.length ?? 0;
 
   for (const table of tables) {
-    const { data } = await admin.from(table)
+    const { data, error } = await admin.from(table)
       .delete()
       .eq("company_id", companyId)
       .eq("is_simulated", true)
       .select("id");
+    if (error) throw new Error(`resetSandbox: ${table} delete failed: ${error.message}`);
     counts[table] = data?.length ?? 0;
   }
 
+  // comms_events / trip_events / hold_timers have no is_simulated column —
+  // match by simulation_run_id or by membership in the simulated trip set.
+  for (const table of ["comms_events", "trip_events", "hold_timers"]) {
+    let q = admin.from(table).delete().eq("company_id", companyId);
+    q = simTripIds.length
+      ? q.or(`simulation_run_id.not.is.null,trip_id.in.(${simTripIds.join(",")})`)
+      : q.not("simulation_run_id", "is", null);
+    const { data, error } = await q.select("id");
+    if (error) throw new Error(`resetSandbox: ${table} delete failed: ${error.message}`);
+    counts[table] = data?.length ?? 0;
+  }
+
+  // safety_overrides has neither is_simulated nor simulation_run_id — match
+  // by simulated trip/leg/slot ids. Real overrides are never touched.
+  {
+    const ors: string[] = [];
+    if (simTripIds.length) ors.push(`trip_record_id.in.(${simTripIds.join(",")})`);
+    if (simLegIds.length) ors.push(`leg_id.in.(${simLegIds.join(",")})`);
+    if (simSlotIds.length) ors.push(`slot_id.in.(${simSlotIds.join(",")})`);
+    if (ors.length) {
+      const { data, error } = await admin.from("safety_overrides")
+        .delete()
+        .eq("company_id", companyId)
+        .or(ors.join(","))
+        .select("id");
+      if (error) throw new Error(`resetSandbox: safety_overrides delete failed: ${error.message}`);
+      counts["safety_overrides"] = data?.length ?? 0;
+    } else {
+      counts["safety_overrides"] = 0;
+    }
+  }
 
   for (const t of ["claim_payments", "remittance_files", "plb_adjustments"]) {
-    const { data } = await admin.from(t)
+    const { data, error } = await admin.from(t)
       .delete()
       .eq("company_id", companyId)
       .eq("is_simulated", true)
       .select("id");
+    if (error) throw new Error(`resetSandbox: ${t} delete failed: ${error.message}`);
     counts[t] = data?.length ?? 0;
   }
 
