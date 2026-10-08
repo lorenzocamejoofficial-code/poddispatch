@@ -6972,6 +6972,10 @@ export type Database = {
         }
         Returns: Json
       }
+      sandbox_cert_bypass: {
+        Args: { _company_id: string; _profile_id: string }
+        Returns: boolean
+      }
       try_claim_founding_slot: { Args: never; Returns: boolean }
       write_audit_log: {
         Args: {
