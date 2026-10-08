@@ -27,6 +27,7 @@ import { evaluateCrewComposition, deriveUnitCapability } from "@/lib/crew-compos
 import { MEMBER3_ROLES, MEMBER3_ROLE_LABELS, member3RoleLabel } from "@/lib/crew-roles";
 import { findTruckDuplicate } from "@/lib/truck-duplicates";
 import type { Tables } from "@/integrations/supabase/types";
+import { isSandboxCertBypass } from "@/lib/sandbox-cert-bypass";
 
 type TruckRow = Tables<"trucks">;
 
@@ -36,6 +37,8 @@ interface ProfileOption {
   assignable: boolean;
   blockedReason?: string;
   cert_level?: CertLevel | null;
+  /** Sandbox-only: assignable via the test-email cert bypass, not real certs. */
+  sandboxBypass?: boolean;
 }
 
 interface CrewRecord {
@@ -201,7 +204,7 @@ function TruckDayCell({
             <SelectItem value="none">— None —</SelectItem>
             {profiles.map((p) => (
               <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
-                {p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}{!p.assignable ? " 🚫" : ""}
+                {p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}{!p.assignable ? " 🚫" : ""}{p.sandboxBypass ? " 🧪 Sandbox cert bypass" : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -212,7 +215,7 @@ function TruckDayCell({
             <SelectItem value="none">— None —</SelectItem>
             {profiles.map((p) => (
               <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
-                {p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}{!p.assignable ? " 🚫" : ""}
+                {p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}{!p.assignable ? " 🚫" : ""}{p.sandboxBypass ? " 🧪 Sandbox cert bypass" : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -223,7 +226,7 @@ function TruckDayCell({
             <SelectItem value="none">— None —</SelectItem>
             {profiles.map((p) => (
               <SelectItem key={p.id} value={p.id} disabled={!p.assignable} title={p.blockedReason}>
-                {p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}{!p.assignable ? " 🚫" : ""}
+                {p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}{!p.assignable ? " 🚫" : ""}{p.sandboxBypass ? " 🧪 Sandbox cert bypass" : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -278,6 +281,11 @@ function TruckDayCell({
         <p className="text-[9px] text-muted-foreground leading-tight">
           🚫 = missing/expired certification — approve on Employees → Certifications.
         </p>
+        {[m1, m2, m3].some((id) => profiles.find((p) => p.id === id)?.sandboxBypass) && (
+          <p className="text-[9px] leading-tight rounded border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))] px-1 py-0.5">
+            🧪 Sandbox cert bypass in use — this crew is NOT certified. Test companies only.
+          </p>
+        )}
         <div className="flex gap-1 pt-0.5">
           <Button size="sm" className="h-6 text-[10px] flex-1" onClick={handleSave} disabled={saving || !canSave}>
             <Check className="h-3 w-3 mr-0.5" /> Save
@@ -402,7 +410,7 @@ export default function TrucksCrews() {
 
     const [{ data: t }, { data: p }, { data: c }, { data: av }] = await Promise.all([
       supabase.from("trucks").select("*").eq("company_id", companyId).order("name"),
-      supabase.from("profiles").select("id, full_name, user_id, cert_level").eq("active", true).eq("company_id", companyId).order("full_name"),
+      supabase.from("profiles").select("id, full_name, user_id, cert_level, email").eq("active", true).eq("company_id", companyId).order("full_name"),
       supabase.from("crews")
         .select("*, member1:profiles!crews_member1_id_fkey(full_name, id), member2:profiles!crews_member2_id_fkey(full_name, id), member3:profiles!crews_member3_id_fkey(full_name, id)")
         .eq("company_id", companyId)
@@ -415,7 +423,13 @@ export default function TrucksCrews() {
     ]);
 
     // Compute crew certification eligibility for each profile
-    const profileRows = (p ?? []) as Array<{ id: string; full_name: string; user_id: string | null; cert_level?: CertLevel | null }>;
+    const profileRows = (p ?? []) as Array<{ id: string; full_name: string; user_id: string | null; cert_level?: CertLevel | null; email?: string | null }>;
+    const { data: companyFlags } = await supabase
+      .from("companies")
+      .select("creator_test_tenant, is_sandbox")
+      .eq("id", companyId ?? NO_COMPANY)
+      .maybeSingle();
+    const isSimCompany = Boolean((companyFlags as any)?.creator_test_tenant || (companyFlags as any)?.is_sandbox);
     const userIds = profileRows.map((r) => r.user_id).filter((x): x is string => !!x);
     const today = new Date().toISOString().split("T")[0];
     const certsByUser = new Map<string, Set<string>>();
@@ -440,12 +454,16 @@ export default function TrucksCrews() {
     const profileOptions: ProfileOption[] = profileRows.map((r) => {
       const have = r.user_id ? certsByUser.get(r.user_id) ?? new Set<string>() : new Set<string>();
       const missing = REQUIRED.filter((c) => !have.has(c));
+      const sandboxBypass = missing.length > 0 && isSandboxCertBypass(isSimCompany, r.email);
       return {
         id: r.id,
         full_name: r.full_name,
         cert_level: (r.cert_level ?? null) as CertLevel | null,
-        assignable: missing.length === 0,
-        blockedReason: missing.length === 0
+        assignable: missing.length === 0 || sandboxBypass,
+        sandboxBypass,
+        blockedReason: missing.length === 0 ? undefined : sandboxBypass
+          ? "SANDBOX CERT BYPASS — not certified; allowed only in this test company"
+          : missing.length === 0
           ? undefined
           : `Missing/expired: ${missing.map((m) => m === "medic_number" ? "Medic #" : m === "cpr" ? "CPR" : "Driver's License").join(", ")}`,
       };
