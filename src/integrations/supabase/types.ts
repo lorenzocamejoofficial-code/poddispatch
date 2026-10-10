@@ -6746,6 +6746,10 @@ export type Database = {
           id: string
           items_checked: Json
           missing_count: number
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewed_by_name: string | null
           run_date: string
           status: string
           submitted_at: string
@@ -6759,6 +6763,10 @@ export type Database = {
           id?: string
           items_checked?: Json
           missing_count?: number
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewed_by_name?: string | null
           run_date?: string
           status?: string
           submitted_at?: string
@@ -6772,6 +6780,10 @@ export type Database = {
           id?: string
           items_checked?: Json
           missing_count?: number
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewed_by_name?: string | null
           run_date?: string
           status?: string
           submitted_at?: string

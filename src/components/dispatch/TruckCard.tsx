@@ -72,6 +72,7 @@ interface TruckCardProps {
   readOnly?: boolean;
   overriddenLegIds?: Set<string>;
   forceExpanded?: boolean;
+  footer?: import("react").ReactNode;
 }
 
 /**
@@ -149,7 +150,7 @@ function PreTripReadinessChip({ reasons }: { reasons: string[] }) {
   );
 }
 
-export function TruckCard({ truckName, crewNames, driverLabel = null, thirdMemberLabel = null, scheduledLegsCount = 0, runs, overallStatus, downStatus, downReason, revenueStrength, medicareCount = 0, facilityContractCount = 0, onRestoreRun, readOnly = false, overriddenLegIds = new Set(), forceExpanded = false }: TruckCardProps) {
+export function TruckCard({ truckName, crewNames, driverLabel = null, thirdMemberLabel = null, scheduledLegsCount = 0, runs, overallStatus, downStatus, downReason, revenueStrength, medicareCount = 0, facilityContractCount = 0, onRestoreRun, readOnly = false, overriddenLegIds = new Set(), forceExpanded = false, footer }: TruckCardProps) {
   const hasHeavy = runs.some((r) => (r.patient_weight ?? 0) > 200);
   const isDown = !!downStatus;
   const hasRunsWhileDown = isDown && runs.length > 0;
@@ -428,6 +429,7 @@ export function TruckCard({ truckName, crewNames, driverLabel = null, thirdMembe
 
         {/* Billing readiness summary */}
         <BillingReadinessSummary runs={runs} />
+        {footer}
       </div>
     </>
   );
