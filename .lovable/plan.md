@@ -1,74 +1,70 @@
-# Truck checkoff loop: crew submits, dispatch reviews, next crew sees it's done
+# Patient time prediction — trace findings and proposed design
 
-## What exists today (traced)
+## Trace findings
 
-**Where the checklist lives**
-- Crew page `/crew-checklist` (`CrewInspectionChecklist.tsx`) shows the Georgia ground-ambulance list (109 items in `vehicle-inspection-items.ts`), optionally trimmed per truck by `vehicle_inspection_templates`.
-- When a crew submits, the app writes:
-  - one row in `vehicle_inspections`: items, who submitted, when, the missing-item count, and a status of `complete` or `has_missing`;
-  - one row in `vehicle_inspection_alerts` for each missing item;
-  - a dispatch message in `alerts` (red if items are missing, green if not).
-- **What dispatch sees today:**
-  - The bell shows the `alerts` message as a "vehicle_inspection" event, but it only says an inspection happened.
-  - The full sheet is visible only on Compliance & QA → Vehicle Inspections (`VehicleInspectionsTab`) and in the truck history on Trucks & Crews. Both are read-only.
-  - `InspectionAlertExpanded`, which has the "Cleared to Proceed / Hold" buttons for missing items, exists but is not mounted anywhere. Dispatch can't acknowledge anything today.
-- **The PCR gate:** `PCRPage` reads the day's inspection when the company setting requires an inspection before the PCR.
+### 1. Actual-time data recorded today
+**trip_records (crew PCR time card, one row per leg):**
+- `dispatch_time` (unit notified), `in_service_time` (en route), `at_scene_time` (arrived at pickup), `patient_contact_time` (at patient), `left_scene_time` (left pickup), `arrived_dropoff_at` (arrived destination), `dropped_at` (patient handed off), plus `arrived_pickup_at` and `loaded_at` (status-button stamps).
+- Odometers: `odometer_in_service`, `odometer_at_scene`, `odometer_at_destination`.
+- `wait_time_minutes` (built from resolved hold timers), and `scheduled_pickup_time` / `scheduled_dropoff_time` (planned, not actual).
 
-**How it's scoped**
-- Each truck has at most one inspection per day. The database enforces this with a unique rule on company + truck + run date.
-- Crew can read an inspection only if they are on that truck's crew for that date. Admin, dispatcher and billing can read inspections for their own company only.
-- **Same day:** a crew reassigned onto a truck that was already inspected is already covered. They are on that day's crew record, so the checklist page loads the existing inspection and shows a read-only "Submitted by X at time" summary instead of a blank form.
-- **Next day:** the inspection starts fresh, because the check is by date.
-- So "already done" today means "this truck, this day". The missing piece is a dispatch review, and a clear message to the next crew.
+**Other tables:**
+- `trip_status_history.changed_at`: a stamp for each status change (65 rows), a backup source for the same events.
+- `hold_timers.started_at` / `resolved_at`: delays at the facility.
+- `trip_events.event_time`: exists but has 0 rows.
+- `scheduling_legs`: only planned values: `pickup_time`, `chair_time`, `estimated_duration_minutes`.
+- `patients`: only planned values: `chair_time`, `chair_time_duration_hours/minutes`, `run_duration_minutes`, `a_leg_pickup_time`, `dialysis_window_minutes`.
+- Nothing records the moment the patient was actually ready for the return trip. The closest proxies are the A-leg `dropped_at` (chair start) and the B-leg `patient_contact_time` / `left_scene_time` (actual return pickup).
 
-**Crew-side notifications today**
-- `notifications` table (per user, realtime, shown in the crew bell through `useNotificationFeed`).
-- `useCrewBadges` puts a red dot on the Checklist menu item when today's inspection isn't done.
+### 2. How much history exists: essentially none
+- `trip_records` has 4 rows: 1 ready_for_billing, 2 cancelled, 1 scheduled. Earlier test trips were reset.
+- Only 1 trip has a full time card. It is an A-leg with no matching B-leg, for 1 patient.
+- No patient has 2 or more completed trips. No patient has a matched A+B pair on the same day.
+- Conclusion: the timestamp fields exist and get filled when a PCR is completed, but no per-patient average or median can be computed today. Every patient starts with no history, so the fallback path is what will run at launch.
+
+### 3. What exists toward durations today
+- The scheduler builds legs from planned values only (`useSchedulingStore.tsx` ~line 365): travel = `run_duration_minutes ?? 30`; treatment = the per-day override, else the patient's chair duration, else 210 min for dialysis / 60 min otherwise.
+- `dialysis_b_leg_buffer_minutes` (company setting, default 15) and `isBLegTooEarly()` in `dialysis-validation.ts` flag B-legs scheduled before chair time + duration. Reports and Metrics uses this.
+- `dispatch-intelligence` uses `estimated_duration_minutes ?? 10` for hold and delay logic.
+- No averages, medians or analytics are built from actual times anywhere.
 
 ## Proposed design
 
-### 1. Review period: per truck, per day (keep the current model)
-- A dispatch acknowledgment covers the same truck + date row as the inspection. It resets the next day, when a new inspection is due.
-- I don't recommend per shift: there is no shift record to key on, and adding one would mean reworking the scheduler.
+### Shared source: per-patient actuals (computed on read)
+A pure TS module `src/lib/patient-time-prediction.ts` takes a patient's last N completed or ready_for_billing trips (active company, not simulated unless the company is a sandbox, newest 20, within 180 days) and works out:
+- **Chair/turnaround (A→B):** for the same patient and date, B-leg `patient_contact_time` (else `left_scene_time`) minus A-leg `dropped_at` (else `arrived_dropoff_at`). This is the time from chair start to ready-for-pickup, including normal wait.
+- **Trip duration:** `dropped_at` (else `arrived_dropoff_at`) minus `at_scene_time` (else `in_service_time`). Kept per leg type and destination.
+- **Validity filters:** both stamps present and in order; drop cancelled, no-show and emergency-upgraded trips; drop outliers (turnaround outside 60–480 min, trip outside 5–240 min).
+- **Output:** median, 25th–75th percentile range, sample size `n`, and a confidence level.
 
-### 2. Dispatch view and acknowledgment: one sign-off for the whole checklist
-- **Where:** a "Checkoffs" section on the Dispatch Board's truck card, showing one of four badges:
-  - Not submitted
-  - Submitted, awaiting review
-  - Reviewed
-  - Has flags
-- **Opening a checkoff** shows a side panel with:
-  - the read-only item sheet (reusing the detail layout from `VehicleInspectionsTab`): items, crew notes, submitter and time;
-  - the existing `InspectionAlertExpanded` controls for missing items.
-- **Recommendation:** one "Mark Reviewed" for the whole checklist, plus the existing Cleared/Hold decision for each missing item.
-  - Dispatch can't mark a checklist Reviewed while any missing item is still unanswered.
-  - A separate check for each of the 109 items would be heavy and adds nothing, since the crew already marked each item OK or Missing.
-- **Records:** each review writes an audit entry through `logAuditEvent`. Compliance & QA → Vehicle Inspections gets a "Reviewed by / at" column.
+### Target 1: return-ready suggestion
+- Predicted ready time = chair time + median turnaround (falling back to planned chair duration + company buffer).
+- Shown as an advisory chip ("Suggested return pickup 13:40 · based on 6 trips · medium") next to the B-leg pickup time in the Scheduling leg dialog and the patient's recurring schedule editor. A one-click "Use suggestion" fills the field; the user still saves.
 
-### 3. Next crew on the truck
-- **On the crew checklist page:** the read-only summary gets a status banner.
-  - **Green:** "Checkoff completed by {crew} at {time} and reviewed by dispatch ({name}, {time}). No need to redo it."
-  - **Yellow:** shown when the checkoff is submitted but not yet reviewed.
-  - **Red:** a Hold note.
-- **Notification:** when dispatch marks a checkoff Reviewed, each member currently on that truck's crew for that day gets a bell notification of type `inspection_reviewed`.
-- **When a crew is assigned later in the day:** if they're put on an already-reviewed truck, the same notification goes out when they open the checklist page. It's de-duplicated so each person gets it once per truck per day.
-- **No new crew permissions:** the crew can already read the inspection row, so the new review columns come along with it.
+### Target 2: trip-duration suggestion
+- Predicted duration = median trip duration for that patient and leg type (falling back to `run_duration_minutes`, then 30).
+- Shown as a hint next to estimated duration in the add-run and one-time run forms, and as a small "~42 min typical" tag on truck-board slots, for packing. The 45-minute gap rule and the scheduler itself are not changed.
+
+### Confidence and cold start
+- n < 5 valid samples: show no number from history. Show "Using plan default (not enough history: n/5)", with the planned value as the suggestion.
+- n 5–9: low confidence. n 10–19: medium. n ≥ 20 and IQR ≤ 30 min: high.
+- **Minimum sample: 5.** A single trip is never used. Because history is empty today, every patient will show the default state until about 2–3 weeks of MWF/TTS service has built up.
+
+### Computed on read, not stored
+- Volumes are small (≤20 trips per patient, max 30 trucks × 10 runs), the inputs change after every PCR, and there is nothing to keep in sync or backfill.
+- One query per company, scoped by `getActiveCompanyId()` / `NO_COMPANY`, fetches the needed timestamp columns for the patients visible on screen. It is cached client-side for the session. If this later becomes slow, a read-only SQL view can be added without changing callers.
+
+## Guardrails
+- No new crew time entry: uses only existing PCR and status stamps. Flag: there is no true "patient ready" event. Turnaround is inferred from the actual B-leg pickup, so it includes any time the patient waited for the truck. That biases the prediction late, which is the safe direction. A "patient ready" button for crews is optional future work and not part of this plan.
+- Advisory only: nothing auto-writes a pickup time or duration. Values change only when the user clicks "Use suggestion" and saves through the existing form.
+- Additive: one new lib, a small hook, UI chips. No schema change, no trigger change, and no changes to the scheduler engine, PCR gate, billing or NEMSIS/CTA.
 
 ## Technical details
-- **Migration (additive, nullable):**
-  - Add `reviewed_by uuid`, `reviewed_by_name text`, `reviewed_at timestamptz` and `review_note text` to `vehicle_inspections`.
-  - Add an UPDATE rule that lets dispatchers and admins review only their own company's rows (`company_id = get_my_company_id()`), plus the matching grant.
-  - Add `inspection_reviewed` to the list of allowed notification types in the notifications insert rule.
-- **New code:**
-  - A `reviewInspection()` helper in `src/lib/inspection-review.ts` that refuses to mark Reviewed while missing items are unanswered and records the audit entry. It gets tests: unanswered items block the review; Hold still allows it but sets the red banner.
-  - Every new dispatch read is scoped with `getActiveCompanyId() ?? NO_COMPANY`.
-- **Files touched:**
-  - Dispatch board truck card, which mounts `InspectionAlertExpanded` plus the new review panel
-  - `CrewInspectionChecklist.tsx` (banner and notify-once)
-  - `VehicleInspectionsTab.tsx` (Reviewed column)
-  - `useNotificationFeed` (label for the new notification)
-- **Not touched:** the PCR gate, the scheduler, and NEMSIS/CTA.
+- New `src/lib/patient-time-prediction.ts` (pure functions: pairing, filters, median/IQR, confidence) plus `patient-time-prediction.test.ts` (min-5 rule, outlier filtering, A/B pairing on same date, fallback ordering, confidence tiers).
+- New `src/hooks/usePatientTimeStats.ts`: company-scoped `trip_records` select joined to `scheduling_legs.leg_type`, `.in("patient_id", ids)`, status in (completed, ready_for_billing).
+- UI touch points: Scheduling leg dialog (B-leg pickup, estimated duration), Patients recurring schedule section, truck-slot tag in TruckBuilder.
+- Verify: typecheck, full tests, and a seeded Simulation Lab check that chips show the default state with n<5 and a median with n≥5.
 
-## Open questions for you
-1. Should an unreviewed checkoff block the PCR gate? The plan doesn't change it, so it stays "submitted is enough".
-2. Should the next crew also get the notification when the checkoff is submitted but not yet reviewed, or only after dispatch reviews it?
+## Open questions
+1. Should simulated (Simulation Lab) trips count toward history in sandbox companies? Proposed: yes for sandbox only, so the feature can be demoed.
+2. Is a minimum of 5 samples and a 180-day lookback acceptable?
