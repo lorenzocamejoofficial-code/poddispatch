@@ -171,8 +171,6 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
 
   const handleCallQueued = () => setRefreshKey((k) => k + 1);
 
-  // Section is hidden entirely when no active runs
-  if (totalActive === 0) return null;
 
   const facilityForSelected = (() => {
     if (!selectedCall?.run.destinationName) return null;
