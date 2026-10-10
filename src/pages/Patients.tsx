@@ -44,6 +44,9 @@ import { PatientViewDialog } from "@/components/patients/PatientViewDialog";
 import { InsuranceToolsHeader, type PrefillPayload } from "@/components/patients/InsuranceToolsHeader";
 import { ClaimTimelineDrawer } from "@/components/billing/ClaimTimelineDrawer";
 import { Download } from "lucide-react";
+import { usePatientTimeStats } from "@/hooks/usePatientTimeStats";
+import { TimeSuggestionChip } from "@/components/scheduling/TimeSuggestionChip";
+import { EMPTY_STATS, suggestReturnPickup } from "@/lib/patient-time-prediction";
 import {
   CHIEF_COMPLAINT_GROUPS,
   PRIMARY_IMPRESSION_GROUPS,
@@ -107,6 +110,7 @@ export default function Patients() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Patient | null>(null);
+  const patientTimeStats = usePatientTimeStats([editing?.id]);
 
   // Selection state
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -1339,6 +1343,17 @@ export default function Patients() {
                                   <Input type="number" min={0} max={59} value={form.chair_time_duration_minutes} onChange={e => setForm({ ...form, chair_time_duration_minutes: e.target.value })} />
                                 </div>
                               </div>
+                              {(() => {
+                                const st = (editing?.id && patientTimeStats.get(editing.id)) || EMPTY_STATS;
+                                const sug = suggestReturnPickup({
+                                  chairTime: form.chair_time,
+                                  turnaround: st.turnaround,
+                                  plannedChairMinutes: (parseInt(form.chair_time_duration_hours) || 0) * 60 + (parseInt(form.chair_time_duration_minutes) || 0),
+                                });
+                                const median = st.turnaround.median;
+                                return <TimeSuggestionChip label="Suggested return pickup" suggestion={sug}
+                                  onUse={median != null ? () => setForm(f => ({ ...f, chair_time_duration_hours: String(Math.floor(median / 60)), chair_time_duration_minutes: String(median % 60) })) : undefined} />;
+                              })()}
                             </div>}
                           </div>
                         )}
