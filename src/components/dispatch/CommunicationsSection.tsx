@@ -171,8 +171,6 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
 
   const handleCallQueued = () => setRefreshKey((k) => k + 1);
 
-  // Section is hidden entirely when no active runs
-  if (totalActive === 0) return null;
 
   const facilityForSelected = (() => {
     if (!selectedCall?.run.destinationName) return null;
@@ -192,16 +190,30 @@ export function CommunicationsSection({ selectedDate, trucks }: CommunicationsSe
       </div>
 
       <div className="rounded-lg border bg-card p-3 space-y-3">
-        <Button
-          onClick={() => setPickerOpen(true)}
-          className="w-full h-11 gap-2"
-        >
-          <PhoneCall className="h-4 w-4" />
-          Place Call
-        </Button>
-        <p className="text-[11px] text-muted-foreground text-center -mt-1">
-          Pick a truck, then a run, then who to call.
-        </p>
+        {totalActive === 0 ? (
+          <>
+            <Button disabled className="w-full h-11 gap-2">
+              <PhoneCall className="h-4 w-4" />
+              Place Call
+            </Button>
+            <p className="text-[11px] text-muted-foreground text-center -mt-1">
+              No active runs to call right now.
+            </p>
+          </>
+        ) : (
+          <>
+            <Button
+              onClick={() => setPickerOpen(true)}
+              className="w-full h-11 gap-2"
+            >
+              <PhoneCall className="h-4 w-4" />
+              Place Call
+            </Button>
+            <p className="text-[11px] text-muted-foreground text-center -mt-1">
+              Pick a truck, then a run, then who to call.
+            </p>
+          </>
+        )}
 
         {/* Queued Calls Outbox */}
         <CommsOutboxPanel selectedDate={selectedDate} refreshKey={refreshKey} />
