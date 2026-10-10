@@ -27,6 +27,8 @@ import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import type { OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
 import { sortSchedulingLegs } from "@/lib/leg-order";
+import { usePatientTimeStats } from "@/hooks/usePatientTimeStats";
+import { suggestTripDuration, MIN_SAMPLES, type Suggestion } from "@/lib/patient-time-prediction";
 
 interface AvailabilityRecord {
   id: string;
@@ -49,9 +51,11 @@ interface SortableLegItemProps {
   onCancel?: () => void;
   onRestore?: () => void;
   onSafetyOverride?: () => void;
+  /** Advisory typical-duration tag (display only). */
+  typical?: Suggestion;
 }
 
-const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, overridden, onRemove, onEditException, onCancel, onRestore, onSafetyOverride }: SortableLegItemProps) {
+const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetyStatus, safetyReasons, missingFields, overridden, onRemove, onEditException, onCancel, onRestore, onSafetyOverride, typical }: SortableLegItemProps) {
   const isCompleted = leg.slot_status === "completed";
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: leg.id,
@@ -99,6 +103,13 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
         }`}>{leg.leg_type}</span>
         <span className={`truncate font-medium ${isCancelled ? "line-through text-muted-foreground" : "text-card-foreground"}`}>{leg.patient_name}</span>
         {leg.pickup_time && <span className="text-muted-foreground shrink-0 ml-auto">{leg.pickup_time}</span>}
+        {typical?.value != null && (
+          <span
+            className="shrink-0 rounded border border-dashed px-1 text-[9px] text-muted-foreground"
+            title={typical.source === "history" ? `Typical trip, based on ${typical.n} trips (${typical.confidence} confidence). Advisory only.` : `Using plan default (not enough history: ${typical.n}/${MIN_SAMPLES}). Advisory only.`}
+            data-testid="typical-duration-tag"
+          >~{typical.value}m{typical.source === "history" ? "" : "*"}</span>
+        )}
         <div className="flex items-center gap-0.5 shrink-0">
           {isCompleted ? null : isCancelled ? (
             onRestore && (
@@ -912,6 +923,7 @@ const TruckCard = memo(function TruckCard({
                     onEditException={() => onEditException(leg)}
                     onCancel={onCancelLeg ? () => onCancelLeg(leg.id) : undefined}
                     onRestore={onRestoreLeg ? () => onRestoreLeg(leg.id) : undefined}
+                    typical={(() => { const st = leg.patient_id ? patientTimeStats.get(leg.patient_id) : undefined; return suggestTripDuration({ stats: (leg.leg_type === "B" ? st?.durationB : st?.durationA) ?? { n: 0, median: null, p25: null, p75: null, confidence: "none" }, plannedMinutes: leg.estimated_duration_minutes }); })()}
                     onSafetyOverride={safetyResult.status === "BLOCKED" && !overriddenLegIds.has(leg.id) && onSafetyOverride ? () => onSafetyOverride(leg.id, safetyResult.reasons) : undefined}
                   />
                 );
