@@ -40,6 +40,9 @@ import { useSchedulingStore, matchesScheduleDay, type LegDisplay } from "@/hooks
 import { RunReassignmentDialog } from "@/components/scheduling/RunReassignmentDialog";
 import { UpstreamReadinessPanel } from "@/components/billing/UpstreamReadinessPanel";
 import { detectTimeConflicts, type TimeConflict } from "@/lib/time-conflict";
+import { usePatientTimeStats } from "@/hooks/usePatientTimeStats";
+import { TimeSuggestionChip } from "@/components/scheduling/TimeSuggestionChip";
+import { EMPTY_STATS, suggestReturnPickup, suggestTripDuration } from "@/lib/patient-time-prediction";
 import {
   DndContext,
   closestCenter,
@@ -397,6 +400,16 @@ export default function Scheduling() {
   const [legBLegPickupTime, setLegBLegPickupTime] = useState("");
   const [legBLegDurationHours, setLegBLegDurationHours] = useState("0");
   const [legBLegDurationMinutes, setLegBLegDurationMinutes] = useState("0");
+  // Advisory time predictions (read-only; "Use suggestion" only fills the field).
+  const legTimeStats = usePatientTimeStats([legForm.patient_id]);
+  const legPatient = patients.find(p => p.id === legForm.patient_id);
+  const legStats = (legForm.patient_id && legTimeStats.get(legForm.patient_id)) || EMPTY_STATS;
+  const legReturnSuggestion = suggestReturnPickup({
+    chairTime: legPatient?.chair_time ?? null,
+    turnaround: legStats.turnaround,
+    plannedChairMinutes: ((legPatient?.chair_time_duration_hours ?? 0) * 60) + (legPatient?.chair_time_duration_minutes ?? 0),
+  });
+  const legDurationSuggestion = suggestTripDuration({ stats: legStats.durationB, plannedMinutes: legPatient?.run_duration_minutes });
 
   // Copy from previous run
   const [copySearchOpen, setCopySearchOpen] = useState(false);
@@ -1660,6 +1673,8 @@ export default function Scheduling() {
                         <div><Label className="text-[10px] text-muted-foreground">Hours</Label><Input type="number" min={0} max={8} value={oneoffForm.b_leg_duration_hours} onChange={e => setOneoffForm(f => ({ ...f, b_leg_duration_hours: e.target.value }))} /></div>
                         <div><Label className="text-[10px] text-muted-foreground">Minutes</Label><Input type="number" min={0} max={59} value={oneoffForm.b_leg_duration_minutes} onChange={e => setOneoffForm(f => ({ ...f, b_leg_duration_minutes: e.target.value }))} /></div>
                       </div>
+                      <TimeSuggestionChip label="Typical trip" suggestion={suggestTripDuration({ stats: EMPTY_STATS.durationB, plannedMinutes: null })} format={(v) => `~${v} min`}
+                        onUse={(v) => { const m = Number(v); setOneoffForm(f => ({ ...f, b_leg_duration_hours: String(Math.floor(m / 60)), b_leg_duration_minutes: String(m % 60) })); }} />
                     </div>
                   </div>
                 )}
@@ -1791,13 +1806,16 @@ export default function Scheduling() {
                 </div>
                 {legNeedsBLeg && (
                   <div className="space-y-3 rounded-md border bg-muted/20 p-3">
-                    <div><Label>B-leg Pickup Time</Label><Input type="time" value={legBLegPickupTime} onChange={(e) => setLegBLegPickupTime(e.target.value)} /></div>
+                    <div><Label>B-leg Pickup Time</Label><Input type="time" value={legBLegPickupTime} onChange={(e) => setLegBLegPickupTime(e.target.value)} />
+                      <TimeSuggestionChip label="Suggested return pickup" suggestion={legReturnSuggestion} onUse={(v) => setLegBLegPickupTime(String(v))} /></div>
                     <div>
                       <Label>Duration</Label>
                       <div className="grid grid-cols-2 gap-2 mt-1">
                         <div><Label className="text-[10px] text-muted-foreground">Hours</Label><Input type="number" min={0} max={8} value={legBLegDurationHours} onChange={e => setLegBLegDurationHours(e.target.value)} /></div>
                         <div><Label className="text-[10px] text-muted-foreground">Minutes</Label><Input type="number" min={0} max={59} value={legBLegDurationMinutes} onChange={e => setLegBLegDurationMinutes(e.target.value)} /></div>
                       </div>
+                      <TimeSuggestionChip label="Typical trip" suggestion={legDurationSuggestion} format={(v) => `~${v} min`}
+                        onUse={(v) => { const m = Number(v); setLegBLegDurationHours(String(Math.floor(m / 60))); setLegBLegDurationMinutes(String(m % 60)); }} />
                     </div>
                   </div>
                 )}
