@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { MASTER_INSPECTION_ITEMS, INSPECTION_CATEGORIES, getAllItemKeys } from "@/lib/vehicle-inspection-items";
 import { CrewLayout } from "@/components/crew/CrewLayout";
+import { checkoffBanner, ensureSelfReviewedNotification } from "@/lib/inspection-review";
 
 interface ItemState {
   status: "ok" | "missing" | null;
@@ -24,6 +25,7 @@ export default function CrewInspectionChecklist() {
   const [enabledKeys, setEnabledKeys] = useState<string[]>(getAllItemKeys());
   const [itemStates, setItemStates] = useState<Record<string, ItemState>>({});
   const [submittedInspection, setSubmittedInspection] = useState<any>(null);
+  const [reviewAlerts, setReviewAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -60,6 +62,15 @@ export default function CrewInspectionChecklist() {
 
     if (existing) {
       setSubmittedInspection(existing);
+      const { data: ra } = await supabase
+        .from("vehicle_inspection_alerts")
+        .select("dispatcher_response, dispatcher_note")
+        .eq("inspection_id", (existing as any).id);
+      setReviewAlerts(ra ?? []);
+      if ((existing as any).reviewed_at && user?.id) {
+        // Notify once per person per truck per day (covers crews assigned after the review).
+        ensureSelfReviewedNotification(user.id, (crewRow.truck as any)?.name ?? "", today).catch(() => {});
+      }
       setLoading(false);
       return;
     }
@@ -77,7 +88,7 @@ export default function CrewInspectionChecklist() {
     }
 
     setLoading(false);
-  }, [profileId, today]);
+  }, [profileId, today, user?.id]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -260,6 +271,23 @@ export default function CrewInspectionChecklist() {
             </div>
             <Lock className="h-4 w-4 text-muted-foreground ml-auto" />
           </div>
+
+          {(() => {
+            const si = submittedInspection as any;
+            const tone = checkoffBanner(si, reviewAlerts);
+            const hold = reviewAlerts.find((a) => a.dispatcher_response === "hold");
+            const cls = tone === "green"
+              ? "border-[hsl(var(--status-green))]/40 bg-[hsl(var(--status-green))]/10 text-[hsl(var(--status-green))]"
+              : tone === "red"
+                ? "border-destructive/40 bg-destructive/10 text-destructive"
+                : "border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]";
+            const text = tone === "red"
+              ? `Dispatch placed a HOLD on this truck${hold?.dispatcher_note ? ` — ${hold.dispatcher_note}` : ""}. Do not depart until dispatch clears it.`
+              : tone === "green"
+                ? `Checkoff completed by ${si.submitted_by_name ?? "crew"} at ${new Date(si.submitted_at).toLocaleTimeString()} and reviewed by dispatch (${si.reviewed_by_name ?? ""}, ${new Date(si.reviewed_at).toLocaleTimeString()}). No need to redo it.`
+                : "Checkoff submitted — not yet reviewed by dispatch. No need to redo it.";
+            return <div className={`rounded-lg border p-3 text-xs font-medium ${cls}`}>{text}</div>;
+          })()}
 
           {INSPECTION_CATEGORIES.map(cat => {
             const catItems = (items ?? []).filter((i: any) => i.category === cat);
