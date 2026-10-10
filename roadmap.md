@@ -26,3 +26,6 @@
 - [x] Stage 5 billing readers on payer_class (hardened vocabulary, claim payer_class, commercial pricing fix)
 - [ ] Stage 6: both intake forms — top-level axes, clinical/payer visibility, visible-field validation, legacy persistence, tests and signed-in verification
 - [ ] Stage 7: source-of-truth cutover (awaiting owner review)
+
+# Roadmap — patient time prediction
+- [x] Prediction lib + tests, company-scoped stats hook, advisory chips (Scheduling, Patients, truck slots)
