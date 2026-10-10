@@ -69,7 +69,7 @@ export function TruckCheckoffSection({ truckId, truckName, runDate }: { truckId:
       reviewerUserId: user.id, reviewerName: prof?.full_name ?? user.email ?? "", note,
     });
     setSaving(false);
-    if (!res.ok) { toast.error("Could not mark reviewed", { description: res.error }); return; }
+    if (res.ok === false) { toast.error("Could not mark reviewed", { description: res.error }); return; }
     toast.success("Checkoff marked reviewed — crew notified");
     setNote("");
     load();
