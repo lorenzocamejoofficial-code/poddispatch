@@ -6,6 +6,7 @@ import { getLocalToday } from "@/lib/local-date";
 import { supabase } from "@/integrations/supabase/client";
 import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { TruckCard } from "@/components/dispatch/TruckCard";
+import { TruckCheckoffSection } from "@/components/inspection/TruckCheckoffSection";
 import { AlertsPanel } from "@/components/dispatch/AlertsPanel";
 import { OperationalAlertsPanel, type OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
 import { FailedCallsBanner } from "@/components/dispatch/FailedCallsBanner";
@@ -708,6 +709,7 @@ export default function DispatchBoard() {
                     readOnly
                     overriddenLegIds={overriddenLegIds}
                     forceExpanded={allExpanded}
+                    footer={<TruckCheckoffSection truckId={t.id} truckName={t.name} runDate={selectedDate} />}
                   />
                 ))}
               </div>

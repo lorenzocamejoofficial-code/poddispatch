@@ -21,6 +21,8 @@ interface InspectionRecord {
   missing_count: number;
   status: string;
   items_checked: any[];
+  reviewed_by_name: string | null;
+  reviewed_at: string | null;
 }
 
 interface AlertRecord {
@@ -55,6 +57,7 @@ export function VehicleInspectionsTab() {
     let inspQuery = supabase
       .from("vehicle_inspections" as any)
       .select("*, truck:trucks!vehicle_inspections_truck_id_fkey(name)")
+      .eq("company_id", (await getActiveCompanyId()) ?? NO_COMPANY)
       .gte("run_date", dateFrom)
       .lte("run_date", dateTo)
       .order("run_date", { ascending: false });
@@ -82,6 +85,8 @@ export function VehicleInspectionsTab() {
       missing_count: r.missing_count,
       status: r.status,
       items_checked: r.items_checked ?? [],
+      reviewed_by_name: r.reviewed_by_name ?? null,
+      reviewed_at: r.reviewed_at ?? null,
     }));
 
     setInspections(mapped);
@@ -101,6 +106,8 @@ export function VehicleInspectionsTab() {
       "Total Items": i.total_items,
       "Flagged Items": i.missing_count,
       Status: i.status === "has_missing" ? "Has Missing" : "Complete",
+      "Reviewed By": i.reviewed_by_name ?? "",
+      "Reviewed At": i.reviewed_at ? new Date(i.reviewed_at).toLocaleString() : "",
     }));
     downloadCSV(rows, `vehicle-inspections-${dateFrom}-to-${dateTo}.csv`);
   };
@@ -154,6 +161,7 @@ export function VehicleInspectionsTab() {
                 <th className="px-4 py-3 text-center">Flagged</th>
                 <th className="px-4 py-3 text-center">Status</th>
                 <th className="px-4 py-3 text-center">Acknowledged</th>
+                <th className="px-4 py-3 text-left">Reviewed</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -194,6 +202,9 @@ export function VehicleInspectionsTab() {
                           <AlertTriangle className="h-4 w-4 text-destructive mx-auto" />
                         )}
                       </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {insp.reviewed_at ? `${insp.reviewed_by_name ?? ""} · ${new Date(insp.reviewed_at).toLocaleString()}` : "—"}
+                      </td>
                       <td className="px-4 py-3 text-right">
                         {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                       </td>
@@ -202,7 +213,7 @@ export function VehicleInspectionsTab() {
                     {/* Expanded detail row */}
                     {isExpanded && (
                       <tr>
-                        <td colSpan={8} className="bg-muted/10 p-0">
+                        <td colSpan={9} className="bg-muted/10 p-0">
                           <div className="p-4 space-y-3">
                             <div className="text-xs text-muted-foreground">
                               Submitted {new Date(insp.submitted_at).toLocaleString()} by {insp.submitted_by_name ?? "Unknown"}
