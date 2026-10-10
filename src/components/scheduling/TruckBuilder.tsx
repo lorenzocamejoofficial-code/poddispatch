@@ -766,6 +766,7 @@ const TruckCard = memo(function TruckCard({
   const expanded = legsExpanded || forceExpanded;
   const visibleLegs = expanded ? tLegs : tLegs.slice(0, VISIBLE_LEG_COUNT);
   const hiddenLegCount = tLegs.length - VISIBLE_LEG_COUNT;
+  const patientTimeStats = usePatientTimeStats(tLegs.map((l) => l.patient_id));
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `truck-drop-${truck.id}`,
