@@ -9,8 +9,9 @@
  */
 import { el, wrap, xmlEscape } from "./xml-utils";
 
-/** A leaf value, an explicit Not Value (NV) or a nil Pertinent Negative (PN). */
-export type EmsValue = string | { nv: string } | { pn: string };
+/** A leaf value, an explicit Not Value (NV), a nil Pertinent Negative (PN),
+ *  or a real value qualified by a PN (e.g. 8801029 "Approximate"). */
+export type EmsValue = string | { nv: string } | { pn: string; value?: string };
 type Many = EmsValue[] | undefined;
 
 export interface EmsResponse {
@@ -245,7 +246,10 @@ export interface EmsRecordData {
 function v(tag: string, val: EmsValue | undefined, attrs: Record<string, string> | null = null): string {
   if (val === undefined) return "";
   if (typeof val === "object") {
-    if ("pn" in val) return `<${tag} xsi:nil="true" PN="${xmlEscape(val.pn)}"/>`;
+    if ("pn" in val) {
+      if (val.value !== undefined) return el(tag, { ...(attrs ?? {}), PN: val.pn }, val.value);
+      return `<${tag} xsi:nil="true" PN="${xmlEscape(val.pn)}"/>`;
+    }
     return `<${tag} xsi:nil="true" NV="${xmlEscape(val.nv)}"/>`;
   }
   return el(tag, attrs, val);

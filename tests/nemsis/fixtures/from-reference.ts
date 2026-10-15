@@ -22,7 +22,8 @@ function many(src: string, tag: string): EmsValue[] {
   return [...src.matchAll(re)].map((m) => {
     const pn = m[1].match(/PN="([^"]*)"/)?.[1];
     const nv = m[1].match(/NV="([^"]*)"/)?.[1];
-    if (pn) return { pn };
+    const text = (m[2] ?? "").trim();
+    if (pn) return text ? { pn, value: text } : { pn };
     if (nv) return { nv };
     return (m[2] ?? "").trim();
   });
