@@ -16,6 +16,7 @@ const ctx: ExportContext = {
   state: "GA",
   test_mode: true,
   software: { name: "Pod Dispatch", version: "1.0.0" },
+  custom_configuration_registered: true,
 };
 
 const input: PcrExportInput = {
@@ -97,6 +98,11 @@ describe("NEMSIS eRecord exporter", () => {
     expect(xml).toContain("GA-LoadedMiles");
     expect(xml).toContain("GA-WaitTimeMinutes");
     expect(xml).toContain("GA-VendorSoftware");
+  });
+
+  it("omits eCustom when no custom configuration is registered", () => {
+    const xml = buildERecord(input, { ...ctx, custom_configuration_registered: false });
+    expect(xml.includes("eCustomResults")).toBe(false);
   });
 
   it("omits GA eCustom when state is not GA", () => {

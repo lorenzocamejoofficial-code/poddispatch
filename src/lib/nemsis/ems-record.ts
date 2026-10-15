@@ -19,7 +19,6 @@ export interface EmsResponse {
   incident_number?: EmsValue;              // .03
   response_number: EmsValue;               // .04
   type_of_service: EmsValue;               // .05
-  service_level?: EmsValue;                // .15? (not used by EMS-1)
   unit_transport_capability: EmsValue;     // .07
   dispatch_delays: EmsValue[];             // .08
   response_delays: EmsValue[];             // .09
