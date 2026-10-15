@@ -1,5 +1,5 @@
 import { tripStatusLabel } from "@/lib/trip-status";
-import { memo, useEffect, useState, useCallback } from "react";
+import { memo, useEffect, useMemo, useState, useCallback } from "react";
 import { ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
