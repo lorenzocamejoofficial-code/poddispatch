@@ -9,8 +9,9 @@
  */
 import { el, wrap, xmlEscape } from "./xml-utils";
 
-/** A leaf value, an explicit Not Value (NV) or a nil Pertinent Negative (PN). */
-export type EmsValue = string | { nv: string } | { pn: string };
+/** A leaf value, an explicit Not Value (NV), a nil Pertinent Negative (PN),
+ *  or a real value qualified by a PN (e.g. 8801029 "Approximate"). */
+export type EmsValue = string | { nv: string } | { pn: string; value?: string };
 type Many = EmsValue[] | undefined;
 
 export interface EmsResponse {
@@ -245,11 +246,16 @@ export interface EmsRecordData {
 function v(tag: string, val: EmsValue | undefined, attrs: Record<string, string> | null = null): string {
   if (val === undefined) return "";
   if (typeof val === "object") {
-    if ("pn" in val) return `<${tag} xsi:nil="true" PN="${xmlEscape(val.pn)}"/>`;
+    if ("pn" in val) {
+      if (val.value !== undefined) return el(tag, { ...(attrs ?? {}), PN: val.pn }, val.value);
+      return `<${tag} xsi:nil="true" PN="${xmlEscape(val.pn)}"/>`;
+    }
     return `<${tag} xsi:nil="true" NV="${xmlEscape(val.nv)}"/>`;
   }
   return el(tag, attrs, val);
 }
+/** Wrap only when the group has content — groups absent from the data are omitted. */
+const wrapIf = (tag: string, inner: string) => (inner ? wrap(tag, null, inner) : "");
 const many = (tag: string, vals: Many) => (vals ?? []).map((x) => v(tag, x)).join("");
 const n = (s: string, k: string) => `${s}.${k}`;
 
@@ -267,10 +273,10 @@ export function renderRecordSection(id: string, software: { name: string; versio
 function response(r: EmsResponse): string {
   const s = "eResponse";
   return wrap(s, null,
-    wrap("eResponse.AgencyGroup", null, v(n(s, "01"), r.agency_number) + v(n(s, "02"), r.agency_name)) +
+    wrapIf("eResponse.AgencyGroup", v(n(s, "01"), r.agency_number) + v(n(s, "02"), r.agency_name)) +
     v(n(s, "03"), r.incident_number) +
     v(n(s, "04"), r.response_number) +
-    wrap("eResponse.ServiceGroup", null, v(n(s, "05"), r.type_of_service)) +
+    wrapIf("eResponse.ServiceGroup", v(n(s, "05"), r.type_of_service)) +
     v(n(s, "07"), r.unit_transport_capability) +
     many(n(s, "08"), r.dispatch_delays) + many(n(s, "09"), r.response_delays) +
     many(n(s, "10"), r.scene_delays) + many(n(s, "11"), r.transport_delays) +
@@ -291,7 +297,7 @@ function patient(p: EmsPatient): string {
   return wrap(s, null,
     name + v(n(s, "07"), p.home_county) + v(n(s, "08"), p.home_state) + v(n(s, "09"), p.home_zip) +
     v(n(s, "13"), p.gender) + many(n(s, "14"), p.race) +
-    wrap("ePatient.AgeGroup", null, v(n(s, "15"), p.age) + v(n(s, "16"), p.age_units)) +
+    wrapIf("ePatient.AgeGroup", v(n(s, "15"), p.age) + v(n(s, "16"), p.age_units)) +
     v(n(s, "17"), p.date_of_birth) + v(n(s, "25"), p.sex));
 }
 
@@ -349,19 +355,19 @@ function vitals(groups: EmsVitalGroup[]): string {
   const s = "eVitals";
   return wrap(s, null, groups.map((g) => wrap("eVitals.VitalGroup", null,
     v(n(s, "01"), g.datetime) + v(n(s, "02"), g.prior_to_care) +
-    wrap("eVitals.CardiacRhythmGroup", null,
+    wrapIf("eVitals.CardiacRhythmGroup",
       many(n(s, "03"), g.cardiac_rhythm) + v(n(s, "04"), g.ecg_type) + many(n(s, "05"), g.interpretation_method)) +
-    wrap("eVitals.BloodPressureGroup", null, v(n(s, "06"), g.sbp) + v(n(s, "07"), g.dbp)) +
-    wrap("eVitals.HeartRateGroup", null, v(n(s, "10"), g.heart_rate)) +
+    wrapIf("eVitals.BloodPressureGroup", v(n(s, "06"), g.sbp) + v(n(s, "07"), g.dbp)) +
+    wrapIf("eVitals.HeartRateGroup", v(n(s, "10"), g.heart_rate)) +
     v(n(s, "12"), g.spo2) + v(n(s, "14"), g.respiratory_rate) +
     (g.etco2 ? v(n(s, "16"), g.etco2.value, g.etco2.type ? { ETCO2Type: g.etco2.type } : null) : "") +
     v(n(s, "18"), g.glucose) +
-    wrap("eVitals.GlasgowScoreGroup", null,
+    wrapIf("eVitals.GlasgowScoreGroup",
       v(n(s, "19"), g.gcs_eye) + v(n(s, "20"), g.gcs_verbal) + v(n(s, "21"), g.gcs_motor) +
       many(n(s, "22"), g.gcs_qualifiers)) +
     v(n(s, "26"), g.avpu) +
-    wrap("eVitals.PainScaleGroup", null, v(n(s, "27"), g.pain_score)) +
-    wrap("eVitals.StrokeScaleGroup", null, v(n(s, "29"), g.stroke_scale_result) + v(n(s, "30"), g.stroke_scale_type)) +
+    wrapIf("eVitals.PainScaleGroup", v(n(s, "27"), g.pain_score)) +
+    wrapIf("eVitals.StrokeScaleGroup", v(n(s, "29"), g.stroke_scale_result) + v(n(s, "30"), g.stroke_scale_type)) +
     v(n(s, "31"), g.reperfusion_checklist),
   )).join(""));
 }
@@ -377,7 +383,7 @@ function medications(ms: EmsMedicationGroup[]): string {
     v(n(s, "01"), m.datetime) + v(n(s, "02"), m.prior_to_care) +
     v(n(s, "03"), m.medication.code, m.medication.code_type ? { CodeType: m.medication.code_type } : null) +
     v(n(s, "04"), m.route) +
-    wrap("eMedications.DosageGroup", null, v(n(s, "05"), m.dose) + v(n(s, "06"), m.dose_unit)) +
+    wrapIf("eMedications.DosageGroup", v(n(s, "05"), m.dose) + v(n(s, "06"), m.dose_unit)) +
     v(n(s, "07"), m.response) + many(n(s, "08"), m.complications) +
     v(n(s, "09"), m.crew_member_id) + v(n(s, "10"), m.crew_role),
   )).join(""));
@@ -397,10 +403,10 @@ function disposition(d: EmsDisposition): string {
   const s = "eDisposition";
   const dest = d.destination;
   return wrap(s, null,
-    wrap("eDisposition.DestinationGroup", null,
+    wrapIf("eDisposition.DestinationGroup",
       v(n(s, "01"), dest.name) + v(n(s, "02"), dest.code) + v(n(s, "03"), dest.street) + v(n(s, "04"), dest.city) +
       v(n(s, "05"), dest.state) + v(n(s, "06"), dest.county) + v(n(s, "07"), dest.zip)) +
-    wrap("eDisposition.IncidentDispositionGroup", null,
+    wrapIf("eDisposition.IncidentDispositionGroup",
       v(n(s, "27"), d.unit_disposition) + v(n(s, "28"), d.patient_evaluation) +
       v(n(s, "29"), d.crew_disposition) + v(n(s, "30"), d.transport_disposition)) +
     v(n(s, "16"), d.transport_method) + v(n(s, "17"), d.transport_mode) +
