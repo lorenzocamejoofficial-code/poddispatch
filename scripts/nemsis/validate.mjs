@@ -10,7 +10,7 @@
  *  3. Schematron via SaxonJS (xslt3 npm) + ISO skeleton (XSLT2):
  *     .sch -> include -> abstract-expand -> svrl stylesheet -> run -> SVRL.
  *     Prints every failed-assert and successful-report (warnings).
- * Exit code 1 if any file fails XSD or has any Schematron finding.
+ * Exit code 1 if any file fails XSD or has any Schematron error (warnings are printed but do not fail).
  */
 import { spawnSync } from "node:child_process";
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -98,7 +98,7 @@ for (const f of files) {
   for (const x of findings) {
     console.log(`    [${x.kind} role=${x.role}${x.id ? " id=" + x.id : ""}] ${x.text}\n      at ${x.location}`);
   }
-  if (findings.length) anyFail = true;
-  console.log(`  RESULT: ${xsdOk && !findings.length ? "PASS" : "FAIL"}`);
+  if (errors.length) anyFail = true;
+  console.log(`  RESULT: ${xsdOk && !errors.length ? (warnings.length ? "PASS (with warnings)" : "PASS") : "FAIL"}`);
 }
 process.exit(anyFail ? 1 : 0);
