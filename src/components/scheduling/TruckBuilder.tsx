@@ -28,6 +28,9 @@ import { CSS } from "@dnd-kit/utilities";
 import type { OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
 import { sortSchedulingLegs } from "@/lib/leg-order";
 import { usePatientTimeStats } from "@/hooks/usePatientTimeStats";
+import { useTruckDayFeasibility } from "@/hooks/useTruckDayFeasibility";
+import type { TruckDayFeasibility } from "@/lib/schedule-feasibility";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { suggestTripDuration, MIN_SAMPLES, type Suggestion } from "@/lib/patient-time-prediction";
 
 interface AvailabilityRecord {
@@ -242,6 +245,11 @@ interface HoldTimerData {
 
 export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException, onDownCountChange, activeTokens = [], operationalAlerts = [], onLogChange, onDispatcherCancel }: TruckBuilderProps) {
   const { addingLeg, setAddingLeg } = useSchedulingStore();
+  const feasibilityRefreshKey = useMemo(
+    () => legs.map((l: any) => `${l.id}:${l.assigned_truck_id ?? ""}:${l.pickup_time ?? ""}:${l.slot_order ?? ""}`).join("|"),
+    [legs],
+  );
+  const feasibilityByTruck = useTruckDayFeasibility(selectedDate, feasibilityRefreshKey);
   const [availability, setAvailability] = useState<AvailabilityRecord[]>([]);
   const [truckRisks, setTruckRisks] = useState<Map<string, TruckRiskData>>(new Map());
   const [holdTimers, setHoldTimers] = useState<HoldTimerData[]>([]);
@@ -645,6 +653,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
               onSafetyOverride={handleBadgeOverride}
               overriddenLegIds={overriddenLegIds}
               forceExpanded={allExpanded}
+              feasibility={feasibilityByTruck.get(truck.id)}
             />
           );
         })}
@@ -753,13 +762,14 @@ interface TruckCardProps {
   onSafetyOverride?: (legId: string, reasons: string[]) => void;
   overriddenLegIds?: Set<string>;
   forceExpanded?: boolean;
+  feasibility?: TruckDayFeasibility;
 }
 
 const TruckCard = memo(function TruckCard({
   truck, tLegs, crew, downRecord, isDown, hasRunsWhileDown, hasHeavy,
   first, last, hasActiveLink, utilizationColor, unassigned, addingLeg, setAddingLeg,
   onAssignLeg, onRemoveLeg, onEditException, onCancelLeg, onRestoreLeg, truckAlertCount = 0, legAlertIds = new Set(), riskData,
-  crewCapability, truckEquipment, onSafetyOverride, overriddenLegIds = new Set(), forceExpanded = false,
+  crewCapability, truckEquipment, onSafetyOverride, overriddenLegIds = new Set(), forceExpanded = false, feasibility,
 }: TruckCardProps) {
   const [legsExpanded, setLegsExpanded] = useState(false);
   const VISIBLE_LEG_COUNT = 4;
@@ -791,6 +801,28 @@ const TruckCard = memo(function TruckCard({
               {downRecord!.status === "down_maintenance" ? "MAINT" : "OUT OF SVC"}
             </Badge>
           )}
+          {feasibility && !feasibility.clear && (() => {
+            const hasError = feasibility.conflicts.some((c) => c.severity === "error");
+            const tone = hasError ? "--status-red" : "--status-yellow";
+            return (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`Schedule check: ${feasibility.conflicts.length} issue${feasibility.conflicts.length === 1 ? "" : "s"}`}
+                    title={feasibility.conflicts.map((c) => c.message).join("\n")}
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: `hsl(var(${tone}))` }}
+                  />
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-3 text-xs space-y-1.5" align="start">
+                  {feasibility.conflicts.map((c, i) => (
+                    <p key={i} className="text-foreground">{c.message}</p>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            );
+          })()}
           {truckAlertCount > 0 && !isDown && (
             <span className="inline-flex items-center gap-0.5 rounded-full bg-[hsl(var(--status-red))]/15 px-1.5 py-0.5 text-[9px] font-bold text-[hsl(var(--status-red))] shrink-0">
               <AlertCircle className="h-2.5 w-2.5" />{truckAlertCount}
