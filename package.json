@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "nemsis:validate": "node scripts/nemsis/validate.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
