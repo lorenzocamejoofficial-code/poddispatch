@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "nemsis:validate": "node scripts/nemsis/validate.mjs"
+    "nemsis:validate": "node scripts/nemsis/validate.mjs",
+    "nemsis:gen": "bun scripts/nemsis/gen-compliance.mjs",
+    "nemsis:diff": "node scripts/nemsis/diff-reference.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

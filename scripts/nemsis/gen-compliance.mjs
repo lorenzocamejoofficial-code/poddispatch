@@ -1,0 +1,29 @@
+#!/usr/bin/env bun
+/**
+ * Generate NEMSIS compliance files from dev fixtures via the real exporter.
+ * Run with bun (imports TypeScript): bun scripts/nemsis/gen-compliance.mjs
+ * Output: tests/nemsis/out/DEM-1.xml
+ */
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildDemDataSet } from "../../src/lib/nemsis/exporter.ts";
+import { DEM1_PROFILE } from "../../tests/nemsis/fixtures/dem1.ts";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const OUT = join(ROOT, "tests/nemsis/out");
+mkdirSync(OUT, { recursive: true });
+
+/** NEMSIS dateTime with local offset, e.g. 2026-10-15T02:20:00-04:00 */
+function nemsisNow(d = new Date()) {
+  const p = (n) => String(Math.abs(n)).padStart(2, "0");
+  const off = -d.getTimezoneOffset();
+  const sign = off >= 0 ? "+" : "-";
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` +
+    `${sign}${p(Math.trunc(off / 60))}:${p(off % 60)}`;
+}
+
+const xml = buildDemDataSet({ ...DEM1_PROFILE, timeStamp: nemsisNow() });
+const file = join(OUT, "DEM-1.xml");
+writeFileSync(file, xml);
+console.log(`wrote ${file} (${xml.length} bytes)`);
