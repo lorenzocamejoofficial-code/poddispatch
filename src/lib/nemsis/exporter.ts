@@ -737,17 +737,196 @@ function uuidv4(): string {
   return `${h.slice(0, 4).join("")}-${h.slice(4, 6).join("")}-${h.slice(6, 8).join("")}-${h.slice(8, 10).join("")}-${h.slice(10, 16).join("")}`;
 }
 
-/** Produce a DEMDataSet envelope wrapping agency/personnel/vehicle context. */
-export function buildDemDataSet(ctx: ExportContext): string {
+// ─────────────────────────────────────────────────────────────────────
+// DEMDataSet — data-driven demographic renderer
+// ─────────────────────────────────────────────────────────────────────
+
+/** A leaf value, or an explicit NEMSIS Not Value (e.g. 7701001 Not Applicable). */
+export type DemValue = string | { nv: string };
+
+/** dAgency.AgencyServiceGroup — one per state served. */
+export interface AgencyServiceArea {
+  uuid?: string;
+  /** dAgency.05 — ANSI state code of the state served. */
+  state: string;
+  /** dAgency.06 — county FIPS codes served (repeating). */
+  counties: string[];
+  /** dAgency.07 — census tracts served (repeating). */
+  census_tracts: string[];
+  /** dAgency.08 — ZIP codes served (repeating). */
+  zip_codes: string[];
+}
+
+/** Full dAgency demographic block. */
+export interface NemsisAgencyDemographics {
+  /** dAgency.01 — EMS agency unique state ID (e.g. "11261"). */
+  state_unique_id: string;
+  /** dAgency.02 — EMS agency number / state license ID (e.g. "351-11261"). */
+  state_license_id: string;
+  /** dAgency.03 — agency name (optional in DEM). */
+  name?: string | null;
+  /** dAgency.04 — ANSI code of the licensing state (e.g. "10"). USPS also accepted. */
+  state: string;
+  service_areas: AgencyServiceArea[];
+  /** dAgency.09 — primary type of service. */
+  primary_service_type: DemValue;
+  /** dAgency.10 — other types of service (repeating). */
+  other_service_types?: string[];
+  /** dAgency.11 — level of service. */
+  level_of_service: DemValue;
+  /** dAgency.12 — organization status. */
+  organization_status: DemValue;
+  /** dAgency.13 — organizational type. */
+  organizational_type: DemValue;
+  /** dAgency.14 — agency organizational tax status. */
+  tax_status: DemValue;
+  /** dAgency.25 — national provider identifier(s) (repeating). */
+  npis: DemValue[];
+  /** dAgency.26 — fire department ID number(s) (repeating). */
+  fire_department_ids: DemValue[];
+}
+
+export interface ConfigurationProcedureGroup {
+  uuid?: string;
+  /** dConfiguration.06 — EMS certification level permitted. */
+  certification_level: string;
+  /** dConfiguration.07 — permitted procedures, SNOMED (repeating). */
+  procedures: string[];
+}
+
+export interface ConfigurationMedication {
+  code: string;
+  /** dConfiguration.09/@CodeType (9924003 RxNorm, 9924005 SNOMED, ...). */
+  code_type?: string;
+}
+
+export interface ConfigurationMedicationGroup {
+  uuid?: string;
+  /** dConfiguration.08 — EMS certification level permitted. */
+  certification_level: string;
+  /** dConfiguration.09 — permitted medications (repeating). */
+  medications: ConfigurationMedication[];
+}
+
+/** dConfiguration.ConfigurationGroup — one per state configuration. */
+export interface NemsisConfiguration {
+  uuid?: string;
+  /** dConfiguration.01 — ANSI state code the configuration applies to. */
+  state: string;
+  procedure_groups: ConfigurationProcedureGroup[];
+  medication_groups: ConfigurationMedicationGroup[];
+  /** dConfiguration.10 — EMS agency protocols (repeating). */
+  protocols: string[];
+  /** dConfiguration.13 — emergency medical dispatch provided. */
+  emd_provided: DemValue;
+  /** dConfiguration.16 — crew call sign(s) (repeating). */
+  call_signs: string[];
+}
+
+/** Complete agency demographic profile — the input to buildDemDataSet. */
+export interface DemographicProfile {
+  agency: NemsisAgencyDemographics;
+  configurations: NemsisConfiguration[];
+  /** dRecord software identity; omitted when absent. */
+  software?: { creator: string; name: string; version: string } | null;
+  personnel?: NemsisPersonnel[];
+  vehicle?: NemsisVehicle | null;
+  /** DemographicReport/@timeStamp; defaults to now. */
+  timeStamp?: string;
+}
+
+function demLeaf(tag: string, v: DemValue | null | undefined, attrs: Record<string, string> | null = null): string {
+  if (v != null && typeof v === "object") {
+    return `<${tag} xsi:nil="true" NV="${xmlEscape(v.nv)}"/>`;
+  }
+  return el(tag, attrs, v ?? null);
+}
+
+function demList(tag: string, values: DemValue[] | undefined): string {
+  return (values ?? []).map((v) => demLeaf(tag, v)).join("");
+}
+
+function ansiState(v: string): string | null {
+  return /^[0-9]{2}$/.test(v) ? v : stateAnsiCode(v);
+}
+
+function renderDemAgency(a: NemsisAgencyDemographics): string {
+  const areas = a.service_areas.map((s) =>
+    wrap("dAgency.AgencyServiceGroup", { UUID: s.uuid ?? uuidv4() },
+      demLeaf("dAgency.05", ansiState(s.state)) +
+      demList("dAgency.06", s.counties) +
+      demList("dAgency.07", s.census_tracts) +
+      demList("dAgency.08", s.zip_codes),
+    ),
+  ).join("");
+  return wrap("dAgency", null,
+    demLeaf("dAgency.01", a.state_unique_id) +
+    demLeaf("dAgency.02", a.state_license_id) +
+    (a.name ? demLeaf("dAgency.03", a.name) : "") +
+    demLeaf("dAgency.04", ansiState(a.state)) +
+    areas +
+    demLeaf("dAgency.09", a.primary_service_type) +
+    demList("dAgency.10", a.other_service_types) +
+    demLeaf("dAgency.11", a.level_of_service) +
+    demLeaf("dAgency.12", a.organization_status) +
+    demLeaf("dAgency.13", a.organizational_type) +
+    demLeaf("dAgency.14", a.tax_status) +
+    demList("dAgency.25", a.npis) +
+    demList("dAgency.26", a.fire_department_ids),
+  );
+}
+
+function renderDemConfiguration(configs: NemsisConfiguration[]): string {
+  const groups = configs.map((c) =>
+    wrap("dConfiguration.ConfigurationGroup", { UUID: c.uuid ?? uuidv4() },
+      demLeaf("dConfiguration.01", ansiState(c.state)) +
+      c.procedure_groups.map((p) =>
+        wrap("dConfiguration.ProcedureGroup", { UUID: p.uuid ?? uuidv4() },
+          demLeaf("dConfiguration.06", p.certification_level) +
+          demList("dConfiguration.07", p.procedures),
+        ),
+      ).join("") +
+      c.medication_groups.map((m) =>
+        wrap("dConfiguration.MedicationGroup", { UUID: m.uuid ?? uuidv4() },
+          demLeaf("dConfiguration.08", m.certification_level) +
+          m.medications.map((x) =>
+            demLeaf("dConfiguration.09", x.code, x.code_type ? { CodeType: x.code_type } : null),
+          ).join(""),
+        ),
+      ).join("") +
+      demList("dConfiguration.10", c.protocols) +
+      demLeaf("dConfiguration.13", c.emd_provided) +
+      demList("dConfiguration.16", c.call_signs),
+    ),
+  ).join("");
+  return wrap("dConfiguration", null, groups);
+}
+
+/** Produce a complete DEMDataSet from a structured demographic profile.
+ *  Section order follows DEMDataSet_v3.xsd: dRecord, dAgency, dConfiguration,
+ *  dVehicle, dPersonnel. */
+export function buildDemDataSet(profile: DemographicProfile): string {
+  const sw = profile.software;
+  const dRecord = sw
+    ? wrap("dRecord", null,
+        wrap("dRecord.SoftwareApplicationGroup", null,
+          el("dRecord.01", null, sw.creator) +
+          el("dRecord.02", null, sw.name) +
+          el("dRecord.03", null, sw.version),
+        ),
+      )
+    : "";
   const demoBody =
-    renderDRecord(ctx) +
-    renderAgency(ctx.agency) +
-    renderPersonnel(ctx.personnel) +
-    renderVehicle(ctx.vehicle);
-  const timeStamp = new Date().toISOString();
+    dRecord +
+    renderDemAgency(profile.agency) +
+    renderDemConfiguration(profile.configurations) +
+    (profile.vehicle ? renderVehicle(profile.vehicle) : "") +
+    (profile.personnel?.length ? renderPersonnel(profile.personnel) : "");
+  const timeStamp = profile.timeStamp ?? new Date().toISOString();
   return `<?xml version="1.0" encoding="UTF-8"?>` +
-    `<DEMDataSet ${NEMSIS_NS}>` +
-    `<DemographicReport timeStamp="${timeStamp}">${demoBody}</DemographicReport>` +
+    `<DEMDataSet ${NEMSIS_NS}` +
+    ` xsi:schemaLocation="http://www.nemsis.org https://nemsis.org/media/nemsis_v3/3.5.1.251001CP2/XSDs/NEMSIS_XSDs/DEMDataSet_v3.xsd">` +
+    `<DemographicReport timeStamp="${xmlEscape(timeStamp)}">${demoBody}</DemographicReport>` +
     `</DEMDataSet>`;
 }
 
