@@ -839,7 +839,7 @@ function demLeaf(tag: string, v: DemValue | null | undefined, attrs: Record<stri
   if (v != null && typeof v === "object") {
     return `<${tag} xsi:nil="true" NV="${xmlEscape(v.nv)}"/>`;
   }
-  return el(tag, attrs, v ?? null);
+  return el(tag, attrs, typeof v === "string" ? v : null);
 }
 
 function demList(tag: string, values: DemValue[] | undefined): string {
