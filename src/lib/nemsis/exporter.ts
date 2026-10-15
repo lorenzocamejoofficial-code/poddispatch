@@ -37,12 +37,17 @@ import { toCode } from "../nemsis-translate";
 import { findByCode, findByDisplay } from "../nemsis-code-sets";
 import { el, wrap, xmlEscape } from "./xml-utils";
 import { renderGeorgiaCustom } from "./states/ga";
+import { renderEmsSections, renderRecordSection, type EmsRecordData } from "./ems-record";
+export type * from "./ems-record";
 
 export interface NemsisAgency {
   npi: string | null;
   name: string;
   state_ems_agency_number: string | null;
   state_ems_license_state: string | null;
+  /** dAgency.01 in Header/DemographicGroup (state unique agency ID, e.g. "11261").
+   *  Falls back to state_ems_agency_number when absent (legacy behavior). */
+  state_unique_id?: string | null;
 }
 
 export interface NemsisPersonnel {
@@ -72,6 +77,10 @@ export interface ExportContext {
     name: string;      // "Pod Dispatch"
     version: string;   // semver of the running build
   };
+  /** True only when the state's eCustomConfiguration is actually registered
+   *  with matching CustomElementIDs. eCustomResults is emitted only then —
+   *  referencing unregistered IDs raises a Schematron warning. */
+  custom_configuration_registered?: boolean;
 }
 
 /** NEMSIS namespaces required on the root envelope. */
@@ -611,9 +620,10 @@ function renderDemographicGroup(agency: NemsisAgency): string {
   //   dAgency.02 — state-issued license identifier
   //   dAgency.04 — ANSI state code, 2-digit numeric (e.g. GA=13)
   const parts: string[] = [];
-  parts.push(el("dAgency.01", null, agency.state_ems_agency_number));
+  parts.push(el("dAgency.01", null, agency.state_unique_id ?? agency.state_ems_agency_number));
   parts.push(el("dAgency.02", null, agency.state_ems_agency_number));
-  parts.push(el("dAgency.04", null, stateAnsiCode(agency.state_ems_license_state)));
+  const st = agency.state_ems_license_state;
+  parts.push(el("dAgency.04", null, st && /^[0-9]{2}$/.test(st) ? st : stateAnsiCode(st)));
   return wrap("DemographicGroup", null, parts.join(""));
 }
 
@@ -685,12 +695,23 @@ function renderVehicle(vehicle: NemsisVehicle | null): string {
 export interface PcrExportInput {
   trip: Record<string, unknown>;
   patient: Record<string, unknown> | null;
+  /** Optional fully-structured eRecord content. When present, every section
+   *  is rendered from it (exact element set, no defaults/sentinels); when
+   *  absent, the legacy trip_records mapping is used. */
+  nemsis?: EmsRecordData;
+  /** Optional fixed PatientCareReport/@UUID (generated when absent). */
+  pcr_uuid?: string;
 }
 
 /** Produce a single-eRecord NEMSIS 3.5.1 XML string (Web Service payload). */
 export function buildERecord(input: PcrExportInput, ctx: ExportContext): string {
   const { trip, patient } = input;
   const tripId = String(trip.id ?? "");
+  const custom = ctx.state === "GA" && ctx.custom_configuration_registered === true
+    ? renderGeorgiaCustom(trip, ctx) : "";
+  if (input.nemsis) {
+    return renderRecordSection(input.nemsis.record_id, ctx.software) + renderEmsSections(input.nemsis) + custom;
+  }
 
   const body = [
     renderHeader(ctx, tripId),
@@ -715,8 +736,6 @@ export function buildERecord(input: PcrExportInput, ctx: ExportContext): string 
     renderOutcome(),
   ].join("");
 
-  // State-specific eCustom block, isolated per-state.
-  const custom = ctx.state === "GA" ? renderGeorgiaCustom(trip, ctx) : "";
 
   // Returns the ordered sibling sections that go inside <PatientCareReport>.
   // (The name buildERecord is historical — kept for API stability.)
@@ -936,7 +955,7 @@ export function buildDemDataSet(profile: DemographicProfile): string {
  *  for both file-upload and Web Service POST submissions. */
 export function buildEmsDataSet(input: PcrExportInput, ctx: ExportContext): string {
   const eRecord = buildERecord(input, ctx);
-  const pcrUuid = uuidv4();
+  const pcrUuid = input.pcr_uuid ?? uuidv4();
   const pcr = `<PatientCareReport UUID="${pcrUuid}">${eRecord}</PatientCareReport>`;
   // NEMSIS 3.5.1: PatientCareReport lives INSIDE Header, after DemographicGroup.
   const header = wrap("Header", null, renderDemographicGroup(ctx.agency) + pcr);

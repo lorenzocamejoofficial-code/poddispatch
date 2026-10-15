@@ -26,7 +26,7 @@ const ctx: ExportContext = {
   ],
   state: "GA",
   test_mode: true,
-  software: { name: "Pod Dispatch", version: "3.5.1" },
+  software: { name: "Pod Dispatch", version: "1.0" },
 };
 
 const input: PcrExportInput = {
