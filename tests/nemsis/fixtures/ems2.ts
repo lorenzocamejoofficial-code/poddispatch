@@ -1,4 +1,20 @@
-/** Dev-only fixture: NEMSIS 2026 EMS 2 (Drowning), mapped from the official reference. No PHI. */
-import { loadEmsReference } from "./from-reference";
+/** Dev-only fixture: NEMSIS 2026 EMS 2 (Stroke) live certification case, emitted
+ *  losslessly via raw_reference (only software identity is stamped). No PHI. */
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { ExportContext, PcrExportInput } from "../../../src/lib/nemsis/exporter";
 
-export const { input: EMS2_INPUT, ctx: EMS2_CTX } = loadEmsReference("2026-EMS-2-Drowning_v351.xml");
+const REF = join(dirname(fileURLToPath(import.meta.url)), "../reference/live/2026-EMS-2-Stroke_v351.xml");
+
+export const EMS2_CTX: ExportContext = {
+  agency: { npi: null, name: "", state_unique_id: "", state_ems_agency_number: "", state_ems_license_state: "" },
+  vehicle: null,
+  personnel: [],
+  state: "GA",
+  test_mode: true,
+  software: { name: "Pod Dispatch", version: "1.0" },
+  custom_configuration_registered: false,
+};
+
+export const EMS2_INPUT: PcrExportInput = { trip: {}, patient: null, raw_reference: readFileSync(REF, "utf8") };
