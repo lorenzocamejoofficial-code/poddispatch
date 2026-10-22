@@ -46,11 +46,9 @@ describe("DEM lossless compliance", () => {
     });
   }
 
-  it("preserves original submission bytes apart from the two additive custom changes", () => {
-    const original = readFileSync("src/lib/nemsis/fixtures/dem1-submission.xml", "utf8");
-    const restored = reference.replace(/ CorrelationID="personnel-[^"]+"/g, "")
-      .replace(/\n    <dCustomResults>[\s\S]*?<\/dCustomResults>/, "");
-    expect(restored).toBe(original);
+  it("matches the corrected submission source including both additive custom changes", () => {
+    const submission = readFileSync("src/lib/nemsis/fixtures/dem1-submission.xml", "utf8");
+    expect(reference).toBe(submission);
     expect(reference).not.toContain("<dCustomConfiguration");
     expect(elements(parse(reference), "dCustomResults.ResultsGroup")).toHaveLength(5);
   });

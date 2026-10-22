@@ -34,3 +34,7 @@
 - [x] Lossless DEM export and auditable personnel custom IDs
 - [x] Corrected fixture/submitted copy, XSD/Schematron, byte comparison and full tests
 - [ ] Resolve baseline DEM compliance findings — blocked on owner decision: original source has 3 contact-mobile errors and 1 vehicle-cost warning; changing those sections is expressly out of scope
+
+# Roadmap — corrected CTA payload wiring
+- [x] Promote all six corrected references to submission sources, preserve original software identity, and neutralize insertion scripts
+- [x] Regenerate edge fixtures only, verify payload parity, run all six validators and full tests, deploy unchanged CTA logic
