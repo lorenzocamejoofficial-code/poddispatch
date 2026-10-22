@@ -847,6 +847,8 @@ export interface NemsisConfiguration {
 
 /** Complete agency demographic profile — the input to buildDemDataSet. */
 export interface DemographicProfile {
+  /** Lossless compliance XML; only dRecord.01/.02/.03 software identity is stamped. */
+  raw_reference?: string;
   agency: NemsisAgencyDemographics;
   configurations: NemsisConfiguration[];
   /** dRecord software identity; omitted when absent. */
@@ -928,6 +930,18 @@ function renderDemConfiguration(configs: NemsisConfiguration[]): string {
  *  Section order follows DEMDataSet_v3.xsd: dRecord, dAgency, dConfiguration,
  *  dVehicle, dPersonnel. */
 export function buildDemDataSet(profile: DemographicProfile): string {
+  if (profile.raw_reference != null) {
+    const sw = profile.software;
+    if (!sw) throw new Error("raw_reference: DEM software identity is required");
+    const seen = new Set<string>();
+    const out = profile.raw_reference.replace(/<dRecord\.0([123])>[^<]*<\/dRecord\.0\1>/g, (_match, d: string) => {
+      if (seen.has(d)) throw new Error(`raw_reference: duplicate dRecord.0${d}`);
+      seen.add(d);
+      return `<dRecord.0${d}>${xmlEscape(d === "3" ? sw.version : sw.name)}</dRecord.0${d}>`;
+    });
+    if (seen.size !== 3) throw new Error(`raw_reference: expected dRecord.01/.02/.03, found ${seen.size}`);
+    return out;
+  }
   const sw = profile.software;
   const dRecord = sw
     ? wrap("dRecord", null,
