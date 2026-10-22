@@ -117,3 +117,16 @@ describe("NEMSIS eRecord exporter", () => {
     expect(xml).toContain('NV="7701003"');
   });
 });
+import { buildEmsDataSet as __build } from "./exporter";
+describe("raw_reference lossless path", () => {
+  const ctx = { agency: { npi: null, name: "" }, vehicle: null, personnel: [], state: "GA", test_mode: true,
+    software: { name: "Pod Dispatch", version: "1.0" } } as never;
+  const src = `<x><eRecord.02>Old</eRecord.02><eRecord.03>Old</eRecord.03><eRecord.04>9</eRecord.04><ePatient.14>A</ePatient.14><ePatient.14>B</ePatient.14></x>`;
+  it("emits verbatim except software identity", () => {
+    expect(__build({ trip: {}, patient: null, raw_reference: src }, ctx)).toBe(
+      `<x><eRecord.02>Pod Dispatch</eRecord.02><eRecord.03>Pod Dispatch</eRecord.03><eRecord.04>1.0</eRecord.04><ePatient.14>A</ePatient.14><ePatient.14>B</ePatient.14></x>`);
+  });
+  it("throws when software tags are missing", () => {
+    expect(() => __build({ trip: {}, patient: null, raw_reference: "<x/>" }, ctx)).toThrow();
+  });
+});

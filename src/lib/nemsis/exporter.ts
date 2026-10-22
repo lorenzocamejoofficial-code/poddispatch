@@ -701,6 +701,9 @@ export interface PcrExportInput {
   nemsis?: EmsRecordData;
   /** Optional fixed PatientCareReport/@UUID (generated when absent). */
   pcr_uuid?: string;
+  /** Lossless compliance path: full source EMSDataSet XML. When present,
+   *  buildEmsDataSet emits it verbatim, stamping only eRecord.02/.03/.04. */
+  raw_reference?: string;
 }
 
 /** Produce a single-eRecord NEMSIS 3.5.1 XML string (Web Service payload). */
@@ -954,6 +957,7 @@ export function buildDemDataSet(profile: DemographicProfile): string {
  *  Compliance Testing web service (and the TAC pre-testing tools) expect
  *  for both file-upload and Web Service POST submissions. */
 export function buildEmsDataSet(input: PcrExportInput, ctx: ExportContext): string {
+  if (input.raw_reference != null) return stampSoftware(input.raw_reference, ctx);
   const eRecord = buildERecord(input, ctx);
   const pcrUuid = input.pcr_uuid ?? uuidv4();
   const pcr = `<PatientCareReport UUID="${pcrUuid}">${eRecord}</PatientCareReport>`;
@@ -975,3 +979,15 @@ export const buildStateDataSet = buildEmsDataSet;
 export { renderGeorgiaCustom };
 // xmlEscape re-export lets tests assert escaping without touching internals.
 export { xmlEscape };
+/** Replace only the software identity (eRecord.02/.03 = name, .04 = version). */
+export function stampSoftware(xml: string, ctx: ExportContext): string {
+  const name = xmlEscape(ctx.software?.name ?? "Pod Dispatch");
+  const version = xmlEscape(ctx.software?.version ?? "1.0");
+  let hits = 0;
+  const out = xml.replace(/<eRecord\.0([234])>[^<]*<\/eRecord\.0\1>/g, (_m, d) => {
+    hits++;
+    return `<eRecord.0${d}>${d === "4" ? version : name}</eRecord.0${d}>`;
+  });
+  if (hits !== 3) throw new Error(`raw_reference: expected eRecord.02/.03/.04, found ${hits}`);
+  return out;
+}
