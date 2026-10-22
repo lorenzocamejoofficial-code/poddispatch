@@ -12,6 +12,7 @@ export const DEM1_PROFILE: DemographicProfile = {
     state_unique_id: "04568", state_license_id: "351-073-92", state: "13",
     service_areas: [], primary_service_type: "9920001", level_of_service: "9917007",
     organization_status: "1016001", organizational_type: "9912007", tax_status: "1018001",
+    npis: [], fire_department_ids: [],
   },
   configurations: [],
   software: { creator: "PodDispatch", name: "PodDispatch", version: "1.0" },
