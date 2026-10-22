@@ -41,12 +41,12 @@
         <eDispatch.02 NV="7701003" xsi:nil="true"/>
       </eDispatch>
       <eCrew>
-        <eCrew.CrewGroup>
+        <eCrew.CrewGroup CorrelationID="c2">
           <eCrew.01>P355418</eCrew.01>
           <eCrew.02>9925035</eCrew.02>
           <eCrew.03>2403007</eCrew.03>
         </eCrew.CrewGroup>
-        <eCrew.CrewGroup>
+        <eCrew.CrewGroup CorrelationID="c1">
           <eCrew.01>P480510</eCrew.01>
           <eCrew.02>9925035</eCrew.02>
           <eCrew.03>2403011</eCrew.03>
@@ -80,6 +80,7 @@
         <ePatient.11>13105000300</ePatient.11>
         <ePatient.13 NV="7701003" xsi:nil="true"/>
         <ePatient.14>2514005</ePatient.14>
+        <ePatient.14>2514011</ePatient.14>
         <ePatient.AgeGroup>
           <ePatient.15>67</ePatient.15>
           <ePatient.16>2516009</ePatient.16>
@@ -176,8 +177,13 @@
         </eHistory.PractitionerGroup>
         <eHistory.05>3105009</eHistory.05>
         <eHistory.06>8896</eHistory.06>
+        <eHistory.06 CodeType="9924001">Z88.7</eHistory.06>
         <eHistory.07>444316004</eHistory.07>
         <eHistory.08>021008F</eHistory.08>
+        <eHistory.08>02HA4QZ</eHistory.08>
+        <eHistory.08>02UW3LZ</eHistory.08>
+        <eHistory.08>I10</eHistory.08>
+        <eHistory.08>I50.22</eHistory.08>
         <eHistory.ImmunizationsGroup>
           <eHistory.10 PN="8801025">9910019</eHistory.10>
         </eHistory.ImmunizationsGroup>
@@ -355,6 +361,7 @@
           <eExam.06>3506035</eExam.06>
           <eExam.07>3507029</eExam.07>
           <eExam.09>3509019</eExam.09>
+          <eExam.09>3509021</eExam.09>
           <eExam.AbdomenGroup>
             <eExam.10>3510001</eExam.10>
             <eExam.11>3511037</eExam.11>
@@ -492,6 +499,7 @@
           <eDisposition.25 NV="7701001" xsi:nil="true"/>
         </eDisposition.HospitalTeamActivationGroup>
         <eDisposition.26>4226003</eDisposition.26>
+        <eDisposition.26>4226007</eDisposition.26>
         <eDisposition.32>4232011</eDisposition.32>
       </eDisposition>
       <eOutcome>
@@ -511,6 +519,18 @@
         <eOutcome.16 NV="7701001" xsi:nil="true"/>
         <eOutcome.18 NV="7701001" xsi:nil="true"/>
       </eOutcome>
+      <eCustomResults>
+        <eCustomResults.ResultsGroup>
+          <eCustomResults.01>969467142250</eCustomResults.01>
+          <eCustomResults.02>eCrew.901</eCustomResults.02>
+          <eCustomResults.03>c2</eCustomResults.03>
+        </eCustomResults.ResultsGroup>
+        <eCustomResults.ResultsGroup>
+          <eCustomResults.01>495613765812</eCustomResults.01>
+          <eCustomResults.02>eCrew.901</eCustomResults.02>
+          <eCustomResults.03>c1</eCustomResults.03>
+        </eCustomResults.ResultsGroup>
+      </eCustomResults>
       <eOther>
         <eOther.08>P480510</eOther.08>
       </eOther>
