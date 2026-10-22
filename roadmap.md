@@ -29,3 +29,7 @@
 
 # Roadmap — patient time prediction
 - [x] Prediction lib + tests, company-scoped stats hook, advisory chips (Scheduling, Patients, truck slots)
+
+# Roadmap — lossless DEM-1 correction
+- [ ] Lossless DEM export and auditable personnel custom IDs
+- [ ] Corrected fixture/submitted copy, XSD/Schematron, byte comparison and full tests
