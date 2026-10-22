@@ -128,7 +128,6 @@ const CASES = [
       insertAfter(L, { re: R("eHistory.08") }, many("eHistory.08", ["Z87.440"]));
       const AG = /<eExam\.AssessmentGroup>/;
       insertAfter(L, { re: R("eExam.19"), scope: AG, scopeN: 1 }, many("eExam.19", ["3519023", "3519047"]));
-      insertAfter(L, { re: R("eExam.20"), scope: AG, scopeN: 1 }, many("eExam.20", ["3520021"]));
       insertAfter(L, { re: R("eExam.19"), scope: AG, scopeN: 2 }, many("eExam.19", ["3519011", "3519013"]));
       insertAfter(L, { re: R("eDisposition.18") }, many("eDisposition.18", ["4218015"]));
       const OG = /<eOther\.EMSCrewMemberGroup>/;
