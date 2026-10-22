@@ -1,70 +1,35 @@
-# Patient time prediction — trace findings and proposed design
+# NEMSIS EMS 1–5 compliance fix (lossless export + live cases)
 
-## Trace findings
+## Sourcing the live-case references
+No git history recovery is needed. The Oct-4 live-case submission files are already committed verbatim in the project:
 
-### 1. Actual-time data recorded today
-**trip_records (crew PCR time card, one row per leg):**
-- `dispatch_time` (unit notified), `in_service_time` (en route), `at_scene_time` (arrived at pickup), `patient_contact_time` (at patient), `left_scene_time` (left pickup), `arrived_dropoff_at` (arrived destination), `dropped_at` (patient handed off), plus `arrived_pickup_at` and `loaded_at` (status-button stamps).
-- Odometers: `odometer_in_service`, `odometer_at_scene`, `odometer_at_destination`.
-- `wait_time_minutes` (built from resolved hold timers), and `scheduled_pickup_time` / `scheduled_dropoff_time` (planned, not actual).
+- `src/lib/nemsis/fixtures/ems1-submission.xml` — eRecord.01 `2026-EMS-1-Crash`, 3 crew groups
+- `ems2-submission.xml` — `2026-EMS-2-Stroke`, 2 crew
+- `ems3-submission.xml` — `2026-EMS-3-CHF`, 2 crew
+- `ems4-submission.xml` — `351-073-92` (Seizure), 2 crew
+- `ems5-submission.xml` — `351-073-93` (Delirium), 2 crew
 
-**Other tables:**
-- `trip_status_history.changed_at`: a stamp for each status change (65 rows), a backup source for the same events.
-- `hold_timers.started_at` / `resolved_at`: delays at the facility.
-- `trip_events.event_time`: exists but has 0 rows.
-- `scheduling_legs`: only planned values: `pickup_time`, `chair_time`, `estimated_duration_minutes`.
-- `patients`: only planned values: `chair_time`, `chair_time_duration_hours/minutes`, `run_duration_minutes`, `a_leg_pickup_time`, `dialysis_window_minutes`.
-- Nothing records the moment the patient was actually ready for the return trip. The closest proxies are the A-leg `dropped_at` (chair start) and the B-leg `patient_contact_time` / `left_scene_time` (actual return pickup).
+None of them has an `eCustomResults` block. That matches defect 2. These files are the CTA-frozen submission fixtures, so I will copy them and leave the originals alone.
 
-### 2. How much history exists: essentially none
-- `trip_records` has 4 rows: 1 ready_for_billing, 2 cancelled, 1 scheduled. Earlier test trips were reset.
-- Only 1 trip has a full time card. It is an A-leg with no matching B-leg, for 1 patient.
-- No patient has 2 or more completed trips. No patient has a matched A+B pair on the same day.
-- Conclusion: the timestamp fields exist and get filled when a PCR is completed, but no per-patient average or median can be computed today. Every patient starts with no history, so the fallback path is what will run at launch.
+## Steps
+1. **New reference copies.** Copy the 5 files into `tests/nemsis/reference/live/` as `2026-EMS-1-Crash_v351.xml`, `-2-Stroke`, `-3-CHF`, `-4-Seizure`, `-5-Delirium`. The old pre-testing references stay as they are for history.
+2. **Apply your corrections by hand.** I will insert each missing element at its correct XSD sequence position, as a sibling right after the last existing instance of that element, inside the right group:
+   - EMS 1: a second `eArrest.03` with value 3003005.
+   - EMS 2–5: every listed `+=` value, including attributes (`PN="8801005"`, `CodeType="9924001"`, `PhoneNumberType="9913001"`). Crew-specific `eCrew.03` values go to the crew matched by its eCrew.01 ID. Assessment-group-specific `eExam.19`/`.20` values go to the group you named. `eOther.06` gets both values in every crew member group.
+   - eCrew.901, for EMS 2–5: add `CorrelationID` to each `eCrew.CrewGroup` (first = `c2`, second = `c1`). Add one PCR-level `eCustomResults` block (after eOutcome/eOther, in XSD order), with one ResultsGroup per crew: `.01` = value, or `xsi:nil="true" NV="7701001"` for EMS 4 crew 1; `.02` = `eCrew.901`; `.03` = the matching CorrelationID.
+   - This step uses a small one-off script (`scripts/nemsis/apply-live-corrections.mjs`). It builds the corrections from a table of your exact values, inserts with string anchors, and fails loudly if an anchor is missing. That makes the edits auditable and repeatable.
+3. **Lossless exporter.** Add an optional `raw_reference?: string` field to `PcrExportInput`. At the top of `buildEmsDataSet`, if it is present, return the XML verbatim, replacing only the contents of `eRecord.02` and `.03` (software name) and `.04` (version) from `ctx.software`. If none of the software tags is found, it throws instead of passing the file through silently. The live trip path (no `raw_reference`) does not change at all.
+4. **Fixtures.** Rewrite `tests/nemsis/fixtures/ems1.ts`–`ems5.ts` to read the live-case reference file and pass it as `raw_reference`, with ctx software set to Pod Dispatch / 1.0. `from-reference.ts` stays in place but is no longer used by these fixtures.
+5. **Generator, diff and committed copies.** `gen-compliance.mjs` keeps its EMS-1..5 output. Point `diff-reference.mjs` runs at the new live references. Regenerate `tests/nemsis/submitted/` with the live-case filenames, and remove the old EMS 1–5 submitted copies. DEM-1 is not touched.
 
-### 3. What exists toward durations today
-- The scheduler builds legs from planned values only (`useSchedulingStore.tsx` ~line 365): travel = `run_duration_minutes ?? 30`; treatment = the per-day override, else the patient's chair duration, else 210 min for dialysis / 60 min otherwise.
-- `dialysis_b_leg_buffer_minutes` (company setting, default 15) and `isBLegTooEarly()` in `dialysis-validation.ts` flag B-legs scheduled before chair time + duration. Reports and Metrics uses this.
-- `dispatch-intelligence` uses `estimated_duration_minutes ?? 10` for hold and delay logic.
-- No averages, medians or analytics are built from actual times anywhere.
+## Acceptance
+- Each EMS-N output passes XSD with 0 Schematron errors. EMS 1's former warning is cleared by the added eArrest.03. Any warning that remains gets reported along with whether the reference itself has it.
+- `diff-reference` shows 0 differences against each corrected live reference. A byte comparison shows the only change is the software identity.
+- Per-file checks confirm that every value you listed is present (counted with grep), including the 2 races in EMS 2 and the eCustomResults correlation pairs.
+- Live synthetic trip output still passes XSD, the type-check is clean, and the full test suite is green. A new unit test checks that `raw_reference` is passed through with only the software tags changed.
 
-## Proposed design
-
-### Shared source: per-patient actuals (computed on read)
-A pure TS module `src/lib/patient-time-prediction.ts` takes a patient's last N completed or ready_for_billing trips (active company, not simulated unless the company is a sandbox, newest 20, within 180 days) and works out:
-- **Chair/turnaround (A→B):** for the same patient and date, B-leg `patient_contact_time` (else `left_scene_time`) minus A-leg `dropped_at` (else `arrived_dropoff_at`). This is the time from chair start to ready-for-pickup, including normal wait.
-- **Trip duration:** `dropped_at` (else `arrived_dropoff_at`) minus `at_scene_time` (else `in_service_time`). Kept per leg type and destination.
-- **Validity filters:** both stamps present and in order; drop cancelled, no-show and emergency-upgraded trips; drop outliers (turnaround outside 60–480 min, trip outside 5–240 min).
-- **Output:** median, 25th–75th percentile range, sample size `n`, and a confidence level.
-
-### Target 1: return-ready suggestion
-- Predicted ready time = chair time + median turnaround (falling back to planned chair duration + company buffer).
-- Shown as an advisory chip ("Suggested return pickup 13:40 · based on 6 trips · medium") next to the B-leg pickup time in the Scheduling leg dialog and the patient's recurring schedule editor. A one-click "Use suggestion" fills the field; the user still saves.
-
-### Target 2: trip-duration suggestion
-- Predicted duration = median trip duration for that patient and leg type (falling back to `run_duration_minutes`, then 30).
-- Shown as a hint next to estimated duration in the add-run and one-time run forms, and as a small "~42 min typical" tag on truck-board slots, for packing. The 45-minute gap rule and the scheduler itself are not changed.
-
-### Confidence and cold start
-- n < 5 valid samples: show no number from history. Show "Using plan default (not enough history: n/5)", with the planned value as the suggestion.
-- n 5–9: low confidence. n 10–19: medium. n ≥ 20 and IQR ≤ 30 min: high.
-- **Minimum sample: 5.** A single trip is never used. Because history is empty today, every patient will show the default state until about 2–3 weeks of MWF/TTS service has built up.
-
-### Computed on read, not stored
-- Volumes are small (≤20 trips per patient, max 30 trucks × 10 runs), the inputs change after every PCR, and there is nothing to keep in sync or backfill.
-- One query per company, scoped by `getActiveCompanyId()` / `NO_COMPANY`, fetches the needed timestamp columns for the patients visible on screen. It is cached client-side for the session. If this later becomes slow, a read-only SQL view can be added without changing callers.
-
-## Guardrails
-- No new crew time entry: uses only existing PCR and status stamps. Flag: there is no true "patient ready" event. Turnaround is inferred from the actual B-leg pickup, so it includes any time the patient waited for the truck. That biases the prediction late, which is the safe direction. A "patient ready" button for crews is optional future work and not part of this plan.
-- Advisory only: nothing auto-writes a pickup time or duration. Values change only when the user clicks "Use suggestion" and saves through the existing form.
-- Additive: one new lib, a small hook, UI chips. No schema change, no trigger change, and no changes to the scheduler engine, PCR gate, billing or NEMSIS/CTA.
-
-## Technical details
-- New `src/lib/patient-time-prediction.ts` (pure functions: pairing, filters, median/IQR, confidence) plus `patient-time-prediction.test.ts` (min-5 rule, outlier filtering, A/B pairing on same date, fallback ordering, confidence tiers).
-- New `src/hooks/usePatientTimeStats.ts`: company-scoped `trip_records` select joined to `scheduling_legs.leg_type`, `.in("patient_id", ids)`, status in (completed, ready_for_billing).
-- UI touch points: Scheduling leg dialog (B-leg pickup, estimated duration), Patients recurring schedule section, truck-slot tag in TruckBuilder.
-- Verify: typecheck, full tests, and a seeded Simulation Lab check that chips show the default state with n<5 and a median with n≥5.
-
-## Open questions
-1. Should simulated (Simulation Lab) trips count toward history in sandbox companies? Proposed: yes for sandbox only, so the feature can be demoed.
-2. Is a minimum of 5 samples and a 180-day lookback acceptable?
+## Scope and risks
+- Changes `src/lib/nemsis/exporter.ts`, which you have explicitly authorized here. It does not touch `nemsis-cta-submit`, the `*-submission.xml/.ts` CTA fixtures, `ems-record.ts` renderers, DEM, or the server-side exporter copy. Syncing the server-side copy stays a separate decision.
+- The lossy model's truncation (defect 1) is bypassed for compliance files, not fixed for live trips. Live trips today have no repeated data, so fixing the model can come later.
+- If an element's exact position is ambiguous (for example, which assessment group is "group 1" in EMS 5), I'll stop and ask rather than guess.
+- Submission stays manual: I won't submit anything, and you click Submit yourself.
