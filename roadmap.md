@@ -36,5 +36,5 @@
 - [ ] Resolve baseline DEM compliance findings — blocked on owner decision: original source has 3 contact-mobile errors and 1 vehicle-cost warning; changing those sections is expressly out of scope
 
 # Roadmap — corrected CTA payload wiring
-- [ ] Promote all six corrected references to submission sources, preserve original software identity, and neutralize insertion scripts
-- [ ] Regenerate edge fixtures only, verify payload parity, run all six validators and full tests, deploy unchanged CTA logic
+- [x] Promote all six corrected references to submission sources, preserve original software identity, and neutralize insertion scripts
+- [x] Regenerate edge fixtures only, verify payload parity, run all six validators and full tests, deploy unchanged CTA logic
