@@ -22,6 +22,14 @@ interface Row {
   leg: any;
 }
 
+/** Include status-only changes so cancellation and restore both refresh the advisory. */
+export function getFeasibilityRefreshKey(legs: {
+  id: string; assigned_truck_id?: string | null; pickup_time?: string | null;
+  slot_order?: number | null; slot_status?: string | null;
+}[]): string {
+  return legs.map((l) => `${l.id}:${l.assigned_truck_id ?? ""}:${l.pickup_time ?? ""}:${l.slot_order ?? ""}:${l.slot_status ?? ""}`).join("|");
+}
+
 /** Advisory, read-only per-truck feasibility for one run date. Never writes. */
 export function useTruckDayFeasibility(runDate: string, refreshKey: unknown = null): Map<string, TruckDayFeasibility> {
   const { isSim, resolved } = useSimulationCompanyState();
@@ -35,7 +43,7 @@ export function useTruckDayFeasibility(runDate: string, refreshKey: unknown = nu
       const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
       const [slotsRes, settingsRes] = await Promise.all([
         supabase.from("truck_run_slots")
-          .select("truck_id, leg_id, slot_order, leg:scheduling_legs(id, leg_type, pickup_time, chair_time, estimated_duration_minutes, is_oneoff, oneoff_name, is_simulated, patient_id, patient:patients(first_name, last_name, must_arrive_by, chair_time, chair_time_duration_hours, chair_time_duration_minutes, run_duration_minutes))")
+          .select("truck_id, leg_id, slot_order, status, leg:scheduling_legs(id, leg_type, pickup_time, chair_time, estimated_duration_minutes, is_oneoff, oneoff_name, is_simulated, patient_id, patient:patients(first_name, last_name, must_arrive_by, chair_time, chair_time_duration_hours, chair_time_duration_minutes, run_duration_minutes))")
           .eq("company_id", companyId)
           .eq("run_date", runDate),
         supabase.from("company_settings")
@@ -46,7 +54,7 @@ export function useTruckDayFeasibility(runDate: string, refreshKey: unknown = nu
       if (cancelled) return;
       if (slotsRes.error) { console.error("useTruckDayFeasibility read failed:", slotsRes.error); return; }
       const r = ((slotsRes.data ?? []) as any[])
-        .filter((s) => s.leg && (isSim || !s.leg.is_simulated))
+        .filter((s) => s.status !== "cancelled" && s.status !== "pending_cancellation" && s.leg && (isSim || !s.leg.is_simulated))
         .map((s) => ({ truck_id: s.truck_id, slot_order: s.slot_order ?? 0, leg: s.leg }));
       setRows(r);
       setSettings(settingsRes.data ?? null);
