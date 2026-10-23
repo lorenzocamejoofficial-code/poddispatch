@@ -28,7 +28,7 @@ import { CSS } from "@dnd-kit/utilities";
 import type { OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
 import { sortSchedulingLegs } from "@/lib/leg-order";
 import { usePatientTimeStats } from "@/hooks/usePatientTimeStats";
-import { useTruckDayFeasibility } from "@/hooks/useTruckDayFeasibility";
+import { getFeasibilityRefreshKey, useTruckDayFeasibility } from "@/hooks/useTruckDayFeasibility";
 import type { TruckDayFeasibility } from "@/lib/schedule-feasibility";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { suggestTripDuration, MIN_SAMPLES, type Suggestion } from "@/lib/patient-time-prediction";
@@ -246,7 +246,7 @@ interface HoldTimerData {
 export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException, onDownCountChange, activeTokens = [], operationalAlerts = [], onLogChange, onDispatcherCancel }: TruckBuilderProps) {
   const { addingLeg, setAddingLeg } = useSchedulingStore();
   const feasibilityRefreshKey = useMemo(
-    () => legs.map((l: any) => `${l.id}:${l.assigned_truck_id ?? ""}:${l.pickup_time ?? ""}:${l.slot_order ?? ""}`).join("|"),
+    () => getFeasibilityRefreshKey(legs),
     [legs],
   );
   const feasibilityByTruck = useTruckDayFeasibility(selectedDate, feasibilityRefreshKey);
