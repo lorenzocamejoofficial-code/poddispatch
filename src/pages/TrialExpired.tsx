@@ -5,10 +5,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Truck, Mail, Award, Loader2 } from "lucide-react";
+import { trialExpiredView } from "@/lib/trial-expired-view";
 
 export default function TrialExpired() {
-  const { signOut, activeCompanyId } = useAuth();
+  const { signOut, activeCompanyId, isOwnerOrCreator, isSystemCreator } = useAuth();
   const navigate = useNavigate();
+  const view = trialExpiredView({ isOwnerOrCreator, isSystemCreator });
   const [isFounding, setIsFounding] = useState(false);
   const [checking, setChecking] = useState(true);
 
@@ -37,6 +39,28 @@ export default function TrialExpired() {
       </div>
     );
   }
+
+  if (view === "contact_owner") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center space-y-4">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+              <Truck className="h-7 w-7 text-muted-foreground" />
+            </div>
+            <h1 className="text-xl font-bold text-foreground">Trial Period Ended</h1>
+            <p className="text-sm text-muted-foreground">
+              Your company's trial has ended — please contact your account owner to continue.
+            </p>
+            <Button variant="outline" onClick={async () => { await signOut(); navigate("/login"); }} className="w-full">
+              Sign Out
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
