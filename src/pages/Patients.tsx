@@ -23,6 +23,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { normalizePhone } from "@/lib/phone";
+import { isValidNpi, NPI_INVALID_MESSAGE } from "@/lib/npi-luhn";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { toast } from "sonner";
 import type { Tables, Database } from "@/integrations/supabase/types";
@@ -1869,8 +1870,10 @@ export default function Patients() {
                                   placeholder="10-digit NPI"
                                   inputMode="numeric"
                                 /><IntakeFieldError field="pcs_physician_npi" issues={intakeIssues} />
-                                {form.pcs_physician_npi && !/^\d{10}$/.test(form.pcs_physician_npi) && (
-                                  <p className="text-[11px] text-destructive mt-1">NPI must be exactly 10 digits.</p>
+                                {form.pcs_physician_npi && !isValidNpi(form.pcs_physician_npi) && (
+                                  <p className="text-[11px] text-destructive mt-1">
+                                    {/^\d{10}$/.test(form.pcs_physician_npi) ? NPI_INVALID_MESSAGE : "NPI must be exactly 10 digits."}
+                                  </p>
                                 )}
                               </div>
                             </div>
