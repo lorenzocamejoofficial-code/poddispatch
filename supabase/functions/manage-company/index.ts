@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     } = await supabaseAdmin.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) return json({ error: "Unauthorized" }, 401);
 
-    const { companyId, action, reason, patch, verification, manualNotes, skip_trial, days } = await req.json();
+    const { companyId, action, reason, patch, verification, manualNotes, skip_trial, days, dry_run } = await req.json();
     if (!companyId || !action) return json({ error: "companyId and action required" }, 400);
 
     // ── RESUBMIT (rejected owner only — does NOT require system_creator) ──
@@ -590,184 +590,111 @@ Deno.serve(async (req) => {
       return json({ success: true });
     }
 
-    // ── DELETE (auto-routes to archive vs hard delete) ────────
-    // The single `delete` action is now intent-driven: the server inspects
-    // is_protected_record(company_id) and routes to archive (soft-delete with
-    // legal retention) or hard-delete. Callers don't get to override; the
-    // protection rule lives entirely in the database.
+    // ── DELETE / ARCHIVE (production: archive-only) ───────────
+    // Real companies are NEVER physically deleted. `delete` and `archive`
+    // both soft-archive (deleted_at + suspension). Physical removal exists
+    // only for test/sandbox tenants via `purge_test_company` below.
     if (action === "delete" || action === "archive") {
+      const trimmedReason = typeof reason === "string" ? reason.trim() : "";
+      if (!trimmedReason) return json({ error: "Archive reason required" }, 400);
+
       const { data: company, error: fetchErr } = await supabaseAdmin
         .from("companies")
-        .select("id, name, onboarding_status, owner_user_id, deleted_at, approved_at")
+        .select("id, name, deleted_at")
         .eq("id", companyId)
         .maybeSingle();
-
       if (fetchErr || !company) return json({ error: "Company not found" }, 404);
+      if (company.deleted_at) return json({ error: "Company is already archived" }, 409);
 
-      // Single source of truth.
-      const { data: protectedResult, error: protErr } = await supabaseAdmin
+      const { data: protectedResult } = await supabaseAdmin
         .rpc("is_protected_record", { _company_id: companyId });
-      if (protErr) {
-        return json({ error: `Could not evaluate protection status: ${protErr.message}` }, 500);
-      }
-      const isProtected = !!protectedResult;
 
-      // Snapshot company state before any change.
       const { data: beforeSnap } = await supabaseAdmin
-        .from("companies")
-        .select("*")
-        .eq("id", companyId)
-        .maybeSingle();
+        .from("companies").select("*").eq("id", companyId).maybeSingle();
 
-      // Cancel Stripe subscription on the way out (best-effort).
       const stripeCancelStatus = await cancelStripeSubscription(supabaseAdmin, companyId);
 
-      if (isProtected) {
-        // ─── ARCHIVE ───────────────────────────────────────────
-        // Set deleted_at on the company. This single flag drives RLS
-        // everywhere (get_my_company_id excludes archived companies, so
-        // members lose access to all related rows automatically). No
-        // per-row deletion of clinical data — that would compromise
-        // legally-required retention.
-        const { error: archiveErr } = await supabaseAdmin
-          .from("companies")
-          .update({
-            deleted_at: new Date().toISOString(),
-            deleted_by: user.id,
-            onboarding_status: "suspended",
-            suspended_reason: `ARCHIVED: ${reason || "Archived by system creator"}`,
-            suspended_at: new Date().toISOString(),
-            suspended_by: user.id,
-          })
-          .eq("id", companyId);
-        if (archiveErr) return json({ error: `Archive failed: ${archiveErr.message}` }, 500);
+      const now = new Date().toISOString();
+      const { error: archiveErr } = await supabaseAdmin
+        .from("companies")
+        .update({
+          deleted_at: now,
+          deleted_by: user.id,
+          onboarding_status: "suspended",
+          suspended_reason: `ARCHIVED: ${trimmedReason}`,
+          suspended_at: now,
+          suspended_by: user.id,
+        })
+        .eq("id", companyId);
+      if (archiveErr) return json({ error: `Archive failed: ${archiveErr.message}` }, 500);
 
-        await supabaseAdmin.from("admin_actions").insert({
-          actor_user_id: user.id,
-          actor_email: user.email,
-          action: "archive_company",
-          company_id: companyId,
-          company_name: company.name,
-          was_protected: true,
-          reason: reason || null,
-          before_snapshot: beforeSnap,
-          stripe_cancel_status: stripeCancelStatus,
-        });
-
-        return json({
-          success: true,
-          archived: true,
-          stripe_cancel_status: stripeCancelStatus,
-        });
-      }
-
-      // ─── HARD DELETE (unprotected) ──────────────────────────
-      // No PCRs ever submitted, never approved with verification → not a
-      // legal retention obligation. Cascade-purge as before.
-      const cid = companyId;
-
-      await supabaseAdmin.from("hold_timers").delete().eq("company_id", cid);
-      await supabaseAdmin.from("comms_events").delete().eq("company_id", cid);
-      await supabaseAdmin.from("trip_events").delete().eq("company_id", cid);
-      await supabaseAdmin.from("daily_truck_metrics").delete().eq("company_id", cid);
-      await supabaseAdmin.from("truck_risk_state").delete().eq("company_id", cid);
-      await supabaseAdmin.from("operational_alerts").delete().eq("company_id", cid);
-      await supabaseAdmin.from("safety_overrides").delete().eq("company_id", cid);
-      await supabaseAdmin.from("biller_tasks").delete().eq("company_id", cid);
-      await supabaseAdmin.from("ar_followup_notes").delete().eq("company_id", cid);
-      await supabaseAdmin.from("claim_adjustments").delete().eq("company_id", cid);
-      await supabaseAdmin.from("remittance_files").delete().eq("company_id", cid);
-      await supabaseAdmin.from("eligibility_checks").delete().eq("company_id", cid);
-      await supabaseAdmin.from("incident_reports").delete().eq("company_id", cid);
-      await supabaseAdmin.from("document_attachments").delete().eq("company_id", cid);
-      await supabaseAdmin.from("claim_records").delete().eq("company_id", cid);
-      await supabaseAdmin.from("billing_overrides").delete().in("trip_id",
-        (await supabaseAdmin.from("trip_records").select("id").eq("company_id", cid)).data?.map((r: any) => r.id) ?? ["00000000-0000-0000-0000-000000000000"]
-      );
-      await supabaseAdmin.from("trip_records").delete().eq("company_id", cid);
-      await supabaseAdmin.from("qa_reviews").delete().eq("company_id", cid);
-      await supabaseAdmin.from("crews").delete().eq("company_id", cid);
-      await supabaseAdmin.from("alerts").delete().eq("company_id", cid);
-      await supabaseAdmin.from("schedule_change_log").delete().eq("company_id", cid);
-      await supabaseAdmin.from("leg_exceptions").delete().in("scheduling_leg_id",
-        (await supabaseAdmin.from("scheduling_legs").select("id").eq("company_id", cid)).data?.map((r: any) => r.id) ?? ["00000000-0000-0000-0000-000000000000"]
-      );
-      await supabaseAdmin.from("truck_run_slots").delete().eq("company_id", cid);
-      await supabaseAdmin.from("runs").delete().eq("company_id", cid);
-      await supabaseAdmin.from("scheduling_legs").delete().eq("company_id", cid);
-      await supabaseAdmin.from("patient_schedule_overrides").delete().eq("company_id", cid);
-      await supabaseAdmin.from("facilities").delete().eq("company_id", cid);
-      await supabaseAdmin.from("patients").delete().eq("company_id", cid);
-      await supabaseAdmin.from("vehicle_inspections").delete().eq("company_id", cid);
-      await supabaseAdmin.from("crew_share_tokens").delete().eq("company_id", cid);
-      await supabaseAdmin.from("trucks").delete().eq("company_id", cid);
-      await supabaseAdmin.from("charge_master").delete().eq("company_id", cid);
-      await supabaseAdmin.from("payer_billing_rules").delete().eq("company_id", cid);
-      await supabaseAdmin.from("import_sessions").delete().eq("company_id", cid);
-      await supabaseAdmin.from("import_mapping_templates").delete().eq("company_id", cid);
-      await supabaseAdmin.from("migration_settings").delete().eq("company_id", cid);
-      await supabaseAdmin.from("truck_availability").delete().eq("company_id", cid);
-      await supabaseAdmin.from("legal_acceptances").delete().eq("company_id", cid);
-      await supabaseAdmin.from("onboarding_events").delete().eq("company_id", cid);
-      await supabaseAdmin.from("company_verifications").delete().eq("company_id", cid);
-      await supabaseAdmin.from("subscription_records").delete().eq("company_id", cid);
-      await supabaseAdmin.from("company_settings").delete().eq("company_id", cid);
-      await supabaseAdmin.from("audit_logs").delete().eq("company_id", cid);
-      await supabaseAdmin.from("email_send_log").delete().eq("company_id", cid);
-      // Deleting profiles cascades to company_invites via profile_id FK.
-      await supabaseAdmin.from("profiles").delete().eq("company_id", cid);
-      await supabaseAdmin.from("company_memberships").delete().eq("company_id", cid);
-
-      // Additional tables that reference companies via FK (ON DELETE RESTRICT/CASCADE).
-      // Must be purged before the company row itself or the FK blocks the delete.
-      await supabaseAdmin.from("subscription_status_history").delete().eq("company_id", cid);
-      await supabaseAdmin.from("support_tickets").delete().eq("company_id", cid);
-      await supabaseAdmin.from("system_announcements").delete().eq("company_id", cid);
-      await supabaseAdmin.from("claim_creation_failures").delete().eq("company_id", cid);
-      await supabaseAdmin.from("claim_payments").delete().eq("company_id", cid);
-      await supabaseAdmin.from("claim_submission_artifacts").delete().eq("company_id", cid);
-      await supabaseAdmin.from("claim_submission_queue").delete().eq("company_id", cid);
-      await supabaseAdmin.from("clearinghouse_credentials").delete().eq("company_id", cid);
-      await supabaseAdmin.from("clearinghouse_settings").delete().eq("company_id", cid);
-      await supabaseAdmin.from("coverage_discoveries").delete().eq("company_id", cid);
-      await supabaseAdmin.from("customer_payer_enrollments").delete().eq("company_id", cid);
-      await supabaseAdmin.from("payer_directory").delete().eq("company_id", cid);
-      await supabaseAdmin.from("plb_adjustments").delete().eq("company_id", cid);
-      await supabaseAdmin.from("remittance_quarantine").delete().eq("company_id", cid);
-      await supabaseAdmin.from("trip_projection_state").delete().eq("company_id", cid);
-      await supabaseAdmin.from("trip_status_history").delete().eq("company_id", cid);
-      await supabaseAdmin.from("vehicle_inspection_templates").delete().eq("company_id", cid);
-      await supabaseAdmin.from("vehicle_inspection_alerts").delete().eq("company_id", cid);
-      await supabaseAdmin.from("schedule_previews").delete().eq("company_id", cid);
-      await supabaseAdmin.from("truck_builder_templates").delete().eq("company_id", cid);
-
-      const { error: delErr } = await supabaseAdmin.from("companies").delete().eq("id", cid);
-      if (delErr) {
-        console.error("Hard delete failed:", delErr);
-        return json({ error: "Failed to delete company: " + delErr.message }, 500);
-      }
-
-      if (company.owner_user_id) {
-        try {
-          await supabaseAdmin.auth.admin.deleteUser(company.owner_user_id);
-        } catch (e) {
-          console.warn("Could not delete auth user:", e);
-        }
-      }
-
-      await supabaseAdmin.from("admin_actions").insert({
+      const { error: auditErr } = await supabaseAdmin.from("admin_actions").insert({
         actor_user_id: user.id,
         actor_email: user.email,
-        action: "hard_delete_company",
-        company_id: null,            // company row is gone
+        action: "archive_company",
+        company_id: companyId,
         company_name: company.name,
-        was_protected: false,
-        reason: reason || null,
+        was_protected: !!protectedResult,
+        reason: trimmedReason,
         before_snapshot: beforeSnap,
         stripe_cancel_status: stripeCancelStatus,
       });
+      if (auditErr) console.error("archive_company audit insert failed:", auditErr);
 
-      return json({ success: true, deleted: true, stripe_cancel_status: stripeCancelStatus });
+      return json({ success: true, archived: true, stripe_cancel_status: stripeCancelStatus });
+    }
+
+    // ── PURGE TEST COMPANY (test/sandbox tenants only) ────────
+    // Transactional purge in SQL (public.purge_test_company). The SQL
+    // function independently refuses non-test tenants.
+    if (action === "purge_test_company") {
+      const dryRun = dry_run !== false; // default to dry-run unless explicitly false
+      const trimmedReason = typeof reason === "string" ? reason.trim() : "";
+      if (!dryRun && !trimmedReason) return json({ error: "Purge reason required" }, 400);
+
+      const { data: company, error: fetchErr } = await supabaseAdmin
+        .from("companies")
+        .select("id, name, is_sandbox, creator_test_tenant")
+        .eq("id", companyId)
+        .maybeSingle();
+      if (fetchErr || !company) return json({ error: "Company not found" }, 404);
+      if (!isPurgeableTestTenant(company)) {
+        return json({ error: "Refused: only test/sandbox tenants can be purged. Archive real companies instead." }, 403);
+      }
+
+      const { data: beforeSnap } = dryRun
+        ? { data: null }
+        : await supabaseAdmin.from("companies").select("*").eq("id", companyId).maybeSingle();
+
+      const { data: result, error: purgeErr } = await supabaseAdmin
+        .rpc("purge_test_company", { _company_id: companyId, _dry_run: dryRun });
+      if (purgeErr) return json({ error: `Purge failed (nothing was deleted): ${purgeErr.message}` }, 500);
+
+      if (dryRun) return json({ success: true, dry_run: true, result });
+
+      const orphanIds: string[] = (result as any)?.orphan_user_ids ?? [];
+      const authDeleteFailures: string[] = [];
+      for (const uid of orphanIds) {
+        const { error: delUserErr } = await supabaseAdmin.auth.admin.deleteUser(uid);
+        if (delUserErr) {
+          console.warn(`purge_test_company: could not delete auth user ${uid}:`, delUserErr.message);
+          authDeleteFailures.push(uid);
+        }
+      }
+
+      const { error: auditErr } = await supabaseAdmin.from("admin_actions").insert({
+        actor_user_id: user.id,
+        actor_email: user.email,
+        action: "purge_test_company",
+        company_id: null, // company row is gone
+        company_name: company.name,
+        was_protected: false,
+        reason: trimmedReason,
+        before_snapshot: { company: beforeSnap, counts: (result as any)?.counts ?? null, auth_delete_failures: authDeleteFailures },
+      });
+      if (auditErr) console.error("purge_test_company audit insert failed:", auditErr);
+
+      return json({ success: true, deleted: true, result, auth_delete_failures: authDeleteFailures });
     }
 
     // ── RESTORE FROM ARCHIVE (creator can un-archive) ────────
