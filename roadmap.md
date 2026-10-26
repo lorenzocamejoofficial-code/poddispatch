@@ -41,3 +41,8 @@
 # Roadmap — corrected CTA payload wiring
 - [x] Promote all six corrected references to submission sources, preserve original software identity, and neutralize insertion scripts
 - [x] Regenerate edge fixtures only, verify payload parity, run all six validators and full tests, deploy unchanged CTA logic
+
+# Roadmap — company archive / test purge
+- [x] Backend: archive-only delete (reason required), purge_test_company SQL + edge action, loadtest tenants flagged sandbox, tests, synthetic verification
+- [ ] UI pass: CreatorConsole archive/purge controls (next pass)
+- [ ] Follow-up: session revocation, archived screen, background-job deleted_at checks
