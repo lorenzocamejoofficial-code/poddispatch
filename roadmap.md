@@ -1,5 +1,8 @@
 # Roadmap — company lifecycle fix
 
+# Roadmap — RSNAT authorization cap
+- [ ] Add nullable authorized-trip limit, pure evaluator, shared company-scoped counter and pre-submit cap check; run regression tests (no patient UI)
+
 - [ ] Pass 1: persist trial dates + expiry sweep + cron auth
 - [ ] Pass 2: one trial clock (useAuth, CreatorCompanyDetail, TrialBanner)
 - [ ] Pass 3: creator levers (extend trial, comp/activate) — creator-only, reason, history + audit
