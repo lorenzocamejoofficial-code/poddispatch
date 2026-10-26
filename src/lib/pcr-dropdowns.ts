@@ -1,5 +1,6 @@
 // Comprehensive clinical dropdown options for PCR system
 // NEMSIS 3.5 aligned (eSituation.09 Chief Complaint / eSituation.11 Primary Impression)
+import { isValidNpi } from "@/lib/npi-luhn";
 
 export interface DropdownGroup {
   parent: string;
@@ -117,15 +118,15 @@ export const UNIVERSAL_CLAIM_REQUIREMENTS: PatientRequiredField[] = [
 /**
  * PCS-conditional requirement. When pcs_on_file = true, CMS requires the
  * signing physician's NPI (42 CFR 410.40(d)) so the 837P NM1*DK loop can
- * carry referring-provider data. Loose 10-digit numeric check; Luhn checksum
- * validation is deferred.
+ * carry referring-provider data. The value must be present and pass the full
+ * NPI Luhn checksum (isValidNpi) — a 10-digit shape alone is not enough.
  */
 export function getPcsConditionalRequirements(p: any): PatientRequiredField[] {
   if (!isTrue(p?.pcs_on_file)) return [];
   return [{
     field: "pcs_physician_npi",
     label: "PCS physician NPI",
-    check: q => hasStr(q?.pcs_physician_npi) && /^\d{10}$/.test(String(q.pcs_physician_npi).trim()),
+    check: q => hasStr(q?.pcs_physician_npi) && isValidNpi(String(q.pcs_physician_npi).trim()),
   }];
 }
 
