@@ -11,8 +11,8 @@ import { normalizeTransportKey } from "@/lib/pcr-field-requirements";
 import { getMissingPatientRequirements } from "@/lib/pcr-dropdowns";
 import { isValidNpi, NPI_INVALID_MESSAGE } from "@/lib/npi-luhn";
 import { queueClaimsForSubmission } from "@/lib/queue-claims-for-submission";
-import { evaluatePcsWindow, evaluateRsnatTripCap, isRsnatTransport } from "@/lib/claim-readiness";
-import { countRsnatRoundTrips, countRsnatOneWayTrips } from "@/lib/rsnat-trip-count";
+import { evaluatePcsWindow, evaluateRsnatTripCap, evaluateRsnatHistoryEligibility, isRsnatTransport } from "@/lib/claim-readiness";
+import { countRsnatRoundTrips, getRsnatServiceDates } from "@/lib/rsnat-trip-count";
 
 // Local helper mirroring pcr-field-requirements.hasValue — used by the
 // Audit Fix 2 + 3 checks below to keep the billing gate aligned with the
@@ -776,17 +776,15 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         const dosTime = new Date(t.run_date).getTime();
         const windowStart = new Date(dosTime - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const windowEnd = new Date(dosTime).toISOString().slice(0, 10);
-        // Preserve both thresholds; share the cap's company-scoped counting logic.
-        const [oneWayCount, roundTripCount] = await Promise.all([
-          countRsnatOneWayTrips(patientId, windowStart, windowEnd),
-          countRsnatRoundTrips(patientId, windowStart, windowEnd),
-        ]).catch(() => [0, 0]);
-        if (oneWayCount >= 40 || roundTripCount >= 20) {
+        // CMS RSNAT frequency rule over distinct service dates (advisory only).
+        const serviceDates = await getRsnatServiceDates(patientId, windowStart, windowEnd).catch(() => [] as string[]);
+        const history = evaluateRsnatHistoryEligibility(serviceDates, windowEnd);
+        if (history.eligible && !utn) {
           checks.push({
             label: "RSNAT prior auth not on file, trip history indicates threshold reached",
             passed: false,
             isWarning: true,
-            detail: `RSNAT prior auth not on file but trip history indicates this patient meets RSNAT thresholds (≥3 round trips in 10 days, or weekly for 3+ weeks), ${oneWayCount} one-way / ~${roundTripCount} round trips in last 60 days. Update the patient template to indicate a recurring schedule, then obtain a UTN from the MAC.`,
+            detail: `RSNAT prior auth not on file but trip history meets RSNAT criteria: ${history.detail} (last 60 days). Update the patient template to indicate a recurring schedule, then obtain a UTN from the MAC.`,
           });
         }
       }

@@ -288,6 +288,39 @@ export function evaluateRsnatTripCap(input: {
   return { status, authorized, used, remaining, message };
 }
 
+/** Pure RSNAT history check against the CMS rule: ≥3 round trips within a
+ * 10-day period, OR ≥1 round trip per week for 3 consecutive weeks.
+ * Proxy: each DISTINCT service date counts as one round-trip day.
+ * asOf (YYYY-MM-DD) optionally ignores dates after it.
+ */
+export function evaluateRsnatHistoryEligibility(
+  serviceDates: string[],
+  asOf?: string,
+): { eligible: boolean; rule: "three_in_ten" | "weekly_for_three" | null; detail: string } {
+  const DAY = 86_400_000;
+  const days = [...new Set(serviceDates.map((d) => String(d).slice(0, 10)))]
+    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && (!asOf || d <= asOf))
+    .map((d) => Math.floor(Date.parse(`${d}T00:00:00Z`) / DAY))
+    .filter((n) => Number.isFinite(n))
+    .sort((a, b) => a - b);
+  // three_in_ten: dates i and i+2 within an inclusive 10-day window.
+  for (let i = 0; i + 2 < days.length; i++) {
+    if (days[i + 2] - days[i] <= 9) {
+      return { eligible: true, rule: "three_in_ten", detail: "3 round trips within 10 days" };
+    }
+  }
+  // weekly_for_three: 3 consecutive week indices (year-boundary safe).
+  const weeks = [...new Set(days.map((n) => Math.floor(n / 7)))].sort((a, b) => a - b);
+  let run = weeks.length ? 1 : 0;
+  for (let i = 1; i < weeks.length; i++) {
+    run = weeks[i] === weeks[i - 1] + 1 ? run + 1 : 1;
+    if (run >= 3) {
+      return { eligible: true, rule: "weekly_for_three", detail: "weekly round trips for 3+ consecutive weeks" };
+    }
+  }
+  return { eligible: false, rule: null, detail: "Trip history does not meet RSNAT frequency criteria" };
+}
+
 /** True when a Medicare transport meets the RSNAT (Repetitive Scheduled
  *  Non-emergent) criteria that require prior authorization per CMS:
  *  Medicare payer AND (destination is a dialysis facility OR scheduled

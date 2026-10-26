@@ -10,7 +10,7 @@ vi.mock("@/lib/company-scope", () => ({
   getActiveCompanyId: mocks.company,
   NO_COMPANY: "00000000-0000-0000-0000-000000000000",
 }));
-import { countRsnatRoundTrips, countRsnatOneWayTrips } from "./rsnat-trip-count";
+import { countRsnatRoundTrips } from "./rsnat-trip-count";
 
 function makeQuery() {
   const query = {
@@ -38,11 +38,6 @@ describe("RSNAT shared period counter", () => {
     expect(query.gte).toHaveBeenCalledWith("run_date", "2026-10-01");
     expect(query.lte).toHaveBeenCalledWith("run_date", "2026-11-30");
     expect(query.not).toHaveBeenCalledWith("leg_id", "is", null);
-  });
-  it("keeps unlinked one-way trips for the original backstop threshold", async () => {
-    const query = makeQuery();
-    expect(await countRsnatOneWayTrips("p", "2026-10-01", "2026-11-30")).toBe(81);
-    expect(query.not).not.toHaveBeenCalled();
   });
   it("uses NO_COMPANY instead of an unscoped read", async () => {
     mocks.company.mockResolvedValue(null);
