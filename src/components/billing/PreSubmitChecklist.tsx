@@ -11,7 +11,8 @@ import { normalizeTransportKey } from "@/lib/pcr-field-requirements";
 import { getMissingPatientRequirements } from "@/lib/pcr-dropdowns";
 import { isValidNpi, NPI_INVALID_MESSAGE } from "@/lib/npi-luhn";
 import { queueClaimsForSubmission } from "@/lib/queue-claims-for-submission";
-import { evaluatePcsWindow } from "@/lib/claim-readiness";
+import { evaluatePcsWindow, evaluateRsnatTripCap, isRsnatTransport } from "@/lib/claim-readiness";
+import { countRsnatRoundTrips, countRsnatOneWayTrips } from "@/lib/rsnat-trip-count";
 
 // Local helper mirroring pcr-field-requirements.hasValue — used by the
 // Audit Fix 2 + 3 checks below to keep the billing gate aligned with the
@@ -357,6 +358,52 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
           passed: hasAuth,
           detail: hasAuth ? undefined : "Patient requires authorization, add a valid prior auth number on the patient record",
         });
+      }
+
+      // Additive RSNAT cap check; existing authorization-period/PCS rules stay unchanged.
+      const rsnatRecurringDays = p?.recurrence_days?.length
+        ? p.recurrence_days
+        : p?.schedule_days === "MWF" ? [1, 3, 5]
+        : p?.schedule_days === "TTS" ? [2, 4, 6] : [];
+      const rsnatEligible = isRsnatTransport(
+        { ...t, ...claim, payer_type: claimPayerType }, p,
+        {
+          recurrence_days: rsnatRecurringDays,
+          destination_facility_type: (t.transport_kind ?? p?.transport_type ?? canonicalTripType) === "dialysis"
+            ? "dialysis" : undefined,
+        },
+      );
+      const utn = String(p?.prior_auth_utn ?? "").trim();
+      const authStart = p?.prior_auth_period_start;
+      const authEnd = p?.prior_auth_period_end;
+      if (rsnatEligible && patientId && utn && authStart && authEnd) {
+        try {
+          const usedRoundTrips = await countRsnatRoundTrips(patientId, authStart, authEnd);
+          const cap = evaluateRsnatTripCap({
+            authorizedRoundTrips: p?.prior_auth_trips_authorized,
+            usedRoundTrips,
+          });
+          if (cap.status === "exceeded") {
+            checks.push({
+              label: "RSNAT authorization round-trip cap exhausted",
+              passed: false,
+              detail: `RSNAT authorization ${utn} covers ${cap.authorized} round trips; ${cap.used} already used in ${authStart}–${authEnd}. This trip exceeds the cap — request a new/added authorization from the MAC before billing.`,
+            });
+          } else if (cap.status === "approaching") {
+            checks.push({
+              label: "RSNAT authorization round-trip cap approaching",
+              passed: false,
+              isWarning: true,
+              detail: `${cap.remaining} round trips left on RSNAT auth ${utn} before ${authEnd}.`,
+            });
+          }
+        } catch {
+          checks.push({
+            label: "RSNAT authorization usage could not be verified",
+            passed: false,
+            detail: "Reopen the checklist to retry the authorization trip count before billing.",
+          });
+        }
       }
 
       // HCPCS, modifiers, ICD-10, member ID — always required for any payable claim
@@ -729,16 +776,11 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         const dosTime = new Date(t.run_date).getTime();
         const windowStart = new Date(dosTime - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const windowEnd = new Date(dosTime).toISOString().slice(0, 10);
-        const { data: priorTrips } = await supabase
-          .from("trip_records")
-          .select("id, leg_id")
-          .eq("patient_id", patientId)
-          .gte("run_date", windowStart)
-          .lte("run_date", windowEnd);
-        const oneWayCount = (priorTrips ?? []).length;
-        // Round-trip approximation: trips that share a leg_id pair as A/B legs
-        const legIds = (priorTrips ?? []).map(r => r.leg_id).filter(Boolean) as string[];
-        const roundTripCount = Math.floor(legIds.length / 2);
+        // Preserve both thresholds; share the cap's company-scoped counting logic.
+        const [oneWayCount, roundTripCount] = await Promise.all([
+          countRsnatOneWayTrips(patientId, windowStart, windowEnd),
+          countRsnatRoundTrips(patientId, windowStart, windowEnd),
+        ]).catch(() => [0, 0]);
         if (oneWayCount >= 40 || roundTripCount >= 20) {
           checks.push({
             label: "RSNAT prior auth not on file, trip history indicates threshold reached",
