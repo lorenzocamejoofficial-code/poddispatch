@@ -11,7 +11,7 @@ import { normalizeTransportKey } from "@/lib/pcr-field-requirements";
 import { getMissingPatientRequirements } from "@/lib/pcr-dropdowns";
 import { isValidNpi, NPI_INVALID_MESSAGE } from "@/lib/npi-luhn";
 import { queueClaimsForSubmission } from "@/lib/queue-claims-for-submission";
-import { evaluatePcsWindow, evaluateRsnatTripCap, isRsnatTransport } from "@/lib/claim-readiness";
+import { evaluatePcsWindow, evaluateRsnatTripCap, evaluateRsnatHistoryEligibility, isRsnatTransport } from "@/lib/claim-readiness";
 import { countRsnatRoundTrips, getRsnatServiceDates } from "@/lib/rsnat-trip-count";
 
 // Local helper mirroring pcr-field-requirements.hasValue — used by the
@@ -779,7 +779,7 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
         // CMS RSNAT frequency rule over distinct service dates (advisory only).
         const serviceDates = await getRsnatServiceDates(patientId, windowStart, windowEnd).catch(() => [] as string[]);
         const history = evaluateRsnatHistoryEligibility(serviceDates, windowEnd);
-        if (history.eligible && !hasUtnOnFile) {
+        if (history.eligible && !utn) {
           checks.push({
             label: "RSNAT prior auth not on file, trip history indicates threshold reached",
             passed: false,
