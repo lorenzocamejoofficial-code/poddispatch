@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaResend, renderActionEmail, buildAppRecoveryUrl, escapeHtml } from "../_shared/send-via-resend.ts";
+import { isPurgeableTestTenant } from "../_shared/test-tenant.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

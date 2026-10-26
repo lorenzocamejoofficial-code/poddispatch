@@ -98,6 +98,7 @@ async function runHarness(params: {
           name,
           onboarding_status: "active",
           creator_test_tenant: false,
+          is_sandbox: true, // synthetic tenant: purgeable via purge_test_company
           owner_email: `${name.toLowerCase()}-${runTag}-owner@loadtest.invalid`,
         }).select("id").single();
         if (coErr) throw new Error(`company: ${coErr.message}`);
