@@ -263,6 +263,31 @@ export function evaluateRsnatAuth(input: {
 }
 
 
+/** Pure cap check. usedRoundTrips is the caller's period count; the optional
+ * countingThisTrip flag does not alter it or add a second count.
+ */
+export function evaluateRsnatTripCap(input: {
+  authorizedRoundTrips?: number | null;
+  usedRoundTrips: number;
+  countingThisTrip?: boolean;
+}): {
+  status: "ok" | "approaching" | "exceeded";
+  authorized: number;
+  used: number;
+  remaining: number;
+  message: string;
+} {
+  const authorized = input.authorizedRoundTrips ?? 40;
+  const used = input.usedRoundTrips;
+  const remaining = authorized - used;
+  const status = used >= authorized ? "exceeded"
+    : remaining <= 4 && remaining > 0 ? "approaching" : "ok";
+  const message = status === "exceeded"
+    ? `RSNAT authorization covers ${authorized} round trips; ${used} already used. Request a new/added authorization from the MAC before billing.`
+    : `${remaining} round trips left on RSNAT authorization.`;
+  return { status, authorized, used, remaining, message };
+}
+
 /** True when a Medicare transport meets the RSNAT (Repetitive Scheduled
  *  Non-emergent) criteria that require prior authorization per CMS:
  *  Medicare payer AND (destination is a dialysis facility OR scheduled

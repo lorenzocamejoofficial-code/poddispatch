@@ -1,3 +1,6 @@
+# Roadmap — RSNAT authorization cap
+- [x] Add nullable authorized-trip limit, pure evaluator, shared company-scoped counter and pre-submit cap check; run regression tests (no patient UI)
+
 # Roadmap — company lifecycle fix
 
 - [ ] Pass 1: persist trial dates + expiry sweep + cron auth

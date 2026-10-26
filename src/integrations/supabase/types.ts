@@ -3913,6 +3913,7 @@ export type Database = {
           primary_payer: string | null
           prior_auth_period_end: string | null
           prior_auth_period_start: string | null
+          prior_auth_trips_authorized: number | null
           prior_auth_utn: string | null
           race: string | null
           recurrence_days: number[] | null
@@ -4003,6 +4004,7 @@ export type Database = {
           primary_payer?: string | null
           prior_auth_period_end?: string | null
           prior_auth_period_start?: string | null
+          prior_auth_trips_authorized?: number | null
           prior_auth_utn?: string | null
           race?: string | null
           recurrence_days?: number[] | null
@@ -4093,6 +4095,7 @@ export type Database = {
           primary_payer?: string | null
           prior_auth_period_end?: string | null
           prior_auth_period_start?: string | null
+          prior_auth_trips_authorized?: number | null
           prior_auth_utn?: string | null
           race?: string | null
           recurrence_days?: number[] | null
