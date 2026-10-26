@@ -80,6 +80,28 @@ type ModalAction =
   | { type: "reject"; company: CompanyRecord }
   | null;
 
+interface TestTenant {
+  id: string;
+  name: string;
+  owner_email: string | null;
+  created_at: string;
+  deleted_at: string | null;
+  is_sandbox: boolean | null;
+  creator_test_tenant: boolean | null;
+}
+
+/** Purge is offered only for sandbox/test tenants — never for real companies. */
+export const isPurgeableTenant = (c: { is_sandbox?: boolean | null; creator_test_tenant?: boolean | null }) =>
+  c.is_sandbox === true || c.creator_test_tenant === true;
+
+/** Turns the purge dry-run counts into "N patients, N trip records, …" (non-zero only). */
+export const summarizePurgeCounts = (counts: Record<string, number> | null | undefined) =>
+  Object.entries(counts ?? {})
+    .filter(([, n]) => Number(n) > 0)
+    .sort((a, b) => Number(b[1]) - Number(a[1]))
+    .map(([t, n]) => `${n} ${t.replace(/_/g, " ")}`)
+    .join(", ");
+
 const RETENTION_YEARS = 10;
 const PAGE_SIZE_DEFAULT = 25;
 
@@ -121,6 +143,15 @@ export default function CreatorConsole() {
   const [bulkSuspendOpen, setBulkSuspendOpen] = useState(false);
   const [bulkSuspendReason, setBulkSuspendReason] = useState("");
   const [bulkSuspendConfirm, setBulkSuspendConfirm] = useState("");
+  const [bulkArchiveReason, setBulkArchiveReason] = useState("");
+
+  // Test/sandbox tenants (excluded from the real lists) — the only rows that can be purged.
+  const [testTenants, setTestTenants] = useState<TestTenant[]>([]);
+  const [purgeTarget, setPurgeTarget] = useState<TestTenant | null>(null);
+  const [purgePreview, setPurgePreview] = useState<Record<string, number> | null>(null);
+  const [purgeConfirm, setPurgeConfirm] = useState("");
+  const [purgeReason, setPurgeReason] = useState("");
+  const [purgeLoading, setPurgeLoading] = useState(false);
 
   useEffect(() => {
     if (!isSystemCreator) { navigate("/"); return; }
@@ -179,6 +210,14 @@ export default function CreatorConsole() {
       owner_name: c.owner_user_id ? profileMap[c.owner_user_id] || "—" : "—",
       is_protected: !!c.approved_at && verifiedSet.has(c.id),
     }));
+
+    const { data: testRows, error: testErr } = await supabase
+      .from("companies")
+      .select("id, name, owner_email, created_at, deleted_at, is_sandbox, creator_test_tenant")
+      .or("is_sandbox.eq.true,creator_test_tenant.eq.true")
+      .order("created_at", { ascending: false });
+    if (testErr) console.error(testErr);
+    setTestTenants(((testRows ?? []) as TestTenant[]).filter(isPurgeableTenant));
 
     setCompanies(enriched.filter(c => !c.deleted_at));
     setArchivedCompanies(enriched.filter(c => !!c.deleted_at));
@@ -361,15 +400,13 @@ export default function CreatorConsole() {
   };
 
   const handleBulkDelete = async () => {
-    const ids = Array.from(selectedIds).filter((id) => {
-      const pool = activeTab === "archived" ? archivedCompanies : companies;
-      const c = pool.find(x => x.id === id);
-      return c && !c.is_protected;
-    });
-    if (ids.length === 0) return;
+    const reason = bulkArchiveReason.trim();
+    const ids = Array.from(selectedIds).filter((id) => companies.some(x => x.id === id));
+    if (ids.length === 0 || !reason) return;
     // Close dialog FIRST so user gets immediate feedback, then run in parallel.
     setBulkDeleteOpen(false);
     setBulkConfirmText("");
+    setBulkArchiveReason("");
     const idsToDelete = [...ids];
     setSelectedIds(new Set());
     setActionLoading(true);
@@ -378,11 +415,49 @@ export default function CreatorConsole() {
     await runBulk(
       idsToDelete,
       lookup,
-      (id) => ({ companyId: id, action: "delete", reason: "Bulk delete by system creator" }),
-      "Deleted",
+      (id) => ({ companyId: id, action: "archive", reason }),
+      "Archived",
     );
     await loadCompanies();
     setActionLoading(false);
+  };
+
+  const openPurge = async (t: TestTenant) => {
+    if (!isPurgeableTenant(t)) return;
+    setPurgeTarget(t); setPurgePreview(null); setPurgeConfirm(""); setPurgeReason("");
+    setPurgeLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-company", {
+        body: { companyId: t.id, action: "purge_test_company", dry_run: true },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setPurgePreview(data?.result?.counts ?? {});
+    } catch (err: any) {
+      toast.error(err.message || "Could not preview purge");
+      setPurgeTarget(null);
+    }
+    setPurgeLoading(false);
+  };
+
+  const runPurge = async () => {
+    if (!purgeTarget || purgeConfirm !== purgeTarget.name || !purgeReason.trim()) return;
+    setPurgeLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-company", {
+        body: { companyId: purgeTarget.id, action: "purge_test_company", dry_run: false, reason: purgeReason.trim() },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const summary = summarizePurgeCounts(data?.result?.counts);
+      toast.success(`Test tenant "${purgeTarget.name}" purged.${summary ? ` Deleted: ${summary}.` : ""}`);
+      if (data?.auth_delete_failures?.length) toast.warning(`${data.auth_delete_failures.length} login(s) could not be removed.`);
+      setPurgeTarget(null);
+      await loadCompanies();
+    } catch (err: any) {
+      toast.error(err.message || "Purge failed");
+    }
+    setPurgeLoading(false);
   };
 
   const handleBulkSuspend = async () => {
@@ -532,9 +607,7 @@ export default function CreatorConsole() {
                 className="text-destructive focus:text-destructive"
                 onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); setReasonText(""); }}
               >
-                {c.is_protected
-                  ? <><Archive className="h-3.5 w-3.5 mr-2" /> Archive</>
-                  : <><Trash2 className="h-3.5 w-3.5 mr-2" /> Delete Forever</>}
+                <Archive className="h-3.5 w-3.5 mr-2" /> Archive company
               </DropdownMenuItem>
             </>
           )}
@@ -583,15 +656,17 @@ export default function CreatorConsole() {
               <Ban className="h-3 w-3" /> Suspend {count}
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="destructive"
-            className="gap-1"
-            disabled={actionLoading || selectableIds.length === 0}
-            onClick={() => { setBulkDeleteOpen(true); setBulkConfirmText(""); }}
-          >
-            <Trash2 className="h-3 w-3" /> Delete {selectableIds.length} Forever
-          </Button>
+          {tabKey !== "archived" && (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="gap-1"
+              disabled={actionLoading || selectableIds.length === 0}
+              onClick={() => { setBulkDeleteOpen(true); setBulkConfirmText(""); setBulkArchiveReason(""); }}
+            >
+              <Archive className="h-3 w-3" /> Archive selected ({selectableIds.length})
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -601,7 +676,7 @@ export default function CreatorConsole() {
   const renderExpandableRow = (c: CompanyRecord, allowVerificationPanel: boolean, selectable: boolean) => [
       <TableRow key={`${c.id}-row`} className="cursor-pointer" onClick={() => toggleExpand(c)}>
         <TableCell className="w-8" onClick={(e) => e.stopPropagation()}>
-          {selectable && !c.is_protected ? (
+          {selectable ? (
             <Checkbox
               checked={selectedIds.has(c.id)}
               onCheckedChange={() => toggleOne(c.id)}
@@ -673,10 +748,10 @@ export default function CreatorConsole() {
   const renderCompanyTable = (items: CompanyRecord[], allowVerificationPanel: boolean, tabKey: string) => {
     const page = pageByTab[tabKey] ?? 1;
     const pageItems = paginate(items, tabKey);
-    const deletableOnPage = pageItems.filter(c => !c.is_protected);
+    const deletableOnPage = pageItems;
     const allDeletableSelected = deletableOnPage.length > 0 && deletableOnPage.every(c => selectedIds.has(c.id));
     const someDeletableSelected = deletableOnPage.some(c => selectedIds.has(c.id));
-    const selectableIds = items.filter(c => !c.is_protected && selectedIds.has(c.id)).map(c => c.id);
+    const selectableIds = items.filter(c => selectedIds.has(c.id)).map(c => c.id);
 
     if (items.length === 0) return <p className="text-sm text-muted-foreground text-center py-8">No companies in this category.</p>;
 
@@ -690,7 +765,7 @@ export default function CreatorConsole() {
                 {deletableOnPage.length > 0 && (
                   <Checkbox
                     checked={allDeletableSelected ? true : someDeletableSelected ? "indeterminate" : false}
-                    onCheckedChange={() => toggleAllOnPage(pageItems, true)}
+                    onCheckedChange={() => toggleAllOnPage(pageItems)}
                     aria-label="Select all on page"
                   />
                 )}
@@ -724,28 +799,14 @@ export default function CreatorConsole() {
     const tabKey = "archived";
     const page = pageByTab[tabKey] ?? 1;
     const pageItems = paginate(items, tabKey);
-    const deletableOnPage = pageItems.filter(c => !c.is_protected);
-    const allSelected = deletableOnPage.length > 0 && deletableOnPage.every(c => selectedIds.has(c.id));
-    const someSelected = deletableOnPage.some(c => selectedIds.has(c.id));
-    const selectableIds = items.filter(c => !c.is_protected && selectedIds.has(c.id)).map(c => c.id);
 
     if (items.length === 0) return <p className="text-sm text-muted-foreground text-center py-8">No archived companies.</p>;
 
     return (
       <>
-        {renderBulkToolbar(tabKey, selectableIds)}
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-8">
-                {deletableOnPage.length > 0 && (
-                  <Checkbox
-                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                    onCheckedChange={() => toggleAllOnPage(pageItems, true)}
-                    aria-label="Select all deletable on page"
-                  />
-                )}
-              </TableHead>
               <TableHead>Company</TableHead>
               <TableHead>Owner Email</TableHead>
               <TableHead>Archived</TableHead>
@@ -759,15 +820,6 @@ export default function CreatorConsole() {
               const purgeAt = archivedAt ? new Date(archivedAt.getTime() + RETENTION_YEARS * 365 * 24 * 60 * 60 * 1000) : null;
               return (
                 <TableRow key={c.id}>
-                  <TableCell>
-                    {!c.is_protected && (
-                      <Checkbox
-                        checked={selectedIds.has(c.id)}
-                        onCheckedChange={() => toggleOne(c.id)}
-                        aria-label={`Select ${c.name}`}
-                      />
-                    )}
-                  </TableCell>
                   <TableCell className="font-medium">{renderCompanyName(c)}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{c.owner_email || "—"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{archivedAt ? format(archivedAt, "MMM d, yyyy") : "—"}</TableCell>
@@ -777,17 +829,6 @@ export default function CreatorConsole() {
                       <Button size="sm" variant="default" className="gap-1 text-xs" disabled={actionLoading} onClick={() => invokeRestoreArchived(c)}>
                         <RotateCcw className="h-3 w-3" /> Restore
                       </Button>
-                      {!c.is_protected && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="gap-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                          disabled={actionLoading}
-                          onClick={() => { setModal({ type: "delete", company: c }); setConfirmText(""); setReasonText(""); }}
-                        >
-                          <Trash2 className="h-3 w-3" /> Delete Forever
-                        </Button>
-                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -813,9 +854,9 @@ export default function CreatorConsole() {
         <CollapsibleContent className="mt-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
           <p>Single console for the full company lifecycle. Click a row to expand the verification view.</p>
           <p><strong>Pending</strong>: expand to run NPI / Medicare / OIG checks. Verification snapshot is required before Approve and is permanently retained.</p>
-          <p>Companies showing <Shield className="inline h-3 w-3 text-primary" /> are <strong>protected</strong> — data is under legal retention. Their delete button reads <strong>Archive</strong> and preserves all clinical records.</p>
-          <p>Test/unverified companies show <Trash2 className="inline h-3 w-3 text-destructive" /> <strong>Delete</strong> — they hard-delete permanently.</p>
-          <p>Tick the checkboxes to select multiple at once. Use the bulk bar to suspend or delete in one go. Lists are paginated at {PAGE_SIZE_DEFAULT} per page.</p>
+          <p>Real companies are never deleted. <strong>Archive company</strong> locks everyone out and keeps all records under legal retention; it can be restored from the Archived tab. A reason is required.</p>
+          <p>Only sandbox/test tenants (listed under <strong>Test Tenants</strong>) can be <Trash2 className="inline h-3 w-3 text-destructive" /> <strong>purged</strong> — permanently and irreversibly.</p>
+          <p>Tick the checkboxes to select multiple at once. Use the bulk bar to suspend or archive in one go. Lists are paginated at {PAGE_SIZE_DEFAULT} per page.</p>
         </CollapsibleContent>
       </Collapsible>
 
@@ -843,6 +884,7 @@ export default function CreatorConsole() {
             </TabsTrigger>
             <TabsTrigger value="rejected">Rejected ({counts.rejected})</TabsTrigger>
             <TabsTrigger value="archived">Archived ({counts.archived})</TabsTrigger>
+            <TabsTrigger value="test_tenants">Test Tenants ({testTenants.length})</TabsTrigger>
             <TabsTrigger value="remittance_quarantine">Remittance Quarantine</TabsTrigger>
             <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
             <TabsTrigger value="acknowledgments">Acknowledgments</TabsTrigger>
@@ -869,6 +911,46 @@ export default function CreatorConsole() {
           </TabsContent>
           <TabsContent value="archived">
             <Card><CardContent className="pt-4">{renderArchivedTable(filteredArchived())}</CardContent></Card>
+          </TabsContent>
+          <TabsContent value="test_tenants">
+            <Card><CardContent className="pt-4 space-y-3">
+              <p className="text-xs text-muted-foreground">Sandbox and test tenants only. Purge permanently deletes the tenant and all of its data — test data only, never a real customer.</p>
+              {testTenants.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">No test tenants.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Owner Email</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {testTenants.filter(t => !search || t.name.toLowerCase().includes(search.toLowerCase())).map(t => (
+                      <TableRow key={t.id}>
+                        <TableCell className="font-medium">{t.name}{t.deleted_at && <Badge variant="outline" className="ml-2 text-[10px]">Archived</Badge>}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{t.owner_email || "—"}</TableCell>
+                        <TableCell className="text-xs">
+                          {t.is_sandbox && <Badge variant="secondary" className="mr-1 text-[10px]">Sandbox</Badge>}
+                          {t.creator_test_tenant && <Badge variant="secondary" className="text-[10px]">Creator test</Badge>}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{format(new Date(t.created_at), "MMM d, yyyy")}</TableCell>
+                        <TableCell className="text-right">
+                          {isPurgeableTenant(t) && (
+                            <Button size="sm" variant="destructive" className="gap-1 text-xs" disabled={purgeLoading} onClick={() => openPurge(t)}>
+                              <Trash2 className="h-3 w-3" /> Purge test tenant
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent></Card>
           </TabsContent>
           <TabsContent value="remittance_quarantine">
             <RemittanceQuarantinePanel />
@@ -937,16 +1019,14 @@ export default function CreatorConsole() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {modal?.company.is_protected ? "Archive Company" : "Delete Company Permanently"}
+              Archive company
             </DialogTitle>
             <DialogDescription>
-              {modal?.company.is_protected
-                ? `"${modal?.company.name}" passed verification and is under legal retention. It will be archived (data preserved for ${RETENTION_YEARS} years) and any active subscription will be cancelled.`
-                : `"${modal?.company.name}" never passed verification (test or unverified account). This will permanently delete the company and all related rows. Cannot be undone.`}
+              {`"${modal?.company.name}" will be archived: all of its users lose access and any active subscription is cancelled. No data is deleted — records are retained for ${RETENTION_YEARS} years, and you can restore the company from the Archived tab.`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <Textarea placeholder="Reason (optional but recommended for audit log)..." value={reasonText} onChange={(e) => setReasonText(e.target.value)} className="h-20" />
+            <Textarea placeholder="Reason for archiving (required)..." value={reasonText} onChange={(e) => setReasonText(e.target.value)} className="h-20" />
             <p className="text-xs text-muted-foreground">
               Type the company name <strong className="text-foreground">{modal?.company.name}</strong> to confirm:
             </p>
@@ -956,11 +1036,11 @@ export default function CreatorConsole() {
             <Button variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
             <Button
               variant="destructive"
-              disabled={confirmText !== modal?.company.name || actionLoading}
-              onClick={() => invokeAction("delete", { reason: reasonText.trim() || undefined })}
+              disabled={confirmText !== modal?.company.name || !reasonText.trim() || actionLoading}
+              onClick={() => invokeAction("delete", { reason: reasonText.trim() })}
             >
               {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />}
-              {modal?.company.is_protected ? "Archive" : "Delete Forever"}
+              Archive
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1012,19 +1092,54 @@ export default function CreatorConsole() {
       <Dialog open={bulkDeleteOpen} onOpenChange={(open) => { if (!open) { setBulkDeleteOpen(false); setBulkConfirmText(""); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Permanently delete {selectedIds.size} compan{selectedIds.size === 1 ? "y" : "ies"}?</DialogTitle>
+            <DialogTitle>Archive {selectedIds.size} compan{selectedIds.size === 1 ? "y" : "ies"}?</DialogTitle>
             <DialogDescription>
-              This will hard-delete all selected unprotected companies and their data. Protected (verified) companies in the selection will be skipped. Cannot be undone.
+              All selected companies will be archived with the same reason. Their users lose access; no data is deleted and each can be restored from the Archived tab.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">Type <strong>DELETE</strong> to confirm:</p>
-            <Input value={bulkConfirmText} onChange={(e) => setBulkConfirmText(e.target.value)} placeholder="DELETE" className="font-mono" autoComplete="off" />
+            <Textarea placeholder="Reason for archiving (required, applies to all selected)..." value={bulkArchiveReason} onChange={(e) => setBulkArchiveReason(e.target.value)} className="h-20" />
+            <p className="text-xs text-muted-foreground">Type <strong>ARCHIVE</strong> to confirm:</p>
+            <Input value={bulkConfirmText} onChange={(e) => setBulkConfirmText(e.target.value)} placeholder="ARCHIVE" className="font-mono" autoComplete="off" />
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => { setBulkDeleteOpen(false); setBulkConfirmText(""); }}>Cancel</Button>
-            <Button variant="destructive" disabled={bulkConfirmText !== "DELETE" || actionLoading} onClick={handleBulkDelete}>
-              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Delete Forever
+            <Button variant="destructive" disabled={bulkConfirmText !== "ARCHIVE" || !bulkArchiveReason.trim() || actionLoading} onClick={handleBulkDelete}>
+              {actionLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Archive selected
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Purge Test Tenant (sandbox/test only, irreversible) */}
+      <Dialog open={!!purgeTarget} onOpenChange={(open) => { if (!open && !purgeLoading) setPurgeTarget(null); }}>
+        <DialogContent className="border-destructive">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2"><Trash2 className="h-4 w-4" /> Purge test tenant — permanent</DialogTitle>
+            <DialogDescription>
+              {`"${purgeTarget?.name}" is a sandbox/test tenant. Purging permanently deletes the company and all of its data. This cannot be undone and is for test data only.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs">
+              {purgePreview === null
+                ? <span className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Counting rows (dry run, nothing deleted)…</span>
+                : <span><strong className="text-destructive">This will permanently delete:</strong> {summarizePurgeCounts(purgePreview) || "the company record only (no other rows)"}.</span>}
+            </div>
+            <Textarea placeholder="Reason for purging (required)..." value={purgeReason} onChange={(e) => setPurgeReason(e.target.value)} className="h-16" disabled={purgePreview === null} />
+            <p className="text-xs text-muted-foreground">
+              Type the company name <strong className="text-foreground">{purgeTarget?.name}</strong> to confirm:
+            </p>
+            <Input value={purgeConfirm} onChange={(e) => setPurgeConfirm(e.target.value)} placeholder={purgeTarget?.name || ""} autoComplete="off" disabled={purgePreview === null} />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" disabled={purgeLoading} onClick={() => setPurgeTarget(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={purgePreview === null || purgeConfirm !== purgeTarget?.name || !purgeReason.trim() || purgeLoading}
+              onClick={runPurge}
+            >
+              {purgeLoading && <Loader2 className="h-3 w-3 animate-spin mr-1.5" />} Purge permanently
             </Button>
           </DialogFooter>
         </DialogContent>
