@@ -6943,6 +6943,10 @@ export type Database = {
         Returns: Database["public"]["Enums"]["transport_kind"]
       }
       purge_old_crew_locations: { Args: never; Returns: number }
+      purge_test_company: {
+        Args: { _company_id: string; _dry_run?: boolean }
+        Returns: Json
+      }
       reap_stale_loadtest_reports: { Args: never; Returns: number }
       retry_claim_creation: { Args: { p_trip_id: string }; Returns: Json }
       run_daily_proactive_alerts: { Args: never; Returns: undefined }
