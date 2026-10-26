@@ -193,6 +193,7 @@ export default function Patients() {
     prior_auth_utn: "",
     prior_auth_period_start: "",
     prior_auth_period_end: "",
+    prior_auth_trips_authorized: "40",
     // Hospice (Rule 3a). hospice_enrolled drives the Medicare-Part-B block;
     // election_date and terminal_illness_icd are advisory documentation.
     hospice_enrolled: false,
@@ -315,6 +316,7 @@ export default function Patients() {
       prior_auth_utn: "",
       prior_auth_period_start: "",
       prior_auth_period_end: "",
+      prior_auth_trips_authorized: "40",
       hospice_enrolled: false,
       hospice_election_date: "",
       terminal_illness_icd: "",
@@ -403,6 +405,7 @@ export default function Patients() {
       prior_auth_utn: (p as any).prior_auth_utn ?? "",
       prior_auth_period_start: (p as any).prior_auth_period_start ?? "",
       prior_auth_period_end: (p as any).prior_auth_period_end ?? "",
+      prior_auth_trips_authorized: (p as any).prior_auth_trips_authorized?.toString() ?? "40",
       hospice_enrolled: (p as any).hospice_enrolled ?? false,
       hospice_election_date: (p as any).hospice_election_date ?? "",
       terminal_illness_icd: (p as any).terminal_illness_icd ?? "",
@@ -587,6 +590,7 @@ export default function Patients() {
       prior_auth_utn: form.prior_auth_utn || null,
       prior_auth_period_start: form.prior_auth_period_start || null,
       prior_auth_period_end: form.prior_auth_period_end || null,
+      prior_auth_trips_authorized: form.prior_auth_trips_authorized ? parseInt(form.prior_auth_trips_authorized) : 40,
       hospice_enrolled: !!form.hospice_enrolled,
       hospice_election_date: form.hospice_enrolled ? (form.hospice_election_date || null) : null,
       terminal_illness_icd: form.hospice_enrolled ? (form.terminal_illness_icd?.trim() || null) : null,
@@ -1822,6 +1826,11 @@ export default function Patients() {
                               <Label>Auth Period End<PCRTooltip text={ADMIN_TOOLTIPS.prior_auth_period_end} /></Label>
                               <Input type="date" value={form.prior_auth_period_end} onChange={(e) => setForm({ ...form, prior_auth_period_end: e.target.value })} />
                             </div>
+                          </div>
+                          <div>
+                            <Label>Round Trips Authorized</Label>
+                            <Input type="number" min={1} max={40} value={form.prior_auth_trips_authorized} onChange={(e) => setForm({ ...form, prior_auth_trips_authorized: e.target.value })} placeholder="40" />
+                            <p className="text-[11px] text-muted-foreground">From the MAC decision — up to 40 per 60-day period; enter fewer if the MAC authorized less.</p>
                           </div>
                         </div>
                         {/* PCS */}
