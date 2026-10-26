@@ -47,6 +47,7 @@ export function suggestTrucksForRun(input: TruckSuggestionInput): {
   const eligible: RankedTruck[] = [];
   const ineligible: { truckId: string; reason: string }[] = [];
   const window = computeWindow(run, buffers);
+  const needsBariatric = evaluateSafetyRules({ weight_lbs: run.patient.weight_lbs, bariatric: run.patient.bariatric }, {}, {}).status !== "OK";
   for (const truck of candidates) {
     const reject = (reason: string) => ineligible.push({ truckId: truck.truckId, reason });
     if (truck.downForDay || truck.outOfServiceForDay) {
@@ -96,7 +97,7 @@ export function suggestTrucksForRun(input: TruckSuggestionInput): {
     const idle = gaps.length ? Math.max(0, Math.min(...gaps) - buffers.minGapMinutes) : 24 * 60;
     const specialized = Number(truck.service_level === "ALS" && run.service_level === "BLS")
       + Number(Boolean(truck.equipment.has_power_stretcher || truck.equipment.has_bariatric_stretcher || truck.equipment.has_bariatric_kit)
-        && !run.patient.bariatric && run.patient.weight_lbs == null && !required.has("has_power_stretcher")
+        && !needsBariatric && !required.has("has_power_stretcher")
         && !required.has("has_bariatric_stretcher") && !required.has("has_bariatric_kit"));
     // Minute-resolution fit dominates; parsimony (<1) then load (<0.01).
     const score = -Math.ceil(idle) - specialized * 0.1 - (existing.length / (existing.length + 1)) * 0.01;
