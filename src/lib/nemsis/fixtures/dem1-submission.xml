@@ -141,7 +141,7 @@
     <dConfiguration>
       <dConfiguration.ConfigurationGroup UUID="c849e195-e4c5-45e1-9ce4-e34659da4453">
         <dConfiguration.01>13</dConfiguration.01>
-        <dConfiguration.ProcedureGroup>
+        <dConfiguration.ProcedureGroup UUID="f7660d8c-d395-4f40-9331-4dddb2260840">
           <dConfiguration.06>9917002</dConfiguration.06>
           <dConfiguration.07>128968000</dConfiguration.07>
           <dConfiguration.07>133901003</dConfiguration.07>
@@ -214,7 +214,7 @@
           <dConfiguration.07>87750000</dConfiguration.07>
           <dConfiguration.07>89666000</dConfiguration.07>
         </dConfiguration.ProcedureGroup>
-        <dConfiguration.ProcedureGroup>
+        <dConfiguration.ProcedureGroup UUID="3daded92-c7e2-4ce7-bff0-8141635439a9">
           <dConfiguration.06>9917005</dConfiguration.06>
           <dConfiguration.07>128968000</dConfiguration.07>
           <dConfiguration.07>133901003</dConfiguration.07>
@@ -285,7 +285,7 @@
           <dConfiguration.07>87750000</dConfiguration.07>
           <dConfiguration.07>89666000</dConfiguration.07>
         </dConfiguration.ProcedureGroup>
-        <dConfiguration.ProcedureGroup>
+        <dConfiguration.ProcedureGroup UUID="99293bdf-6c1d-40fc-8f36-d0cdc6090cb7">
           <dConfiguration.06>9917007</dConfiguration.06>
           <dConfiguration.07>103744005</dConfiguration.07>
           <dConfiguration.07>116859006</dConfiguration.07>
@@ -404,7 +404,7 @@
           <dConfiguration.07>87750000</dConfiguration.07>
           <dConfiguration.07>89666000</dConfiguration.07>
         </dConfiguration.ProcedureGroup>
-        <dConfiguration.ProcedureGroup>
+        <dConfiguration.ProcedureGroup UUID="9943cf5d-e09c-4f74-91f5-73d408972d1f">
           <dConfiguration.06>9917023</dConfiguration.06>
           <dConfiguration.07>128968000</dConfiguration.07>
           <dConfiguration.07>133901003</dConfiguration.07>
@@ -455,7 +455,7 @@
           <dConfiguration.07>87750000</dConfiguration.07>
           <dConfiguration.07>89666000</dConfiguration.07>
         </dConfiguration.ProcedureGroup>
-        <dConfiguration.MedicationGroup>
+        <dConfiguration.MedicationGroup UUID="d51ae09c-d851-4a5c-9baa-124512ef0316">
           <dConfiguration.08>9917002</dConfiguration.08>
           <dConfiguration.09 CodeType="9924003">10368</dConfiguration.09>
           <dConfiguration.09 CodeType="9924003">11149</dConfiguration.09>
@@ -502,7 +502,7 @@
           <dConfiguration.09 CodeType="9924003">7806</dConfiguration.09>
           <dConfiguration.09 CodeType="9924003">8163</dConfiguration.09>
         </dConfiguration.MedicationGroup>
-        <dConfiguration.MedicationGroup>
+        <dConfiguration.MedicationGroup UUID="d947d248-dad8-49d8-bf74-0575177f66ee">
           <dConfiguration.08>9917005</dConfiguration.08>
           <dConfiguration.09 CodeType="9924003">1191</dConfiguration.09>
           <dConfiguration.09 CodeType="9924003">1223</dConfiguration.09>
@@ -519,7 +519,7 @@
           <dConfiguration.09 CodeType="9924003">7242</dConfiguration.09>
           <dConfiguration.09 CodeType="9924003">7806</dConfiguration.09>
         </dConfiguration.MedicationGroup>
-        <dConfiguration.MedicationGroup>
+        <dConfiguration.MedicationGroup UUID="d4896ee4-a96f-4950-8599-310794297a40">
           <dConfiguration.08>9917007</dConfiguration.08>
           <dConfiguration.09 CodeType="9924003">1008377</dConfiguration.09>
           <dConfiguration.09 CodeType="9924003">10368</dConfiguration.09>
@@ -590,7 +590,7 @@
           <dConfiguration.09 CodeType="9924003">8745</dConfiguration.09>
           <dConfiguration.09 CodeType="9924003">8782</dConfiguration.09>
         </dConfiguration.MedicationGroup>
-        <dConfiguration.MedicationGroup>
+        <dConfiguration.MedicationGroup UUID="240e63e3-c493-49f2-aad5-c1d9abee75f9">
           <dConfiguration.08>9917023</dConfiguration.08>
           <dConfiguration.09 CodeType="9924003">10368</dConfiguration.09>
           <dConfiguration.09 CodeType="9924003">1191</dConfiguration.09>
@@ -771,7 +771,7 @@
       </dConfiguration.ConfigurationGroup>
       <dConfiguration.ConfigurationGroup UUID="462f46fe-0586-4817-8119-fdea68b48219">
         <dConfiguration.01>45</dConfiguration.01>
-        <dConfiguration.ProcedureGroup>
+        <dConfiguration.ProcedureGroup UUID="152a6735-c294-4a66-98d2-bdbf97d202b4">
           <dConfiguration.06>9917002</dConfiguration.06>
           <dConfiguration.07>128968000</dConfiguration.07>
           <dConfiguration.07>133901003</dConfiguration.07>
@@ -841,7 +841,7 @@
           <dConfiguration.07>87750000</dConfiguration.07>
           <dConfiguration.07>89666000</dConfiguration.07>
         </dConfiguration.ProcedureGroup>
-        <dConfiguration.ProcedureGroup>
+        <dConfiguration.ProcedureGroup UUID="c6466efb-b06b-4943-9949-fcc5fffcd7cc">
           <dConfiguration.06>9917005</dConfiguration.06>
           <dConfiguration.07>128968000</dConfiguration.07>
           <dConfiguration.07>133901003</dConfiguration.07>
@@ -910,7 +910,7 @@
           <dConfiguration.07>87750000</dConfiguration.07>
           <dConfiguration.07>89666000</dConfiguration.07>
         </dConfiguration.ProcedureGroup>
-        <dConfiguration.ProcedureGroup>
+        <dConfiguration.ProcedureGroup UUID="d25c6b22-3313-4728-86a4-9d4089865e8b">
           <dConfiguration.06>9917007</dConfiguration.06>
           <dConfiguration.07>103744005</dConfiguration.07>
           <dConfiguration.07>116859006</dConfiguration.07>
@@ -1027,7 +1027,7 @@
           <dConfiguration.07>87750000</dConfiguration.07>
           <dConfiguration.07>89666000</dConfiguration.07>
         </dConfiguration.ProcedureGroup>
-        <dConfiguration.MedicationGroup>
+        <dConfiguration.MedicationGroup UUID="bc970172-330b-4340-b35c-08671bde5045">
           <dConfiguration.08>9917002</dConfiguration.08>
           <dConfiguration.09 CodeType="9924003">10368</dConfiguration.09>
           <dConfiguration.09 CodeType="9924003">11149</dConfiguration.09>
@@ -1074,7 +1074,7 @@
           <dConfiguration.09 CodeType="9924003">7806</dConfiguration.09>
           <dConfiguration.09 CodeType="9924003">8163</dConfiguration.09>
         </dConfiguration.MedicationGroup>
-        <dConfiguration.MedicationGroup>
+        <dConfiguration.MedicationGroup UUID="a94b1917-1c3f-4ab8-9a7c-b6ceec317afd">
           <dConfiguration.08>9917005</dConfiguration.08>
           <dConfiguration.09 CodeType="9924003">1191</dConfiguration.09>
           <dConfiguration.09 CodeType="9924003">1223</dConfiguration.09>
@@ -1091,7 +1091,7 @@
           <dConfiguration.09 CodeType="9924003">7242</dConfiguration.09>
           <dConfiguration.09 CodeType="9924003">7806</dConfiguration.09>
         </dConfiguration.MedicationGroup>
-        <dConfiguration.MedicationGroup>
+        <dConfiguration.MedicationGroup UUID="f26f16ec-02ae-493e-82a4-05c92d9b19da">
           <dConfiguration.08>9917007</dConfiguration.08>
           <dConfiguration.09 CodeType="9924003">1008377</dConfiguration.09>
           <dConfiguration.09 CodeType="9924003">10368</dConfiguration.09>
