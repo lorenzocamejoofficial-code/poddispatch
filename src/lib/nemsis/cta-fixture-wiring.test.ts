@@ -35,8 +35,10 @@ describe("corrected CTA fixture wiring", () => {
     });
   }
 
-  it("EMS1 retains both arrest values in order", () => {
-    expect(values(parse(EMS1_SUBMISSION_XML), "eArrest.03")).toEqual(["3003001", "3003005"]);
+  it("EMS1 retains all three arrest values in order", () => {
+    // The corrected live Crash case carries three eArrest.03 values; the
+    // pre-correction submission had only two.
+    expect(values(parse(EMS1_SUBMISSION_XML), "eArrest.03")).toEqual(["3003001", "3003003", "3003005"]);
   });
   it("EMS2 retains all three response values and linked crew custom results", () => {
     const doc = parse(EMS2_SUBMISSION_XML);
