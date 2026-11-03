@@ -62,17 +62,6 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  // TEMP_PROBE_START
-  if (new URL(req.url).searchParams.get("probe") === "1") {
-    const sc = new URL(req.url).searchParams.get("sc");
-    const [xml, ds] = sc === "dem-error" ? [DEM1_SUBMISSION_XML, "DEM"]
-      : sc === "dem-warning" ? [DEM1_SUBMISSION_XML.replace(/(<dContact\.10 PhoneNumberType=")\d+(")/g, "$19913005$2"), "DEM"]
-      : sc === "ems-error" ? [EMS5_SUBMISSION_XML.replace(/(<eMedications\.03 CodeType="9924003">)[^<]*/, "$1NOTACODE"), "EMS"]
-      : [EMS5_SUBMISSION_XML, "EMS"];
-    const r = await validateXml(xml, ds as "DEM" | "EMS");
-    return json({ sc, errors: r.error_count, warnings: r.warning_count, can_finalize: r.can_finalize, first_error: r.findings.find((f) => f.level === "ERROR")?.message ?? null });
-  }
-  // TEMP_PROBE_END
 
   const auth = req.headers.get("Authorization");
   if (!auth?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
