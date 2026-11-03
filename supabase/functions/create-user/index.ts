@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Admin ${callerUser.user.email} creating user: ${email} with role: ${membershipRole}, company: ${company_id}`);
+    console.log(`Admin ${callerUser.user.id} creating user with role: ${membershipRole}, company: ${company_id}`);
 
     // Create auth user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`User ${email} created successfully with role ${membershipRole} under company ${company_id}`);
+    console.log(`User created successfully with role ${membershipRole} under company ${company_id}`);
 
     return new Response(
       JSON.stringify({ user: newUser.user, message: "User created successfully" }),
