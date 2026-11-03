@@ -2,9 +2,55 @@
  * NEMSIS validation findings — pure parsing and finalization gating shared by
  * the in-app validation service (supabase/functions/nemsis-validate) and UI.
  *
- * Rule: any ERROR (XSD or Schematron [ERROR]/[FATAL]) blocks finalization;
- * WARNINGs are shown but finalization is allowed.
+ * Rule: any ENFORCED ERROR (XSD or an enforced Schematron set's [ERROR]/[FATAL])
+ * blocks finalization; enforced WARNINGs are shown but allowed. Findings from
+ * informational sets (state files by default — see SCHEMATRON_POLICY) are run
+ * and shown, labelled informational, and never block.
  */
+
+/** NEMSIS dataset version the app exports. */
+export const NEMSIS_DATASET_VERSION = "3.5.1";
+
+export type SchematronEnforcement = "enforce" | "informational" | "auto";
+export interface SchematronPolicy {
+  kind: "national" | "state";
+  /** State code for state files, e.g. "GA". */
+  state?: string;
+  /**
+   * enforce: findings gate finalization. informational: shown, never block.
+   * auto: enforce only when the file's version matches the exported dataset
+   * version (e.g. a state publishes a 3.5.1 file).
+   */
+  enforcement: SchematronEnforcement;
+}
+
+/**
+ * Per Schematron set (asset set_id) enforcement configuration. Sets not listed
+ * are national/compliance files and are enforced. Georgia publishes only a
+ * 3.5.0 file while the exported data is 3.5.1, so it is informational. To
+ * enforce a state file for an agency whose state publishes a matching version,
+ * set its entry to "auto" (or "enforce").
+ */
+export const SCHEMATRON_POLICY: Record<string, SchematronPolicy> = {
+  "state-ga-ems": { kind: "state", state: "GA", enforcement: "informational" },
+};
+
+export function policyFor(setId: string): SchematronPolicy {
+  return SCHEMATRON_POLICY[setId] ?? { kind: "national", enforcement: "enforce" };
+}
+
+/** Whether a Schematron set's findings gate finalization. */
+export function isSetEnforced(
+  setId: string,
+  fileVersion: string | null,
+  policies: Record<string, SchematronPolicy> = SCHEMATRON_POLICY,
+  datasetVersion = NEMSIS_DATASET_VERSION,
+): boolean {
+  const p = policies[setId] ?? { kind: "national", enforcement: "enforce" };
+  if (p.enforcement === "enforce") return true;
+  if (p.enforcement === "informational") return false;
+  return !!fileVersion && (fileVersion === datasetVersion || fileVersion.startsWith(`${datasetVersion}.`));
+}
 
 export type FindingLevel = "ERROR" | "WARNING";
 
@@ -19,6 +65,8 @@ export interface ValidationFinding {
   /** Element(s) the rule reports on, e.g. "eHistory.05". */
   elements: string[];
   rule_id: string | null;
+  /** false = informational (state file not enforced); shown but never blocks. Absent = enforced. */
+  enforced?: boolean;
 }
 
 export interface ValidationResult {
@@ -26,9 +74,11 @@ export interface ValidationResult {
   findings: ValidationFinding[];
   error_count: number;
   warning_count: number;
+  /** Findings from informational (non-enforced) rule sets. Not in error/warning counts. */
+  informational_count?: number;
   can_finalize: boolean;
   /** Schematron files that ran, for display ("National 3.5.1…, Georgia …"). */
-  rule_sets: { id: string; source: string; version: string | null }[];
+  rule_sets: { id: string; source: string; version: string | null; enforced?: boolean }[];
   validated_at: string;
 }
 
@@ -98,9 +148,11 @@ export function summarize(
   rule_sets: ValidationResult["rule_sets"],
   now = new Date().toISOString(),
 ): ValidationResult {
-  const error_count = findings.filter((f) => f.level === "ERROR").length;
-  const warning_count = findings.length - error_count;
-  return { dataset, findings, error_count, warning_count, can_finalize: error_count === 0, rule_sets, validated_at: now };
+  const gating = findings.filter((f) => f.enforced !== false);
+  const error_count = gating.filter((f) => f.level === "ERROR").length;
+  const warning_count = gating.length - error_count;
+  const informational_count = findings.length - gating.length;
+  return { dataset, findings, error_count, warning_count, informational_count, can_finalize: error_count === 0, rule_sets, validated_at: now };
 }
 
 export type FinalizeDecision = "block" | "confirm_warnings" | "proceed";
