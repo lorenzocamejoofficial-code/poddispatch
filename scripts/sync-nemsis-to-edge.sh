@@ -23,6 +23,8 @@ cp src/lib/nemsis/validation.ts       supabase/functions/_shared/nemsis/validati
 cp src/lib/nemsis/dem-schema.ts       supabase/functions/_shared/nemsis/dem-schema.ts
 cp src/lib/nemsis/dem-schema.generated.ts supabase/functions/_shared/nemsis/dem-schema.generated.ts
 cp src/lib/nemsis/dem-tree.ts         supabase/functions/_shared/nemsis/dem-tree.ts
+cp src/lib/nemsis/ems-tree.ts         supabase/functions/_shared/nemsis/ems-tree.ts
+cp src/lib/nemsis/ems-schema.generated.ts supabase/functions/_shared/nemsis/ems-schema.generated.ts
 cp src/lib/nemsis/states/ga.ts        supabase/functions/_shared/nemsis/states/ga.ts
 
 # Deno requires explicit .ts extensions on relative imports. The app source
@@ -39,6 +41,8 @@ for f in \
   supabase/functions/_shared/nemsis/dem-schema.ts \
   supabase/functions/_shared/nemsis/dem-schema.generated.ts \
   supabase/functions/_shared/nemsis/dem-tree.ts \
+  supabase/functions/_shared/nemsis/ems-tree.ts \
+  supabase/functions/_shared/nemsis/ems-schema.generated.ts \
   supabase/functions/_shared/nemsis/states/ga.ts; do
   add_ts_ext "$f"
 done

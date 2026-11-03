@@ -28,6 +28,7 @@ const creatorNavItems: NavItem[] = [
   { path: "/creator-playbook", label: "Ops Playbook", icon: BookOpen },
   { path: "/creator-nemsis-cta", label: "NEMSIS CTA", icon: ShieldCheck },
   { path: "/creator-nemsis-agency", label: "Agency NEMSIS Profile", icon: ShieldCheck },
+  { path: "/creator-nemsis-ems", label: "NEMSIS EMS Cases", icon: ShieldCheck },
   { path: "/creator-nemsis-dem1", label: "DEM 1 Fixture", icon: BookOpen },
   { path: "/crew-preview", label: "Crew UI Preview", icon: Users },
   { path: "/creator-settings", label: "Settings", icon: Settings },

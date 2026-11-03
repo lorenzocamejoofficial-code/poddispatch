@@ -41,6 +41,7 @@ import { renderEmsSections, renderRecordSection, type EmsRecordData } from "./em
 export type * from "./ems-record.ts";
 import type { DemNode } from "./dem-schema.ts";
 import { renderDemDataSet } from "./dem-tree.ts";
+import { renderEmsDataSet } from "./ems-tree.ts";
 
 export interface NemsisAgency {
   npi: string | null;
@@ -706,6 +707,9 @@ export interface PcrExportInput {
   /** Lossless compliance path: full source EMSDataSet XML. When present,
    *  buildEmsDataSet emits it verbatim, stamping only eRecord.02/.03/.04. */
   raw_reference?: string;
+  /** Stored certification EMS case records (public.nemsis_ems_nodes). When
+   *  present, the EMSDataSet is rendered from them (ems-tree.ts). */
+  ems_nodes?: DemNode[];
 }
 
 /** Produce a single-eRecord NEMSIS 3.5.1 XML string (Web Service payload). */
@@ -980,6 +984,11 @@ export function buildDemDataSet(profile: DemographicProfile): string {
  *  Compliance Testing web service (and the TAC pre-testing tools) expect
  *  for both file-upload and Web Service POST submissions. */
 export function buildEmsDataSet(input: PcrExportInput, ctx: ExportContext): string {
+  if (input.ems_nodes != null) {
+    const sw = ctx.software;
+    if (!sw) throw new Error("ems_nodes: EMS software identity is required");
+    return renderEmsDataSet(input.ems_nodes, { software: { creator: sw.name, name: sw.name, version: sw.version } });
+  }
   if (input.raw_reference != null) return stampSoftware(input.raw_reference, ctx);
   const eRecord = buildERecord(input, ctx);
   const pcrUuid = input.pcr_uuid ?? uuidv4();
