@@ -14,26 +14,6 @@
     "9924003",
     "9924005"
    ]
-  },
-  {
-   "dataset": "EMS",
-   "element": "eHistory.06@CodeType",
-   "list": "CodeType.ICD10+CodeType.RxNorm",
-   "missing": 2,
-   "examples": [
-    "9924001",
-    "9924003"
-   ]
-  },
-  {
-   "dataset": "EMS",
-   "element": "eMedications.03@CodeType",
-   "list": "CodeType.RxNorm+CodeType.SNOMED",
-   "missing": 2,
-   "examples": [
-    "9924003",
-    "9924005"
-   ]
   }
  ],
  "lists": [
@@ -757,8 +737,8 @@
    },
    "nemsis_version": "3.5.1.251001CP2",
    "official_count": 2,
-   "interface_count": 0,
-   "complete": false,
+   "interface_count": 2,
+   "complete": true,
    "elements": [
     "eHistory.06@CodeType"
    ],
