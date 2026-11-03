@@ -94,7 +94,7 @@ export function BillerPCROverridePanel({ trip, open, onOpenChange, onSaved }: Bi
       // Update trip_records
       const { error: tripError } = await supabase
         .from("trip_records")
-        .update(updates as never)
+        .update(updates)
         .eq("id", trip.id);
 
       if (tripError) throw tripError;

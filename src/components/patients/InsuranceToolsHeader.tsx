@@ -281,7 +281,7 @@ function DiscoverCoverageButton({
               };
       const { error: upErr } = await supabase
         .from("patients")
-        .update(updates as never)
+        .update(updates)
         .eq("id", (match as any).id);
       if (upErr) {
         toast.error("Couldn't update patient: " + upErr.message);

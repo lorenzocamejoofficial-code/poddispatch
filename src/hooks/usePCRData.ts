@@ -328,7 +328,7 @@ export function usePCRData(
   const persist = useCallback(async (key: string, payload: Record<string, any>) => {
     const { error } = await supabase
       .from("trip_records")
-      .update(payload as never)
+      .update(payload)
       .eq("id", tripId!);
     if (error) {
       console.error("PCR auto-save error:", error);
