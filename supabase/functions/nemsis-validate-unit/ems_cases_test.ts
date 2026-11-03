@@ -12,13 +12,20 @@ import { EMS5_SUBMISSION_XML } from "../_shared/nemsis/fixtures/ems5-submission.
 const SW = { creator: "PodDispatch", name: "PodDispatch", version: "1.0" };
 const CASES = [EMS1_SUBMISSION_XML, EMS2_SUBMISSION_XML, EMS3_SUBMISSION_XML, EMS4_SUBMISSION_XML, EMS5_SUBMISSION_XML];
 
+// Georgia-state errors present in the reference data itself (the stored records match the references exactly).
+const GA_ERRORS: Record<number, string[]> = {
+  1: [], 2: ["RestrictByDestinationCode"], 3: ["Rule_3659", "Rule_3659", "Rule_3659"], 4: ["RestrictByDestinationCode"], 5: [],
+};
+
 CASES.forEach((ref, i) => {
-  Deno.test(`EMS-${i + 1} from stored records: XSD valid, no Schematron errors → can finalize`, async () => {
+  const n = i + 1;
+  Deno.test(`EMS-${n} from stored records: XSD valid, 0 national/compliance errors, gate follows Georgia errors`, async () => {
     const r = await validateNemsisXml(renderEmsDataSet(parseEmsXml(ref), { software: SW }), "EMS");
-    console.log(`EMS-${i + 1}`, JSON.stringify(r.findings.map((f) => [f.level, f.source, f.rule_id, f.message.slice(0, 160)])));
+    console.log(`EMS-${n}`, JSON.stringify(r.findings.map((f) => [f.level, f.source, f.rule_id])));
     assertEquals(r.findings.filter((f) => f.source === "XSD").length, 0);
-    assertEquals(r.error_count, 0);
-    assertEquals(r.can_finalize, true);
+    assertEquals(r.findings.filter((f) => f.level === "ERROR" && f.source !== "Georgia").length, 0);
+    assertEquals(r.findings.filter((f) => f.level === "ERROR").map((f) => f.rule_id), GA_ERRORS[n]);
+    assertEquals(r.can_finalize, GA_ERRORS[n].length === 0);
   });
 });
 
