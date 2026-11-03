@@ -128,6 +128,9 @@ function renderGroupBody(spec: DemGroupSpec, node: DemNode, nodes: DemNode[], uu
   return out;
 }
 
+/** Hidden per-node key keeping the eCustomResults position of a custom value (lossless round-trip). */
+export const customOrderKey = (tag: string) => `${tag}#order`;
+
 const natural = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
 /** Give every group holding a custom value a CorrelationID (c1, c2, …) — pure. */
@@ -149,14 +152,15 @@ export function renderEmsDataSet(input: DemNode[], opts: EmsRenderOptions): stri
   const root = (tag: string) => nodes.find((n) => n.parent_id == null && n.tag === tag);
   const specOf = (tag: string) => EMS_SECTIONS.find((s) => s.tag === tag)!;
 
-  const results: { corr: string; tag: string; values: DemFieldValue[] }[] = [];
+  const results: { corr: string; tag: string; values: DemFieldValue[]; order: number }[] = [];
   for (const n of nodes) {
     for (const c of EMS_CUSTOM_FIELDS[n.tag] ?? []) {
       const vals = n.values?.[c.tag];
-      if (vals?.length && n.correlation_id) results.push({ corr: n.correlation_id, tag: c.tag, values: vals });
+      const ord = Number(n.values?.[customOrderKey(c.tag)]?.[0]?.v);
+      if (vals?.length && n.correlation_id) results.push({ corr: n.correlation_id, tag: c.tag, values: vals, order: Number.isFinite(ord) ? ord : Infinity });
     }
   }
-  results.sort((a, b) => natural(a.corr, b.corr));
+  results.sort((a, b) => (a.order - b.order) || natural(a.corr, b.corr));
 
   let pcr = "";
   for (const tag of EMS_PCR_ORDER) {
@@ -267,13 +271,14 @@ export function parseEmsXml(xml: string, newId: () => string = defaultUuid): Dem
   }
   const rec = nodes.find((n) => n.parent_id == null && n.tag === "eRecord");
   if (rec && pcrUuid) rec.uuid = pcrUuid;
-  for (const c of customs) {
+  customs.forEach((c, idx) => {
     const el = c["eCustomResults.02"]?.[0]?.v;
     const corr = c["eCustomResults.03"]?.[0]?.v;
     const owner = nodes.find((n) => n.correlation_id === corr && (EMS_CUSTOM_FIELDS[n.tag] ?? []).some((f) => f.tag === el));
     if (!el || !owner) throw new Error(`EMS parse: custom result ${el} has no group with CorrelationID ${corr}`);
     owner.values[el] = c["eCustomResults.01"] ?? [{ nv: "7701003" }];
-  }
+    owner.values[customOrderKey(el)] = [{ v: String(idx) }];
+  });
   return nodes;
 }
 
