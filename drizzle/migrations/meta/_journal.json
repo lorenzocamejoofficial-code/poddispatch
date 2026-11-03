@@ -50,6 +50,13 @@
       "when": 1793727281387,
       "tag": "0006_nemsis_certification_company",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793729019281,
+      "tag": "0007_nemsis_cert_record_finalization",
+      "breakpoints": true
     }
   ]
 }

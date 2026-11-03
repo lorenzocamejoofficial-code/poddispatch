@@ -93,6 +93,7 @@
         "typescript-eslint": "^8.38.0",
         "vite": "^5.4.19",
         "vitest": "^3.2.4",
+        "xmllint-wasm": "4.0.2",
         "xslt3": "^2.7.0",
       },
     },
@@ -1385,6 +1386,8 @@
     "xml-name-validator": ["xml-name-validator@4.0.0", "", {}, "sha512-ICP2e+jsHvAj2E2lIHxa5tjXRlKDJo4IdvPvCXbXQGdzSfmSpNVyIKMvoZHjDY9DP0zV17iI85o90vRFXNccRw=="],
 
     "xmlchars": ["xmlchars@2.2.0", "", {}, "sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw=="],
+
+    "xmllint-wasm": ["xmllint-wasm@4.0.2", "", {}, "sha512-tJxQzA9krv9gaQxYFJ/NVrpLf/wpWYPKjweCLMNbjooBTsW7/O26pyc3Pd0Lp0oTLUMFir/MEX3ybY/hhRjIpw=="],
 
     "xslt3": ["xslt3@2.7.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/xslt3/-/xslt3-2.7.0.tgz", { "dependencies": { "axios": "^1.5.1", "saxon-js": "^2.7.0" }, "bin": { "xslt3": "xslt3.js" } }, "sha512-Vt32LhCt4CQULtGPWlGW++PhS+o3LA6z3PDvig9lDfbo2cIHcaEnyrRYDTilw4N0EbAyxCaw5E0B+DICZEYktQ=="],
 

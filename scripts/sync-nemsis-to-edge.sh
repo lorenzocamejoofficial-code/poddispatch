@@ -19,6 +19,7 @@ cp src/lib/nemsis/xml-utils.ts        supabase/functions/_shared/nemsis/xml-util
 cp src/lib/nemsis/exporter.ts         supabase/functions/_shared/nemsis/exporter.ts
 cp src/lib/nemsis/ems-record.ts       supabase/functions/_shared/nemsis/ems-record.ts
 cp src/lib/nemsis/cert-records.ts     supabase/functions/_shared/nemsis/cert-records.ts
+cp src/lib/nemsis/validation.ts       supabase/functions/_shared/nemsis/validation.ts
 cp src/lib/nemsis/states/ga.ts        supabase/functions/_shared/nemsis/states/ga.ts
 
 # Deno requires explicit .ts extensions on relative imports. The app source

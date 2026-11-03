@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, KeyRound, Send, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { NemsisValidationPanel } from "@/components/nemsis/NemsisValidationPanel";
+import { decideFinalization, findingsKey, type ValidationResult } from "@/lib/nemsis/validation";
 
 interface Row {
   id: string; created_at: string; test_case: string; operation: string;
@@ -52,7 +54,8 @@ export default function CreatorNemsisCta() {
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [lastDem, setLastDem] = useState<Row | null>(null);
-  const [records, setRecords] = useState<{ id: string; kind: string; case_key: string; label: string; updated_at: string; last_auto_submit_at: string | null }[]>([]);
+  const [records, setRecords] = useState<{ id: string; kind: string; case_key: string; label: string; updated_at: string; last_auto_submit_at: string | null; finalized_at: string | null }[]>([]);
+  const [validation, setValidation] = useState<Record<string, { result: ValidationResult; ackKey: string | null }>>({});
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
@@ -65,7 +68,7 @@ export default function CreatorNemsisCta() {
     // Certification records are creator-only by policy and can exist only on the certification company.
     const { data: recs, error: recErr } = await supabase
       .from("nemsis_cert_records")
-      .select("id, kind, case_key, label, updated_at, last_auto_submit_at")
+      .select("id, kind, case_key, label, updated_at, last_auto_submit_at, finalized_at")
       .order("case_key");
     if (recErr) toast.error(`Could not load certification records: ${recErr.message}`);
     else setRecords(recs ?? []);
@@ -86,6 +89,45 @@ export default function CreatorNemsisCta() {
         if (body.test_case === "DEM1" || body.test_case === "EMS1" || body.test_case === "EMS2" || body.test_case === "EMS3" || body.test_case === "EMS4" || body.test_case === "EMS5") setLastDem({ ...(data as Row), test_case: body.test_case as string, operation: "SubmitData", limit_value: null, response_xml: null, created_at: new Date().toISOString(), error_message: (data as { error: string | null }).error });
         toast.message(`CTA: ${d.status_label}${d.status_code !== null ? ` (code ${d.status_code})` : ""}${d.limit !== null ? ` — limit ${d.limit}` : ""}`);
       }
+    } finally {
+      setBusy(null);
+      load();
+    }
+  };
+
+  /** Validate (XSD + all Schematron) then finalize: errors block, warnings need one acknowledgement. */
+  const finalizeRecord = async (id: string) => {
+    setBusy(`fin-${id}`);
+    try {
+      const invoke = async (action: "validate_record" | "finalize_record") => {
+        const { data, error } = await supabase.functions.invoke("nemsis-validate", { body: { action, record_id: id } });
+        if (error) {
+          const ctx = await (error as { context?: Response }).context?.json().catch(() => null);
+          if (ctx?.result) return ctx as { finalized: boolean; result: ValidationResult };
+          throw new Error(typeof ctx?.error === "string" ? ctx.error : error.message);
+        }
+        return data as { finalized: boolean; result: ValidationResult };
+      };
+      const prev = validation[id];
+      const v = await invoke("validate_record");
+      const key = findingsKey(v.result);
+      const decision = decideFinalization(v.result, prev?.ackKey === key);
+      if (decision === "block") {
+        setValidation((m) => ({ ...m, [id]: { result: v.result, ackKey: null } }));
+        toast.error(`Not finalized: ${v.result.error_count} validation error(s) must be fixed.`);
+        return;
+      }
+      if (decision === "confirm_warnings") {
+        setValidation((m) => ({ ...m, [id]: { result: v.result, ackKey: key } }));
+        toast.warning(`${v.result.warning_count} warning(s). Review them, then click Finalize again to finalize.`);
+        return;
+      }
+      const f = await invoke("finalize_record");
+      setValidation((m) => ({ ...m, [id]: { result: f.result, ackKey: null } }));
+      if (f.finalized) toast.success("Record finalized.");
+      else toast.error("Not finalized — the record changed or new errors appeared. Review the results.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(null);
       load();
@@ -146,9 +188,17 @@ export default function CreatorNemsisCta() {
                 <span className="font-medium">{r.case_key}</span>
                 <span className="text-muted-foreground">{r.label}</span>
                 <span className="text-xs text-muted-foreground">Edited {new Date(r.updated_at).toLocaleString()}{r.last_auto_submit_at ? ` · auto-sent ${new Date(r.last_auto_submit_at).toLocaleString()}` : ""}</span>
-                <Button size="sm" className="ml-auto" onClick={() => call(`rec-${r.id}`, { action: "submit_record", record_id: r.id })} disabled={!!busy}>
+                {r.finalized_at
+                  ? <Badge>Finalized {new Date(r.finalized_at).toLocaleString()}</Badge>
+                  : <Badge variant="secondary">Not finalized</Badge>}
+                <Button size="sm" variant="outline" className="ml-auto" onClick={() => finalizeRecord(r.id)} disabled={!!busy}>
+                  {busy === `fin-${r.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {validation[r.id]?.ackKey ? "Finalize with warnings" : "Validate & finalize"}
+                </Button>
+                <Button size="sm" onClick={() => call(`rec-${r.id}`, { action: "submit_record", record_id: r.id })} disabled={!!busy}>
                   {busy === `rec-${r.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Submit / resubmit
                 </Button>
+                {validation[r.id] && <div className="w-full"><NemsisValidationPanel result={validation[r.id].result} title={`${r.case_key} validation`} /></div>}
               </div>
             ))}
           </CardContent>
