@@ -209,7 +209,8 @@ function ChildGroups({ spec, parent, kids, api, depth }: { spec: DemGroupSpec; p
                 <span className="ml-2 font-normal text-xs">
                   National EMS ID: {k.values[idTag]?.[0]?.v ?? (k.values[idTag]?.[0]?.nv ? "Not applicable" : "—")}
                 </span>
-              )}
+                );
+              })()}
             </CardTitle>
             <Button size="sm" variant="ghost" onClick={() => api.remove(k.id)} aria-label={`Remove ${label}`}>
               <Trash2 className="h-4 w-4" />
