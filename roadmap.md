@@ -60,5 +60,5 @@
 - [x] Stage 2: in-app XSD + Schematron validation and finalize gate
 - [x] Stage 3: DEM data model + Agency NEMSIS Profile screens + generated DEM export
 - [x] Stage 4: EMS case data model + NEMSIS EMS Cases screens + generated EMS export
-- [ ] Stage 5: defined-list completeness (awaiting go-ahead)
+- [x] Stage 5: Georgia informational (config-driven state enforcement) + complete defined lists with 3.5.1 manifest
 - [ ] Stage 6: rehearsal (awaiting go-ahead)
