@@ -3455,6 +3455,66 @@ export type Database = {
         }
         Relationships: []
       }
+      nemsis_dem_nodes: {
+        Row: {
+          company_id: string
+          correlation_id: string | null
+          created_at: string
+          id: string
+          parent_id: string | null
+          position: number
+          section: string
+          tag: string
+          updated_at: string
+          updated_by: string | null
+          uuid: string | null
+          values: Json
+        }
+        Insert: {
+          company_id: string
+          correlation_id?: string | null
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+          position?: number
+          section: string
+          tag: string
+          updated_at?: string
+          updated_by?: string | null
+          uuid?: string | null
+          values?: Json
+        }
+        Update: {
+          company_id?: string
+          correlation_id?: string | null
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+          position?: number
+          section?: string
+          tag?: string
+          updated_at?: string
+          updated_by?: string | null
+          uuid?: string | null
+          values?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nemsis_dem_nodes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nemsis_dem_nodes_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "nemsis_dem_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       nemsis_submissions: {
         Row: {
           ack_xml: string | null

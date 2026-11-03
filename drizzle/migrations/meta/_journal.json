@@ -57,6 +57,13 @@
       "when": 1793729019281,
       "tag": "0007_nemsis_cert_record_finalization",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793731655415,
+      "tag": "0008_nemsis_dem_nodes",
+      "breakpoints": true
     }
   ]
 }
