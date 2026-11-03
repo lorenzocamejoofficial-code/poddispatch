@@ -1596,6 +1596,7 @@ export type Database = {
           medicare_enrolled: boolean | null
           medicare_specialty: string | null
           name: string
+          nemsis_certification: boolean
           npi_number: string | null
           npi_registered_name: string | null
           npi_verified: boolean | null
@@ -1642,6 +1643,7 @@ export type Database = {
           medicare_enrolled?: boolean | null
           medicare_specialty?: string | null
           name: string
+          nemsis_certification?: boolean
           npi_number?: string | null
           npi_registered_name?: string | null
           npi_verified?: boolean | null
@@ -1688,6 +1690,7 @@ export type Database = {
           medicare_enrolled?: boolean | null
           medicare_specialty?: string | null
           name?: string
+          nemsis_certification?: boolean
           npi_number?: string | null
           npi_registered_name?: string | null
           npi_verified?: boolean | null
@@ -3318,8 +3321,60 @@ export type Database = {
           },
         ]
       }
+      nemsis_cert_records: {
+        Row: {
+          case_key: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          label: string
+          last_auto_submit_at: string | null
+          payload: Json
+          pending_auto_submit: boolean
+          updated_at: string
+        }
+        Insert: {
+          case_key: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          label?: string
+          last_auto_submit_at?: string | null
+          payload?: Json
+          pending_auto_submit?: boolean
+          updated_at?: string
+        }
+        Update: {
+          case_key?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          label?: string
+          last_auto_submit_at?: string | null
+          payload?: Json
+          pending_auto_submit?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nemsis_cert_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       nemsis_cta_submissions: {
         Row: {
+          cert_record_id: string | null
+          company_id: string | null
           created_at: string
           created_by: string | null
           data_schema: number | null
@@ -3333,13 +3388,17 @@ export type Database = {
           response_xml: string | null
           schema_version: string | null
           sent_timestamp: string | null
+          source: string
           status_code: number | null
           status_label: string | null
           test_case: string
           total_error_count: number | null
+          trigger_kind: string
           validation_errors: Json | null
         }
         Insert: {
+          cert_record_id?: string | null
+          company_id?: string | null
           created_at?: string
           created_by?: string | null
           data_schema?: number | null
@@ -3353,13 +3412,17 @@ export type Database = {
           response_xml?: string | null
           schema_version?: string | null
           sent_timestamp?: string | null
+          source?: string
           status_code?: number | null
           status_label?: string | null
           test_case: string
           total_error_count?: number | null
+          trigger_kind?: string
           validation_errors?: Json | null
         }
         Update: {
+          cert_record_id?: string | null
+          company_id?: string | null
           created_at?: string
           created_by?: string | null
           data_schema?: number | null
@@ -3373,10 +3436,12 @@ export type Database = {
           response_xml?: string | null
           schema_version?: string | null
           sent_timestamp?: string | null
+          source?: string
           status_code?: number | null
           status_label?: string | null
           test_case?: string
           total_error_count?: number | null
+          trigger_kind?: string
           validation_errors?: Json | null
         }
         Relationships: []

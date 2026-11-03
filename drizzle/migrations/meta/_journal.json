@@ -43,6 +43,13 @@
       "when": 1793038144626,
       "tag": "0005_purge_test_company",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793727281387,
+      "tag": "0006_nemsis_certification_company",
+      "breakpoints": true
     }
   ]
 }
