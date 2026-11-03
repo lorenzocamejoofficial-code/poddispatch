@@ -163,9 +163,11 @@ Deno.serve(async (req) => {
     schemaVersion = SCHEMA_VERSION;
     sentTimestamp = generated.sentTs;
     envelopeXml = buildSubmitDataEnvelope(creds, generated.xml, dataSchema, schemaVersion, `PodDispatch ${generated.caseKey}`);
-  } else {
+  } else if (body.action === "status") {
     operation = "RetrieveStatus"; testCase = "STATUS";
     envelopeXml = buildRetrieveStatusEnvelope(creds, body.request_handle);
+  } else {
+    return json({ error: "Nothing to send" }, 400);
   }
 
   let httpStatus: number | null = null;
