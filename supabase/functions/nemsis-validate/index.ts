@@ -27,6 +27,13 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
+  // TEMP_PROBE_START
+  if (new URL(req.url).searchParams.get("probe") === "1") {
+    const t0 = performance.now(); const ems = await validateNemsisXml(EMS5_SUBMISSION_XML, "EMS");
+    const t1 = performance.now(); const dem = await validateNemsisXml(DEM1_SUBMISSION_XML, "DEM");
+    return json({ ems: [ems.error_count, ems.warning_count, ems.rule_sets.map((r) => r.id)], dem: [dem.error_count, dem.warning_count, dem.rule_sets.map((r) => r.id)], ms: [Math.round(t1 - t0), Math.round(performance.now() - t1)] });
+  }
+  // TEMP_PROBE_END
   const auth = req.headers.get("Authorization");
   if (!auth?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
