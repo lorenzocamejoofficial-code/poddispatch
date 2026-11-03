@@ -79,7 +79,7 @@ export function parseSvrl(svrl: string, source: string): ValidationFinding[] {
 /** libxml2 XSD errors -> findings (always ERROR). */
 export function xsdFindings(errors: { message?: string; rawMessage?: string; loc?: { lineNumber?: number } | null }[]): ValidationFinding[] {
   return errors.map((e) => {
-    const msg = (e.message ?? e.rawMessage ?? "Schema error").replace(/^.*?:\d+:\s*/, "").trim();
+    const msg = (e.message ?? e.rawMessage ?? "Schema error").replace(/^.*?:\d+:\s*/, "").replace(/^element [^:]+: Schemas validity error : /, "").trim();
     const el = /Element '\{[^}]*\}([^']+)'/.exec(msg)?.[1] ?? null;
     return {
       level: "ERROR" as const,
