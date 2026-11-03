@@ -96,12 +96,19 @@ export async function runUnit(xml: string, dataset: "DEM" | "EMS", unit: string)
   }
 }
 
+function unitEnforced(unit: string): boolean {
+  const a = SCHEMATRON_ASSETS.find((x) => x.id === unit);
+  return !a || isSetEnforced(a.set_id, a.version);
+}
+
 /** Merges unit results. A unit that failed to run is an ERROR, so nothing passes silently. */
 export function mergeUnits(dataset: "DEM" | "EMS", results: UnitResult[]): ValidationResult {
   const findings = results.flatMap((r) => r.ok ? r.findings : [{
     level: "ERROR" as const, source: r.unit === "xsd" ? "XSD" : "Validation service",
     message: `Validation step "${r.unit}" could not complete: ${r.error ?? "unknown error"}. Finalization stays blocked until it runs.`,
     location: null, elements: [], rule_id: null,
+    // A failed informational (state) unit is shown but cannot block; enforced units block.
+    ...(unitEnforced(r.unit) ? {} : { enforced: false }),
   }]);
   return summarize(dataset, findings, ruleSets(dataset));
 }
