@@ -15,8 +15,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { DemGroupEditor, type DemEditorApi } from "@/components/nemsis/DemGroupEditor";
 import { NemsisValidationPanel } from "@/components/nemsis/NemsisValidationPanel";
 import { DEM_SECTIONS, DEM_SECTION_LABELS, type DemFieldValue, type DemNode } from "@/lib/nemsis/dem-schema";
-import { parseDemXml, withPersonnelCorrelation } from "@/lib/nemsis/dem-tree";
-import { buildDemDataSet } from "@/lib/nemsis/exporter";
+import { parseDemXml, renderDemDataSet, withPersonnelCorrelation } from "@/lib/nemsis/dem-tree";
 import { CERT_SOFTWARE, isCertificationCompany } from "@/lib/nemsis/cert-records";
 import { DEM1_SUBMISSION_XML } from "@/lib/nemsis/fixtures/dem1-submission";
 import type { ValidationResult } from "@/lib/nemsis/validation";
@@ -137,9 +136,7 @@ export default function CreatorNemsisAgency() {
     } finally { setBusy(null); }
   };
 
-  const currentXml = () => buildDemDataSet({
-    dem_nodes: nodes, software: { ...CERT_SOFTWARE }, agency: undefined as never, configurations: [],
-  });
+  const currentXml = () => renderDemDataSet(nodes, { software: { ...CERT_SOFTWARE } });
 
   const downloadXml = () => {
     const blob = new Blob([currentXml()], { type: "application/xml" });
