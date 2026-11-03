@@ -82,6 +82,15 @@ export function buildCertRecordXml(
     };
   }
   if (record.kind === "EMS") {
+    if ("raw_reference" in p) throw new CertGuardError("Refused: generated submissions cannot carry raw_reference XML");
+    if (Array.isArray(p.ems_nodes)) {
+      const sw = (isObj(p.software) ? p.software : CERT_SOFTWARE) as { name: string; version: string };
+      return {
+        dataset: "EMS",
+        xml: buildEmsDataSet({ ems_nodes: p.ems_nodes } as unknown as PcrExportInput,
+          { software: { name: sw.name, version: sw.version }, test_mode: true } as unknown as ExportContext),
+      };
+    }
     const ems = p as unknown as EmsCertPayload;
     if (!isObj(ems.input) || !isObj(ems.ctx)) throw new CertGuardError("EMS record needs input and ctx");
     if ("raw_reference" in ems.input) throw new CertGuardError("Refused: generated submissions cannot carry raw_reference XML");

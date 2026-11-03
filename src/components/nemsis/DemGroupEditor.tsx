@@ -18,6 +18,10 @@ export interface DemEditorApi {
   setValues: (nodeId: string, tag: string, values: DemFieldValue[]) => void;
   addChild: (parent: DemNode, tag: string) => void;
   remove: (nodeId: string) => void;
+  /** Defined lists to use (defaults to the DEM lists). */
+  lists?: Record<string, [string, string][]>;
+  /** Restricts a field's choices, e.g. EMS procedures/medications to the DEM configuration. */
+  optionsFor?: (tag: string) => [string, string][] | undefined;
 }
 
 const NONE = "__none__";
@@ -28,7 +32,7 @@ export function groupLabel(tag: string): string {
   return last.replace(/^d(?=[A-Z])/, "").replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 
-function summary(spec: DemGroupSpec, node: DemNode, nodes: DemNode[]): string {
+function summary(spec: DemGroupSpec, node: DemNode, nodes: DemNode[], lists?: DemEditorApi["lists"]): string {
   if (node.tag === "dPersonnel.PersonnelGroup") {
     const name = childrenOf(nodes, node.id, "dPersonnel.NameGroup")[0];
     const last = name?.values["dPersonnel.01"]?.[0]?.v ?? "";
@@ -38,22 +42,25 @@ function summary(spec: DemGroupSpec, node: DemNode, nodes: DemNode[]): string {
   for (const c of spec.children) {
     if (c.kind !== "field") continue;
     const fv = node.values[c.tag]?.[0];
-    if (fv?.v) return listLabel(c.list, fv.v) ?? fv.v;
+    if (fv?.v) return (lists ? lists[c.list ?? ""]?.find(([k]) => k === fv.v)?.[1] : listLabel(c.list, fv.v)) ?? fv.v;
   }
   return "";
 }
 
-function FieldEditor({ spec, values, onChange }: { spec: DemFieldSpec; values: DemFieldValue[]; onChange: (v: DemFieldValue[]) => void }) {
-  const opts = listOptions(spec.list);
+function FieldEditor({ spec, values, onChange, api }: { spec: DemFieldSpec; values: DemFieldValue[]; onChange: (v: DemFieldValue[]) => void; api: DemEditorApi }) {
+  const lookup = (key: string | null | undefined) => (api.lists ? (key ? api.lists[key] ?? [] : []) : listOptions(key));
+  const restricted = api.optionsFor?.(spec.tag);
+  const opts = restricted ?? lookup(spec.list);
   const attrs = (spec.attrs ?? []).filter((a) => a.name !== "CorrelationID");
   const hasNv = values.some((v) => v.nv);
   const [filter, setFilter] = useState("");
-  const isCustom = spec.tag === NATIONAL_EMS_ID;
+  const isCustom = !!spec.custom;
   const header = (
     <div className="flex flex-wrap items-baseline gap-2">
       <span className="text-sm font-medium">{spec.label}</span>
       <span className="text-xs text-muted-foreground">{spec.tag}</span>
-      {isCustom && <Badge variant="secondary">Custom element · exported in dCustomResults</Badge>}
+      {isCustom && <Badge variant="secondary">Custom element · exported in {spec.tag.startsWith("e") ? "eCustomResults" : "dCustomResults"}</Badge>}
+      {restricted && <Badge variant="outline">Choices from the agency DEM configuration</Badge>}
     </div>
   );
 
@@ -128,7 +135,7 @@ function FieldEditor({ spec, values, onChange }: { spec: DemFieldSpec; values: D
             />
           )}
           {attrs.map((a) => {
-            const aOpts = listOptions(a.list);
+            const aOpts = lookup(a.list);
             const cur = fv.attrs?.[a.name] ?? "";
             const setAttr = (val: string) => update(i, { ...fv, attrs: { ...(fv.attrs ?? {}), [a.name]: val } });
             return aOpts.length ? (
@@ -177,7 +184,7 @@ export function DemGroupEditor({ spec, node, api, depth = 0 }: { spec: DemGroupS
         if (c.kind === "field") {
           return (
             <FieldEditor key={c.tag} spec={c} values={node.values[c.tag] ?? []}
-              onChange={(v) => api.setValues(node.id, c.tag, v)} />
+              onChange={(v) => api.setValues(node.id, c.tag, v)} api={api} />
           );
         }
         const kids = childrenOf(nodes, node.id, c.tag);
@@ -195,12 +202,15 @@ function ChildGroups({ spec, parent, kids, api, depth }: { spec: DemGroupSpec; p
         <Card key={k.id} className={depth > 0 ? "border-dashed" : undefined}>
           <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm">
-              {label} {spec.repeat ? `#${i + 1}` : ""} <span className="font-normal text-muted-foreground">{summary(spec, k, api.nodes)}</span>
-              {k.tag === "dPersonnel.PersonnelGroup" && (
+              {label} {spec.repeat ? `#${i + 1}` : ""} <span className="font-normal text-muted-foreground">{summary(spec, k, api.nodes, api.lists)}</span>
+              {(k.tag === "dPersonnel.PersonnelGroup" || k.tag === "eCrew.CrewGroup") && (() => {
+                const idTag = k.tag === "eCrew.CrewGroup" ? "eCrew.901" : NATIONAL_EMS_ID;
+                return (
                 <span className="ml-2 font-normal text-xs">
-                  National EMS ID: {k.values[NATIONAL_EMS_ID]?.[0]?.v ?? (k.values[NATIONAL_EMS_ID]?.[0]?.nv ? "Not applicable" : "—")}
+                  National EMS ID: {k.values[idTag]?.[0]?.v ?? (k.values[idTag]?.[0]?.nv ? "Not applicable" : "—")}
                 </span>
-              )}
+                );
+              })()}
             </CardTitle>
             <Button size="sm" variant="ghost" onClick={() => api.remove(k.id)} aria-label={`Remove ${label}`}>
               <Trash2 className="h-4 w-4" />

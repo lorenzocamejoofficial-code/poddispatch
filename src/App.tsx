@@ -81,6 +81,7 @@ const CreatorPlaybook = lazyRoute(() => import("./pages/CreatorPlaybook"));
 const CreatorNemsisCta = lazyRoute(() => import("./pages/CreatorNemsisCta"));
 const CreatorNemsisDem1 = lazyRoute(() => import("./pages/CreatorNemsisDem1"));
 const CreatorNemsisAgency = lazyRoute(() => import("./pages/CreatorNemsisAgency"));
+const CreatorNemsisEms = lazyRoute(() => import("./pages/CreatorNemsisEms"));
 
 /**
  * Warm route chunks gently after the app is fully idle. We only download
@@ -399,6 +400,7 @@ function AppRoutes() {
           <Route path="/creator-nemsis-cta" element={<CreatorNemsisCta />} />
           <Route path="/creator-nemsis-dem1" element={<CreatorNemsisDem1 />} />
           <Route path="/creator-nemsis-agency" element={<CreatorNemsisAgency />} />
+          <Route path="/creator-nemsis-ems" element={<CreatorNemsisEms />} />
           <Route path="/simulation-lab" element={<SimulationLab />} />
           <Route path="/crew-preview" element={<CrewUIPreview />} />
           <Route path="/override-monitor" element={<OverrideMonitor />} />

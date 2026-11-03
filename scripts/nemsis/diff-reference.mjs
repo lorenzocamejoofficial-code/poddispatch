@@ -4,7 +4,7 @@
  * Usage: node scripts/nemsis/diff-reference.mjs <ours.xml> <reference.xml>
  *
  * Normalized away: every UUID attribute value, DemographicReport@timeStamp,
- * schemaLocation/xmlns attributes, and software identity (dRecord*, and
+ * schemaLocation/xmlns attributes, attribute order (insignificant in XML), and software identity (dRecord*, and
  * eRecord.SoftwareApplicationGroup / eRecord.02-.04). eRecord.01 must match.
  * Reports entries in the reference that are missing/different in ours, and
  * extra entries in ours. Exit 1 if any difference.
@@ -15,7 +15,7 @@ function entries(xml) {
   const src = xml.replace(/<\?[\s\S]*?\?>/g, "").replace(/<!--[\s\S]*?-->/g, "");
   const out = [];
   const stack = [];
-  const re = /<(\/?)([A-Za-z_][\w.:-]*)((?:\s+[\w:.-]+\s*=\s*"[^"]*")*)\s*(\/?)>|([^<]+)/g;
+  const re = /<(\/?)([A-Za-z_][\w.:-]*)((?:\s+[\w:.-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>|([^<]+)/g;
   let m, pendingText = "";
   while ((m = re.exec(src))) {
     if (m[5] !== undefined) { pendingText += m[5]; continue; }
@@ -29,7 +29,7 @@ function entries(xml) {
     }
     if (stack.length) stack[stack.length - 1].leaf = false;
     pendingText = "";
-    const attrs = [...rawAttrs.matchAll(/([\w:.-]+)\s*=\s*"([^"]*)"/g)]
+    const attrs = [...rawAttrs.matchAll(/([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)].map(([a, k, d, q]) => [a, k, (d ?? q).replace(/&quot;/g, '"').replace(/&apos;/g, "'")])
       .filter(([, k]) => !k.startsWith("xmlns") && k !== "xsi:schemaLocation")
       .map(([, k, v]) => {
         if (k === "UUID") return `${k}=<uuid>`;
@@ -37,7 +37,7 @@ function entries(xml) {
         return `${k}=${v}`;
       });
     const path = [...stack.map((s) => s.name), name].join("/");
-    const entry = { path, attrs: attrs.join(" "), text: "" };
+    const entry = { path, attrs: attrs.sort().join(" "), text: "" };
     if (!/(^|\/)dRecord(\.|\/|$)/.test(path) && !/(^|\/)eRecord\.(SoftwareApplicationGroup|0[234])(\/|$)/.test(path)) out.push(entry);
     if (!selfClose) stack.push({ name, entry, leaf: true });
   }

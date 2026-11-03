@@ -50,8 +50,8 @@
 # Roadmap — NEMSIS Collect Data certification
 - [x] Stage 1: certification company flag, generated-XML submit path, manual resubmit, automatic DEM resend
 - [x] Stage 2: in-app XSD + Schematron at finalization
-- [ ] Stage 3: DEM data-entry screens (awaiting user)
-- [ ] Stage 4: EMS data entry for the five cases (awaiting user)
+- [x] Stage 3: DEM data-entry screens
+- [x] Stage 4: EMS data entry for the five cases
 - [ ] Stage 5: defined lists (awaiting user)
 - [ ] Stage 6: rehearsal (awaiting user)
 
@@ -59,4 +59,6 @@
 - [x] Stage 1: certification company flag + generated-record CTA path
 - [x] Stage 2: in-app XSD + Schematron validation and finalize gate
 - [x] Stage 3: DEM data model + Agency NEMSIS Profile screens + generated DEM export
-- [ ] Stage 4+: EMS case entry screens (awaiting go-ahead)
+- [x] Stage 4: EMS case data model + NEMSIS EMS Cases screens + generated EMS export
+- [ ] Stage 5: defined-list completeness (awaiting go-ahead)
+- [ ] Stage 6: rehearsal (awaiting go-ahead)
