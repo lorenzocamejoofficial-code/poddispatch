@@ -46,3 +46,11 @@
 - [x] Backend: archive-only delete (reason required), purge_test_company SQL + edge action, loadtest tenants flagged sandbox, tests, synthetic verification
 - [ ] UI pass: CreatorConsole archive/purge controls (next pass)
 - [ ] Follow-up: session revocation, archived screen, background-job deleted_at checks
+
+# Roadmap — NEMSIS Collect Data certification
+- [x] Stage 1: certification company flag, generated-XML submit path, manual resubmit, automatic DEM resend
+- [ ] Stage 2: in-app XSD + Schematron at finalization (awaiting user)
+- [ ] Stage 3: DEM data-entry screens (awaiting user)
+- [ ] Stage 4: EMS data entry for the five cases (awaiting user)
+- [ ] Stage 5: defined lists (awaiting user)
+- [ ] Stage 6: rehearsal (awaiting user)
