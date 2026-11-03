@@ -68,14 +68,14 @@ async function sef(id: string, b64: string) {
   return sefCache.get(id);
 }
 
-export async function validateNemsisXml(xml: string, dataset: "DEM" | "EMS"): Promise<ValidationResult> {
+export async function validateNemsisXml(xml: string, dataset: "DEM" | "EMS", only?: string): Promise<ValidationResult> {
   const findings: ValidationFinding[] = [];
   const files = await xsdFiles();
   const root = `${dataset}DataSet_v3.xsd`;
-  const xsdErrors = await runXsd(xml, root, files);
+  const xsdErrors = only && only !== "xsd" ? [] : await runXsd(xml, root, files);
   findings.push(...xsdFindings(xsdErrors));
 
-  const sets = SCHEMATRON_ASSETS.filter((a) => a.dataset === dataset);
+  const sets = SCHEMATRON_ASSETS.filter((a) => a.dataset === dataset && (!only || a.id === only));
   // Schematron needs well-formed XML; if XSD parsing failed outright, report that alone.
   const malformed = xsdErrors.some((e) => /parser error|not well-formed|Document is empty/i.test(e.rawMessage ?? e.message ?? ""));
   if (!malformed) {

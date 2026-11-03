@@ -29,9 +29,10 @@ Deno.serve(async (req) => {
 
   // TEMP_PROBE_START
   if (new URL(req.url).searchParams.get("probe") === "1") {
-    const t0 = performance.now(); const ems = await validateNemsisXml(EMS5_SUBMISSION_XML, "EMS");
-    const t1 = performance.now(); const dem = await validateNemsisXml(DEM1_SUBMISSION_XML, "DEM");
-    return json({ ems: [ems.error_count, ems.warning_count, ems.rule_sets.map((r) => r.id)], dem: [dem.error_count, dem.warning_count, dem.rule_sets.map((r) => r.id)], ms: [Math.round(t1 - t0), Math.round(performance.now() - t1)] });
+    const only = new URL(req.url).searchParams.get("set") ?? "";
+    const t0 = performance.now();
+    const r = await validateNemsisXml(only.includes("dem") ? DEM1_SUBMISSION_XML : EMS5_SUBMISSION_XML, only.includes("dem") ? "DEM" : "EMS", only);
+    return json({ only, e: r.error_count, w: r.warning_count, sets: r.rule_sets.map((x) => x.id), ms: Math.round(performance.now() - t0) });
   }
   // TEMP_PROBE_END
   const auth = req.headers.get("Authorization");
