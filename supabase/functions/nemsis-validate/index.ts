@@ -7,7 +7,8 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.23.8";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { mergeUnits, runUnit, validationUnits, type UnitResult } from "../_shared/nemsis/validation/engine.ts";
+import { mergeUnits, validationUnits, type UnitResult } from "../_shared/nemsis/validation/engine.ts";
+import { signUnitPayload as sign } from "../_shared/nemsis/validation/unit-sig.ts";
 import type { ValidationResult } from "../_shared/nemsis/validation.ts";
 import { buildCertRecordXml, CertGuardError } from "../_shared/nemsis/cert-records.ts";
 import { buildEmsDataSet, type ExportContext } from "../_shared/nemsis/exporter.ts";
@@ -20,16 +21,7 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("validate_trip"), trip_id: z.string().uuid() }),
   z.object({ action: z.literal("self_test") }),
 ]);
-const UnitBody = z.object({ action: z.literal("run_unit"), dataset: z.enum(["DEM", "EMS"]), unit: z.string().max(64), xml: z.string().max(5_000_000) });
-
-const SELF_URL = `${Deno.env.get("SUPABASE_URL")}/functions/v1/nemsis-validate`;
-const enc = new TextEncoder();
-/** Internal sub-request signature: HMAC over the payload with a server-only key. */
-async function sign(payload: string): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", enc.encode(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(payload));
-  return btoa(String.fromCharCode(...new Uint8Array(sig)));
-}
+const UNIT_URL = `${Deno.env.get("SUPABASE_URL")}/functions/v1/nemsis-validate-unit`;
 
 /** Runs every validation unit as a parallel sub-request (each has its own CPU budget). */
 async function validateXml(xml: string, dataset: "DEM" | "EMS"): Promise<ValidationResult> {
@@ -40,7 +32,7 @@ async function validateXml(xml: string, dataset: "DEM" | "EMS"): Promise<Validat
     // Retry: a sub-request can be cut off when it shares a busy worker.
     for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const res = await fetch(SELF_URL, {
+      const res = await fetch(UNIT_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-unit-sig": sig },
         body: payload,
@@ -69,16 +61,6 @@ const json = (payload: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-
-  // Internal unit sub-request (signed by this function).
-  const unitSig = req.headers.get("x-unit-sig");
-  if (unitSig) {
-    const text = await req.text();
-    if (unitSig !== await sign(text)) return json({ error: "Unauthorized" }, 401);
-    const ub = UnitBody.safeParse(JSON.parse(text));
-    if (!ub.success) return json({ error: "Bad unit request" }, 400);
-    return json(await runUnit(ub.data.xml, ub.data.dataset, ub.data.unit));
-  }
 
   // TEMP_PROBE_START
   if (new URL(req.url).searchParams.get("probe") === "1") {
