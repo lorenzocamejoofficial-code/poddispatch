@@ -7,7 +7,8 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.23.8";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { validateNemsisXml } from "../_shared/nemsis/validation/engine.ts";
+import { mergeUnits, runUnit, validationUnits, type UnitResult } from "../_shared/nemsis/validation/engine.ts";
+import type { ValidationResult } from "../_shared/nemsis/validation.ts";
 import { buildCertRecordXml, CertGuardError } from "../_shared/nemsis/cert-records.ts";
 import { buildEmsDataSet, type ExportContext } from "../_shared/nemsis/exporter.ts";
 import { EMS5_SUBMISSION_XML } from "../_shared/nemsis/fixtures/ems5-submission.ts";
@@ -19,6 +20,36 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("validate_trip"), trip_id: z.string().uuid() }),
   z.object({ action: z.literal("self_test") }),
 ]);
+const UnitBody = z.object({ action: z.literal("run_unit"), dataset: z.enum(["DEM", "EMS"]), unit: z.string().max(64), xml: z.string().max(5_000_000) });
+
+const SELF_URL = `${Deno.env.get("SUPABASE_URL")}/functions/v1/nemsis-validate`;
+const enc = new TextEncoder();
+/** Internal sub-request signature: HMAC over the payload with a server-only key. */
+async function sign(payload: string): Promise<string> {
+  const key = await crypto.subtle.importKey("raw", enc.encode(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(payload));
+  return btoa(String.fromCharCode(...new Uint8Array(sig)));
+}
+
+/** Runs every validation unit as a parallel sub-request (each has its own CPU budget). */
+async function validateXml(xml: string, dataset: "DEM" | "EMS"): Promise<ValidationResult> {
+  const results = await Promise.all(validationUnits(dataset).map(async (unit): Promise<UnitResult> => {
+    const payload = JSON.stringify({ action: "run_unit", dataset, unit, xml });
+    try {
+      const res = await fetch(SELF_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-unit-sig": await sign(payload) },
+        body: payload,
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (!res.ok) return { unit, ok: false, findings: [], error: `HTTP ${res.status}` };
+      return await res.json() as UnitResult;
+    } catch (e) {
+      return { unit, ok: false, findings: [], error: e instanceof Error ? e.message : String(e) };
+    }
+  }));
+  return mergeUnits(dataset, results);
+}
 
 const json = (payload: unknown, status = 200) =>
   new Response(JSON.stringify(payload), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -27,14 +58,25 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
+  // Internal unit sub-request (signed by this function).
+  const unitSig = req.headers.get("x-unit-sig");
+  if (unitSig) {
+    const text = await req.text();
+    if (unitSig !== await sign(text)) return json({ error: "Unauthorized" }, 401);
+    const ub = UnitBody.safeParse(JSON.parse(text));
+    if (!ub.success) return json({ error: "Bad unit request" }, 400);
+    return json(await runUnit(ub.data.xml, ub.data.dataset, ub.data.unit));
+  }
+
   // TEMP_PROBE_START
   if (new URL(req.url).searchParams.get("probe") === "1") {
-    const only = new URL(req.url).searchParams.get("set") ?? "";
     const t0 = performance.now();
-    const r = await validateNemsisXml(only.includes("dem") ? DEM1_SUBMISSION_XML : EMS5_SUBMISSION_XML, only.includes("dem") ? "DEM" : "EMS", only);
-    return json({ only, e: r.error_count, w: r.warning_count, sets: r.rule_sets.map((x) => x.id), ms: Math.round(performance.now() - t0) });
+    const ems = await validateXml(EMS5_SUBMISSION_XML, "EMS");
+    const dem = await validateXml(DEM1_SUBMISSION_XML, "DEM");
+    return json({ ems: [ems.error_count, ems.warning_count, ems.findings.filter((f) => f.source === "Validation service" || f.message.includes("could not complete")).map((f) => f.message)], dem: [dem.error_count, dem.warning_count], sets: ems.rule_sets.concat(dem.rule_sets).map((r) => r.id), ms: Math.round(performance.now() - t0) });
   }
   // TEMP_PROBE_END
+
   const auth = req.headers.get("Authorization");
   if (!auth?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -56,9 +98,9 @@ Deno.serve(async (req) => {
   if (body.action === "self_test") {
     if (!(await isCreator())) return json({ error: "Forbidden — system creators only" }, 403);
     const t0 = performance.now();
-    const ems = await validateNemsisXml(EMS5_SUBMISSION_XML, "EMS");
+    const ems = await validateXml(EMS5_SUBMISSION_XML, "EMS");
     const t1 = performance.now();
-    const dem = await validateNemsisXml(DEM1_SUBMISSION_XML, "DEM");
+    const dem = await validateXml(DEM1_SUBMISSION_XML, "DEM");
     const t2 = performance.now();
     return json({ ems, dem, ms: { ems: Math.round(t1 - t0), dem: Math.round(t2 - t1) } });
   }
@@ -75,7 +117,7 @@ Deno.serve(async (req) => {
     try { built = buildCertRecordXml(rec, co); } catch (e) {
       return json({ error: e instanceof Error ? e.message : String(e) }, e instanceof CertGuardError ? 403 : 422);
     }
-    const result = await validateNemsisXml(built.xml, built.dataset);
+    const result = await validateXml(built.xml, built.dataset);
     const finalize = body.action === "finalize_record" && result.can_finalize;
     // Only finalize if the record was not edited while validating.
     const { error: upErr } = await admin.from("nemsis_cert_records")
@@ -130,5 +172,5 @@ Deno.serve(async (req) => {
   } catch (e) {
     return json({ error: `Could not build NEMSIS XML: ${e instanceof Error ? e.message : String(e)}` }, 422);
   }
-  return json({ result: await validateNemsisXml(xml, "EMS") });
+  return json({ result: await validateXml(xml, "EMS") });
 });
