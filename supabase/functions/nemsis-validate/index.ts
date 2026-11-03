@@ -64,11 +64,13 @@ Deno.serve(async (req) => {
 
   // TEMP_PROBE_START
   if (new URL(req.url).searchParams.get("probe") === "1") {
-    const t0 = performance.now();
-    const which = new URL(req.url).searchParams.get("ds");
-    const ems = which === "dem" ? { error_count: -1, warning_count: -1, findings: [], rule_sets: [] } as unknown as ValidationResult : await validateXml(EMS5_SUBMISSION_XML, "EMS");
-    const dem = which === "ems" ? { error_count: -1, warning_count: -1, findings: [], rule_sets: [] } as unknown as ValidationResult : await validateXml(DEM1_SUBMISSION_XML, "DEM");
-    return json({ ems: [ems.error_count, ems.warning_count, ems.findings.filter((f) => f.source === "Validation service" || f.message.includes("could not complete")).map((f) => f.message)], dem: [dem.error_count, dem.warning_count], sets: ems.rule_sets.concat(dem.rule_sets).map((r) => r.id), ms: Math.round(performance.now() - t0) });
+    const sc = new URL(req.url).searchParams.get("sc");
+    const [xml, ds] = sc === "dem-error" ? [DEM1_SUBMISSION_XML, "DEM"]
+      : sc === "dem-warning" ? [DEM1_SUBMISSION_XML.replace(/(<dContact\.10 PhoneNumberType=")\d+(")/g, "$19913005$2"), "DEM"]
+      : sc === "ems-error" ? [EMS5_SUBMISSION_XML.replace(/(<eMedications\.03 CodeType="9924003">)[^<]*/, "$1NOTACODE"), "EMS"]
+      : [EMS5_SUBMISSION_XML, "EMS"];
+    const r = await validateXml(xml, ds as "DEM" | "EMS");
+    return json({ sc, errors: r.error_count, warnings: r.warning_count, can_finalize: r.can_finalize, first_error: r.findings.find((f) => f.level === "ERROR")?.message ?? null });
   }
   // TEMP_PROBE_END
 
