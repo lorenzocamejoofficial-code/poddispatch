@@ -73,8 +73,8 @@ export function buildCertRecordXml(
     if ("raw_reference" in p) throw new CertGuardError("Refused: generated submissions cannot carry raw_reference XML");
     const { meta: _meta, ...rest } = p;
     const profile = rest as unknown as DemographicProfile;
-    if (!isObj(profile.agency) || !Array.isArray(profile.configurations)) {
-      throw new CertGuardError("DEM record needs agency and configurations");
+    if (!Array.isArray(profile.dem_nodes) && (!isObj(profile.agency) || !Array.isArray(profile.configurations))) {
+      throw new CertGuardError("DEM record needs Agency NEMSIS Profile records (dem_nodes)");
     }
     return {
       dataset: "DEM",

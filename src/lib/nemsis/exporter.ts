@@ -39,6 +39,8 @@ import { el, wrap, xmlEscape } from "./xml-utils";
 import { renderGeorgiaCustom } from "./states/ga";
 import { renderEmsSections, renderRecordSection, type EmsRecordData } from "./ems-record";
 export type * from "./ems-record";
+import type { DemNode } from "./dem-schema";
+import { renderDemDataSet } from "./dem-tree";
 
 export interface NemsisAgency {
   npi: string | null;
@@ -849,6 +851,9 @@ export interface NemsisConfiguration {
 export interface DemographicProfile {
   /** Lossless compliance XML; only dRecord.01/.02/.03 software identity is stamped. */
   raw_reference?: string;
+  /** Stored Agency NEMSIS Profile records (public.nemsis_dem_nodes). When present,
+   *  the DEMDataSet is rendered from these and agency/configurations are ignored. */
+  dem_nodes?: DemNode[];
   agency: NemsisAgencyDemographics;
   configurations: NemsisConfiguration[];
   /** dRecord software identity; omitted when absent. */
@@ -930,6 +935,10 @@ function renderDemConfiguration(configs: NemsisConfiguration[]): string {
  *  Section order follows DEMDataSet_v3.xsd: dRecord, dAgency, dConfiguration,
  *  dVehicle, dPersonnel. */
 export function buildDemDataSet(profile: DemographicProfile): string {
+  if (profile.dem_nodes != null) {
+    if (!profile.software) throw new Error("dem_nodes: DEM software identity is required");
+    return renderDemDataSet(profile.dem_nodes, { software: profile.software, timeStamp: profile.timeStamp });
+  }
   if (profile.raw_reference != null) {
     const sw = profile.software;
     if (!sw) throw new Error("raw_reference: DEM software identity is required");
