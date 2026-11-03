@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
 
     if (!matchingUser) {
       // Do not leak existence — and do not log a row, since no send was attempted.
-      console.log("password-reset: no user for", email);
+      console.log("password-reset: no matching user for request");
       return json({ ...GENERIC_OK });
     }
 

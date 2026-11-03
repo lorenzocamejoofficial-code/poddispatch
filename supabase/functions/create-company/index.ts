@@ -189,7 +189,7 @@ Deno.serve(async (req) => {
       console.error("Charge master seed threw:", seedErr);
     }
 
-    console.log(`Company ${companyName} created by ${userEmail} (${userId})`);
+    console.log(`Company ${companyName} created by user ${userId}`);
 
     return new Response(JSON.stringify({ ok: true, companyId }), {
       status: 200,
