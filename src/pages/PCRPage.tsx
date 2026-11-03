@@ -48,6 +48,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ChevronLeft, Check, Loader2, Send, AlertCircle, Lock, AlertTriangle, Eye, Ban } from "lucide-react";
 import { FileText } from "lucide-react";
 import { toast } from "sonner";
+import { NemsisValidationPanel } from "@/components/nemsis/NemsisValidationPanel";
+import { decideFinalization, findingsKey, type ValidationResult } from "@/lib/nemsis/validation";
 import { cn } from "@/lib/utils";
 import { sortLegsForDisplay } from "@/lib/leg-order";
 
@@ -953,6 +955,7 @@ export default function PCRPage() {
   const [truckName, setTruckName] = useState("");
   const [crewMembers, setCrewMembers] = useState<{ m1: CrewMember | null; m2: CrewMember | null; m3: CrewMember | null }>({ m1: null, m2: null, m3: null });
   const [submitting, setSubmitting] = useState(false);
+  const [nemsisCheck, setNemsisCheck] = useState<{ result: ValidationResult; ackKey: string | null } | null>(null);
   // showUpgradeDialog and upgrading removed — emergency upgrade now handled via crew dashboard
   const [incidentOpen, setIncidentOpen] = useState(false);
   const [assignedCrewCount, setAssignedCrewCount] = useState(0);
@@ -1397,6 +1400,30 @@ export default function PCRPage() {
         setSubmitting(false);
         return;
       }
+      // NEMSIS finalization gate (XSD + national/state Schematron), applied only
+      // on the NEMSIS certification company so production crews are unaffected.
+      if (trip.company_id) {
+        const { data: co } = await supabase.from("companies").select("nemsis_certification").eq("id", trip.company_id).maybeSingle();
+        if (co?.nemsis_certification) {
+          const { data, error } = await supabase.functions.invoke("nemsis-validate", { body: { action: "validate_trip", trip_id: trip.id } });
+          const result = (data as { result?: ValidationResult } | null)?.result;
+          if (error || !result) {
+            toast.error("NEMSIS validation could not run", { description: "The PCR was not submitted. Try again." });
+            setSubmitting(false);
+            return;
+          }
+          const key = findingsKey(result);
+          const decision = decideFinalization(result, nemsisCheck?.ackKey === key);
+          if (decision !== "proceed") {
+            setNemsisCheck({ result, ackKey: decision === "confirm_warnings" ? key : null });
+            if (decision === "block") toast.error(`Not submitted: ${result.error_count} NEMSIS error(s) must be fixed.`);
+            else toast.warning(`${result.warning_count} NEMSIS warning(s). Review them, then tap Submit again.`);
+            setSubmitting(false);
+            return;
+          }
+          setNemsisCheck({ result, ackKey: null });
+        }
+      }
       const { error: submitError } = await supabase.from("trip_records").update({
         pcr_status: "submitted",
         pcr_completed_at: new Date().toISOString(),
@@ -1806,8 +1833,9 @@ export default function PCRPage() {
               onClick={handleSubmit}
             >
               {submitting ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Send className="h-5 w-5 mr-2" />}
-              {isQaFixMode ? "Save & Resubmit PCR" : "Submit PCR"}
+              {isQaFixMode ? "Save & Resubmit PCR" : nemsisCheck?.ackKey ? "Submit PCR with warnings" : "Submit PCR"}
             </Button>
+            {nemsisCheck && <div className="mt-3"><NemsisValidationPanel result={nemsisCheck.result} /></div>}
             {isQaFixMode && getMissingItems().includes("Crew Signatures") && (
               <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 p-3">
                 <p className="text-xs font-semibold text-amber-900 dark:text-amber-200 mb-1">
