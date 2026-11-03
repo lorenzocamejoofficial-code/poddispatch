@@ -218,7 +218,7 @@ export default function CreatorNemsisEms() {
     URL.revokeObjectURL(a.href);
   };
 
-  const warnings = validation?.findings?.filter((f) => f.level === "WARNING").length ?? 0;
+  const warnings = validation?.warning_count ?? 0;
 
   return (
     <CreatorLayout title="NEMSIS EMS Cases">

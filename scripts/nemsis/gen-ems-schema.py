@@ -61,6 +61,16 @@ def nv_options(attr):
         if k: vals += lists[k]
     return vals
 
+def attr_list(a):
+    """List key for an attribute; inline unions (e.g. CodeType RxNorm|SNOMED) merge every member's values."""
+    u = a.find("xs:simpleType/xs:union", NS)
+    if u is None: return enum_of(a.get("type"))
+    keys = [k for k in (enum_of(m) for m in u.get("memberTypes", "").split()) if k]
+    if not keys: return None
+    key = "+".join(keys)
+    lists.setdefault(key, [v for k in keys for v in lists[k]])
+    return key
+
 def label(el):
     n = el.find(".//{*}nemsisTacDoc/{*}name")
     if n is not None and n.text: return n.text.strip()
@@ -103,7 +113,7 @@ def element_spec(el):
         for a in ext.findall("xs:attribute", NS):
             if a.get("name") == "NV": spec["nv"] = nv_options(a); continue
             if a.get("name") == "PN": spec["pn"] = nv_options(a); continue
-            attrs.append({"name": a.get("name"), "list": enum_of(a.get("type")), "required": a.get("use") == "required"})
+            attrs.append({"name": a.get("name"), "list": attr_list(a), "required": a.get("use") == "required"})
     spec["nillable"] = el.get("nillable") == "true"
     if attrs: spec["attrs"] = attrs
     lk = enum_of(base)

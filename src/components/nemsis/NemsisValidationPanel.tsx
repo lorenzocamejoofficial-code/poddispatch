@@ -1,7 +1,7 @@
-import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react";
 import type { ValidationFinding, ValidationResult } from "@/lib/nemsis/validation";
 
-function FindingList({ items, tone }: { items: ValidationFinding[]; tone: "error" | "warning" }) {
+function FindingList({ items, tone }: { items: ValidationFinding[]; tone: "error" | "warning" | "info" }) {
   return (
     <ul className="space-y-2">
       {items.map((f, i) => (
@@ -9,11 +9,13 @@ function FindingList({ items, tone }: { items: ValidationFinding[]; tone: "error
           key={i}
           className={tone === "error"
             ? "rounded border border-destructive/40 bg-destructive/5 p-2"
-            : "rounded border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] p-2"}
+            : tone === "warning"
+              ? "rounded border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] p-2"
+              : "rounded border border-border bg-muted/40 p-2"}
         >
           <p className="text-sm text-foreground">{f.message}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {f.source}{f.location ? ` · ${f.location}` : ""}{f.rule_id ? ` · ${f.rule_id}` : ""}
+            {tone === "info" ? `${f.source} state rule · ${f.level === "ERROR" ? "error" : "warning"} (informational)` : f.source}{f.location ? ` · ${f.location}` : ""}{f.rule_id ? ` · ${f.rule_id}` : ""}
           </p>
         </li>
       ))}
@@ -23,8 +25,10 @@ function FindingList({ items, tone }: { items: ValidationFinding[]; tone: "error
 
 /** Plain-language NEMSIS validation results, grouped into errors and warnings. */
 export function NemsisValidationPanel({ result, title }: { result: ValidationResult; title?: string }) {
-  const errors = result.findings.filter((f) => f.level === "ERROR");
-  const warnings = result.findings.filter((f) => f.level === "WARNING");
+  const gating = result.findings.filter((f) => f.enforced !== false);
+  const info = result.findings.filter((f) => f.enforced === false);
+  const errors = gating.filter((f) => f.level === "ERROR");
+  const warnings = gating.filter((f) => f.level === "WARNING");
   return (
     <div className="space-y-3 rounded-lg border bg-card p-3" role="region" aria-label="NEMSIS validation results">
       <div className="flex flex-wrap items-center gap-2">
@@ -54,8 +58,16 @@ export function NemsisValidationPanel({ result, title }: { result: ValidationRes
           <FindingList items={warnings} tone="warning" />
         </div>
       )}
+      {info.length > 0 && (
+        <div>
+          <p className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase text-muted-foreground">
+            <Info className="h-3.5 w-3.5" /> State rules — informational, do not block finalization ({info.length})
+          </p>
+          <FindingList items={info} tone="info" />
+        </div>
+      )}
       <p className="text-xs text-muted-foreground">
-        Checked against the NEMSIS 3.5.1 schema and {result.rule_sets.map((r) => `${r.source}${r.version ? ` (${r.version})` : ""}`).join(", ")} rules · {new Date(result.validated_at).toLocaleString()}
+        Checked against the NEMSIS 3.5.1 schema and {result.rule_sets.map((r) => `${r.source}${r.version ? ` (${r.version})` : ""}${r.enforced === false ? " — informational" : ""}`).join(", ")} rules · {new Date(result.validated_at).toLocaleString()}
       </p>
     </div>
   );

@@ -12,7 +12,7 @@
 import SaxonJS from "npm:saxon-js@2.7.0";
 import { XmllintModule, XMLLINT_WASM_GZ_B64 } from "./xmllint-vendor.generated.ts";
 import { SCHEMATRON_ASSETS, XSD_BUNDLE } from "./assets.generated.ts";
-import { parseSvrl, summarize, xsdFindings, type ValidationFinding, type ValidationResult } from "../validation.ts";
+import { isSetEnforced, parseSvrl, summarize, xsdFindings, type ValidationFinding, type ValidationResult } from "../validation.ts";
 
 async function gunzipB64Bytes(b64: string): Promise<Uint8Array> {
   const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -68,7 +68,7 @@ export function validationUnits(dataset: "DEM" | "EMS"): string[] {
 
 export function ruleSets(dataset: "DEM" | "EMS"): ValidationResult["rule_sets"] {
   const seen = new Map<string, ValidationResult["rule_sets"][number]>();
-  for (const a of SCHEMATRON_ASSETS) if (a.dataset === dataset && !seen.has(a.set_id)) seen.set(a.set_id, { id: a.set_id, source: a.source, version: a.version });
+  for (const a of SCHEMATRON_ASSETS) if (a.dataset === dataset && !seen.has(a.set_id)) seen.set(a.set_id, { id: a.set_id, source: a.source, version: a.version, enforced: isSetEnforced(a.set_id, a.version) });
   return [...seen.values()];
 }
 
@@ -88,10 +88,17 @@ export async function runUnit(xml: string, dataset: "DEM" | "EMS", unit: string)
       if (/SXXP0003|not well-formed|XML parsing/i.test(String(e))) return { unit, ok: true, findings: [] };
       throw e;
     }
-    return { unit, ok: true, findings: parseSvrl(String(out.principalResult ?? ""), a.source) };
+    const enforced = isSetEnforced(a.set_id, a.version);
+    const findings = parseSvrl(String(out.principalResult ?? ""), a.source);
+    return { unit, ok: true, findings: enforced ? findings : findings.map((f) => ({ ...f, enforced: false })) };
   } catch (e) {
     return { unit, ok: false, findings: [], error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+function unitEnforced(unit: string): boolean {
+  const a = SCHEMATRON_ASSETS.find((x) => x.id === unit);
+  return !a || isSetEnforced(a.set_id, a.version);
 }
 
 /** Merges unit results. A unit that failed to run is an ERROR, so nothing passes silently. */
@@ -100,6 +107,8 @@ export function mergeUnits(dataset: "DEM" | "EMS", results: UnitResult[]): Valid
     level: "ERROR" as const, source: r.unit === "xsd" ? "XSD" : "Validation service",
     message: `Validation step "${r.unit}" could not complete: ${r.error ?? "unknown error"}. Finalization stays blocked until it runs.`,
     location: null, elements: [], rule_id: null,
+    // A failed informational (state) unit is shown but cannot block; enforced units block.
+    ...(unitEnforced(r.unit) ? {} : { enforced: false }),
   }]);
   return summarize(dataset, findings, ruleSets(dataset));
 }
