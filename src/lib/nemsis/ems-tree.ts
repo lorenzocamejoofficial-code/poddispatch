@@ -120,7 +120,7 @@ function renderGroupBody(spec: DemGroupSpec, node: DemNode, nodes: DemNode[], uu
       for (const child of emsChildrenOf(nodes, node.id, c.tag)) {
         const a: [string, string][] = [];
         if (c.attrs.includes("CorrelationID") && child.correlation_id) a.push(["CorrelationID", child.correlation_id]);
-        if (c.attrs.includes("UUID") && (child.uuid || c.attrs.length === 1)) a.push(["UUID", child.uuid || uuid()]);
+        if (c.attrs.includes("UUID") && child.uuid) a.push(["UUID", child.uuid]);
         out += `<${c.tag}${attrStr(a)}>${renderGroupBody(c, child, nodes, uuid, sw)}</${c.tag}>`;
       }
     }
