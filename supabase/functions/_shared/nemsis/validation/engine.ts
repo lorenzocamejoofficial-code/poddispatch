@@ -22,6 +22,7 @@ async function gunzipB64Bytes(b64: string): Promise<Uint8Array> {
 const gunzipB64 = async (b64: string) => new TextDecoder().decode(await gunzipB64Bytes(b64));
 
 let wasmBinary: Uint8Array | null = null;
+const sefCache = new Map<string, unknown>();
 let xsdCache: { fileName: string; contents: string }[] | null = null;
 type XsdError = { message: string; rawMessage: string; loc: { lineNumber: number } | null };
 
@@ -81,7 +82,7 @@ export async function runUnit(xml: string, dataset: "DEM" | "EMS", unit: string)
     if (!a) return { unit, ok: false, findings: [], error: `Unknown rule unit ${unit}` };
     let out;
     try {
-      out = SaxonJS.transform({ stylesheetInternal: JSON.parse(await gunzipB64(a.sef)), sourceText: xml, destination: "serialized" }, "sync");
+      out = SaxonJS.transform({ stylesheetInternal: sefCache.get(a.id) ?? sefCache.set(a.id, JSON.parse(await gunzipB64(a.sef))).get(a.id), sourceText: xml, destination: "serialized" }, "sync");
     } catch (e) {
       // Parse failures of the record itself are already reported by the XSD unit.
       if (/SXXP0003|not well-formed|XML parsing/i.test(String(e))) return { unit, ok: true, findings: [] };

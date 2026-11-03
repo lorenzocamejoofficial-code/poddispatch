@@ -35,18 +35,30 @@ async function sign(payload: string): Promise<string> {
 async function validateXml(xml: string, dataset: "DEM" | "EMS"): Promise<ValidationResult> {
   const results = await Promise.all(validationUnits(dataset).map(async (unit): Promise<UnitResult> => {
     const payload = JSON.stringify({ action: "run_unit", dataset, unit, xml });
+    const sig = await sign(payload);
+    let last: UnitResult = { unit, ok: false, findings: [], error: "not run" };
+    // Retry: a sub-request can be cut off when it shares a busy worker.
+    for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const res = await fetch(SELF_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-unit-sig": await sign(payload) },
+        headers: { "Content-Type": "application/json", "x-unit-sig": sig },
         body: payload,
         signal: AbortSignal.timeout(60_000),
       });
-      if (!res.ok) return { unit, ok: false, findings: [], error: `HTTP ${res.status}` };
-      return await res.json() as UnitResult;
+      if (res.ok) {
+        const r = await res.json() as UnitResult;
+        if (r.ok) return r;
+        last = r;
+      } else {
+        last = { unit, ok: false, findings: [], error: `HTTP ${res.status}` };
+        await res.body?.cancel();
+      }
     } catch (e) {
-      return { unit, ok: false, findings: [], error: e instanceof Error ? e.message : String(e) };
+      last = { unit, ok: false, findings: [], error: e instanceof Error ? e.message : String(e) };
     }
+    }
+    return last;
   }));
   return mergeUnits(dataset, results);
 }
@@ -71,8 +83,9 @@ Deno.serve(async (req) => {
   // TEMP_PROBE_START
   if (new URL(req.url).searchParams.get("probe") === "1") {
     const t0 = performance.now();
-    const ems = await validateXml(EMS5_SUBMISSION_XML, "EMS");
-    const dem = await validateXml(DEM1_SUBMISSION_XML, "DEM");
+    const which = new URL(req.url).searchParams.get("ds");
+    const ems = which === "dem" ? { error_count: -1, warning_count: -1, findings: [], rule_sets: [] } as unknown as ValidationResult : await validateXml(EMS5_SUBMISSION_XML, "EMS");
+    const dem = which === "ems" ? { error_count: -1, warning_count: -1, findings: [], rule_sets: [] } as unknown as ValidationResult : await validateXml(DEM1_SUBMISSION_XML, "DEM");
     return json({ ems: [ems.error_count, ems.warning_count, ems.findings.filter((f) => f.source === "Validation service" || f.message.includes("could not complete")).map((f) => f.message)], dem: [dem.error_count, dem.warning_count], sets: ems.rule_sets.concat(dem.rule_sets).map((r) => r.id), ms: Math.round(performance.now() - t0) });
   }
   // TEMP_PROBE_END
