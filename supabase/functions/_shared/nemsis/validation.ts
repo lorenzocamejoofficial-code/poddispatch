@@ -102,3 +102,20 @@ export function summarize(
   const warning_count = findings.length - error_count;
   return { dataset, findings, error_count, warning_count, can_finalize: error_count === 0, rule_sets, validated_at: now };
 }
+
+export type FinalizeDecision = "block" | "confirm_warnings" | "proceed";
+
+/**
+ * Finalization gate. ERROR → block. WARNING only → show and require one
+ * acknowledgement (a second click on the same result), then proceed.
+ */
+export function decideFinalization(result: ValidationResult, warningsAcknowledged: boolean): FinalizeDecision {
+  if (result.error_count > 0) return "block";
+  if (result.warning_count > 0 && !warningsAcknowledged) return "confirm_warnings";
+  return "proceed";
+}
+
+/** Stable signature of a result's findings, so an acknowledgement only covers the warnings the user saw. */
+export function findingsKey(result: ValidationResult): string {
+  return result.findings.map((f) => `${f.level}|${f.source}|${f.rule_id}|${f.location}|${f.message}`).join("\n");
+}
