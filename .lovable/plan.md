@@ -1,64 +1,65 @@
-# NEMSIS 3.5.1 "Collect Data" certification: gap analysis, build plan and estimate
+# Manual "Create ePCR" for owners/managers
 
-Planning only; nothing has been changed. Bottom line: certification needs a real path from entered data to validation, finalization and the CTA. Today's passes come only from static XML files (`src/lib/nemsis/fixtures/*.xml`) sent from `src/pages/CreatorNemsisCta.tsx`.
+## Answer to Question 1: where completed ePCRs live today
 
-## Status of the 8 requirements
+- **Sidebar:** the **Clinical** group, then **Trips & Clinical**, which goes to `/trips` and opens `src/pages/TripsAndClinical.tsx`. Owner, manager and billing can see it (`src/components/layout/AdminLayout.tsx` line 102). The page lists `trip_records` for the active company by date. It puts past incomplete PCRs at the top and shows status badges, including "PCR Submitted". There is no separate "completed PCR" page. Completed PCRs are trips whose status is `ready_for_billing`. Billing picks them up under **Billing → Billing & Claims** (`/billing`).
+- **Table:** a PCR is not its own table. It is the `trip_records` row: about 179 columns of clinical fields, `pcr_status`, `pcr_type`/`trip_type`, `transport_kind`/`payer_class`, timestamps and signatures. Related tables are `trip_status_history`, `trip_events`, `document_attachments` and `qa_reviews`. When the PCR is submitted, the claim goes to `claim_records`.
+- **Status flow:**
+  1. Dispatch creates `scheduling_legs`, and Truck Builder puts them into `truck_run_slots` with a `crews` row for that truck and day.
+  2. The crew opens `/pcr` (`src/pages/PCRPage.tsx`). The run picker (`PCRRunSelector`) lists today's slots. `createTripForRun` (lines 440–600) inserts the `trip_records` row with `status: scheduled`, `pcr_status: not_started`, leg/slot/truck/crew/patient, origin and destination types, service level, patient defaults and one-off leg data. It refuses dialysis runs that have no ICD-10 code.
+  3. As the crew enters timestamps, the trip moves through en route, arrived at pickup, loaded, arrived at drop-off and completed. Meanwhile `pcr_status` goes `in_progress`, with `kicked_back` possible from QA.
+  4. **Done:** Submit (PCRPage about line 1427) sets `pcr_status: submitted`, `status: ready_for_billing`, `pcr_completed_at`, `pcr_submitted_by`, `claim_ready` and `documentation_complete`. The `auto_create_claim_on_pcr_submit` database trigger then creates the claim, and `auto_flag_trip_qa` runs QA checks.
 
-**1. DEM data-entry screens: MISSING**
-- Exists: basic company and fleet data in `OnboardingWizard.tsx` and `TrucksCrews.tsx`. A data-driven builder, `buildDemDataSet(DemographicProfile)`, is in `src/lib/nemsis/exporter.ts`.
-- Missing: no stored DEM model and no screens for dAgency, dContact, dConfiguration (procedure, medication and protocol groups, cert levels), dVehicle, dPersonnel, dDevice, dFacility or dLocation. `buildDemDataSet` has no app caller.
+## Question 2: the plan
 
-**2. EMS data-entry screens for the five cases: PARTIAL**
-- Exists: the ePCR in `src/pages/PCRPage.tsx` and `src/components/pcr/*` covers times, vitals, airway, assessment, disposition and signatures.
-- Missing: forms that fill the structured `PcrExportInput.nemsis` (`src/lib/nemsis/ems-record.ts`). The cases need eArrest, eInjury, repeated eExam groups, eProcedures/eMedications with full codes, eOutcome, eOther and eCustomResults. Today those exist only in the fixtures. An element-by-element coverage matrix against the five cases is the first task.
+### Where it lives
+A **"Create PCR"** button in the header of **Trips & Clinical** (`/trips`), shown to owners and managers only. It opens a setup dialog. When setup is done, the user goes to `/pcr?tripId=<new id>&mode=manual`.
 
-**3. Change a value and resubmit; DEM auto-resubmits: MISSING**
-- Exists: `nemsis_cta_submissions` history plus the per-trip state submission `supabase/functions/submit-gemsis-pcr`. That function sends to GEMSIS, not the CTA.
-- Missing: CTA submission from database records, a resubmit action, and a trigger that sends a new DEMDataSet when a national DEM element changes.
+### Setup step (dialog, all fields required unless marked)
+1. **Patient:** a searchable list of the active company's patients. Selecting one shows their payer, DOB, standing ICD-10 codes and default addresses.
+2. **Transport type:** the six transport kinds (dialysis, IFT, discharge, outpatient, wound care, psych). This defaults to the patient's own transport type.
+3. **Run date and pickup time.** The date defaults to today and may be in the past for documenting a run late.
+4. **Truck:** active trucks only. A truck that is down or out of service that day is blocked, using the existing availability check.
+5. **Crew:** pick the crew already assigned to that truck for that date if one exists. Otherwise pick members 1, 2 and an optional 3 from employees. Members must pass the same certification check as assignment (`crew_assignable`, which includes the sandbox bypass).
+6. **Pickup and destination:** these default from the patient or facility and stay editable. Leg A/B is the direction.
+7. **Type-specific checks before the PCR opens**, the same ones the crew path runs:
+   - A dialysis run needs a patient ICD-10 code.
+   - Bariatric runs go through the safety rule check.
+   - A run within 45 minutes of another run on the same truck gets a warning.
+   - The intake rules already used for the patient and transport type apply.
 
-**4. Crew Member National EMS ID (dPersonnel.901 / eCrew.901): MISSING in UI**
-- Exists: values exist only in the fixtures. The ID mapping rule is in memory.
-- Missing: a stored field on the employee/personnel record, entry UI, display on the ePCR crew section, and export with the matching custom-configuration declaration (dCustomConfiguration / eCustomConfiguration).
+### How the transport type sets the PCR type today
+`createTripForRun` writes the run's `trip_type` into both `trip_type` and `pcr_type`. `pcr_type` is a deprecated copy. The database triggers fill in `transport_kind`. Required fields come from `pcr-field-requirements.ts` through `clinicalTransportType` / `normalizeTransportKey`. Emergency is an upgrade flag, not a type. The manual path writes the same legacy fields, so all of these keep working unchanged.
 
-**5. In-app Schematron at finalization (four scenarios, national + state files): MISSING**
-- Exists: offline only. `scripts/nemsis/validate.mjs` uses system xmllint plus the Schematron files in `tests/nemsis/schematron`. `cta-soap.ts` `extractCtaValidationErrors` parses the CTA's messages after a submission.
-- Missing: a server-side validation service that runs every configured Schematron file (national + GA). It needs to return messages with their level, error-blocks/warning-allows finalization for both DEM and EMS, and a results panel in the UI.
+### Reuse vs. new
+- **Reuse:**
+  - the patient-defaults and ICD-10 logic in `createTripForRun`, moved into one shared helper both paths call
+  - the full PCR form, the pre-submit checklist and the submit step
+  - the claim trigger, QA trigger and status labels
+  - the existing truck/crew safety, conflict and availability checks
+  - active-company scoping
+- **New:**
+  - the `CreatePcrDialog` component
+  - the shared `buildTripInsert()` helper, with tests
+  - the owner/manager button
+  - letting `/pcr` open in the office layout for a manually created trip
 
-**6. NEMSIS Defined Lists in data entry: PARTIAL**
-- Exists: `src/lib/nemsis-code-sets.ts` (marked 3.5.1, about 194 codes) feeds a few ePCR dropdowns.
-- Missing: the complete national defined lists for every coded element on the new screens, and the DEM lists. The DEM configuration determines which procedures, medications and protocols the ePCR offers. Also missing: GA state lists and a record of each list's source version.
+### Build approach
+1. Move the trip-insert assembly out of `createTripForRun` into `src/lib/pcr-trip-insert.ts`, a pure function. The crew path calls it with no change in behavior. Add tests for patient defaults, dialysis ICD blocking and type mirroring.
+2. Create a matching one-off `scheduling_legs` row (`is_unscheduled: true`) and a `crews` row if none exists. The trip then has a leg, truck and crew like every scheduled trip, and Scheduling, feasibility and claim payer lookup all see it.
+3. Insert the `trip_records` row through the helper, with `pcr_status: not_started`, and open `/pcr?tripId=…`.
+4. PCRPage: for office roles on a manual trip, use the office layout. Signatures and attending options come from the trip's crew members, as they do now.
+5. Submit goes through the existing code, so downstream it is the same as a crew-completed PCR.
 
-**7. XSD validation at finalization: MISSING in app**
-- Exists: offline xmllint against `tests/nemsis/xsd`. Generated XML is XSD-valid in tests.
-- Missing: XSD runs inside the same validation service, with blocking at finalization.
+## Gotchas
+- **PCRPage is crew-shaped.** It uses the crew layout. With no `tripId` it shows only the crew run picker, and the crew-handoff checks are skipped for non-crew users. Editing as an owner needs the office layout and needs to bypass the crew-only gates on purpose.
+- **Truck check-off gate.** The crew path may require a submitted truck inspection before a PCR. For a manual or after-the-fact PCR, I assume we skip that gate and record that in the audit log. Please confirm.
+- **Leg/slot dependence.** `trip_records.leg_id` is nullable, but Scheduling counts, feasibility, the claim payer fallback and duplicate detection all expect a leg. Creating the matching leg (step 2) avoids orphan behavior. The other option, trips with no leg, is riskier.
+- **Duplicates.** Warn if the patient already has a trip on that date and leg. This reuses the existing duplicate warning in the run picker.
+- **Attestation.** The PCR is still documented and signed as the chosen crew. The owner who created it is stored as `created_by` and in the audit log, so it is clear who entered it.
+- **Scope.** This is not linked to NEMSIS/CTA work. Billing and claim logic do not change.
 
-**8. Submit entered data to the CTA via the current web service: PARTIAL**
-- Exists: the SOAP client in `cta-soap.ts` works, and `nemsis-cta-submit` is proven against the CTA. But it imports only static `*_SUBMISSION_XML` fixtures and is designed never to read tenant data.
-- Missing: a path that builds XML from the certification company's records and sends that.
-
-## Decision needed on the freeze and the data guardrail
-
-The current rules (NEMSIS path frozen; no tenant data to the CTA) must be explicitly relaxed in a narrow way. Recommendation:
-- **Unfreeze the NEMSIS path for this project only.** Keep the six static fixtures as a regression baseline, but no longer as what gets submitted.
-- **Create a dedicated certification company** flagged as test/sandbox, holding only synthetic NEMSIS test-case data. The CTA submit function would accept records only when they belong to a company that is flagged as test/sandbox and specially marked for certification. Real companies stay refused on the server, and the CTA address stays hardcoded.
-- Submissions remain creator-only and manual: one click per submission, never automatic, except the required automatic DEM resubmission, which applies only inside the certification company.
-- Record the new rule in AGENTS.md, replacing the current fixture-only rule.
-
-## Build order and estimate
-
-Estimates assume one focused developer with AI help, and include tests.
-
-1. **Stage 0: coverage matrix and decisions** (1–2 days). List every element in the six cases, map each to existing fields or "new", and sign off on the guardrail above.
-2. **Stage 1: certification company and submit path** (2–3 days). Add the certification flag and the server-side guard. Have the submit function build XML from database records, keeping the fixture mode for regression. Add a resubmit button.
-3. **Stage 2: validation service** (4–6 days). Run XSD plus all Schematron files (national + state) on the server. A Deno edge function can't run xmllint or the XSLT 2 Schematron engine, so this needs a JS/WASM engine (for example a libxml2 WASM build plus SaxonJS). Its feasibility is the biggest technical risk, so prototype it first. Then gate finalization (error blocks, warning allows) and add a messages panel for DEM and EMS.
-4. **Stage 3: DEM data model and screens** (8–12 days). Add tables for agency, contacts, configuration groups, protocols, cert levels, vehicles, personnel (with National EMS ID), devices and locations. Build screens with defined-list dropdowns, an "agency NEMSIS profile" page, and automatic DEM resubmission when a national element changes.
-5. **Stage 4: EMS data entry for the five cases** (10–15 days). Add structured storage for the `PcrExportInput.nemsis` sections and ePCR cards for the missing sections. Show eCrew.901 in the crew section, and limit procedure/medication choices to the DEM configuration.
-6. **Stage 5: defined lists** (3–5 days, overlapping Stages 3–4). Import the official national and GA lists into versioned code tables used by every coded field.
-7. **Stage 6: rehearsal** (3–4 days). Enter all six cases through the screens only, compare against the references with `nemsis:diff`, and submit to the CTA. Rehearse the four Schematron scenarios and the change-and-resubmit flow.
-
-**Total: about 31–47 working days (6–9 weeks) for one developer; about 4–6 weeks with two developers working in parallel.** The biggest risks are the Stage 2 validation engine, how much of the case data is still uncovered (the Stage 0 matrix will firm this up), and possible changes to the current 3.5.1 Schematron/lists versions.
-
-## Not yet verified
-- Element-by-element counts per case (Stage 0 produces these).
-- Whether `nemsis-code-sets.ts` matches the current published lists.
-- Whether the CTA message parser separates WARNING from ERROR in the creator panel.
+## Open questions (assumed answers in brackets)
+- Should dispatchers also get the button? [No: owner and manager only, as you asked.]
+- Skip the truck inspection gate for manual PCRs? [Yes, with an audit note.]
+- Allow past dates? [Yes, up to 7 days back.]
