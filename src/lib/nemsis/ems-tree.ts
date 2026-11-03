@@ -206,7 +206,7 @@ const SKIP = (tag: string) =>
 export function parseEmsXml(xml: string, newId: () => string = defaultUuid): DemNode[] {
   const src = xml.replace(/<\?[\s\S]*?\?>/g, "").replace(/<!--[\s\S]*?-->/g, "");
   const nodes: DemNode[] = [];
-  const re = /<(\/?)([A-Za-z_][\w.:-]*)((?:\s+[\w:.-]+\s*=\s*"[^"]*")*)\s*(\/?)>|([^<]+)/g;
+  const re = /<(\/?)([A-Za-z_][\w.:-]*)((?:\s+[\w:.-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>|([^<]+)/g;
   type Field = { tag: string; fv: DemFieldValue; owner: DemNode | null; custom?: Record<string, DemFieldValue[]> };
   type Frame = { tag: string; node?: DemNode; field?: Field; custom?: Record<string, DemFieldValue[]> };
   const stack: Frame[] = [];
@@ -234,7 +234,7 @@ export function parseEmsXml(xml: string, newId: () => string = defaultUuid): Dem
       continue;
     }
     text = "";
-    const attrs = Object.fromEntries([...rawAttrs.matchAll(/([\w:.-]+)\s*=\s*"([^"]*)"/g)].map(([, k, v]) => [k, unesc(v)]));
+    const attrs = Object.fromEntries([...rawAttrs.matchAll(/([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)].map(([, k, d, q]) => [k, unesc(d ?? q)]));
     let frame: Frame = { tag };
     if (tag === "PatientCareReport") pcrUuid = attrs.UUID ?? null;
     if (tag === "eCustomResults.ResultsGroup") {

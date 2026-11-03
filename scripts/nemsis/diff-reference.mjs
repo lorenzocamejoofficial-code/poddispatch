@@ -15,7 +15,7 @@ function entries(xml) {
   const src = xml.replace(/<\?[\s\S]*?\?>/g, "").replace(/<!--[\s\S]*?-->/g, "");
   const out = [];
   const stack = [];
-  const re = /<(\/?)([A-Za-z_][\w.:-]*)((?:\s+[\w:.-]+\s*=\s*"[^"]*")*)\s*(\/?)>|([^<]+)/g;
+  const re = /<(\/?)([A-Za-z_][\w.:-]*)((?:\s+[\w:.-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>|([^<]+)/g;
   let m, pendingText = "";
   while ((m = re.exec(src))) {
     if (m[5] !== undefined) { pendingText += m[5]; continue; }
@@ -29,7 +29,7 @@ function entries(xml) {
     }
     if (stack.length) stack[stack.length - 1].leaf = false;
     pendingText = "";
-    const attrs = [...rawAttrs.matchAll(/([\w:.-]+)\s*=\s*"([^"]*)"/g)]
+    const attrs = [...rawAttrs.matchAll(/([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)].map(([a, k, d, q]) => [a, k, (d ?? q).replace(/&quot;/g, '"').replace(/&apos;/g, "'")])
       .filter(([, k]) => !k.startsWith("xmlns") && k !== "xsi:schemaLocation")
       .map(([, k, v]) => {
         if (k === "UUID") return `${k}=<uuid>`;
