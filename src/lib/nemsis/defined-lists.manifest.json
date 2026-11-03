@@ -3,19 +3,8 @@
  "generated_by": "scripts/nemsis/gen-defined-list-manifest.py",
  "list_count": 215,
  "value_count": 2566,
- "all_complete": false,
- "partial": [
-  {
-   "dataset": "DEM",
-   "element": "dConfiguration.09@CodeType",
-   "list": "CodeType.RxNorm+CodeType.SNOMED",
-   "missing": 2,
-   "examples": [
-    "9924003",
-    "9924005"
-   ]
-  }
- ],
+ "all_complete": true,
+ "partial": [],
  "lists": [
   {
    "list": "ACNYesNoType",
@@ -756,8 +745,8 @@
    },
    "nemsis_version": "3.5.1.251001CP2",
    "official_count": 2,
-   "interface_count": 0,
-   "complete": false,
+   "interface_count": 2,
+   "complete": true,
    "elements": [
     "dConfiguration.09@CodeType",
     "eMedications.03@CodeType"
