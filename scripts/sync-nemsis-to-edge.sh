@@ -17,6 +17,8 @@ cp src/lib/nemsis-code-sets.ts        supabase/functions/_shared/nemsis-code-set
 cp src/lib/nemsis-translate.ts        supabase/functions/_shared/nemsis-translate.ts
 cp src/lib/nemsis/xml-utils.ts        supabase/functions/_shared/nemsis/xml-utils.ts
 cp src/lib/nemsis/exporter.ts         supabase/functions/_shared/nemsis/exporter.ts
+cp src/lib/nemsis/ems-record.ts       supabase/functions/_shared/nemsis/ems-record.ts
+cp src/lib/nemsis/cert-records.ts     supabase/functions/_shared/nemsis/cert-records.ts
 cp src/lib/nemsis/states/ga.ts        supabase/functions/_shared/nemsis/states/ga.ts
 
 # Deno requires explicit .ts extensions on relative imports. The app source
@@ -28,6 +30,8 @@ add_ts_ext() {
 for f in \
   supabase/functions/_shared/nemsis-translate.ts \
   supabase/functions/_shared/nemsis/exporter.ts \
+  supabase/functions/_shared/nemsis/ems-record.ts \
+  supabase/functions/_shared/nemsis/cert-records.ts \
   supabase/functions/_shared/nemsis/states/ga.ts; do
   add_ts_ext "$f"
 done
