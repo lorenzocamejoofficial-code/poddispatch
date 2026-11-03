@@ -138,7 +138,7 @@ export function renderDemDataSet(input: DemNode[], opts: DemRenderOptions): stri
     `<DEMDataSet xmlns="http://www.nemsis.org" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"` +
     ` xsi:schemaLocation="http://www.nemsis.org https://nemsis.org/media/nemsis_v3/3.5.1.251001CP2/XSDs/NEMSIS_XSDs/DEMDataSet_v3.xsd">` +
     (declare ? NATIONAL_EMS_ID_DECLARATION : "") +
-    `<DemographicReport timeStamp="${esc(opts.timeStamp ?? new Date().toISOString())}">${body}</DemographicReport></DEMDataSet>`;
+    `<DemographicReport timeStamp="${esc(opts.timeStamp ?? new Date().toISOString().replace(/\.\d+Z$/, "+00:00"))}">${body}</DemographicReport></DEMDataSet>`;
 }
 
 /** Parse a DEMDataSet into nodes (ids from `newId`). Unknown elements throw. */
