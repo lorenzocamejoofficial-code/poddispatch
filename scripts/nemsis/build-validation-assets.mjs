@@ -69,4 +69,19 @@ export const XSD_BUNDLE: string = ${JSON.stringify(b64gz(JSON.stringify(xsd)))};
 `;
 mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, body);
+
+// libxml2 (xmllint-wasm) vendored for in-thread use: the package wrapper needs
+// worker_threads, which the edge runtime does not implement.
+const XW = join(ROOT, "node_modules/xmllint-wasm");
+const glue = readFileSync(join(XW, "xmllint-browser.mjs"), "utf8");
+const core = glue.slice(0, glue.indexOf("if (typeof exports === 'object' && typeof module === 'object')"));
+writeFileSync(join(dirname(OUT), "xmllint-vendor.generated.ts"), `// GENERATED from xmllint-wasm@${JSON.parse(readFileSync(join(XW, "package.json"), "utf8")).version} (MIT; libxml2 compiled to WebAssembly)
+// by scripts/nemsis/build-validation-assets.mjs — do not edit.
+// deno-lint-ignore-file
+// @ts-nocheck
+${core}
+export const XMLLINT_WASM_GZ_B64 = ${JSON.stringify(gzipSync(readFileSync(join(XW, "xmllint.wasm")), { level: 9 }).toString("base64"))};
+export const XmllintModule = Module;
+`);
+console.log("wrote xmllint-vendor.generated.ts");
 console.log(`wrote ${OUT} (${(body.length / 1024).toFixed(0)} KB)`);
