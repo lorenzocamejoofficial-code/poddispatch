@@ -3327,10 +3327,13 @@ export type Database = {
           company_id: string
           created_at: string
           created_by: string | null
+          finalized_at: string | null
+          finalized_by: string | null
           id: string
           kind: string
           label: string
           last_auto_submit_at: string | null
+          last_validation: Json | null
           payload: Json
           pending_auto_submit: boolean
           updated_at: string
@@ -3340,10 +3343,13 @@ export type Database = {
           company_id: string
           created_at?: string
           created_by?: string | null
+          finalized_at?: string | null
+          finalized_by?: string | null
           id?: string
           kind: string
           label?: string
           last_auto_submit_at?: string | null
+          last_validation?: Json | null
           payload?: Json
           pending_auto_submit?: boolean
           updated_at?: string
@@ -3353,10 +3359,13 @@ export type Database = {
           company_id?: string
           created_at?: string
           created_by?: string | null
+          finalized_at?: string | null
+          finalized_by?: string | null
           id?: string
           kind?: string
           label?: string
           last_auto_submit_at?: string | null
+          last_validation?: Json | null
           payload?: Json
           pending_auto_submit?: boolean
           updated_at?: string
