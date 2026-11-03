@@ -1,6 +1,8 @@
 /**
  * nemsis-cta-submit — creator-only NEMSIS CTA test harness transport.
- * Never reads tenant data: payloads come only from built-in fixtures/probe.
+ * Two sources: "fixture" (built-in regression XML) and "generated" (XML built
+ * from nemsis_cert_records of the flagged certification company only — every
+ * other company is refused server-side). Real tenant tables are never read.
  * Sends only to the single hardcoded CTA_ENDPOINT. Password never logged.
  */
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
@@ -29,6 +31,7 @@ import { EMS2_SUBMISSION_XML } from "../_shared/nemsis/fixtures/ems2-submission.
 import { EMS3_SUBMISSION_XML } from "../_shared/nemsis/fixtures/ems3-submission.ts";
 import { EMS4_SUBMISSION_XML } from "../_shared/nemsis/fixtures/ems4-submission.ts";
 import { EMS5_SUBMISSION_XML } from "../_shared/nemsis/fixtures/ems5-submission.ts";
+import { buildCertRecordXml, CertGuardError } from "../_shared/nemsis/cert-records.ts";
 
 const SCHEMA_VERSION = "3.5.1";
 
@@ -36,6 +39,8 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("ping") }),
   z.object({ action: z.literal("submit"), test_case: z.enum(["TRANSPORT_PROBE", "DEM1", "EMS1", "EMS2", "EMS3", "EMS4", "EMS5"]) }),
   z.object({ action: z.literal("status"), request_handle: z.string().min(1).max(200) }),
+  z.object({ action: z.literal("submit_record"), record_id: z.string().uuid() }),
+  z.object({ action: z.literal("auto_dem"), record_id: z.string().uuid() }),
 ]);
 
 function json(payload: unknown, status = 200) {
@@ -49,22 +54,59 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  // Creator-only gate: validated JWT + system_creators membership.
-  const auth = req.headers.get("Authorization");
-  if (!auth?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
-  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const { data: u, error: uErr } = await admin.auth.getUser(auth.replace("Bearer ", ""));
-  if (uErr || !u?.user) return json({ error: "Unauthorized" }, 401);
-  const createdBy = u.user.id;
-  const { data: sc, error: scErr } = await admin.from("system_creators").select("user_id").eq("user_id", createdBy).maybeSingle();
-  if (scErr) return json({ error: "Creator check failed" }, 500);
-  if (!sc) return json({ error: "Forbidden — system creators only" }, 403);
-
   let raw: unknown;
   try { raw = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
   const parsed = Body.safeParse(raw);
   if (!parsed.success) return json({ error: parsed.error.flatten() }, 400);
   const body = parsed.data;
+  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  // auto_dem is the one unauthenticated path (database wake-up). It carries no
+  // data: it acts only on a DEM record already marked pending by the database,
+  // and only for the certification company (checked again below).
+  let createdBy: string | null = null;
+  if (body.action !== "auto_dem") {
+    // Creator-only gate: validated JWT + system_creators membership.
+    const auth = req.headers.get("Authorization");
+    if (!auth?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+    const { data: u, error: uErr } = await admin.auth.getUser(auth.replace("Bearer ", ""));
+    if (uErr || !u?.user) return json({ error: "Unauthorized" }, 401);
+    createdBy = u.user.id;
+    const { data: sc, error: scErr } = await admin.from("system_creators").select("user_id").eq("user_id", createdBy).maybeSingle();
+    if (scErr) return json({ error: "Creator check failed" }, 500);
+    if (!sc) return json({ error: "Forbidden — system creators only" }, 403);
+  }
+
+  // Generated path: load record + company and apply the certification guard
+  // BEFORE credentials are touched or anything is sent.
+  let generated: { xml: string; dataset: "DEM" | "EMS"; recordId: string; companyId: string; caseKey: string; sentTs: string | null } | null = null;
+  if (body.action === "submit_record" || body.action === "auto_dem") {
+    const { data: rec, error: rErr } = await admin.from("nemsis_cert_records")
+      .select("id, company_id, kind, case_key, payload, pending_auto_submit").eq("id", body.record_id).maybeSingle();
+    if (rErr) return json({ error: "Record lookup failed" }, 500);
+    if (!rec) return json({ error: "Record not found" }, 404);
+    if (body.action === "auto_dem" && (rec.kind !== "DEM" || !rec.pending_auto_submit)) {
+      return json({ skipped: true, reason: "no pending DEM change" });
+    }
+    const { data: co, error: cErr } = await admin.from("companies")
+      .select("id, is_sandbox, creator_test_tenant, nemsis_certification, deleted_at").eq("id", rec.company_id).maybeSingle();
+    if (cErr) return json({ error: "Company lookup failed" }, 500);
+    const ts = rec.kind === "DEM" ? nemsisNow() : null;
+    try {
+      const built = buildCertRecordXml(rec, co, ts ? { timeStamp: ts } : {});
+      generated = { ...built, recordId: rec.id, companyId: rec.company_id, caseKey: rec.case_key, sentTs: ts };
+    } catch (e) {
+      const status = e instanceof CertGuardError ? 403 : 422;
+      return json({ error: e instanceof Error ? e.message : String(e) }, status);
+    }
+    if (body.action === "auto_dem") {
+      // Claim the pending flag atomically so one change sends once.
+      const { data: claimed } = await admin.from("nemsis_cert_records")
+        .update({ pending_auto_submit: false, last_auto_submit_at: new Date().toISOString() })
+        .eq("id", rec.id).eq("pending_auto_submit", true).select("id");
+      if (!claimed?.length) return json({ skipped: true, reason: "already sent" });
+    }
+  }
 
   const password = Deno.env.get("NEMSIS_CTA_PASSWORD");
   const username = Deno.env.get("NEMSIS_CTA_USERNAME");
@@ -115,9 +157,17 @@ Deno.serve(async (req) => {
     } else {
       envelopeXml = buildSubmitDataEnvelope(creds, buildTransportProbeXml(), dataSchema, schemaVersion, "PodDispatch transport probe");
     }
-  } else {
+  } else if (generated) {
+    operation = "SubmitData"; testCase = generated.caseKey;
+    dataSchema = generated.dataset === "EMS" ? DATA_SCHEMA.EMS : DATA_SCHEMA.DEM;
+    schemaVersion = SCHEMA_VERSION;
+    sentTimestamp = generated.sentTs;
+    envelopeXml = buildSubmitDataEnvelope(creds, generated.xml, dataSchema, schemaVersion, `PodDispatch ${generated.caseKey}`);
+  } else if (body.action === "status") {
     operation = "RetrieveStatus"; testCase = "STATUS";
     envelopeXml = buildRetrieveStatusEnvelope(creds, body.request_handle);
+  } else {
+    return json({ error: "Nothing to send" }, 400);
   }
 
   let httpStatus: number | null = null;
@@ -159,6 +209,10 @@ Deno.serve(async (req) => {
     validation_errors: responseXml ? extractCtaValidationErrors(responseXml) : [],
     sent_timestamp: sentTimestamp,
     created_by: createdBy,
+    company_id: generated?.companyId ?? null,
+    cert_record_id: generated?.recordId ?? null,
+    source: generated ? "generated" : "fixture",
+    trigger_kind: body.action === "auto_dem" ? "auto" : "manual",
   };
   const { data: saved, error: insErr } = await admin
     .from("nemsis_cta_submissions").insert(row).select("id").single();
@@ -178,5 +232,6 @@ Deno.serve(async (req) => {
     total_error_count: row.total_error_count,
     validation_errors: row.validation_errors,
     sent_timestamp: sentTimestamp,
+    source: row.source,
   });
 });

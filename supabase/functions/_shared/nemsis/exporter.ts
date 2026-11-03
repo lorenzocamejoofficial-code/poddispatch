@@ -37,12 +37,17 @@ import { toCode } from "../nemsis-translate.ts";
 import { findByCode, findByDisplay } from "../nemsis-code-sets.ts";
 import { el, wrap, xmlEscape } from "./xml-utils.ts";
 import { renderGeorgiaCustom } from "./states/ga.ts";
+import { renderEmsSections, renderRecordSection, type EmsRecordData } from "./ems-record.ts";
+export type * from "./ems-record.ts";
 
 export interface NemsisAgency {
   npi: string | null;
   name: string;
   state_ems_agency_number: string | null;
   state_ems_license_state: string | null;
+  /** dAgency.01 in Header/DemographicGroup (state unique agency ID, e.g. "11261").
+   *  Falls back to state_ems_agency_number when absent (legacy behavior). */
+  state_unique_id?: string | null;
 }
 
 export interface NemsisPersonnel {
@@ -72,6 +77,10 @@ export interface ExportContext {
     name: string;      // "Pod Dispatch"
     version: string;   // semver of the running build
   };
+  /** True only when the state's eCustomConfiguration is actually registered
+   *  with matching CustomElementIDs. eCustomResults is emitted only then —
+   *  referencing unregistered IDs raises a Schematron warning. */
+  custom_configuration_registered?: boolean;
 }
 
 /** NEMSIS namespaces required on the root envelope. */
@@ -611,9 +620,10 @@ function renderDemographicGroup(agency: NemsisAgency): string {
   //   dAgency.02 — state-issued license identifier
   //   dAgency.04 — ANSI state code, 2-digit numeric (e.g. GA=13)
   const parts: string[] = [];
-  parts.push(el("dAgency.01", null, agency.state_ems_agency_number));
+  parts.push(el("dAgency.01", null, agency.state_unique_id ?? agency.state_ems_agency_number));
   parts.push(el("dAgency.02", null, agency.state_ems_agency_number));
-  parts.push(el("dAgency.04", null, stateAnsiCode(agency.state_ems_license_state)));
+  const st = agency.state_ems_license_state;
+  parts.push(el("dAgency.04", null, st && /^[0-9]{2}$/.test(st) ? st : stateAnsiCode(st)));
   return wrap("DemographicGroup", null, parts.join(""));
 }
 
@@ -685,12 +695,26 @@ function renderVehicle(vehicle: NemsisVehicle | null): string {
 export interface PcrExportInput {
   trip: Record<string, unknown>;
   patient: Record<string, unknown> | null;
+  /** Optional fully-structured eRecord content. When present, every section
+   *  is rendered from it (exact element set, no defaults/sentinels); when
+   *  absent, the legacy trip_records mapping is used. */
+  nemsis?: EmsRecordData;
+  /** Optional fixed PatientCareReport/@UUID (generated when absent). */
+  pcr_uuid?: string;
+  /** Lossless compliance path: full source EMSDataSet XML. When present,
+   *  buildEmsDataSet emits it verbatim, stamping only eRecord.02/.03/.04. */
+  raw_reference?: string;
 }
 
 /** Produce a single-eRecord NEMSIS 3.5.1 XML string (Web Service payload). */
 export function buildERecord(input: PcrExportInput, ctx: ExportContext): string {
   const { trip, patient } = input;
   const tripId = String(trip.id ?? "");
+  const custom = ctx.state === "GA" && ctx.custom_configuration_registered === true
+    ? renderGeorgiaCustom(trip, ctx) : "";
+  if (input.nemsis) {
+    return renderRecordSection(input.nemsis.record_id, ctx.software) + renderEmsSections(input.nemsis) + custom;
+  }
 
   const body = [
     renderHeader(ctx, tripId),
@@ -715,8 +739,6 @@ export function buildERecord(input: PcrExportInput, ctx: ExportContext): string 
     renderOutcome(),
   ].join("");
 
-  // State-specific eCustom block, isolated per-state.
-  const custom = ctx.state === "GA" ? renderGeorgiaCustom(trip, ctx) : "";
 
   // Returns the ordered sibling sections that go inside <PatientCareReport>.
   // (The name buildERecord is historical — kept for API stability.)
@@ -737,17 +759,210 @@ function uuidv4(): string {
   return `${h.slice(0, 4).join("")}-${h.slice(4, 6).join("")}-${h.slice(6, 8).join("")}-${h.slice(8, 10).join("")}-${h.slice(10, 16).join("")}`;
 }
 
-/** Produce a DEMDataSet envelope wrapping agency/personnel/vehicle context. */
-export function buildDemDataSet(ctx: ExportContext): string {
+// ─────────────────────────────────────────────────────────────────────
+// DEMDataSet — data-driven demographic renderer
+// ─────────────────────────────────────────────────────────────────────
+
+/** A leaf value, or an explicit NEMSIS Not Value (e.g. 7701001 Not Applicable). */
+export type DemValue = string | { nv: string };
+
+/** dAgency.AgencyServiceGroup — one per state served. */
+export interface AgencyServiceArea {
+  uuid?: string;
+  /** dAgency.05 — ANSI state code of the state served. */
+  state: string;
+  /** dAgency.06 — county FIPS codes served (repeating). */
+  counties: string[];
+  /** dAgency.07 — census tracts served (repeating). */
+  census_tracts: string[];
+  /** dAgency.08 — ZIP codes served (repeating). */
+  zip_codes: string[];
+}
+
+/** Full dAgency demographic block. */
+export interface NemsisAgencyDemographics {
+  /** dAgency.01 — EMS agency unique state ID (e.g. "11261"). */
+  state_unique_id: string;
+  /** dAgency.02 — EMS agency number / state license ID (e.g. "351-11261"). */
+  state_license_id: string;
+  /** dAgency.03 — agency name (optional in DEM). */
+  name?: string | null;
+  /** dAgency.04 — ANSI code of the licensing state (e.g. "10"). USPS also accepted. */
+  state: string;
+  service_areas: AgencyServiceArea[];
+  /** dAgency.09 — primary type of service. */
+  primary_service_type: DemValue;
+  /** dAgency.10 — other types of service (repeating). */
+  other_service_types?: string[];
+  /** dAgency.11 — level of service. */
+  level_of_service: DemValue;
+  /** dAgency.12 — organization status. */
+  organization_status: DemValue;
+  /** dAgency.13 — organizational type. */
+  organizational_type: DemValue;
+  /** dAgency.14 — agency organizational tax status. */
+  tax_status: DemValue;
+  /** dAgency.25 — national provider identifier(s) (repeating). */
+  npis: DemValue[];
+  /** dAgency.26 — fire department ID number(s) (repeating). */
+  fire_department_ids: DemValue[];
+}
+
+export interface ConfigurationProcedureGroup {
+  uuid?: string;
+  /** dConfiguration.06 — EMS certification level permitted. */
+  certification_level: string;
+  /** dConfiguration.07 — permitted procedures, SNOMED (repeating). */
+  procedures: string[];
+}
+
+export interface ConfigurationMedication {
+  code: string;
+  /** dConfiguration.09/@CodeType (9924003 RxNorm, 9924005 SNOMED, ...). */
+  code_type?: string;
+}
+
+export interface ConfigurationMedicationGroup {
+  uuid?: string;
+  /** dConfiguration.08 — EMS certification level permitted. */
+  certification_level: string;
+  /** dConfiguration.09 — permitted medications (repeating). */
+  medications: ConfigurationMedication[];
+}
+
+/** dConfiguration.ConfigurationGroup — one per state configuration. */
+export interface NemsisConfiguration {
+  uuid?: string;
+  /** dConfiguration.01 — ANSI state code the configuration applies to. */
+  state: string;
+  procedure_groups: ConfigurationProcedureGroup[];
+  medication_groups: ConfigurationMedicationGroup[];
+  /** dConfiguration.10 — EMS agency protocols (repeating). */
+  protocols: string[];
+  /** dConfiguration.13 — emergency medical dispatch provided. */
+  emd_provided: DemValue;
+  /** dConfiguration.16 — crew call sign(s) (repeating). */
+  call_signs: string[];
+}
+
+/** Complete agency demographic profile — the input to buildDemDataSet. */
+export interface DemographicProfile {
+  /** Lossless compliance XML; only dRecord.01/.02/.03 software identity is stamped. */
+  raw_reference?: string;
+  agency: NemsisAgencyDemographics;
+  configurations: NemsisConfiguration[];
+  /** dRecord software identity; omitted when absent. */
+  software?: { creator: string; name: string; version: string } | null;
+  personnel?: NemsisPersonnel[];
+  vehicle?: NemsisVehicle | null;
+  /** DemographicReport/@timeStamp; defaults to now. */
+  timeStamp?: string;
+}
+
+function demLeaf(tag: string, v: DemValue | null | undefined, attrs: Record<string, string> | null = null): string {
+  if (v != null && typeof v === "object") {
+    return `<${tag} xsi:nil="true" NV="${xmlEscape(v.nv)}"/>`;
+  }
+  return el(tag, attrs, typeof v === "string" ? v : null);
+}
+
+function demList(tag: string, values: DemValue[] | undefined): string {
+  return (values ?? []).map((v) => demLeaf(tag, v)).join("");
+}
+
+function ansiState(v: string): string | null {
+  return /^[0-9]{2}$/.test(v) ? v : stateAnsiCode(v);
+}
+
+function renderDemAgency(a: NemsisAgencyDemographics): string {
+  const areas = a.service_areas.map((s) =>
+    wrap("dAgency.AgencyServiceGroup", { UUID: s.uuid ?? uuidv4() },
+      demLeaf("dAgency.05", ansiState(s.state)) +
+      demList("dAgency.06", s.counties) +
+      demList("dAgency.07", s.census_tracts) +
+      demList("dAgency.08", s.zip_codes),
+    ),
+  ).join("");
+  return wrap("dAgency", null,
+    demLeaf("dAgency.01", a.state_unique_id) +
+    demLeaf("dAgency.02", a.state_license_id) +
+    (a.name ? demLeaf("dAgency.03", a.name) : "") +
+    demLeaf("dAgency.04", ansiState(a.state)) +
+    areas +
+    demLeaf("dAgency.09", a.primary_service_type) +
+    demList("dAgency.10", a.other_service_types) +
+    demLeaf("dAgency.11", a.level_of_service) +
+    demLeaf("dAgency.12", a.organization_status) +
+    demLeaf("dAgency.13", a.organizational_type) +
+    demLeaf("dAgency.14", a.tax_status) +
+    demList("dAgency.25", a.npis) +
+    demList("dAgency.26", a.fire_department_ids),
+  );
+}
+
+function renderDemConfiguration(configs: NemsisConfiguration[]): string {
+  const groups = configs.map((c) =>
+    wrap("dConfiguration.ConfigurationGroup", { UUID: c.uuid ?? uuidv4() },
+      demLeaf("dConfiguration.01", ansiState(c.state)) +
+      c.procedure_groups.map((p) =>
+        wrap("dConfiguration.ProcedureGroup", { UUID: p.uuid ?? uuidv4() },
+          demLeaf("dConfiguration.06", p.certification_level) +
+          demList("dConfiguration.07", p.procedures),
+        ),
+      ).join("") +
+      c.medication_groups.map((m) =>
+        wrap("dConfiguration.MedicationGroup", { UUID: m.uuid ?? uuidv4() },
+          demLeaf("dConfiguration.08", m.certification_level) +
+          m.medications.map((x) =>
+            demLeaf("dConfiguration.09", x.code, x.code_type ? { CodeType: x.code_type } : null),
+          ).join(""),
+        ),
+      ).join("") +
+      demList("dConfiguration.10", c.protocols) +
+      demLeaf("dConfiguration.13", c.emd_provided) +
+      demList("dConfiguration.16", c.call_signs),
+    ),
+  ).join("");
+  return wrap("dConfiguration", null, groups);
+}
+
+/** Produce a complete DEMDataSet from a structured demographic profile.
+ *  Section order follows DEMDataSet_v3.xsd: dRecord, dAgency, dConfiguration,
+ *  dVehicle, dPersonnel. */
+export function buildDemDataSet(profile: DemographicProfile): string {
+  if (profile.raw_reference != null) {
+    const sw = profile.software;
+    if (!sw) throw new Error("raw_reference: DEM software identity is required");
+    const seen = new Set<string>();
+    const out = profile.raw_reference.replace(/<dRecord\.0([123])>[^<]*<\/dRecord\.0\1>/g, (_match, d: string) => {
+      if (seen.has(d)) throw new Error(`raw_reference: duplicate dRecord.0${d}`);
+      seen.add(d);
+      return `<dRecord.0${d}>${xmlEscape(d === "3" ? sw.version : sw.name)}</dRecord.0${d}>`;
+    });
+    if (seen.size !== 3) throw new Error(`raw_reference: expected dRecord.01/.02/.03, found ${seen.size}`);
+    return out;
+  }
+  const sw = profile.software;
+  const dRecord = sw
+    ? wrap("dRecord", null,
+        wrap("dRecord.SoftwareApplicationGroup", null,
+          el("dRecord.01", null, sw.creator) +
+          el("dRecord.02", null, sw.name) +
+          el("dRecord.03", null, sw.version),
+        ),
+      )
+    : "";
   const demoBody =
-    renderDRecord(ctx) +
-    renderAgency(ctx.agency) +
-    renderPersonnel(ctx.personnel) +
-    renderVehicle(ctx.vehicle);
-  const timeStamp = new Date().toISOString();
+    dRecord +
+    renderDemAgency(profile.agency) +
+    renderDemConfiguration(profile.configurations) +
+    (profile.vehicle ? renderVehicle(profile.vehicle) : "") +
+    (profile.personnel?.length ? renderPersonnel(profile.personnel) : "");
+  const timeStamp = profile.timeStamp ?? new Date().toISOString();
   return `<?xml version="1.0" encoding="UTF-8"?>` +
-    `<DEMDataSet ${NEMSIS_NS}>` +
-    `<DemographicReport timeStamp="${timeStamp}">${demoBody}</DemographicReport>` +
+    `<DEMDataSet ${NEMSIS_NS}` +
+    ` xsi:schemaLocation="http://www.nemsis.org https://nemsis.org/media/nemsis_v3/3.5.1.251001CP2/XSDs/NEMSIS_XSDs/DEMDataSet_v3.xsd">` +
+    `<DemographicReport timeStamp="${xmlEscape(timeStamp)}">${demoBody}</DemographicReport>` +
     `</DEMDataSet>`;
 }
 
@@ -756,8 +971,9 @@ export function buildDemDataSet(ctx: ExportContext): string {
  *  Compliance Testing web service (and the TAC pre-testing tools) expect
  *  for both file-upload and Web Service POST submissions. */
 export function buildEmsDataSet(input: PcrExportInput, ctx: ExportContext): string {
+  if (input.raw_reference != null) return stampSoftware(input.raw_reference, ctx);
   const eRecord = buildERecord(input, ctx);
-  const pcrUuid = uuidv4();
+  const pcrUuid = input.pcr_uuid ?? uuidv4();
   const pcr = `<PatientCareReport UUID="${pcrUuid}">${eRecord}</PatientCareReport>`;
   // NEMSIS 3.5.1: PatientCareReport lives INSIDE Header, after DemographicGroup.
   const header = wrap("Header", null, renderDemographicGroup(ctx.agency) + pcr);
@@ -777,3 +993,15 @@ export const buildStateDataSet = buildEmsDataSet;
 export { renderGeorgiaCustom };
 // xmlEscape re-export lets tests assert escaping without touching internals.
 export { xmlEscape };
+/** Replace only the software identity (eRecord.02/.03 = name, .04 = version). */
+export function stampSoftware(xml: string, ctx: ExportContext): string {
+  const name = xmlEscape(ctx.software?.name ?? "Pod Dispatch");
+  const version = xmlEscape(ctx.software?.version ?? "1.0");
+  let hits = 0;
+  const out = xml.replace(/<eRecord\.0([234])>[^<]*<\/eRecord\.0\1>/g, (_m, d) => {
+    hits++;
+    return `<eRecord.0${d}>${d === "4" ? version : name}</eRecord.0${d}>`;
+  });
+  if (hits !== 3) throw new Error(`raw_reference: expected eRecord.02/.03/.04, found ${hits}`);
+  return out;
+}
