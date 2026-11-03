@@ -15,7 +15,7 @@ const CASES = [EMS1_SUBMISSION_XML, EMS2_SUBMISSION_XML, EMS3_SUBMISSION_XML, EM
 CASES.forEach((ref, i) => {
   Deno.test(`EMS-${i + 1} from stored records: XSD valid, no Schematron errors → can finalize`, async () => {
     const r = await validateNemsisXml(renderEmsDataSet(parseEmsXml(ref), { software: SW }), "EMS");
-    console.log(`EMS-${i + 1}`, JSON.stringify({ errors: r.error_count, warnings: r.findings.filter((f) => f.level === "WARNING").map((f) => [f.source, f.rule_id]) }));
+    console.log(`EMS-${i + 1}`, JSON.stringify(r.findings.map((f) => [f.level, f.source, f.rule_id, f.message.slice(0, 160)])));
     assertEquals(r.findings.filter((f) => f.source === "XSD").length, 0);
     assertEquals(r.error_count, 0);
     assertEquals(r.can_finalize, true);
