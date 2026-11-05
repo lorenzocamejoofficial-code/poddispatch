@@ -584,6 +584,8 @@ function AppRoutes() {
         <Route path="/crew-dashboard" element={<HipaaAcknowledgmentGate force><CrewRouteGate><CrewDashboard /></CrewRouteGate></HipaaAcknowledgmentGate>} />
         <Route path="/crew-patients" element={<HipaaAcknowledgmentGate force><CrewRouteGate><CrewPatients /></CrewRouteGate></HipaaAcknowledgmentGate>} />
         <Route path="/pcr" element={<HipaaAcknowledgmentGate force><CrewRouteGate><PCRPage /></CrewRouteGate></HipaaAcknowledgmentGate>} />
+        {/* Office-created PCRs (owner/manager) — no crew-view gate; PCRPage enforces the role. */}
+        <Route path="/pcr-office" element={<HipaaAcknowledgmentGate force><PCRPage /></HipaaAcknowledgmentGate>} />
         <Route path="/crew-checklist" element={<HipaaAcknowledgmentGate force><CrewRouteGate><CrewInspectionChecklist /></CrewRouteGate></HipaaAcknowledgmentGate>} />
         <Route path="/crew-certifications" element={<HipaaAcknowledgmentGate force><CrewCertifications /></HipaaAcknowledgmentGate>} />
          <Route path="/login" element={<AuthenticatedLoginRedirect fallback="/" />} />

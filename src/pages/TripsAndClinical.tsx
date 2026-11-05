@@ -19,7 +19,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, ChevronRight, FileText, Clock, AlertTriangle, XCircle, CheckCircle, ExternalLink, Download } from "lucide-react";
+import { Search, ChevronRight, FileText, Clock, AlertTriangle, XCircle, CheckCircle, ExternalLink, Download, Plus } from "lucide-react";
+import { CreatePcrDialog } from "@/components/pcr/CreatePcrDialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
@@ -112,7 +113,9 @@ const STATUS_COLORS: Record<TripStatus, string> = {
 };
 
 export default function TripsAndClinical() {
-  const { canManageBilling, user } = useAuth();
+  const { canManageBilling, user, role } = useAuth();
+  const canCreatePcr = role === "owner" || role === "manager";
+  const [createPcrOpen, setCreatePcrOpen] = useState(false);
   const { simulationRunId, refreshToken } = useSimulationSession();
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -580,6 +583,11 @@ export default function TripsAndClinical() {
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
+          {canCreatePcr && (
+            <Button size="sm" onClick={() => setCreatePcrOpen(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" />Create PCR
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => syncSlotsToTrips(dateFilter)}>
             Sync from Dispatch
           </Button>
@@ -1022,6 +1030,7 @@ export default function TripsAndClinical() {
         source="trips_clinical"
         onCancelled={() => { setCancelTrip(null); fetchTrips(); }}
       />
+      {canCreatePcr && <CreatePcrDialog open={createPcrOpen} onOpenChange={setCreatePcrOpen} />}
     </AdminLayout>
   );
 }
