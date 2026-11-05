@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { usePCRData } from "@/hooks/usePCRData";
@@ -844,6 +844,7 @@ export default function PCRPage() {
   const isQaFixMode = searchParams.get("mode") === "qa-fix";
   // Office-created PCR (owner/manager "Create PCR"): office layout, same form,
   // same submit path, crew signatures still required.
+  const isOfficeRoute = useLocation().pathname === "/pcr-office";
   const isOfficeManualMode = searchParams.get("mode") === "manual" && (role === "owner" || role === "manager");
   const qaReviewId = searchParams.get("qaReviewId");
 
@@ -1006,6 +1007,11 @@ export default function PCRPage() {
     });
   }, [trip?.id, profileId]);
 
+  // /pcr-office is only for an owner/manager opening an office-created PCR.
+  if (isOfficeRoute && (!isOfficeManualMode || !tripId)) {
+    return <Navigate to="/trips" replace />;
+  }
+
   // If no tripId, show run selector (crew mode only)
   if (!tripId) {
     if (isQaFixMode) {
@@ -1071,7 +1077,7 @@ export default function PCRPage() {
   
   if (isTripCancelled && !isQaFixMode) {
     return (
-      <CrewLayout>
+      <Layout>
         <div className="p-4 max-w-2xl mx-auto space-y-4">
           {needsCancelDoc && (
             <div className="rounded-lg border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/50 p-4 space-y-3">
@@ -1116,7 +1122,7 @@ export default function PCRPage() {
             onComplete={() => { setCancelDocOpen(false); refetch(); }}
           />
         </div>
-      </CrewLayout>
+      </Layout>
     );
   }
 
@@ -1135,9 +1141,9 @@ export default function PCRPage() {
       });
     };
     return (
-      <CrewLayout>
+      <Layout>
         <MedicSelector crewMember1={crewMembers.m1} crewMember2={crewMembers.m2} crewMember3={crewMembers.m3} onSelect={handleMedicSelect} />
-      </CrewLayout>
+      </Layout>
     );
   }
 
