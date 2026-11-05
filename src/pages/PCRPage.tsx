@@ -36,6 +36,7 @@ import { IncidentReportForm } from "@/components/incidents/IncidentReportForm";
 import { PCR_CARDS_BY_TRANSPORT, getPCRTransportKey, type PCRCardType, type PCRCardConfig } from "@/lib/pcr-dropdowns";
 import { CancellationDocForm } from "@/components/crew/CancellationDocForm";
 import { checkDuplicateTrip } from "@/lib/duplicate-trip-check";
+import { buildTripInsert, PATIENT_PCR_DEFAULTS_SELECT } from "@/lib/pcr-trip-insert";
 import { evaluatePCRFieldCompletion, getRequiredFieldsForCard, normalizeTransportKey } from "@/lib/pcr-field-requirements";
 import { clinicalTransportType, sectionRulesTransportType } from "@/lib/clinical-transport";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
@@ -460,7 +461,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     if (run.patientId) {
       const { data: pd } = await supabase
         .from("patients")
-        .select("icd10_codes, default_chief_complaint, default_primary_impression, default_medical_necessity_reason, default_bed_confined, default_cannot_transfer, default_requires_monitoring, default_oxygen_transport, default_bh_authorization_type, default_bh_authorizing_facility, default_bh_authorizing_physician_name, default_bh_authorizing_physician_npi, default_wound_type, default_wound_location, default_wound_stage, transport_type")
+        .select(PATIENT_PCR_DEFAULTS_SELECT)
         .eq("id", run.patientId)
         .maybeSingle();
       patientDefaults = pd;
@@ -475,48 +476,17 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
     // Use canonical normalizer so pre-fill gates match PreSubmitChecklist + field requirements.
     const tripTypeKey = normalizeTransportKey(run.tripType);
 
-    const insertData: any = {
+    const insertData: any = buildTripInsert({
       leg_id: run.legId, truck_id: run.truckId, crew_id: run.crewId,
       company_id: companyId, patient_id: run.patientId,
-      run_date: today, status: "scheduled" as any,
+      run_date: today,
       pickup_location: run.pickupLocation, destination_location: run.destinationLocation,
       scheduled_pickup_time: run.pickupTime,
-      // trip_type is the canonical source of truth for transport classification.
-      // pcr_type is written with the same value for backward compatibility only.
-      trip_type: run.tripType as any,
-      pcr_type: run.tripType as any, // DEPRECATED — mirror of trip_type
-      pcr_status: "not_started",
+      trip_type: run.tripType,
       origin_type: originType, destination_type: destinationType,
       service_level: serviceLevel,
       is_unscheduled: isUnscheduled,
-    };
-
-    // Pre-fill from patient defaults (patient-linked runs)
-    if (patientDefaults) {
-      const pd = patientDefaults;
-      if (pd.icd10_codes && pd.icd10_codes.length > 0) insertData.icd10_codes = pd.icd10_codes;
-      if (pd.default_chief_complaint) insertData.chief_complaint = pd.default_chief_complaint;
-      if (pd.default_primary_impression) insertData.primary_impression = pd.default_primary_impression;
-      if (pd.default_medical_necessity_reason) insertData.medical_necessity_reason = pd.default_medical_necessity_reason;
-      if (pd.default_bed_confined) insertData.bed_confined = true;
-      if (pd.default_cannot_transfer) insertData.cannot_transfer_safely = true;
-      if (pd.default_requires_monitoring) insertData.requires_monitoring = true;
-      if (pd.default_oxygen_transport) insertData.oxygen_during_transport = true;
-      if (tripTypeKey === "psych_transport") {
-        if (pd.default_bh_authorization_type) insertData.bh_authorization_type = pd.default_bh_authorization_type;
-        if (pd.default_bh_authorizing_facility) insertData.bh_authorizing_facility = pd.default_bh_authorizing_facility;
-        if (pd.default_bh_authorizing_physician_name) insertData.bh_authorizing_physician_name = pd.default_bh_authorizing_physician_name;
-        if (pd.default_bh_authorizing_physician_npi) insertData.bh_authorizing_physician_npi = pd.default_bh_authorizing_physician_npi;
-      }
-      if (tripTypeKey === "wound_care" || tripTypeKey === "outpatient" || tripTypeKey === "outpatient_specialty") {
-        if (pd.default_wound_type) insertData.wound_type = pd.default_wound_type;
-        if (pd.default_wound_location) insertData.wound_location = pd.default_wound_location;
-        // Audit Fix 1 — copy default_wound_stage as wound_stage when this is a wound-care run.
-        if (tripTypeKey === "wound_care" && pd.default_wound_stage) {
-          insertData.wound_stage = pd.default_wound_stage;
-        }
-      }
-    }
+    }, patientDefaults);
 
     // Materialize one-off leg data onto the trip record
     if (isOneoff && legData) {
