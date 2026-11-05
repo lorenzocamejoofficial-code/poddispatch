@@ -132,7 +132,7 @@ export async function createManualPcr(s: ManualPcrSetup, companyId: string): Pro
   }
 
   logAuditEvent({
-    action: "create", tableName: "trip_records", recordId: trip.id,
+    action: "manual_pcr_created", tableName: "trip_records", recordId: trip.id,
     notes: `Manual PCR created from office (truck inspection gate not applied). Leg ${leg.id}, crew ${crewId}.`,
   });
   return trip.id;
