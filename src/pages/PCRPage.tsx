@@ -1008,7 +1008,7 @@ export default function PCRPage() {
   }, [trip?.id, profileId]);
 
   // /pcr-office is only for an owner/manager opening an office-created PCR.
-  if (isOfficeRoute && (!isOfficeManualMode || !tripId)) {
+  if (isOfficeRoute && role && (!isOfficeManualMode || !tripId)) {
     return <Navigate to="/trips" replace />;
   }
 
