@@ -62,5 +62,5 @@
 - [x] Stage 4: EMS case data model + NEMSIS EMS Cases screens + generated EMS export
 - [x] Stage 5: Georgia informational (config-driven state enforcement) + complete defined lists with 3.5.1 manifest
 - [ ] Stage 6: rehearsal (awaiting go-ahead)
-- [ ] Reviewer Schematron upload (creator-only, additive, revertible) on NEMSIS CTA page
+- [x] Reviewer Schematron upload (creator-only, additive, revertible) on NEMSIS CTA page
 - [ ] Manual "Create ePCR" for owners/managers (plan awaiting approval)
