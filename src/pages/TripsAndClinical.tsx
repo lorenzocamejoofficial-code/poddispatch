@@ -1030,6 +1030,7 @@ export default function TripsAndClinical() {
         source="trips_clinical"
         onCancelled={() => { setCancelTrip(null); fetchTrips(); }}
       />
+      {canCreatePcr && <CreatePcrDialog open={createPcrOpen} onOpenChange={setCreatePcrOpen} />}
     </AdminLayout>
   );
 }

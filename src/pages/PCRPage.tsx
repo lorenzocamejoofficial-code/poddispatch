@@ -842,6 +842,9 @@ export default function PCRPage() {
 
   const tripId = searchParams.get("tripId");
   const isQaFixMode = searchParams.get("mode") === "qa-fix";
+  // Office-created PCR (owner/manager "Create PCR"): office layout, same form,
+  // same submit path, crew signatures still required.
+  const isOfficeManualMode = searchParams.get("mode") === "manual" && (role === "owner" || role === "manager");
   const qaReviewId = searchParams.get("qaReviewId");
 
   // Fix 3 — handler called by usePCRData realtime when truck_id or crew_id change on this trip.
@@ -956,7 +959,7 @@ export default function PCRPage() {
   }, [profileId, (trip as any)?.original_crew_id, (trip as any)?.handoff_target_crew_id]);
 
   // Wrapper component to choose layout
-  const Layout = isQaFixMode ? AdminLayout : CrewLayout;
+  const Layout = isQaFixMode || isOfficeManualMode ? AdminLayout : CrewLayout;
 
   // Central section rules: emergency upgrade, else transport_kind, else legacy
   const sectionRules = usePCRSectionRules(sectionRulesTransportType(trip as any));
