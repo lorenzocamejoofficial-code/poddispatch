@@ -7,7 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, KeyRound, Send, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { NemsisValidationPanel } from "@/components/nemsis/NemsisValidationPanel";
-import { decideFinalization, findingsKey, type ValidationResult } from "@/lib/nemsis/validation";
+import { decideFinalization, findingsKey, summarize, type ValidationFinding, type ValidationResult } from "@/lib/nemsis/validation";
+
+const REVIEWER_KEY = "nemsis_reviewer_schematron_v1";
+type ReviewerFiles = { dem?: { name: string; text: string }; ems?: { name: string; text: string } };
 
 interface Row {
   id: string; created_at: string; test_case: string; operation: string;
@@ -56,6 +59,9 @@ export default function CreatorNemsisCta() {
   const [lastDem, setLastDem] = useState<Row | null>(null);
   const [records, setRecords] = useState<{ id: string; kind: string; case_key: string; label: string; updated_at: string; last_auto_submit_at: string | null; finalized_at: string | null }[]>([]);
   const [validation, setValidation] = useState<Record<string, { result: ValidationResult; ackKey: string | null }>>({});
+  const [reviewer, setReviewer] = useState<ReviewerFiles>(() => {
+    try { return JSON.parse(localStorage.getItem(REVIEWER_KEY) ?? "{}") as ReviewerFiles; } catch { return {}; }
+  });
 
   const load = useCallback(async () => {
     const { data, error } = await supabase
@@ -95,6 +101,45 @@ export default function CreatorNemsisCta() {
     }
   };
 
+  /**
+   * Reviewer Schematron (additive): if a reviewer .sch is loaded for this record's
+   * dataset, run it in the isolated nemsis-validate-reviewer function and merge its
+   * findings as ENFORCED. With no file loaded this returns the bundled result unchanged.
+   */
+  const withReviewer = async <T extends { result: ValidationResult }>(id: string, v: T): Promise<T> => {
+    const ds = v.result.dataset;
+    const file = ds === "DEM" ? reviewer.dem : reviewer.ems;
+    if (!file) return v;
+    const { data, error } = await supabase.functions.invoke("nemsis-validate-reviewer", {
+      body: { record_id: id, [ds === "DEM" ? "dem_sch" : "ems_sch"]: file.text, [ds === "DEM" ? "dem_name" : "ems_name"]: file.name },
+    });
+    if (error) {
+      const ctx = await (error as { context?: Response }).context?.json().catch(() => null);
+      throw new Error(`Reviewer rules: ${typeof ctx?.error === "string" ? ctx.error : error.message}`);
+    }
+    const r = data as { findings: ValidationFinding[]; rule_set?: ValidationResult["rule_sets"][number]; skipped?: boolean };
+    if (r.skipped || !r.rule_set) return v;
+    const merged = summarize(ds, [...v.result.findings, ...r.findings], [...v.result.rule_sets, r.rule_set]);
+    return { ...v, finalized: (v as { finalized?: boolean }).finalized && merged.error_count === 0, result: merged };
+  };
+
+  const loadReviewer = async (ds: "dem" | "ems", f: File | undefined) => {
+    if (!f) return;
+    const text = await f.text();
+    if (!/<(sch:)?schema\b/.test(text)) { toast.error("That file doesn't look like a Schematron (.sch) file."); return; }
+    const next = { ...reviewer, [ds]: { name: f.name, text } };
+    setReviewer(next);
+    try { localStorage.setItem(REVIEWER_KEY, JSON.stringify(next)); } catch { /* too large to persist; kept for this session */ }
+    setValidation({});
+    toast.success(`Loaded ${ds.toUpperCase()} reviewer rules: ${f.name}`);
+  };
+  const clearReviewer = () => {
+    setReviewer({});
+    localStorage.removeItem(REVIEWER_KEY);
+    setValidation({});
+    toast.success("Reviewer rules removed — validation uses the bundled rule files only.");
+  };
+
   /** Validate (XSD + all Schematron) then finalize: errors block, warnings need one acknowledgement. */
   const finalizeRecord = async (id: string) => {
     setBusy(`fin-${id}`);
@@ -109,7 +154,7 @@ export default function CreatorNemsisCta() {
         return data as { finalized: boolean; result: ValidationResult };
       };
       const prev = validation[id];
-      const v = await invoke("validate_record");
+      const v = await withReviewer(id, await invoke("validate_record"));
       const key = findingsKey(v.result);
       const decision = decideFinalization(v.result, prev?.ackKey === key);
       if (decision === "block") {
@@ -122,7 +167,7 @@ export default function CreatorNemsisCta() {
         toast.warning(`${v.result.warning_count} warning(s). Review them, then click Finalize again to finalize.`);
         return;
       }
-      const f = await invoke("finalize_record");
+      const f = await withReviewer(id, await invoke("finalize_record"));
       setValidation((m) => ({ ...m, [id]: { result: f.result, ackKey: null } }));
       if (f.finalized) toast.success("Record finalized.");
       else toast.error("Not finalized — the record changed or new errors appeared. Review the results.");
@@ -170,6 +215,26 @@ export default function CreatorNemsisCta() {
               {busy === "ems5" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Submit EMS 5
             </Button>
             <Button variant="ghost" onClick={load} disabled={!!busy}><RefreshCw className="h-4 w-4" /> Refresh</Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Reviewer Schematron (optional)</CardTitle>
+            <CardDescription>
+              Load the reviewer's DEM and EMS .sch files. They run in addition to the built-in rules on "Validate &amp; finalize" below and block like the national rules (errors block, warnings allow). Remove them to go back to the built-in rules only.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {(["dem", "ems"] as const).map((ds) => (
+              <div key={ds} className="flex flex-wrap items-center gap-3">
+                <Badge variant="outline">{ds.toUpperCase()}</Badge>
+                <input type="file" accept=".sch,.xml" aria-label={`Load ${ds.toUpperCase()} reviewer Schematron`}
+                  onChange={(e) => { loadReviewer(ds, e.target.files?.[0]); e.target.value = ""; }} className="text-xs" />
+                {reviewer[ds] ? <Badge>Loaded: {reviewer[ds]!.name}</Badge> : <span className="text-muted-foreground">Built-in rules only</span>}
+              </div>
+            ))}
+            <Button size="sm" variant="outline" onClick={clearReviewer} disabled={!reviewer.dem && !reviewer.ems}>Remove reviewer rules</Button>
           </CardContent>
         </Card>
 
