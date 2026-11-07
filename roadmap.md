@@ -64,3 +64,4 @@
 - [ ] Stage 6: rehearsal (awaiting go-ahead)
 - [x] Reviewer Schematron upload (creator-only, additive, revertible) on NEMSIS CTA page
 - [ ] Manual "Create ePCR" for owners/managers (plan awaiting approval)
+- [x] Scheduling board: advisory "Suggest trucks" ranking (read-only, no auto-assign)

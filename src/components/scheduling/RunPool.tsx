@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   ChevronDown, ChevronRight, ChevronUp, GripVertical, Zap, Clock,
   ArrowRight, Trash2, Pencil, GitBranch, ArrowLeft, X,
+  Sparkles,
 } from "lucide-react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { LegDisplay } from "@/hooks/useSchedulingStore";
@@ -24,11 +25,13 @@ function getTransportGroup(tripType: string): string {
 
 /* ── compact draggable card ── */
 const PoolCard = memo(function PoolCard({
-  leg, onDelete, onEditException,
+  leg, onDelete, onEditException, onSuggest, suggesting = false,
 }: {
   leg: LegDisplay;
   onDelete: () => void;
   onEditException: () => void;
+  onSuggest?: () => void;
+  suggesting?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: leg.id,
@@ -51,7 +54,7 @@ const PoolCard = memo(function PoolCard({
         isInactive ? "opacity-60 border-dashed" : ""
       } ${leg.has_exception ? "border-primary/40" : ""} ${
         isDragging ? "shadow-xl ring-1 ring-primary/40" : "hover:border-primary/30 hover:shadow-sm"
-      }`}
+      } ${suggesting ? "ring-2 ring-primary/50" : ""}`}
     >
       {/* drag handle */}
       <button
@@ -101,6 +104,11 @@ const PoolCard = memo(function PoolCard({
 
       {/* actions */}
       <div className="flex items-center gap-0.5 shrink-0">
+        {onSuggest && (
+          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onSuggest} title="Suggest trucks" aria-label="Suggest trucks" aria-pressed={suggesting}>
+            <Sparkles className={`h-2.5 w-2.5 ${suggesting ? "text-primary" : ""}`} />
+          </Button>
+        )}
         <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEditException} title="Edit this run only">
           <Pencil className="h-2.5 w-2.5" />
         </Button>
@@ -143,7 +151,9 @@ function GroupSection({
 /* ── paginated list: "Show more" instead of virtualizing ── */
 const PAGE_SIZE = 25;
 
-function PaginatedList({ legs, onDelete, onEditException }: {
+function PaginatedList({ legs, onDelete, onEditException, onSuggest, suggestingId }: {
+  onSuggest?: (leg: LegDisplay) => void;
+  suggestingId?: string | null;
   legs: LegDisplay[];
   onDelete: (id: string) => void;
   onEditException: (leg: LegDisplay) => void;
@@ -158,6 +168,8 @@ function PaginatedList({ legs, onDelete, onEditException }: {
           leg={leg}
           onDelete={() => onDelete(leg.id)}
           onEditException={() => onEditException(leg)}
+          onSuggest={onSuggest ? () => onSuggest(leg) : undefined}
+          suggesting={suggestingId === leg.id}
         />
       ))}
       {legs.length > shown && (
@@ -177,6 +189,9 @@ export interface RunPoolProps {
   unassigned: LegDisplay[];
   onDelete: (id: string) => void;
   onEditException: (leg: LegDisplay) => void;
+  /** Advisory truck suggestions trigger (read-only). */
+  onSuggest?: (leg: LegDisplay) => void;
+  suggestingId?: string | null;
 }
 
 type SortMode = "time" | "destination";
@@ -184,7 +199,7 @@ type LegFilter = "all" | "A" | "B";
 type TypeFilter = "all" | "dialysis" | "outpatient" | "adhoc";
 type AssignMode = { transport: string; leg: LegFilter } | null;
 
-export function RunPool({ unassigned, onDelete, onEditException }: RunPoolProps) {
+export function RunPool({ unassigned, onDelete, onEditException, onSuggest, suggestingId = null }: RunPoolProps) {
   const [expanded, setExpanded] = useState(false);
   const [search, setSearch] = useState("");
   const [legFilter, setLegFilter] = useState<LegFilter>("all");
@@ -383,7 +398,7 @@ export function RunPool({ unassigned, onDelete, onEditException }: RunPoolProps)
           {/* ── ASSIGN MODE: flat single-group list ── */}
           {assignMode && filtered.length > 0 && (
             <div className="space-y-1.5">
-              <PaginatedList legs={filtered} onDelete={onDelete} onEditException={onEditException} />
+              <PaginatedList legs={filtered} onDelete={onDelete} onEditException={onEditException} onSuggest={onSuggest} suggestingId={suggestingId} />
             </div>
           )}
 
@@ -424,14 +439,14 @@ export function RunPool({ unassigned, onDelete, onEditException }: RunPoolProps)
                       {/* A sub-group */}
                       {grp.A.length > 0 && (
                         <GroupSection label="A-Legs" count={grp.A.length} defaultOpen={grp.A.length <= 15}>
-                          <PaginatedList legs={grp.A} onDelete={onDelete} onEditException={onEditException} />
+                          <PaginatedList legs={grp.A} onDelete={onDelete} onEditException={onEditException} onSuggest={onSuggest} suggestingId={suggestingId} />
                         </GroupSection>
                       )}
 
                       {/* B sub-group */}
                       {grp.B.length > 0 && (
                         <GroupSection label="B-Legs" count={grp.B.length} defaultOpen={grp.B.length <= 15}>
-                          <PaginatedList legs={grp.B} onDelete={onDelete} onEditException={onEditException} />
+                          <PaginatedList legs={grp.B} onDelete={onDelete} onEditException={onEditException} onSuggest={onSuggest} suggestingId={suggestingId} />
                         </GroupSection>
                       )}
                     </div>

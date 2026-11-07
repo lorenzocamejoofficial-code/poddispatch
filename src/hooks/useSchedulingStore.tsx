@@ -40,6 +40,8 @@ export interface LegDisplay {
   patient_bariatric?: boolean | null;
   // one-off fields
   is_oneoff?: boolean;
+  /** scheduling_legs.service_level (read-only; used by advisory truck suggestions). */
+  service_level?: string | null;
 }
 
 export interface PatientOption {
@@ -251,6 +253,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           patient_special_equipment: l.patient?.special_equipment_required ?? null,
           patient_bariatric: l.patient?.bariatric ?? null,
           is_oneoff: isOneoff,
+          service_level: l.service_level ?? null,
         };
       })
     );
