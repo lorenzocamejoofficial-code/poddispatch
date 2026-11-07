@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getFeasibilityRefreshKey, useTruckDayFeasibility } from "./useTruckDayFeasibility";
+import { getFeasibilityRefreshKey, useTruckDayFeasibility, useTruckDayLegs } from "./useTruckDayFeasibility";
 
 const mocks = vi.hoisted(() => ({
   slots: [] as any[], isSim: false,
@@ -78,5 +78,18 @@ describe("cancelled runs in truck feasibility", () => {
     const { result } = renderHook(() => useTruckDayFeasibility("2026-10-23"));
     await waitFor(() => expect(result.current.has("truck-a")).toBe(true));
     expect(result.current.get("truck-a")?.clear).toBe(!isSim);
+  });
+});
+describe("useTruckDayLegs (suggestion inputs)", () => {
+  it("returns the same legs behind the feasibility map, scoped and excluding cancelled", async () => {
+    mocks.slots = [slot("keep"), slot("dropped", "cancelled", "09:00"), slot("second", "pending", "10:00")];
+    const feas = renderHook(() => useTruckDayFeasibility("2026-10-23"));
+    const legs = renderHook(() => useTruckDayLegs("2026-10-23"));
+    await waitFor(() => expect(legs.result.current.legsByTruck.get("truck-a")).toHaveLength(2));
+    await waitFor(() => expect(feas.result.current.has("truck-a")).toBe(true));
+    expect(legs.result.current.legsByTruck.get("truck-a")!.map((l) => l.legId))
+      .toEqual(feas.result.current.get("truck-a")!.windows.map((w) => w.legId).sort((a, b) => (a === "keep" ? -1 : b === "keep" ? 1 : 0)));
+    expect(mocks.eq).toHaveBeenCalledWith("company_id", "company-a");
+    expect(legs.result.current.buffers.loadMinutes).toBe(10);
   });
 });
