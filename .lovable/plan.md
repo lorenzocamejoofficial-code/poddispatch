@@ -1,65 +1,68 @@
-# Manual "Create ePCR" for owners/managers
+# Truck Suggestions — "manual mode" assist on the Scheduling board
 
-## Answer to Question 1: where completed ePCRs live today
+Advisory only. No DB writes, no auto-assign, no change to `src/lib/truck-suggestion.ts` or its dependencies. Same roles that already reach `/scheduling` (owner, dispatcher, creator per `src/App.tsx`).
 
-- **Sidebar:** the **Clinical** group, then **Trips & Clinical**, which goes to `/trips` and opens `src/pages/TripsAndClinical.tsx`. Owner, manager and billing can see it (`src/components/layout/AdminLayout.tsx` line 102). The page lists `trip_records` for the active company by date. It puts past incomplete PCRs at the top and shows status badges, including "PCR Submitted". There is no separate "completed PCR" page. Completed PCRs are trips whose status is `ready_for_billing`. Billing picks them up under **Billing → Billing & Claims** (`/billing`).
-- **Table:** a PCR is not its own table. It is the `trip_records` row: about 179 columns of clinical fields, `pcr_status`, `pcr_type`/`trip_type`, `transport_kind`/`payer_class`, timestamps and signatures. Related tables are `trip_status_history`, `trip_events`, `document_attachments` and `qa_reviews`. When the PCR is submitted, the claim goes to `claim_records`.
-- **Status flow:**
-  1. Dispatch creates `scheduling_legs`, and Truck Builder puts them into `truck_run_slots` with a `crews` row for that truck and day.
-  2. The crew opens `/pcr` (`src/pages/PCRPage.tsx`). The run picker (`PCRRunSelector`) lists today's slots. `createTripForRun` (lines 440–600) inserts the `trip_records` row with `status: scheduled`, `pcr_status: not_started`, leg/slot/truck/crew/patient, origin and destination types, service level, patient defaults and one-off leg data. It refuses dialysis runs that have no ICD-10 code.
-  3. As the crew enters timestamps, the trip moves through en route, arrived at pickup, loaded, arrived at drop-off and completed. Meanwhile `pcr_status` goes `in_progress`, with `kicked_back` possible from QA.
-  4. **Done:** Submit (PCRPage about line 1427) sets `pcr_status: submitted`, `status: ready_for_billing`, `pcr_completed_at`, `pcr_submitted_by`, `claim_ready` and `documentation_complete`. The `auto_create_claim_on_pcr_submit` database trigger then creates the claim, and `auto_flag_trip_qa` runs QA checks.
+## (a) Where run placement lives and the trigger point
 
-## Question 2: the plan
+- Board: `src/pages/Scheduling.tsx` wraps `RunPool` (unassigned runs) and `TruckBuilder` (truck cards) in one `DndContext` (about lines 1238–1411).
+- Placement: `handleDragEnd` in `Scheduling.tsx` (line 949 on) handles a drop on `truck-drop-<truckId>` (the droppable set up in `TruckBuilder.tsx` around line 781) and inserts `truck_run_slots`. This stays unchanged.
+- Note: `src/components/dispatch/TruckCard.tsx` belongs to the **Dispatch Board**, not Scheduling. The Scheduling truck card is the inline card component in `TruckBuilder.tsx` (line 776 on). That is the card to annotate. `TruckCard.tsx` is not touched.
+- Best trigger: a small **"Suggest trucks"** button on each unassigned run row in `RunPool.tsx`. A drag start would also work as a trigger, but it fires on every reorder and the reasons would be unreadable mid-drag. So drag start is not used.
 
-### Where it lives
-A **"Create PCR"** button in the header of **Trips & Clinical** (`/trips`), shown to owners and managers only. It opens a setup dialog. When setup is done, the user goes to `/pcr?tripId=<new id>&mode=manual`.
+## (b) Can TruckCandidate[] be built read-only from data already loaded?
 
-### Setup step (dialog, all fields required unless marked)
-1. **Patient:** a searchable list of the active company's patients. Selecting one shows their payer, DOB, standing ICD-10 codes and default addresses.
-2. **Transport type:** the six transport kinds (dialysis, IFT, discharge, outpatient, wound care, psych). This defaults to the patient's own transport type.
-3. **Run date and pickup time.** The date defaults to today and may be in the past for documenting a run late.
-4. **Truck:** active trucks only. A truck that is down or out of service that day is blocked, using the existing availability check.
-5. **Crew:** pick the crew already assigned to that truck for that date if one exists. Otherwise pick members 1, 2 and an optional 3 from employees. Members must pass the same certification check as assignment (`crew_assignable`, which includes the sandbox bypass).
-6. **Pickup and destination:** these default from the patient or facility and stay editable. Leg A/B is the direction.
-7. **Type-specific checks before the PCR opens**, the same ones the crew path runs:
-   - A dialysis run needs a patient ICD-10 code.
-   - Bariatric runs go through the safety rule check.
-   - A run within 45 minutes of another run on the same truck gets a warning.
-   - The intake rules already used for the patient and transport type apply.
+Mostly yes. These pieces are already in `TruckBuilder.tsx`:
+- **Crew capability**: the crews query (line 296) loads sex and the stair-chair, bariatric, oxygen and lift-assist flags for member1–3. This matches `CrewCapability`. "Crewed trucks only" means the truck has a `crews` row for the day.
+- **Equipment**: trucks query (line 307) loads `has_power_stretcher`, `has_stair_chair` and `has_oxygen_mount`.
+- **Down/OOS for the day**: the `truck_availability` read (line 341) and the existing `isDown` value.
+- **Patient needs**: `LegDisplay` already has weight, mobility, stairs, stair chair, oxygen, special equipment and bariatric.
+- **Buffers and timing**: `useTruckDayFeasibility` already reads `company_settings` and builds `FeasibilityLeg`s per truck, scoped with `getActiveCompanyId()`/`NO_COMPANY`.
 
-### How the transport type sets the PCR type today
-`createTripForRun` writes the run's `trip_type` into both `trip_type` and `pcr_type`. `pcr_type` is a deprecated copy. The database triggers fill in `transport_kind`. Required fields come from `pcr-field-requirements.ts` through `clinicalTransportType` / `normalizeTransportKey`. Emergency is an upgrade flag, not a type. The manual path writes the same legacy fields, so all of these keep working unchanged.
+Still missing (all are read-only additions):
+1. **Truck `service_level`, `has_bariatric_kit`, `has_bariatric_stretcher`** are not selected. Fix: add these columns to the existing trucks select in `TruckBuilder.tsx`. It is the same query, already company-scoped.
+2. **Run `service_level`** is fetched (`scheduling_legs` `select("*")` in `useSchedulingStore.tsx`), but the `LegDisplay` mapping drops it. Fix: add an optional `service_level` field and map it. Read-side only. If it is missing, use "BLS".
+3. **Per-truck `assignedRuns: FeasibilityLeg[]` and the run's own `FeasibilityLeg`**: the hook builds both but returns only the evaluated result. Fix: add an additive return (`legsByTruck`, `buffers`) and pull the existing leg-building into a reusable `toFeasibilityLeg`. The existing `Map` return and its tests stay the same. The unassigned run is converted with the same function, so timing matches the feasibility badge exactly.
+4. **`maxPatientWeightLbs`**: no column exists in the schema (no migration defines a rated capacity). It is left `undefined`, so the engine skips that check. This is not a blocker, and no value is invented.
 
-### Reuse vs. new
-- **Reuse:**
-  - the patient-defaults and ICD-10 logic in `createTripForRun`, moved into one shared helper both paths call
-  - the full PCR form, the pre-submit checklist and the submit step
-  - the claim trigger, QA trigger and status labels
-  - the existing truck/crew safety, conflict and availability checks
-  - active-company scoping
-- **New:**
-  - the `CreatePcrDialog` component
-  - the shared `buildTripInsert()` helper, with tests
-  - the owner/manager button
-  - letting `/pcr` open in the office layout for a manually created trip
+No blockers. Nothing needs a migration.
 
-### Build approach
-1. Move the trip-insert assembly out of `createTripForRun` into `src/lib/pcr-trip-insert.ts`, a pure function. The crew path calls it with no change in behavior. Add tests for patient defaults, dialysis ICD blocking and type mirroring.
-2. Create a matching one-off `scheduling_legs` row (`is_unscheduled: true`) and a `crews` row if none exists. The trip then has a leg, truck and crew like every scheduled trip, and Scheduling, feasibility and claim payer lookup all see it.
-3. Insert the `trip_records` row through the helper, with `pcr_status: not_started`, and open `/pcr?tripId=…`.
-4. PCRPage: for office roles on a manual trip, use the office layout. Signatures and attending options come from the trip's crew members, as they do now.
-5. Submit goes through the existing code, so downstream it is the same as a crew-completed PCR.
+## (c) Trigger UX
 
-## Gotchas
-- **PCRPage is crew-shaped.** It uses the crew layout. With no `tripId` it shows only the crew run picker, and the crew-handoff checks are skipped for non-crew users. Editing as an owner needs the office layout and needs to bypass the crew-only gates on purpose.
-- **Truck check-off gate.** The crew path may require a submitted truck inspection before a PCR. For a manual or after-the-fact PCR, I assume we skip that gate and record that in the audit log. Please confirm.
-- **Leg/slot dependence.** `trip_records.leg_id` is nullable, but Scheduling counts, feasibility, the claim payer fallback and duplicate detection all expect a leg. Creating the matching leg (step 2) avoids orphan behavior. The other option, trips with no leg, is riskier.
-- **Duplicates.** Warn if the patient already has a trip on that date and leg. This reuses the existing duplicate warning in the run picker.
-- **Attestation.** The PCR is still documented and signed as the chosen crew. The owner who created it is stored as `created_by` and in the audit log, so it is clear who entered it.
-- **Scope.** This is not linked to NEMSIS/CTA work. Billing and claim logic do not change.
+- Click **"Suggest trucks"** on an unassigned run. The run row gets a subtle "suggesting" ring. A one-line banner above the truck grid reads "Suggestions for <patient> <A/B> <time>", with a **Clear** button.
+- Each crewed truck card gets a small header chip:
+  - Eligible: "#1 Best fit", "#2", "#3"… with a primary-tinted border on #1 only. Below the header, a collapsible "Why" line shows the engine's first reason; expanding shows all of its reasons.
+  - Ineligible: a muted card with a "Not suitable" chip and the engine's rejection reason on one line.
+  - Un-crewed trucks: no chip (not candidates). The banner shows "N trucks skipped: no crew".
+- The highlight clears on Clear, Escape, a change of date, a successful drop of that run, or picking another run. It is never always-on.
+- Placement is unchanged: the dispatcher drags the run onto any truck, including a lower-ranked one.
 
-## Open questions (assumed answers in brackets)
-- Should dispatchers also get the button? [No: owner and manager only, as you asked.]
-- Skip the truck inspection gate for manual PCRs? [Yes, with an audit note.]
-- Allow past dates? [Yes, up to 7 days back.]
+## (d) Synthetic test fixtures
+
+New `src/lib/truck-suggestion-candidates.test.ts`, covering the pure adapter only (the engine already has its own tests). It uses synthetic IDs and names, with no PHI:
+- Two crewed trucks plus one un-crewed truck → the un-crewed truck is excluded from candidates.
+- An ALS truck selected with `service_level` → maps to `"ALS"`. A missing run level → `"BLS"`.
+- A down truck from availability → `downForDay: true` → the engine rejects it with the down/out-of-service reason.
+- A bariatric patient (320 lb) with an MF crew and no power stretcher → rejected. The same patient with a trained crew and a power stretcher → eligible (checks the adapter wiring through the safety matrix).
+- An existing run 20 min after the candidate's window → time-conflict rejection (45-min rule).
+- Reassign case: the run is already on truck A → its own slot is ignored (`legId` excluded).
+- `maxPatientWeightLbs` is always `undefined` (guards against an invented capacity).
+- Plus one hook test in `useTruckDayFeasibility.test.ts` asserting the new `legsByTruck` matches the legs behind the existing map.
+
+## Files
+
+| File | Change | ~LOC |
+|---|---|---|
+| `src/lib/truck-suggestion-candidates.ts` (new) | Pure `buildTruckCandidates(...)` + `toSuggestionRun(leg)` | 90 |
+| `src/hooks/useTruckDayFeasibility.ts` | Pull out `toFeasibilityLeg`; additive `legsByTruck` + `buffers` export (existing return unchanged) | 40 |
+| `src/hooks/useSchedulingStore.tsx` | Optional `service_level` on `LegDisplay` mapping | 5 |
+| `src/components/scheduling/TruckSuggestionReasons.tsx` (new) | Presentational chip + reason line(s) | 70 |
+| `src/components/scheduling/RunPool.tsx` | "Suggest trucks" button + `onSuggest(leg)` / active ring | 25 |
+| `src/components/scheduling/TruckBuilder.tsx` | Extra truck columns in the existing select; accept `suggestion` prop; render reasons in the card header; banner + Clear | 70 |
+| `src/pages/Scheduling.tsx` | `suggestFor` state; pass it down; clear on date change / drop / Escape | 25 |
+| Tests (above) | | 150 |
+
+Total is about 475 LOC, within the cap.
+
+## Out of scope and unchanged
+
+`truck-suggestion.ts`, `schedule-feasibility.ts`, `safety-rules.ts`, `time-conflict.ts`, `patient-time-prediction.ts`, `handleDragEnd` and every insert/assign path, `dispatch/TruckCard.tsx`, NEMSIS, billing and migrations.
