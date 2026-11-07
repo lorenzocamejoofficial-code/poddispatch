@@ -932,6 +932,21 @@ export default function Scheduling() {
 
   const unassignedLegs = legs.filter(l => !l.assigned_truck_id);
 
+  // Advisory truck suggestions: triggered per run, cleared on date change,
+  // Escape, or once the run is no longer unassigned (e.g. after a drop).
+  const [suggestForId, setSuggestForId] = useState<string | null>(null);
+  const suggestFor = suggestForId ? unassignedLegs.find(l => l.id === suggestForId) ?? null : null;
+  useEffect(() => { setSuggestForId(null); }, [selectedDate]);
+  useEffect(() => {
+    if (suggestForId && !legs.some(l => l.id === suggestForId && !l.assigned_truck_id)) setSuggestForId(null);
+  }, [legs, suggestForId]);
+  useEffect(() => {
+    if (!suggestForId) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSuggestForId(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [suggestForId]);
+
   // ── DnD sensors — 8px activation distance for fast response ──
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -1338,6 +1353,8 @@ export default function Scheduling() {
               unassigned={unassignedLegs}
               onDelete={deleteLeg}
               onEditException={openExceptionEdit}
+              onSuggest={(leg) => setSuggestForId(id => id === leg.id ? null : leg.id)}
+              suggestingId={suggestForId}
             />
 
             {/* ── TRUCK BUILDER ── */}
@@ -1352,6 +1369,8 @@ export default function Scheduling() {
               activeTokens={activeShareTokens}
               operationalAlerts={operationalAlerts}
               onLogChange={logScheduleChange}
+              suggestFor={suggestFor}
+              onClearSuggest={() => setSuggestForId(null)}
               onDispatcherCancel={async (legId: string) => {
                 const leg = legs.find(l => l.id === legId);
                 if (!leg) return;
