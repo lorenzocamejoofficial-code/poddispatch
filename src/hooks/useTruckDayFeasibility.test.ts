@@ -87,8 +87,8 @@ describe("useTruckDayLegs (suggestion inputs)", () => {
     const legs = renderHook(() => useTruckDayLegs("2026-10-23"));
     await waitFor(() => expect(legs.result.current.legsByTruck.get("truck-a")).toHaveLength(2));
     await waitFor(() => expect(feas.result.current.has("truck-a")).toBe(true));
-    expect(legs.result.current.legsByTruck.get("truck-a")!.map((l) => l.legId))
-      .toEqual(feas.result.current.get("truck-a")!.windows.map((w) => w.legId).sort((a, b) => (a === "keep" ? -1 : b === "keep" ? 1 : 0)));
+    expect(legs.result.current.legsByTruck.get("truck-a")!.map((l) => l.legId).sort())
+      .toEqual(feas.result.current.get("truck-a")!.windows.map((w) => w.legId).sort());
     expect(mocks.eq).toHaveBeenCalledWith("company_id", "company-a");
     expect(legs.result.current.buffers.loadMinutes).toBe(10);
   });
