@@ -374,28 +374,6 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
 
   const unassigned = legs.filter((l) => !l.assigned_truck_id);
 
-  // Advisory truck suggestions (read-only; never assigns or writes).
-  const suggestion = useMemo(() => {
-    if (!suggestFor) return null;
-    const timing = toFeasibilityLeg({
-      id: suggestFor.id, leg_type: suggestFor.leg_type, pickup_time: suggestFor.pickup_time,
-      estimated_duration_minutes: suggestFor.estimated_duration_minutes, patient_id: suggestFor.patient_id,
-      oneoff_name: suggestFor.patient_name,
-      patient: { first_name: suggestFor.patient_name, last_name: "", chair_time: suggestFor.chair_time },
-    }, 0, dayLegs.stats, dayLegs.settings);
-    const { candidates, skippedNoCrew } = buildTruckCandidates({
-      trucks: trucks.map((t) => ({ truckId: t.id, service_level: truckServiceLevel.get(t.id), equipment: truckEquipmentMap.get(t.id) })),
-      crewedTruckIds: new Set(crews.map((c) => c.truck_id)),
-      crewCapability: getCrewCapability,
-      downTruckIds: new Set(availability.map((a) => a.truck_id)),
-      legsByTruck: dayLegs.legsByTruck,
-    });
-    const result = suggestTrucksForRun({ run: toSuggestionRun(suggestFor, timing), candidates, buffers: dayLegs.buffers });
-    const views = new Map<string, TruckSuggestionView>();
-    result.eligible.forEach((e, i) => views.set(e.truckId, { kind: "eligible", rank: i + 1, reasons: e.reasons }));
-    result.ineligible.forEach((r) => views.set(r.truckId, { kind: "ineligible", reason: r.reason }));
-    return { views, skipped: skippedNoCrew.length };
-  }, [suggestFor, trucks, crews, truckServiceLevel, truckEquipmentMap, getCrewCapability, availability, dayLegs]);
 
   const crewForTruck = useCallback((truckId: string): CrewDisplay | undefined =>
     crews.find((c) => c.truck_id === truckId),
@@ -428,6 +406,29 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       } : null,
     };
   }, [crewProfiles]);
+
+  // Advisory truck suggestions (read-only; never assigns or writes).
+  const suggestion = useMemo(() => {
+    if (!suggestFor) return null;
+    const timing = toFeasibilityLeg({
+      id: suggestFor.id, leg_type: suggestFor.leg_type, pickup_time: suggestFor.pickup_time,
+      estimated_duration_minutes: suggestFor.estimated_duration_minutes, patient_id: suggestFor.patient_id,
+      oneoff_name: suggestFor.patient_name,
+      patient: { first_name: suggestFor.patient_name, last_name: "", chair_time: suggestFor.chair_time },
+    }, 0, dayLegs.stats, dayLegs.settings);
+    const { candidates, skippedNoCrew } = buildTruckCandidates({
+      trucks: trucks.map((t) => ({ truckId: t.id, service_level: truckServiceLevel.get(t.id), equipment: truckEquipmentMap.get(t.id) })),
+      crewedTruckIds: new Set(crews.map((c) => c.truck_id)),
+      crewCapability: getCrewCapability,
+      downTruckIds: new Set(availability.map((a) => a.truck_id)),
+      legsByTruck: dayLegs.legsByTruck,
+    });
+    const result = suggestTrucksForRun({ run: toSuggestionRun(suggestFor, timing), candidates, buffers: dayLegs.buffers });
+    const views = new Map<string, TruckSuggestionView>();
+    result.eligible.forEach((e, i) => views.set(e.truckId, { kind: "eligible", rank: i + 1, reasons: e.reasons }));
+    result.ineligible.forEach((r) => views.set(r.truckId, { kind: "ineligible", reason: r.reason }));
+    return { views, skipped: skippedNoCrew.length };
+  }, [suggestFor, trucks, crews, truckServiceLevel, truckEquipmentMap, getCrewCapability, availability, dayLegs]);
 
   const assignLeg = useCallback(async (truckId: string, legId: string) => {
     const currentSlots = truckLegs(truckId);
