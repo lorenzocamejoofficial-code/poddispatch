@@ -13,9 +13,12 @@ export const INTAKE_LEG_ID = "__intake__";
 export interface IntakeForm {
   pickup_location: string; destination_location: string; trip_type: string;
   service_level: string; weight_lbs: string; mobility: string; oxygen: boolean; chair_time: string;
+  pickup_facility_id?: string | null; destination_facility_id?: string | null;
 }
 export interface LegInfo {
   pickup_location: string | null; destination_location: string | null;
+  pickup_facility_id?: string | null; destination_facility_id?: string | null;
+  pickup_overridden?: boolean; destination_overridden?: boolean;
   leg_type: string | null; trip_type: string | null; chair_time: string | null;
 }
 
