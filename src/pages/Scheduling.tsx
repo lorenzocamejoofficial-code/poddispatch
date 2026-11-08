@@ -20,8 +20,15 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Plus, Zap, AlertTriangle, ArrowRight,
   Wand2, ChevronLeft, ChevronRight, CalendarDays, ArrowLeft,
-  GitBranch, GripVertical, AlertCircle, BellRing, X, Search, ChevronDown,
+  GitBranch, GripVertical, AlertCircle, BellRing, X, Search, ChevronDown, Sparkles,
 } from "lucide-react";
+import { IntakeImpactCard } from "@/components/scheduling/IntakeImpactCard";
+import type { ImpactContext } from "@/components/scheduling/TruckBuilder";
+import { checkIntakeImpact, INTAKE_LEG_ID, type LegInfo } from "@/lib/intake-impact";
+import type { RunAcceptance } from "@/lib/run-acceptance";
+import { toFeasibilityLeg } from "@/hooks/useTruckDayFeasibility";
+import { getFacilityCoords } from "@/lib/facility-geocode";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { toast } from "sonner";
 import { getEarliestBLegPickup, isBLegTooEarly } from "@/lib/dialysis-validation";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
@@ -935,6 +942,39 @@ export default function Scheduling() {
   // Advisory truck suggestions: triggered per run, cleared on date change,
   // Escape, or once the run is no longer unassigned (e.g. after a drop).
   const [suggestForId, setSuggestForId] = useState<string | null>(null);
+
+  // Advisory intake impact check (one-off form). Read-only; never assigns or gates.
+  const [impactCtx, setImpactCtx] = useState<ImpactContext | null>(null);
+  const [impactResult, setImpactResult] = useState<(RunAcceptance & { geoPairsSkipped: boolean }) | null>(null);
+  const [impactFacilities, setImpactFacilities] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+      const { data } = await supabase.from("facilities").select("id, name").eq("company_id", companyId);
+      if (!cancelled) setImpactFacilities(data ?? []);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => { setImpactResult(null); }, [oneoffForm, pendingLegType, selectedDate]);
+  const runImpactCheck = () => {
+    if (!impactCtx) return;
+    const timing = toFeasibilityLeg({
+      id: INTAKE_LEG_ID, leg_type: pendingLegType, pickup_time: oneoffForm.pickup_time || null,
+      estimated_duration_minutes: null, patient_id: null, oneoff_name: oneoffForm.name || "New run",
+      patient: { first_name: oneoffForm.name || "New run", last_name: "", chair_time: oneoffForm.chair_time || null },
+    }, 0, impactCtx.stats, impactCtx.settings);
+    const legInfo = new Map<string, LegInfo>(legs.map((l) => [l.id, {
+      pickup_location: l.exception_pickup_location ?? l.pickup_location,
+      destination_location: l.exception_destination_location ?? l.destination_location,
+      leg_type: l.leg_type, trip_type: l.trip_type, chair_time: l.chair_time,
+    }]));
+    setImpactResult(checkIntakeImpact({
+      form: oneoffForm, legType: pendingLegType === "B" ? "B" : "A", timing,
+      candidates: impactCtx.candidates, buffers: impactCtx.buffers, legInfo,
+      facilities: impactFacilities, getCoords: getFacilityCoords,
+    }));
+  };
   const suggestFor = suggestForId ? unassignedLegs.find(l => l.id === suggestForId) ?? null : null;
   useEffect(() => { setSuggestForId(null); }, [selectedDate]);
   useEffect(() => {
@@ -1371,6 +1411,7 @@ export default function Scheduling() {
               onLogChange={logScheduleChange}
               suggestFor={suggestFor}
               onClearSuggest={() => setSuggestForId(null)}
+              onImpactContext={setImpactCtx}
               onDispatcherCancel={async (legId: string) => {
                 const leg = legs.find(l => l.id === legId);
                 if (!leg) return;
@@ -1700,7 +1741,13 @@ export default function Scheduling() {
 
                 <div><Label>Notes</Label><Textarea value={oneoffForm.notes} onChange={(e) => setOneoffForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any special instructions for crew" /></div>
                 {oneoffIssues.length > 0 && <div role="alert" className="space-y-1">{oneoffIssues.map(i => <p key={i.field} className="text-xs text-destructive">{i.label} is required.</p>)}</div>}
-                <AsyncButton onClick={handleCreate} pendingLabel="Creating...">Create One-Off {pendingLegType}-Leg</AsyncButton>
+                <IntakeImpactCard result={impactResult} truckName={(id) => trucks.find(t => t.id === id)?.name ?? "Truck"} onClose={() => setImpactResult(null)} />
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={runImpactCheck} disabled={!impactCtx || !oneoffForm.pickup_time}>
+                    <Sparkles className="h-4 w-4 mr-1" />Check impact
+                  </Button>
+                  <AsyncButton onClick={handleCreate} pendingLabel="Creating...">Create One-Off {pendingLegType}-Leg</AsyncButton>
+                </div>
               </div>
             ) : (
               /* ── EXISTING PATIENT FORM ── */

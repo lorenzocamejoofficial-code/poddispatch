@@ -14,7 +14,16 @@ export interface FeasibilityBuffers {
   unloadMinutes: number;    // unload_time_minutes
   graceMinutes: number;     // grace_window_minutes (allowed lateness to appointment)
   minGapMinutes: number;    // enforce_run_gap_minutes ? the configured gap : 0
+  /**
+   * OPTIONAL travel-time floor between consecutive stops (e.g. travelFloorMinutes).
+   * Only consulted when both the earlier leg's destCoord and the later leg's
+   * originCoord are present; returns null to skip. Absent → time-only behavior.
+   */
+  travelFloor?: (from: GeoPoint, to: GeoPoint) => number | null;
 }
+
+/** Facility coordinate (facilities only — never residential). */
+export interface GeoPoint { lat: number; lng: number }
 
 export const DEFAULT_TRIP_MINUTES = 30;
 
@@ -28,6 +37,9 @@ export interface FeasibilityLeg {
   mustArriveBy: number | null;      // A-leg: appointment/chair time to beat
   tripMinutes: number;              // in-vehicle minutes (learned ?? estimated ?? default)
   slotOrder: number;
+  /** OPTIONAL resolved facility coords for the pickup / drop-off ends. */
+  originCoord?: GeoPoint | null;
+  destCoord?: GeoPoint | null;
 }
 
 export interface LegWindow {
@@ -38,7 +50,7 @@ export interface LegWindow {
   basis: "scheduled" | "predicted-return" | "unknown";
 }
 
-export type ConflictKind = "overlap" | "late-to-appointment" | "tight-gap";
+export type ConflictKind = "overlap" | "late-to-appointment" | "tight-gap" | "travel-infeasible";
 export interface Conflict {
   kind: ConflictKind;
   severity: "error" | "warning";
@@ -112,6 +124,21 @@ export function evaluateTruckDay(legs: FeasibilityLeg[], b: FeasibilityBuffers):
         kind: "tight-gap", severity: "warning", legIds: [cur.legId, nxt.legId],
         message: `Only ${nxt.start! - cur.end!} min between ${cur.label} and ${nxt.label} — under the ${b.minGapMinutes}-min gap, and no travel time counted yet.`,
       });
+    }
+    // Additive geo check: only when a travel floor AND both facility coords exist.
+    if (b.travelFloor) {
+      const from = legs.find((l) => l.legId === cur.legId)?.destCoord;
+      const to = legs.find((l) => l.legId === nxt.legId)?.originCoord;
+      if (from && to) {
+        const travel = b.travelFloor(from, to);
+        const gap = nxt.start! - cur.end!;
+        if (travel != null && gap >= 0 && gap < travel) {
+          conflicts.push({
+            kind: "travel-infeasible", severity: "error", legIds: [cur.legId, nxt.legId],
+            message: `${cur.label} ends ~${fmt(cur.end!)} at a facility at least ${travel} min from ${nxt.label}'s ${fmt(nxt.start!)} pickup.`,
+          });
+        }
+      }
     }
   }
 
