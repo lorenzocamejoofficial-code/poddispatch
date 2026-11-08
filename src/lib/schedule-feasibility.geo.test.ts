@@ -64,3 +64,30 @@ describe("facility endpoint resolution (exact name only)", () => {
     expect(out.destCoord).toEqual(NEAR_A);
   });
 });
+
+import { applyEndpointChoice, swapEndpointsForReturn } from "./facility-endpoints";
+
+describe("facility id links (preferred over name match)", () => {
+  const idx = buildFacilityIndex([{ id: "f1", name: "Sample Dialysis North" }, { id: "f2", name: "Test Hospital" }]);
+  it("id wins over a mismatched name", () => {
+    expect(resolveLegFacilities({ pickup_location: "Test Hospital", pickup_facility_id: "f1" }, idx).originFacilityId).toBe("f1");
+  });
+  it("exception text override beats the id", () => {
+    expect(resolveLegFacilities({ destination_location: "Test Hospital", destination_facility_id: "f1", destination_overridden: true }, idx).destFacilityId).toBe("f2");
+    expect(resolveLegFacilities({ destination_location: "9 Synthetic Ln", destination_facility_id: "f1", destination_overridden: true }, idx).destFacilityId).toBeNull();
+  });
+  it("null id falls back to exact-name match", () => {
+    expect(resolveLegFacilities({ pickup_location: "test hospital", pickup_facility_id: null }, idx).originFacilityId).toBe("f2");
+  });
+  it("unknown id with no name match → null", () => {
+    expect(resolveLegFacilities({ pickup_location: "9 Synthetic Ln", pickup_facility_id: "gone" }, idx).originFacilityId).toBeNull();
+  });
+  it("picking sets id + name; typing clears the id", () => {
+    expect(applyEndpointChoice({ kind: "facility", facility: { id: "f2", name: "Test Hospital" } })).toEqual({ text: "Test Hospital", facilityId: "f2" });
+    expect(applyEndpointChoice({ kind: "text", text: "Test Hospita" })).toEqual({ text: "Test Hospita", facilityId: null });
+  });
+  it("B-leg swaps facility ids with the text", () => {
+    expect(swapEndpointsForReturn({ pickup_location: "9 Synthetic Ln", destination_location: "Test Hospital", pickup_facility_id: null, destination_facility_id: "f2" }))
+      .toEqual({ pickup_location: "Test Hospital", destination_location: "9 Synthetic Ln", pickup_facility_id: "f2", destination_facility_id: null });
+  });
+});
