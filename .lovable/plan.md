@@ -1,133 +1,88 @@
-# Consequence check at intake: staged plan
-
-This is advisory only. Nothing is assigned automatically, and the only database writes are the ones intake already makes. Each stage needs its own approval.
+# Link run pickup/destination to a facility record
 
 ## What the audit found
+- `scheduling_legs` has no facility link today. Endpoints are the required text fields `pickup_location` and `destination_location`.
+- One-off runs also copy that text into `oneoff_pickup_address` and `oneoff_dropoff_address`. When "needs B-leg" is ticked, the return leg gets the two ends swapped.
+- Leg exceptions (`leg_exceptions.exception_pickup_location` / `exception_destination_location`) can override a leg's text for a given day.
+- **One-off form** (`src/pages/Scheduling.tsx`, about lines 1611–1612): both endpoints are plain `Input` fields. The destination placeholder already says "Facility name or address".
+- **Recurring/regular leg form** (about lines 1864–1865): uses `AddressComboInput`, which suggests the patient's home address and their dropoff facility as text only.
+- **Loading:** `useSchedulingStore.fetchLegs` selects `*`, so new columns load automatically. `LegDisplay` would need the two fields added.
+- **Data:** 48 legs, 7 facilities. About half the endpoints already match a facility name exactly.
 
-**How a leg's ends connect to a facility today**
-- `scheduling_legs` has no facility link. The pickup and drop-off are free-text fields (`pickup_location`, `destination_location`).
-- The one-off address columns hold home or residential addresses, which are never looked up.
-- `patients.facility_id` exists, but no patient row currently sets it (0 rows).
-- The only workable link is an **exact name match**: the leg's text, trimmed and ignoring case, equal to a facility name in the same company. This is the same rule dispatchers already use, and facility names are kept unique per company.
-
-**How often it applies (live data, counts only):**
-
-| Item | Count |
-|---|---|
-| Legs | 48 |
-| Pickups that match a facility name | 25 |
-| Drop-offs that match a facility name | 23 |
-| Facilities | 7, all with a street address |
-
-A travel time can only be counted between **back-to-back stops where the first run drops off at a facility and the next run picks up at a facility**. The common case is a dialysis A-leg dropping at center X followed by a B-leg pickup at center Y.
-- A gap that starts or ends at a patient's home has no location, by design, because home addresses are never looked up. It keeps today's time-only check.
-- Realistic coverage is facility-to-facility hops only, probably a minority of gaps.
-
-**Today's engine:**
-- `evaluateTruckDay` (`schedule-feasibility.ts`) sorts the timed windows. It flags `overlap` when one run ends after the next starts, and `tight-gap` when the gap is under `minGapMinutes`. The tight-gap message already says "no travel time counted yet".
-- `suggestTrucksForRun` calls `evaluateTruckDay(..., buffers)` and copies `buffers` with `{...input.buffers}`. Anything optional placed on `buffers` therefore passes through without changing `truck-suggestion.ts`.
-
----
-
-## Stage 1: count travel time in feasibility, without changing results when locations are missing
-
-**Design**
-- `FeasibilityLeg` gets two optional fields, `originCoord?` and `destCoord?` (`Coord | null`).
-- `FeasibilityBuffers` gets an optional `travelFloor?: (from, to) => number | null`. In production this is `travelFloorMinutes` from geo-distance.
-- In the back-to-back loop, only when `travelFloor` is set, the first run has a `destCoord` and the next has an `originCoord`:
-  - `travel = travelFloor(cur.destCoord, nxt.originCoord)`.
-  - If `travel != null` and `gap < travel`, flag a new conflict kind, `travel-infeasible`. It is an error: "X ends at about 9:40 AM at a facility about N minutes from Y's 9:50 AM pickup."
-  - Otherwise the existing `tight-gap` check runs as it does today. The geo check never replaces or suppresses the overlap or tight-gap checks; it only adds.
-- If any input is missing, the new code is skipped entirely. Messages, order and the clear flag stay byte-identical.
-
-**Files**
-
-| File | Change |
-|---|---|
-| `src/lib/schedule-feasibility.ts` | Optional fields, a new `ConflictKind` value, and a guarded block (about 25 lines) |
-| `src/lib/facility-endpoints.ts` (new) | `resolveLegFacilities(leg, facilities)`: exact-name match to `{originFacilityId, destFacilityId}`; non-matches return null. Plus `withLegCoords(leg, getFacilityCoords)`. Pure, and it only ever touches facility IDs. |
-| `src/hooks/useTruckDayFeasibility.ts` | **Not changed in Stage 1.** It doesn't pass coordinates, so the board is unaffected until it is deliberately connected. |
-| `src/lib/truck-suggestion.ts` | **Not changed.** Coordinates flow through `buffers` and the run objects. A `travel-infeasible` conflict involving the run is rejected by the existing "any conflict" path, but only when the caller supplies locations. |
-
-**Risk to the shared engine:** low. The only changed file is `schedule-feasibility.ts`, and every new branch requires three optional inputs. One subtle point: adding a new conflict kind could affect code that branches on `kind`. A search found only `FeasibilityResult.tsx` and tests; the plan checks that display falls back to a sensible style for unknown kinds.
-
-**Tests (synthetic coordinates and labels, no PHI)**
-- All existing feasibility, truck-suggestion and run-candidate tests run unchanged and must pass. This is the backward-compatibility proof.
-- New tests in `schedule-feasibility.geo.test.ts`:
-  - No coordinates gives output deep-equal to the version without the `travelFloor` option.
-  - A 20-minute gap between facilities about 30 miles apart is flagged `travel-infeasible`.
-  - The same gap with nearby facilities shows no travel conflict.
-  - A home at one end (null coordinate) means no geo check.
-  - `travelFloor` returning null means no geo check.
-  - Overlap and tight-gap still fire alongside the new check.
-- New tests in `facility-endpoints.test.ts`: exact name matching, case and spacing tolerance, no partial matches, and an unknown name returning null.
-
-**Size:** about 120 lines including tests.
-
----
-
-## Stage 2: pure acceptance evaluator
-
-`src/lib/run-acceptance.ts`:
-```text
-evaluateRunAcceptance({ run, candidates, buffers, priorityOf })
- -> { coverable, leastBadTruck, perTruck: [{truckId, clean, breaks:[{legId, kind, howLateMin, tier}]}] }
+## (a) Schema: one additive migration
+```sql
+ALTER TABLE public.scheduling_legs
+  ADD COLUMN pickup_facility_id uuid NULL REFERENCES public.facilities(id) ON DELETE SET NULL,
+  ADD COLUMN destination_facility_id uuid NULL REFERENCES public.facilities(id) ON DELETE SET NULL;
+CREATE INDEX ... ON public.scheduling_legs (pickup_facility_id) WHERE pickup_facility_id IS NOT NULL;  -- and destination
 ```
-- **Clean placement:** `suggestTrucksForRun` is reused as-is. If any truck is eligible, the run is `coverable` and `leastBadTruck` is the top-ranked truck with no breaks.
-- **When something has to give:**
-  - For each crewed truck that is not hard-blocked, the shared `evaluateTruckDay([...existing, run], buffers)` is run. This step only handles time conflicts; down, ALS and safety blocks stay hard rejects.
-  - Conflicts involving the run become `breaks` on the other leg, with `howLate` taken from the window math: the overlap minutes, or the late-to-appointment overrun.
-- **Priority tiers decide who absorbs lateness**, using `deriveRunPriority`:
-  - A truck that breaks any **Tier 1** leg is excluded from "least bad".
-  - Among the rest, the best truck has the fewest Tier 2 breaks, then the fewest total late minutes on Tier 3, then the `suggestTrucksForRun` order breaks ties.
-  - If the run itself is Tier 3 and a placement would delay a Tier 1 or 2 leg, that is reported as "this run should yield".
-- The evaluator is pure: no database or network access, and locations arrive already attached to the legs (from Stage 1).
+- **Nullable, with no default and no trigger.** Every existing writer keeps working unchanged: recurring auto-generate, copy-forward, imports, Create PCR and the crew run picker.
+- **The text columns stay authoritative for display** and for home or free-text endpoints.
+- **`ON DELETE SET NULL`:** facilities are normally deactivated, not deleted, but a removed facility must not break or orphan legs.
+- **Same company:** a guard trigger (`BEFORE INSERT/UPDATE`) rejects a facility from a different company than the leg. This is a validation trigger, not a CHECK, because it looks up another table. Without it, a crafted request could link a leg to another tenant's facility.
+- **No RLS or grant changes.** These are new columns on a table that is already granted and protected.
+- **Backfill: defer it.** The resolver falls back to the exact-name match anyway (see c), so a backfill would not make the consequence check better today. It would only copy the same result into a column. It also means running a data write against live rows, and if it's ever wanted it can be a separate, reviewable step.
 
-**Tests (synthetic):**
-- A clean truck gives coverable with no breaks.
-- No clean truck but one acceptable sacrifice gives a least-bad truck plus breaks.
-- A truck whose only option breaks a Tier 1 leg is excluded.
-- Fewer Tier 2 breaks beats fewer total minutes.
-- Safety, ALS or down blocks are never "least bad".
-- With no crewed trucks, coverable is false and no truck is recommended.
-- With locations supplied, a travel-infeasible pair becomes a break.
+## (b) UX: v1 on the one-off add-run form only
+- New `FacilityEndpointInput` component (`src/components/scheduling/FacilityEndpointInput.tsx`), replacing the two plain inputs on the one-off form:
+  - Typing shows a short list of the company's active facilities filtered by name, plus "Use as typed (home / other address)".
+  - Picking a facility sets the facility id and fills the display text with the facility **name**. This matches today's practice, where dispatchers choose by name and facility names are unique per company.
+  - Typing anything afterwards clears the link, so the id and the text can never disagree.
+  - A small "Facility" chip with an × shows when a facility is linked.
+- **Optional and fast.** No facility is required. Home pickups work exactly as they do now, and required-field validation is unchanged.
+- The facility list is loaded once with the active-company scope (`getActiveCompanyId`/`NO_COMPANY`, `active = true`). It reuses the facilities list the impact check already fetches.
+- **Save:** `pickup_facility_id` and `destination_facility_id` are added to the one-off insert. The **B-leg gets the ids swapped**, mirroring how its text is swapped.
+- **Later pass, not v1:** the recurring/regular leg form, recurring auto-generate, Create PCR, and leg-exception edits.
 
-**Size:** about 150 lines of code and about 120 lines of tests.
+## (c) Resolution: prefer the facility link, keep the name match
+`resolveLegFacilities(leg, index)` becomes:
+1. If the leg has a facility id for that end **and** no text override from a leg exception for that end, use the id.
+2. Otherwise, fall back to today's exact-name match (trim, ignore case) on the effective text.
 
----
+- An exception override always wins, because it means the leg goes somewhere else that day.
+- The existing exact-name tests stay unchanged.
+- `LegInfo` in `intake-impact.ts` gets the two optional ids. The Scheduling impact check passes them from `LegDisplay`, and the one-off form passes its picked ids for the new run.
+- Advisory, non-blocking behavior is unchanged: geo still only applies on facility-to-facility hops with coordinates.
 
-## Stage 3: show it at one intake point
+## (d) Tests and size
 
-**Recommended: the Scheduling board's add one-off run form** (`src/pages/Scheduling.tsx`, one-off form).
-- That page already loads the day's trucks, crews, timing settings and assigned legs (`useTruckDayLegs`), and it is where a run is accepted for the day.
-- **Create PCR is a poor fit for v1.** It records past or same-day work, often after the transport happened, so "what would this push late" mostly doesn't apply.
-- I recommend one place only: the scheduling board.
+**Tests (synthetic, no PHI)**
+- `facility-endpoints.test.ts`:
+  - The id wins over a mismatched name.
+  - An exception text override beats the id.
+  - With a null id, the name-match fallback still works.
+  - An unknown or deactivated facility id with no name match returns null.
+  - Existing exact-name tests stay unchanged.
+- `intake-impact.test.ts`: a run whose free text matches no facility name, but which is linked by id, now gets a travel-infeasible break on a far facility-to-facility hop.
+- `FacilityEndpointInput` logic, extracted as a pure `applyEndpointChoice` helper:
+  - Picking sets the id and the name.
+  - Editing the text clears the id.
+  - The B-leg swap maps the ids correctly.
+- Same-company guard: a migration-level SQL check run through the database query tools, as a one-off verification (no test-suite addition).
+- Full suite run.
 
-**User experience:** this mirrors "Suggest trucks".
-- A "Check impact" button sits next to the one-off form's save button and runs only when clicked.
-- It shows a small yellow or green card near the save button with three lines:
-  - **Coverable?** Yes, or "No crewed truck can take this".
-  - **Pushes late:** for example "Dialysis A-leg (T1) +12 min" or "nothing".
-  - **Least-bad truck:** the truck name and one reason.
-- Save is never blocked or changed. The card clears when relevant fields change, following the warn pattern.
+**Size (about 250 lines)**
+
+| Area | Lines |
+|---|---|
+| Migration | ~25 |
+| Endpoint picker component | ~110 |
+| Pure helper and its tests | ~50 |
+| `facility-endpoints.ts` change | ~20 |
+| `Scheduling.tsx` wiring and B-leg swap | ~30 |
+| `LegDisplay` and `intake-impact.ts` | ~15 |
 
 **Files**
-
-| File | Change |
-|---|---|
-| `src/components/scheduling/IntakeImpactCard.tsx` (new) | Display-only card, about 90 lines |
-| `src/pages/Scheduling.tsx` | Button, state and a call to the evaluator, about 40 lines. Reuses `buildTruckCandidates` and the `useTruckDayLegs` data. |
-| `src/hooks/useTruckDayLegs` area | Facility names are fetched with the company scope (`getActiveCompanyId`). `getFacilityCoords` is called only for resolved facility IDs, and the result is attached as an optional input to this evaluator only. The existing board feasibility stays time-only. |
-
-**Tests:** a pure adapter test covering form values to the prospective run, plus Stage 2's tests. There are no styling or snapshot tests.
-
-**Size:** about 150 lines.
-
----
+- `src/lib/facility-endpoints.ts`
+- `src/lib/intake-impact.ts`
+- `src/components/scheduling/FacilityEndpointInput.tsx` (new)
+- `src/pages/Scheduling.tsx` (one-off form only)
+- `src/hooks/useSchedulingStore.tsx` (`LegDisplay` fields)
+- Tests listed above
+- `AGENTS.md` rule update. Not touched: NEMSIS, billing, `geo-distance.ts`.
 
 ## Blockers and caveats
-- **No migration is needed** in any stage.
-- **Coverage:** locations only help facility-to-facility hops. Gaps involving a patient's home stay time-only until a geocoder covered by a BAA exists. Leaving `patients.facility_id` unset changes nothing, because endpoints come from name matching.
-- **First check is often time-only:** location lookup is lazy. The first click may come back time-only and fill in on the next check. The card will say "travel time not yet counted for N stops".
-- **Free-text names:** a drop-off typed differently from the facility name won't match. Exact matching is deliberate; fuzzy matching risks wrong-location routing.
-- **Stage 1 changes results only when callers pass locations,** and in v1 only the intake evaluator does. Existing board feasibility and Suggest trucks results are unchanged.
+- **No hard blockers.**
+- **Coverage stays partial until later passes:** recurring legs from auto-generate and copy-forward won't carry ids until a later pass. They keep using the name-match fallback, which is today's behavior.
+- **Display text:** picking a facility fills its name, not its street address, matching current dispatcher practice. If crews need the street address in the text, that's a one-line change; please say if you'd prefer "Name — address".
+- **Stale display text:** renaming a facility won't rewrite the text on existing legs, but the id link keeps geo resolution correct regardless.
