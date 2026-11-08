@@ -1,6 +1,6 @@
 import { IntakeAxes, IntakeFieldError } from "@/components/patients/IntakeAxes";
 import { intakeAxes, missingIntakeFields } from "@/lib/intake-axis-policy";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { getLocalToday } from "@/lib/local-date";
 import { addMonths, format as formatDate } from "date-fns";
