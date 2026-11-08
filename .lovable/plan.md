@@ -1,110 +1,133 @@
-# Address → coordinates cache (US Census geocoder)
+# Consequence check at intake: staged plan
 
-Backend half of the coarse-geo travel floor. Nothing is wired into feasibility or the UI in this pass.
+This is advisory only. Nothing is assigned automatically, and the only database writes are the ones intake already makes. Each stage needs its own approval.
 
-## (a) Where addresses live today (checked against the generated schema)
+## What the audit found
 
-| Table | Address fields | Notes |
-|---|---|---|
-| `patients` | `pickup_address`, `dropoff_facility` (free text, a facility name or address) | No lat/lng |
-| `facilities` | `address` (one free-text line) | No lat/lng |
-| `scheduling_legs` | `pickup_location`, `destination_location` (required); `oneoff_pickup_address`, `oneoff_dropoff_address` (nullable) | No lat/lng |
-| `trip_records` | `pickup_location`, `destination_location` | Copied from the leg; not a separate source |
-| `companies` | `address_street/city/state/zip` | Not run addresses; not used here |
+**How a leg's ends connect to a facility today**
+- `scheduling_legs` has no facility link. The pickup and drop-off are free-text fields (`pickup_location`, `destination_location`).
+- The one-off address columns hold home or residential addresses, which are never looked up.
+- `patients.facility_id` exists, but no patient row currently sets it (0 rows).
+- The only workable link is an **exact name match**: the leg's text, trimmed and ignoring case, equal to a facility name in the same company. This is the same rule dispatchers already use, and facility names are kept unique per company.
 
-No coordinate column exists on any of these tables. The only geocoding in the app is client-side Google reverse geocoding in `FleetMap.tsx`, with an in-memory cache. That is a different direction and is left alone. All addresses are single free-text strings, so they need to be normalized before they can be used as cache keys.
+**How often it applies (live data, counts only):**
 
-## (b) Cache design
+| Item | Count |
+|---|---|
+| Legs | 48 |
+| Pickups that match a facility name | 25 |
+| Drop-offs that match a facility name | 23 |
+| Facilities | 7, all with a street address |
 
-One new table, `public.geocode_cache`, shared by patient, facility and one-off addresses:
+A travel time can only be counted between **back-to-back stops where the first run drops off at a facility and the next run picks up at a facility**. The common case is a dialysis A-leg dropping at center X followed by a B-leg pickup at center Y.
+- A gap that starts or ends at a patient's home has no location, by design, because home addresses are never looked up. It keeps today's time-only check.
+- Realistic coverage is facility-to-facility hops only, probably a minority of gaps.
 
-- `id uuid pk`, `company_id uuid not null`, `address_hash text not null`, `lat double precision null`, `lng double precision null`, `status text not null` ('matched' | 'no_match' | 'error'), `source text not null default 'census'`, `match_quality text null` (Census match type, e.g. Exact/Non_Exact), `attempts int default 1`, `geocoded_at timestamptz default now()`, `next_retry_at timestamptz null`.
-- `UNIQUE (company_id, address_hash)`, so each address is geocoded once per company.
-- **No-match caching:** a `no_match` row is permanent until the address text changes, which produces a new hash. An `error` row (timeout or 5xx) sets `next_retry_at` with backoff (1h, 6h, 24h, capped), so a down Census service isn't hit on every read.
-- **The raw address is not stored.** Only the hash and coordinates are kept (see c).
+**Today's engine:**
+- `evaluateTruckDay` (`schedule-feasibility.ts`) sorts the timed windows. It flags `overlap` when one run ends after the next starts, and `tight-gap` when the gap is under `minGapMinutes`. The tight-gap message already says "no travel time counted yet".
+- `suggestTrucksForRun` calls `evaluateTruckDay(..., buffers)` and copies `buffers` with `{...input.buffers}`. Anything optional placed on `buffers` therefore passes through without changing `truck-suggestion.ts`.
 
-Normalization (`normalizeAddress`, a pure TypeScript function mirrored in the edge function's `_shared`): trim, uppercase, collapse whitespace and punctuation, standardize common suffixes and units (STREET→ST, AVENUE→AVE, SUITE/STE/#→STE, ROAD→RD, …), and drop a trailing "USA". Strings that are empty or too short to be an address (fewer than about 2 tokens, or no digits, e.g. a bare facility name) return null and are never geocoded.
+---
 
-## (c) Privacy: the decision
+## Stage 1: count travel time in feasibility, without changing results when locations are missing
 
-**Recommendation: rows scoped to each company, plus a salted keyed hash, with no raw address stored.**
+**Design**
+- `FeasibilityLeg` gets two optional fields, `originCoord?` and `destCoord?` (`Coord | null`).
+- `FeasibilityBuffers` gets an optional `travelFloor?: (from, to) => number | null`. In production this is `travelFloorMinutes` from geo-distance.
+- In the back-to-back loop, only when `travelFloor` is set, the first run has a `destCoord` and the next has an `originCoord`:
+  - `travel = travelFloor(cur.destCoord, nxt.originCoord)`.
+  - If `travel != null` and `gap < travel`, flag a new conflict kind, `travel-infeasible`. It is an error: "X ends at about 9:40 AM at a facility about N minutes from Y's 9:50 AM pickup."
+  - Otherwise the existing `tight-gap` check runs as it does today. The geo check never replaces or suppresses the overlap or tight-gap checks; it only adds.
+- If any input is missing, the new code is skipped entirely. Messages, order and the clear flag stay byte-identical.
 
-- `address_hash = HMAC-SHA256(GEOCODE_HASH_SECRET, company_id || '|' || normalized)`, computed only in the edge function. The secret is a server-only secret that I generate. It is never sent to the client.
-- RLS: a SELECT policy for authenticated users only, where `company_id = get_my_company_id()`. The client also scopes with `getActiveCompanyId()`/`NO_COMPANY`. There are no client INSERT/UPDATE/DELETE grants; only `service_role` (the edge function) writes. Following project convention, the creator cross-company policy is not added.
-- The table never contains a patient address. A leaked row is a hash plus a point on a map. Coordinates for a home are still sensitive, which is why tenant RLS also applies.
-
-**Tradeoff:**
-- Scoping per company means the same hospital address is geocoded once by each company rather than once globally. This costs a few extra free Census calls, which is negligible.
-- A global, unsalted cache would save those calls, but it would let anyone with read access test whether some company has a patient at a given address. That is a cross-tenant leak, so it is rejected.
-- A keyed hash also prevents dictionary attacks on the hash itself. The cost is that rotating the secret invalidates the cache, which only means re-geocoding.
-- Optional, not in this pass: facility addresses could be pooled in a global table, since they are not PHI. I'm deferring this to keep one concern.
-
-## (d) When geocoding runs
-
-- **Lazy only.** Nothing geocodes when a patient, facility or leg is saved.
-- Client helper `src/lib/geocode-cache.ts`:
-  - `primeGeocodes(addresses: string[]): Promise<void>` calls the edge function once with up to 50 addresses. It deduplicates, skips empty or unusable inputs, and fills an in-memory map keyed by normalized address.
-  - `getCachedCoords(address): {lat,lng} | null` is synchronous and reads only the in-memory map. On a miss it schedules a debounced background `primeGeocodes` and returns null immediately.
-  - Errors are swallowed and logged without the address. The helper never throws.
-- **Optional batch backfill:** the same edge function accepts `{ mode: "backfill" }` from an owner or creator. It reads the company's distinct facility, patient and one-off addresses server-side and geocodes up to N per call, rate-limited to about 5 per second. It is triggered manually later; there is no cron in this pass.
-
-## (e) Edge function `geocode-addresses`
-
-- Auth: JWT validated in code. `company_id` comes from the caller's profile and never from the request body. Zod body `{ addresses: string[] (max 50, each ≤ 300 chars) }`.
-- Flow per address: normalize → HMAC → look up the cache row → if it is fresh (matched, no_match, or an error not yet due for retry), return it → otherwise call Census.
-- Census call: `GET https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=…&benchmark=Public_AR_Current&format=json`, with a 5s AbortController timeout and concurrency of 4.
-  - Best candidate: the first `addressMatches[]` entry, preferring `Exact` over `Non_Exact`, using `coordinates.x` as lng and `coordinates.y` as lat.
-  - Coordinates are checked for range. An empty list is `no_match`. A timeout, network error or non-200 response is `error` with backoff.
-- Response: `[{ key: normalized, lat, lng, status }]`, where the key is the normalized address the client already sent. No raw address is logged anywhere, because addresses are PHI.
-- Uses the existing `edge_function_rate_limits` table per user.
-
-## (f) Failure path end-to-end
-
-```text
-caller → getCachedCoords(addr)
-   hit (matched)          → {lat,lng} → travelFloorMinutes(...)
-   hit (no_match/error)   → null      → time-only feasibility
-   miss                   → null now  + background prime → next render may hit
-edge fn down / timeout / 5xx / Census down → error row + backoff → null
-```
-
-Scheduling is never blocked and never waits on Census.
-
-### Tests (synthetic, no PHI; Census `fetch` is mocked)
-- `src/lib/address-normalize.test.ts`: suffix and unit folding, whitespace and case, idempotence, and null for empty, too-short or name-only input.
-- `src/lib/geocode-cache.test.ts`, with the edge call mocked:
-  - a miss returns null synchronously and calls the function once
-  - repeated misses for the same address are deduplicated
-  - a prime fills the map so a later read returns coordinates
-  - `no_match` is cached as null
-  - an edge error resolves to null and does not throw
-  - addresses are batched in chunks of 50
-- `supabase/functions/geocode-addresses/census.test.ts` (Deno, pure parser plus mocked fetch):
-  - an Exact match is preferred over Non_Exact
-  - x/y map to lng/lat
-  - an empty match list gives no_match
-  - a timeout or 500 gives error
-  - out-of-range coordinates are rejected
-  - the HMAC differs per company for the same address
-- Full suite run.
-
-## Files (about 420 lines)
+**Files**
 
 | File | Change |
 |---|---|
-| migration `create_geocode_cache` | New table, grants (SELECT to authenticated, ALL to service_role), RLS, unique index. Additive only. |
-| `src/lib/address-normalize.ts` (+ test) | Pure normalizer |
-| `supabase/functions/_shared/address-normalize.ts` | Mirror of the same normalizer (kept in sync, as with the transport vocabulary) |
-| `supabase/functions/geocode-addresses/index.ts` | Edge function |
-| `supabase/functions/geocode-addresses/census.ts` (+ test) | Census fetch and parse |
-| `src/lib/geocode-cache.ts` (+ test) | Client read-through helper |
-| Secret `GEOCODE_HASH_SECRET` | Generated server-side |
-| `AGENTS.md` | One rule: run-address coordinates come only from the company-scoped hashed `geocode_cache` through `geocode-addresses`; never store raw addresses or pool them across tenants |
+| `src/lib/schedule-feasibility.ts` | Optional fields, a new `ConflictKind` value, and a guarded block (about 25 lines) |
+| `src/lib/facility-endpoints.ts` (new) | `resolveLegFacilities(leg, facilities)`: exact-name match to `{originFacilityId, destFacilityId}`; non-matches return null. Plus `withLegCoords(leg, getFacilityCoords)`. Pure, and it only ever touches facility IDs. |
+| `src/hooks/useTruckDayFeasibility.ts` | **Not changed in Stage 1.** It doesn't pass coordinates, so the board is unaffected until it is deliberately connected. |
+| `src/lib/truck-suggestion.ts` | **Not changed.** Coordinates flow through `buffers` and the run objects. A `travel-infeasible` conflict involving the run is rejected by the existing "any conflict" path, but only when the caller supplies locations. |
 
-Not touched: `geo-distance.ts`, feasibility, the UI, NEMSIS, billing, `FleetMap.tsx`.
+**Risk to the shared engine:** low. The only changed file is `schedule-feasibility.ts`, and every new branch requires three optional inputs. One subtle point: adding a new conflict kind could affect code that branches on `kind`. A search found only `FeasibilityResult.tsx` and tests; the plan checks that display falls back to a sensible style for unknown kinds.
 
-## Blockers and open items
-- No hard blockers.
-- `patients.dropoff_facility` and leg `destination_location` often hold a facility name, not an address. This pass only geocodes strings that look like addresses. Resolving a name to a facility address is the wiring pass's job.
-- Census coverage is US-only, and rural Georgia route-only addresses often fail to match. Those get a cached `no_match` and fall back to time-only feasibility.
-- Sending patient addresses to a federal public service is a third-party disclosure without a BAA. Census keeps no account linkage and returns only coordinates, but please confirm this is acceptable under your HIPAA posture. The alternative is to geocode only facility addresses until a BAA-covered provider is chosen.
+**Tests (synthetic coordinates and labels, no PHI)**
+- All existing feasibility, truck-suggestion and run-candidate tests run unchanged and must pass. This is the backward-compatibility proof.
+- New tests in `schedule-feasibility.geo.test.ts`:
+  - No coordinates gives output deep-equal to the version without the `travelFloor` option.
+  - A 20-minute gap between facilities about 30 miles apart is flagged `travel-infeasible`.
+  - The same gap with nearby facilities shows no travel conflict.
+  - A home at one end (null coordinate) means no geo check.
+  - `travelFloor` returning null means no geo check.
+  - Overlap and tight-gap still fire alongside the new check.
+- New tests in `facility-endpoints.test.ts`: exact name matching, case and spacing tolerance, no partial matches, and an unknown name returning null.
+
+**Size:** about 120 lines including tests.
+
+---
+
+## Stage 2: pure acceptance evaluator
+
+`src/lib/run-acceptance.ts`:
+```text
+evaluateRunAcceptance({ run, candidates, buffers, priorityOf })
+ -> { coverable, leastBadTruck, perTruck: [{truckId, clean, breaks:[{legId, kind, howLateMin, tier}]}] }
+```
+- **Clean placement:** `suggestTrucksForRun` is reused as-is. If any truck is eligible, the run is `coverable` and `leastBadTruck` is the top-ranked truck with no breaks.
+- **When something has to give:**
+  - For each crewed truck that is not hard-blocked, the shared `evaluateTruckDay([...existing, run], buffers)` is run. This step only handles time conflicts; down, ALS and safety blocks stay hard rejects.
+  - Conflicts involving the run become `breaks` on the other leg, with `howLate` taken from the window math: the overlap minutes, or the late-to-appointment overrun.
+- **Priority tiers decide who absorbs lateness**, using `deriveRunPriority`:
+  - A truck that breaks any **Tier 1** leg is excluded from "least bad".
+  - Among the rest, the best truck has the fewest Tier 2 breaks, then the fewest total late minutes on Tier 3, then the `suggestTrucksForRun` order breaks ties.
+  - If the run itself is Tier 3 and a placement would delay a Tier 1 or 2 leg, that is reported as "this run should yield".
+- The evaluator is pure: no database or network access, and locations arrive already attached to the legs (from Stage 1).
+
+**Tests (synthetic):**
+- A clean truck gives coverable with no breaks.
+- No clean truck but one acceptable sacrifice gives a least-bad truck plus breaks.
+- A truck whose only option breaks a Tier 1 leg is excluded.
+- Fewer Tier 2 breaks beats fewer total minutes.
+- Safety, ALS or down blocks are never "least bad".
+- With no crewed trucks, coverable is false and no truck is recommended.
+- With locations supplied, a travel-infeasible pair becomes a break.
+
+**Size:** about 150 lines of code and about 120 lines of tests.
+
+---
+
+## Stage 3: show it at one intake point
+
+**Recommended: the Scheduling board's add one-off run form** (`src/pages/Scheduling.tsx`, one-off form).
+- That page already loads the day's trucks, crews, timing settings and assigned legs (`useTruckDayLegs`), and it is where a run is accepted for the day.
+- **Create PCR is a poor fit for v1.** It records past or same-day work, often after the transport happened, so "what would this push late" mostly doesn't apply.
+- I recommend one place only: the scheduling board.
+
+**User experience:** this mirrors "Suggest trucks".
+- A "Check impact" button sits next to the one-off form's save button and runs only when clicked.
+- It shows a small yellow or green card near the save button with three lines:
+  - **Coverable?** Yes, or "No crewed truck can take this".
+  - **Pushes late:** for example "Dialysis A-leg (T1) +12 min" or "nothing".
+  - **Least-bad truck:** the truck name and one reason.
+- Save is never blocked or changed. The card clears when relevant fields change, following the warn pattern.
+
+**Files**
+
+| File | Change |
+|---|---|
+| `src/components/scheduling/IntakeImpactCard.tsx` (new) | Display-only card, about 90 lines |
+| `src/pages/Scheduling.tsx` | Button, state and a call to the evaluator, about 40 lines. Reuses `buildTruckCandidates` and the `useTruckDayLegs` data. |
+| `src/hooks/useTruckDayLegs` area | Facility names are fetched with the company scope (`getActiveCompanyId`). `getFacilityCoords` is called only for resolved facility IDs, and the result is attached as an optional input to this evaluator only. The existing board feasibility stays time-only. |
+
+**Tests:** a pure adapter test covering form values to the prospective run, plus Stage 2's tests. There are no styling or snapshot tests.
+
+**Size:** about 150 lines.
+
+---
+
+## Blockers and caveats
+- **No migration is needed** in any stage.
+- **Coverage:** locations only help facility-to-facility hops. Gaps involving a patient's home stay time-only until a geocoder covered by a BAA exists. Leaving `patients.facility_id` unset changes nothing, because endpoints come from name matching.
+- **First check is often time-only:** location lookup is lazy. The first click may come back time-only and fill in on the next check. The card will say "travel time not yet counted for N stops".
+- **Free-text names:** a drop-off typed differently from the facility name won't match. Exact matching is deliberate; fuzzy matching risks wrong-location routing.
+- **Stage 1 changes results only when callers pass locations,** and in v1 only the intake evaluator does. Existing board feasibility and Suggest trucks results are unchanged.
