@@ -23,6 +23,7 @@ import {
   GitBranch, GripVertical, AlertCircle, BellRing, X, Search, ChevronDown, Sparkles,
 } from "lucide-react";
 import { IntakeImpactCard } from "@/components/scheduling/IntakeImpactCard";
+import { FacilityEndpointInput } from "@/components/scheduling/FacilityEndpointInput";
 import type { ImpactContext } from "@/components/scheduling/TruckBuilder";
 import { checkIntakeImpact, INTAKE_LEG_ID, type LegInfo } from "@/lib/intake-impact";
 import type { RunAcceptance } from "@/lib/run-acceptance";
@@ -355,6 +356,7 @@ export default function Scheduling() {
   const [isOneOff, setIsOneOff] = useState(false);
   const [oneoffForm, setOneoffForm] = useState({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
+    pickup_facility_id: null as string | null, destination_facility_id: null as string | null,
     pickup_time: "", notes: "", service_level: "BLS",
     pickup_location_type: "", destination_type: "",
     needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
@@ -375,6 +377,7 @@ export default function Scheduling() {
   });
   const resetOneoffForm = () => setOneoffForm({
     name: "", pickup_location: "", destination_location: "", trip_type: "dialysis",
+    pickup_facility_id: null as string | null, destination_facility_id: null as string | null,
     pickup_time: "", notes: "", service_level: "BLS",
     pickup_location_type: "", destination_type: "",
     needs_b_leg: false, b_leg_pickup_time: "", b_leg_duration_hours: "0", b_leg_duration_minutes: "0",
@@ -546,6 +549,8 @@ export default function Scheduling() {
         pickup_time: oneoffForm.pickup_time || null,
         pickup_location: oneoffForm.pickup_location,
         destination_location: oneoffForm.destination_location,
+        pickup_facility_id: oneoffForm.pickup_facility_id,
+        destination_facility_id: oneoffForm.destination_facility_id,
         trip_type: normalizedTripType as any,
         estimated_duration_minutes: null,
         notes: oneoffForm.notes || null,
@@ -593,6 +598,9 @@ export default function Scheduling() {
           pickup_time: oneoffForm.b_leg_pickup_time || null,
           pickup_location: oneoffForm.destination_location,
           destination_location: oneoffForm.pickup_location,
+          // B-leg mirrors A: facility ids swap like the text.
+          pickup_facility_id: oneoffForm.destination_facility_id,
+          destination_facility_id: oneoffForm.pickup_facility_id,
           trip_type: normalizedTripType as any,
           estimated_duration_minutes: bDuration || null,
           notes: oneoffForm.notes || null,
@@ -946,12 +954,13 @@ export default function Scheduling() {
   // Advisory intake impact check (one-off form). Read-only; never assigns or gates.
   const [impactCtx, setImpactCtx] = useState<ImpactContext | null>(null);
   const [impactResult, setImpactResult] = useState<(RunAcceptance & { geoPairsSkipped: boolean }) | null>(null);
-  const [impactFacilities, setImpactFacilities] = useState<{ id: string; name: string }[]>([]);
+  const [impactFacilities, setImpactFacilities] = useState<{ id: string; name: string; active: boolean | null }[]>([]);
+  const pickerFacilities = useMemo(() => impactFacilities.filter((f) => f.active !== false), [impactFacilities]);
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
-      const { data } = await supabase.from("facilities").select("id, name").eq("company_id", companyId);
+      const { data } = await supabase.from("facilities").select("id, name, active").eq("company_id", companyId);
       if (!cancelled) setImpactFacilities(data ?? []);
     })();
     return () => { cancelled = true; };
@@ -967,6 +976,8 @@ export default function Scheduling() {
     const legInfo = new Map<string, LegInfo>(legs.map((l) => [l.id, {
       pickup_location: l.exception_pickup_location ?? l.pickup_location,
       destination_location: l.exception_destination_location ?? l.destination_location,
+      pickup_facility_id: l.pickup_facility_id ?? null, destination_facility_id: l.destination_facility_id ?? null,
+      pickup_overridden: !!l.exception_pickup_location, destination_overridden: !!l.exception_destination_location,
       leg_type: l.leg_type, trip_type: l.trip_type, chair_time: l.chair_time,
     }]));
     setImpactResult(checkIntakeImpact({
@@ -1608,8 +1619,8 @@ export default function Scheduling() {
                     </Select><IntakeFieldError field="destination_type" issues={oneoffIssues} />
                   </div>
                 </div>
-                <div><Label>Pickup Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_pickup} /></Label><Input aria-label="pickup_location" aria-invalid={oneoffInvalid("pickup_location")} className={oneoffErrorClass("pickup_location")} value={oneoffForm.pickup_location} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_location: e.target.value }))} placeholder="123 Main St, Atlanta GA" /><IntakeFieldError field="pickup_location" issues={oneoffIssues} /></div>
-                <div><Label>Destination Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_dropoff} /></Label><Input aria-label="destination_location" aria-invalid={oneoffInvalid("destination_location")} className={oneoffErrorClass("destination_location")} value={oneoffForm.destination_location} onChange={(e) => setOneoffForm(f => ({ ...f, destination_location: e.target.value }))} placeholder="Facility name or address" /><IntakeFieldError field="destination_location" issues={oneoffIssues} /></div>
+                <div><Label>Pickup Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_pickup} /></Label><FacilityEndpointInput ariaLabel="pickup_location" invalid={oneoffInvalid("pickup_location")} className={oneoffErrorClass("pickup_location")} value={oneoffForm.pickup_location} facilityId={oneoffForm.pickup_facility_id} facilities={pickerFacilities} onChange={({ text, facilityId }) => setOneoffForm(f => ({ ...f, pickup_location: text, pickup_facility_id: facilityId }))} placeholder="123 Main St, Atlanta GA or pick a facility" /><IntakeFieldError field="pickup_location" issues={oneoffIssues} /></div>
+                <div><Label>Destination Address *<PCRTooltip text={ADMIN_TOOLTIPS.one_off_dropoff} /></Label><FacilityEndpointInput ariaLabel="destination_location" invalid={oneoffInvalid("destination_location")} className={oneoffErrorClass("destination_location")} value={oneoffForm.destination_location} facilityId={oneoffForm.destination_facility_id} facilities={pickerFacilities} onChange={({ text, facilityId }) => setOneoffForm(f => ({ ...f, destination_location: text, destination_facility_id: facilityId }))} placeholder="Facility name or address" /><IntakeFieldError field="destination_location" issues={oneoffIssues} /></div>
                 <div><Label>Pickup Time<PCRTooltip text={ADMIN_TOOLTIPS.pickup_time} /></Label><Input type="time" value={oneoffForm.pickup_time} onChange={(e) => setOneoffForm(f => ({ ...f, pickup_time: e.target.value }))} /></div>
 
                 {/* Transport-type-specific fields */}
