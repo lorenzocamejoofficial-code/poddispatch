@@ -71,6 +71,13 @@
       "when": 1793733514280,
       "tag": "0009_nemsis_ems_nodes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794174478022,
+      "tag": "0010_create_geocode_cache",
+      "breakpoints": true
     }
   ]
 }

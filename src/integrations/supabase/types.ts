@@ -2846,6 +2846,48 @@ export type Database = {
         }
         Relationships: []
       }
+      geocode_cache: {
+        Row: {
+          address_hash: string
+          attempts: number
+          company_id: string
+          geocoded_at: string
+          id: string
+          lat: number | null
+          lng: number | null
+          match_quality: string | null
+          next_retry_at: string | null
+          source: string
+          status: string
+        }
+        Insert: {
+          address_hash: string
+          attempts?: number
+          company_id: string
+          geocoded_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          match_quality?: string | null
+          next_retry_at?: string | null
+          source?: string
+          status: string
+        }
+        Update: {
+          address_hash?: string
+          attempts?: number
+          company_id?: string
+          geocoded_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          match_quality?: string | null
+          next_retry_at?: string | null
+          source?: string
+          status?: string
+        }
+        Relationships: []
+      }
       hold_timers: {
         Row: {
           company_id: string
