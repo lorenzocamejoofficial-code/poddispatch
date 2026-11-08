@@ -65,4 +65,4 @@
 - [x] Reviewer Schematron upload (creator-only, additive, revertible) on NEMSIS CTA page
 - [x] Manual "Create ePCR" for owners/managers
 - [x] Scheduling board: advisory "Suggest trucks" ranking (read-only, no auto-assign)
-- [ ] Facility-only geocode cache (Census, HIPAA: no patient/residential addresses)
+- [x] Facility-only geocode cache (Census, HIPAA: no patient/residential addresses)

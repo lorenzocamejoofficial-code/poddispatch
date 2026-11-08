@@ -33,15 +33,10 @@ Deno.serve(async (req) => {
     if (!parsed.success) return json({ error: parsed.error.flatten() }, 400);
 
     const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    let q = admin.from("facilities").select("id, address").eq("company_id", companyId).is("deleted_at", null);
-    if ("facility_ids" in parsed.data) q = q.in("id", parsed.data.facility_ids);
-    else q = q.limit(200);
-    let { data: facilities, error } = await q;
-    if (error && /deleted_at/.test(error.message)) {
-      let q2 = admin.from("facilities").select("id, address").eq("company_id", companyId);
-      if ("facility_ids" in parsed.data) q2 = q2.in("id", parsed.data.facility_ids); else q2 = q2.limit(200);
-      ({ data: facilities, error } = await q2);
-    }
+    // Only the facilities table is ever read — never patients or leg addresses.
+    let q = admin.from("facilities").select("id, address").eq("company_id", companyId);
+    q = "facility_ids" in parsed.data ? q.in("id", parsed.data.facility_ids) : q.limit(200);
+    const { data: facilities, error } = await q;
     if (error) return json({ error: "facility read failed" }, 500);
 
     const results: Record<string, { lat: number; lng: number } | null> = {};
