@@ -96,9 +96,9 @@ describe("facility-geocode client helper", () => {
     expect(getFacilityCoords("f3")).toBeNull();
   });
   it("batches in chunks of 50", async () => {
-    const inv = vi.fn(async () => ({}));
+    const inv = vi.fn(async (_ids: string[]) => ({}));
     __testing.setInvoker(inv);
     await primeFacilityCoords(Array.from({ length: 120 }, (_, i) => `f${i}`));
-    expect(inv.mock.calls.map((c) => (c[0] as string[]).length)).toEqual([50, 50, 20]);
+    expect(inv.mock.calls.map((c) => c[0].length)).toEqual([50, 50, 20]);
   });
 });
