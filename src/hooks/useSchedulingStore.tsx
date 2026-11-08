@@ -16,6 +16,9 @@ export interface LegDisplay {
   chair_time: string | null;
   pickup_location: string;
   destination_location: string;
+  /** Optional facility links (one-off form v1); null = free-text/home. */
+  pickup_facility_id?: string | null;
+  destination_facility_id?: string | null;
   trip_type: string;
   estimated_duration_minutes: number | null;
   notes: string | null;
@@ -254,6 +257,8 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           patient_bariatric: l.patient?.bariatric ?? null,
           is_oneoff: isOneoff,
           service_level: l.service_level ?? null,
+          pickup_facility_id: l.pickup_facility_id ?? null,
+          destination_facility_id: l.destination_facility_id ?? null,
         };
       })
     );

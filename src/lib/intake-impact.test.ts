@@ -42,3 +42,12 @@ describe("checkIntakeImpact", () => {
     expect(r.geoPairsSkipped).toBe(true);
   });
 });
+
+describe("checkIntakeImpact with facility id links", () => {
+  it("id-linked run with non-matching text still gets a travel break", () => {
+    const linkedForm = { ...form, destination_location: "East campus (typed)", destination_facility_id: "fE" };
+    const info = new Map<string, LegInfo>([["b", { pickup_location: "North (typed)", pickup_facility_id: "fN", destination_location: null, leg_type: "B", trip_type: "outpatient", chair_time: null }]]);
+    const r = checkIntakeImpact({ form: linkedForm, legType: "A", timing: leg(INTAKE_LEG_ID, 600), candidates: [truck([leg("b", 700)])], buffers, legInfo: info, facilities, getCoords: (id) => coords[id] ?? null });
+    expect(r.leastBadTruck?.breaks[0]).toMatchObject({ legId: "b", kind: "travel-infeasible" });
+  });
+});
