@@ -67,3 +67,4 @@
 - [x] Scheduling board: advisory "Suggest trucks" ranking (read-only, no auto-assign)
 - [x] Facility-only geocode cache (Census, HIPAA: no patient/residential addresses)
 - [x] Intake consequence check: S1 geo-aware feasibility, S2 evaluator, S3 Check impact card on one-off form
+- [ ] Link one-off run endpoints to facility records (one-off form only; recurring/PCR/exceptions deferred)

@@ -5177,6 +5177,7 @@ export type Database = {
           chair_time: string | null
           company_id: string
           created_at: string
+          destination_facility_id: string | null
           destination_location: string
           destination_type: string | null
           estimated_duration_minutes: number | null
@@ -5213,6 +5214,7 @@ export type Database = {
           origin_type: string | null
           patient_id: string | null
           payer_class: Database["public"]["Enums"]["payer_class"] | null
+          pickup_facility_id: string | null
           pickup_location: string
           pickup_time: string | null
           run_date: string
@@ -5227,6 +5229,7 @@ export type Database = {
           chair_time?: string | null
           company_id: string
           created_at?: string
+          destination_facility_id?: string | null
           destination_location: string
           destination_type?: string | null
           estimated_duration_minutes?: number | null
@@ -5263,6 +5266,7 @@ export type Database = {
           origin_type?: string | null
           patient_id?: string | null
           payer_class?: Database["public"]["Enums"]["payer_class"] | null
+          pickup_facility_id?: string | null
           pickup_location: string
           pickup_time?: string | null
           run_date?: string
@@ -5277,6 +5281,7 @@ export type Database = {
           chair_time?: string | null
           company_id?: string
           created_at?: string
+          destination_facility_id?: string | null
           destination_location?: string
           destination_type?: string | null
           estimated_duration_minutes?: number | null
@@ -5313,6 +5318,7 @@ export type Database = {
           origin_type?: string | null
           patient_id?: string | null
           payer_class?: Database["public"]["Enums"]["payer_class"] | null
+          pickup_facility_id?: string | null
           pickup_location?: string
           pickup_time?: string | null
           run_date?: string
@@ -5332,10 +5338,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "scheduling_legs_destination_facility_id_fkey"
+            columns: ["destination_facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "scheduling_legs_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduling_legs_pickup_facility_id_fkey"
+            columns: ["pickup_facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
             referencedColumns: ["id"]
           },
         ]
