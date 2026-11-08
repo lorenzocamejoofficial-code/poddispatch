@@ -231,6 +231,15 @@ interface TruckBuilderProps {
   /** Advisory only: unassigned run to rank trucks for. */
   suggestFor?: LegDisplay | null;
   onClearSuggest?: () => void;
+  /** Advisory only: read-only candidate context for the intake impact check. */
+  onImpactContext?: (ctx: ImpactContext) => void;
+}
+
+export interface ImpactContext {
+  candidates: TruckCandidate[];
+  buffers: FeasibilityBuffers;
+  stats: Map<string, any>;
+  settings: any;
 }
 
 interface TruckRiskData {
@@ -249,7 +258,7 @@ interface HoldTimerData {
   slot_id: string | null;
 }
 
-export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException, onDownCountChange, activeTokens = [], operationalAlerts = [], onLogChange, onDispatcherCancel, suggestFor = null, onClearSuggest }: TruckBuilderProps) {
+export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onEditException, onDownCountChange, activeTokens = [], operationalAlerts = [], onLogChange, onDispatcherCancel, suggestFor = null, onClearSuggest, onImpactContext }: TruckBuilderProps) {
   const { addingLeg, setAddingLeg } = useSchedulingStore();
   const feasibilityRefreshKey = useMemo(
     () => getFeasibilityRefreshKey(legs),
@@ -429,6 +438,19 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     result.ineligible.forEach((r) => views.set(r.truckId, { kind: "ineligible", reason: r.reason }));
     return { views, skipped: skippedNoCrew.length };
   }, [suggestFor, trucks, crews, truckServiceLevel, truckEquipmentMap, getCrewCapability, availability, dayLegs]);
+
+  // Share the same read-only candidate set with the intake impact check.
+  useEffect(() => {
+    if (!onImpactContext) return;
+    const { candidates } = buildTruckCandidates({
+      trucks: trucks.map((t) => ({ truckId: t.id, service_level: truckServiceLevel.get(t.id), equipment: truckEquipmentMap.get(t.id) })),
+      crewedTruckIds: new Set(crews.map((c) => c.truck_id)),
+      crewCapability: getCrewCapability,
+      downTruckIds: new Set(availability.map((a) => a.truck_id)),
+      legsByTruck: dayLegs.legsByTruck,
+    });
+    onImpactContext({ candidates, buffers: dayLegs.buffers, stats: dayLegs.stats, settings: dayLegs.settings });
+  }, [onImpactContext, trucks, crews, truckServiceLevel, truckEquipmentMap, getCrewCapability, availability, dayLegs]);
 
   const assignLeg = useCallback(async (truckId: string, legId: string) => {
     const currentSlots = truckLegs(truckId);
