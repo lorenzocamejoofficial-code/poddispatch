@@ -495,6 +495,9 @@ export default function Scheduling() {
         wound_location: result.oneoff_wound_location ?? "",
         wound_stage: result.oneoff_wound_stage ?? "",
         chair_time: result.chair_time ?? "",
+        // Copied text only; re-pick to link (name match still applies).
+        pickup_facility_id: null,
+        destination_facility_id: null,
       }));
       setOneoffCopySearchOpen(false);
       setOneoffCopySearchQuery("");
