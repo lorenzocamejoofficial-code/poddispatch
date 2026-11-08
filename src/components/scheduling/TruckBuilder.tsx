@@ -31,6 +31,8 @@ import { usePatientTimeStats } from "@/hooks/usePatientTimeStats";
 import { getFeasibilityRefreshKey, useTruckDayFeasibility, useTruckDayLegs, toFeasibilityLeg } from "@/hooks/useTruckDayFeasibility";
 import { suggestTrucksForRun } from "@/lib/truck-suggestion";
 import { buildTruckCandidates, toSuggestionRun } from "@/lib/truck-suggestion-candidates";
+import type { TruckCandidate } from "@/lib/truck-suggestion";
+import type { FeasibilityBuffers } from "@/lib/schedule-feasibility";
 import { TruckSuggestionReasons, type TruckSuggestionView } from "@/components/scheduling/TruckSuggestionReasons";
 import type { TruckDayFeasibility } from "@/lib/schedule-feasibility";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";

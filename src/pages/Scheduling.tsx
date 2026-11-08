@@ -1371,6 +1371,7 @@ export default function Scheduling() {
               onLogChange={logScheduleChange}
               suggestFor={suggestFor}
               onClearSuggest={() => setSuggestForId(null)}
+              onImpactContext={setImpactCtx}
               onDispatcherCancel={async (legId: string) => {
                 const leg = legs.find(l => l.id === legId);
                 if (!leg) return;
@@ -1700,7 +1701,13 @@ export default function Scheduling() {
 
                 <div><Label>Notes</Label><Textarea value={oneoffForm.notes} onChange={(e) => setOneoffForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any special instructions for crew" /></div>
                 {oneoffIssues.length > 0 && <div role="alert" className="space-y-1">{oneoffIssues.map(i => <p key={i.field} className="text-xs text-destructive">{i.label} is required.</p>)}</div>}
-                <AsyncButton onClick={handleCreate} pendingLabel="Creating...">Create One-Off {pendingLegType}-Leg</AsyncButton>
+                <IntakeImpactCard result={impactResult} truckName={(id) => trucks.find(t => t.id === id)?.name ?? "Truck"} onClose={() => setImpactResult(null)} />
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={runImpactCheck} disabled={!impactCtx || !oneoffForm.pickup_time}>
+                    <Sparkles className="h-4 w-4 mr-1" />Check impact
+                  </Button>
+                  <AsyncButton onClick={handleCreate} pendingLabel="Creating...">Create One-Off {pendingLegType}-Leg</AsyncButton>
+                </div>
               </div>
             ) : (
               /* ── EXISTING PATIENT FORM ── */
