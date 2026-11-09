@@ -378,10 +378,11 @@ export function PreSubmitChecklist({ tripId, patientId, open, onOpenChange, onSu
       const authEnd = p?.prior_auth_period_end;
       if (rsnatEligible && patientId && utn && authStart && authEnd) {
         try {
-          const usedRoundTrips = await countRsnatRoundTrips(patientId, authStart, authEnd);
+          const usedRoundTrips = await countRsnatRoundTrips(patientId, authStart, authEnd, t.run_date ? String(t.run_date).slice(0, 10) : null);
           const cap = evaluateRsnatTripCap({
             authorizedRoundTrips: p?.prior_auth_trips_authorized,
             usedRoundTrips,
+            countingThisTrip: true,
           });
           if (cap.status === "exceeded") {
             checks.push({

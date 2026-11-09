@@ -279,8 +279,11 @@ export function evaluateRsnatTripCap(input: {
 } {
   const authorized = input.authorizedRoundTrips ?? 40;
   const used = input.usedRoundTrips;
+  // countingThisTrip: `used` already includes the trip being billed, so it is
+  // over the cap only when used > authorized (trip #authorized is still covered).
+  const over = input.countingThisTrip ? used > authorized : used >= authorized;
   const remaining = authorized - used;
-  const status = used >= authorized ? "exceeded"
+  const status = over ? "exceeded"
     : remaining <= 4 && remaining > 0 ? "approaching" : "ok";
   const message = status === "exceeded"
     ? `RSNAT authorization covers ${authorized} round trips; ${used} already used. Request a new/added authorization from the MAC before billing.`

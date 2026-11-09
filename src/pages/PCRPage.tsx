@@ -846,6 +846,8 @@ export default function PCRPage() {
   // same submit path, crew signatures still required.
   const isOfficeRoute = useLocation().pathname === "/pcr-office";
   const isOfficeManualMode = searchParams.get("mode") === "manual" && (role === "owner" || role === "manager");
+  // Office-created PCRs return to Trips; crew PCRs return to the crew dashboard.
+  const exitPath = isOfficeManualMode ? "/trips" : "/crew-dashboard";
   const qaReviewId = searchParams.get("qaReviewId");
 
   // Fix 3 — handler called by usePCRData realtime when truck_id or crew_id change on this trip.
@@ -856,7 +858,7 @@ export default function PCRPage() {
     if (!change.newCrewId) {
       markAccessRevokedRef.current?.();
       toast.message("This run has been reassigned and is no longer in your queue.");
-      navigate("/crew-dashboard");
+      navigate(exitPath);
       return;
     }
     const { data: crewRow } = await supabase
@@ -872,18 +874,18 @@ export default function PCRPage() {
     if (!stillOnCrew) {
       markAccessRevokedRef.current?.();
       toast.message("This run has been reassigned and is no longer in your queue.");
-      navigate("/crew-dashboard");
+      navigate(exitPath);
       return;
     }
     // Still on crew — silent refresh
     refetchRef.current?.();
-  }, [profileId, navigate]);
+  }, [profileId, navigate, exitPath]);
 
   // Phase 3 — Fix three: react to dispatcher cancellation / deletion of this trip.
   const handleRunCancelled = useCallback(() => {
     toast.message("This run has been cancelled by dispatch");
-    setTimeout(() => navigate("/crew-dashboard"), 2000);
-  }, [navigate]);
+    setTimeout(() => navigate(exitPath), 2000);
+  }, [navigate, exitPath]);
 
   const { trip, loading, saving, accessDeniedByRLS, unsavedFieldCount, retryFailedSaves, updateField, updateMultipleFields, recordTime, refetch, markAccessRevoked } =
     usePCRData(tripId, handleTruckOrCrewChanged, handleRunCancelled);
@@ -1050,7 +1052,7 @@ export default function PCRPage() {
             </div>
             <p className="text-sm font-semibold text-foreground">You are not assigned to this run</p>
             <p className="text-xs text-muted-foreground">If you believe this is an error, contact your dispatcher.</p>
-            <Button className="w-full mt-2" onClick={() => navigate("/crew-dashboard")}>
+            <Button className="w-full mt-2" onClick={() => navigate(exitPath)}>
               Back to Dashboard
             </Button>
           </div>
@@ -1501,7 +1503,7 @@ export default function PCRPage() {
         navigate("/compliance");
       } else {
         toast.success("PCR submitted, trip is ready for billing!");
-        navigate("/crew-dashboard");
+        navigate(exitPath);
       }
     } catch {
       toast.error("Failed to submit PCR");
@@ -1574,7 +1576,7 @@ export default function PCRPage() {
           <p className="text-sm text-muted-foreground max-w-md">
             Waiting for original crew to complete handoff signatures.
           </p>
-          <Button variant="outline" onClick={() => navigate("/crew-dashboard")}>Back to Dashboard</Button>
+          <Button variant="outline" onClick={() => navigate(exitPath)}>Back to Dashboard</Button>
         </div>
       </Layout>
     );
