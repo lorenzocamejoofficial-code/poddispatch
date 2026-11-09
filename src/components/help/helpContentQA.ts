@@ -238,7 +238,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
     ],
   },
 
-  "/crew-schedule-admin": {
+  "/crew-schedule": {
     title: "Crew Schedule Delivery",
     description: "Push today's run list to crews: copy/text, email, or one-day share link.",
     questions: [
@@ -247,7 +247,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
       { q: "How is this different from the crew Schedule page?", a: "The crew Schedule page is read-only and shows crew their own runs. This admin page packages and pushes the schedule outward. Crews never see this page; only owners, managers, and dispatchers do." },
       { q: "What does Copy Daily Schedule do?", a: "Formats the truck's runs for the selected date into clean text — pickup times, patient names, addresses, return legs, flags — ready to paste into SMS, Slack, or any messenger. The system does not send the text for you; you stay in control of which number receives it." },
       { q: "What does Email Schedule do?", a: "Sends the formatted run list to one recipient, prefilled from the first assigned crew member with an email. You can change it, for example to a relief driver. Sends are logged in Email Activity." },
-      { q: "What is the Backup Share Link?", a: "A one-day, one-truck URL (under /crew/:token) that opens the daily run sheet without login. Use it when a crew member is on a personal device, hasn't been onboarded yet, or has lost access. Links expire automatically." },
+      { q: "What is the Backup Share Link?", a: "A one-day, one-truck URL (under /crew/:token) that opens the daily run sheet without login. Use it when a crew member is on a personal device, hasn't been onboarded yet, or has lost access. Each link is for one truck on one day; revoke it to block access early." },
       { q: "Why is a truck missing from the dropdowns?", a: "Trucks marked Out of Service are excluded — you cannot send a schedule for a truck that should not run. Restore the truck in Trucks & Crews to make it selectable." },
       { q: "Why does the SMS button say Coming Soon?", a: "Direct outbound SMS from the platform is not enabled yet. Use Copy Daily Schedule and paste into your messenger, or use Email Schedule." },
       { q: "Can I send tomorrow's schedule today?", a: "Yes. The date picker covers the entire scheduling window (about 13 months out). Crews receive whatever is on the board for that date at the moment you send." },
@@ -308,13 +308,13 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
 
   "/migration": {
     title: "Migration & Import",
-    description: "Bring legacy data (patients, trips, trucks, employees) from your old system into PodDispatch.",
+    description: "Bring patient and facility records from your old system into PodDispatch.",
     questions: [
       { q: "What is this page for?", a: "The migration hub for moving off your old dispatch or billing system. Bulk-import data from CSV, run a guided quick-start, operate in parallel-run mode while you cut over, and review every past import." },
       { q: "What are the tabs?", a: "Four: Import Data, Quick Start, Parallel Run, and Import History." },
       { q: "What is the Import Data tab?", a: "Upload a CSV, map its columns to PodDispatch fields, preview with duplicate and data-quality warnings, then commit. Each import is logged so you can see what was added, skipped, and flagged. A Start-Forward Mode banner appears once you're ready to dispatch, with a Go to Dispatch button." },
-      { q: "What is the Quick Start wizard?", a: "A guided flow for new companies that walks you through importing the minimum data needed to start dispatching — patients, trucks, and crew — in the recommended order." },
-      { q: "What is Parallel Run Mode?", a: "Use this while you are still running your old system alongside PodDispatch. Periodically import recent trip data so you can compare PodDispatch output (claims, reports) against your old system before fully cutting over." },
+      { q: "What is the Quick Start wizard?", a: "A guided flow for new companies that walks you through the setup steps needed to start dispatching, in the recommended order. Only patients and facilities are imported from files; trucks and crew are added on their own pages." },
+      { q: "What is Parallel Run Mode?", a: "Use this while you are still running your old system alongside PodDispatch. Compare PodDispatch output (claims, reports) against your old system before fully cutting over." },
       { q: "How does duplicate detection work?", a: "On patient imports the system matches first + last name against existing patients (case-insensitive, with partial-match warnings). Likely duplicates are surfaced in the preview so you can skip them or import anyway." },
       { q: "Where do I see past imports?", a: "The Import History tab lists every import run for your company: file name, data type, row counts, errors, and who performed it. Use it as an audit trail and to re-download error reports." },
     ],
@@ -340,7 +340,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
     questions: [
       { q: "What is this page for?", a: "Settings for your individual account (not your company). Change your login email, change your password, enable two-factor authentication, and replay any of the product tours." },
       { q: "How do I change my login email?", a: "Type the new address in the Change Email card and click Update Email. A confirmation link is sent to the new address; the change takes effect after you click it." },
-      { q: "How do I change my password?", a: "Type a new password (8 characters minimum) in both fields of the Change Password card, then Update Password. You stay logged in on this device; other sessions are kept open." },
+      { q: "How do I change my password?", a: "Type a new password (8 characters minimum) in both fields of the Change Password card, then Update Password. You stay logged in on this device; other signed-in sessions are not covered here; sign out on other devices if you are concerned." },
       { q: "What is the Two-Factor Authentication section?", a: "Set up an authenticator app (Google Authenticator, 1Password, Authy, etc.) to require a 6-digit code at login. Strongly recommended for any account with PHI access." },
       { q: "What is Replay Tours?", a: "List of every guided tour for your role. Click Replay on any one to walk through the page again. Useful when you onboard a new dispatcher or biller and want to give them a quick refresher." },
       { q: "Where do I change company settings (not personal)?", a: "Company Settings is a separate page at /settings (Admin → Settings in the sidebar). This page only changes things about you." },
@@ -354,7 +354,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
     questions: [
       { q: "What is this page for?", a: "The deliverability log for every transactional email and automated call the platform sends out on your behalf — employee invites, password resets, schedule emails, facility confirmation calls, support replies, system notifications." },
       { q: "What are the tabs?", a: "Two: Emails and Calls. Emails shows the outbound email log (to, subject, status, timestamp). Calls shows the outbound call log (to, status, duration)." },
-      { q: "What do the email status values mean?", a: "Pending = handed off to the provider, not yet confirmed. Sent = accepted and delivered by the provider. Failed = the provider rejected it (error shown in the row). Bounced = the recipient's mail server rejected it after delivery. Suppressed = the address is on the do-not-send list (typically after repeated bounces or complaints)." },
+      { q: "What do the email status values mean?", a: "Pending = handed off to the provider, not yet confirmed. Sent = accepted by the provider (not a confirmation it reached the inbox). Failed = the provider rejected it (error shown in the row). Bounced = the recipient's mail server rejected it after delivery. Suppressed = the address is on the do-not-send list (typically after repeated bounces or complaints)." },
       { q: "Why didn't my crew member get their invite?", a: "Filter by their email and look at the most recent row. Sent but missing → ask them to check spam and confirm the address. Bounced or Failed → the error explains why (bad address, full mailbox, blocked by their domain). Resend from the Employees page after fixing it." },
       { q: "What is the Resend ID?", a: "The unique tracking ID our email provider returned for that send. Mainly useful for support — paste it into a ticket and we can look up the full delivery trail." },
       { q: "How far back does the log go?", a: "Date-range filter spans the last 24 hours, 7 days, 30 days, or 90 days. Older entries are retained but not shown by default. Results are capped at the most recent 500 rows per filter to keep the page fast; narrow the filter if you need older results." },
@@ -460,7 +460,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
       { q: "What is this page for?", a: "Creator-only sandbox for exercising the platform with synthetic data. Seed standard scenarios, inject live chaos events to stress the dispatch board, capture snapshots, and validate the billing and scheduling pipelines — all without affecting real tenant PHI." },
       { q: "How is the page laid out?", a: "Status cards at the top (Trucks, Patients, Trips, Crews, Runs counts in the simulation tenant). Then preconditions check, Seed Size selector (Small / Medium / Large), Standard Scenarios section, Live Chaos Events section, Snapshots card, pipeline validation panels, and destructive wipe cards at the bottom." },
       { q: "What is the difference between Standard Scenarios and Live Chaos Events?", a: "Standard Scenarios seed a whole day's worth of synthetic data from scratch (Dialysis Heavy Day, Dialysis + Discharge Mix, Late Adds + Cancellations, Billing Risk Day, Facility Delay Day). Live Chaos Events inject pressure into the data that is already there — Facility Behind, Crew Slow, Patient Not Ready, Late Add Discharge, Cancel/No-Show, Truck Down, Cascade Pressure." },
-      { q: "What do snapshots do?", a: "Save the entire simulation state under a name so you can come back to that exact starting point later. Useful for demoing the same scenario repeatedly, or for comparing how the system behaves before and after a code change." },
+      { q: "What do snapshots do?", a: "Save the entire simulation state under a name so you can return to it later. Useful for demoing the same scenario repeatedly, or for comparing how the system behaves before and after a code change." },
       { q: "What do the validation panels show?", a: "After running a scenario, the schedule validator confirms feasibility math, safety enforcement, and copy-forward integrity. The pipeline validator confirms PCRs flow into Trips and Trips flow into clean Claims with the right amounts. Anything red is a regression worth investigating." },
       { q: "Will simulated data show up in real metrics?", a: "No. Simulation runs are tagged at the row level and the Override Monitor, reports, and creator dashboards all filter them out by default. The Override Monitor exposes an explicit Simulated Only filter if you want to look at just simulated overrides." },
       { q: "How do I clean up?", a: "Use the wipe cards at the bottom of the page. Each is destructive and requires a confirmation — start with the targeted ones (wipe trips, wipe patients) and only use the full wipe if you really want a clean slate." },
