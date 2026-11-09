@@ -51,3 +51,16 @@ describe("RSNAT shared period counter", () => {
     await expect(countRsnatRoundTrips("p", "2026-10-01", "2026-11-30")).rejects.toThrow("unavailable");
   });
 });
+describe("RSNAT counter asOf", () => {
+  beforeEach(() => { vi.clearAllMocks(); mocks.company.mockResolvedValue("company-a"); mocks.result = { count: 10, error: null }; });
+  it("stops counting at the trip's own date", async () => {
+    const q = makeQuery();
+    await countRsnatRoundTrips("p", "2026-10-01", "2026-11-30", "2026-10-15");
+    expect(q.lte).toHaveBeenCalledWith("run_date", "2026-10-15");
+  });
+  it("keeps the period end when asOf is later or absent", async () => {
+    const q = makeQuery();
+    await countRsnatRoundTrips("p", "2026-10-01", "2026-11-30", "2026-12-15");
+    expect(q.lte).toHaveBeenCalledWith("run_date", "2026-11-30");
+  });
+});
