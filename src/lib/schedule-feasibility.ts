@@ -40,6 +40,13 @@ export interface FeasibilityLeg {
   /** OPTIONAL resolved facility coords for the pickup / drop-off ends. */
   originCoord?: GeoPoint | null;
   destCoord?: GeoPoint | null;
+  /** OPTIONAL: set only when tripMinutes came from this patient's PCR history (n >= MIN_SAMPLES). */
+  timingSource?: { trip: "history"; n: number; confidence: "low" | "medium" | "high" };
+  /**
+   * OPTIONAL B-leg patient-readiness time from learned A→B turnaround history.
+   * Patient signal only — never used as a truck gap or window start.
+   */
+  predictedReady?: number | null;
 }
 
 export interface LegWindow {
@@ -56,6 +63,8 @@ export interface Conflict {
   severity: "error" | "warning";
   legIds: string[];
   message: string;
+  /** OPTIONAL: present only when a travel floor was actually computed for this pair. */
+  gapSource?: "distance";
 }
 
 export interface TruckDayFeasibility {
@@ -136,6 +145,7 @@ export function evaluateTruckDay(legs: FeasibilityLeg[], b: FeasibilityBuffers):
           conflicts.push({
             kind: "travel-infeasible", severity: "error", legIds: [cur.legId, nxt.legId],
             message: `${cur.label} ends ~${fmt(cur.end!)} at a facility at least ${travel} min from ${nxt.label}'s ${fmt(nxt.start!)} pickup.`,
+            gapSource: "distance",
           });
         }
       }
@@ -143,4 +153,26 @@ export function evaluateTruckDay(legs: FeasibilityLeg[], b: FeasibilityBuffers):
   }
 
   return { windows, conflicts, clear: conflicts.length === 0 };
+}
+
+/** Advisory patient-readiness note (separate from truck conflicts so ranking is unaffected). */
+export interface ReadinessWarning { legId: string; label: string; kind: "early-return"; readyAt: number; scheduledPickup: number; message: string }
+
+/**
+ * B legs whose scheduled pickup is earlier than the patient's history-predicted
+ * ready time by more than grace. Only legs carrying predictedReady (history,
+ * confidence not "none") can produce a warning; otherwise returns [].
+ */
+export function evaluatePatientReadiness(legs: FeasibilityLeg[], b: FeasibilityBuffers): ReadinessWarning[] {
+  const out: ReadinessWarning[] = [];
+  for (const l of legs) {
+    if (l.legKind !== "B" || l.predictedReady == null || l.scheduledPickup == null) continue;
+    if (l.scheduledPickup + b.graceMinutes < l.predictedReady) {
+      out.push({
+        legId: l.legId, label: l.label, kind: "early-return", readyAt: l.predictedReady, scheduledPickup: l.scheduledPickup,
+        message: `${l.label}'s return is set for ${fmt(l.scheduledPickup)}, but this patient is usually ready around ${fmt(l.predictedReady)}.`,
+      });
+    }
+  }
+  return out;
 }
