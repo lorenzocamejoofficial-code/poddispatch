@@ -41,7 +41,7 @@ export function IntakeImpactCard({ result, truckName, onClose }: {
       {result.timing && (
         <div className="opacity-90">
           <span className="font-medium">How times were estimated:</span>{" "}
-          {result.timing.trips.map((t) => `${t.label}: ${t.trip === "history" ? `from this patient's history (${t.n} trips)` : "default trip length"}`).join("; ")}
+          {result.timing.trips.map((t) => `${t.label}: ${t.trip === "history" ? `from this patient's history (${t.n} trips)` : "planned or default trip length"}`).join("; ")}
           {"; gaps: "}{result.timing.gap === "distance" ? "estimated from distance" : "default gap"}
         </div>
       )}
