@@ -4,7 +4,7 @@ export const ADMIN_TOOLTIPS: Record<string, string> = {
   last_name: "Patient's legal last name as it appears on their insurance card",
   dob: "Date of birth, used to verify Medicare/Medicaid eligibility",
   phone: "Primary contact number for the patient or their caregiver",
-  pickup_address: "The patient's home address where the crew picks them up",
+  pickup_address: "The pickup address where the crew collects the patient, including a sending facility when applicable",
   location_type: "Whether the patient's home is a private residence, SNF, or assisted living, affects how the address displays on crew runs",
   facility_id: "The facility where the patient resides, used when home location is not a private residence",
   dropoff_facility: "The facility the patient is transported to",
@@ -54,7 +54,7 @@ export const ADMIN_TOOLTIPS: Record<string, string> = {
 
   // Trucks & Crews
   truck_name: "The unit name or number displayed on crew dashboards and dispatch board",
-  vehicle_id: "The physical vehicle identification number, recorded on PCR for billing documentation",
+  vehicle_id: "The vehicle identifier or unit number used to identify this truck",
   power_stretcher: "This unit is equipped with a power or bariatric stretcher, required for bariatric patients",
   stair_chair_equip: "This unit carries a stair chair for patients who cannot navigate stairs independently",
   oxygen_mount: "This unit has an oxygen mount, required for patients needing supplemental O₂ during transport",
@@ -62,10 +62,10 @@ export const ADMIN_TOOLTIPS: Record<string, string> = {
   // Billing
   base_rate: "The flat transport fee charged to this payer before mileage, corresponds to HCPCS base transport code",
   mileage_rate: "The per-mile rate charged to this payer for loaded miles, corresponds to HCPCS A0425",
-  wait_rate: "The per-minute rate charged when crew wait time exceeds the grace window",
+  wait_rate: "The per-minute rate applied to recorded crew wait time",
   oxygen_fee: "Additional fee charged when oxygen is required during transport. QM modifier",
   extra_attendant: "Additional fee when a second attendant is required beyond standard crew",
-  bariatric_fee: "Additional fee for bariatric transports. QL modifier",
+  bariatric_fee: "Additional fee applied when the patient requires bariatric transport",
   loaded_miles: "Miles driven with the patient on board, from pickup to dropoff",
   est_charge: "Estimated total charge based on base rate plus loaded miles at this payer's rates",
   denial_code: "The payer-issued code explaining why the claim was denied, used for resubmission",
