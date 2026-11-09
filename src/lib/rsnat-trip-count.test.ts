@@ -64,3 +64,12 @@ describe("RSNAT counter asOf", () => {
     expect(q.lte).toHaveBeenCalledWith("run_date", "2026-11-30");
   });
 });
+
+describe("RSNAT counter skips trips never furnished", () => {
+  beforeEach(() => { vi.clearAllMocks(); mocks.company.mockResolvedValue("company-a"); mocks.result = { count: 10, error: null }; });
+  it("excludes cancelled and no-show trips", async () => {
+    const q = makeQuery();
+    await countRsnatRoundTrips("p", "2026-10-01", "2026-11-30");
+    expect(q.not).toHaveBeenCalledWith("status", "in", "(cancelled,no_show)");
+  });
+});

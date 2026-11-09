@@ -1,6 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 
+/** Trip statuses that were never furnished, so they never consume the authorization. */
+export const NOT_FURNISHED = ["cancelled", "no_show"] as const;
+
 /** Exact counts avoid the Data API row limit; dates include both endpoints. */
 async function countTrips(
   patientId: string,
@@ -15,7 +18,9 @@ async function countTrips(
     .eq("patient_id", patientId)
     .gte("run_date", periodStart)
     .lte("run_date", periodEnd);
-  if (linkedOnly) query = query.not("leg_id", "is", null);
+  // CMS: the MAC affirms up to 40 round trips (80 one-way transports) per 60-day
+  // period, and only furnished/billed transports consume it — never-run trips don't.
+  if (linkedOnly) query = query.not("leg_id", "is", null).not("status", "in", `(${NOT_FURNISHED.join(",")})`);
   const { count, error } = await query;
   if (error) throw error;
   if (count == null) throw new Error("RSNAT trip count unavailable");
@@ -23,7 +28,7 @@ async function countTrips(
 }
 
 /** Historical approximation, not A/B pairing: floor(linked trips / 2).
- * Includes the current record and all statuses, exactly like the backstop.
+ * Includes the current record; excludes cancelled and no-show trips.
  */
 export async function countRsnatRoundTrips(
   patientId: string, periodStart: string, periodEnd: string,
