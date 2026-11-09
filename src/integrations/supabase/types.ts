@@ -6792,6 +6792,7 @@ export type Database = {
           has_stair_chair: boolean
           id: string
           is_simulated: boolean
+          max_patient_weight_lbs: number | null
           name: string
           service_level: Database["public"]["Enums"]["truck_service_level"]
           simulation_run_id: string | null
@@ -6808,6 +6809,7 @@ export type Database = {
           has_stair_chair?: boolean
           id?: string
           is_simulated?: boolean
+          max_patient_weight_lbs?: number | null
           name: string
           service_level?: Database["public"]["Enums"]["truck_service_level"]
           simulation_run_id?: string | null
@@ -6824,6 +6826,7 @@ export type Database = {
           has_stair_chair?: boolean
           id?: string
           is_simulated?: boolean
+          max_patient_weight_lbs?: number | null
           name?: string
           service_level?: Database["public"]["Enums"]["truck_service_level"]
           simulation_run_id?: string | null

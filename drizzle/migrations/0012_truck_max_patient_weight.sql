@@ -1,0 +1,2 @@
+ALTER TABLE public.trucks ADD COLUMN IF NOT EXISTS max_patient_weight_lbs integer;
+COMMENT ON COLUMN public.trucks.max_patient_weight_lbs IS 'Operator-entered rated patient capacity (lbs). NULL = unknown; capacity check skipped.';

@@ -1,7 +1,7 @@
 /**
  * Pure, read-only adapter: board data → suggestTrucksForRun inputs.
- * Never writes, never assigns. Rated capacity is intentionally left undefined
- * (no schema column exists; we do not invent one).
+ * Never writes, never assigns. Rated capacity comes only from the operator-entered
+ * trucks.max_patient_weight_lbs; when unset it stays undefined (never invented).
  */
 import type { FeasibilityLeg } from "./schedule-feasibility";
 import type { CrewCapability, PatientNeeds, TruckEquipment } from "./safety-rules";
@@ -11,6 +11,7 @@ export interface BoardTruckInfo {
   truckId: string;
   service_level?: string | null;
   equipment?: TruckEquipment;
+  max_patient_weight_lbs?: number | null;
 }
 
 export interface BoardRunInfo {
@@ -63,7 +64,7 @@ export function buildTruckCandidates(args: {
       service_level: toServiceLevel(t.service_level),
       equipment: t.equipment ?? {},
       crew: args.crewCapability(t.truckId),
-      maxPatientWeightLbs: undefined,
+      maxPatientWeightLbs: t.max_patient_weight_lbs != null && t.max_patient_weight_lbs > 0 ? t.max_patient_weight_lbs : undefined,
       downForDay: args.downTruckIds.has(t.truckId),
       assignedRuns: args.legsByTruck.get(t.truckId) ?? [],
     });
