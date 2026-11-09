@@ -68,3 +68,4 @@
 - [x] Facility-only geocode cache (Census, HIPAA: no patient/residential addresses)
 - [x] Intake consequence check: S1 geo-aware feasibility, S2 evaluator, S3 Check impact card on one-off form
 - [x] Link one-off run endpoints to facility records (one-off form only; recurring/PCR/exceptions deferred)
+- [x] History-first timing layer: source tags, patient-readiness warning, impact card source lines (one-off patient picker + recurring-form card = next pass)
