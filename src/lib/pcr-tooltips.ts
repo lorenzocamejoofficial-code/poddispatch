@@ -53,7 +53,7 @@ export const PCR_TOOLTIPS: Record<string, string> = {
 
   // Signatures
   payment_authorization: "Authorizes the transport company to bill Medicare, Medicaid, or insurance on the patient's behalf. Required for all insurance claims",
-  receiving_facility_signature: "Confirms the receiving facility accepted the patient and transfer of care was completed",
+  receiving_facility_signature: "Confirms transfer of care at the destination, or the patient's return home or to their residence facility",
   crew_attestation: "Crew statement confirming the patient was unable to sign and documents the reason",
   patient_refusal: "Documents that the patient was informed of risks and chose to refuse transport or treatment",
 
