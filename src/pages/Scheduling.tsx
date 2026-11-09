@@ -26,6 +26,7 @@ import { IntakeImpactCard } from "@/components/scheduling/IntakeImpactCard";
 import { FacilityEndpointInput } from "@/components/scheduling/FacilityEndpointInput";
 import type { ImpactContext } from "@/components/scheduling/TruckBuilder";
 import { checkIntakeImpact, INTAKE_LEG_ID, type LegInfo } from "@/lib/intake-impact";
+import { buildRegularIntake } from "@/lib/intake-impact-regular";
 import type { RunAcceptance } from "@/lib/run-acceptance";
 import { toFeasibilityLeg } from "@/hooks/useTruckDayFeasibility";
 import { getFacilityCoords } from "@/lib/facility-geocode";
@@ -989,6 +990,29 @@ export default function Scheduling() {
       facilities: impactFacilities, getCoords: getFacilityCoords,
     }));
   };
+  // Same check on the regular (patient) form: uses that patient's PCR history.
+  const [legImpactResult, setLegImpactResult] = useState<ReturnType<typeof checkIntakeImpact> | null>(null);
+  useEffect(() => { setLegImpactResult(null); }, [legForm, pendingLegType, selectedDate]);
+  const runLegImpactCheck = () => {
+    if (!impactCtx) return;
+    const legType = pendingLegType === "B" ? "B" : "A";
+    const { timing, form } = buildRegularIntake({
+      form: legForm, legType, patient: legPatient ?? null,
+      boardStats: impactCtx.stats, patientStats: legForm.patient_id ? legTimeStats.get(legForm.patient_id) : null,
+      settings: impactCtx.settings,
+    });
+    const legInfo = new Map<string, LegInfo>(legs.map((l) => [l.id, {
+      pickup_location: l.exception_pickup_location ?? l.pickup_location,
+      destination_location: l.exception_destination_location ?? l.destination_location,
+      pickup_facility_id: l.pickup_facility_id ?? null, destination_facility_id: l.destination_facility_id ?? null,
+      pickup_overridden: !!l.exception_pickup_location, destination_overridden: !!l.exception_destination_location,
+      leg_type: l.leg_type, trip_type: l.trip_type, chair_time: l.chair_time,
+    }]));
+    setLegImpactResult(checkIntakeImpact({
+      form, legType, timing, candidates: impactCtx.candidates, buffers: impactCtx.buffers, legInfo,
+      facilities: impactFacilities, getCoords: getFacilityCoords,
+    }));
+  };
   const suggestFor = suggestForId ? unassignedLegs.find(l => l.id === suggestForId) ?? null : null;
   useEffect(() => { setSuggestForId(null); }, [selectedDate]);
   useEffect(() => {
@@ -1901,7 +1925,13 @@ export default function Scheduling() {
                 )}
 
                 <div><Label>Notes</Label><Textarea value={legForm.notes} onChange={(e) => setLegForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
-                <AsyncButton onClick={handleCreate} pendingLabel="Creating...">Create {pendingLegType}-Leg</AsyncButton>
+                <IntakeImpactCard result={legImpactResult} truckName={(id) => trucks.find(t => t.id === id)?.name ?? "Truck"} onClose={() => setLegImpactResult(null)} />
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={runLegImpactCheck} disabled={!impactCtx || !legForm.patient_id || !legForm.pickup_time}>
+                    <Sparkles className="h-4 w-4 mr-1" />Check impact
+                  </Button>
+                  <AsyncButton onClick={handleCreate} pendingLabel="Creating...">Create {pendingLegType}-Leg</AsyncButton>
+                </div>
               </div>
             )}
           </DialogContent>
