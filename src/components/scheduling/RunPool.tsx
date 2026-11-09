@@ -105,7 +105,7 @@ const PoolCard = memo(function PoolCard({
       {/* actions */}
       <div className="flex items-center gap-0.5 shrink-0">
         {onSuggest && (
-          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onSuggest} title="Suggest trucks" aria-label="Suggest trucks" aria-pressed={suggesting}>
+          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onSuggest} title="Suggest trucks: ranks crewed trucks for this run with reasons. Advisory, never assigns" aria-label="Suggest trucks" aria-pressed={suggesting}>
             <Sparkles className={`h-2.5 w-2.5 ${suggesting ? "text-primary" : ""}`} />
           </Button>
         )}

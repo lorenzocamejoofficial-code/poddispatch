@@ -1784,6 +1784,7 @@ export default function Scheduling() {
                   <Button type="button" variant="outline" onClick={runImpactCheck} disabled={!impactCtx || !oneoffForm.pickup_time}>
                     <Sparkles className="h-4 w-4 mr-1" />Check impact
                   </Button>
+                  <PCRTooltip text={ADMIN_TOOLTIPS.check_impact} />
                   <AsyncButton onClick={handleCreate} pendingLabel="Creating...">Create One-Off {pendingLegType}-Leg</AsyncButton>
                 </div>
               </div>
@@ -1930,6 +1931,7 @@ export default function Scheduling() {
                   <Button type="button" variant="outline" onClick={runLegImpactCheck} disabled={!impactCtx || !legForm.patient_id || !legForm.pickup_time}>
                     <Sparkles className="h-4 w-4 mr-1" />Check impact
                   </Button>
+                  <PCRTooltip text={ADMIN_TOOLTIPS.check_impact} />
                   <AsyncButton onClick={handleCreate} pendingLabel="Creating...">Create {pendingLegType}-Leg</AsyncButton>
                 </div>
               </div>
