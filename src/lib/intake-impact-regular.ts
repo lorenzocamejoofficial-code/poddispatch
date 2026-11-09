@@ -15,6 +15,11 @@ export interface RegularPatient {
   id: string; first_name?: string | null; last_name?: string | null; weight_lbs?: number | null;
   chair_time?: string | null; run_duration_minutes?: number | null;
   chair_time_duration_hours?: number | null; chair_time_duration_minutes?: number | null;
+  /** Board patient list uses `weight`; either name is accepted. */
+  weight?: number | null;
+  mobility?: string | null; stairs_required?: string | null; stair_chair_required?: boolean | null;
+  oxygen_required?: boolean | null; oxygen_lpm?: number | null;
+  special_equipment_required?: string | null; bariatric?: boolean | null;
 }
 
 export function buildRegularIntake(args: {
@@ -38,8 +43,13 @@ export function buildRegularIntake(args: {
     form: {
       pickup_location: form.pickup_location, destination_location: form.destination_location,
       trip_type: form.trip_type, service_level: form.service_level || "BLS",
-      weight_lbs: patient?.weight_lbs != null ? String(patient.weight_lbs) : "",
-      mobility: "", oxygen: false, chair_time: form.chair_time,
+      weight_lbs: (patient?.weight_lbs ?? patient?.weight) != null ? String(patient?.weight_lbs ?? patient?.weight) : "",
+      mobility: patient?.mobility ?? "", oxygen: patient?.oxygen_required === true, chair_time: form.chair_time,
+      stairs_required: patient?.stairs_required ?? null,
+      stair_chair_required: patient?.stair_chair_required ?? null,
+      oxygen_lpm: patient?.oxygen_lpm ?? null,
+      special_equipment_required: patient?.special_equipment_required ?? null,
+      bariatric: patient?.bariatric ?? null,
     },
   };
 }

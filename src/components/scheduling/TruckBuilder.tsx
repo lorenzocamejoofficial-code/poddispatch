@@ -273,6 +273,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   const [crewProfiles, setCrewProfiles] = useState<Map<string, { member1: any; member2: any; member3: any }>>(new Map());
   const [truckEquipmentMap, setTruckEquipmentMap] = useState<Map<string, TruckEquipment>>(new Map());
   const [truckServiceLevel, setTruckServiceLevel] = useState<Map<string, string>>(new Map());
+  const [truckMaxWeight, setTruckMaxWeight] = useState<Map<string, number | null>>(new Map());
   const dayLegs = useTruckDayLegs(selectedDate, feasibilityRefreshKey);
   const [overriddenLegIds, setOverriddenLegIds] = useState<Set<string>>(new Set());
 
@@ -323,10 +324,12 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     };
     const loadTruckEquip = async () => {
       const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
-      const { data } = await supabase.from("trucks").select("id, has_power_stretcher, has_stair_chair, has_oxygen_mount, has_bariatric_kit, has_bariatric_stretcher, service_level").eq("active", true).eq("company_id", scopedCompanyId);
+      const { data } = await supabase.from("trucks").select("id, has_power_stretcher, has_stair_chair, has_oxygen_mount, has_bariatric_kit, has_bariatric_stretcher, service_level, max_patient_weight_lbs").eq("active", true).eq("company_id", scopedCompanyId);
       const map = new Map<string, TruckEquipment>();
       const levels = new Map<string, string>();
+      const weights = new Map<string, number | null>();
       for (const t of (data ?? []) as any[]) {
+        weights.set(t.id, t.max_patient_weight_lbs ?? null);
         levels.set(t.id, t.service_level ?? "BLS");
         map.set(t.id, {
           has_power_stretcher: t.has_power_stretcher ?? false,
@@ -338,6 +341,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       }
       setTruckEquipmentMap(map);
       setTruckServiceLevel(levels);
+      setTruckMaxWeight(weights);
     };
     loadRisks();
     loadTimers();
@@ -428,7 +432,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       patient: { first_name: suggestFor.patient_name, last_name: "", chair_time: suggestFor.chair_time },
     }, 0, dayLegs.stats, dayLegs.settings);
     const { candidates, skippedNoCrew } = buildTruckCandidates({
-      trucks: trucks.map((t) => ({ truckId: t.id, service_level: truckServiceLevel.get(t.id), equipment: truckEquipmentMap.get(t.id) })),
+      trucks: trucks.map((t) => ({ truckId: t.id, service_level: truckServiceLevel.get(t.id), equipment: truckEquipmentMap.get(t.id), max_patient_weight_lbs: truckMaxWeight.get(t.id) ?? null })),
       crewedTruckIds: new Set(crews.map((c) => c.truck_id)),
       crewCapability: getCrewCapability,
       downTruckIds: new Set(availability.map((a) => a.truck_id)),
@@ -439,20 +443,20 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     result.eligible.forEach((e, i) => views.set(e.truckId, { kind: "eligible", rank: i + 1, reasons: e.reasons }));
     result.ineligible.forEach((r) => views.set(r.truckId, { kind: "ineligible", reason: r.reason }));
     return { views, skipped: skippedNoCrew.length };
-  }, [suggestFor, trucks, crews, truckServiceLevel, truckEquipmentMap, getCrewCapability, availability, dayLegs]);
+  }, [suggestFor, trucks, crews, truckServiceLevel, truckEquipmentMap, truckMaxWeight, getCrewCapability, availability, dayLegs]);
 
   // Share the same read-only candidate set with the intake impact check.
   useEffect(() => {
     if (!onImpactContext) return;
     const { candidates } = buildTruckCandidates({
-      trucks: trucks.map((t) => ({ truckId: t.id, service_level: truckServiceLevel.get(t.id), equipment: truckEquipmentMap.get(t.id) })),
+      trucks: trucks.map((t) => ({ truckId: t.id, service_level: truckServiceLevel.get(t.id), equipment: truckEquipmentMap.get(t.id), max_patient_weight_lbs: truckMaxWeight.get(t.id) ?? null })),
       crewedTruckIds: new Set(crews.map((c) => c.truck_id)),
       crewCapability: getCrewCapability,
       downTruckIds: new Set(availability.map((a) => a.truck_id)),
       legsByTruck: dayLegs.legsByTruck,
     });
     onImpactContext({ candidates, buffers: dayLegs.buffers, stats: dayLegs.stats, settings: dayLegs.settings });
-  }, [onImpactContext, trucks, crews, truckServiceLevel, truckEquipmentMap, getCrewCapability, availability, dayLegs]);
+  }, [onImpactContext, trucks, crews, truckServiceLevel, truckEquipmentMap, truckMaxWeight, getCrewCapability, availability, dayLegs]);
 
   const assignLeg = useCallback(async (truckId: string, legId: string) => {
     const currentSlots = truckLegs(truckId);

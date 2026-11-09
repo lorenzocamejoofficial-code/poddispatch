@@ -85,6 +85,13 @@
       "when": 1794176187644,
       "tag": "0011_scheduling_legs_facility_links",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794184958606,
+      "tag": "0012_truck_max_patient_weight",
+      "breakpoints": true
     }
   ]
 }

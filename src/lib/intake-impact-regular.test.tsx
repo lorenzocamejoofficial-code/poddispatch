@@ -45,3 +45,25 @@ describe("regular-form impact check", () => {
     expect(screen.getByText(/planned or default trip length/)).toBeTruthy();
   });
 });
+
+describe("regular-form safety inputs", () => {
+  const legType = "A" as const;
+  const check = (p: any, equipment = {}) => {
+    const b = buildRegularIntake({ form: form(), legType, patient: { ...patient, ...p }, boardStats: new Map(), patientStats: null, settings: null });
+    return checkIntakeImpact({ form: b.form, legType, timing: b.timing, candidates: [{ ...truck, equipment }], buffers, legInfo: new Map(), facilities: [], getCoords: () => null });
+  };
+  it("flags a stair-chair need on a truck without one", () => {
+    const r = check({ stairs_required: "full_flight" });
+    expect(r.coverable).toBe(false);
+    expect(r.perTruck[0].blockedReason).toMatch(/stair chair/i);
+    expect(check({ stairs_required: "full_flight" }, { has_stair_chair: true }).coverable).toBe(true);
+  });
+  it("flags an oxygen need on a truck without a mount", () => {
+    const r = check({ oxygen_required: true });
+    expect(r.coverable).toBe(false);
+    expect(r.perTruck[0].blockedReason).toMatch(/oxygen/i);
+  });
+  it("reads the board's `weight` field", () => {
+    expect(buildRegularIntake({ form: form(), legType, patient: { id: "P1", weight: 210 }, boardStats: new Map(), patientStats: null, settings: null }).form.weight_lbs).toBe("210");
+  });
+});

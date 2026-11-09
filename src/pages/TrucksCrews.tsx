@@ -360,6 +360,12 @@ function TruckDayCell({
   );
 }
 
+/** Rated patient weight: positive whole lbs, else null (unknown). */
+function parseWeight(v: string): number | null {
+  const n = Math.round(Number(v));
+  return v.trim() && Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export default function TrucksCrews() {
   const { refreshTrucks } = useSchedulingStore();
   const today = getLocalToday();
@@ -377,11 +383,13 @@ export default function TrucksCrews() {
   const [truckDialog, setTruckDialog] = useState(false);
   const [truckName, setTruckName] = useState("");
   const [truckVehicleId, setTruckVehicleId] = useState("");
+  const [truckMaxWeight, setTruckMaxWeight] = useState("");
   const [truckServiceLevel, setTruckServiceLevel] = useState<"BLS" | "ALS">("BLS");
   const [savingTruck, setSavingTruck] = useState(false);
   const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
   const [editingTruckName, setEditingTruckName] = useState("");
   const [editingTruckVehicleId, setEditingTruckVehicleId] = useState("");
+  const [editingTruckMaxWeight, setEditingTruckMaxWeight] = useState("");
   const [editingTruckServiceLevel, setEditingTruckServiceLevel] = useState<"BLS" | "ALS">("BLS");
 
   // Mark Down dialog
@@ -522,7 +530,7 @@ export default function TrucksCrews() {
         setSavingTruck(false);
         return;
       }
-      const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData, vehicle_id: truckVehicleId.trim() || null, service_level: truckServiceLevel } as any);
+      const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData, vehicle_id: truckVehicleId.trim() || null, service_level: truckServiceLevel, max_patient_weight_lbs: parseWeight(truckMaxWeight) } as any);
       if (error) {
         if ((error.message ?? "").includes("TRUCK_CAP_EXCEEDED")) {
           toast.error("Starter plan is capped at 5 trucks. Upgrade to Pro to add more.", {
@@ -533,7 +541,7 @@ export default function TrucksCrews() {
         }
         return;
       }
-      setTruckName(""); setTruckVehicleId(""); setTruckServiceLevel("BLS"); setTruckDialog(false);
+      setTruckName(""); setTruckVehicleId(""); setTruckMaxWeight(""); setTruckServiceLevel("BLS"); setTruckDialog(false);
       setTruckNameError(null); setTruckUnitError(null);
       toast.success("Truck added"); fetchAll(); refreshTrucks();
     } finally {
@@ -552,7 +560,7 @@ export default function TrucksCrews() {
       if (dup.unitConflict) setEditTruckUnitError(`Unit number '${dup.unitConflict}' is already in use`);
       return;
     }
-    const { error } = await supabase.from("trucks").update({ name: trimmed, vehicle_id: editingTruckVehicleId.trim() || null, service_level: editingTruckServiceLevel } as any).eq("id", id);
+    const { error } = await supabase.from("trucks").update({ name: trimmed, vehicle_id: editingTruckVehicleId.trim() || null, service_level: editingTruckServiceLevel, max_patient_weight_lbs: parseWeight(editingTruckMaxWeight) } as any).eq("id", id);
     if (error) { toast.error("Failed to update truck"); return; }
     setEditingTruckId(null);
     setEditTruckNameError(null); setEditTruckUnitError(null);
@@ -964,6 +972,9 @@ export default function TrucksCrews() {
                       className={truckUnitError ? "border-destructive focus-visible:ring-destructive" : ""} />
                     {truckUnitError && <p className="text-xs text-destructive mt-1">{truckUnitError}</p>}
                   </div>
+                  <div><Label>Rated patient weight (lbs, optional)</Label>
+                    <Input type="number" min={1} inputMode="numeric" value={truckMaxWeight} onChange={(e) => setTruckMaxWeight(e.target.value)} placeholder="e.g. 500" />
+                  </div>
                   <div>
                     <Label>Service Level</Label>
                     <RadioGroup
@@ -1007,6 +1018,8 @@ export default function TrucksCrews() {
                           onKeyDown={(e) => { if (e.key === "Enter") saveTruckEdit(t.id); if (e.key === "Escape") setEditingTruckId(null); }}
                           placeholder="Unit #"
                           aria-invalid={!!editTruckUnitError} />
+                        <Input type="number" min={1} inputMode="numeric" className="h-7 text-sm w-20" value={editingTruckMaxWeight}
+                          onChange={(e) => setEditingTruckMaxWeight(e.target.value)} placeholder="Max lbs" aria-label="Rated patient weight (lbs)" />
                         <Select value={editingTruckServiceLevel} onValueChange={(v) => setEditingTruckServiceLevel(v as "BLS" | "ALS")}>
                           <SelectTrigger className="h-7 w-[72px] text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -1032,7 +1045,7 @@ export default function TrucksCrews() {
                       </Badge>
                       {!t.active && <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground">Inactive</Badge>}
                       {(t as any).vehicle_id && <span className="text-[10px] text-muted-foreground shrink-0">#{(t as any).vehicle_id}</span>}
-                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); setEditingTruckServiceLevel(((t as any).service_level ?? "BLS") as "BLS" | "ALS"); setEditTruckNameError(null); setEditTruckUnitError(null); }}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); setEditingTruckMaxWeight((t as any).max_patient_weight_lbs != null ? String((t as any).max_patient_weight_lbs) : ""); setEditingTruckServiceLevel(((t as any).service_level ?? "BLS") as "BLS" | "ALS"); setEditTruckNameError(null); setEditTruckUnitError(null); }}>
                         <Pencil className="h-3 w-3" />
                       </Button>
                       {t.active ? (

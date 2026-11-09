@@ -90,3 +90,26 @@ describe("truck suggestion candidate adapter", () => {
     for (const c of build().candidates) expect(c.maxPatientWeightLbs).toBeUndefined();
   });
 });
+
+import { buildTruckCandidates as _btc } from "./truck-suggestion-candidates";
+import { suggestTrucksForRun as _sug } from "./truck-suggestion";
+describe("rated patient weight", () => {
+  const build = (w: number | null) => _btc({
+    trucks: [{ truckId: "T1", service_level: "BLS", equipment: { has_power_stretcher: true, has_bariatric_kit: true, has_bariatric_stretcher: true }, max_patient_weight_lbs: w }],
+    crewedTruckIds: new Set(["T1"]), crewCapability: () => ({ member1: { sex: "M" }, member2: { sex: "M" } }) as any,
+    downTruckIds: new Set(), legsByTruck: new Map(),
+  }).candidates;
+  const run = (lbs: number) => ({ legId: "R", label: "Synthetic", legKind: "A" as const, scheduledPickup: 600, predictedReturn: null, mustArriveBy: null, tripMinutes: 30, slotOrder: 0,
+    service_level: "BLS" as const, patient: { weight_lbs: lbs, mobility: "stretcher" } as any });
+  const B = { loadMinutes: 10, unloadMinutes: 10, graceMinutes: 15, minGapMinutes: 45 };
+  it("populates maxPatientWeightLbs from the truck, undefined when unset", () => {
+    expect(build(450)[0].maxPatientWeightLbs).toBe(450);
+    expect(build(null)[0].maxPatientWeightLbs).toBeUndefined();
+  });
+  it("rejects a patient over the truck's rated weight", () => {
+    const r = _sug({ run: run(500), candidates: build(450), buffers: B });
+    expect(r.eligible).toEqual([]);
+    expect(r.ineligible[0].reason).toMatch(/450-lb rated capacity/);
+    expect(_sug({ run: run(400), candidates: build(450), buffers: B }).eligible.length).toBe(1);
+  });
+});

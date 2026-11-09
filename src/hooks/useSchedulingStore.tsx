@@ -65,6 +65,14 @@ export interface PatientOption {
   chair_time_duration_hours: number | null;
   chair_time_duration_minutes: number | null;
   location_type: string | null;
+  /** Safety-matrix inputs (read-only; used by the advisory impact check). */
+  mobility?: string | null;
+  stairs_required?: string | null;
+  stair_chair_required?: boolean | null;
+  oxygen_required?: boolean | null;
+  oxygen_lpm?: number | null;
+  special_equipment_required?: string | null;
+  bariatric?: boolean | null;
 }
 
 export interface TruckOption { id: string; name: string; }
@@ -268,7 +276,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
     // Creators have cross-tenant read on trucks; scope explicitly to the active company.
     const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const [{ data: p }, { data: t }] = await Promise.all([
-      supabase.from("patients").select("id, first_name, last_name, weight_lbs, status, pickup_address, dropoff_facility, chair_time, run_duration_minutes, schedule_days, notes, transport_type, recurrence_start_date, recurrence_end_date, recurrence_days, chair_time_duration_hours, chair_time_duration_minutes, location_type").eq("company_id", scopedCompanyId).order("last_name"),
+      supabase.from("patients").select("id, first_name, last_name, weight_lbs, status, pickup_address, dropoff_facility, chair_time, run_duration_minutes, schedule_days, notes, transport_type, recurrence_start_date, recurrence_end_date, recurrence_days, chair_time_duration_hours, chair_time_duration_minutes, location_type, mobility, stairs_required, stair_chair_required, oxygen_required, oxygen_lpm, special_equipment_required, bariatric").eq("company_id", scopedCompanyId).order("last_name"),
       supabase.from("trucks").select("id, name").eq("company_id", scopedCompanyId).eq("active", true).order("name"),
     ]);
     setPatients((p ?? []).map((x: any) => ({
@@ -289,6 +297,13 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
       chair_time_duration_hours: x.chair_time_duration_hours ?? null,
       chair_time_duration_minutes: x.chair_time_duration_minutes ?? null,
       location_type: x.location_type ?? null,
+      mobility: x.mobility ?? null,
+      stairs_required: x.stairs_required ?? null,
+      stair_chair_required: x.stair_chair_required ?? null,
+      oxygen_required: x.oxygen_required ?? null,
+      oxygen_lpm: x.oxygen_lpm ?? null,
+      special_equipment_required: x.special_equipment_required ?? null,
+      bariatric: x.bariatric ?? null,
     })));
     setTrucks((t ?? []).map((x: any) => ({ id: x.id, name: x.name })));
   }, []);
