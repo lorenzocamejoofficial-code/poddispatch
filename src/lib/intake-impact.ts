@@ -1,6 +1,7 @@
 // Pure adapter: one-off intake form + board context → evaluateRunAcceptance.
 // Advisory only. Geo is additive: only facility-name-matched ends get coords.
-import type { FeasibilityBuffers, FeasibilityLeg, GeoPoint } from "./schedule-feasibility";
+import { evaluatePatientReadiness, type FeasibilityBuffers, type FeasibilityLeg, type GeoPoint, type ReadinessWarning } from "./schedule-feasibility";
+import type { PatientTimeStats } from "./patient-time-prediction";
 import type { TruckCandidate } from "./truck-suggestion";
 import { toSuggestionRun } from "./truck-suggestion-candidates";
 import { evaluateRunAcceptance, type RunAcceptance } from "./run-acceptance";
@@ -22,6 +23,26 @@ export interface LegInfo {
   leg_type: string | null; trip_type: string | null; chair_time: string | null;
 }
 
+/** Where each segment's estimate came from, for the impact card. */
+export interface TimingNote { legId: string; label: string; trip: "history" | "default"; n?: number }
+export interface IntakeTimingSummary {
+  trips: TimingNote[];
+  /** "distance" when at least one gap used the geo floor; otherwise the static default gap. */
+  gap: "distance" | "default";
+  readiness: ReadinessWarning[];
+}
+
+/**
+ * Optional prospective-patient path: add that patient's stats to the board map
+ * so toFeasibilityLeg can use their history. No patient → the same map back.
+ */
+export function withProspectiveStats(
+  stats: Map<string, PatientTimeStats>, patientId: string | null | undefined, patientStats: PatientTimeStats | null | undefined,
+): Map<string, PatientTimeStats> {
+  if (!patientId || !patientStats || stats.has(patientId)) return stats;
+  const next = new Map(stats); next.set(patientId, patientStats); return next;
+}
+
 export function checkIntakeImpact(args: {
   form: IntakeForm;
   legType: "A" | "B";
@@ -31,7 +52,7 @@ export function checkIntakeImpact(args: {
   legInfo: Map<string, LegInfo>;
   facilities: FacilityRef[];
   getCoords: (facilityId: string) => GeoPoint | null;
-}): RunAcceptance & { geoPairsSkipped: boolean } {
+}): RunAcceptance & { geoPairsSkipped: boolean; timing: IntakeTimingSummary } {
   const { form, legType, legInfo } = args;
   const index = buildFacilityIndex(args.facilities);
   let missing = false;
@@ -62,5 +83,17 @@ export function checkIntakeImpact(args: {
   const result = evaluateRunAcceptance({
     run, candidates, tierOf, buffers: { ...args.buffers, travelFloor: travelFloorMinutes },
   });
-  return { ...result, geoPairsSkipped: missing };
+  const best = result.leastBadTruck
+    ? candidates.find((c) => c.truckId === result.leastBadTruck!.truckId)?.assignedRuns ?? [] : [];
+  const involved = [run, ...best.filter((l) => l.legId !== INTAKE_LEG_ID)];
+  const note = (l: FeasibilityLeg): TimingNote => l.timingSource
+    ? { legId: l.legId, label: l.label, trip: "history", n: l.timingSource.n }
+    : { legId: l.legId, label: l.label, trip: "default" };
+  const usedDistance = involved.some((l) => !!l.destCoord) && involved.some((l) => !!l.originCoord);
+  const timing: IntakeTimingSummary = {
+    trips: involved.map(note),
+    gap: usedDistance ? "distance" : "default",
+    readiness: evaluatePatientReadiness(involved, args.buffers),
+  };
+  return { ...result, geoPairsSkipped: missing, timing };
 }

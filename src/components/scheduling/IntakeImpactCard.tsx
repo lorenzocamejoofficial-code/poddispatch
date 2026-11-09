@@ -1,10 +1,11 @@
 import type { RunAcceptance } from "@/lib/run-acceptance";
+import type { IntakeTimingSummary } from "@/lib/intake-impact";
 import { cn } from "@/lib/utils";
 
 const TIER = { 1: "T1", 2: "T2", 3: "T3" } as const;
 
 export function IntakeImpactCard({ result, truckName, onClose }: {
-  result: (RunAcceptance & { geoPairsSkipped?: boolean }) | null;
+  result: (RunAcceptance & { geoPairsSkipped?: boolean; timing?: IntakeTimingSummary }) | null;
   truckName: (id: string) => string;
   onClose: () => void;
 }) {
@@ -37,6 +38,14 @@ export function IntakeImpactCard({ result, truckName, onClose }: {
         {best ? `${truckName(best.truckId)} — ${best.reasons[0] ?? ""}` : "none"}
       </div>
       {result.runShouldYield && <div>This flexible run should yield to higher-priority runs.</div>}
+      {result.timing && (
+        <div className="opacity-90">
+          <span className="font-medium">How times were estimated:</span>{" "}
+          {result.timing.trips.map((t) => `${t.label}: ${t.trip === "history" ? `from this patient's history (${t.n} trips)` : "planned or default trip length"}`).join("; ")}
+          {"; gaps: "}{result.timing.gap === "distance" ? "estimated from distance" : "default gap"}
+        </div>
+      )}
+      {result.timing?.readiness.map((r) => <div key={r.legId}>{r.message}</div>)}
       {result.geoPairsSkipped && <div className="opacity-80">Travel time not yet counted for some facility stops — check again shortly.</div>}
     </div>
   );

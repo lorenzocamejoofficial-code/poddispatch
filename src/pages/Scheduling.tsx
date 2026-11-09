@@ -956,7 +956,7 @@ export default function Scheduling() {
 
   // Advisory intake impact check (one-off form). Read-only; never assigns or gates.
   const [impactCtx, setImpactCtx] = useState<ImpactContext | null>(null);
-  const [impactResult, setImpactResult] = useState<(RunAcceptance & { geoPairsSkipped: boolean }) | null>(null);
+  const [impactResult, setImpactResult] = useState<ReturnType<typeof checkIntakeImpact> | null>(null);
   const [impactFacilities, setImpactFacilities] = useState<{ id: string; name: string; active: boolean | null }[]>([]);
   const pickerFacilities = useMemo(() => impactFacilities.filter((f) => f.active !== false), [impactFacilities]);
   useEffect(() => {

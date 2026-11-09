@@ -4,7 +4,7 @@ import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useSimulationCompanyState } from "@/hooks/useIsSimulationCompany";
 import { usePatientTimeStats } from "@/hooks/usePatientTimeStats";
 import { MIN_GAP_MINUTES } from "@/lib/time-conflict";
-import { normalizeLegType, suggestReturnPickup, EMPTY_STATS } from "@/lib/patient-time-prediction";
+import { normalizeLegType, suggestReturnPickup, suggestTripDuration, EMPTY_STATS } from "@/lib/patient-time-prediction";
 import {
   evaluateTruckDay, DEFAULT_TRIP_MINUTES,
   type FeasibilityBuffers, type FeasibilityLeg, type TruckDayFeasibility,
@@ -25,9 +25,12 @@ export function toFeasibilityLeg(
   const p = l.patient ?? null;
   const kind = normalizeLegType(l.leg_type);
   const s = (l.patient_id && stats.get(l.patient_id)) || EMPTY_STATS;
-  const learned = kind === "A" ? s.durationA.median : kind === "B" ? s.durationB.median : s.durationAll.median;
+  const kindStats = kind === "A" ? s.durationA : kind === "B" ? s.durationB : s.durationAll;
+  const tripSug = suggestTripDuration({ stats: kindStats, plannedMinutes: null });
+  const learned = tripSug.source === "history" ? (tripSug.value as number) : null;
   const tripMinutes = learned ?? l.estimated_duration_minutes ?? p?.run_duration_minutes ?? DEFAULT_TRIP_MINUTES;
   let predictedReturn: number | null = null;
+  let predictedReady: number | null = null;
   if (kind === "B" && p) {
     const planned = ((p.chair_time_duration_hours ?? 0) * 60 + (p.chair_time_duration_minutes ?? 0)) || p.run_duration_minutes || 0;
     const sug = suggestReturnPickup({
@@ -35,6 +38,7 @@ export function toFeasibilityLeg(
       bufferMinutes: settings?.dialysis_b_leg_buffer_minutes ?? undefined,
     });
     predictedReturn = typeof sug.value === "string" ? toMin(sug.value) : null;
+    if (sug.source === "history" && sug.confidence !== "none") predictedReady = predictedReturn;
   }
   const label = p ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() : (l.oneoff_name || "Run");
   return {
@@ -43,6 +47,9 @@ export function toFeasibilityLeg(
     predictedReturn,
     mustArriveBy: kind === "A" ? toMin(p?.must_arrive_by ?? p?.chair_time) : null,
     tripMinutes, slotOrder,
+    ...(learned != null && tripSug.confidence !== "none"
+      ? { timingSource: { trip: "history" as const, n: tripSug.n, confidence: tripSug.confidence as "low" | "medium" | "high" } } : {}),
+    ...(predictedReady != null ? { predictedReady } : {}),
   };
 }
 
