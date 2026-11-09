@@ -48,7 +48,7 @@ export function toFeasibilityLeg(
     mustArriveBy: kind === "A" ? toMin(p?.must_arrive_by ?? p?.chair_time) : null,
     tripMinutes, slotOrder,
     ...(learned != null && tripSug.confidence !== "none"
-      ? { timingSource: { trip: "history" as const, n: tripSug.n, confidence: tripSug.confidence } } : {}),
+      ? { timingSource: { trip: "history" as const, n: tripSug.n, confidence: tripSug.confidence as "low" | "medium" | "high" } } : {}),
     ...(predictedReady != null ? { predictedReady } : {}),
   };
 }
