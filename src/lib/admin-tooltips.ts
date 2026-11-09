@@ -46,8 +46,11 @@ export const ADMIN_TOOLTIPS: Record<string, string> = {
   trip_type: "The type of transport for this specific run, determines PCR documentation and billing codes",
   est_duration: "Estimated time from pickup to dropoff in minutes, used for schedule planning",
   one_off_name: "Patient name for this one-time run, does not create a patient record",
-  one_off_pickup: "Full pickup address for this one-time run",
-  one_off_dropoff: "Full dropoff address for this one-time run",
+  one_off_pickup: "Full pickup address for this one-time run. Pick a facility from the list to link it; home addresses stay as typed text",
+  one_off_dropoff: "Full dropoff address for this one-time run. Pick a facility from the list to link it; home addresses stay as typed text",
+  check_impact: "Advisory only. Shows whether a crewed truck can take this run, which runs it would push late, and the least-bad truck. Never saves or assigns",
+  impact_card: "Coverable = a crewed truck takes it with no conflicts. Pushes late = runs that would slip. Hard appointments are protected first, then waiting returns; flexible runs yield. Travel time is a rough straight-line minimum between facilities, not a real drive time or ETA",
+  rated_patient_weight: "Maximum patient weight this truck is rated for. Truck suggestions skip trucks over their rating. Leave blank to skip the weight check",
 
   // Trucks & Crews
   truck_name: "The unit name or number displayed on crew dashboards and dispatch board",

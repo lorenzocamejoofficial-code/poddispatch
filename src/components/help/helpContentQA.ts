@@ -50,6 +50,10 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
       { q: "Why is a run flagged unsafe?", a: "The safety check compares what the patient needs (bariatric stretcher, oxygen, stair chair, ALS-trained crew) against what the assigned truck and crew have. Mismatches are flagged before dispatch ever sees them." },
       { q: "What is Copy Crew Assignments Forward?", a: "From week view, copy this week's crew layout into upcoming weeks (1 month, 3 months, or rest of year) so you do not have to rebuild rosters every Monday." },
       { q: "What does the exception dialog do?", a: "If the run you are moving conflicts with another, you can override with a documented reason. Overrides are logged to the Override Monitor." },
+      { q: "What does Suggest trucks do?", a: "Click the sparkle icon on an unassigned run. Crewed trucks are ranked for that run with short reasons, and unsafe or conflicting trucks are listed as not suitable. It never assigns; you still drag the run." },
+      { q: "What does Check impact show?", a: "Before you save a new run: whether a crewed truck can take it cleanly (coverable), which runs it would push late, and the least-bad truck. Hard appointments are protected first, then waiting return trips; flexible runs yield. It is advisory and never blocks saving." },
+      { q: "How are the times estimated?", a: "Trip length comes from this patient's past trips when there are at least 5, otherwise the planned length or a default. Travel between linked facilities is a rough straight-line minimum, not a real drive time or ETA, so treat 'can't get there in time' as a warning, not a route." },
+      { q: "What does 'Facility linked' mean?", a: "You picked the pickup or destination from your facility list, so the run points at that facility record instead of free text. Home addresses stay as plain text on purpose." },
     ],
   },
 
@@ -168,6 +172,7 @@ export const PAGE_HELP_QA: Record<string, HelpQA> = {
       { q: "What is this page for?", a: "Two things in one page: configure trucks (equipment, inspection checklist, OOS dates) and assign crews to trucks day by day on the weekly calendar." },
       { q: "How is the page laid out?", a: "Trucks section at the top with the truck list. Crew Assignments section below with the weekly calendar grid. Use the week navigator at the top of the calendar to move between weeks." },
       { q: "How do I add a truck?", a: "Add Truck button. Enter the name and vehicle ID. Then click the truck to set equipment flags (bariatric stretcher, oxygen, etc.) and the inspection checklist template." },
+      { q: "What is Rated patient weight?", a: "The most a truck is rated to carry, in lbs. Truck suggestions skip trucks for a patient over that number. Leave it blank and the weight check is skipped." },
       { q: "What equipment flags matter most?", a: "Bariatric Stretcher is the most important because it determines whether bariatric patients can be assigned to that truck. Other equipment is verified through the daily pre-trip inspection." },
       { q: "What is the vehicle inspection configuration?", a: "Each truck has a template where you choose which items from the Georgia DPH checklist crew must verify before each shift. The gate toggle blocks PCR access for that truck until the inspection is submitted that day." },
       { q: "How do I assign crew to a truck?", a: "Hover the truck/day cell on the calendar, click Assign, and pick up to three crew members (M1/M2/M3). The system blocks the same employee from being double-booked across two trucks on the same day. A 45-minute back-to-back gap warning is an optional toggle in Admin → On-Time Settings, off by default." },

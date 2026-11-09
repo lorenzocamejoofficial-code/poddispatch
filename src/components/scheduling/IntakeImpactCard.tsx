@@ -1,6 +1,8 @@
 import type { RunAcceptance } from "@/lib/run-acceptance";
 import type { IntakeTimingSummary } from "@/lib/intake-impact";
 import { cn } from "@/lib/utils";
+import { PCRTooltip } from "@/components/pcr/PCRTooltip";
+import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 
 const TIER = { 1: "T1", 2: "T2", 3: "T3" } as const;
 
@@ -23,7 +25,7 @@ export function IntakeImpactCard({ result, truckName, onClose }: {
       )}
     >
       <div className="flex items-center justify-between font-semibold">
-        <span>Impact check (advisory)</span>
+        <span className="inline-flex items-center">Impact check (advisory)<PCRTooltip text={ADMIN_TOOLTIPS.impact_card} /></span>
         <button type="button" className="underline opacity-80" onClick={onClose}>Clear</button>
       </div>
       <div><span className="font-medium">Coverable:</span>{" "}

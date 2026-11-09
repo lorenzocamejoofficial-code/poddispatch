@@ -972,7 +972,7 @@ export default function TrucksCrews() {
                       className={truckUnitError ? "border-destructive focus-visible:ring-destructive" : ""} />
                     {truckUnitError && <p className="text-xs text-destructive mt-1">{truckUnitError}</p>}
                   </div>
-                  <div><Label>Rated patient weight (lbs, optional)</Label>
+                  <div><Label>Rated patient weight (lbs, optional)<PCRTooltip text={ADMIN_TOOLTIPS.rated_patient_weight} /></Label>
                     <Input type="number" min={1} inputMode="numeric" value={truckMaxWeight} onChange={(e) => setTruckMaxWeight(e.target.value)} placeholder="e.g. 500" />
                   </div>
                   <div>
