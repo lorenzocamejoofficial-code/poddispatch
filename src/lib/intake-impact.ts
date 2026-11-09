@@ -15,6 +15,9 @@ export interface IntakeForm {
   pickup_location: string; destination_location: string; trip_type: string;
   service_level: string; weight_lbs: string; mobility: string; oxygen: boolean; chair_time: string;
   pickup_facility_id?: string | null; destination_facility_id?: string | null;
+  /** Optional extra safety inputs (regular/patient form). Absent → previous behavior. */
+  stairs_required?: string | null; stair_chair_required?: boolean | null; oxygen_lpm?: number | null;
+  special_equipment_required?: string | null; bariatric?: boolean | null;
 }
 export interface LegInfo {
   pickup_location: string | null; destination_location: string | null;
@@ -68,6 +71,11 @@ export function checkIntakeImpact(args: {
     service_level: form.service_level,
     patient_mobility: form.mobility,
     patient_oxygen_required: form.oxygen,
+    patient_stairs_required: form.stairs_required,
+    patient_stair_chair_required: form.stair_chair_required,
+    patient_oxygen_lpm: form.oxygen_lpm,
+    patient_special_equipment: form.special_equipment_required,
+    patient_bariatric: form.bariatric,
   }, { ...args.timing, legId: INTAKE_LEG_ID });
   const run = attach(baseRun, form);
   const candidates = args.candidates.map((c) => ({
