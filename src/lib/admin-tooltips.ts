@@ -29,14 +29,14 @@ export const ADMIN_TOOLTIPS: Record<string, string> = {
   oxygen_required: "Patient requires supplemental oxygen during transport, triggers QM billing modifier",
   bariatric: "Patient requires bariatric equipment, triggers QL billing modifier and bariatric rate",
   standing_order: "Physician's signed order on file authorizing recurring transport, separate from the recurring schedule. Upload the signed document under Documents.",
-  auth_required: "Prior authorization is required from the payer before transport, claim will be blocked if auth is missing or expired",
+  auth_required: "Prior authorization is required from the payer before transport, the trip is flagged if auth is missing or expired. Only the Medicare RSNAT trip cap blocks billing",
   auth_expiration: "The date the current prior authorization expires, system will flag runs after this date",
 
   // Compliance & Authorization — Phase 3
   prior_auth_utn: "RSNAT Unique Tracking Number issued by the Medicare MAC after an affirmative prior authorization decision. Required per 42 CFR 410.40 for repetitive scheduled non-emergent transports meeting frequency thresholds.",
   prior_auth_period_start: "First date the RSNAT prior authorization covers. Trips before this date are not protected by the auth.",
   prior_auth_period_end: "Last date the RSNAT prior authorization covers. Trips after this date require a new UTN.",
-  pcs_signed_date: "Date the physician signed the Physician Certification Statement (PCS). PCS is valid for 60 days per CMS rules; the system will flag expiration automatically.",
+  pcs_signed_date: "Date the physician signed the Physician Certification Statement (PCS). The expiration date is set to 60 days after the signed date and shown on the patient record.",
   other_payer_auth: "Use for non-Medicare-RSNAT prior authorizations: Medicaid managed care plans, commercial payer pre-auth, or any payer-specific auth requirement that isn't governed by 42 CFR 410.40. For Medicare RSNAT auth, use the RSNAT block above.",
   pcs_physician_npi: "10-digit National Provider Identifier of the physician who signed the PCS. Required by 42 CFR 410.40(d). Found on the PCS form.",
   pcs_physician_name: "Full name of the PCS-signing physician as it appears on the PCS form.",

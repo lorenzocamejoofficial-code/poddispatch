@@ -611,24 +611,23 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
     title: "Migration & Onboarding",
     content: {
       does: [
-        "Guides you through importing existing data: patients, facilities, employees.",
+        "Guides you through importing existing patient and facility records.",
         "Supports CSV/Excel file upload with column mapping.",
         "Detects duplicate records before importing.",
         "Shows import results with success/error/warning counts.",
         "Quick Start Wizard walks through setup steps in order.",
         "Parallel Run Mode lets you run the new system alongside your existing one.",
-        "Stores mapping templates for repeated imports.",
         "Suggests column mappings automatically, but you must verify column assignments.",
       ],
       doesNot: [
-        "Does not import trip or billing history from other systems.",
+        "Does not import trucks, employees, trips, or billing history, add those on their own pages.",
         "Does not delete existing data during import.",
         "Does not connect to external databases or APIs for data transfer.",
       ],
       tips: [
         "Export patient lists from your current system as CSV before starting.",
         "Map required fields first (first name, last name), optional fields can be filled later.",
-        "Use test mode to preview import results without committing data.",
+        "Review the preview carefully, committing an import saves the records.",
         "Complete the Quick Start Wizard before your first live dispatch day.",
       ],
       symbols: [
@@ -637,7 +636,6 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
         { symbol: "⚠️ Yellow warning", meaning: "Import completed with warnings, some rows need review." },
         { symbol: "❌ Red error", meaning: "Import failed or rows had errors." },
         { symbol: "🔄 Parallel mode toggle", meaning: "Run new system alongside your existing one during transition." },
-        { symbol: "🧪 Test mode badge", meaning: "Preview import results without committing any data." },
       ],
     },
   },
@@ -762,7 +760,7 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
         "Does not let you speed up the approval process from this page.",
       ],
       tips: [
-        "Approval is typically completed within 1-2 business days.",
+        "Approval time varies, you will be able to log in once approved.",
         "You will be able to log in and access all features once approved.",
       ],
     },
@@ -893,11 +891,11 @@ export const PAGE_HELP: Record<string, { title: string; content: HelpSection }> 
       ],
       tips: [
         "Use simulations to test new scheduling templates before applying them to real operations.",
-        "Simulation data is clearly marked with an 'is_simulated' flag and never mixes with production data.",
+        "Simulation data is tagged with an 'is_simulated' flag so it can be filtered out of real views.",
       ],
       symbols: [
         { symbol: "🧪 Flask / Lab icon", meaning: "Simulation mode, data is isolated from production." },
-        { symbol: "🏷 is_simulated flag", meaning: "All generated data is tagged so it never mixes with real records." },
+        { symbol: "🏷 is_simulated flag", meaning: "Generated data is tagged so it can be told apart from real records." },
         { symbol: "▶️ Run button", meaning: "Start a new simulation scenario." },
         { symbol: "📊 Summary metrics", meaning: "Results of the simulation run (trips, on-time %, etc.)." },
       ],

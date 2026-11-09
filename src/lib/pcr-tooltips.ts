@@ -59,7 +59,7 @@ export const PCR_TOOLTIPS: Record<string, string> = {
 
   // Patient Info
   chief_complaint_patient: "Primary reason for transport today, pre-filled from transport type, edit if different for this specific run",
-  pcs_obtained: "Physician Certification Statement, required by Medicare for interfacility transfers. Must be obtained at the sending facility before transport.",
+  pcs_obtained: "Physician Certification Statement, required by Medicare for interfacility transfers. Obtain it from the sending facility and record it on the PCR.",
   discharge_instructions: "Confirmation that discharge instructions were received from the sending facility staff",
-  auth_status: "Prior authorization status, claim will be blocked if auth is expired or missing",
+  auth_status: "Prior authorization status, flagged if auth is expired or missing. Only the Medicare RSNAT trip cap blocks billing",
 };
