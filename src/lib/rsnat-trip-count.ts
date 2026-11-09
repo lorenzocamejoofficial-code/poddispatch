@@ -27,8 +27,12 @@ async function countTrips(
  */
 export async function countRsnatRoundTrips(
   patientId: string, periodStart: string, periodEnd: string,
+  /** Optional YYYY-MM-DD: ignore trips dated after it (pre-submit uses the trip's own date). */
+  asOf?: string | null,
 ): Promise<number> {
-  return Math.floor(await countTrips(patientId, periodStart, periodEnd, true) / 2);
+  const end = asOf && asOf < periodEnd ? asOf : periodEnd;
+  if (end < periodStart) return 0;
+  return Math.floor(await countTrips(patientId, periodStart, end, true) / 2);
 }
 
 /** Distinct run_date values (YYYY-MM-DD, sorted) for the patient in the

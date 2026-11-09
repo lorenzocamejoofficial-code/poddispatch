@@ -27,3 +27,14 @@ describe("evaluateRsnatTripCap", () => {
       .toMatchObject({ status: "exceeded", remaining: -1 });
   });
 });
+describe("evaluateRsnatTripCap counting this trip", () => {
+  it("trip #40 of 40 is still covered", () => {
+    expect(evaluateRsnatTripCap({ authorizedRoundTrips: 40, usedRoundTrips: 40, countingThisTrip: true }).status).not.toBe("exceeded");
+  });
+  it("trip #41 of 40 is over the cap", () => {
+    expect(evaluateRsnatTripCap({ authorizedRoundTrips: 40, usedRoundTrips: 41, countingThisTrip: true }).status).toBe("exceeded");
+  });
+  it("trip #1 with 20 authorized is covered", () => {
+    expect(evaluateRsnatTripCap({ authorizedRoundTrips: 20, usedRoundTrips: 1, countingThisTrip: true }).status).toBe("ok");
+  });
+});
