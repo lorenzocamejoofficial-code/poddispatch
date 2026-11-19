@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { voidClaimsForCancelledTrip, VOIDABLE_CLAIM_STATUSES } from "@/lib/cancel-trip";
 import { useSearchParams, Link } from "react-router-dom";
 import { PageLoader } from "@/components/ui/page-loader";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { SubmissionQueueErrorsPanel } from "@/components/billing/SubmissionQueueErrorsPanel";
 import { SubmissionPipelineStrip } from "@/components/billing/SubmissionPipelineStrip";
@@ -1513,26 +1514,26 @@ export default function BillingAndClaims() {
                 text="Only the claims in Ready to Bill that pass every hard billing check right now — these are the ones that will actually go out. Claims sitting in Ready to Bill with a red BLOCKED badge are counted separately below under 'Fix before submitting'."
               />
             </div>
-            <p className="text-2xl font-bold text-foreground">{fmtMoney(readyTotal)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            {loading ? <Skeleton className="h-8 w-32" role="status" aria-label="Loading ready to submit amount" /> : <p className="text-2xl font-bold text-foreground">{fmtMoney(readyTotal)}</p>}
+            {!loading && <p className="text-xs text-muted-foreground mt-0.5">
               {readyCount} clean claim{readyCount === 1 ? "" : "s"}
               {readyBlockedCount > 0 ? ` · ${readyBlockedCount} blocked` : " · passes billing checks"}
-            </p>
+            </p>}
           </div>
 
           <div className="rounded-lg border bg-card p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Awaiting payer</p>
-            <p className="text-2xl font-bold text-foreground">{fmtMoney(submittedTotal)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{submittedCount} claim{submittedCount === 1 ? "" : "s"}</p>
+            {loading ? <Skeleton className="h-8 w-32" role="status" aria-label="Loading awaiting payer amount" /> : <p className="text-2xl font-bold text-foreground">{fmtMoney(submittedTotal)}</p>}
+            {!loading && <p className="text-xs text-muted-foreground mt-0.5">{submittedCount} claim{submittedCount === 1 ? "" : "s"}</p>}
           </div>
           <div className="rounded-lg border bg-card p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Denied — work now</p>
-            <p className={`text-2xl font-bold ${deniedCount > 0 ? "text-destructive" : "text-foreground"}`}>{fmtMoney(deniedTotal)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{deniedCount} claim{deniedCount === 1 ? "" : "s"} · {denialRate}% rate</p>
+            {loading ? <Skeleton className="h-8 w-32" role="status" aria-label="Loading denied amount" /> : <p className={`text-2xl font-bold ${deniedCount > 0 ? "text-destructive" : "text-foreground"}`}>{fmtMoney(deniedTotal)}</p>}
+            {!loading && <p className="text-xs text-muted-foreground mt-0.5">{deniedCount} claim{deniedCount === 1 ? "" : "s"} · {denialRate}% rate</p>}
           </div>
           <div className="rounded-lg border bg-card p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Posted this month</p>
-            <p className="text-2xl font-bold text-foreground">{fmtMoney(postedThisMonth)}</p>
+            {loading ? <Skeleton className="h-8 w-32" role="status" aria-label="Loading posted amount" /> : <p className="text-2xl font-bold text-foreground">{fmtMoney(postedThisMonth)}</p>}
             <p className="text-xs text-muted-foreground mt-0.5">paid</p>
           </div>
         </div>
@@ -1613,7 +1614,7 @@ export default function BillingAndClaims() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => { setActiveTab("claims"); setSecondaryFilter(prev => !prev); }}
+                  onClick={() => { setActiveTab("claims"); setStatusTab("paid"); setStatusPage(1); setSecondaryFilter(prev => !prev); }}
                 >
                   {secondaryFilter ? "Clear filter" : "Review"}
                 </Button>
@@ -1938,6 +1939,11 @@ export default function BillingAndClaims() {
                             </div>
                           </div>
                           <p className="text-[10px] text-muted-foreground">{claim.run_date}</p>
+                          {claim.status === "paid" && claim.patient_secondary_payer && !claim.secondary_claim_generated && (
+                            <Badge variant="secondary" className="mt-1 max-w-full whitespace-normal text-[10px]">
+                              Secondary available · {fmtMoney(claim.patient_responsibility_amount ?? 0)}
+                            </Badge>
+                          )}
                           {/* Sub-label for statuses folded into another tab
                               (pending/forwarded → Submitted, reversal →
                               Needs Correction, blocked_payer_mapping →

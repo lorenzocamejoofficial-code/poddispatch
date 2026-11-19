@@ -71,3 +71,9 @@
 - [x] History-first timing layer: source tags, patient-readiness warning, impact card source lines (one-off patient picker + recurring-form card = next pass)
 - [x] Check impact on the regular (patient) add-run form, using the patient's PCR history
 - [x] Truck rated patient weight + patient safety inputs on regular-form impact check
+
+# Roadmap — Billing & Claims display fixes
+- [x] Show loading indicators on the four KPI cards until claims load
+- [x] Secondary Review selects Paid and resets pagination
+- [x] Paid cards surface secondary coverage and the existing patient-responsibility amount
+- [x] Verify all three UI flows with synthetic browser data; 1,348 tests pass and preview build OK (real-account verification unavailable: session mint could not match requesting account)
