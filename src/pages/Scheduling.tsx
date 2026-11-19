@@ -919,24 +919,51 @@ export default function Scheduling() {
     try {
       const targetWeekDates = getWeekDates(copyTargetWeek);
       const { data: srcCrews } = await supabase
-        .from("crews").select("truck_id, member1_id, member2_id, active_date")
+        .from("crews").select("truck_id, member1_id, member2_id, member3_id, member3_role, active_date")
         .gte("active_date", weekDates[0]).lte("active_date", weekDates[6]);
       const { data: existingCrews } = await supabase
-        .from("crews").select("active_date, truck_id")
+        .from("crews").select("active_date, truck_id, member1_id, member2_id, member3_id")
         .gte("active_date", targetWeekDates[0]).lte("active_date", targetWeekDates[6]);
       const existingKeys = new Set((existingCrews ?? []).map((c) => `${c.active_date}_${c.truck_id}`));
+      // Target-week member occupancy, so a copied crew never double-books a
+      // member already on another truck that date (same rule as Trucks & Crews).
+      const memberBusy = new Map<string, Set<string>>();
+      for (const c of existingCrews ?? []) {
+        const set = memberBusy.get(c.active_date) ?? new Set<string>();
+        for (const m of [c.member1_id, c.member2_id, c.member3_id]) if (m) set.add(m);
+        memberBusy.set(c.active_date, set);
+      }
       const { data: companyId } = await supabase.rpc("get_my_company_id");
       const newCrews: any[] = [];
+      let skippedConflicts = 0;
       for (const crew of srcCrews ?? []) {
         const srcDayIdx = weekDates.indexOf(crew.active_date);
         if (srcDayIdx === -1) continue;
         const targetDate = targetWeekDates[srcDayIdx];
         const key = `${targetDate}_${crew.truck_id}`;
         if (existingKeys.has(key)) continue;
-        newCrews.push({ truck_id: crew.truck_id, member1_id: crew.member1_id, member2_id: crew.member2_id, active_date: targetDate, company_id: companyId });
+        const members = [crew.member1_id, crew.member2_id, crew.member3_id].filter(Boolean) as string[];
+        let busy = memberBusy.get(targetDate);
+        if (!busy) { busy = new Set<string>(); memberBusy.set(targetDate, busy); }
+        if (members.some((m) => busy.has(m))) { skippedConflicts++; continue; }
+        newCrews.push({
+          truck_id: crew.truck_id,
+          member1_id: crew.member1_id,
+          member2_id: crew.member2_id,
+          member3_id: crew.member3_id ?? null,
+          member3_role: crew.member3_id ? crew.member3_role ?? null : null,
+          active_date: targetDate,
+          company_id: companyId,
+        });
+        for (const m of members) busy.add(m);
+        existingKeys.add(key);
       }
       if (newCrews.length > 0) await supabase.from("crews").insert(newCrews);
-      toast.success(`Copied ${newCrews.length} crew assignment(s). Use "Auto-Fill" on each day to generate runs.`);
+      toast.success(
+        `Copied ${newCrews.length} crew assignment(s)` +
+        (skippedConflicts > 0 ? `; skipped ${skippedConflicts} with member conflicts` : "") +
+        `. Use "Auto-Fill" on each day to generate runs.`
+      );
       setCopyDialogOpen(false);
       setCopyTargetWeek("");
     } catch { toast.error("Failed to copy week"); }
