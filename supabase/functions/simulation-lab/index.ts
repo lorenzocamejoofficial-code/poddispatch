@@ -1,6 +1,29 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ensureCmsChargeMasterForCompany } from "../_shared/seed-charge-master.ts";
 
+// ── Synthetic Medicare MBIs ────────────────────────────────────────────────
+// Demo Medicare patients need an MBI that passes the app's CMS 11-character
+// format check (src/lib/mbi.ts — same pattern, kept in sync by hand), or every
+// demo claim shows a phantom "invalid Medicare ID" blocker. "9MD" marks them
+// as synthetic; the rest is derived deterministically from the index.
+const MBI_ALPHA = "ACDEFGHJKMNPQRTUVWXY";
+const MBI_RE = /^[1-9][AC-HJKMNP-RT-Y][AC-HJKMNP-RT-Y0-9][0-9][AC-HJKMNP-RT-Y][AC-HJKMNP-RT-Y0-9][0-9][AC-HJKMNP-RT-Y]{2}[0-9]{2}$/;
+export function syntheticMbi(n: number): string {
+  const k = Math.abs(Math.floor(n));
+  const a = (x: number) => MBI_ALPHA[x % MBI_ALPHA.length];
+  return `9MD${Math.floor(k / 100) % 10}${a(k)}${a(Math.floor(k / 20))}${Math.floor(k / 1000) % 10}` +
+    `${a(Math.floor(k / 400))}${a(Math.floor(k / 8000))}${String(k % 100).padStart(2, "0")}`;
+}
+function isMedicarePayer(payer: unknown): boolean {
+  return String(payer ?? "").trim().toLowerCase() === "medicare";
+}
+/** Keep a template's valid ID; give Medicare a synthetic MBI otherwise; leave other payers alone. */
+function demoMemberId(payer: unknown, current: string | null | undefined, n: number, fallback: string): string {
+  const cur = String(current ?? "").replace(/[\s-]/g, "").toUpperCase();
+  if (isMedicarePayer(payer)) return MBI_RE.test(cur) ? cur : syntheticMbi(n);
+  return current ?? fallback;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -855,7 +878,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         patient_mobility: "Bedbound",
         patient_position: "Semi-Fowlers (30°)",
         primary_payer: (tpl.primary_payer || "medicare").toString().toLowerCase(),
-        member_id: tpl.member_id ?? `SIM${String(i + 1).padStart(6, "0")}`,
+        member_id: demoMemberId(tpl.primary_payer || "medicare", tpl.member_id, i + 1, `SIM${String(i + 1).padStart(6, "0")}`),
         service_level: tpl.default_service_level || "BLS",
         origin_type: "Home", destination_type: destinationType,
         documentation_complete: hasPcs && hasSig && hasTimes,
@@ -1944,7 +1967,7 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
       first_name: ["Denise", "Robert", "Marsha", "Charles"][i],
       last_name: ["Coleman", "Harris", "Reed", "Bennett"][i],
       primary_payer: i % 2 === 0 ? "medicare" : "medicaid",
-      member_id: `SIM${Date.now()}${i}`,
+      member_id: i % 2 === 0 ? syntheticMbi(9000 + i) : `SIM${Date.now()}${i}`,
       is_simulated: true,
     }));
     const inserted = await admin.from("patients").insert(demoPatients).select("id");
@@ -1975,7 +1998,7 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
       pickupTime,
       odoScene,
       loadedMi,
-      memberId: `SIM-DEMO-${Date.now()}-${i}`,
+      memberId: i % 3 === 0 ? syntheticMbi(5000 + i) : `SIM-DEMO-${Date.now()}-${i}`,
       payerType: i % 3 === 0 ? "medicare" : i % 3 === 1 ? "medicaid" : "commercial",
       payerName: i % 3 === 0 ? "MEDICARE" : i % 3 === 1 ? "GA MEDICAID" : "AETNA BETTER HEALTH",
       // Rotate transport types so the denial-rework loop is exercised against
