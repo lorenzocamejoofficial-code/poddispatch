@@ -18,6 +18,8 @@ import { SaaSMetricsTab } from "@/components/creator/SaaSMetricsTab";
 import { MissionControlPanel } from "@/components/creator/MissionControlPanel";
 import { TrialCountdownPanel } from "@/components/creator/TrialCountdownPanel";
 import { fetchRealCompanyIds } from "@/lib/real-companies";
+import { enterCreatorSimulation } from "@/lib/creator-simulation-entry";
+import { toast } from "sonner";
 
 interface SystemMetrics {
   totalCompanies: number;
@@ -31,9 +33,8 @@ interface SystemMetrics {
 }
 
 export default function SystemCreatorDashboard() {
-  const { isSystemCreator, switchCompany } = useAuth();
+  const { isSystemCreator } = useAuth();
   const navigate = useNavigate();
-  const LORENZO_TEST_COMPANY_ID = "f53311c3-a40e-4b2b-b4c2-5aec852f7789";
   const [enteringTenant, setEnteringTenant] = useState(false);
 
   const [metrics, setMetrics] = useState<SystemMetrics>({
@@ -118,9 +119,10 @@ export default function SystemCreatorDashboard() {
               disabled={enteringTenant}
               onClick={async () => {
                 setEnteringTenant(true);
-                const { error } = await switchCompany(LORENZO_TEST_COMPANY_ID);
-                if (error) {
-                  console.error("Enter Test Tenant failed:", error);
+                try {
+                  await enterCreatorSimulation();
+                } catch {
+                  toast.error("Unable to enter the test tenant. Please try again.");
                   setEnteringTenant(false);
                 }
               }}

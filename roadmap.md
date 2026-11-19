@@ -1,3 +1,9 @@
+# Roadmap — contained scheduling and simulation fixes
+- [x] Filter exclusive crew assignment pools, including manual PCR setup; retain existing assignment guards.
+- [x] Continue a selected seven-day source range immediately forward with explicit source/destination dates.
+- [x] Match system test-tenant entry to the working simulation menu path; synthetic browser checks, all 1,361 tests and compilation passed.
+- [ ] Real-account entry verification — session mint unavailable; both existing entry points target Lorenzo Test Company, while Test Ambulance LLC is not sandbox/test flagged (no tenant settings changed).
+
 # Roadmap — RSNAT authorization cap
 - [x] Add nullable authorized-trip limit, pure evaluator, shared company-scoped counter and pre-submit cap check; run regression tests (no patient UI)
 

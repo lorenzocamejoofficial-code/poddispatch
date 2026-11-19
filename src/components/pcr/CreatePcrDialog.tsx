@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { availableCrewOptions, type PoolCrew } from "@/lib/assignment-pool";
 
 interface PatientOpt {
   id: string; first_name: string; last_name: string; dob: string | null;
@@ -46,6 +47,8 @@ export function CreatePcrDialog({ open, onOpenChange }: { open: boolean; onOpenC
   const [trucks, setTrucks] = useState<TruckOpt[]>([]);
   const [profiles, setProfiles] = useState<ProfileOpt[]>([]);
   const [crew, setCrew] = useState<CrewRow | null>(null);
+  const [dayCrews, setDayCrews] = useState<(PoolCrew & { truck_id: string })[]>([]);
+  const [crewLoading, setCrewLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [dupWarned, setDupWarned] = useState(false);
@@ -68,16 +71,24 @@ export function CreatePcrDialog({ open, onOpenChange }: { open: boolean; onOpenC
 
   // Existing crew on the selected truck/date
   useEffect(() => {
-    if (!form.truckId || !form.runDate) { setCrew(null); setForm(f => ({ ...f, existingCrewId: null })); return; }
+    let cancelled = false;
+    if (!open || !form.runDate) { setCrew(null); setDayCrews([]); setForm(f => ({ ...f, existingCrewId: null })); return; }
+    setCrewLoading(true);
     (async () => {
       const cid = (await getActiveCompanyId()) ?? NO_COMPANY;
       const { data } = await supabase.from("crews")
-        .select("id, member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
-        .eq("company_id", cid).eq("truck_id", form.truckId).eq("active_date", form.runDate).maybeSingle();
-      setCrew((data as any) ?? null);
-      setForm(f => ({ ...f, existingCrewId: (data as any)?.id ?? null }));
+        .select("id, truck_id, active_date, member1_id, member2_id, member3_id, member1:profiles!crews_member1_id_fkey(full_name), member2:profiles!crews_member2_id_fkey(full_name)")
+        .eq("company_id", cid).eq("active_date", form.runDate);
+      if (cancelled) return;
+      const rows = data ?? [];
+      const selected = rows.find(c => c.truck_id === form.truckId);
+      setDayCrews(rows);
+      setCrew((selected as CrewRow | undefined) ?? null);
+      setForm(f => ({ ...f, existingCrewId: selected?.id ?? null, member1Id: "", member2Id: "" }));
+      setCrewLoading(false);
     })();
-  }, [form.truckId, form.runDate]);
+    return () => { cancelled = true; };
+  }, [open, form.truckId, form.runDate]);
 
   const patient = patients.find(p => p.id === form.patientId) ?? null;
   const filteredPatients = useMemo(() => {
@@ -226,16 +237,16 @@ export function CreatePcrDialog({ open, onOpenChange }: { open: boolean; onOpenC
             ) : (
               <div className="grid grid-cols-2 gap-3 mt-1">
                 <div>
-                  <Select value={form.member1Id} onValueChange={v => set("member1Id", v)} disabled={!form.truckId}>
+                  <Select value={form.member1Id} onValueChange={v => set("member1Id", v)} disabled={!form.truckId || crewLoading}>
                     <SelectTrigger aria-invalid={!!errors.member1Id} className={errors.member1Id ? errCls : ""}><SelectValue placeholder="Crew member 1" /></SelectTrigger>
-                    <SelectContent>{profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}</SelectItem>)}</SelectContent>
+                    <SelectContent>{availableCrewOptions(profiles, dayCrews, form.runDate, crew?.id, [form.member2Id]).map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}</SelectItem>)}</SelectContent>
                   </Select>
                   {fieldErr("member1Id")}
                 </div>
                 <div>
-                  <Select value={form.member2Id} onValueChange={v => set("member2Id", v)} disabled={!form.truckId}>
+                  <Select value={form.member2Id} onValueChange={v => set("member2Id", v)} disabled={!form.truckId || crewLoading}>
                     <SelectTrigger aria-invalid={!!errors.member2Id} className={errors.member2Id ? errCls : ""}><SelectValue placeholder="Crew member 2" /></SelectTrigger>
-                    <SelectContent>{profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}</SelectItem>)}</SelectContent>
+                    <SelectContent>{availableCrewOptions(profiles, dayCrews, form.runDate, crew?.id, [form.member1Id]).map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}{p.cert_level ? ` · ${p.cert_level}` : ""}</SelectItem>)}</SelectContent>
                   </Select>
                   {fieldErr("member2Id")}
                 </div>

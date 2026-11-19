@@ -1,7 +1,8 @@
 import { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { enterCreatorSimulation } from "@/lib/creator-simulation-entry";
+import { toast } from "sonner";
 import {
   LayoutDashboard, Settings2, Play,
   ShieldCheck, LogOut, Menu, X, Settings, FlaskConical,
@@ -14,7 +15,6 @@ import { useState, useEffect } from "react";
 import { CreatorCommandPalette } from "@/components/creator/CreatorCommandPalette";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 
-const LORENZO_TEST_COMPANY_ID = "f53311c3-a40e-4b2b-b4c2-5aec852f7789";
 
 interface NavItem {
   path: string;
@@ -35,7 +35,7 @@ const creatorNavItems: NavItem[] = [
 ];
 
 export function CreatorLayout({ children, title }: { children: ReactNode; title?: string }) {
-  const { user, signOut, activeCompanyId } = useAuth();
+  const { user, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -64,24 +64,13 @@ export function CreatorLayout({ children, title }: { children: ReactNode; title?
   const handleEnterSimulation = async (e: React.MouseEvent) => {
     e.preventDefault();
     setSidebarOpen(false);
-    if (activeCompanyId === LORENZO_TEST_COMPANY_ID) {
-      window.location.assign("/dispatch");
-      return;
-    }
-    if (!user) {
-      navigate("/dispatch");
-      return;
-    }
     setEnteringSim(true);
-    const { error } = await (supabase as any).rpc("enter_creator_simulation", {
-      _company_id: LORENZO_TEST_COMPANY_ID,
-    });
-    if (error) {
-      console.error("Enter App Simulation failed:", error);
+    try {
+      await enterCreatorSimulation();
+    } catch {
+      toast.error("Unable to enter the test tenant. Please try again.");
       setEnteringSim(false);
-      return;
     }
-    window.location.assign("/dispatch");
   };
 
   const resolvedTitle =
